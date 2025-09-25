@@ -1,0 +1,308 @@
+// ============================================================================
+// Shamba Sure - Core Microservice Schema v1.0
+// ============================================================================
+// This schema is designed around a decoupled microservice architecture.
+// Each model is exclusively owned and written to by a single service.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// ENUMS - Shared across domains
+// -----------------------------------------------------------------------------
+
+enum UserRole {
+  LAND_OWNER
+  HEIR
+  ADMIN
+}
+
+enum RelationshipType {
+  SPOUSE
+  CHILD
+  PARENT
+  SIBLING
+  OTHER
+}
+
+enum WillStatus {
+  DRAFT
+  ACTIVE
+  REVOKED
+  EXECUTED
+}
+
+enum AssetType {
+  LAND_PARCEL
+  BANK_ACCOUNT
+  VEHICLE
+  PROPERTY
+  OTHER
+}
+
+enum DocumentStatus {
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+
+// ============================================================================
+// ACCOUNTS SERVICE MODELS
+// Owner: accounts-service
+// ============================================================================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      UserRole @default(LAND_OWNER)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // --- Relationships ---
+  // One-to-one
+  profile             UserProfile?
+  // One-to-many
+  passwordResetTokens PasswordResetToken[]
+
+  // Back-relations from other services
+  willsAsTestator     Will[]                   @relation("TestatorWills")
+  assetsOwned         Asset[]                  @relation("AssetOwner")
+  familyMemberships   FamilyMember[]
+  beneficiaryOf       BeneficiaryAssignment[]  @relation("BeneficiaryUser")
+  documentsUploaded   Document[]
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+}
+
+model UserProfile {
+  id      String @id @default(uuid())
+  userId  String @unique
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  bio         String?
+  phoneNumber String?
+  address     Json?   // e.g., { street, city, country }
+  nextOfKin   Json?   // e.g., { name, phone, relationship }
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ============================================================================
+// SUCCESSION SERVICE MODELS
+// Owner: succession-service
+// ============================================================================
+
+model Family {
+  id   String @id @default(uuid())
+  name String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // --- Relationships ---
+  members FamilyMember[]
+}
+
+model FamilyMember {
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  familyId String
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  role RelationshipType
+
+  @@id([userId, familyId]) // Composite primary key
+}
+
+model Will {
+  id     String     @id @default(uuid())
+  title  String
+  status WillStatus @default(DRAFT)
+
+  // Foreign key for the will's creator (testator)
+  testatorId String
+  testator   User   @relation("TestatorWills", fields: [testatorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // --- Relationships ---
+  beneficiaryAssignments BeneficiaryAssignment[]
+}
+
+model Asset {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  type        AssetType
+
+  // Foreign key for the asset's owner
+  ownerId String
+  owner   User   @relation("AssetOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // --- Relationships ---
+  beneficiaryAssignments BeneficiaryAssignment[]
+}
+
+// This join model is the heart of the succession logic.
+// It connects a Will, an Asset, and a User (the Beneficiary).
+model BeneficiaryAssignment {
+  id String @id @default(uuid())
+
+  willId String
+  will   Will   @relation(fields: [willId], references: [id], onDelete: Cascade)
+
+  assetId String
+  asset   Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  // Foreign key for the user receiving the asset
+  beneficiaryId String
+  beneficiary   User   @relation("BeneficiaryUser", fields: [beneficiaryId], references: [id], onDelete: Cascade)
+
+  sharePercent Float? // The percentage of the asset assigned
+
+  createdAt DateTime @default(now())
+
+  @@unique([willId, assetId, beneficiaryId])
+  @@index([beneficiaryId])
+}
+
+// ============================================================================
+// DOCUMENTS SERVICE MODELS
+// Owner: documents-service
+// ============================================================================
+
+model Document {
+  id           String         @id @default(uuid())
+  filename     String
+  storagePath  String // e.g., "s3://bucket-name/user-id/file-id.pdf"
+  mimeType     String
+  sizeBytes    Int
+  status       DocumentStatus @default(PENDING_VERIFICATION)
+
+  uploaderId String
+  uploader   User   @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // --- Relationships ---
+  versions DocumentVersion[]
+}
+
+model DocumentVersion {
+  id            String   @id @default(uuid())
+  versionNumber Int
+  storagePath   String
+  changeNote    String?
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([documentId, versionNumber])
+}
+
+
+// ============================================================================
+// NOTIFICATIONS SERVICE MODELS
+// Owner: notifications-service
+// ============================================================================
+
+model NotificationTemplate {
+  id      String              @id @default(uuid())
+  name    String              @unique // e.g., "WELCOME_EMAIL", "PASSWORD_RESET_SMS"
+  channel NotificationChannel
+  subject String? // For emails
+  body    String // Handlebar template string
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // --- Relationships ---
+  notifications Notification[]
+}
+
+model Notification {
+  id         String             @id @default(uuid())
+  channel    NotificationChannel
+  status     NotificationStatus @default(PENDING)
+  sentAt     DateTime?
+  failReason String?
+
+  templateId String
+  template   NotificationTemplate @relation(fields: [templateId], references: [id])
+
+  recipientId String
+  recipient   User   @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([recipientId, status])
+}
+
+
+// ============================================================================
+// AUDITING SERVICE MODEL
+// Owner: auditing-service
+// ============================================================================
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  timestamp DateTime @default(now())
+
+  // The user who performed the action. Nullable for system actions.
+  actorId String?
+  actor   User?  @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  // The name of the event, e.g., "user.created"
+  action String
+
+  // The full DTO payload of the event
+  payload Json
+
+  @@index([actorId])
+  @@index([action, timestamp])
+}

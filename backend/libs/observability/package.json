@@ -1,0 +1,37 @@
+{
+  "name": "@shamba/observability",
+  "version": "1.0.0",
+  "description": "Comprehensive observability library for Shamba Sure platform",
+  "scripts": {
+    "build": "tsc -p tsconfig.lib.json",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/platform-express": "^10.0.0",
+    "pino": "^8.15.0",
+    "pino-http": "^8.3.0",
+    "pino-pretty": "^10.0.0",
+    "@nestjs/terminus": "^10.0.0",
+    "@nestjs/prometheus": "^10.0.0",
+    "prom-client": "^14.2.0",
+    "opentelemetry-api": "^1.6.0",
+    "opentelemetry-sdk-node": "^0.39.0",
+    "@opentelemetry/resources": "^1.6.0",
+    "@opentelemetry/semantic-conventions": "^1.6.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.39.0",
+    "@opentelemetry/exporter-jaeger": "^0.39.0",
+    "@opentelemetry/exporter-prometheus": "^0.39.0",
+    "cls-hooked": "^4.2.2",
+    "uuid": "^9.0.0",
+    "@shamba/common": "^1.0.0",
+    "@shamba/config": "^1.0.0",
+    "@shamba/database": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/uuid": "^9.0.0",
+    "@types/cls-hooked": "^4.3.3"
+  }
+}

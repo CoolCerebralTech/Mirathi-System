@@ -1,0 +1,24 @@
+{
+  "name": "@shamba/messaging",
+  "version": "1.0.0",
+  "description": "Event-driven messaging system for Shamba Sure microservices",
+  "scripts": {
+    "build": "tsc -p tsconfig.lib.json",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/microservices": "^10.0.0",
+    "amqplib": "^0.10.0",
+    "amqp-connection-manager": "^4.1.0",
+    "rxjs": "^7.8.0",
+    "uuid": "^9.0.0",
+    "@shamba/common": "^1.0.0",
+    "@shamba/config": "^1.0.0",
+    "@shamba/database": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.0",
+    "@types/uuid": "^9.0.0"
+  }
+}
