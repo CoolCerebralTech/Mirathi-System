@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "dist",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "incremental": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node", "jest"],
+    "paths": {
+      "@shamba/common": ["libs/common/src"],
+      "@shamba/config": ["libs/config/src"],
+      "@shamba/database": ["libs/database/src"],
+      "@shamba/auth": ["libs/auth/src"],
+      "@shamba/messaging": ["libs/messaging/src"],
+      "@shamba/observability": ["libs/observability/src"],
+      "@shamba/*": ["libs/*/src"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "coverage"],
+  "include": ["apps", "libs"]
+}

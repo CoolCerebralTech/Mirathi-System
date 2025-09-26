@@ -1,6 +1,6 @@
 import { Module, Global, DynamicModule } from '@nestjs/common';
 import { TerminusModule } from '@nestjs/terminus';
-import { PrometheusModule } from '@nestjs/prometheus';
+import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { ConfigModule } from '@shamba/config';
 import { DatabaseModule } from '@shamba/database';
 import { MessagingModule } from '@shamba/messaging';

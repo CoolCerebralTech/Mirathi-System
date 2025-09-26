@@ -2,30 +2,40 @@
   "name": "@shamba/auth",
   "version": "1.0.0",
   "description": "Authentication and authorization library for Shamba Sure platform",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.lib.json",
-    "test": "jest"
+    "start:dev": "tsc -w -p tsconfig.lib.json",
+    "lint": "eslint \"src/**/*.ts\" --fix",
+    "test": "jest --config ../../jest.config.js --runInBand",
+    "clean": "rimraf dist"
   },
   "dependencies": {
-    "@nestjs/common": "^10.0.0",
-    "@nestjs/passport": "^10.0.0",
-    "@nestjs/jwt": "^10.1.0",
-    "passport": "^0.6.0",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/passport": "^11.0.0",
+    "@nestjs/jwt": "^11.0.0",
+    "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
-    "bcrypt": "^5.1.0",
-    "jsonwebtoken": "^9.0.0",
-    "uuid": "^9.0.0",
-    "@shamba/common": "^1.0.0",
-    "@shamba/config": "^1.0.0",
-    "@shamba/database": "^1.0.0"
+    "bcrypt": "^5.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^11.0.2",
+    "@shamba/common": "workspace:^1.0.0",
+    "@shamba/config": "workspace:^1.0.0",
+    "@shamba/database": "workspace:^1.0.0"
   },
   "devDependencies": {
-    "@types/passport": "^1.0.12",
-    "@types/passport-jwt": "^3.0.9",
-    "@types/passport-local": "^1.0.35",
-    "@types/bcrypt": "^5.0.0",
-    "@types/jsonwebtoken": "^9.0.0",
-    "@types/uuid": "^9.0.0"
+    "@types/passport": "^1.0.14",
+    "@types/passport-jwt": "^3.0.11",
+    "@types/passport-local": "^1.0.37",
+    "@types/bcrypt": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/uuid": "^11.0.0",
+    "eslint": "^9.10.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "rimraf": "^6.0.1"
   }
 }
