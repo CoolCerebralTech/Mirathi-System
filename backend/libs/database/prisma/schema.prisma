@@ -1,8 +1,11 @@
 // ============================================================================
-// Shamba Sure - Core Microservice Schema v1.0
+// Shamba Sure - Production-Ready Schema v1.3 (Corrected & Validated)
 // ============================================================================
-// This schema is designed around a decoupled microservice architecture.
-// Each model is exclusively owned and written to by a single service.
+// Principles:
+// 1. Prisma Compatibility: All relations are bi-directionally defined as required by Prisma.
+// 2. Architectural Decoupling (Application-Level): The `accounts-service` MUST NOT use
+//    the back-relations in its application code. They exist for schema validity only.
+// 3. Data Integrity & Performance: All previous enhancements (indexes, Decimal, etc.) remain.
 // ============================================================================
 
 generator client {
@@ -15,7 +18,7 @@ datasource db {
 }
 
 // -----------------------------------------------------------------------------
-// ENUMS - Shared across domains
+// ENUMS
 // -----------------------------------------------------------------------------
 
 enum UserRole {
@@ -64,7 +67,6 @@ enum NotificationStatus {
   FAILED
 }
 
-
 // ============================================================================
 // ACCOUNTS SERVICE MODELS
 // Owner: accounts-service
@@ -81,20 +83,21 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // --- Relationships ---
-  // One-to-one
+  // --- Relationships Owned by this Service ---
   profile             UserProfile?
-  // One-to-many
   passwordResetTokens PasswordResetToken[]
 
-  // Back-relations from other services
-  willsAsTestator     Will[]                   @relation("TestatorWills")
-  assetsOwned         Asset[]                  @relation("AssetOwner")
+  // --- Back-relations from other services ---
+  // NOTE: These fields are required for Prisma schema validity but MUST NOT be
+  // used by the accounts-service. They are owned by their respective services.
+  createdFamilies     Family[]
   familyMemberships   FamilyMember[]
-  beneficiaryOf       BeneficiaryAssignment[]  @relation("BeneficiaryUser")
+  willsAsTestator     Will[]
+  assetsOwned         Asset[]
+  beneficiaryOf       BeneficiaryAssignment[]
   documentsUploaded   Document[]
-  auditLogs           AuditLog[]
   notifications       Notification[]
+  auditLogsAsActor    AuditLog[]
 }
 
 model UserProfile {
@@ -104,8 +107,8 @@ model UserProfile {
 
   bio         String?
   phoneNumber String?
-  address     Json?   // e.g., { street, city, country }
-  nextOfKin   Json?   // e.g., { name, phone, relationship }
+  address     Json? // e.g., { street, city, postCode, country }
+  nextOfKin   Json? // e.g., { fullName, relationship, phoneNumber }
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -133,11 +136,15 @@ model Family {
   id   String @id @default(uuid())
   name String
 
+  creatorId String
+  creator   User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // --- Relationships ---
   members FamilyMember[]
+
+  @@index([creatorId])
 }
 
 model FamilyMember {
@@ -149,7 +156,7 @@ model FamilyMember {
 
   role RelationshipType
 
-  @@id([userId, familyId]) // Composite primary key
+  @@id([userId, familyId])
 }
 
 model Will {
@@ -157,15 +164,15 @@ model Will {
   title  String
   status WillStatus @default(DRAFT)
 
-  // Foreign key for the will's creator (testator)
   testatorId String
-  testator   User   @relation("TestatorWills", fields: [testatorId], references: [id], onDelete: Cascade)
+  testator   User   @relation(fields: [testatorId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // --- Relationships ---
   beneficiaryAssignments BeneficiaryAssignment[]
+
+  @@index([testatorId])
 }
 
 model Asset {
@@ -174,19 +181,17 @@ model Asset {
   description String?
   type        AssetType
 
-  // Foreign key for the asset's owner
   ownerId String
-  owner   User   @relation("AssetOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // --- Relationships ---
   beneficiaryAssignments BeneficiaryAssignment[]
+
+  @@index([ownerId])
 }
 
-// This join model is the heart of the succession logic.
-// It connects a Will, an Asset, and a User (the Beneficiary).
 model BeneficiaryAssignment {
   id String @id @default(uuid())
 
@@ -196,11 +201,10 @@ model BeneficiaryAssignment {
   assetId String
   asset   Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
-  // Foreign key for the user receiving the asset
   beneficiaryId String
-  beneficiary   User   @relation("BeneficiaryUser", fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  beneficiary   User   @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
 
-  sharePercent Float? // The percentage of the asset assigned
+  sharePercent Decimal?
 
   createdAt DateTime @default(now())
 
@@ -216,7 +220,7 @@ model BeneficiaryAssignment {
 model Document {
   id           String         @id @default(uuid())
   filename     String
-  storagePath  String // e.g., "s3://bucket-name/user-id/file-id.pdf"
+  storagePath  String
   mimeType     String
   sizeBytes    Int
   status       DocumentStatus @default(PENDING_VERIFICATION)
@@ -227,8 +231,9 @@ model Document {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // --- Relationships ---
   versions DocumentVersion[]
+
+  @@index([uploaderId])
 }
 
 model DocumentVersion {
@@ -253,15 +258,14 @@ model DocumentVersion {
 
 model NotificationTemplate {
   id      String              @id @default(uuid())
-  name    String              @unique // e.g., "WELCOME_EMAIL", "PASSWORD_RESET_SMS"
+  name    String              @unique
   channel NotificationChannel
-  subject String? // For emails
-  body    String // Handlebar template string
+  subject String?
+  body    String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // --- Relationships ---
   notifications Notification[]
 }
 
@@ -275,8 +279,8 @@ model Notification {
   templateId String
   template   NotificationTemplate @relation(fields: [templateId], references: [id])
 
-  recipientId String
-  recipient   User   @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  recipientId String?
+  recipient   User?  @relation(fields: [recipientId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
@@ -293,14 +297,10 @@ model AuditLog {
   id        String   @id @default(uuid())
   timestamp DateTime @default(now())
 
-  // The user who performed the action. Nullable for system actions.
   actorId String?
   actor   User?  @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
-  // The name of the event, e.g., "user.created"
-  action String
-
-  // The full DTO payload of the event
+  action  String
   payload Json
 
   @@index([actorId])

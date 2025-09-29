@@ -2,7 +2,11 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "CommonJS",
-    "moduleResolution": "Node",
+
+    // --- THE FIX IS HERE ---
+    "moduleResolution": "NodeNext", // Replaced "Node" with "NodeNext"
+    // -------------------------
+
     "outDir": "dist",
     "rootDir": ".",
     "baseUrl": ".",
@@ -14,6 +18,8 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "types": ["node", "jest"],
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "paths": {
       "@shamba/common": ["libs/common/src"],
       "@shamba/config": ["libs/config/src"],

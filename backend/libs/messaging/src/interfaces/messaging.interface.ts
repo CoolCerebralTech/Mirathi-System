@@ -1,66 +1,78 @@
-import { EventType, ShambaEvent } from '@shamba/common';
+import { EventPattern } from '@shamba/common';
 
-export interface MessageEnvelope<T = any> {
-  id: string;
-  type: EventType;
-  timestamp: Date;
-  version: string;
-  source: string;
-  correlationId?: string;
-  payload: T;
-  metadata?: Record<string, any>;
+// ============================================================================
+// ARCHITECTURAL NOTE: Leveraging NestJS Microservices
+// ============================================================================
+// This library provides a simplified interface for interacting with our
+// event-driven architecture. We rely heavily on the abstractions provided by
+// `@nestjs/microservices` to handle connections, retries, ACKs/NACKs, and
+// dead-lettering.
+//
+// Our interfaces are therefore focused on the *application-level* contracts,
+// such as the structure of our event payloads and the required configuration,
+// rather than low-level RabbitMQ client options.
+// ============================================================================
+
+/**
+ * Defines the names for our primary RabbitMQ exchanges.
+ * Using an enum prevents typos in configuration and code.
+ */
+export enum Exchange {
+  SHAMBA_EVENTS = 'shamba.events.topic',
 }
 
-export interface MessageHandler<T = any> {
-  pattern: EventType;
-  handler: (data: MessageEnvelope<T>) => Promise<void>;
+/**
+ * Defines the names of the queues used by our services.
+ * Following a `service-name.events` convention is recommended.
+ */
+export enum Queue {
+  SUCCESSION_EVENTS = 'succession.events',
+  NOTIFICATIONS_EVENTS = 'notifications.events',
+  AUDITING_EVENTS = 'auditing.events',
+  // Each queue will have a corresponding dead-letter queue (DLQ)
+  // configured automatically by our MessagingService.
 }
 
-export interface PublishOptions {
-  persistent?: boolean;
-  priority?: number;
-  expiration?: string;
-  headers?: Record<string, any>;
-}
-
-export interface SubscribeOptions {
-  queue?: string;
-  durable?: boolean;
-  exclusive?: boolean;
-  autoDelete?: boolean;
-  prefetch?: number;
-  deadLetterExchange?: string;
-}
-
+/**
+ * Defines the required configuration for the RabbitMQ client in our services.
+ * This aligns with the options expected by `@nestjs/microservices`.
+ */
 export interface RabbitMQConfig {
+  /** The RabbitMQ connection URI. */
   uri: string;
-  exchange: string;
-  exchangeType: 'direct' | 'topic' | 'fanout' | 'headers';
-  queues: {
-    userEvents: string;
-    documentEvents: string;
-    notificationEvents: string;
-    auditEvents: string;
-    deadLetter: string;
-  };
-  reconnectDelay: number;
-  maxRetries: number;
+  /** The primary exchange for publishing events. */
+  exchange: Exchange;
+  /**
+   * The name of the queue this service will consume from.
+   * This is optional because some services (like the API Gateway)
+   * may only publish events and not consume them.
+   */
+  queue?: Queue;
 }
 
-export interface ConnectionStatus {
+/**
+ * Defines the options for publishing an event.
+ * This is a simplified set of the most common AMQP options.
+ */
+export interface PublishOptions {
+  /**
+   * A unique ID for tracing a request's flow across multiple services.
+   * If provided, it will be attached to the event payload.
+   */
+  correlationId?: string;
+  /**
+   * A time-to-live for the message, in milliseconds.
+   * Example: 60000 for 1 minute.
+   */
+  expiration?: number;
+}
+
+/**
+ * A simplified interface representing the health status of the message broker connection.
+ */
+export interface BrokerHealth {
+  /** Indicates if the client is currently connected to RabbitMQ. */
   isConnected: boolean;
-  lastConnectionTime?: Date;
+  /** The error message if the connection is down. */
   error?: string;
-  stats: {
-    messagesPublished: number;
-    messagesConsumed: number;
-    errors: number;
-  };
-}
-
-export interface RetryConfig {
-  maxAttempts: number;
-  delay: number;
-  backoffMultiplier: number;
-  maxDelay: number;
 }

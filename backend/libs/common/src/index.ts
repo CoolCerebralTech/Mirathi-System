@@ -1,8 +1,8 @@
 // DTOs
 export * from './dto/shared/pagination.dto';
-export * from './dto/shared/base.dto';
+export * from './dto/shared/base.response.dto';
 export * from './dto/auth/auth.dto';
-export * from './dto/users/users.dto';
+export * from './dto/users/user.dto';
 export * from './dto/succession/succession.dto';
 export * from './dto/documents/documents.dto';
 
@@ -13,9 +13,5 @@ export * from './interfaces/responses';
 // Enums
 export * from './enums';
 
-// Decorators
-export * from './decorators';
-
 // Utils
-export * from './utils/validation.utils';
-export * from './utils/response.utils';
+export * from './utils';

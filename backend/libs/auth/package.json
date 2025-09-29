@@ -14,28 +14,31 @@
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
-    "@nestjs/passport": "^11.0.0",
+    "@nestjs/core": "^11.1.6",
     "@nestjs/jwt": "^11.0.0",
+    "@nestjs/passport": "^11.0.0",
+    "@shamba/common": "workspace:^1.0.0",
+    "@shamba/config": "workspace:^1.0.0",
+    "@shamba/database": "workspace:^1.0.0",
+    "bcrypt": "^5.1.1",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
-    "bcrypt": "^5.1.1",
-    "jsonwebtoken": "^9.0.2",
-    "uuid": "^11.0.2",
-    "@shamba/common": "workspace:^1.0.0",
-    "@shamba/config": "workspace:^1.0.0",
-    "@shamba/database": "workspace:^1.0.0"
+    "rxjs": "^7.8.2",
+    "uuid": "^11.0.2"
   },
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.5",
     "@types/passport": "^1.0.14",
     "@types/passport-jwt": "^3.0.11",
     "@types/passport-local": "^1.0.37",
-    "@types/bcrypt": "^5.0.2",
-    "@types/jsonwebtoken": "^9.0.5",
     "@types/uuid": "^11.0.0",
     "eslint": "^9.10.0",
     "jest": "^29.7.0",
-    "ts-jest": "^29.2.5",
-    "rimraf": "^6.0.1"
+    "rimraf": "^6.0.1",
+    "ts-jest": "^29.2.5"
   }
 }

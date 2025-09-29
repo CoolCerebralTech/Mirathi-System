@@ -1,50 +1,39 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
-import { Strategy } from 'passport-jwt';
-import { ExtractJwt } from 'passport-jwt';
-import { ShambaConfigService } from '@shamba/config';
-import { PrismaService } from '@shamba/database';
-import { JwtPayload } from '../interfaces/auth.interface';
+import { ExtractJwt, Strategy, StrategyOptions } from 'passport-jwt';
+import { ConfigService } from '@shamba/config';
+import { Request } from 'express';
+import { RefreshTokenPayload } from '../interfaces/auth.interface';
 
 @Injectable()
 export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
-  constructor(
-    private configService: ShambaConfigService,
-    private prisma: PrismaService,
-  ) {
+  constructor(private readonly configService: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.auth.refreshTokenSecret,
+      secretOrKey: configService.get('REFRESH_TOKEN_SECRET'),
+      // We need the request object to access the refresh token itself.
       passReqToCallback: true,
-    });
+    } as StrategyOptions);
   }
 
-  async validate(request: Request, payload: JwtPayload): Promise<JwtPayload> {
-    try {
-      // Verify user still exists
-      const user = await this.prisma.user.findUnique({
-        where: { id: payload.userId },
-        select: { id: true, email: true, role: true },
-      });
+  /**
+   * This method is called by Passport after it has successfully verified
+   * the refresh token's signature and expiration.
+   */
+  validate(req: Request, payload: RefreshTokenPayload): any {
+    const refreshToken = req.get('authorization').replace('Bearer', '').trim();
 
-      if (!user) {
-        throw new UnauthorizedException('User no longer exists');
-      }
-
-      // Verify refresh token hasn't been revoked
-      // You might want to implement a refresh token blacklist here
-
-      return {
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-      };
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-      throw new UnauthorizedException('Invalid refresh token');
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token is missing.');
     }
+
+    // We don't need to check the database here. The existence of the user will be
+    // confirmed when the new access token is generated. This makes refreshing faster.
+    // The key is to return both the payload AND the token itself so the AuthService can use it.
+    return {
+      ...payload,
+      refreshToken,
+    };
   }
 }

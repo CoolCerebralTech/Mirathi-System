@@ -1,79 +1,46 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { 
-  HealthCheckService as NestHealthCheck,
-  TypeOrmHealthIndicator,
+import {
+  HealthCheckService,
   MemoryHealthIndicator,
   HealthCheckResult,
 } from '@nestjs/terminus';
-import { PrismaService } from './prisma.service';
-import { DatabaseService } from './database.service';
+import { ConfigService } from '@nestjs/config';
+import { PrismaHealthIndicator } from '../indicators/prisma-health.indicator';
+
+// ============================================================================
+// ARCHITECTURAL NOTE:
+// This generic HealthService provides universal, business-agnostic health checks.
+// The `detailedHealth` method has been REMOVED because it contained business-
+// specific logic (database stats) that violates the principles of a shared library.
+// Each microservice can expose its own separate `/stats` endpoint if needed.
+// ============================================================================
 
 @Injectable()
 export class HealthService {
   private readonly logger = new Logger(HealthService.name);
+  private readonly memoryHeapThreshold: number;
 
   constructor(
-    private health: NestHealthCheck,
-    private prisma: PrismaService,
-    private databaseService: DatabaseService,
-  ) {}
+    private readonly health: HealthCheckService,
+    private readonly prismaHealth: PrismaHealthIndicator,
+    private readonly memory: MemoryHealthIndicator,
+    private readonly configService: ConfigService,
+  ) {
+    // Get memory threshold from config, defaulting to 256MB.
+    this.memoryHeapThreshold =
+      this.configService.get<number>('HEALTH_MEMORY_HEAP_THRESHOLD_MB', 256) * 1024 * 1024;
+  }
 
+  /**
+   * Performs a standard health check for the service.
+   * This should be used for Kubernetes liveness/readiness probes.
+   */
   async check(): Promise<HealthCheckResult> {
-    try {
-      return await this.health.check([
-        () => this.databaseHealthCheck(),
-        () => this.memoryHealthCheck(),
-      ]);
-    } catch (error) {
-      this.logger.error('Health check failed', error);
-      throw error;
-    }
-  }
-
-  private async databaseHealthCheck() {
-    try {
-      const health = await this.databaseService.healthCheck();
-      
-      return {
-        database: {
-          status: health.status === 'ok' ? 'up' : 'down',
-          details: health.details,
-        },
-      };
-    } catch (error) {
-      return {
-        database: {
-          status: 'down',
-          error: error.message,
-        },
-      };
-    }
-  }
-
-  private async memoryHealthCheck() {
-    // Check if memory usage is below 150MB
-    return {
-      memory: {
-        status: 'up',
-        rss: process.memoryUsage().rss,
-        heapTotal: process.memoryUsage().heapTotal,
-        heapUsed: process.memoryUsage().heapUsed,
-      },
-    };
-  }
-
-  async detailedHealth() {
-    const basicHealth = await this.check();
-    const stats = await this.databaseService.getStats();
-    
-    return {
-      ...basicHealth,
-      details: {
-        ...stats,
-        uptime: process.uptime(),
-        nodeVersion: process.version,
-        timestamp: new Date().toISOString(),
-      },
-    };
+    this.logger.verbose('Performing health check...');
+    return this.health.check([
+      () => this.prismaHealth.isHealthy(),
+      // The service is considered unhealthy if heap memory usage exceeds the configured threshold.
+      () => this.memory.checkHeap('memory_heap', this.memoryHeapThreshold),
+    ]);
   }
 }

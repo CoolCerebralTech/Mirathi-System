@@ -1,70 +1,72 @@
-import { EventType } from '../../enums';
+import { EventPattern } from '../../enums';
+import { UserRole, WillStatus, DocumentStatus, NotificationChannel } from '@shamba/database';
 
-export interface BaseEvent {
-  type: EventType;
+// ============================================================================
+// ARCHITECTURAL NOTE:
+// These interfaces define the strict data contracts for all event-driven
+// communication between microservices via RabbitMQ. They are the single
+// source of truth for event payloads.
+// ============================================================================
+
+/**
+ * The base structure for all events published within the Shamba Sure ecosystem.
+ */
+export interface BaseEvent<T extends EventPattern, D> {
+  /** The unique type identifier for the event. */
+  type: T;
+  /** The ISO 8601 timestamp when the event was generated. */
   timestamp: Date;
-  version: string;
+  /** The version of this event's data schema. */
+  version: '1.0';
+  /** The name of the microservice that published the event (e.g., "accounts-service"). */
   source: string;
+  /** A unique ID for tracing a request's flow across multiple services. */
   correlationId?: string;
+  /** The actual data payload of the event. */
+  data: D;
 }
 
-export interface UserCreatedEvent extends BaseEvent {
-  type: EventType.USER_CREATED;
-  data: {
-    userId: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    role: string;
-  };
+// --- Event Data Payloads ---
+
+export interface UserCreatedData {
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: UserRole;
 }
 
-export interface UserUpdatedEvent extends BaseEvent {
-  type: EventType.USER_UPDATED;
-  data: {
-    userId: string;
-    email?: string;
-    firstName?: string;
-    lastName?: string;
-    role?: string;
-  };
+export interface PasswordResetRequestedData {
+  userId: string;
+  email: string;
+  firstName: string;
+  resetToken: string; // The service sends the token, not just a request
 }
 
-export interface WillCreatedEvent extends BaseEvent {
-  type: EventType.WILL_CREATED;
-  data: {
-    willId: string;
-    testatorId: string;
-    title: string;
-    status: string;
-  };
+export interface WillCreatedData {
+  willId: string;
+  testatorId: string;
+  title: string;
+  status: WillStatus;
 }
 
-export interface DocumentUploadedEvent extends BaseEvent {
-  type: EventType.DOCUMENT_UPLOADED;
-  data: {
-    documentId: string;
-    uploaderId: string;
-    filename: string;
-    status: string;
-  };
+export interface DocumentVerifiedData {
+  documentId: string;
+  uploaderId: string;
+  filename: string;
+  status: DocumentStatus; // Now strongly typed
 }
 
-export interface NotificationEvent extends BaseEvent {
-  type: EventType.NOTIFICATION_SENT;
-  data: {
-    notificationId: string;
-    recipientId: string;
-    channel: string;
-    status: string;
-    template: string;
-  };
-}
+// --- Concrete Event Interfaces ---
 
-// Union type for all events
-export type ShambaEvent = 
+export type UserCreatedEvent = BaseEvent<EventPattern.USER_CREATED, UserCreatedData>;
+export type PasswordResetRequestedEvent = BaseEvent<EventPattern.PASSWORD_RESET_REQUESTED, PasswordResetRequestedData>;
+export type WillCreatedEvent = BaseEvent<EventPattern.WILL_CREATED, WillCreatedData>;
+export type DocumentVerifiedEvent = BaseEvent<EventPattern.DOCUMENT_VERIFIED, DocumentVerifiedData>;
+
+// --- Union type for all possible events ---
+export type ShambaEvent =
   | UserCreatedEvent
-  | UserUpdatedEvent
+  | PasswordResetRequestedEvent
   | WillCreatedEvent
-  | DocumentUploadedEvent
-  | NotificationEvent;
+  | DocumentVerifiedEvent;

@@ -1,89 +1,111 @@
-import { IsString, IsEnum, IsOptional, IsInt, Min, IsUUID, IsMimeType } from 'class-validator';
+import { IsString, IsEnum, IsOptional, MaxLength, IsUUID, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DocumentStatus } from '../../enums';
+import { BaseResponseDto } from '../shared/base.response.dto';
+import { PaginationQueryDto } from '../shared/pagination.dto';
 
-export class UploadDocumentDto {
-  @ApiProperty()
-  @IsString()
-  @MinLength(3)
-  @MaxLength(255)
-  filename: string;
+// ============================================================================
+// ARCHITECTURAL NOTE: File Uploads
+// ============================================================================
+// The DTO for the initial file upload endpoint is intentionally minimal.
+// Metadata like filename, size, and MIME type should be derived from the
+// file stream on the server-side (`@UploadedFile()` in NestJS) rather than
+// trusted from client input. This is a critical security measure.
+// The DTO may contain IDs for related entities, like an Asset or a Will.
+// ============================================================================
 
-  @ApiProperty()
-  @IsString()
-  @IsMimeType()
-  mimeType: string;
+// ============================================================================
+// REQUEST DTOs (Input Validation)
+// ============================================================================
 
-  @ApiProperty()
-  @IsInt()
-  @Min(1)
-  sizeBytes: number;
-
-  @ApiPropertyOptional({ enum: DocumentStatus })
+export class InitiateDocumentUploadRequestDto {
+  @ApiPropertyOptional({ description: 'The ID of an asset this document is related to.' })
   @IsOptional()
-  @IsEnum(DocumentStatus)
-  status?: DocumentStatus;
+  @IsUUID()
+  assetId?: string;
+  
+  // Add other relevant IDs as needed, e.g., willId
 }
 
-export class UpdateDocumentDto {
-  @ApiPropertyOptional()
+export class UpdateDocumentRequestDto {
+  @ApiPropertyOptional({ description: 'A new, user-friendly name for the document.' })
   @IsOptional()
   @IsString()
   @MinLength(3)
   @MaxLength(255)
   filename?: string;
 
-  @ApiPropertyOptional({ enum: DocumentStatus })
+  // Note: Only specific roles (e.g., an Admin or a verification service)
+  // should be allowed to change the document status.
+  @ApiPropertyOptional({
+    description: 'The new verification status of the document.',
+    enum: DocumentStatus,
+  })
   @IsOptional()
   @IsEnum(DocumentStatus)
   status?: DocumentStatus;
 }
 
-export class CreateDocumentVersionDto {
-  @ApiProperty()
-  @IsString()
-  storagePath: string;
-
-  @ApiPropertyOptional()
+/**
+ * Defines the query parameters for filtering a list of documents.
+ */
+export class DocumentQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({
+    description: 'Filter documents by their verification status.',
+    enum: DocumentStatus,
+  })
   @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  changeNote?: string;
+  @IsEnum(DocumentStatus)
+  status?: DocumentStatus;
+
+  @ApiPropertyOptional({
+    description: 'Filter documents by the ID of the user who uploaded them.',
+  })
+  @IsOptional()
+  @IsUUID()
+  uploaderId?: string;
 }
 
-export class DocumentResponseDto extends BaseDto {
-  @ApiProperty()
-  filename: string;
+// ============================================================================
+// RESPONSE DTOs (API Output)
+// ============================================================================
 
-  @ApiProperty()
-  storagePath: string;
+export class DocumentVersionResponseDto extends BaseResponseDto {
+  @ApiProperty({ description: 'The sequential version number of this document record.' })
+  versionNumber!: number;
 
-  @ApiProperty()
-  mimeType: string;
+  @ApiProperty({ description: 'The path to the file in the storage system (e.g., an S3 key).' })
+  storagePath!: string;
 
-  @ApiProperty()
-  sizeBytes: number;
-
-  @ApiProperty({ enum: DocumentStatus })
-  status: DocumentStatus;
-
-  @ApiProperty()
-  uploaderId: string;
-
-  @ApiProperty()
-  versions: DocumentVersionResponseDto[];
-}
-
-export class DocumentVersionResponseDto extends BaseDto {
-  @ApiProperty()
-  versionNumber: number;
-
-  @ApiProperty()
-  storagePath: string;
-
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'A note describing the change in this version.' })
   changeNote?: string;
 
-  @ApiProperty()
-  documentId: string;
+  @ApiProperty({ description: 'The ID of the parent document.' })
+  documentId!: string;
+}
+
+export class DocumentResponseDto extends BaseResponseDto {
+  @ApiProperty({ description: 'The user-friendly name of the document.' })
+  filename!: string;
+
+  @ApiProperty({ description: 'The path to the current version of the file in storage.' })
+  storagePath!: string;
+
+  @ApiProperty({ description: 'The MIME type of the uploaded file.', example: 'application/pdf' })
+  mimeType!: string;
+
+  @ApiProperty({ description: 'The size of the file in bytes.', example: 1024768 })
+  sizeBytes!: number;
+
+  @ApiProperty({ enum: DocumentStatus, description: 'The current verification status.' })
+  status: DocumentStatus = "PENDING_VERIFICATION";
+
+  @ApiProperty({ description: 'The ID of the user who uploaded the document.' })
+  uploaderId!: string;
+
+  @ApiProperty({
+    description: 'A list of all historical versions of this document.',
+    type: [DocumentVersionResponseDto],
+  })
+  versions!: DocumentVersionResponseDto[];
 }

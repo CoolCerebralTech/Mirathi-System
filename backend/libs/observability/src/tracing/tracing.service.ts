@@ -1,107 +1,44 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { Resource } from '@opentelemetry/resources';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
-import { JaegerExporter } from '@opentelemetry/exporter-jaeger';
-import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
-import { ShambaConfigService } from '@shamba/config';
+import { Injectable } from '@nestjs/common';
+import { context, trace } from '@opentelemetry/api';
 import { TraceContext } from '../interfaces/observability.interface';
 
+// ============================================================================
+// ARCHITECTURAL NOTE:
+// This service provides a simple, high-level API for interacting with the
+// active OpenTelemetry trace context.
+//
+// The complex setup and initialization of the OpenTelemetry SDK is handled
+// separately and automatically by the `TracingModule`. This service assumes
+// that tracing has already been initialized if it is enabled.
+// ============================================================================
+
 @Injectable()
-export class TracingService implements OnModuleInit, OnModuleDestroy {
-  private sdk: NodeSDK | null = null;
-  private isInitialized = false;
+export class TracingService {
+  /**
+   * Retrieves the current active trace context.
+   * This is the essential method for linking logs and events together in a
+   * distributed trace.
+   *
+   * @returns The current TraceContext, or null if no active trace is found.
+   */
+  getContext(): TraceContext | null {
+    // We use the official OpenTelemetry API to get the current span context.
+    const spanContext = trace.getSpanContext(context.active());
 
-  constructor(private configService: ShambaConfigService) {}
-
-  async onModuleInit() {
-    if (!this.configService.tracing.enabled) {
-      return;
-    }
-
-    try {
-      await this.initializeTracing();
-      this.isInitialized = true;
-    } catch (error) {
-      console.error('Failed to initialize tracing', error);
-    }
-  }
-
-  async onModuleDestroy() {
-    if (this.sdk) {
-      await this.sdk.shutdown();
-    }
-  }
-
-  private async initializeTracing() {
-    const { tracing, app } = this.configService;
-
-    const resource = new Resource({
-      [SemanticResourceAttributes.SERVICE_NAME]: tracing.serviceName,
-      [SemanticResourceAttributes.SERVICE_VERSION]: app.version,
-      [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: app.environment,
-    });
-
-    const sdk = new NodeSDK({
-      resource,
-      traceExporter: this.createExporter(tracing.exporter),
-      instrumentations: [getNodeAutoInstrumentations()],
-    });
-
-    await sdk.start();
-    this.sdk = sdk;
-  }
-
-  private createExporter(exporterType: string) {
-    switch (exporterType) {
-      case 'jaeger':
-        return new JaegerExporter({
-          endpoint: this.configService.tracing.endpoint || 'http://localhost:14268/api/traces',
-        });
-      
-      case 'prometheus':
-        return new PrometheusExporter({
-          port: 9464,
-        });
-      
-      default:
-        // Console exporter for development
-        return undefined;
-    }
-  }
-
-  getTraceContext(): TraceContext | null {
-    // This would integrate with OpenTelemetry context propagation
-    // For now, return a mock context
-    if (!this.isInitialized) {
+    // If there's no active span, we're not in a traced request.
+    if (!spanContext) {
       return null;
     }
 
     return {
-      traceId: 'mock-trace-id',
-      spanId: 'mock-span-id',
-      traceFlags: 1,
-      isRemote: false,
+      traceId: spanContext.traceId,
+      spanId: spanContext.spanId,
     };
   }
 
-  isEnabled(): boolean {
-    return this.isInitialized;
-  }
-
-  // Custom tracing methods
-  startSpan(name: string, attributes?: Record<string, any>) {
-    // This would create a custom span
-    // Implementation depends on OpenTelemetry API usage
-    console.log(`Starting span: ${name}`, attributes);
-  }
-
-  endSpan(name: string) {
-    console.log(`Ending span: ${name}`);
-  }
-
-  recordException(error: Error, attributes?: Record<string, any>) {
-    console.error('Exception recorded:', error, attributes);
-  }
+  /**
+   * You can add other high-level tracing functions here as needed, for example:
+   * - A method to add a custom event to the current span.
+   * - A method to set a custom attribute on the current span.
+   */
 }

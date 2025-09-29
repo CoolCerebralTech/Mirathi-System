@@ -3,9 +3,6 @@ export * from './auth.module.';
 
 // Services
 export * from './services/auth.service';
-export * from './services/token.service';
-export * from './services/password.service';
-
 // Strategies
 export * from './strategies/jwt.strategy';
 export * from './strategies/local.strategy';
@@ -24,6 +21,3 @@ export * from './decorators/public.decorator';
 
 // Interfaces
 export * from './interfaces/auth.interface';
-
-// Utils
-export * from './utils/auth.utils';

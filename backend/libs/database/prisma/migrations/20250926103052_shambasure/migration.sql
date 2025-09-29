@@ -62,6 +62,7 @@ CREATE TABLE "PasswordResetToken" (
 CREATE TABLE "Family" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
+    "creatorId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -108,7 +109,7 @@ CREATE TABLE "BeneficiaryAssignment" (
     "willId" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
     "beneficiaryId" TEXT NOT NULL,
-    "sharePercent" DOUBLE PRECISION,
+    "sharePercent" DECIMAL(65,30),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "BeneficiaryAssignment_pkey" PRIMARY KEY ("id")
@@ -162,7 +163,7 @@ CREATE TABLE "Notification" (
     "sentAt" TIMESTAMP(3),
     "failReason" TEXT,
     "templateId" TEXT NOT NULL,
-    "recipientId" TEXT NOT NULL,
+    "recipientId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Notification_pkey" PRIMARY KEY ("id")
@@ -192,10 +193,22 @@ CREATE UNIQUE INDEX "PasswordResetToken_tokenHash_key" ON "PasswordResetToken"("
 CREATE INDEX "PasswordResetToken_userId_idx" ON "PasswordResetToken"("userId");
 
 -- CreateIndex
+CREATE INDEX "Family_creatorId_idx" ON "Family"("creatorId");
+
+-- CreateIndex
+CREATE INDEX "Will_testatorId_idx" ON "Will"("testatorId");
+
+-- CreateIndex
+CREATE INDEX "Asset_ownerId_idx" ON "Asset"("ownerId");
+
+-- CreateIndex
 CREATE INDEX "BeneficiaryAssignment_beneficiaryId_idx" ON "BeneficiaryAssignment"("beneficiaryId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "BeneficiaryAssignment_willId_assetId_beneficiaryId_key" ON "BeneficiaryAssignment"("willId", "assetId", "beneficiaryId");
+
+-- CreateIndex
+CREATE INDEX "Document_uploaderId_idx" ON "Document"("uploaderId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "DocumentVersion_documentId_versionNumber_key" ON "DocumentVersion"("documentId", "versionNumber");
@@ -217,6 +230,9 @@ ALTER TABLE "UserProfile" ADD CONSTRAINT "UserProfile_userId_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "PasswordResetToken" ADD CONSTRAINT "PasswordResetToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Family" ADD CONSTRAINT "Family_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "FamilyMember" ADD CONSTRAINT "FamilyMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -249,7 +265,7 @@ ALTER TABLE "DocumentVersion" ADD CONSTRAINT "DocumentVersion_documentId_fkey" F
 ALTER TABLE "Notification" ADD CONSTRAINT "Notification_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "NotificationTemplate"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Notification" ADD CONSTRAINT "Notification_recipientId_fkey" FOREIGN KEY ("recipientId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Notification" ADD CONSTRAINT "Notification_recipientId_fkey" FOREIGN KEY ("recipientId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;

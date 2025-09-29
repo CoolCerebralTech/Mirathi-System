@@ -1,129 +1,110 @@
+// ============================================================================
+// Shamba Sure - Core Configuration Interface v2.0
+// ============================================================================
+// This interface is based on the detailed system specification. It defines a
+// flattened structure that maps directly to environment variables (e.g.,
+// `jwtSecret` becomes `JWT_SECRET`). This approach simplifies validation and
+// integration with NestJS's ConfigModule.
+// ============================================================================
+import { Environment } from '../types';
+
+export interface AppConfig {
+  NODE_ENV: Environment;
+  APP_NAME: string;
+  APP_VERSION: string;
+  PORT: number;
+  GLOBAL_PREFIX: string;
+  /** Comma-separated list of allowed origins (e.g., "http://localhost:3000,https://app.shamba.sure") */
+  CORS_ORIGINS: string[];
+  RATE_LIMIT_TTL: number;
+  RATE_LIMIT_LIMIT: number;
+
+  HEALTH_MEMORY_HEAP_THRESHOLD_MB: number;
+}
+
 export interface DatabaseConfig {
-  url: string;
-  maxConnections: number;
-  timeout: number;
-  ssl: boolean;
+  DATABASE_URL: string;
 }
 
 export interface AuthConfig {
-  jwtSecret: string;
-  jwtExpiration: string;
-  refreshTokenSecret: string;
-  refreshTokenExpiration: string;
-  bcryptRounds: number;
-}
-
-export interface AppConfig {
-  name: string;
-  version: string;
-  port: number;
-  environment: 'development' | 'production' | 'test';
-  globalPrefix: string;
-  corsOrigins: string[];
-  rateLimit: {
-    ttl: number;
-    limit: number;
-  };
+  JWT_SECRET: string;
+  JWT_EXPIRATION: string;
+  REFRESH_TOKEN_SECRET: string;
+  REFRESH_TOKEN_EXPIRATION: string;
+  BCRYPT_ROUNDS: number;
 }
 
 export interface MessagingConfig {
-  rabbitMqUri: string;
-  exchange: string;
-  queues: {
-    userEvents: string;
-    documentEvents: string;
-    notificationEvents: string;
-    auditEvents: string;
-  };
+  RABBITMQ_URI: string;
 }
 
 export interface StorageConfig {
-  provider: 'local' | 's3' | 'google-cloud';
-  localPath: string;
-  s3?: {
-    bucket: string;
-    region: string;
-    accessKeyId: string;
-    secretAccessKey: string;
-  };
-  maxFileSize: number;
-  allowedMimeTypes: string[];
+  STORAGE_PROVIDER: 'local' | 's3' | 'google-cloud';
+  STORAGE_LOCAL_PATH: string;
+  STORAGE_S3_BUCKET?: string;
+  STORAGE_S3_REGION?: string;
+  STORAGE_S3_ACCESS_KEY_ID?: string;
+  STORAGE_S3_SECRET_ACCESS_KEY?: string;
+  STORAGE_MAX_FILE_SIZE_MB: number;
+  /** Comma-separated list of allowed MIME types */
+  STORAGE_ALLOWED_MIME_TYPES: string[];
 }
 
 export interface EmailConfig {
-  provider: 'smtp' | 'sendgrid' | 'ses';
-  fromAddress: string;
-  smtp?: {
-    host: string;
-    port: number;
-    secure: boolean;
-    auth: {
-      user: string;
-      pass: string;
-    };
-  };
-  sendgrid?: {
-    apiKey: string;
-  };
+  EMAIL_PROVIDER: 'smtp' | 'sendgrid' | 'ses';
+  EMAIL_FROM_ADDRESS: string;
+  EMAIL_SMTP_HOST?: string;
+  EMAIL_SMTP_PORT?: number;
+  EMAIL_SMTP_SECURE?: boolean;
+  EMAIL_SMTP_USER?: string;
+  EMAIL_SMTP_PASS?: string;
+  EMAIL_SENDGRID_API_KEY?: string;
 }
 
 export interface SmsConfig {
-  provider: 'africas-talking' | 'twilio';
-  africasTalking?: {
-    apiKey: string;
-    username: string;
-    shortCode: string;
-  };
-  twilio?: {
-    accountSid: string;
-    authToken: string;
-    fromNumber: string;
-  };
+  SMS_PROVIDER: 'africas-talking' | 'twilio';
+  SMS_AT_API_KEY?: string;
+  SMS_AT_USERNAME?: string;
+  SMS_AT_SHORTCODE?: string;
+  SMS_TWILIO_ACCOUNT_SID?: string;
+  SMS_TWILIO_AUTH_TOKEN?: string;
+  SMS_TWILIO_FROM_NUMBER?: string;
 }
 
 export interface ExternalServicesConfig {
-  googleMaps: {
-    apiKey: string;
-  };
-  landRegistry: {
-    apiUrl: string;
-    apiKey: string;
-  };
+  GOOGLE_MAPS_API_KEY: string;
+  LAND_REGISTRY_API_URL: string;
+  LAND_REGISTRY_API_KEY: string;
 }
 
 export interface SecurityConfig {
-  encryptionKey: string;
-  sessionTimeout: number;
-  maxLoginAttempts: number;
-  passwordPolicy: {
-    minLength: number;
-    requireUppercase: boolean;
-    requireLowercase: boolean;
-    requireNumbers: boolean;
-    requireSpecialChars: boolean;
-  };
+  ENCRYPTION_KEY: string;
+  SESSION_TIMEOUT_MINUTES: number;
+  MAX_LOGIN_ATTEMPTS: number;
+  PASSWORD_MIN_LENGTH: number;
+  PASSWORD_REQUIRE_UPPERCASE: boolean;
+  PASSWORD_REQUIRE_LOWERCASE: boolean;
+  PASSWORD_REQUIRE_NUMBERS: boolean;
+  PASSWORD_REQUIRE_SPECIAL_CHARS: boolean;
 }
 
 export interface LoggingConfig {
-  level: 'error' | 'warn' | 'info' | 'debug' | 'verbose';
-  format: 'json' | 'simple';
-  transports: ('console' | 'file' | 'cloudwatch')[];
-  file?: {
-    filename: string;
-    maxSize: string;
-    maxFiles: string;
-  };
+  LOG_LEVEL: 'error' | 'warn' | 'info' | 'debug' | 'verbose';
+  LOG_FORMAT: 'json' | 'simple';
 }
 
-export interface ShambaConfig {
-  app: AppConfig;
-  database: DatabaseConfig;
-  auth: AuthConfig;
-  messaging: MessagingConfig;
-  storage: StorageConfig;
-  email: EmailConfig;
-  sms: SmsConfig;
-  externalServices: ExternalServicesConfig;
-  security: SecurityConfig;
-  logging: LoggingConfig;
-}
+/**
+ * The complete, flattened configuration interface for the entire application.
+ * This is the final shape of the object provided by the ConfigService.
+ */
+export interface Config
+  extends AppConfig,
+    DatabaseConfig,
+    AuthConfig,
+    MessagingConfig,
+    StorageConfig,
+    EmailConfig,
+    SmsConfig,
+    ExternalServicesConfig,
+    SecurityConfig,
+    LoggingConfig {}

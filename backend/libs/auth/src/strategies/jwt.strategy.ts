@@ -1,62 +1,44 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
-import { ShambaConfigService } from '@shamba/config';
+import { ExtractJwt, Strategy, StrategyOptions } from 'passport-jwt';
+import { ConfigService } from '@shamba/config';
 import { PrismaService } from '@shamba/database';
 import { JwtPayload } from '../interfaces/auth.interface';
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
+export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
-    private configService: ShambaConfigService,
-    private prisma: PrismaService,
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromExtractors([
-        ExtractJwt.fromAuthHeaderAsBearerToken(),
-        ExtractJwt.fromUrlQueryParameter('token'),
-        ExtractJwt.fromBodyField('token'),
-      ]),
+      // Strategy configuration
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.auth.jwtSecret,
-      passReqToCallback: true,
-    });
+      secretOrKey: configService.get('JWT_SECRET'),
+    } as StrategyOptions);
   }
 
-  async validate(request: Request, payload: JwtPayload): Promise<JwtPayload> {
-    try {
-      // Verify user still exists and is active
-      const user = await this.prisma.user.findUnique({
-        where: { id: payload.userId },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
-          createdAt: true,
-        },
-      });
+  /**
+   * This method is called by Passport after it has successfully verified
+   * the JWT's signature and expiration. Its job is to perform any additional
+   * validation and return the payload that will be attached to `request.user`.
+   */
+  async validate(payload: JwtPayload): Promise<JwtPayload> {
+    // We already trust the payload's content because the signature was verified.
+    // The most important check is to ensure the user still exists in our system.
+    const userExists = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true }, // We only need to know if the user exists
+    });
 
-      if (!user) {
-        throw new UnauthorizedException('User no longer exists');
-      }
-
-      // You can add additional checks here:
-      // - Is user account locked?
-      // - Is user email verified?
-      // - Has password been changed since token issued?
-
-      return {
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-      };
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-      throw new UnauthorizedException('Invalid token');
+    if (!userExists) {
+      throw new UnauthorizedException('User not found.');
     }
+
+    // Optional: Add more checks here, e.g., if the user is banned or deactivated.
+
+    // Passport will attach this returned payload to the `request.user` object.
+    return payload;
   }
 }

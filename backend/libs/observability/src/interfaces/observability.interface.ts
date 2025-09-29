@@ -1,105 +1,57 @@
-import { Request, Response } from 'express';
+import { HealthCheckResult, HealthStatus } from '@shamba/database';
 
-export interface LogEntry {
-  timestamp: Date;
-  level: 'error' | 'warn' | 'info' | 'debug' | 'verbose';
-  message: string;
-  context?: string;
-  stack?: string;
-  correlationId?: string;
-  userId?: string;
-  service?: string;
-  duration?: number;
-  [key: string]: any;
-}
+// ============================================================================
+// ARCHITECTURAL NOTE: The Role of Observability Interfaces
+// ============================================================================
+// This file defines the shared contracts for the three pillars of observability:
+// 1.  **Logging:** Standardized context for structured logs.
+// 2.  **Tracing:** A contract for carrying trace information across services.
+// 3.  **Metrics:** A definition for creating consistent Prometheus metrics.
+//
+// These interfaces ensure that all our microservices produce telemetry data
+// in a uniform way, making them easy to query, correlate, and visualize in
+// tools like Grafana, Jaeger, or Datadog.
+// ============================================================================
 
-export interface MetricsConfig {
-  enabled: boolean;
-  path: string;
-  defaultLabels?: Record<string, string>;
-  collectDefaultMetrics?: boolean;
-  timeout?: number;
-}
-
-export interface LoggingConfig {
-  level: 'error' | 'warn' | 'info' | 'debug' | 'verbose';
-  format: 'json' | 'pretty';
-  redact?: string[];
-  transport?: {
-    target: string;
-    options?: any;
-  };
-}
-
-export interface TracingConfig {
-  enabled: boolean;
-  serviceName: string;
-  exporter: 'jaeger' | 'zipkin' | 'console' | 'prometheus';
-  endpoint?: string;
-  sampler?: {
-    type: 'always_on' | 'always_off' | 'trace_id_ratio';
-    ratio?: number;
-  };
-}
-
-export interface HealthCheckConfig {
-  path: string;
-  timeout: number;
-  details: boolean;
-}
-
-export interface ObservabilityConfig {
-  serviceName: string;
-  version: string;
-  environment: string;
-  logging: LoggingConfig;
-  metrics: MetricsConfig;
-  tracing: TracingConfig;
-  health: HealthCheckConfig;
-}
-
-export interface HttpRequestLog {
-  method: string;
-  url: string;
-  statusCode: number;
-  responseTime: number;
-  userAgent?: string;
-  ip?: string;
-  userId?: string;
-  correlationId?: string;
-  requestBody?: any;
-  responseBody?: any;
-  error?: string;
-}
-
-export interface BusinessMetric {
-  name: string;
-  value: number;
-  labels?: Record<string, string>;
-  timestamp: Date;
-}
-
-export interface HealthCheckResult {
-  status: 'up' | 'down';
-  details?: Record<string, any>;
-  error?: string;
-  timestamp: Date;
-}
-
+/**
+ * The context for distributed tracing, compliant with standards like W3C Trace Context.
+ * This is the core information passed between services to link operations together.
+ */
 export interface TraceContext {
+  /** A unique ID representing the entire end-to-end request flow. */
   traceId: string;
+  /** A unique ID representing a single operation or step within a trace. */
   spanId: string;
-  traceFlags: number;
-  isRemote: boolean;
 }
 
-export interface PerformanceMetrics {
-  cpuUsage: number;
-  memoryUsage: number;
-  heapUsed: number;
-  heapTotal: number;
-  eventLoopDelay: number;
-  activeHandles: number;
-  activeRequests: number;
-  uptime: number;
+/**
+ * Defines the standardized context to be included in every structured log entry.
+ * It combines trace information with application-specific context.
+ */
+export interface LogContext extends Partial<TraceContext> {
+  /** A unique ID for correlating events within a single request flow. */
+  correlationId?: string;
+  /** The ID of the authenticated user performing the action, if available. */
+  userId?: string;
+  /** The name of the microservice generating the log. */
+  serviceName: string;
 }
+
+/**
+ * Defines the contract for creating a new Prometheus metric.
+ */
+export interface MetricDefinition {
+  /** The name of the metric (e.g., `http_requests_total`). */
+  name: string;
+  /** The help text describing what the metric measures. */
+  help: string;
+  /** An array of label names for this metric (e.g., ['method', 'path', 'status_code']). */
+  labelNames: string[];
+}
+
+/**
+ * Re-exporting health check types for convenience, as health is a key
+ * part of observability. This makes `@shamba/observability` a single
+ * point of import for all monitoring-related types.
+ */
+export { HealthCheckResult, HealthStatus };

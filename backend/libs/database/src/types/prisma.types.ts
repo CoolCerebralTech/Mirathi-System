@@ -1,78 +1,79 @@
-import { 
-  User, 
-  UserProfile, 
-  Will, 
-  Asset, 
-  Family,
-  FamilyMember,
-  BeneficiaryAssignment,
-  Document,
-  DocumentVersion,
-  Notification,
-  NotificationTemplate,
-  AuditLog,
-  PasswordResetToken,
-  UserRole,
-  RelationshipType,
-  WillStatus,
-  AssetType,
-  DocumentStatus,
-  NotificationChannel,
-  NotificationStatus,
-  PrismaClient
-} from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
-// Re-export all Prisma types for easy access
-export {
-  User,
-  UserProfile,
-  Will,
-  Asset,
-  Family,
-  FamilyMember,
-  BeneficiaryAssignment,
-  Document,
-  DocumentVersion,
-  Notification,
-  NotificationTemplate,
-  AuditLog,
-  PasswordResetToken,
-  UserRole,
-  RelationshipType,
-  WillStatus,
-  AssetType,
-  DocumentStatus,
-  NotificationChannel,
-  NotificationStatus,
-};
+// ============================================================================
+// PRISMA DEFAULTS RE-EXPORT
+// ============================================================================
+// Re-export all generated enums, models, and utility types from the Prisma client.
+// This provides a single, consistent import path for all other services.
+export * from '@prisma/client';
 
-// Extended types for business logic
-export type UserWithProfile = User & { profile?: UserProfile };
-export type WillWithAssignments = Will & { 
-  beneficiaryAssignments: (BeneficiaryAssignment & {
-    asset: Asset;
-    beneficiary: User;
-  })[];
-};
 
-export type AssetWithAssignments = Asset & {
-  beneficiaryAssignments: (BeneficiaryAssignment & {
-    will: Will;
-    beneficiary: User;
-  })[];
-};
+// ============================================================================
+// GENERATED PAYLOAD TYPES FOR BUSINESS LOGIC
+// ============================================================================
+// These types are generated directly from our schema using Prisma.UserGetPayload.
+// They are guaranteed to be in sync with the database schema at all times.
+// This is the STRONGLY RECOMMENDED way to define types for related data.
+// ----------------------------------------------------------------------------
 
-export type FamilyWithMembers = Family & {
-  members: (FamilyMember & {
-    user: User;
-  })[];
-};
+// --- ACCOUNTS SERVICE ---
+const userWithProfile = Prisma.validator<Prisma.UserDefaultArgs>()({
+  include: { profile: true },
+});
+export type UserWithProfile = Prisma.UserGetPayload<typeof userWithProfile>;
 
-export type DocumentWithVersions = Document & {
-  versions: DocumentVersion[];
-};
 
-// Pagination types
+// --- SUCCESSION SERVICE ---
+const willWithAssignments = Prisma.validator<Prisma.WillDefaultArgs>()({
+  include: {
+    beneficiaryAssignments: {
+      include: {
+        asset: true,
+        beneficiary: true,
+      },
+    },
+  },
+});
+export type WillWithAssignments = Prisma.WillGetPayload<typeof willWithAssignments>;
+
+const assetWithAssignments = Prisma.validator<Prisma.AssetDefaultArgs>()({
+  include: {
+    beneficiaryAssignments: {
+      include: {
+        will: true,
+        beneficiary: true,
+      },
+    },
+  },
+});
+export type AssetWithAssignments = Prisma.AssetGetPayload<typeof assetWithAssignments>;
+
+const familyWithMembers = Prisma.validator<Prisma.FamilyDefaultArgs>()({
+  include: {
+    members: {
+      include: {
+        user: true,
+      },
+    },
+  },
+});
+export type FamilyWithMembers = Prisma.FamilyGetPayload<typeof familyWithMembers>;
+
+
+// --- DOCUMENTS SERVICE ---
+const documentWithVersions = Prisma.validator<Prisma.DocumentDefaultArgs>()({
+  include: {
+    versions: true,
+  },
+});
+export type DocumentWithVersions = Prisma.DocumentGetPayload<typeof documentWithVersions>;
+
+
+// ============================================================================
+// GENERIC UTILITY TYPES
+// ============================================================================
+
+// --- Pagination ---
 export interface PaginationOptions {
   page: number;
   limit: number;
@@ -90,7 +91,7 @@ export interface PaginatedResult<T> {
   };
 }
 
-// Database transaction type
-export type PrismaTransaction = Omit<PrismaClient, 
-  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
->;
+// --- Database Transactions ---
+// Provides a type for the Prisma transaction client, ensuring services
+// can perform multi-step operations safely.
+export type PrismaTransaction = Prisma.TransactionClient;

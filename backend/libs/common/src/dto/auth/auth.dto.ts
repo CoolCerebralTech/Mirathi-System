@@ -1,139 +1,114 @@
-import { IsEmail, IsString, MinLength, MaxLength, Matches, IsEnum, IsOptional } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, IsEnum, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../../enums';
+import { BaseResponseDto } from '../shared/base.response.dto';
+import { IsStrongPassword } from '../../decorators/is-password.decorator';
 
-export class LoginDto {
-  @ApiProperty({
-    description: 'User email address',
-    example: 'john.mwangi@example.com',
-  })
+// ============================================================================
+// REQUEST DTOs (Input Validation)
+// ============================================================================
+
+export class LoginRequestDto {
+  @ApiProperty({ description: 'User email address.', example: 'john.mwangi@example.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 
-  @ApiProperty({
-    description: 'User password',
-    example: 'SecurePassword123!',
-  })
+  @ApiProperty({ description: 'User password.', example: 'SecurePassword123!' })
   @IsString()
-  @MinLength(8)
-  @MaxLength(100)
-  password: string;
+  password!: string;
 }
 
-export class RegisterDto {
-  @ApiProperty({
-    description: 'User email address',
-    example: 'john.mwangi@example.com',
-  })
+export class RegisterRequestDto {
+  @ApiProperty({ description: 'User first name.', example: 'John' })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(50)
+  firstName!: string;
+
+  @ApiProperty({ description: 'User last name.', example: 'Mwangi' })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(50)
+  lastName!: string;
+
+  @ApiProperty({ description: 'User email address.', example: 'john.mwangi@example.com' })
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({
-    description: 'User password (min 8 chars, with uppercase, lowercase, number, special char)',
+    description: 'User password. Must meet the configured security policy.',
     example: 'SecurePassword123!',
   })
-  @IsString()
-  @MinLength(8)
-  @MaxLength(100)
-  @Matches(/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, {
-    message: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
-  })
-  password: string;
-
-  @ApiProperty({
-    description: 'User first name',
-    example: 'John',
-  })
-  @IsString()
-  @MinLength(2)
-  @MaxLength(50)
-  firstName: string;
-
-  @ApiProperty({
-    description: 'User last name',
-    example: 'Mwangi',
-  })
-  @IsString()
-  @MinLength(2)
-  @MaxLength(50)
-  lastName: string;
+  @IsStrongPassword()
+  password!: string;
 
   @ApiPropertyOptional({
-    description: 'User role',
+    description: 'User role. Defaults to LAND_OWNER.',
     enum: UserRole,
     default: UserRole.LAND_OWNER,
   })
   @IsOptional()
   @IsEnum(UserRole)
-  role?: UserRole;
+  role?: UserRole = UserRole.LAND_OWNER;
 }
 
-export class ChangePasswordDto {
-  @ApiProperty({
-    description: 'Current password',
-  })
+export class ChangePasswordRequestDto {
+  @ApiProperty({ description: 'The user\'s current password.' })
   @IsString()
-  currentPassword: string;
+  currentPassword!: string;
 
-  @ApiProperty({
-    description: 'New password',
-  })
-  @IsString()
-  @MinLength(8)
-  @MaxLength(100)
-  @Matches(/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, {
-    message: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
-  })
-  newPassword: string;
+  @ApiProperty({ description: 'The desired new password.' })
+  @IsStrongPassword()
+  newPassword!: string;
 }
 
-export class ResetPasswordDto {
-  @ApiProperty({
-    description: 'Password reset token',
-  })
+export class ResetPasswordRequestDto {
+  @ApiProperty({ description: 'The password reset token received via email/SMS.' })
   @IsString()
-  token: string;
+  token!: string;
 
-  @ApiProperty({
-    description: 'New password',
-  })
-  @IsString()
-  @MinLength(8)
-  @MaxLength(100)
-  @Matches(/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, {
-    message: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
-  })
-  newPassword: string;
+  @ApiProperty({ description: 'The desired new password.' })
+  @IsStrongPassword()
+  newPassword!: string;
 }
 
-export class ForgotPasswordDto {
-  @ApiProperty({
-    description: 'User email address',
-  })
+export class ForgotPasswordRequestDto {
+  @ApiProperty({ description: 'The email address to send a password reset link to.' })
   @IsEmail()
-  email: string;
+  email!: string;
 }
 
+// ============================================================================
+// RESPONSE DTOs (API Output)
+// ============================================================================
+
+/**
+ * Defines the shape of the User object returned upon successful authentication.
+ */
+class AuthUserResponseDto extends BaseResponseDto {
+  @ApiProperty({ example: 'john.mwangi@example.com' })
+  email!: string;
+
+  @ApiProperty({ example: 'John' })
+  firstName!: string;
+
+  @ApiProperty({ example: 'Mwangi' })
+  lastName!: string;
+
+  @ApiProperty({ enum: UserRole, example: UserRole.LAND_OWNER })
+  role: UserRole = "LAND_OWNER";
+}
+
+/**
+ * Defines the response body for a successful login or registration.
+ */
 export class AuthResponseDto {
-  @ApiProperty({
-    description: 'JWT access token',
-  })
-  accessToken: string;
+  @ApiProperty({ description: 'A short-lived JSON Web Token for API access.' })
+  accessToken!: string;
 
-  @ApiProperty({
-    description: 'Token expiration time in seconds',
-    example: 3600,
-  })
-  expiresIn: number;
+  @ApiProperty({ description: 'A long-lived token used to obtain a new access token.' })
+  refreshToken!: string;
 
-  @ApiProperty({
-    description: 'User information',
-  })
-  user: {
-    id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    role: UserRole;
-  };
+  @ApiProperty({ description: 'The authenticated user\'s information.', type: AuthUserResponseDto })
+  user!: AuthUserResponseDto;
 }

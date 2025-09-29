@@ -1,4 +1,14 @@
-// Re-export all enums from Prisma schema
+// ============================================================================
+// Shamba Sure - Shared Enumerations
+// ============================================================================
+// This file is the single source of truth for the "controlled vocabularies"
+// used across all microservices. It ensures consistency in event names,
+// error codes, and other critical business logic identifiers.
+// ============================================================================
+
+// --- 1. Prisma-Generated Enums ---
+// Re-export all enums generated from our database schema.
+// This provides a single, consistent import path (`@shamba/common`) for these types.
 export {
   UserRole,
   RelationshipType,
@@ -7,108 +17,63 @@ export {
   DocumentStatus,
   NotificationChannel,
   NotificationStatus,
-} from '@prisma/client';
+} from '@shamba/database'; // Corrected to import from our own database lib
 
-// Additional business logic enums
-export enum EventType {
-  USER_CREATED = 'user.created',
-  USER_UPDATED = 'user.updated',
-  USER_DELETED = 'user.deleted',
-  WILL_CREATED = 'will.created',
-  WILL_UPDATED = 'will.updated',
-  ASSET_CREATED = 'asset.created',
-  DOCUMENT_UPLOADED = 'document.uploaded',
-  DOCUMENT_VERIFIED = 'document.verified',
-  NOTIFICATION_SENT = 'notification.sent',
-  PASSWORD_RESET_REQUESTED = 'password.reset.requested',
+// --- 2. Messaging Event Enums ---
+// Defines the contract for all events that are published to RabbitMQ.
+// Using a consistent naming convention (`domain.entity.action`) is recommended.
+export enum EventPattern {
+  // Accounts Service Events
+  USER_CREATED = 'accounts.user.created',
+  USER_UPDATED = 'accounts.user.updated',
+  USER_DELETED = 'accounts.user.deleted',
+  PASSWORD_RESET_REQUESTED = 'accounts.password.reset_requested',
+
+  // Succession Service Events
+  WILL_CREATED = 'succession.will.created',
+  WILL_ACTIVATED = 'succession.will.activated',
+  ASSET_CREATED = 'succession.asset.created',
+  HEIR_ASSIGNED = 'succession.heir.assigned',
+
+  // Documents Service Events
+  DOCUMENT_UPLOADED = 'documents.document.uploaded',
+  DOCUMENT_VERIFIED = 'documents.document.verified',
 }
 
+// --- 3. Standardized Error Code Enum ---
+// Provides a consistent set of internal error codes for logging, monitoring,
+// and creating standardized API error responses.
 export enum ErrorCode {
-  // Validation Errors (1000-1999)
-  VALIDATION_ERROR = 1000,
-  INVALID_EMAIL = 1001,
-  WEAK_PASSWORD = 1002,
-  
-  // Authentication Errors (2000-2999)
-  UNAUTHORIZED = 2000,
+  // General (1xxx)
+  VALIDATION_FAILED = 1000,
+  UNKNOWN_ERROR = 1999,
+
+  // Auth (2xxx)
+  UNAUTHENTICATED = 2000,
   INVALID_CREDENTIALS = 2001,
-  TOKEN_EXPIRED = 2002,
-  ACCESS_DENIED = 2003,
-  
-  // Resource Errors (3000-3999)
-  RESOURCE_NOT_FOUND = 3000,
-  USER_NOT_FOUND = 3001,
-  WILL_NOT_FOUND = 3002,
-  ASSET_NOT_FOUND = 3003,
-  DOCUMENT_NOT_FOUND = 3004,
-  
-  // Business Logic Errors (4000-4999)
-  INSUFFICIENT_PERMISSIONS = 4000,
-  DUPLICATE_RESOURCE = 4001,
-  INVALID_OPERATION = 4002,
-  ASSET_ALREADY_ASSIGNED = 4003,
-  
-  // System Errors (5000-5999)
-  INTERNAL_ERROR = 5000,
-  DATABASE_ERROR = 5001,
-  EXTERNAL_SERVICE_ERROR = 5002,
+  JWT_EXPIRED = 2002,
+  JWT_INVALID = 2003,
+  FORBIDDEN = 2004,
+
+  // Resource (3xxx)
+  NOT_FOUND = 3000,
+  CONFLICT = 3001, // e.g., email already exists
+
+  // Business Logic (4xxx)
+  INVALID_OPERATION = 4000,
+  // e.g., cannot execute a will that is in DRAFT status
+
+  // External Services (5xxx)
+  SERVICE_UNAVAILABLE = 5000,
 }
 
-export enum LogLevel {
-  ERROR = 'error',
-  WARN = 'warn',
-  INFO = 'info',
-  DEBUG = 'debug',
-  VERBOSE = 'verbose',
-}
-
-export enum HttpStatus {
-  CONTINUE = 100,
-  SWITCHING_PROTOCOLS = 101,
-  PROCESSING = 102,
-  EARLYHINTS = 103,
-  OK = 200,
-  CREATED = 201,
-  ACCEPTED = 202,
-  NON_AUTHORITATIVE_INFORMATION = 203,
-  NO_CONTENT = 204,
-  RESET_CONTENT = 205,
-  PARTIAL_CONTENT = 206,
-  AMBIGUOUS = 300,
-  MOVED_PERMANENTLY = 301,
-  FOUND = 302,
-  SEE_OTHER = 303,
-  NOT_MODIFIED = 304,
-  TEMPORARY_REDIRECT = 307,
-  PERMANENT_REDIRECT = 308,
-  BAD_REQUEST = 400,
-  UNAUTHORIZED = 401,
-  PAYMENT_REQUIRED = 402,
-  FORBIDDEN = 403,
-  NOT_FOUND = 404,
-  METHOD_NOT_ALLOWED = 405,
-  NOT_ACCEPTABLE = 406,
-  PROXY_AUTHENTICATION_REQUIRED = 407,
-  REQUEST_TIMEOUT = 408,
-  CONFLICT = 409,
-  GONE = 410,
-  LENGTH_REQUIRED = 411,
-  PRECONDITION_FAILED = 412,
-  PAYLOAD_TOO_LARGE = 413,
-  URI_TOO_LONG = 414,
-  UNSUPPORTED_MEDIA_TYPE = 415,
-  REQUESTED_RANGE_NOT_SATISFIABLE = 416,
-  EXPECTATION_FAILED = 417,
-  I_AM_A_TEAPOT = 418,
-  MISDIRECTED = 421,
-  UNPROCESSABLE_ENTITY = 422,
-  FAILED_DEPENDENCY = 424,
-  PRECONDITION_REQUIRED = 428,
-  TOO_MANY_REQUESTS = 429,
-  INTERNAL_SERVER_ERROR = 500,
-  NOT_IMPLEMENTED = 501,
-  BAD_GATEWAY = 502,
-  SERVICE_UNAVAILABLE = 503,
-  GATEWAY_TIMEOUT = 504,
-  HTTP_VERSION_NOT_SUPPORTED = 505,
-}
+// --- 4. HTTP Status Codes ---
+// ARCHITECTURAL NOTE: The `HttpStatus` enum is already provided by the
+// `@nestjs/common` package. To avoid redundancy and ensure we are always
+// using the standard, canonical values, we will NOT redefine it here.
+//
+// Instead, services should import it directly from NestJS:
+// `import { HttpStatus } from '@nestjs/common';`
+//
+// This prevents our shared library from having an unnecessary dependency on
+// framework-specific details and ensures we always use the official enum.
