@@ -1,5 +1,5 @@
 import { EventPattern } from '../../enums';
-import { UserRole, WillStatus, DocumentStatus, NotificationChannel } from '@shamba/database';
+import { UserRole, WillStatus, DocumentStatus, NotificationChannel, AssetType } from '@shamba/database';
 
 // ============================================================================
 // ARCHITECTURAL NOTE:
@@ -36,6 +36,14 @@ export interface UserCreatedData {
   role: UserRole;
 }
 
+export interface UserUpdatedData {
+  userId: string;
+  profile?: {
+    bio?: string | null;
+    phoneNumber?: string | null;
+  };
+}
+
 export interface PasswordResetRequestedData {
   userId: string;
   email: string;
@@ -50,6 +58,20 @@ export interface WillCreatedData {
   status: WillStatus;
 }
 
+export interface AssetCreatedData {
+  assetId: string;
+  ownerId: string;
+  name: string;
+  type: AssetType;
+}
+
+export interface DocumentUploadedData {
+  documentId: string;
+  uploaderId: string;
+  filename: string;
+  status: DocumentStatus;
+}
+
 export interface DocumentVerifiedData {
   documentId: string;
   uploaderId: string;
@@ -60,13 +82,20 @@ export interface DocumentVerifiedData {
 // --- Concrete Event Interfaces ---
 
 export type UserCreatedEvent = BaseEvent<EventPattern.USER_CREATED, UserCreatedData>;
+export type UserUpdatedEvent = BaseEvent<EventPattern.USER_UPDATED, UserUpdatedData>;
 export type PasswordResetRequestedEvent = BaseEvent<EventPattern.PASSWORD_RESET_REQUESTED, PasswordResetRequestedData>;
 export type WillCreatedEvent = BaseEvent<EventPattern.WILL_CREATED, WillCreatedData>;
 export type DocumentVerifiedEvent = BaseEvent<EventPattern.DOCUMENT_VERIFIED, DocumentVerifiedData>;
+export type DocumentUploadedEvent = BaseEvent<EventPattern.DOCUMENT_UPLOADED, DocumentUploadedData>;
+export type AssetCreatedEvent = BaseEvent<EventPattern.ASSET_CREATED, AssetCreatedData>;
 
 // --- Union type for all possible events ---
 export type ShambaEvent =
   | UserCreatedEvent
+  | UserUpdatedEvent
   | PasswordResetRequestedEvent
+  | DocumentUploadedEvent
   | WillCreatedEvent
-  | DocumentVerifiedEvent;
+  | DocumentVerifiedEvent
+  | AssetCreatedEvent;
+  

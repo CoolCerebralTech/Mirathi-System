@@ -2,37 +2,56 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@shamba/config';
 import { DatabaseModule } from '@shamba/database';
 import { AuthModule } from '@shamba/auth';
-import { MessagingModule } from '@shamba/messaging';
+import { MessagingModule, Queue } from '@shamba/messaging';
 import { ObservabilityModule } from '@shamba/observability';
-import { WillsController } from './controllers/wills.controller';
+
 import { AssetsController } from './controllers/assets.controller';
 import { FamiliesController } from './controllers/families.controller';
-import { WillService } from './services/will.service';
-import { AssetService } from './services/asset.service';
-import { FamilyService } from './services/family.service';
-import { WillRepository } from './repositories/will.repository';
-import { AssetRepository } from './repositories/asset.repository';
-import { FamilyRepository } from './repositories/family.repository';
-import { SuccessionEvents } from './events/succession.events';
+import { WillsController } from './controllers/wills.controller';
+
+import { AssetsService } from './services/assets.service';
+import { FamiliesService } from './services/families.service';
+import { WillsService } from './services/wills.service';
+
+import { AssetsRepository } from './repositories/assets.repository';
+import { FamiliesRepository } from './repositories/families.repository';
+import { WillsRepository } from './repositories/wills.repository';
+
+// ============================================================================
+// Shamba Sure - Succession Service Root Module
+// ============================================================================
+// This is the main module that assembles all components of the succession microservice.
+// It is the core business logic engine for the entire platform.
+// ============================================================================
 
 @Module({
   imports: [
+    // --- Core Shared Libraries ---
     ConfigModule,
     DatabaseModule,
     AuthModule,
-    MessagingModule.forRoot(),
-    ObservabilityModule.forRoot(),
+
+    // --- Configurable Shared Libraries ---
+    // Register the MessagingModule. This service both publishes events (e.g., will.created)
+    // and consumes them (e.g., user.created), so it needs its own dedicated queue.
+    MessagingModule.register({ queue: Queue.SUCCESSION_EVENTS }),
+
+    // Register observability with the specific service name and version.
+    ObservabilityModule.register({
+      serviceName: 'succession-service',
+      version: '1.0.0',
+    }),
   ],
-  controllers: [WillsController, AssetsController, FamiliesController],
+  // All controllers that expose this service's API endpoints.
+  controllers: [AssetsController, FamiliesController, WillsController],
+  // All providers containing business logic and data access layers.
   providers: [
-    WillService,
-    AssetService,
-    FamilyService,
-    WillRepository,
-    AssetRepository,
-    FamilyRepository,
-    SuccessionEvents,
+    AssetsService,
+    FamiliesService,
+    WillsService,
+    AssetsRepository,
+    FamiliesRepository,
+    WillsRepository,
   ],
-  exports: [WillService, AssetService, FamilyService],
 })
 export class SuccessionModule {}

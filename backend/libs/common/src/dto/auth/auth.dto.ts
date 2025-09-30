@@ -109,6 +109,6 @@ export class AuthResponseDto {
   @ApiProperty({ description: 'A long-lived token used to obtain a new access token.' })
   refreshToken!: string;
 
-  @ApiProperty({ description: 'The authenticated user\'s information.', type: AuthUserResponseDto })
-  user!: AuthUserResponseDto;
+  @ApiProperty({ type: () => AuthUserResponseDto }) // Add Swagger decorator
+  user: AuthUserResponseDto = new AuthUserResponseDto;
 }

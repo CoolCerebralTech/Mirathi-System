@@ -1,69 +1,38 @@
-import { UserRole } from '@shamba/common';
+import { User as PrismaUser, UserProfile } from '@shamba/database';
 import { Exclude } from 'class-transformer';
 
-export class UserEntity {
-  id: string;
-  email: string;
-  
+// ============================================================================
+// ARCHITECTURAL NOTE: The Role of the Entity
+// ============================================================================
+// In our architecture, the Entity is a clean representation of our data model,
+// used for serializing API responses. It uses Prisma's generated types as its
+// foundation to ensure it's always in sync with the database schema.
+//
+// All business logic has been REMOVED from this file. That logic belongs in the
+// `UsersService` or `AuthService`. An entity's job is to represent data, not
+// to perform operations.
+// ============================================================================
+
+export class UserEntity implements Omit<PrismaUser, 'password'> {
+  id!: string;
+  email!: string;
+  firstName!: string;
+  lastName!: string;
+  role!: PrismaUser['role'];
+  createdAt!: Date;
+  updatedAt!: Date;
+
+  // We explicitly exclude the password field from any serialization.
   @Exclude()
-  password: string;
-  
-  firstName: string;
-  lastName: string;
-  role: UserRole;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  password?: string; // Kept for type compatibility but will not be present.
 
-  constructor(partial: Partial<UserEntity>) {
-    Object.assign(this, partial);
-  }
+  profile?: UserProfile;
 
-  // Business logic methods
-  canCreateWills(): boolean {
-    return this.role === UserRole.LAND_OWNER || this.role === UserRole.ADMIN;
+  constructor(partial: Partial<PrismaUser & { profile?: UserProfile | null }>) { // Allow null for profile
+  Object.assign(this, partial);
+  if (this.profile === null) {
+    delete this.profile;
   }
-
-  canManageUsers(): boolean {
-    return this.role === UserRole.ADMIN;
-  }
-
-  isProfileComplete(): boolean {
-    return !!this.firstName && !!this.lastName && !!this.email;
-  }
-
-  // Security methods
-  isEligibleForPasswordReset(): boolean {
-    return this.isActive;
-  }
-
-  // Validation methods
-  validatePasswordStrength(password: string): { isValid: boolean; errors: string[] } {
-    const errors: string[] = [];
-    
-    if (password.length < 8) {
-      errors.push('Password must be at least 8 characters long');
-    }
-    
-    if (!/(?=.*[a-z])/.test(password)) {
-      errors.push('Password must contain at least one lowercase letter');
-    }
-    
-    if (!/(?=.*[A-Z])/.test(password)) {
-      errors.push('Password must contain at least one uppercase letter');
-    }
-    
-    if (!/(?=.*\d)/.test(password)) {
-      errors.push('Password must contain at least one number');
-    }
-    
-    if (!/(?=.*[@$!%*?&])/.test(password)) {
-      errors.push('Password must contain at least one special character');
-    }
-    
-    return {
-      isValid: errors.length === 0,
-      errors,
-    };
-  }
+  delete this.password;
+}
 }

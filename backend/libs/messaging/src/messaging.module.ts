@@ -20,7 +20,7 @@ export class MessagingModule {
    *
    * @param config An object containing the queue name for the service.
    */
-  static register(config: { queue: string }): DynamicModule {
+  static register(config: { queue?: string }): DynamicModule {
     // This provider is responsible for creating and configuring the NestJS
     // RabbitMQ client (ClientProxy). It injects the ConfigService to get
     // the RabbitMQ URI from our environment variables.

@@ -27,6 +27,19 @@ export const configValidationSchema = Joi.object({
 
   HEALTH_MEMORY_HEAP_THRESHOLD_MB: Joi.number().default(256),
 
+    // Service Ports
+  ACCOUNTS_SERVICE_PORT: Joi.number().default(3001),
+  DOCUMENTS_SERVICE_PORT: Joi.number().default(3002),
+  SUCCESSION_SERVICE_PORT: Joi.number().default(3003),
+  AUDITING_SERVICE_PORT: Joi.number().default(3004),
+  NOTIFICATIONS_SERVICE_PORT: Joi.number().default(3005),
+
+  // Service URLs
+  GATEWAY_PORT: Joi.number().default(3000),
+  ACCOUNTS_SERVICE_URL: Joi.string().uri().default('http://localhost:3001'),
+  DOCUMENTS_SERVICE_URL: Joi.string().uri().default('http://localhost:3002'),
+  SUCCESSION_SERVICE_URL: Joi.string().uri().default('http://localhost:3003'),
+
   // --- Database Configuration ---
   DATABASE_URL: Joi.string().uri().required(),
 

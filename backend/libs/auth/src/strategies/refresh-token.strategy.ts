@@ -22,7 +22,11 @@ export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'jwt-refres
    * the refresh token's signature and expiration.
    */
   validate(req: Request, payload: RefreshTokenPayload): any {
-    const refreshToken = req.get('authorization').replace('Bearer', '').trim();
+    const authHeader = req.get('authorization');
+    if (!authHeader) {
+      throw new UnauthorizedException('Authorization header is missing.');
+    }
+    const refreshToken = authHeader.replace('Bearer', '').trim();
 
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token is missing.');

@@ -102,7 +102,7 @@ export function createPaginatedResponseDto<T extends NestType>(dataType: T) {
     @ApiProperty({ type: () => PaginationMetaDto })
     meta: PaginationMetaDto;
 
-    constructor(data: T[], total: number, query: PaginationQueryDto) {
+    constructor(data: any[], total: number, query: PaginationQueryDto) {
       this.data = data;
 
       // --- THE FIX IS HERE ---

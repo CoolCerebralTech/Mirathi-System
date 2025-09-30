@@ -93,6 +93,21 @@ export interface LoggingConfig {
   LOG_FORMAT: 'json' | 'simple';
 }
 
+export interface ServicePortsConfig {
+  ACCOUNTS_SERVICE_PORT: number;
+  DOCUMENTS_SERVICE_PORT: number;
+  SUCCESSION_SERVICE_PORT: number;
+  AUDITING_SERVICE_PORT: number;
+  NOTIFICATIONS_SERVICE_PORT: number;
+}
+
+export interface ServiceUrlsConfig {
+  GATEWAY_PORT: number; // For the gateway itself
+  ACCOUNTS_SERVICE_URL: string;
+  DOCUMENTS_SERVICE_URL: string;
+  SUCCESSION_SERVICE_URL: string;
+}
+
 /**
  * The complete, flattened configuration interface for the entire application.
  * This is the final shape of the object provided by the ConfigService.
@@ -100,6 +115,8 @@ export interface LoggingConfig {
 export interface Config
   extends AppConfig,
     DatabaseConfig,
+    ServicePortsConfig,
+    ServiceUrlsConfig,
     AuthConfig,
     MessagingConfig,
     StorageConfig,

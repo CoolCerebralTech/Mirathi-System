@@ -156,7 +156,7 @@ export class AuthService {
 
   // --- Token and Hashing Utilities (Private) ---
 
-  private async generateTokenPair(payload: JwtPayload): Promise<TokenPair> {
+  public async generateTokenPair(payload: JwtPayload): Promise<TokenPair> {
     const refreshTokenPayload: RefreshTokenPayload = { sub: payload.sub };
 
     const [accessToken, refreshToken] = await Promise.all([

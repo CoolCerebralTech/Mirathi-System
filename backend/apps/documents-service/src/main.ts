@@ -1,82 +1,73 @@
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { NestFactory, Reflector } from '@nestjs/core';
+import {
+  ValidationPipe,
+  VersioningType,
+  ClassSerializerInterceptor,
+} from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { ConfigModule, ShambaConfigService } from '@shamba/config';
-import { ObservabilityModule, LoggerService } from '@shamba/observability';
+import { Logger } from 'nestjs-pino';
+
+import { ConfigService } from '@shamba/config';
 import { DocumentsModule } from './documents.module';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
-  // Create the NestJS application
-  const app = await NestFactory.create(DocumentsModule, {
+  const app = await NestFactory.create<NestExpressApplication>(DocumentsModule, {
     bufferLogs: true,
   });
 
-  // Get configuration service
-  const configService = app.get(ShambaConfigService);
-  const logger = app.get(LoggerService);
+  // --- Get Core Services ---
+  const configService = app.get(ConfigService);
+  const logger = app.get(Logger);
+  const reflector = app.get(Reflector);
 
-  // Use the logger
+  // --- Core Application Setup ---
   app.useLogger(logger);
+  app.enableShutdownHooks();
 
-  // Global validation pipe
+  // --- Global Pipes and Interceptors ---
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
     }),
   );
+  // CRITICAL: This ensures all API responses are serialized through our Entity classes.
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
 
-  // Enable CORS
+  // --- API Configuration ---
   app.enableCors({
-    origin: configService.app.corsOrigins,
+    origin: configService.get('CORS_ORIGINS'),
     credentials: true,
   });
-
-  // Enable versioning
+  app.setGlobalPrefix(configService.get('GLOBAL_PREFIX'));
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
   });
 
-  // Global prefix
-  app.setGlobalPrefix(configService.app.globalPrefix);
-
-  // Swagger documentation
-  const config = new DocumentBuilder()
-    .setTitle('Shamba Sure Documents Service')
-    .setDescription('Secure document management service for Shamba Sure platform')
+  // --- Swagger (OpenAPI) Documentation ---
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Shamba Sure - Documents Service')
+    .setDescription('API for secure document upload, storage, and management.')
     .setVersion('1.0')
     .addBearerAuth()
-    .addTag('Documents', 'Document management endpoints')
+    .addTag('Documents', 'Endpoints for managing user documents')
     .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, document);
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
-
-  // Start the application
-  const port = configService.app.port || 3002;
+  // --- Start Application ---
+  // A dedicated port for this microservice, fetched from config.
+  const port = configService.get('DOCUMENTS_SERVICE_PORT');
   await app.listen(port);
 
-  logger.log(`Documents service started successfully on port ${port}`, 'Bootstrap');
-  logger.log(`Environment: ${configService.app.environment}`, 'Bootstrap');
-  logger.log(`API Documentation: http://localhost:${port}/api/docs`, 'Bootstrap');
-  logger.log(`Health check: http://localhost:${port}/health`, 'Bootstrap');
-
-  // Start background tasks
-  const storageService = app.get(StorageService);
-  // Start periodic cleanup of temp files (every 24 hours)
-  setInterval(() => {
-    storageService.cleanupTempFiles().catch(error => {
-      logger.error('Temp files cleanup failed', 'Bootstrap', { error: error.message });
-    });
-  }, 24 * 60 * 60 * 1000);
+  logger.log(`🚀 Documents Service is running on port ${port}`);
+  logger.log(`📚 API documentation available at /${configService.get('GLOBAL_PREFIX')}/v1/docs`);
 }
 
 bootstrap().catch((error) => {
-  console.error('Failed to start documents service:', error);
+  console.error('❌ Fatal error during application bootstrap:', error);
   process.exit(1);
 });

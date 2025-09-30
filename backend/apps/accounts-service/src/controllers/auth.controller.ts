@@ -1,302 +1,159 @@
-import { 
-  Controller, 
-  Post, 
-  Body, 
-  HttpCode, 
-  HttpStatus, 
-  UseGuards, 
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
   Get,
   Patch,
-  Delete,
-  Param,
-  Query,
-  UploadedFile,
-  UseInterceptors,
   Req,
+  UseInterceptors,
+  ClassSerializerInterceptor,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { 
-  ApiTags, 
-  ApiOperation, 
-  ApiResponse, 
-  ApiBearerAuth, 
-  ApiConsumes,
-  ApiBody,
-} from '@nestjs/swagger';
-import { 
-  RegisterDto, 
-  LoginDto, 
-  ChangePasswordDto, 
-  ResetPasswordDto, 
-  ForgotPasswordDto,
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  RegisterRequestDto,
+  LoginRequestDto,
+  ChangePasswordRequestDto,
+  ResetPasswordRequestDto,
+  ForgotPasswordRequestDto,
   AuthResponseDto,
-  UserResponseDto,
-  UserQueryDto,
-  UserProfileDto,
-  createSuccessResponse,
+  UpdateUserProfileRequestDto,
 } from '@shamba/common';
-import { 
-  AuthService, 
-  Public, 
-  CurrentUser, 
-  JwtAuthGuard, 
-  RolesGuard, 
-  Roles,
+import {
+  AuthService,
+  Public,
+  CurrentUser,
+  JwtAuthGuard,
+  LocalAuthGuard,
+  RefreshTokenGuard,
+  JwtPayload,
+  AuthResult,
 } from '@shamba/auth';
-import { UserService } from '../services/user.service';
 import { ProfileService } from '../services/profile.service';
-import { LoggerService } from '@shamba/observability';
-import { UserRole } from '@shamba/common';
-import { JwtPayload } from '@shamba/auth';
+import { UserEntity } from '../entities/user.entity';
 
-@ApiTags('Authentication')
-@Controller('auth')
+@ApiTags('Auth & Profile')
+@Controller()
 export class AuthController {
   constructor(
-    private userService: UserService,
-    private profileService: ProfileService,
-    private logger: LoggerService,
+    private readonly authService: AuthService,
+    private readonly profileService: ProfileService,
   ) {}
 
-  @Post('register')
+  // --- Authentication Endpoints ---
+
   @Public()
+  @Post('auth/register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new user' })
-  @ApiResponse({ 
-    status: HttpStatus.CREATED, 
-    description: 'User registered successfully',
-    type: AuthResponseDto,
-  })
-  @ApiResponse({ 
-    status: HttpStatus.CONFLICT, 
-    description: 'User with this email already exists' 
-  })
-  @ApiResponse({ 
-    status: HttpStatus.BAD_REQUEST, 
-    description: 'Invalid input data' 
-  })
-  async register(@Body() registerDto: RegisterDto) {
-    this.logger.info('Registration request received', 'AuthController');
-    
-    const result = await this.userService.register(registerDto);
-    
-    return createSuccessResponse(result, 'User registered successfully');
+  @ApiResponse({ status: 201, type: AuthResponseDto })
+  async register(@Body() registerDto: RegisterRequestDto): Promise<AuthResponseDto> {
+  const result: AuthResult = await this.authService.register(registerDto);
+    // Construct the DTO correctly
+    return {
+      accessToken: result.tokens.accessToken,
+      refreshToken: result.tokens.refreshToken,
+      user: new UserEntity(result.user) as any, // Cast to satisfy DTO
+    };
   }
 
-  @Post('login')
   @Public()
+  @UseGuards(LocalAuthGuard)
+  @Post('auth/login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'User login' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Login successful',
-    type: AuthResponseDto,
-  })
-  @ApiResponse({ 
-    status: HttpStatus.UNAUTHORIZED, 
-    description: 'Invalid credentials' 
-  })
-  async login(@Body() loginDto: LoginDto) {
-    this.logger.info('Login request received', 'AuthController', { 
-      email: loginDto.email 
+  @ApiOperation({ summary: 'User login with email and password' })
+  @ApiResponse({ status: 200, type: AuthResponseDto })
+  async login(@Req() req: any): Promise<AuthResponseDto> {
+    const user = req.user; // User is attached by LocalAuthGuard
+    const tokens = await this.authService.generateTokenPair({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
     });
-    
-    const result = await this.userService.login(loginDto);
-    
-    return createSuccessResponse(result, 'Login successful');
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: new UserEntity(user),
+    };
   }
 
-  @Post('refresh')
   @Public()
+  @UseGuards(RefreshTokenGuard)
+  @Post('auth/refresh')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Refresh authentication tokens' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Tokens refreshed successfully',
-    type: AuthResponseDto,
-  })
-  @ApiResponse({ 
-    status: HttpStatus.UNAUTHORIZED, 
-    description: 'Invalid refresh token' 
-  })
-  async refreshTokens(@Body('refreshToken') refreshToken: string) {
-    this.logger.debug('Token refresh request received', 'AuthController');
-    
-    const result = await this.userService.refreshTokens(refreshToken);
-    
-    return createSuccessResponse(result, 'Tokens refreshed successfully');
+  @ApiOperation({ summary: 'Obtain a new access token using a refresh token' })
+  @ApiResponse({ status: 200, type: AuthResponseDto })
+  async refreshTokens(@Req() req: any): Promise<AuthResponseDto> {
+    const userId = req.user.sub;
+    const tokens = await this.authService.refreshTokens(userId);
+    const user = await this.profileService.getProfile(userId);
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: new UserEntity(user),
+    };
   }
 
-  @Post('forgot-password')
   @Public()
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Request password reset' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Password reset email sent if account exists' 
-  })
-  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
-    this.logger.info('Forgot password request received', 'AuthController', {
-      email: forgotPasswordDto.email,
-    });
-    
-    const result = await this.userService.forgotPassword(forgotPasswordDto);
-    
-    return createSuccessResponse(result, result.message);
+  @Post('auth/forgot-password')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: 'Initiate the password reset process' })
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordRequestDto): Promise<{ message: string }> {
+    // ... rest of the method is correct
+    await this.authService.initiatePasswordReset(forgotPasswordDto.email);
+    return { message: 'If a matching account was found, a password reset link has been sent.' };
   }
-
-  @Post('reset-password')
+  
   @Public()
+  @Post('auth/reset-password')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Reset user password' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Password reset successfully' 
-  })
-  @ApiResponse({ 
-    status: HttpStatus.BAD_REQUEST, 
-    description: 'Invalid or expired reset token' 
-  })
-  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
-    this.logger.info('Password reset request received', 'AuthController');
-    
-    const result = await this.userService.resetPassword(resetPasswordDto);
-    
-    return createSuccessResponse(result, result.message);
+  @ApiOperation({ summary: 'Finalize the password reset process with a token' })
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordRequestDto): Promise<{ message: string }> {
+    await this.authService.finalizePasswordReset(resetPasswordDto.token, resetPasswordDto.newPassword);
+    return { message: 'Your password has been successfully reset.' };
   }
 
+  // --- Authenticated User Profile Endpoints ---
+
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(ClassSerializerInterceptor)
   @Get('profile')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get current user profile' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Profile retrieved successfully',
-    type: UserResponseDto,
-  })
-  async getProfile(@CurrentUser() user: JwtPayload) {
-    this.logger.debug('Profile fetch request', 'AuthController', { 
-      userId: user.userId 
-    });
-    
-    const result = await this.userService.getProfile(user.userId);
-    
-    return createSuccessResponse(result, 'Profile retrieved successfully');
+  @ApiOperation({ summary: 'Get the profile of the currently authenticated user' })
+  @ApiResponse({ status: 200, type: UserEntity })
+  async getProfile(@CurrentUser('sub') userId: string): Promise<UserEntity> {
+    const userWithProfile = await this.profileService.getProfile(userId);
+    return new UserEntity(userWithProfile);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Patch('profile')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update current user profile' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Profile updated successfully',
-    type: UserResponseDto,
-  })
+  @ApiOperation({ summary: 'Update the profile of the currently authenticated user' })
+  @ApiResponse({ status: 200 })
   async updateProfile(
-    @CurrentUser() user: JwtPayload,
-    @Body() updateUserDto: UserProfileDto,
+    @CurrentUser('sub') userId: string,
+    @Body() profileData: UpdateUserProfileRequestDto,
   ) {
-    this.logger.info('Profile update request', 'AuthController', { 
-      userId: user.userId 
-    });
-    
-    const result = await this.profileService.updateProfile(user.userId, updateUserDto);
-    
-    return createSuccessResponse(result, 'Profile updated successfully');
+    return this.profileService.updateProfile(userId, profileData);
   }
 
-  @Post('profile/image')
   @UseGuards(JwtAuthGuard)
+  @Patch('profile/change-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
-      },
-    },
-  })
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Upload profile image' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Profile image uploaded successfully' 
-  })
-  async uploadProfileImage(
-    @CurrentUser() user: JwtPayload,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    this.logger.info('Profile image upload request', 'AuthController', { 
-      userId: user.userId 
-    });
-    
-    const result = await this.profileService.uploadProfileImage(user.userId, file);
-    
-    return createSuccessResponse(result, result.message);
-  }
-
-  @Delete('profile/image')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete profile image' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Profile image deleted successfully' 
-  })
-  async deleteProfileImage(@CurrentUser() user: JwtPayload) {
-    this.logger.info('Profile image delete request', 'AuthController', { 
-      userId: user.userId 
-    });
-    
-    const result = await this.profileService.deleteProfileImage(user.userId);
-    
-    return createSuccessResponse(result, result.message);
-  }
-
-  @Patch('change-password')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Change user password' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Password changed successfully' 
-  })
-  @ApiResponse({ 
-    status: HttpStatus.UNAUTHORIZED, 
-    description: 'Current password is incorrect' 
-  })
+  @ApiOperation({ summary: 'Change the password for the currently authenticated user' })
+  @ApiResponse({ status: 204 })
   async changePassword(
-    @CurrentUser() user: JwtPayload,
-    @Body() changePasswordDto: ChangePasswordDto,
-  ) {
-    this.logger.info('Password change request', 'AuthController', { 
-      userId: user.userId 
-    });
-    
-    await this.userService.changePassword(user.userId, changePasswordDto);
-    
-    return createSuccessResponse(null, 'Password changed successfully');
-  }
-
-  @Get('logout')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Logout user' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Logout successful' 
-  })
-  async logout(@CurrentUser() user: JwtPayload) {
-    this.logger.info('User logout', 'AuthController', { 
-      userId: user.userId 
-    });
-    
-    // In a more advanced implementation, you might blacklist the token
-    return createSuccessResponse(null, 'Logout successful');
+    @CurrentUser('sub') userId: string,
+    @Body() changePasswordDto: ChangePasswordRequestDto,
+  ): Promise<void> {
+    await this.authService.changePassword(
+      userId,
+      changePasswordDto.currentPassword,
+      changePasswordDto.newPassword,
+    );
   }
 }

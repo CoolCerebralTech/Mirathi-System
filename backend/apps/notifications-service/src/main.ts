@@ -1,74 +1,69 @@
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { NestFactory, Reflector } from '@nestjs/core';
+import {
+  ValidationPipe,
+  VersioningType,
+  ClassSerializerInterceptor,
+} from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { ConfigModule, ShambaConfigService } from '@shamba/config';
-import { ObservabilityModule, LoggerService } from '@shamba/observability';
-import { NotificationModule } from './notification.module';
+import { Logger } from 'nestjs-pino';
+import { Transport } from '@nestjs/microservices';
+
+import { ConfigService } from '@shamba/config';
+import { NotificationsModule } from './notifications.module';
+import { Queue } from '@shamba/messaging';
 
 async function bootstrap() {
-  // Create the NestJS application
-  const app = await NestFactory.create(NotificationModule, {
+  const app = await NestFactory.create(NotificationsModule, {
     bufferLogs: true,
   });
 
-  // Get configuration service
-  const configService = app.get(ShambaConfigService);
-  const logger = app.get(LoggerService);
+  const configService = app.get(ConfigService);
+  const logger = app.get(Logger);
+  const reflector = app.get(Reflector);
 
-  // Use the logger
   app.useLogger(logger);
+  app.enableShutdownHooks();
 
-  // Global validation pipe
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
+  app.connectMicroservice({
+    transport: Transport.RMQ,
+    options: {
+      urls: [configService.get('RABBITMQ_URI')],
+      queue: Queue.NOTIFICATIONS_EVENTS,
+      noAck: false,
+      persistent: true,
+      queueOptions: {
+        durable: true,
       },
-    }),
-  );
-
-  // Enable CORS
-  app.enableCors({
-    origin: configService.app.corsOrigins,
-    credentials: true,
+    },
   });
 
-  // Enable versioning
-  app.enableVersioning({
-    type: VersioningType.URI,
-    defaultVersion: '1',
-  });
-
-  // Global prefix
-  app.setGlobalPrefix(configService.app.globalPrefix);
-
-  // Swagger documentation
-  const config = new DocumentBuilder()
-    .setTitle('Shamba Sure Notification Service')
-    .setDescription('Email, SMS, and push notification service for Shamba Sure platform')
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
+  
+  app.enableCors({ origin: configService.get('CORS_ORIGINS'), credentials: true });
+  app.setGlobalPrefix(configService.get('GLOBAL_PREFIX'));
+  app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+  
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Shamba Sure - Notifications Service')
+    .setDescription('API for managing and viewing notifications and templates.')
     .setVersion('1.0')
     .addBearerAuth()
-    .addTag('Notifications', 'Notification management endpoints')
-    .addTag('Templates', 'Notification template management endpoints')
+    .addTag('Notifications', 'Endpoints for users to view their notifications')
+    .addTag('Templates (Admin)', 'Endpoints for administrators to manage templates')
     .build();
-
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
-
-  // Start the application
-  const port = configService.app.port || 3002;
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, document);
+  
+  await app.startAllMicroservices();
+  const port = configService.get('NOTIFICATIONS_SERVICE_PORT'); // Dedicated port
   await app.listen(port);
 
-  logger.log(`Notification service started successfully on port ${port}`, 'Bootstrap');
-  logger.log(`Environment: ${configService.app.environment}`, 'Bootstrap');
-  logger.log(`API Documentation: http://localhost:${port}/api/docs`, 'Bootstrap');
-  logger.log(`Health check: http://localhost:${port}/health`, 'Bootstrap');
+  logger.log(`🚀 Notifications Service is running on port ${port}`);
+  logger.log(`📚 API documentation available at /${configService.get('GLOBAL_PREFIX')}/v1/docs`);
 }
 
 bootstrap().catch((error) => {
-  console.error('Failed to start notification service:', error);
+  console.error('❌ Fatal error during application bootstrap:', error);
   process.exit(1);
 });

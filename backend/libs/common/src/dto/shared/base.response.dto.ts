@@ -22,19 +22,19 @@ export class BaseResponseDto {
     example: 'clq1a2b3c0000d4e5f6g7h8i9',
     type: String,
   })
-  id: string;
+  id!: string;
 
   @ApiProperty({
     description: 'The ISO 8601 timestamp when the resource was created.',
     example: '2023-12-01T10:00:00.000Z',
     type: Date,
   })
-  createdAt: Date;
+  createdAt!: Date;
 
   @ApiProperty({
     description: 'The ISO 8601 timestamp when the resource was last updated.',
     example: '2023-12-01T11:30:00.000Z',
     type: Date,
   })
-  updatedAt: Date;
+  updatedAt!: Date;
 }

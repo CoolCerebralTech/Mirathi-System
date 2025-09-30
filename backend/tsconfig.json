@@ -1,35 +1,27 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "CommonJS",
-
-    // --- THE FIX IS HERE ---
-    "moduleResolution": "NodeNext", // Replaced "Node" with "NodeNext"
-    // -------------------------
-
-    "outDir": "dist",
-    "rootDir": ".",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "baseUrl": ".",
-    "incremental": true,
-    "strict": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "types": ["node", "jest"],
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
     "paths": {
       "@shamba/common": ["libs/common/src"],
       "@shamba/config": ["libs/config/src"],
       "@shamba/database": ["libs/database/src"],
       "@shamba/auth": ["libs/auth/src"],
       "@shamba/messaging": ["libs/messaging/src"],
-      "@shamba/observability": ["libs/observability/src"],
-      "@shamba/*": ["libs/*/src"]
-    }
-  },
-  "exclude": ["node_modules", "dist", "coverage"],
-  "include": ["apps", "libs"]
+      "@shamba/observability": ["libs/observability/src"]
+    },
+    "outDir": "dist",
+    "sourceMap": true,
+    "incremental": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  }
 }

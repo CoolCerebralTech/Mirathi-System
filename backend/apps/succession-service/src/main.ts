@@ -1,75 +1,90 @@
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { NestFactory, Reflector } from '@nestjs/core';
+import {
+  ValidationPipe,
+  VersioningType,
+  ClassSerializerInterceptor,
+} from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { ConfigModule, ShambaConfigService } from '@shamba/config';
-import { ObservabilityModule, LoggerService } from '@shamba/observability';
+import { Logger } from 'nestjs-pino';
+import { Transport } from '@nestjs/microservices';
+
+import { ConfigService } from '@shamba/config';
 import { SuccessionModule } from './succession.module';
+import { Queue } from '@shamba/messaging';
 
 async function bootstrap() {
-  // Create the NestJS application
   const app = await NestFactory.create(SuccessionModule, {
     bufferLogs: true,
   });
 
-  // Get configuration service
-  const configService = app.get(ShambaConfigService);
-  const logger = app.get(LoggerService);
+  // --- Get Core Services ---
+  const configService = app.get(ConfigService);
+  const logger = app.get(Logger);
+  const reflector = app.get(Reflector);
 
-  // Use the logger
+  // --- Core Application Setup ---
   app.useLogger(logger);
+  app.enableShutdownHooks();
 
-  // Global validation pipe
+  // --- Connect Microservice Transports ---
+  // This is the crucial step that allows this service to LISTEN for events.
+  app.connectMicroservice({
+    transport: Transport.RMQ,
+    options: {
+      urls: [configService.get('RABBITMQ_URI')],
+      queue: Queue.SUCCESSION_EVENTS,
+      noAck: false, // Ensure messages are acknowledged upon successful processing
+      persistent: true,
+      queueOptions: {
+        durable: true,
+      },
+    },
+  });
+
+  // --- Global Pipes and Interceptors ---
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
     }),
   );
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
 
-  // Enable CORS
+  // --- API Configuration ---
   app.enableCors({
-    origin: configService.app.corsOrigins,
+    origin: configService.get('CORS_ORIGINS'),
     credentials: true,
   });
-
-  // Enable versioning
+  app.setGlobalPrefix(configService.get('GLOBAL_PREFIX'));
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
   });
 
-  // Global prefix
-  app.setGlobalPrefix(configService.app.globalPrefix);
-
-  // Swagger documentation
-  const config = new DocumentBuilder()
-    .setTitle('Shamba Sure Succession Service')
-    .setDescription('Estate and inheritance planning service for Shamba Sure platform')
+  // --- Swagger (OpenAPI) Documentation ---
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Shamba Sure - Succession Service')
+    .setDescription('API for managing wills, assets, families, and succession planning.')
     .setVersion('1.0')
     .addBearerAuth()
-    .addTag('Wills', 'Will management endpoints')
-    .addTag('Assets', 'Asset management endpoints')
-    .addTag('Families', 'Family management endpoints')
+    .addTag('Wills', 'Endpoints for creating and managing wills')
+    .addTag('Assets', 'Endpoints for managing user assets')
+    .addTag('Families', 'Endpoints for managing family trees')
     .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('docs', app, document);
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
-
-  // Start the application
-  const port = configService.app.port || 3001;
+  // --- Start All Transports ---
+  await app.startAllMicroservices();
+  const port = configService.get('SUCCESSION_SERVICE_PORT'); // Dedicated port
   await app.listen(port);
 
-  logger.log(`Succession service started successfully on port ${port}`, 'Bootstrap');
-  logger.log(`Environment: ${configService.app.environment}`, 'Bootstrap');
-  logger.log(`API Documentation: http://localhost:${port}/api/docs`, 'Bootstrap');
-  logger.log(`Health check: http://localhost:${port}/health`, 'Bootstrap');
+  logger.log(`🚀 Succession Service is running on port ${port}`);
+  logger.log(`📚 API documentation available at /${configService.get('GLOBAL_PREFIX')}/v1/docs`);
 }
 
 bootstrap().catch((error) => {
-  console.error('Failed to start succession service:', error);
+  console.error('❌ Fatal error during application bootstrap:', error);
   process.exit(1);
 });
