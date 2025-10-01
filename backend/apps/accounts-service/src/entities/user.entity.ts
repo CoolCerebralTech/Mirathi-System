@@ -1,38 +1,88 @@
 import { User as PrismaUser, UserProfile } from '@shamba/database';
-import { Exclude } from 'class-transformer';
+import { Exclude, Type } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
 
-// ============================================================================
-// ARCHITECTURAL NOTE: The Role of the Entity
-// ============================================================================
-// In our architecture, the Entity is a clean representation of our data model,
-// used for serializing API responses. It uses Prisma's generated types as its
-// foundation to ensure it's always in sync with the database schema.
-//
-// All business logic has been REMOVED from this file. That logic belongs in the
-// `UsersService` or `AuthService`. An entity's job is to represent data, not
-// to perform operations.
-// ============================================================================
-
-export class UserEntity implements Omit<PrismaUser, 'password'> {
+// Lightweight ProfileEntity used for serialization (keeps Prisma types out of controllers)
+export class ProfileEntity implements Partial<UserProfile> {
+  @ApiProperty()
   id!: string;
-  email!: string;
-  firstName!: string;
-  lastName!: string;
-  role!: PrismaUser['role'];
+
+  @ApiProperty({ required: false, nullable: true })
+  bio!: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  phoneNumber!: string | null;
+
+  @ApiProperty({ required: false, type: Object })
+  address!: Record<string, any> | null;
+
+  @ApiProperty({ required: false, type: Object })
+  nextOfKin!: Record<string, any> | null;
+
+  @ApiProperty()
+  userId!: string;
+
+  @ApiProperty()
   createdAt!: Date;
+
+  @ApiProperty()
   updatedAt!: Date;
 
-  // We explicitly exclude the password field from any serialization.
-  @Exclude()
-  password?: string; // Kept for type compatibility but will not be present.
-
-  profile?: UserProfile;
-
-  constructor(partial: Partial<PrismaUser & { profile?: UserProfile | null }>) { // Allow null for profile
-  Object.assign(this, partial);
-  if (this.profile === null) {
-    delete this.profile;
+  constructor(partial: Partial<UserProfile> = {}) {
+    Object.assign(this, partial);
   }
-  delete this.password;
 }
+
+// UserEntity: public-facing serialized shape for API responses
+export class UserEntity implements Omit<PrismaUser, 'password'> {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  email!: string;
+
+  @ApiProperty()
+  firstName!: string;
+
+  @ApiProperty()
+  lastName!: string;
+
+  // Keep role as-is from Prisma type; avoid exposing Prisma runtime types in controller signatures
+  @ApiProperty()
+  role!: PrismaUser['role'];
+
+  @ApiProperty()
+  createdAt!: Date;
+
+  @ApiProperty()
+  updatedAt!: Date;
+
+  // Exclude password from serialization entirely
+  @Exclude()
+  password?: string;
+
+  // Nested profile (optional) — use class-transformer to ensure proper instantiation
+  @ApiProperty({ type: () => ProfileEntity, required: false })
+  @Type(() => ProfileEntity)
+  profile?: ProfileEntity;
+
+  constructor(partial: Partial<PrismaUser & { profile?: UserProfile | null }> = {}) {
+    // Map primitive fields
+    Object.assign(this, partial);
+
+    // If profile is present, wrap it in the ProfileEntity class for safe serialization
+    if (partial.profile) {
+      // handle null vs undefined
+      if (partial.profile === null) {
+        delete this.profile;
+      } else {
+        this.profile = new ProfileEntity(partial.profile as UserProfile);
+      }
+    }
+
+    // Always remove password from the serialized object
+    if ((this as any).password) {
+      delete (this as any).password;
+    }
+  }
 }

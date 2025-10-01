@@ -1,10 +1,23 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
+    /* Output directory for compiled JS and type declarations */
     "outDir": "../../dist/libs/observability",
+
+    /* Generate type declaration files for library consumers */
     "declaration": true,
-    "declarationMap": true
+    "declarationMap": true,
+
+    /* Ensure NodeJS types are available */
+    "types": ["node"]
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "**/*.spec.ts"
+  ]
 }

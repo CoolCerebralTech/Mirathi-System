@@ -3,14 +3,15 @@
   "version": "1.0.0",
   "description": "Database layer for Shamba Sure platform",
   "private": true,
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/libs/database/index.js",
+  "types": "dist/libs/database/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.lib.json",
-    "start:dev": "tsc -w -p tsconfig.lib.json",
+    "build": "tsc -p tsconfig.json",
+    "start:dev": "tsc -w -p tsconfig.json",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "test": "jest --config ../../jest.config.js --runInBand",
-    "clean": "rimraf dist",
+    "clean": "rimraf dist/libs/database",
+
     "db:generate": "prisma generate --schema=./prisma/schema.prisma",
     "db:push": "prisma db push --schema=./prisma/schema.prisma",
     "db:studio": "prisma studio --schema=./prisma/schema.prisma",
@@ -31,6 +32,7 @@
     "prisma": "^5.20.0",
     "rimraf": "^6.0.1",
     "ts-jest": "^29.2.5",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
   }
 }

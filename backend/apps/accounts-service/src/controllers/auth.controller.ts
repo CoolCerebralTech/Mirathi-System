@@ -14,7 +14,6 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import {
   RegisterRequestDto,
-  LoginRequestDto,
   ChangePasswordRequestDto,
   ResetPasswordRequestDto,
   ForgotPasswordRequestDto,
@@ -28,7 +27,6 @@ import {
   JwtAuthGuard,
   LocalAuthGuard,
   RefreshTokenGuard,
-  JwtPayload,
   AuthResult,
 } from '@shamba/auth';
 import { ProfileService } from '../services/profile.service';
@@ -50,12 +48,12 @@ export class AuthController {
   @ApiOperation({ summary: 'Register a new user' })
   @ApiResponse({ status: 201, type: AuthResponseDto })
   async register(@Body() registerDto: RegisterRequestDto): Promise<AuthResponseDto> {
-  const result: AuthResult = await this.authService.register(registerDto);
-    // Construct the DTO correctly
+    const result: AuthResult = await this.authService.register(registerDto);
+
     return {
       accessToken: result.tokens.accessToken,
       refreshToken: result.tokens.refreshToken,
-      user: new UserEntity(result.user) as any, // Cast to satisfy DTO
+      user: new UserEntity(result.user),
     };
   }
 
@@ -66,12 +64,13 @@ export class AuthController {
   @ApiOperation({ summary: 'User login with email and password' })
   @ApiResponse({ status: 200, type: AuthResponseDto })
   async login(@Req() req: any): Promise<AuthResponseDto> {
-    const user = req.user; // User is attached by LocalAuthGuard
+    const user = req.user;
     const tokens = await this.authService.generateTokenPair({
       sub: user.id,
       email: user.email,
       role: user.role,
     });
+
     return {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
@@ -89,6 +88,7 @@ export class AuthController {
     const userId = req.user.sub;
     const tokens = await this.authService.refreshTokens(userId);
     const user = await this.profileService.getProfile(userId);
+
     return {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
@@ -100,18 +100,24 @@ export class AuthController {
   @Post('auth/forgot-password')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: 'Initiate the password reset process' })
-  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordRequestDto): Promise<{ message: string }> {
-    // ... rest of the method is correct
+  async forgotPassword(
+    @Body() forgotPasswordDto: ForgotPasswordRequestDto,
+  ): Promise<{ message: string }> {
     await this.authService.initiatePasswordReset(forgotPasswordDto.email);
     return { message: 'If a matching account was found, a password reset link has been sent.' };
   }
-  
+
   @Public()
   @Post('auth/reset-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Finalize the password reset process with a token' })
-  async resetPassword(@Body() resetPasswordDto: ResetPasswordRequestDto): Promise<{ message: string }> {
-    await this.authService.finalizePasswordReset(resetPasswordDto.token, resetPasswordDto.newPassword);
+  async resetPassword(
+    @Body() resetPasswordDto: ResetPasswordRequestDto,
+  ): Promise<{ message: string }> {
+    await this.authService.finalizePasswordReset(
+      resetPasswordDto.token,
+      resetPasswordDto.newPassword,
+    );
     return { message: 'Your password has been successfully reset.' };
   }
 
@@ -132,12 +138,13 @@ export class AuthController {
   @Patch('profile')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update the profile of the currently authenticated user' })
-  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 200, type: UserEntity })
   async updateProfile(
     @CurrentUser('sub') userId: string,
     @Body() profileData: UpdateUserProfileRequestDto,
-  ) {
-    return this.profileService.updateProfile(userId, profileData);
+  ): Promise<UserEntity> {
+    const updated = await this.profileService.updateProfile(userId, profileData);
+    return new UserEntity(updated);
   }
 
   @UseGuards(JwtAuthGuard)

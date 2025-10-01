@@ -1,8 +1,20 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "../../dist/apps/accounts-service"
+    /* Output */
+    "outDir": "../../dist/apps/accounts-service",
+    "rootDir": "src",
+
+    /* Environment */
+    "types": ["node"],
+
+    /* Debugging */
+    "sourceMap": true,
+
+    /* Decorators (needed for NestJS) */
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
+  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts", "**/*.test.ts"]
 }
