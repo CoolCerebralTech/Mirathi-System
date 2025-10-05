@@ -18,6 +18,7 @@ export const configValidationSchema = Joi.object({
   APP_NAME: Joi.string().default('Shamba Sure'),
   APP_VERSION: Joi.string().default('1.0.0'),
   PORT: Joi.number().default(3001).required(),
+  HOST: Joi.string().default('0.0.0.0'),
   GLOBAL_PREFIX: Joi.string().default('api'),
   CORS_ORIGINS: Joi.string()
     .default('http://localhost:3000')
@@ -26,6 +27,8 @@ export const configValidationSchema = Joi.object({
   RATE_LIMIT_LIMIT: Joi.number().default(100),
 
   HEALTH_MEMORY_HEAP_THRESHOLD_MB: Joi.number().default(256),
+
+  SERVICE_TIMEOUT: Joi.number().default(30000),
 
     // Service Ports
   ACCOUNTS_SERVICE_PORT: Joi.number().default(3001),

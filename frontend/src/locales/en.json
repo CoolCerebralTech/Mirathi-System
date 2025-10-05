@@ -1,0 +1,25 @@
+{
+  "translation": {
+    "login": {
+      "title": "Sign in to your account",
+      "emailLabel": "Email address",
+      "passwordLabel": "Password",
+      "forgotPassword": "Forgot your password?",
+      "submitButton": "Sign in"
+    },
+    "register": {
+      "title": "Create your Shamba Sure account",
+      "firstNameLabel": "First Name",
+      "lastNameLabel": "Last Name",
+      "emailLabel": "Email address",
+      "passwordLabel": "Password",
+      "confirmPasswordLabel": "Confirm Password",
+      "submitButton": "Create Account"
+    },
+    "sidebar": {
+        "dashboard": "Dashboard",
+        "profile": "Profile",
+        "userManagement": "User Management"
+    }
+  }
+}

@@ -32,12 +32,17 @@ export enum EventPattern {
   // Succession Service Events
   WILL_CREATED = 'succession.will.created',
   WILL_ACTIVATED = 'succession.will.activated',
-  ASSET_CREATED = 'succession.asset.created',
+  WILL_UPDATED = 'succession.will.updated',
   HEIR_ASSIGNED = 'succession.heir.assigned',
+  ASSET_CREATED = 'succession.asset.created',
+  ASSET_UPDATED = 'succession.asset.updated',
+  ASSET_DELETED = 'succession.asset.deleted',
+  
 
   // Documents Service Events
   DOCUMENT_UPLOADED = 'documents.document.uploaded',
   DOCUMENT_VERIFIED = 'documents.document.verified',
+  DOCUMENT_DELETED = 'documents.document.deleted',
 }
 
 // --- 3. Standardized Error Code Enum ---

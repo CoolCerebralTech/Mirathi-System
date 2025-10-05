@@ -30,6 +30,7 @@
     "@shamba/database": "workspace:^1.0.0",
     "@shamba/messaging": "workspace:^1.0.0",
     "@shamba/observability": "workspace:^1.0.0",
+    "bcrypt": "^5.1.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "rxjs": "^7.8.1"
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@nestjs/testing": "^11.0.0",
+    "@types/bcrypt": "^5.0.2",
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.30",

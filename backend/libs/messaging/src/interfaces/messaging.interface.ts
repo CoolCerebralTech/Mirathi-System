@@ -26,11 +26,11 @@ export enum Exchange {
  * Following a `service-name.events` convention is recommended.
  */
 export enum Queue {
+  ACCOUNTS_EVENTS = 'accounts.events',
+  DOCUMENTS_EVENTS = 'documents.events',
   SUCCESSION_EVENTS = 'succession.events',
   NOTIFICATIONS_EVENTS = 'notifications.events',
   AUDITING_EVENTS = 'auditing.events',
-  // Each queue will have a corresponding dead-letter queue (DLQ)
-  // configured automatically by our MessagingService.
 }
 
 /**

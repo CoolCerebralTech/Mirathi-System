@@ -1,41 +1,133 @@
-import { Controller, Get, Query, Param } from '@nestjs/common';
-import { EventPattern, Payload } from '@nestjs/microservices';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { ShambaEvent, AuditQueryDto } from '@shamba/common';
-import { AuditLogEntity, AuditSummaryEntity } from '../entities/audit.entity';
-import { AuditingService } from '../services/auditing.service';
+// ============================================================================
+// auditing.controller.ts - Admin Audit Log Endpoints
+// ============================================================================
 
-@ApiTags('Auditing')
-@Controller('auditing')
+import { 
+  Controller as AuditController, 
+  Get as AuditGet, 
+  Query as AuditQuery, 
+  Param as AuditParam,
+  UseGuards as AuditUseGuards,
+  UseInterceptors as AuditUseInterceptors,
+  ClassSerializerInterceptor as AuditClassSerializerInterceptor,
+  ParseUUIDPipe,
+  Res,
+  StreamableFile,
+} from '@nestjs/common';
+import { 
+  ApiTags as AuditApiTags, 
+  ApiOperation as AuditApiOperation, 
+  ApiResponse as AuditApiResponse,
+  ApiBearerAuth as AuditApiBearerAuth,
+  ApiParam as AuditApiParam,
+} from '@nestjs/swagger';
+import { Response } from 'express';
+import { 
+  AuditQueryDto as ControllerAuditQueryDto, 
+  createPaginatedResponseDto 
+} from '@shamba/common';
+import { JwtAuthGuard, RolesGuard, Roles } from '@shamba/auth';
+import { UserRole } from '@shamba/database';
+import { AuditLogEntity, AuditSummaryEntity as ControllerAuditSummaryEntity } from '../entities/audit.entity';
+import { AuditingService as ControllerAuditingService } from '../services/auditing.service';
+
+const PaginatedAuditLogResponse = createPaginatedResponseDto(AuditLogEntity);
+
+/**
+ * AuditingController - Admin audit log access
+ * All routes require ADMIN role for security/compliance
+ */
+@AuditApiTags('Auditing (Admin)')
+@AuditController('auditing')
+@AuditUseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.ADMIN)
+@AuditUseInterceptors(AuditClassSerializerInterceptor)
+@AuditApiBearerAuth()
 export class AuditingController {
-  constructor(private readonly auditingService: AuditingService) {}
+  constructor(private readonly auditingService: ControllerAuditingService) {}
 
-  // --- Event Consumption ---
-  // This single method, using a wildcard, subscribes to ALL events in our system.
-  // This is the framework-native replacement for the entire AuditEventConsumer class.
-  @EventPattern('*.#') // Subscribes to all topics
-  async handleAllEvents(@Payload() event: ShambaEvent): Promise<void> {
-    await this.auditingService.createLogFromEvent(event);
-  }
-
-  // --- API Endpoints for Querying ---
-  @Get('logs')
-  @ApiOperation({ summary: 'Get a paginated list of all audit logs' })
-  // @ApiResponse({ status: 200, type: PaginatedAuditLogResponse }) // Would need to create this DTO
-  async findMany(@Query() query: AuditQueryDto) {
+  @AuditGet('logs')
+  @AuditApiOperation({ 
+    summary: 'List audit logs',
+    description: 'Get paginated audit logs with filters'
+  })
+  @AuditApiResponse({ 
+    status: 200, 
+    description: 'Logs retrieved successfully',
+    type: PaginatedAuditLogResponse 
+  })
+  async findMany(@AuditQuery() query: ControllerAuditQueryDto) {
     const { logs, total } = await this.auditingService.findMany(query);
     const logEntities = logs.map(log => new AuditLogEntity(log));
-    // return new PaginatedAuditLogResponse(logEntities, total, query);
-    return { logs: logEntities, total }; // Simplified response for now
+    return new PaginatedAuditLogResponse(logEntities, total, query);
   }
-  
-  @Get('summary')
-  @ApiOperation({ summary: 'Get an aggregated summary of audit logs' })
-  @ApiResponse({ status: 200, type: AuditSummaryEntity })
+
+  @AuditGet('logs/:id')
+  @AuditApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  @AuditApiOperation({ summary: 'Get audit log by ID' })
+  @AuditApiResponse({ status: 200, type: AuditLogEntity })
+  async findOne(@AuditParam('id', ParseUUIDPipe) id: string) {
+    const log = await this.auditingService.findById(id);
+    return log ? new AuditLogEntity(log) : null;
+  }
+
+  @AuditGet('summary')
+  @AuditApiOperation({ 
+    summary: 'Get audit summary',
+    description: 'Get aggregated statistics for date range'
+  })
+  @AuditApiResponse({ status: 200, type: ControllerAuditSummaryEntity })
   async getSummary(
-      @Query('startDate') startDate: Date,
-      @Query('endDate') endDate: Date,
-  ): Promise<AuditSummaryEntity> {
-      return this.auditingService.getSummary(startDate, endDate);
+    @AuditQuery('startDate') startDate: string,
+    @AuditQuery('endDate') endDate: string,
+  ) {
+    return this.auditingService.getSummary(
+      new Date(startDate),
+      new Date(endDate)
+    );
+  }
+
+  @AuditGet('analytics/trends')
+  @AuditApiOperation({ summary: 'Get daily event trends' })
+  async getDailyTrends(
+    @AuditQuery('startDate') startDate: string,
+    @AuditQuery('endDate') endDate: string,
+  ) {
+    return this.auditingService.getDailyTrends(
+      new Date(startDate),
+      new Date(endDate)
+    );
+  }
+
+  @AuditGet('analytics/top-users')
+  @AuditApiOperation({ summary: 'Get most active users' })
+  async getMostActiveUsers(@AuditQuery('limit') limit?: number) {
+    return this.auditingService.getMostActiveUsers(limit || 10);
+  }
+
+  @AuditGet('analytics/top-actions')
+  @AuditApiOperation({ summary: 'Get most common actions' })
+  async getMostCommonActions(@AuditQuery('limit') limit?: number) {
+    return this.auditingService.getMostCommonActions(limit || 10);
+  }
+
+  @AuditGet('export/csv')
+  @AuditApiOperation({ summary: 'Export logs as CSV' })
+  async exportCsv(
+    @AuditQuery('startDate') startDate: string,
+    @AuditQuery('endDate') endDate: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const csv = await this.auditingService.generateCsvReport(
+      new Date(startDate),
+      new Date(endDate)
+    );
+
+    res.set({
+      'Content-Type': 'text/csv',
+      'Content-Disposition': `attachment; filename="audit-logs-${startDate}-${endDate}.csv"`,
+    });
+
+    return csv;
   }
 }

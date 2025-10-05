@@ -1,36 +1,50 @@
+
+// ============================================================================
+// auditing.repository.ts - Audit Log Data Access Layer
+// ============================================================================
+
 import { Injectable } from '@nestjs/common';
 import { Prisma, PrismaService, AuditLog } from '@shamba/database';
 import { PaginationQueryDto } from '@shamba/common';
 
-// ============================================================================
-// ARCHITECTURAL NOTE: The Role of the Repository
-// ============================================================================
-// The Repository's ONLY responsibility is to query the database. It is a pure
-// data access layer. All complex analytical logic (getSummary, getUserActivity)
-// has been REMOVED and now lives in the `AuditingService`.
-// ============================================================================
-
+/**
+ * AuditingRepository - Pure data access for audit logs
+ * 
+ * RESPONSIBILITIES:
+ * - Create immutable audit log entries
+ * - Query audit logs with filters
+ * - Aggregate statistics
+ * - Cleanup old logs (data retention)
+ * 
+ * ARCHITECTURAL NOTE:
+ * Audit logs are append-only. There are NO update or delete (by ID) operations.
+ * Only bulk deletion for data retention policies.
+ */
 @Injectable()
 export class AuditingRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Creates a new audit log entry.
-   */
+  // ========================================================================
+  // CREATE OPERATIONS
+  // ========================================================================
+
   async create(data: Prisma.AuditLogCreateInput): Promise<AuditLog> {
     return this.prisma.auditLog.create({ data });
   }
 
-  /**
-   * Finds a single audit log by its unique ID.
-   */
-  async findOne(where: Prisma.AuditLogWhereUniqueInput): Promise<AuditLog | null> {
-    return this.prisma.auditLog.findUnique({ where });
+  async createBatch(data: Prisma.AuditLogCreateInput[]): Promise<number> {
+    const result = await this.prisma.auditLog.createMany({ data });
+    return result.count;
   }
 
-  /**
-   * Finds multiple audit logs based on a query, with pagination.
-   */
+  // ========================================================================
+  // READ OPERATIONS
+  // ========================================================================
+
+  async findById(id: string): Promise<AuditLog | null> {
+    return this.prisma.auditLog.findUnique({ where: { id } });
+  }
+
   async findMany(
     where: Prisma.AuditLogWhereInput,
     pagination: PaginationQueryDto,
@@ -51,33 +65,186 @@ export class AuditingRepository {
     return { logs, total };
   }
 
-  /**
-   * A generic method to query logs without pagination, for analytical purposes.
-   */
-  async query(where: Prisma.AuditLogWhereInput): Promise<AuditLog[]> {
-    return this.prisma.auditLog.findMany({ where });
+  async findByActor(
+    actorId: string,
+    pagination: PaginationQueryDto,
+  ): Promise<{ logs: AuditLog[]; total: number }> {
+    return this.findMany({ actorId }, pagination);
   }
-  
-  /**
-   * Uses a more efficient database aggregation (groupBy) for stats.
-   */
-  async getStatsBy(
-        by: (keyof Prisma.AuditLogGroupByOutputType)[],
-        where: Prisma.AuditLogWhereInput,
-    ) {
-        // FIX IS HERE: The type for 'by' must be the specific scalar field enum
-        const validKeys = by.filter(k => k !== '_count') as Prisma.AuditLogScalarFieldEnum[];
-        return this.prisma.auditLog.groupBy({
-            by: validKeys, // Use the corrected, filtered keys
-            where,
-            _count: {
-                id: true,
-            },
-        });
-    }
+
+  async findByAction(
+    action: string,
+    pagination: PaginationQueryDto,
+  ): Promise<{ logs: AuditLog[]; total: number }> {
+    return this.findMany({ action }, pagination);
+  }
+
+  async findByDateRange(
+    startDate: Date,
+    endDate: Date,
+    pagination: PaginationQueryDto,
+  ): Promise<{ logs: AuditLog[]; total: number }> {
+    return this.findMany({
+      timestamp: {
+        gte: startDate,
+        lte: endDate,
+      },
+    }, pagination);
+  }
+
+  // ========================================================================
+  // ANALYTICS & AGGREGATIONS
+  // ========================================================================
 
   /**
-   * Deletes audit logs older than a specified date.
+   * Get event count by action type
+   */
+  async getEventCountByAction(where?: Prisma.AuditLogWhereInput) {
+    return this.prisma.auditLog.groupBy({
+      by: ['action'],
+      where,
+      _count: {
+        id: true,
+      },
+      orderBy: {
+        _count: {
+          id: 'desc',
+        },
+      },
+    });
+  }
+
+  /**
+   * Get unique actor count
+   */
+  async getUniqueActorCount(where?: Prisma.AuditLogWhereInput): Promise<number> {
+    const result = await this.prisma.auditLog.findMany({
+      where,
+      select: { actorId: true },
+      distinct: ['actorId'],
+    });
+
+    // Filter out null actorIds (system events)
+    return result.filter(r => r.actorId !== null).length;
+  }
+
+  /**
+   * Get total event count
+   */
+  async getTotalCount(where?: Prisma.AuditLogWhereInput): Promise<number> {
+    return this.prisma.auditLog.count({ where });
+  }
+
+  /**
+   * Get events grouped by day
+   */
+  async getEventsByDay(startDate: Date, endDate: Date) {
+    const logs = await this.prisma.auditLog.findMany({
+      where: {
+        timestamp: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: {
+        timestamp: true,
+        action: true,
+      },
+    });
+
+    // Group by day in application layer (Prisma doesn't support DATE() grouping)
+    const groupedByDay = logs.reduce((acc, log) => {
+      const day = log.timestamp.toISOString().split('T')[0];
+      if (!acc[day]) {
+        acc[day] = { date: day, count: 0, actions: {} };
+      }
+      acc[day].count++;
+      acc[day].actions[log.action] = (acc[day].actions[log.action] || 0) + 1;
+      return acc;
+    }, {} as Record<string, { date: string; count: number; actions: Record<string, number> }>);
+
+    return Object.values(groupedByDay);
+  }
+
+  /**
+   * Get most active users
+   */
+  async getMostActiveUsers(limit: number = 10, where?: Prisma.AuditLogWhereInput) {
+    const results = await this.prisma.auditLog.groupBy({
+      by: ['actorId'],
+      where: {
+        ...where,
+        actorId: { not: null }, // Exclude system events
+      },
+      _count: {
+        id: true,
+      },
+      orderBy: {
+        _count: {
+          id: 'desc',
+        },
+      },
+      take: limit,
+    });
+
+    return results.map(r => ({
+      actorId: r.actorId!,
+      eventCount: r._count.id,
+    }));
+  }
+
+  /**
+   * Get most common actions
+   */
+  async getMostCommonActions(limit: number = 10, where?: Prisma.AuditLogWhereInput) {
+    const results = await this.prisma.auditLog.groupBy({
+      by: ['action'],
+      where,
+      _count: {
+        id: true,
+      },
+      orderBy: {
+        _count: {
+          id: 'desc',
+        },
+      },
+      take: limit,
+    });
+
+    return results.map(r => ({
+      action: r.action,
+      count: r._count.id,
+    }));
+  }
+
+  // ========================================================================
+  // SEARCH OPERATIONS
+  // ========================================================================
+
+  /**
+   * Search logs by payload content
+   * Uses Prisma's JSON filtering
+   */
+  async searchByPayload(
+    key: string,
+    value: any,
+    pagination: PaginationQueryDto,
+  ): Promise<{ logs: AuditLog[]; total: number }> {
+    return this.findMany({
+      payload: {
+        path: [key],
+        equals: value,
+      },
+    }, pagination);
+  }
+
+  // ========================================================================
+  // DELETE OPERATIONS (Data Retention)
+  // ========================================================================
+
+  /**
+   * Delete logs older than specified date
+   * Used for data retention policies
    */
   async deleteOlderThan(date: Date): Promise<{ count: number }> {
     return this.prisma.auditLog.deleteMany({
@@ -86,6 +253,15 @@ export class AuditingRepository {
           lt: date,
         },
       },
+    });
+  }
+
+  /**
+   * Delete logs by action type (for cleanup)
+   */
+  async deleteByAction(action: string): Promise<{ count: number }> {
+    return this.prisma.auditLog.deleteMany({
+      where: { action },
     });
   }
 }

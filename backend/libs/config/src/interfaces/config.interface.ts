@@ -13,6 +13,7 @@ export interface AppConfig {
   APP_NAME: string;
   APP_VERSION: string;
   PORT: number;
+  HOST: string;
   GLOBAL_PREFIX: string;
   /** Comma-separated list of allowed origins (e.g., "http://localhost:3000,https://app.shamba.sure") */
   CORS_ORIGINS: string[];
@@ -93,6 +94,10 @@ export interface LoggingConfig {
   LOG_FORMAT: 'json' | 'simple';
 }
 
+export interface ServiceConfig {
+  SERVICE_TIMEOUT: number;
+}
+
 export interface ServicePortsConfig {
   ACCOUNTS_SERVICE_PORT: number;
   DOCUMENTS_SERVICE_PORT: number;
@@ -115,6 +120,7 @@ export interface ServiceUrlsConfig {
 export interface Config
   extends AppConfig,
     DatabaseConfig,
+    ServiceConfig,
     ServicePortsConfig,
     ServiceUrlsConfig,
     AuthConfig,

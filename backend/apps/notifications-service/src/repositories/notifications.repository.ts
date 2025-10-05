@@ -1,25 +1,56 @@
+// ============================================================================
+// notifications.repository.ts - Notification Data Access Layer
+// ============================================================================
+
 import { Injectable } from '@nestjs/common';
-import { Prisma, PrismaService, Notification, NotificationStatus } from '@shamba/database';
+import { 
+  Prisma, 
+  PrismaService, 
+  Notification, 
+  NotificationStatus as RepoNotificationStatus,
+  NotificationChannel as RepoNotificationChannel,
+} from '@shamba/database';
 import { PaginationQueryDto } from '@shamba/common';
 
-// ============================================================================
-// ARCHITECTURAL NOTE: The Role of the Repository
-// ============================================================================
-// This repository is a pure data access layer. All complex logic (stats
-// calculation, business rules for retries) has been REMOVED and now lives
-// in the `NotificationsService`.
-// ============================================================================
-
+/**
+ * NotificationsRepository - Pure data access for notifications
+ * 
+ * RESPONSIBILITIES:
+ * - CRUD operations for notifications
+ * - Query pending notifications for processing
+ * - Update notification status
+ * - Cleanup old notifications
+ */
 @Injectable()
 export class NotificationsRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  // ========================================================================
+  // CREATE OPERATIONS
+  // ========================================================================
 
   async create(data: Prisma.NotificationUncheckedCreateInput): Promise<Notification> {
     return this.prisma.notification.create({ data });
   }
 
-  async findOne(where: Prisma.NotificationWhereUniqueInput): Promise<Notification | null> {
-    return this.prisma.notification.findUnique({ where });
+  async createBatch(data: Prisma.NotificationUncheckedCreateInput[]): Promise<number> {
+    const result = await this.prisma.notification.createMany({ data });
+    return result.count;
+  }
+
+  // ========================================================================
+  // READ OPERATIONS
+  // ========================================================================
+
+  async findById(id: string): Promise<Notification | null> {
+    return this.prisma.notification.findUnique({ where: { id } });
+  }
+
+  async findByIdWithTemplate(id: string): Promise<(Notification & { template: any }) | null> {
+    return this.prisma.notification.findUnique({
+      where: { id },
+      include: { template: true },
+    });
   }
 
   async findMany(
@@ -35,31 +66,125 @@ export class NotificationsRepository {
         skip,
         take: limit,
         orderBy: { [sortBy]: sortOrder },
+        include: { template: true },
       }),
       this.prisma.notification.count({ where }),
     ]);
 
     return { notifications, total };
   }
-  
-  async findPending(limit: number): Promise<Notification[]> {
-      return this.prisma.notification.findMany({
-          where: { status: NotificationStatus.PENDING },
-          take: limit,
-          orderBy: { createdAt: 'asc' }
-      });
+
+  async findPending(limit: number = 100): Promise<Notification[]> {
+    return this.prisma.notification.findMany({
+      where: { status: RepoNotificationStatus.PENDING },
+      take: limit,
+      orderBy: { createdAt: 'asc' },
+      include: { template: true },
+    });
   }
 
-  async update(id: string, data: Prisma.NotificationUpdateInput): Promise<Notification> {
-    return this.prisma.notification.update({ where: { id }, data });
+  async findByRecipient(
+    recipientId: string,
+    pagination: PaginationQueryDto,
+  ): Promise<{ notifications: Notification[]; total: number }> {
+    return this.findMany({ recipientId }, pagination);
   }
-  
+
+  async findByStatus(
+    status: RepoNotificationStatus,
+    pagination: PaginationQueryDto,
+  ): Promise<{ notifications: Notification[]; total: number }> {
+    return this.findMany({ status }, pagination);
+  }
+
+  async findFailed(limit: number = 100): Promise<Notification[]> {
+    return this.prisma.notification.findMany({
+      where: { status: RepoNotificationStatus.FAILED },
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      include: { template: true },
+    });
+  }
+
+  // ========================================================================
+  // UPDATE OPERATIONS
+  // ========================================================================
+
+  async update(id: string, data: Prisma.NotificationUpdateInput): Promise<Notification> {
+    return this.prisma.notification.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async markAsSent(id: string): Promise<Notification> {
+    return this.prisma.notification.update({
+      where: { id },
+      data: {
+        status: RepoNotificationStatus.SENT,
+        sentAt: new Date(),
+      },
+    });
+  }
+
+  async markAsFailed(id: string, failReason: string): Promise<Notification> {
+    return this.prisma.notification.update({
+      where: { id },
+      data: {
+        status: RepoNotificationStatus.FAILED,
+        failReason,
+      },
+    });
+  }
+
+  // ========================================================================
+  // DELETE OPERATIONS
+  // ========================================================================
+
   async deleteOlderThan(date: Date): Promise<{ count: number }> {
-      return this.prisma.notification.deleteMany({
-          where: { 
-              createdAt: { lt: date },
-              status: { in: [NotificationStatus.SENT, NotificationStatus.FAILED] }
-          }
-      });
+    return this.prisma.notification.deleteMany({
+      where: {
+        createdAt: { lt: date },
+        status: { 
+          in: [RepoNotificationStatus.SENT, RepoNotificationStatus.FAILED] 
+        },
+      },
+    });
+  }
+
+  // ========================================================================
+  // STATISTICS
+  // ========================================================================
+
+  async getStatsByRecipient(recipientId: string) {
+    return this.prisma.notification.groupBy({
+      by: ['status', 'channel'],
+      where: { recipientId },
+      _count: {
+        id: true,
+      },
+    });
+  }
+
+  async getGlobalStats() {
+    return this.prisma.notification.groupBy({
+      by: ['status', 'channel'],
+      _count: {
+        id: true,
+      },
+    });
+  }
+
+  async getPendingCount(): Promise<number> {
+    return this.prisma.notification.count({
+      where: { status: RepoNotificationStatus.PENDING },
+    });
+  }
+
+  async getFailedCount(): Promise<number> {
+    return this.prisma.notification.count({
+      where: { status: RepoNotificationStatus.FAILED },
+    });
   }
 }
+

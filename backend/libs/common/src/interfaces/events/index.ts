@@ -44,6 +44,11 @@ export interface UserUpdatedData {
   };
 }
 
+export interface UserDeletedData {
+  userId: string;
+  email: string;
+}
+
 export interface PasswordResetRequestedData {
   userId: string;
   email: string;
@@ -58,6 +63,19 @@ export interface WillCreatedData {
   status: WillStatus;
 }
 
+export interface WillUpdatedData {
+  willId: string;
+  testatorId: string;
+  status: WillStatus;
+}
+
+export interface HeirAssignedData {
+  willId: string;
+  assetId: string;
+  beneficiaryId: string;
+  sharePercent: number | null;
+}
+
 export interface AssetCreatedData {
   assetId: string;
   ownerId: string;
@@ -65,10 +83,23 @@ export interface AssetCreatedData {
   type: AssetType;
 }
 
+export interface AssetUpdatedData {
+  assetId: string;
+  ownerId: string;
+  name: string;
+}
+
+export interface AssetDeletedData {
+  assetId: string;
+  ownerId: string;
+}
+
 export interface DocumentUploadedData {
   documentId: string;
   uploaderId: string;
   filename: string;
+  mimeType: string;
+  sizeBytes: number;
   status: DocumentStatus;
 }
 
@@ -76,26 +107,46 @@ export interface DocumentVerifiedData {
   documentId: string;
   uploaderId: string;
   filename: string;
-  status: DocumentStatus; // Now strongly typed
+  mimeType: string;
+  sizeBytes: number;
+  status: DocumentStatus;
+}
+
+export interface DocumentDeletedData {
+  documentId: string;
+  uploaderId: string;
 }
 
 // --- Concrete Event Interfaces ---
 
 export type UserCreatedEvent = BaseEvent<EventPattern.USER_CREATED, UserCreatedData>;
 export type UserUpdatedEvent = BaseEvent<EventPattern.USER_UPDATED, UserUpdatedData>;
+export type UserDeletedEvent = BaseEvent<EventPattern.USER_DELETED, UserDeletedData>;
 export type PasswordResetRequestedEvent = BaseEvent<EventPattern.PASSWORD_RESET_REQUESTED, PasswordResetRequestedData>;
 export type WillCreatedEvent = BaseEvent<EventPattern.WILL_CREATED, WillCreatedData>;
+export type WillUpdatedEvent = BaseEvent<EventPattern.WILL_UPDATED, WillUpdatedData>;
+export type HeirAssignedEvent = BaseEvent<EventPattern.HEIR_ASSIGNED, HeirAssignedData>;
 export type DocumentVerifiedEvent = BaseEvent<EventPattern.DOCUMENT_VERIFIED, DocumentVerifiedData>;
 export type DocumentUploadedEvent = BaseEvent<EventPattern.DOCUMENT_UPLOADED, DocumentUploadedData>;
+export type DocumentDeletedEvent = BaseEvent<EventPattern.DOCUMENT_DELETED, DocumentDeletedData>;
 export type AssetCreatedEvent = BaseEvent<EventPattern.ASSET_CREATED, AssetCreatedData>;
+export type AssetUpdatedEvent = BaseEvent<EventPattern.ASSET_UPDATED, AssetUpdatedData>;
+export type AssetDeletedEvent = BaseEvent<EventPattern.ASSET_DELETED, AssetDeletedData>;
+
 
 // --- Union type for all possible events ---
 export type ShambaEvent =
   | UserCreatedEvent
   | UserUpdatedEvent
+  | UserDeletedEvent 
   | PasswordResetRequestedEvent
   | DocumentUploadedEvent
   | WillCreatedEvent
+  | WillUpdatedEvent    
+  | HeirAssignedEvent 
   | DocumentVerifiedEvent
-  | AssetCreatedEvent;
+  | DocumentDeletedEvent
+  | AssetCreatedEvent
+  | AssetUpdatedEvent
+  | AssetDeletedEvent;
   

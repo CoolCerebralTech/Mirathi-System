@@ -11,6 +11,9 @@ importers:
       '@types/jest':
         specifier: ^29.5.12
         version: 29.5.14
+      '@types/multer':
+        specifier: ^1.4.13
+        version: 1.4.13
       '@types/node':
         specifier: ^20.11.30
         version: 20.19.17
@@ -42,7 +45,7 @@ importers:
         specifier: ^4.2.0
         version: 4.2.0
       typescript:
-        specifier: ^5.6.3
+        specifier: ^5.9.2
         version: 5.9.2
 
   apps/accounts-service:
@@ -77,6 +80,9 @@ importers:
       '@shamba/observability':
         specifier: workspace:^1.0.0
         version: link:../../libs/observability
+      bcrypt:
+        specifier: ^5.1.1
+        version: 5.1.1
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1
@@ -93,6 +99,9 @@ importers:
       '@nestjs/testing':
         specifier: ^11.0.0
         version: 11.1.6(@nestjs/common@11.1.6(class-transformer@0.5.1)(class-validator@0.14.2)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.6)(@nestjs/microservices@11.1.6)(@nestjs/platform-express@11.1.6)
+      '@types/bcrypt':
+        specifier: ^5.0.2
+        version: 5.0.2
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.23
@@ -413,11 +422,14 @@ importers:
       axios:
         specifier: ^1.7.7
         version: 1.12.2
+      class-transformer:
+        specifier: ^0.5.1
+        version: 0.5.1
       mime-types:
         specifier: ^2.1.35
         version: 2.1.35
       multer:
-        specifier: ^1.4.5-lts.1
+        specifier: 1.4.5-lts.2
         version: 1.4.5-lts.2
       nestjs-pino:
         specifier: ^4.4.1
@@ -451,7 +463,7 @@ importers:
         specifier: ^2.1.4
         version: 2.1.4
       '@types/multer':
-        specifier: ^1.4.12
+        specifier: ^1.4.13
         version: 1.4.13
       '@types/node':
         specifier: ^20.11.30
@@ -891,6 +903,9 @@ importers:
         specifier: ^5.20.0
         version: 5.22.0(prisma@5.22.0)
     devDependencies:
+      '@types/bcrypt':
+        specifier: ^5.0.2
+        version: 5.0.2
       eslint:
         specifier: ^9.10.0
         version: 9.36.0

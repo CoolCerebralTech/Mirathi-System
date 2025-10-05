@@ -33,6 +33,7 @@ export class UpdateAssetRequestDto {
 
     @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000)
     description?: string;
+  type!: AssetType;
   }
 
 export class UpdateWillRequestDto {
@@ -104,6 +105,13 @@ export class AddFamilyMemberRequestDto {
   @ApiProperty({ enum: RelationshipType, description: 'The relationship of this user to the family creator.' })
   @IsEnum(RelationshipType)
   role: RelationshipType = "OTHER";
+}
+
+export class UpdateFamilyMemberRequestDto {
+  @ApiPropertyOptional({ enum: RelationshipType, description: 'The new role of the family member.' })
+  @IsOptional()
+  @IsEnum(RelationshipType)
+  role?: RelationshipType;
 }
 
 // ============================================================================

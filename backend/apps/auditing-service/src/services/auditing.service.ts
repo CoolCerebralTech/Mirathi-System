@@ -1,89 +1,249 @@
-import { Injectable } from '@nestjs/common';
+// ============================================================================
+// auditing.service.ts - Audit Logging & Analytics
+// ============================================================================
+
+import { Injectable, Logger } from '@nestjs/common';
 import { AuditLog } from '@shamba/database';
 import { AuditQueryDto, ShambaEvent } from '@shamba/common';
 import { AuditingRepository } from '../repositories/auditing.repository';
 import { AuditSummaryEntity } from '../entities/audit.entity';
 
+/**
+ * AuditingService - Audit logging and analytics
+ * 
+ * RESPONSIBILITIES:
+ * - Create audit logs from events
+ * - Query audit logs
+ * - Generate analytics reports
+ * - Export data (CSV, JSON)
+ * - Data retention cleanup
+ */
 @Injectable()
 export class AuditingService {
-  logger: any;
+  private readonly logger = new Logger(AuditingService.name);
+
   constructor(private readonly auditingRepository: AuditingRepository) {}
 
-  // --- Core Method: Called by the Event Consumer ---
-  async createLogFromEvent(event: ShambaEvent): Promise<AuditLog> {
-    // FIX IS HERE: We create a helper to safely extract the user ID
-        const getActorId = (data: ShambaEvent['data']): string | null => {
-            if ('userId' in data) return data.userId;
-            if ('uploaderId' in data) return data.uploaderId;
-            if ('testatorId' in data) return data.testatorId;
-            if ('ownerId' in data) return data.ownerId;
-            return null;
-        }
+  // ========================================================================
+  // EVENT PROCESSING
+  // ========================================================================
 
-        const logData = {
-          action: event.type,
-          payload: event.data as any,
-          timestamp: event.timestamp,
-          actorId: getActorId(event.data),
-        };
-        return this.auditingRepository.create(logData);
+  /**
+   * Create audit log from domain event
+   * Extracts actor ID from various event types
+   */
+  async createLogFromEvent(event: ShambaEvent): Promise<AuditLog> {
+    const actorId = this.extractActorId(event.data);
+
+    const logData = {
+      action: event.type,
+      payload: event.data as any,
+      timestamp: event.timestamp,
+      actor: actorId ? { connect: { id: actorId } } : undefined,
+    };
+
+    const log = await this.auditingRepository.create(logData);
+
+    this.logger.debug(
+      `Audit log created: ${event.type} by ${actorId || 'system'}`
+    );
+
+    return log;
+  }
+
+  /**
+   * Extract actor ID from event data
+   * Different events use different field names
+   */
+  private extractActorId(data: ShambaEvent['data']): string | null {
+    if ('userId' in data) return data.userId;
+    if ('uploaderId' in data) return data.uploaderId;
+    if ('testatorId' in data) return data.testatorId;
+    if ('ownerId' in data) return data.ownerId;
+    if ('actorId' in data) return data.actorId;
+    return null;
+  }
+
+  // ========================================================================
+  // QUERY OPERATIONS
+  // ========================================================================
+
+  async findMany(
+    query: AuditQueryDto
+  ): Promise<{ logs: AuditLog[]; total: number }> {
+    const where: any = {};
+
+    if (query.action) {
+      where.action = { contains: query.action, mode: 'insensitive' };
     }
 
-  // --- Querying Methods: Called by the Controller ---
-  async findMany(query: AuditQueryDto): Promise<{ logs: AuditLog[]; total: number }> {
-    const where = {
-      action: query.action ? { contains: query.action } : undefined,
-      actorId: query.userId,
-    };
+    if (query.userId) {
+      where.actorId = query.userId;
+    }
+
+    if (query.startDate && query.endDate) {
+      where.timestamp = {
+        gte: new Date(query.startDate),
+        lte: new Date(query.endDate),
+      };
+    }
+
     return this.auditingRepository.findMany(where, query);
   }
 
-  // --- Reporting & Analytics Methods ---
+  async findByActor(
+    actorId: string,
+    query: AuditQueryDto
+  ): Promise<{ logs: AuditLog[]; total: number }> {
+    return this.auditingRepository.findByActor(actorId, query);
+  }
+
+  async findById(id: string): Promise<AuditLog | null> {
+    return this.auditingRepository.findById(id);
+  }
+
+  // ========================================================================
+  // ANALYTICS & REPORTING
+  // ========================================================================
+
+  /**
+   * Get summary statistics for date range
+   */
   async getSummary(startDate: Date, endDate: Date): Promise<AuditSummaryEntity> {
-    const logs = await this.auditingRepository.query({
+    const where = {
       timestamp: { gte: startDate, lte: endDate },
-    });
-    
-    // All the rich analytical logic from your AuditLogRepository.getSummary
-    // now lives here in the service layer.
-    const uniqueUsers = new Set<string>();
-    const eventsByAction: Record<string, number> = {};
-    logs.forEach(log => {
-        // FIX IS HERE: Safely handle null actorId
-        if(log.actorId) {
-            uniqueUsers.add(log.actorId);
-        }
-        eventsByAction[log.action] = (eventsByAction[log.action] || 0) + 1;
+    };
+
+    // Get all data in parallel
+    const [totalEvents, eventsByAction, uniqueActorCount] = await Promise.all([
+      this.auditingRepository.getTotalCount(where),
+      this.auditingRepository.getEventCountByAction(where),
+      this.auditingRepository.getUniqueActorCount(where),
+    ]);
+
+    // Transform to summary format
+    const eventsByActionMap: Record<string, number> = {};
+    eventsByAction.forEach(e => {
+      eventsByActionMap[e.action] = e._count.id;
     });
 
     return new AuditSummaryEntity({
-      date: new Date(),
-      totalEvents: logs.length,
-      eventsByAction,
-      uniqueUsers: uniqueUsers.size,
-      // ... other calculated fields
+      date: startDate.toISOString(),
+      totalEvents,
+      eventsByAction: eventsByActionMap,
+      uniqueUsers: uniqueActorCount,
     });
   }
 
+  /**
+   * Get daily event trends
+   */
+  async getDailyTrends(startDate: Date, endDate: Date) {
+    return this.auditingRepository.getEventsByDay(startDate, endDate);
+  }
+
+  /**
+   * Get most active users
+   */
+  async getMostActiveUsers(limit: number = 10, startDate?: Date, endDate?: Date) {
+    const where = startDate && endDate
+      ? { timestamp: { gte: startDate, lte: endDate } }
+      : undefined;
+
+    return this.auditingRepository.getMostActiveUsers(limit, where);
+  }
+
+  /**
+   * Get most common actions
+   */
+  async getMostCommonActions(limit: number = 10, startDate?: Date, endDate?: Date) {
+    const where = startDate && endDate
+      ? { timestamp: { gte: startDate, lte: endDate } }
+      : undefined;
+
+    return this.auditingRepository.getMostCommonActions(limit, where);
+  }
+
+  /**
+   * Generate CSV report
+   */
   async generateCsvReport(startDate: Date, endDate: Date): Promise<string> {
-    // The logic from your AuditReportService.generateCSVReport now lives here.
-    // It will use the `auditingRepository` to fetch the logs.
-    const logs = await this.auditingRepository.query({
-      timestamp: { gte: startDate, lte: endDate },
-    });
-    // ... logic to convert logs to CSV string using a library like 'csv-writer' ...
-    return 'timestamp,action,userId...\n...'; // Placeholder
+    const { logs } = await this.auditingRepository.findMany(
+      { timestamp: { gte: startDate, lte: endDate } },
+      { page: 1, limit: 10000 } // Max 10k rows for CSV
+    );
+
+    // Generate CSV
+    const headers = ['Timestamp', 'Action', 'Actor ID', 'Payload'];
+    const rows = logs.map(log => [
+      log.timestamp.toISOString(),
+      log.action,
+      log.actorId || 'system',
+      JSON.stringify(log.payload),
+    ]);
+
+    const csv = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
+    ].join('\n');
+
+    return csv;
   }
 
-  // ADD THE MISSING METHODS THAT THE TASK SCHEDULER NEEDS
-async cleanupOldLogs(retentionDays: number): Promise<{ deletedCount: number }> {
+  // ========================================================================
+  // SECURITY & COMPLIANCE
+  // ========================================================================
+
+  /**
+   * Detect suspicious activity patterns
+   */
+  async detectSuspiciousActivity(): Promise<any[]> {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    
+    // Get users with high activity in last hour
+    const activeUsers = await this.auditingRepository.getMostActiveUsers(
+      20,
+      oneHourAgo,
+      new Date()
+    );
+
+    // Flag users with more than 100 events in an hour
+    const suspicious = activeUsers.filter(u => u.eventCount > 100);
+
+    if (suspicious.length > 0) {
+      this.logger.warn(
+        `Detected ${suspicious.length} users with suspicious activity`
+      );
+    }
+
+    return suspicious;
+  }
+
+  /**
+   * Search for specific event patterns
+   */
+  async searchEvents(action: string, startDate: Date, endDate: Date) {
+    return this.auditingRepository.findByAction(
+      action,
+      { page: 1, limit: 100, startDate, endDate } as any
+    );
+  }
+
+  // ========================================================================
+  // DATA RETENTION
+  // ========================================================================
+
+  /**
+   * Cleanup old audit logs (data retention policy)
+   */
+  async cleanupOldLogs(retentionDays: number): Promise<{ deletedCount: number }> {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-    return this.auditingRepository.deleteOlderThan(cutoffDate);
-  }
 
-  async detectSuspiciousActivity(): Promise<void> {
-      // Placeholder for the complex logic
-      this.logger.log('Detecting suspicious activity...');
+    const result = await this.auditingRepository.deleteOlderThan(cutoffDate);
+
+    this.logger.log(`Cleaned up ${result.count} audit logs older than ${retentionDays} days`);
+
+    return { deletedCount: result.count };
   }
 }

@@ -64,6 +64,7 @@ async function main() {
   const family = await prisma.family.create({
     data: {
       name: 'Mwangi Family',
+      creator: { connect: { id: landOwner.id } },
       members: {
         create: [
           { userId: landOwner.id, role: 'PARENT' }

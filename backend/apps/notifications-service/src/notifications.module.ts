@@ -1,9 +1,13 @@
-import { Module, OnModuleInit, Injectable, Logger } from '@nestjs/common';
+// ============================================================================
+// notifications.module.ts - Notifications Service Root Module
+// ============================================================================
+
+import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule } from '@shamba/config';
 import { DatabaseModule } from '@shamba/database';
 import { AuthModule } from '@shamba/auth';
-import { MessagingModule, Queue } from '@shamba/messaging';
+import { MessagingModule } from '@shamba/messaging';
 import { ObservabilityModule } from '@shamba/observability';
 
 import { NotificationsController } from './controllers/notifications.controller';
@@ -13,52 +17,92 @@ import { TemplatesService } from './services/templates.service';
 import { NotificationsRepository } from './repositories/notifications.repository';
 import { TemplatesRepository } from './repositories/templates.repository';
 import { ProvidersModule } from './providers/providers.module';
-import { NotificationChannel } from '@shamba/common';
-import { DEFAULT_TEMPLATES } from './templates/default-templates';
+import { EventsHandler } from './events/events.handler';
+import { SchedulerService } from './events/scheduler.service';
+import { DefaultTemplatesSeed } from './events/default-templates.seed';
 
-// --- New Seeder Provider ---
-@Injectable()
-export class TemplateSeeder implements OnModuleInit {
-  private readonly logger = new Logger(TemplateSeeder.name);
-  constructor(private readonly templatesRepository: TemplatesRepository) {}
-
-  async onModuleInit() {
-    this.logger.log('Checking for default templates...');
-    for (const template of DEFAULT_TEMPLATES) {
-      const existing = await this.templatesRepository.findOne({ name: template.name });
-      if (!existing) {
-        await this.templatesRepository.create(template);
-        this.logger.log(`Created default template: ${template.name}`);
-      }
-    }
-  }
-}
-
+/**
+ * NotificationsModule - Root module for Notifications microservice
+ * 
+ * DOMAIN: Outbound Communications
+ * 
+ * RESPONSIBILITIES:
+ * - Email and SMS delivery
+ * - Template management
+ * - Event-driven notification creation
+ * - Scheduled notification processing
+ * - Delivery tracking and retry logic
+ * 
+ * PUBLISHES EVENTS: None (this service only consumes)
+ * 
+ * SUBSCRIBES TO:
+ * - user.created
+ * - password.reset.requested
+ * - will.created
+ * - heir.assigned
+ * - document.verified
+ * 
+ * DATA OWNED:
+ * - Notification
+ * - NotificationTemplate
+ */
 @Module({
   imports: [
-    // --- Core & Shared Libraries ---
-    ConfigModule,
-    DatabaseModule,
-    AuthModule,
+    // --- Core Infrastructure ---
+    ConfigModule,      // Environment configuration
+    DatabaseModule,    // Prisma Client and database connection
+    AuthModule,        // JWT validation for API endpoints
+
+    // --- Scheduling ---
+    // Enable cron jobs for notification processing
     ScheduleModule.forRoot(),
-    MessagingModule.register({ queue: Queue.NOTIFICATIONS_EVENTS }),
+
+    // --- Event-Driven Communication ---
+    // This service consumes events from other services
+    // Queue name: 'notifications.events'
+    MessagingModule.register({ 
+      queue: 'notifications.events',
+    }),
+
+    // --- Observability ---
+    // Structured logging, health checks, and metrics
     ObservabilityModule.register({
       serviceName: 'notifications-service',
       version: '1.0.0',
     }),
-    
-    // --- Provider Modules ---
-    // Register our dynamic provider factories for each channel
-    ProvidersModule.register(NotificationChannel.EMAIL),
-    ProvidersModule.register(NotificationChannel.SMS),
+
+    // --- Notification Providers ---
+    // Register email and SMS providers
+    ProvidersModule.register(),
   ],
-  controllers: [NotificationsController, TemplatesController],
+
+  // --- HTTP Layer ---
+  controllers: [
+    NotificationsController,  // /notifications endpoints
+    TemplatesController,      // /templates endpoints (admin)
+  ],
+
+  // --- Business Logic & Data Access ---
   providers: [
+    // Services
     NotificationsService,
     TemplatesService,
+    
+    // Repositories
     NotificationsRepository,
     TemplatesRepository,
-    TemplateSeeder, // Add the seeder to the providers
+
+    // Event Handlers
+    EventsHandler,        // Listens to RabbitMQ events
+    SchedulerService,     // Cron jobs for processing
+    DefaultTemplatesSeed, // Seeds default templates on startup
+  ],
+
+  // --- Exports ---
+  exports: [
+    NotificationsService,
+    TemplatesService,
   ],
 })
 export class NotificationsModule {}
+

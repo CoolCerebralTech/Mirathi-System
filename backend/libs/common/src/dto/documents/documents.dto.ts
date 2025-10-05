@@ -66,6 +66,18 @@ export class DocumentQueryDto extends PaginationQueryDto {
   uploaderId?: string;
 }
 
+export class AddDocumentVersionDto {
+  @ApiPropertyOptional({
+    description: 'Optional note describing changes made in this version of the document',
+    maxLength: 500,
+    example: 'Updated passport with renewed expiry date',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  changeNote?: string;
+}
+
 // ============================================================================
 // RESPONSE DTOs (API Output)
 // ============================================================================

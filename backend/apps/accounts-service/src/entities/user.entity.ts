@@ -1,88 +1,127 @@
-import { User as PrismaUser, UserProfile } from '@shamba/database';
-import { Exclude, Type } from 'class-transformer';
+import { User as PrismaUser, UserProfile, UserRole } from '@shamba/database';
+import { Exclude, Expose, Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
-// Lightweight ProfileEntity used for serialization (keeps Prisma types out of controllers)
+/**
+ * ProfileEntity - Serializable user profile for API responses
+ * Maps Prisma UserProfile to a clean DTO structure
+ */
+@Exclude()
 export class ProfileEntity implements Partial<UserProfile> {
-  @ApiProperty()
+  @Expose()
+  @ApiProperty({ example: 'clx123456789' })
   id!: string;
 
-  @ApiProperty({ required: false, nullable: true })
+  @Expose()
+  @ApiProperty({ 
+    required: false, 
+    nullable: true,
+    example: 'Experienced land owner with 20+ years in agriculture' 
+  })
   bio!: string | null;
 
-  @ApiProperty({ required: false, nullable: true })
+  @Expose()
+  @ApiProperty({ 
+    required: false, 
+    nullable: true,
+    example: '+254712345678' 
+  })
   phoneNumber!: string | null;
 
-  @ApiProperty({ required: false, type: Object })
+  @Expose()
+  @ApiProperty({ 
+    required: false, 
+    nullable: true,
+    type: 'object',
+    example: { street: '123 Main St', city: 'Nairobi', postCode: '00100', country: 'Kenya' }
+  })
   address!: Record<string, any> | null;
 
-  @ApiProperty({ required: false, type: Object })
+  @Expose()
+  @ApiProperty({ 
+    required: false, 
+    nullable: true,
+    type: 'object',
+    example: { fullName: 'Jane Doe', relationship: 'Spouse', phoneNumber: '+254712345679' }
+  })
   nextOfKin!: Record<string, any> | null;
 
-  @ApiProperty()
+  @Expose()
+  @ApiProperty({ example: 'clx123456789' })
   userId!: string;
 
-  @ApiProperty()
+  @Expose()
+  @ApiProperty({ example: '2025-01-15T10:30:00Z' })
   createdAt!: Date;
 
-  @ApiProperty()
+  @Expose()
+  @ApiProperty({ example: '2025-01-20T14:45:00Z' })
   updatedAt!: Date;
 
-  constructor(partial: Partial<UserProfile> = {}) {
+  constructor(partial: Partial<UserProfile>) {
     Object.assign(this, partial);
   }
 }
 
-// UserEntity: public-facing serialized shape for API responses
+/**
+ * UserEntity - Public-facing user representation for API responses
+ * Excludes sensitive fields (password) and provides type-safe serialization
+ */
+@Exclude()
 export class UserEntity implements Omit<PrismaUser, 'password'> {
-  @ApiProperty()
+  @Expose()
+  @ApiProperty({ example: 'clx123456789' })
   id!: string;
 
-  @ApiProperty()
+  @Expose()
+  @ApiProperty({ example: 'john.doe@example.com' })
   email!: string;
 
-  @ApiProperty()
+  @Expose()
+  @ApiProperty({ example: 'John' })
   firstName!: string;
 
-  @ApiProperty()
+  @Expose()
+  @ApiProperty({ example: 'Doe' })
   lastName!: string;
 
-  // Keep role as-is from Prisma type; avoid exposing Prisma runtime types in controller signatures
-  @ApiProperty()
-  role!: PrismaUser['role'];
+  @Expose()
+  @ApiProperty({ 
+    enum: UserRole,
+    example: UserRole.LAND_OWNER,
+    description: 'User role in the system'
+  })
+  role!: UserRole;
 
-  @ApiProperty()
+  @Expose()
+  @ApiProperty({ example: '2025-01-15T10:30:00Z' })
   createdAt!: Date;
 
-  @ApiProperty()
+  @Expose()
+  @ApiProperty({ example: '2025-01-20T14:45:00Z' })
   updatedAt!: Date;
 
-  // Exclude password from serialization entirely
-  @Exclude()
+  // Password is excluded by default via @Exclude() on class level
   password?: string;
 
-  // Nested profile (optional) — use class-transformer to ensure proper instantiation
-  @ApiProperty({ type: () => ProfileEntity, required: false })
+  @Expose()
+  @ApiProperty({ 
+    type: () => ProfileEntity, 
+    required: false,
+    nullable: true,
+    description: 'User profile details (optional)'
+  })
   @Type(() => ProfileEntity)
-  profile?: ProfileEntity;
+  profile?: ProfileEntity | null;
 
-  constructor(partial: Partial<PrismaUser & { profile?: UserProfile | null }> = {}) {
-    // Map primitive fields
+  constructor(partial: Partial<PrismaUser & { profile?: UserProfile | null }>) {
     Object.assign(this, partial);
 
-    // If profile is present, wrap it in the ProfileEntity class for safe serialization
-    if (partial.profile) {
-      // handle null vs undefined
-      if (partial.profile === null) {
-        delete this.profile;
-      } else {
-        this.profile = new ProfileEntity(partial.profile as UserProfile);
-      }
-    }
-
-    // Always remove password from the serialized object
-    if ((this as any).password) {
-      delete (this as any).password;
+    // Normalize profile: convert null to undefined for consistency
+    if (partial.profile === null) {
+      this.profile = null;
+    } else if (partial.profile) {
+      this.profile = new ProfileEntity(partial.profile);
     }
   }
 }

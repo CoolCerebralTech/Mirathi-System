@@ -1,88 +1,81 @@
-import { NestFactory, Reflector } from '@nestjs/core';
-import {
-  ValidationPipe,
-  VersioningType,
-  ClassSerializerInterceptor,
-} from '@nestjs/common';
+// ============================================================================
+// main.ts - Application Bootstrap
+// ============================================================================
+
+import { NestFactory } from '@nestjs/core';
+import { Reflector } from '@nestjs/core';
+import { ValidationPipe, VersioningType, ClassSerializerInterceptor } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { Transport } from '@nestjs/microservices';
-
 import { ConfigService } from '@shamba/config';
 import { AuditingModule } from './auditing.module';
-import { Queue } from '@shamba/messaging';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AuditingModule, {
-    bufferLogs: true,
-  });
+  const app = await NestFactory.create(AuditingModule, { bufferLogs: true });
 
-  // --- Get Core Services ---
   const configService = app.get(ConfigService);
   const logger = app.get(Logger);
   const reflector = app.get(Reflector);
 
-  // --- Core Application Setup ---
   app.useLogger(logger);
   app.enableShutdownHooks();
 
-  // --- Connect Microservice Transports ---
-  // This is the crucial step that allows this service to LISTEN for events.
+  const rabbitmqUrl = configService.get('RABBITMQ_URL') || 'amqp://localhost:5672';
+  
   app.connectMicroservice({
     transport: Transport.RMQ,
     options: {
-      urls: [configService.get('RABBITMQ_URI')],
-      queue: Queue.AUDITING_EVENTS,
+      urls: [rabbitmqUrl],
+      queue: 'auditing.events',
       noAck: false,
       persistent: true,
-      queueOptions: {
-        durable: true,
-      },
+      queueOptions: { durable: true },
+      prefetchCount: 1,
     },
   });
 
-  // --- Global Pipes and Interceptors ---
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
+  logger.log(`RabbitMQ connected: ${rabbitmqUrl}`);
+
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+    transformOptions: { enableImplicitConversion: true },
+  }));
+
   app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
 
-  // --- API Configuration ---
+  const corsOrigins = configService.get('CORS_ORIGINS') || '*';
   app.enableCors({
-    origin: configService.get('CORS_ORIGINS'),
+    origin: corsOrigins,
     credentials: true,
-  });
-  app.setGlobalPrefix(configService.get('GLOBAL_PREFIX'));
-  app.enableVersioning({
-    type: VersioningType.URI,
-    defaultVersion: '1',
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  // --- Swagger (OpenAPI) Documentation ---
+  const globalPrefix = configService.get('GLOBAL_PREFIX') || 'api';
+  app.setGlobalPrefix(globalPrefix);
+  app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Shamba Sure - Auditing Service')
-    .setDescription('API for querying immutable audit logs and security events.')
+    .setDescription('Immutable audit logging for security and compliance.')
     .setVersion('1.0')
-    .addBearerAuth() // API is protected
-    .addTag('Auditing', 'Endpoints for querying audit data')
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
+    .addTag('Auditing (Admin)', 'Audit log access and analytics (admin only)')
     .build();
+
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document);
+  SwaggerModule.setup(`${globalPrefix}/v1/docs`, app, document);
 
-  // --- Start All Transports ---
   await app.startAllMicroservices();
-  const port = configService.get('AUDITING_SERVICE_PORT'); // Dedicated port
-  await app.listen(port);
+  logger.log('Microservice transports started');
 
-  logger.log(`🚀 Auditing Service is running on port ${port}`);
-  logger.log(`📚 API documentation available at /${configService.get('GLOBAL_PREFIX')}/v1/docs`);
+  const port = configService.get('PORT') || 3005;
+  await app.listen(port, '0.0.0.0');
+
+  logger.log(`🚀 Auditing Service running on port ${port}`);
+  logger.log(`📚 API Docs: http://localhost:${port}/${globalPrefix}/v1/docs`);
+  logger.log(`🐰 RabbitMQ: ${rabbitmqUrl}`);
 }
-
-bootstrap().catch((error) => {
-  console.error('❌ Fatal error during application bootstrap:', error);
-  process.exit(1);
-});

@@ -7,3 +7,5 @@ export * from './indicators/prisma-health.indicator';
 
 // Re-export Prisma client for advanced usage
 export { PrismaClient } from '@prisma/client';
+
+export { Decimal } from '@prisma/client/runtime/library';

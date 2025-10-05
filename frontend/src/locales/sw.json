@@ -1,0 +1,25 @@
+{
+  "translation": {
+    "login": {
+      "title": "Ingia katika akaunti yako",
+      "emailLabel": "Anwani ya barua pepe",
+      "passwordLabel": "Nenosiri",
+      "forgotPassword": "Umesahau nenosiri lako?",
+      "submitButton": "Ingia"
+    },
+    "register": {
+      "title": "Fungua akaunti yako ya Shamba Sure",
+      "firstNameLabel": "Jina la Kwanza",
+      "lastNameLabel": "Jina la Ukoo",
+      "emailLabel": "Anwani ya barua pepe",
+      "passwordLabel": "Nenosiri",
+      "confirmPasswordLabel": "Thibitisha Nenosiri",
+      "submitButton": "Fungua Akaunti"
+    },
+    "sidebar": {
+        "dashboard": "Dashibodi",
+        "profile": "Wasifu",
+        "userManagement": "Usimamizi wa Watumiaji"
+    }
+  }
+}

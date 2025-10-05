@@ -1,4 +1,9 @@
-import { NestFactory, Reflector } from '@nestjs/core';
+// ============================================================================
+// main.ts - Application Bootstrap
+// ============================================================================
+
+import { NestFactory } from '@nestjs/core';
+import { Reflector } from '@nestjs/core';
 import {
   ValidationPipe,
   VersioningType,
@@ -6,68 +11,138 @@ import {
 } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 import { ConfigService } from '@shamba/config';
 import { DocumentsModule } from './documents.module';
-import { NestExpressApplication } from '@nestjs/platform-express';
 
+/**
+ * Bootstrap function - Initializes and starts the Documents microservice
+ * 
+ * SETUP STEPS:
+ * 1. Create NestJS app with custom logger
+ * 2. Configure file upload limits
+ * 3. Configure global pipes (validation)
+ * 4. Configure global interceptors (serialization)
+ * 5. Enable CORS, versioning, and global prefix
+ * 6. Setup Swagger documentation
+ * 7. Start HTTP server
+ */
 async function bootstrap() {
+  // --- Create Application ---
   const app = await NestFactory.create<NestExpressApplication>(DocumentsModule, {
-    bufferLogs: true,
+    bufferLogs: true, // Buffer logs until custom logger is ready
+    bodyParser: true,
   });
 
-  // --- Get Core Services ---
+  // --- Dependency Injection ---
   const configService = app.get(ConfigService);
   const logger = app.get(Logger);
   const reflector = app.get(Reflector);
 
-  // --- Core Application Setup ---
+  // --- Logging Configuration ---
   app.useLogger(logger);
+
+  // --- Graceful Shutdown ---
+  // Ensures database connections and RabbitMQ close cleanly
   app.enableShutdownHooks();
 
-  // --- Global Pipes and Interceptors ---
+  // --- File Upload Configuration ---
+  // Configure Express to handle larger file uploads
+  app.useBodyParser('json', { limit: '50mb' });
+  app.useBodyParser('urlencoded', { limit: '50mb', extended: true });
+
+  // --- Global Validation Pipe ---
+  // Automatically validates all incoming DTOs using class-validator
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
+      whitelist: true,            // Strip unknown properties
+      forbidNonWhitelisted: true, // Reject requests with unknown properties
+      transform: true,            // Auto-transform payloads to DTO instances
+      transformOptions: {
+        enableImplicitConversion: true, // Convert primitive types automatically
+      },
     }),
   );
-  // CRITICAL: This ensures all API responses are serialized through our Entity classes.
+
+  // --- Global Serialization Interceptor ---
+  // CRITICAL: Removes @Exclude() fields from all responses
   app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
 
-  // --- API Configuration ---
+  // --- CORS Configuration ---
+  const corsOrigins = configService.get('CORS_ORIGINS') || '*';
   app.enableCors({
-    origin: configService.get('CORS_ORIGINS'),
+    origin: corsOrigins,
     credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
-  app.setGlobalPrefix(configService.get('GLOBAL_PREFIX'));
+
+  // --- API Prefix and Versioning ---
+  const globalPrefix = configService.get('GLOBAL_PREFIX') || 'api';
+  app.setGlobalPrefix(globalPrefix);
+  
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
   });
 
-  // --- Swagger (OpenAPI) Documentation ---
+  // --- Swagger Documentation ---
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Shamba Sure - Documents Service')
-    .setDescription('API for secure document upload, storage, and management.')
+    .setDescription(
+      'API for secure document upload, storage, and verification management.\n\n' +
+      '**Features:**\n' +
+      '- Document upload with validation (PDF, JPEG, PNG)\n' +
+      '- Version control and history\n' +
+      '- Admin verification workflow\n' +
+      '- Secure file download\n' +
+      '- Storage statistics and quotas'
+    )
     .setVersion('1.0')
-    .addBearerAuth()
-    .addTag('Documents', 'Endpoints for managing user documents')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'Enter your JWT token',
+      },
+      'JWT',
+    )
+    .addTag('Documents', 'Document upload, download, and management')
+    .addServer(`http://localhost:${configService.get('PORT')}`, 'Local Development')
     .build();
+
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document);
+  SwaggerModule.setup(`${globalPrefix}/v1/docs`, app, document, {
+    customSiteTitle: 'Shamba Sure Documents API',
+    customfavIcon: 'https://nestjs.com/img/logo_text.svg',
+    swaggerOptions: {
+      persistAuthorization: true, // Remember auth token in browser
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
+    },
+  });
 
-  // --- Start Application ---
-  // A dedicated port for this microservice, fetched from config.
-  const port = configService.get('DOCUMENTS_SERVICE_PORT');
-  await app.listen(port);
+  // --- Start Server ---
+  const port = configService.get('PORT') || 3002;
+  const host = configService.get('HOST') || '0.0.0.0';
+  
+  await app.listen(port, host);
 
-  logger.log(`🚀 Documents Service is running on port ${port}`);
-  logger.log(`📚 API documentation available at /${configService.get('GLOBAL_PREFIX')}/v1/docs`);
+  // --- Startup Logs ---
+  logger.log(`🚀 Documents Service is running`);
+  logger.log(`📍 Server: http://localhost:${port}`);
+  logger.log(`📚 API Docs: http://localhost:${port}/${globalPrefix}/v1/docs`);
+  logger.log(`🔗 Health Check: http://localhost:${port}/${globalPrefix}/v1/health`);
+  logger.log(`🌍 Environment: ${configService.get('NODE_ENV') || 'development'}`);
+  logger.log(`📁 Storage Path: ${configService.get('STORAGE_LOCAL_PATH') || 'uploads'}`);
+  logger.log(`🔒 CORS Origins: ${corsOrigins}`);
 }
 
+// --- Bootstrap with Error Handling ---
 bootstrap().catch((error) => {
-  console.error('❌ Fatal error during application bootstrap:', error);
+  console.error('❌ Fatal error during application bootstrap:');
+  console.error(error);
   process.exit(1);
 });

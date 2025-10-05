@@ -1,77 +1,190 @@
-import { NestFactory, Reflector } from '@nestjs/core';
-import { ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
+// ============================================================================
+// main.ts - API Gateway Bootstrap
+// ============================================================================
+
+import { NestFactory } from '@nestjs/core';
+import { Reflector } from '@nestjs/core';
+import { 
+  ValidationPipe, 
+  ClassSerializerInterceptor,
+  VersioningType,
+} from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { ConfigService } from '@shamba/config';
 import { GatewayModule } from './gateway.module';
-import { GlobalExceptionFilter } from '@shamba/common';
-import { HttpAdapterHost } from '@nestjs/core';
 
-// --- Import Security Middlewares ---
+// Security middlewares
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 
+/**
+ * Bootstrap function - Initializes and starts the API Gateway
+ * 
+ * SETUP STEPS:
+ * 1. Create NestJS app with custom logger
+ * 2. Apply security middlewares (helmet, rate limiting)
+ * 3. Configure global pipes and interceptors
+ * 4. Enable CORS and versioning
+ * 5. Setup Swagger documentation
+ * 6. Start HTTP server
+ */
 async function bootstrap() {
-  const app = await NestFactory.create(GatewayModule, { bufferLogs: true });
+  // --- Create Application ---
+  const app = await NestFactory.create(GatewayModule, { 
+    bufferLogs: true,
+  });
 
-  // --- Get Core Services ---
+  // --- Dependency Injection ---
   const configService = app.get(ConfigService);
   const logger = app.get(Logger);
-  const httpAdapterHost = app.get(HttpAdapterHost);
+  const reflector = app.get(Reflector);
 
-  // --- Core Application Setup ---
+  // --- Logging Configuration ---
   app.useLogger(logger);
+
+  // --- Graceful Shutdown ---
   app.enableShutdownHooks();
 
-  // --- Use Security Middlewares Directly ---
-  app.use(helmet());
+  // --- Security Middlewares ---
+  // Helmet: Sets various HTTP headers for security
+  app.use(helmet({
+    contentSecurityPolicy: false, // Allow Swagger UI to load
+    crossOriginEmbedderPolicy: false,
+  }));
+
+  // Compression: Compress response bodies
   app.use(compression());
+
+  // Rate Limiting: Protect against brute force attacks
+  const rateLimitTtl = configService.get('RATE_LIMIT_TTL') || 60; // 60 seconds
+  const rateLimitMax = configService.get('RATE_LIMIT_LIMIT') || 100; // 100 requests
+  
   app.use(
     rateLimit({
-      windowMs: configService.get('RATE_LIMIT_TTL') * 1000,
-      max: configService.get('RATE_LIMIT_LIMIT'),
-      standardHeaders: true,
-      legacyHeaders: false,
+      windowMs: rateLimitTtl * 1000,
+      max: rateLimitMax,
+      standardHeaders: true,  // Return rate limit info in headers
+      legacyHeaders: false,   // Disable X-RateLimit-* headers
+      message: {
+        statusCode: 429,
+        message: 'Too many requests, please try again later',
+        error: 'Too Many Requests',
+      },
     }),
   );
 
-  // --- Global Filters, Pipes, and Interceptors ---
-  app.useGlobalFilters(new GlobalExceptionFilter(httpAdapterHost));
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
-  // Note: The Gateway itself rarely needs a ClassSerializerInterceptor, as it mostly streams raw JSON.
-  // However, it's good practice to have it in case any local DTOs are returned.
-  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+  logger.log(`Rate limiting enabled: ${rateLimitMax} requests per ${rateLimitTtl}s`);
 
-  // --- API Configuration ---
+  // --- Global Validation Pipe ---
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+    }),
+  );
+
+  // --- Global Serialization Interceptor ---
+  // Gateway rarely uses this, but good for any local DTOs
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
+
+  // --- CORS Configuration ---
+  const corsOrigins = configService.get('CORS_ORIGINS') || '*';
   app.enableCors({
-    origin: configService.get('CORS_ORIGINS'),
+    origin: corsOrigins,
     credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Per-Page'],
   });
 
-  // --- Swagger (OpenAPI) Documentation ---
+  // --- API Prefix and Versioning ---
+  const globalPrefix = configService.get('GLOBAL_PREFIX') || 'api';
+  app.setGlobalPrefix(globalPrefix);
+  
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
+  });
+
+  // --- Swagger Documentation ---
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Shamba Sure - API Gateway')
-    .setDescription('The single entry point for all Shamba Sure microservices. This API documentation is a composite of all downstream services.')
+    .setDescription(
+      'The unified API entry point for Shamba Sure platform.\n\n' +
+      '**Architecture:**\n' +
+      '- Single gateway for all client requests\n' +
+      '- Routes to 3 microservices (accounts, documents, succession)\n' +
+      '- JWT authentication at gateway level\n' +
+      '- Rate limiting and security headers\n\n' +
+      '**Microservices:**\n' +
+      '- **Accounts Service**: Authentication, users, profiles\n' +
+      '- **Documents Service**: Document upload, verification, storage\n' +
+      '- **Succession Service**: Wills, assets, family management'
+    )
     .setVersion('1.0')
-    .addBearerAuth()
-    .addTag('Health', 'Gateway and downstream service health checks')
-    .addTag('Accounts', 'Proxied endpoints for the Accounts Service')
-    .addTag('Documents', 'Proxied endpoints for the Documents Service')
-    .addTag('Succession', 'Proxied endpoints for the Succession Service')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'Enter your JWT token from /auth/login or /auth/register',
+      },
+      'JWT',
+    )
+    .addTag('Health', 'Health checks for gateway and downstream services')
+    .addTag('Auth & Profile', 'Authentication and profile management (accounts-service)')
+    .addTag('Users (Admin)', 'User administration (accounts-service)')
+    .addTag('Documents', 'Document management (documents-service)')
+    .addTag('Wills', 'Will creation and management (succession-service)')
+    .addTag('Assets', 'Asset registration and tracking (succession-service)')
+    .addTag('Families', 'Family tree management - HeirLink™ (succession-service)')
+    .addServer(`http://localhost:${configService.get('PORT')}`, 'Local Development')
+    .addServer('https://api.shamba.com', 'Production')
     .build();
+
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, document);
+  SwaggerModule.setup(`${globalPrefix}/v1/docs`, app, document, {
+    customSiteTitle: 'Shamba Sure API Gateway',
+    customfavIcon: 'https://nestjs.com/img/logo_text.svg',
+    swaggerOptions: {
+      persistAuthorization: true,
+      tagsSorter: 'alpha',
+      operationsSorter: 'method',
+      docExpansion: 'none',
+      filter: true,
+    },
+  });
 
-  // --- Start Application ---
-  const port = configService.get('GATEWAY_PORT');
-  await app.listen(port);
+  // --- Start HTTP Server ---
+  const port = configService.get('PORT') || 3000;
+  const host = configService.get('HOST') || '0.0.0.0';
+  
+  await app.listen(port, host);
 
-  logger.log(`🚀 API Gateway is running on port ${port}`);
-  logger.log(`📚 API documentation available at /docs`);
+  // --- Startup Logs ---
+  const nodeEnv = configService.get('NODE_ENV') || 'development';
+  
+  logger.log(`🚀 API Gateway is running`);
+  logger.log(`📍 Server: http://localhost:${port}`);
+  logger.log(`📚 API Docs: http://localhost:${port}/${globalPrefix}/v1/docs`);
+  logger.log(`🔗 Health Check: http://localhost:${port}/${globalPrefix}/v1/health`);
+  logger.log(`🌍 Environment: ${nodeEnv}`);
+  logger.log(`🔒 CORS Origins: ${corsOrigins}`);
+  logger.log(`🛡️  Rate Limit: ${rateLimitMax} requests/${rateLimitTtl}s`);
+  logger.log(`🔗 Accounts Service: ${configService.get('ACCOUNTS_SERVICE_URL')}`);
+  logger.log(`🔗 Documents Service: ${configService.get('DOCUMENTS_SERVICE_URL')}`);
+  logger.log(`🔗 Succession Service: ${configService.get('SUCCESSION_SERVICE_URL')}`);
 }
 
+// --- Bootstrap with Error Handling ---
 bootstrap().catch((error) => {
-  console.error('❌ Fatal error during API Gateway bootstrap:', error);
+  console.error('❌ Fatal error during API Gateway bootstrap:');
+  console.error(error);
   process.exit(1);
 });

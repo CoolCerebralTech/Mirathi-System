@@ -1,1 +1,0 @@
-{"version":3,"file":"audit.dto.d.ts","sourceRoot":"","sources":["audit.dto.ts"],"names":[],"mappings":"AAEA,OAAO,EAAE,kBAAkB,EAAE,MAAM,0BAA0B,CAAC;AAE9D,qBAAa,aAAc,SAAQ,kBAAkB;IAEnD,MAAM,CAAC,EAAE,MAAM,CAAC;IAGhB,MAAM,CAAC,EAAE,MAAM,CAAC;IAGhB,SAAS,CAAC,EAAE,MAAM,CAAC;IAGnB,OAAO,CAAC,EAAE,MAAM,CAAC;CAClB"}
