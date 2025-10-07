@@ -1,5 +1,5 @@
 import { EventPattern } from '../../enums';
-import { UserRole, WillStatus, DocumentStatus, NotificationChannel, AssetType } from '@shamba/database';
+import { UserRole, WillStatus, DocumentStatus, AssetType } from '@shamba/database';
 
 // ============================================================================
 // ARCHITECTURAL NOTE:

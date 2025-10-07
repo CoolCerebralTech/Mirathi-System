@@ -1,23 +1,37 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    /* Output directory for compiled JS and type declarations */
+    /* Output settings */
     "outDir": "../../dist/libs/config",
-
-    /* Generate type declaration files for library consumers */
+    "rootDir": "./src",
+    "composite": true,
     "declaration": true,
     "declarationMap": true,
+    "sourceMap": true,
 
-    /* Ensure NodeJS types are available */
-    "types": ["node"]
+    /* Module and language options */
+    "module": "CommonJS",
+    "target": "ES2021",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+
+    /* Strict typing and consistency */
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": false,
+    "forceConsistentCasingInFileNames": true,
+
+    /* Monorepo path alias support */
+    "baseUrl": ".",
+    "paths": {
+      "@shamba/*": ["../../libs/*/src"]
+    }
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "test",
-    "**/*.spec.ts"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.json", ".env"],
+  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]
 }

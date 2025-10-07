@@ -1,23 +1,37 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    /* Output directory for compiled JS and type declarations */
+    /* Output */
     "outDir": "../../dist/libs/auth",
-
-    /* Generate type declaration files for library consumers */
+    "rootDir": "./src",
+    "composite": true,
     "declaration": true,
     "declarationMap": true,
+    "sourceMap": true,
 
-    /* Ensure NodeJS types are available */
-    "types": ["node"]
+    /* Module resolution */
+    "module": "CommonJS",
+    "target": "ES2021",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+
+    /* Type Safety */
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": false,
+    "forceConsistentCasingInFileNames": true,
+
+    /* Base URL + Path alias (kept for backward compatibility) */
+    "baseUrl": ".",
+    "paths": {
+      "@shamba/*": ["../../libs/*/src"]
+    }
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "test",
-    "**/*.spec.ts"
-  ]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]
 }

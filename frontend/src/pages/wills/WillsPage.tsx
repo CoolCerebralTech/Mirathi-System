@@ -1,82 +1,100 @@
-// src/pages/wills/WillsPage.tsx
-// ============================================================================
-// Main Wills Page (List View)
-// ============================================================================
-// - Displays a list of all wills created by the user.
-// - Uses the `useWills` hook for data and the `createWill` action.
-// - Renders a grid of `WillCard` components.
-// - Handles navigation to the detail page for the newly created will.
-// ============================================================================
+// FILE: src/pages/WillsPage.tsx
 
-import { useNavigate } from 'react-router-dom';
-import { useWills } from '../../hooks/useWills';
-import { WillCard } from '../../features/wills/WillCard';
-import { LoadingSpinner } from '../../components/common/LoadingSpinner';
-import { Button } from '../../components/ui/Button';
+import { Link, useNavigate } from 'react-router-dom';
+import { PageHeader } from '../components/common/PageHeader';
+import { Button } from '../components/ui/Button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
+import { PlusCircle, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { useMyWills, useCreateWill } from '../features/wills/wills.api';
+import { Badge } from '../components/ui/Badge';
+import { toast } from '../hooks/useToast';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
-export const WillsPage = () => {
+export function WillsPage() {
   const navigate = useNavigate();
-  const { wills, loading, error, createWill } = useWills();
+  const { data: wills, isLoading } = useMyWills();
+  const createWillMutation = useCreateWill();
 
-  const handleCreateWill = async () => {
-    try {
-      const newWill = await createWill(`My Will - ${new Date().toLocaleDateString()}`);
-      if (newWill) {
+  const handleCreateWill = () => {
+    // A simple default title for a new will.
+    const defaultTitle = `Will - ${new Date().toLocaleDateString()}`;
+    
+    createWillMutation.mutate({ title: defaultTitle }, {
+      onSuccess: (newWill) => {
+        toast.success('New draft will created!');
+        // Navigate the user directly to the detail page for the new will.
         navigate(`/wills/${newWill.id}`);
+      },
+      onError: (error: any) => {
+        toast.error('Failed to create will', { description: error.message });
       }
-    } catch (err) {
-      // Error is handled by the hook's toast
-    }
+    });
   };
 
-  const renderContent = () => {
-    if (loading) {
-      return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
+  const getStatusIcon = (status: string) => {
+    switch(status) {
+        case 'ACTIVE': return <CheckCircle className="h-4 w-4 text-green-500" />;
+        case 'DRAFT': return <FileText className="h-4 w-4 text-yellow-500" />;
+        default: return <AlertCircle className="h-4 w-4 text-red-500" />;
     }
-
-    if (error) {
-      return <div className="text-center py-20 text-red-600 font-medium">{error}</div>;
-    }
-
-    if (wills.length === 0) {
-      return (
-        <div className="text-center py-20">
-          <h3 className="text-lg font-medium text-gray-900">You haven't created any wills.</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Create your first will to begin planning your succession.
-          </p>
-        </div>
-      );
-    }
-
-    return (
-      <ul role="list" className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {wills.map((will) => (
-          <WillCard key={will.id} will={will} />
-        ))}
-      </ul>
-    );
   };
 
   return (
-    <>
-      {/* Page Header */}
-      <div className="flex flex-col items-start justify-between gap-4 border-b border-gray-200 pb-5 sm:flex-row sm:items-center sm:gap-0">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">My Wills</h1>
-          <p className="mt-2 text-sm text-gray-500">
-            Manage your last will and testament documents and beneficiary assignments.
-          </p>
-        </div>
-        <div className="ml-auto">
-          <Button onClick={handleCreateWill}>
-            Create New Will
+    <div className="space-y-6">
+      <PageHeader
+        title="My Wills"
+        description="Manage your last wills and testaments. You can have multiple drafts, but only one can be active."
+        actions={
+          <Button onClick={handleCreateWill} disabled={createWillMutation.isLoading}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            {createWillMutation.isLoading ? 'Creating...' : 'Create New Will'}
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Wills Grid */}
-      {renderContent()}
-    </>
+      {isLoading && (
+        <div className="flex justify-center p-8">
+            <LoadingSpinner size="lg" />
+        </div>
+      )}
+
+      {!isLoading && !wills?.length && (
+          <div className="text-center p-8 border-2 border-dashed rounded-lg">
+              <p className="text-muted-foreground">You haven't created any wills yet.</p>
+              <Button onClick={handleCreateWill} className="mt-4">Create Your First Will</Button>
+          </div>
+      )}
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {wills?.map(will => (
+          <Card key={will.id}>
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                  <CardTitle className="text-lg">{will.title}</CardTitle>
+                  <Badge variant={will.status === 'ACTIVE' ? 'default' : 'secondary'}>
+                      {will.status}
+                  </Badge>
+              </div>
+              <CardDescription>
+                Last updated: {new Date(will.updatedAt).toLocaleDateString()}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center space-x-2">
+                {getStatusIcon(will.status)}
+                <span className="text-sm text-muted-foreground">
+                    {will.beneficiaryAssignments.length} asset(s) assigned.
+                </span>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button asChild className="w-full">
+                <Link to={`/wills/${will.id}`}>View & Edit</Link>
+              </Button>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
+    </div>
   );
-};
+}

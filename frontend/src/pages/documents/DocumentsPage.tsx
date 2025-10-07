@@ -1,104 +1,117 @@
-// src/pages/documents/DocumentsPage.tsx
-// ============================================================================
-// Main Documents Page
-// ============================================================================
-// - The primary interface for users to manage their uploaded documents.
-// - Uses the `useDocuments` hook to handle all data fetching and state management.
-// - Assembles the `DocumentListItem` components into a list.
-// - Manages the visibility of the `DocumentUpload` modal.
-// - Provides a clean, user-friendly layout with a clear call-to-action for uploads.
-// ============================================================================
+// FILE: src/pages/DocumentsPage.tsx
 
 import { useState } from 'react';
-import { useDocuments } from '../../hooks/useDocuments';
-import { DocumentListItem } from '../../features/documents/DocumentListItem';
-import { DocumentUpload } from '../../features/documents/DocumentUpload';
-import { LoadingSpinner } from '../../components/common/LoadingSpinner';
-import { Modal } from '../../components/common/Modal';
-import { Button } from '../../components/ui/Button';
+import { PageHeader } from '../components/common/PageHeader';
+import { DataTable } from '../components/ui/DataTable';
+import { Button } from '../components/ui/Button';
+import { UploadCloud } from 'lucide-react';
 
-export const DocumentsPage = () => {
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+import { useMyDocuments, useDeleteDocument, useDownloadDocument } from '../features/documents/documents.api';
+import { getDocumentColumns } from '../features/documents/components/DocumentsTable';
+import { DocumentUploader } from '../features/documents/components/DocumentUploader';
 
-  // Use our powerful hook to get everything we need
-  const { documents, loading, error, uploadDocument, deleteDocument, downloadDocument } = useDocuments();
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalTitle,
+} from '../components/common/Modal';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/common/AlertDialog';
+import { toast } from '../hooks/useToast';
 
-  const handleUpload = async (file: File) => {
-    setIsUploading(true);
-    await uploadDocument(file);
-    setIsUploading(false);
-    setIsUploadModalOpen(false); // Close modal on success
+
+export function DocumentsPage() {
+  const { data: documentsData, isLoading } = useMyDocuments();
+  const deleteDocumentMutation = useDeleteDocument();
+  const downloadDocumentMutation = useDownloadDocument();
+
+  // State for controlling the Upload modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // State for controlling the Delete confirmation dialog
+  const [docToDelete, setDocToDelete] = useState<string | null>(null);
+
+  const handleDelete = (docId: string) => {
+    deleteDocumentMutation.mutate(docId, {
+      onSuccess: () => {
+        toast.success('Document deleted successfully.');
+        setDocToDelete(null); // Close the dialog
+      },
+      onError: (error: any) => {
+        toast.error('Deletion Failed', { description: error.message });
+      }
+    });
   };
   
-  const renderContent = () => {
-    if (loading) {
-      return <div className="flex justify-center py-10"><LoadingSpinner /></div>;
-    }
-
-    if (error) {
-      return <div className="text-center py-10 text-red-500">{error}</div>;
-    }
-
-    if (documents.length === 0) {
-      return (
-        <div className="text-center py-10">
-          <h3 className="text-lg font-medium text-gray-900">No documents found</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Get started by uploading your first document.
-          </p>
-        </div>
-      );
-    }
-
-    return (
-      <ul role="list" className="divide-y divide-gray-100">
-        {documents.map((doc) => (
-          <DocumentListItem
-            key={doc.id}
-            document={doc}
-            onDelete={deleteDocument}
-            onDownload={downloadDocument}
-          />
-        ))}
-      </ul>
-    );
+  const handleDownload = (docId: string) => {
+      downloadDocumentMutation.mutate(docId, {
+          onError: (error: any) => {
+              toast.error('Download Failed', { description: error.message });
+          }
+      });
   };
 
+  const columns = React.useMemo(() => getDocumentColumns(handleDownload, setDocToDelete), []);
+
+  const documents = documentsData?.data || [];
+
   return (
-    <>
-      {/* Page Header */}
-      <div className="flex flex-col items-start justify-between gap-4 border-b border-gray-200 pb-5 sm:flex-row sm:items-center sm:gap-0">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">My Documents</h1>
-          <p className="mt-2 text-sm text-gray-500">
-            Securely store and manage your important land documents.
-          </p>
-        </div>
-        <div className="ml-auto">
-          <Button onClick={() => setIsUploadModalOpen(true)}>
+    <div className="space-y-6">
+      <PageHeader
+        title="My Documents"
+        description="Your secure vault for all important documents like title deeds, IDs, and more."
+        actions={
+          <Button onClick={() => setIsModalOpen(true)}>
+            <UploadCloud className="mr-2 h-4 w-4" />
             Upload Document
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Document List */}
-      <div className="mt-8 bg-white shadow-sm ring-1 ring-gray-900/5 sm:rounded-xl">
-        {renderContent()}
-      </div>
+      <DataTable
+        columns={columns}
+        data={documents}
+        isLoading={isLoading}
+      />
 
-      {/* Upload Modal */}
-      <Modal
-        isOpen={isUploadModalOpen}
-        onClose={() => !isUploading && setIsUploadModalOpen(false)} // Prevent closing while uploading
-        title="Upload a New Document"
-      >
-        <DocumentUpload 
-          onUpload={handleUpload}
-          onClose={() => setIsUploadModalOpen(false)}
-          isUploading={isUploading}
-        />
+      {/* --- Modals and Dialogs --- */}
+      
+      {/* Upload Document Modal */}
+      <Modal open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>Upload a New Document</ModalTitle>
+          </ModalHeader>
+          <DocumentUploader onSuccess={() => setIsModalOpen(false)} />
+        </ModalContent>
       </Modal>
-    </>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!docToDelete} onOpenChange={() => setDocToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the document. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleDelete(docToDelete!)}>
+              Yes, Delete Document
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
-};
+}

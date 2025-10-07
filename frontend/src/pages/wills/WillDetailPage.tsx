@@ -1,72 +1,83 @@
-// src/pages/wills/WillDetailPage.tsx
-// ============================================================================
-// Will Detail Page
-// ============================================================================
-// - The main workspace for managing a single will.
-// - Fetches the specific will's data using the `useWills(willId)` hook.
-// - Displays the `BeneficiaryManager` to handle assignments.
-// - Provides primary actions like "Activate Will".
-// ============================================================================
+// FILE: src/pages/WillDetailPage.tsx (Updated)
 
-import { useParams, Link } from 'react-router-dom';
-import { useWills } from '../../hooks/useWills';
-import { BeneficiaryManager } from '../../features/wills/BeneficiaryManager';
-import { WillStatusBadge } from '../../features/wills/WillStatusBadge';
-import { LoadingSpinner } from '../../components/common/LoadingSpinner';
-import { ArrowLeftIcon } from '@heroicons/react/20/solid';
-import { Button } from '../../components/ui/Button';
+// ... (keep all existing imports)
+import { useState } from 'react'; // Add useState
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalTitle,
+} from '../components/common/Modal'; // Import Modal components
+import { BeneficiaryAssignmentForm } from '../features/wills/components/BeneficiaryAssignmentForm'; // Import the new form
 
-export const WillDetailPage = () => {
-  const { willId } = useParams<{ willId: string }>();
+
+export function WillDetailPage() {
+  const { id: willId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  // Add state to control the modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // ... (keep all existing hooks: useWill, useActivateWill, etc.)
+  const { data: will, isLoading, isError } = useWill(willId!);
+  const activateWillMutation = useActivateWill();
+  const removeAssignmentMutation = useRemoveBeneficiaryAssignment();
   
-  // The hook is now in "single will" mode because we pass the ID
-  const { will, loading, error, assignBeneficiary, removeBeneficiary, activateWill } = useWills(willId);
+  // ... (keep existing handler functions: handleActivate, handleDeleteAssignment)
+  const handleActivate = () => { /* ... */ };
+  const handleDeleteAssignment = (assignmentId: string) => { /* ... */ };
 
-  const renderContent = () => {
-    if (loading) {
-      return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-    }
 
-    if (error || !will) {
-      return <div className="text-center py-20 text-red-600 font-medium">{error || 'Will not found.'}</div>;
-    }
+  if (isLoading) { /* ... */ }
+  if (isError || !will) { /* ... */ }
 
-    return (
-        <BeneficiaryManager 
-            will={will}
-            onAssign={(data) => assignBeneficiary(will.id, data)}
-            onRemove={(assignmentId) => removeBeneficiary(will.id, assignmentId)}
-        />
-    );
-  };
+  const canBeActivated = will.status === 'DRAFT' && will.beneficiaryAssignments.length > 0;
+  const isEditable = will.status === 'DRAFT';
 
   return (
-    <div>
-        {/* Page Header */}
-        <div className="border-b border-gray-200 pb-5">
-            <div className="mb-4">
-                <Link to="/wills" className="inline-flex items-center gap-x-2 text-sm font-medium text-gray-600 hover:text-indigo-600">
-                    <ArrowLeftIcon className="h-5 w-5" />
-                    Back to all wills
-                </Link>
-            </div>
-            <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center sm:gap-0">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900">{will ? will.title : 'Will Details'}</h1>
-                    {will && <div className="mt-2"><WillStatusBadge status={will.status} /></div>}
-                </div>
-                 {will?.status === 'DRAFT' && (
-                    <div className="ml-auto">
-                        <Button onClick={() => activateWill(will.id)}>
-                            Activate Will
-                        </Button>
-                    </div>
-                 )}
-            </div>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={will.title}
+        // ... (rest of PageHeader props)
+      />
       
-      {/* Beneficiary Manager */}
-      {renderContent()}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle>Beneficiary Assignments</CardTitle>
+            {isEditable && (
+              // --- THIS IS THE CHANGE ---
+              // This button will now open the modal
+              <Button variant="outline" size="sm" onClick={() => setIsModalOpen(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Assignment
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <BeneficiaryAssignmentsTable
+            assignments={will.beneficiaryAssignments}
+            onDelete={handleDeleteAssignment}
+          />
+        </CardContent>
+      </Card>
+
+      {/* --- ADD THIS MODAL AT THE END --- */}
+      <Modal open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>Add New Assignment</ModalTitle>
+          </ModalHeader>
+          {/* Render the form only when the modal is open to ensure fresh data */}
+          {isModalOpen && (
+              <BeneficiaryAssignmentForm 
+                willId={willId!}
+                onSuccess={() => setIsModalOpen(false)} 
+              />
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
-};
+}

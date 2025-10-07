@@ -3,17 +3,16 @@
   "version": "1.0.0",
   "private": true,
   "description": "Shamba Sure Backend - Monorepo for microservices and shared libraries",
-  "packageManager": "pnpm@10.17.1+sha512.17c560fca4867ae9473a3899ad84a88334914f379be46d455cbf92e5cf4b39d34985d452d2583baf19967fa76cb5c17bc9e245529d0b98745721aa7200ecaf7a",
-  "workspaces": [
-    "apps/*",
-    "libs/*"
-  ],
+  "workspaces": ["apps/*", "libs/*"],
   "scripts": {
-    "build": "pnpm run build:libs && pnpm run build:apps",
+    "clean": "rimraf dist && rimraf --glob \"**/*.tsbuildinfo\"",
+    "clean:all": "rimraf dist node_modules && rimraf --glob \"**/*.tsbuildinfo\" && pnpm install",    "build:ts": "tsc -b",
     "build:libs": "pnpm --filter ./libs/* run build",
     "build:apps": "pnpm --filter ./apps/* run build",
+    "build": "pnpm run clean && pnpm run build:ts && pnpm run build:apps",
     "start": "pnpm --filter @shamba/api-gateway run start",
     "start:dev": "pnpm --parallel --filter ./apps/* run start:dev",
+    "start:fast": "pnpm --parallel --filter ./apps/* run start:dev",
     "start:api-gateway": "pnpm --filter @shamba/api-gateway run start",
     "start:accounts-service": "pnpm --filter @shamba/accounts-service run start",
     "start:auditing-service": "pnpm --filter @shamba/auditing-service run start",
@@ -25,13 +24,12 @@
     "test": "jest --config jest.config.js --runInBand",
     "test:watch": "jest --watch --config jest.config.js",
     "test:cov": "jest --coverage --config jest.config.js",
-    "clean": "rimraf dist",
-    "clean:all": "rimraf dist && rimraf node_modules && pnpm install",
     "db:migrate": "pnpm --filter @shamba/database run db:migrate",
     "db:generate": "pnpm --filter @shamba/database run db:generate",
     "db:studio": "pnpm --filter @shamba/database run db:studio",
     "db:reset": "pnpm --filter @shamba/database run db:reset",
-    "db:seed": "pnpm --filter @shamba/database run db:seed"
+    "db:seed": "pnpm --filter @shamba/database run db:seed",
+    "prepare": "pnpm run build:libs"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",

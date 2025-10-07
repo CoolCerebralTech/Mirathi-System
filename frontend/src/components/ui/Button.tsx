@@ -1,34 +1,63 @@
-// src/components/ui/Button.tsx
-// ============================================================================
-// Reusable Button Component
-// ============================================================================
-// - A flexible button component with built-in styling for primary actions.
-// - Supports a loading state, which disables the button and shows a spinner.
-// - Accepts all standard HTML button props.
-// ============================================================================
-import { type ButtonHTMLAttributes, forwardRef } from 'react';
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-loading?: boolean;
-}
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-({ children, className, loading, ...props }, ref) => {
-return (
-<button
-ref={ref}
-className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition duration-150 ease-in-out"
-disabled={loading}
-{...props}
->
-{loading ? (
-<svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-<path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-</svg>
-) : (
-children
-)}
-</button>
+// FILE: src/components/ui/Button.tsx
+
+import * as React from 'react';
+import { cva, type VariantProps } from 'cva';
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+// 1. We define the variants for our button using cva.
+//    This is where we map props to UnoCSS/Tailwind classes.
+const buttonVariants = cva(
+  // Base classes applied to all variants
+  'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none',
+  {
+    variants: {
+      // Different visual styles for the button
+      variant: {
+        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+        outline: 'border border-input hover:bg-accent hover:text-accent-foreground',
+        secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+        ghost: 'hover:bg-accent hover:text-accent-foreground',
+        link: 'underline-offset-4 hover:underline text-primary',
+      },
+      // Different sizes for the button
+      size: {
+        default: 'h-10 py-2 px-4',
+        sm: 'h-9 px-3 rounded-md',
+        lg: 'h-11 px-8 rounded-md',
+      },
+    },
+    // Default variants if none are specified
+    defaultVariants: {
+      variant: 'default',
+      size: 'default',
+    },
+  }
 );
-},
+
+// 2. We define the props for our Button component.
+//    It extends the standard HTML button props and adds our custom variants.
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {}
+
+// 3. We create the actual Button component.
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, ...props }, ref) => {
+    // We use twMerge and clsx to combine the cva variants with any
+    // additional classes passed in via the `className` prop.
+    const finalClassName = twMerge(clsx(buttonVariants({ variant, size, className })));
+
+    return (
+        <button
+            className={finalClassName}
+            ref={ref}
+            {...props}
+        />
+    );
+  }
 );
 Button.displayName = 'Button';
+
+export { Button, buttonVariants };

@@ -1,51 +1,36 @@
-// src/components/layout/AuthLayout.tsx
-// ============================================================================
-// Layout for Authentication Pages
-// ============================================================================
-// - Provides a consistent container and styling for all authentication-related
-//   pages (Login, Register, Forgot Password, etc.).
-// - Ensures a uniform look and feel, centering the content and providing
-//   a styled card for the forms.
-// - Accepts a `title` prop and renders child components within the card.
-// ============================================================================
+// FILE: src/components/layouts/AuthLayout.tsx
 
-// src/components/layout/AuthLayout.tsx
-// ============================================================================
-// Layout for Authentication Pages
-// ============================================================================
-// - Provides a consistent container and styling for all authentication-related
-//   pages (Login, Register, Forgot Password, etc.).
-// - Ensures a uniform look and feel, centering the content and providing
-//   a styled card for the forms.
-// - Accepts a `title` prop and renders child components within the card.
-// ============================================================================
-import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 
-interface AuthLayoutProps {
-  title: string;
-  children: ReactNode;
-}
+// A simple SVG for a logo placeholder.
+// In a real application, you would replace this with an <img /> tag or a more complex SVG logo.
+const LogoPlaceholder = () => (
+    <svg 
+        className="h-8 w-auto text-primary" 
+        viewBox="0 0 24 24" 
+        fill="currentColor" 
+        xmlns="http://www.w3.org/2000/svg"
+    >
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5-10-5-10 5z" />
+    </svg>
+);
 
-export const AuthLayout = ({ title, children }: AuthLayoutProps) => {
+
+export function AuthLayout() {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link to="/">
-          <h1 className="text-center text-4xl font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
-            Shamba Sure
-          </h1>
-        </Link>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          {title}
-        </h2>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {children}
+    <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
+      <div className="w-full max-w-md space-y-8">
+        <div className="flex justify-center">
+            <LogoPlaceholder />
         </div>
+        
+        {/* The <Outlet> is the placeholder provided by React Router. */}
+        {/* It will render the specific page component that matches the current URL. */}
+        {/* For example, if the user is on '/login', the LoginPage component will be rendered here. */}
+        <main>
+          <Outlet />
+        </main>
       </div>
     </div>
   );
-};
+}

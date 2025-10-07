@@ -1,12 +1,23 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "rootDir": "src",
     "outDir": "../../dist/apps/accounts-service",
-    "types": ["node"],
-    "sourceMap": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "strict": true,
+    "noImplicitAny": false,
+    "sourceMap": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts", "**/*.test.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"],
+  "references": [
+    { "path": "../../libs/common" },
+    { "path": "../../libs/database" },
+    { "path": "../../libs/auth" },
+    { "path": "../../libs/config" },
+    { "path": "../../libs/messaging" },
+    { "path": "../../libs/observability" }
+  ]
 }

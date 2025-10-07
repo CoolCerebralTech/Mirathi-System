@@ -1,66 +1,17 @@
 {
-  "compilerOptions": {
-    /* Language and Environment */
-    "target": "ES2022",
-    "module": "commonjs",
-    "ignoreDeprecations": "5.0",
-    "moduleResolution": "node16",
-    "lib": ["ES2022"],
-    "types": ["node"],
-
-    /* Paths and Module Resolution */
-    "baseUrl": ".",
-    "paths": {
-      "@shamba/common": ["libs/common/src"],
-      "@shamba/common/*": ["libs/common/src/*"],
-      "@shamba/config": ["libs/config/src"],
-      "@shamba/config/*": ["libs/config/src/*"],
-      "@shamba/database": ["libs/database/src"],
-      "@shamba/database/*": ["libs/database/src/*"],
-      "@shamba/auth": ["libs/auth/src"],
-      "@shamba/auth/*": ["libs/auth/src/*"],
-      "@shamba/messaging": ["libs/messaging/src"],
-      "@shamba/messaging/*": ["libs/messaging/src/*"],
-      "@shamba/observability": ["libs/observability/src"],
-      "@shamba/observability/*": ["libs/observability/src/*"],
-
-      "@shamba/api-gateway/*": ["apps/api-gateway/src/*"],
-      "@shamba/accounts-service/*": ["apps/accounts-service/src/*"],
-      "@shamba/auditing-service/*": ["apps/auditing-service/src/*"],
-      "@shamba/documents-service/*": ["apps/documents-service/src/*"],
-      "@shamba/notification-service/*": ["apps/notification-service/src/*"],
-      "@shamba/succession-service/*": ["apps/succession-service/src/*"]
-    },
-
-    /* Output */
-    "outDir": "./dist",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "removeComments": false,
-
-    /* Strictness */
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictBindCallApply": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "noFallthroughCasesInSwitch": true,
-    "noImplicitReturns": false,
-
-    /* Interop and Imports */
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true,
-
-    /* Decorators (needed for NestJS) */
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-
-    /* Build Performance */
-    "incremental": true,
-    "tsBuildInfoFile": ".tsbuildinfo"
-  },
-  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
+  "files": [],
+  "references": [
+    { "path": "libs/common" },
+    { "path": "libs/database" },
+    { "path": "libs/auth" },
+    { "path": "libs/config" },
+    { "path": "libs/messaging" },
+    { "path": "libs/observability" },
+    { "path": "apps/api-gateway" },
+    { "path": "apps/accounts-service" },
+    { "path": "apps/succession-service" },
+    { "path": "apps/documents-service" },
+    { "path": "apps/notification-service" },
+    { "path": "apps/auditing-service" }
+  ]
 }

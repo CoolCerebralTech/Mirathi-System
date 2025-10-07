@@ -1,73 +1,113 @@
-// src/components/common/Modal.tsx
-// ============================================================================
-// Reusable Modal (Dialog) Component
-// ============================================================================
-// - A fully accessible modal dialog for showing critical information,
-//   confirmation prompts, or forms.
-// - Built with Headless UI's `Dialog` component.
-// - Manages its own open/close state via the `isOpen` prop and `onClose` callback.
-// - Includes a title and children for flexible content.
-// ============================================================================
+// FILE: src/components/common/Modal.tsx
 
-import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon } from '@heroicons/react/24/outline';
-import { Fragment, type ReactNode } from 'react';
+import * as React from 'react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
-interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: ReactNode;
-}
+// --- Helper Icon for the Close Button ---
+const XIcon = (props: React.SVGAttributes<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M18 6 6 18" />
+    <path d="m6 6 12 12" />
+  </svg>
+);
 
-export const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
-  return (
-    <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-10" onClose={onClose}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-black bg-opacity-25" />
-        </Transition.Child>
 
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 text-center">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
-            >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                <Dialog.Title
-                  as="h3"
-                  className="text-lg font-medium leading-6 text-gray-900 flex justify-between items-center"
-                >
-                  {title}
-                  <button
-                    onClick={onClose}
-                    className="p-1 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <XMarkIcon className="h-6 w-6 text-gray-600" />
-                  </button>
-                </Dialog.Title>
-                <div className="mt-4">
-                  {children}
-                </div>
-              </Dialog.Panel>
-            </Transition.Child>
-          </div>
-        </div>
-      </Dialog>
-    </Transition>
-  );
+// 1. We re-export the main provider and the trigger.
+//    No styling needed for these.
+const Modal = DialogPrimitive.Root;
+const ModalTrigger = DialogPrimitive.Trigger;
+
+// 2. We create the ModalContent, which is the main visible part of the dialog.
+const ModalContent = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+>(({ className, children, ...props }, ref) => (
+  // DialogPrimitive.Portal ensures the modal is rendered at the top of the DOM tree.
+  <DialogPrimitive.Portal>
+    {/* The Overlay is the semi-transparent background */}
+    <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/70 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+    <DialogPrimitive.Content
+      ref={ref}
+      className={twMerge(
+        clsx(
+          'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg',
+          className
+        )
+      )}
+      {...props}
+    >
+      {children}
+      {/* The Close button ('X') in the top-right corner */}
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+        <XIcon className="h-4 w-4" />
+        <span className="sr-only">Close</span>
+      </DialogPrimitive.Close>
+    </DialogPrimitive.Content>
+  </DialogPrimitive.Portal>
+));
+ModalContent.displayName = DialogPrimitive.Content.displayName;
+
+// 3. We create helper components for structuring the modal's content.
+const ModalHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={twMerge(clsx('flex flex-col space-y-1.5 text-center sm:text-left', className))}
+    {...props}
+  />
+);
+ModalHeader.displayName = 'ModalHeader';
+
+const ModalFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={twMerge(clsx('flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2', className))}
+    {...props}
+  />
+);
+ModalFooter.displayName = 'ModalFooter';
+
+// Use Radix's Title and Description for better accessibility.
+const ModalTitle = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Title>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
+>(({ className, ...props }, ref) => (
+  <DialogPrimitive.Title
+    ref={ref}
+    className={twMerge(clsx('text-lg font-semibold leading-none tracking-tight', className))}
+    {...props}
+  />
+));
+ModalTitle.displayName = DialogPrimitive.Title.displayName;
+
+const ModalDescription = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Description>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
+>(({ className, ...props }, ref) => (
+  <DialogPrimitive.Description
+    ref={ref}
+    className={twMerge(clsx('text-sm text-muted-foreground', className))}
+    {...props}
+  />
+));
+ModalDescription.displayName = DialogPrimitive.Description.displayName;
+
+export {
+  Modal,
+  ModalTrigger,
+  ModalContent,
+  ModalHeader,
+  ModalFooter,
+  ModalTitle,
+  ModalDescription,
 };

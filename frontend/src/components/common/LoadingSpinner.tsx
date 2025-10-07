@@ -1,47 +1,62 @@
-// src/components/common/LoadingSpinner.tsx
-// ============================================================================
-// Global Loading Spinner Component
-// ============================================================================
-// - A reusable, SVG-based spinner for indicating loading states.
-// - Provides different size options for flexibility across the application.
-// - Uses UnoCSS classes for styling and the `animate-spin` utility.
-// ============================================================================
+// FILE: src/components/common/LoadingSpinner.tsx
 
-import clsx from 'clsx';
+import * as React from 'react';
+import { cva, type VariantProps } from 'cva';
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
-interface LoadingSpinnerProps {
-  size?: 'sm' | 'md' | 'lg';
-  className?: string;
-}
+// 1. Define variants for the spinner's size using cva.
+//    This allows us to easily use different sizes like <LoadingSpinner size="lg" />.
+const spinnerVariants = cva(
+  // Base classes for the SVG animation
+  'animate-spin',
+  {
+    variants: {
+      size: {
+        default: 'h-8 w-8', // 32px
+        sm: 'h-5 w-5',      // 20px
+        lg: 'h-12 w-12',    // 48px
+      },
+    },
+    defaultVariants: {
+      size: 'default',
+    },
+  }
+);
 
-export const LoadingSpinner = ({ size = 'md', className }: LoadingSpinnerProps) => {
-  const sizeClasses = {
-    sm: 'h-5 w-5',
-    md: 'h-8 w-8',
-    lg: 'h-12 w-12',
-  };
+// 2. Define the props for our component.
+//    It extends the standard SVG props and adds our custom `size` variant.
+export interface SpinnerProps
+  extends React.SVGAttributes<SVGSVGElement>,
+    VariantProps<typeof spinnerVariants> {}
 
-  return (
-    <svg
-      className={clsx('animate-spin text-indigo-600', sizeClasses[size], className)}
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-      aria-label="Loading"
-    >
-      <circle
-        className="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
+// 3. Create the LoadingSpinner component.
+const LoadingSpinner = React.forwardRef<SVGSVGElement, SpinnerProps>(
+  ({ className, size, ...props }, ref) => {
+    
+    // Combine the variant classes with any custom classes.
+    const finalClassName = twMerge(clsx(spinnerVariants({ size }), className));
+
+    return (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
         stroke="currentColor"
-        strokeWidth="4"
-      ></circle>
-      <path
-        className="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-      ></path>
-    </svg>
-  );
-};
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={finalClassName}
+        ref={ref}
+        {...props}
+      >
+        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+      </svg>
+    );
+  }
+);
+LoadingSpinner.displayName = 'LoadingSpinner';
+
+export { LoadingSpinner };

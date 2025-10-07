@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService as NestConfigService } from '@nestjs/config';
-import { Config, Environment } from '../types';
+import { Config } from '../types';
 
 // ============================================================================
 // ARCHITECTURAL NOTE: The Role of the ConfigService

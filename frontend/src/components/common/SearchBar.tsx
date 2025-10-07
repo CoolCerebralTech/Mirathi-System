@@ -1,37 +1,56 @@
-// src/components/common/SearchBar.tsx
-// ============================================================================
-// Global Search Bar Component
-// ============================================================================
-// - A styled search input field for use in headers or data tables.
-// - Includes a search icon for better usability.
-// - It is a controlled component, managed by parent state via the `value`
-//   and `onChange` props.
-// ============================================================================
+// FILE: src/components/common/SearchBar.tsx
 
-import { MagnifyingGlassIcon } from '@heroicons/react/20/solid';
-import type { ChangeEvent } from 'react';
+import * as React from 'react';
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import { Input, type InputProps } from '../ui/Input'; // We import our base Input component
 
-interface SearchBarProps {
-    value: string;
-    onChange: (value: string) => void;
-    placeholder?: string;
-}
+// --- Helper Icon for the Search Symbol ---
+const SearchIcon = (props: React.SVGAttributes<SVGSVGElement>) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <circle cx="11" cy="11" r="8" />
+    <path d="m21 21-4.3-4.3" />
+  </svg>
+);
 
-export const SearchBar = ({ value, onChange, placeholder = 'Search...' }: SearchBarProps) => {
+
+// 1. Define the props for our SearchBar.
+//    It will accept all the same props as a standard Input.
+export interface SearchBarProps extends InputProps {}
+
+
+// 2. Create the SearchBar component.
+const SearchBar = React.forwardRef<HTMLInputElement, SearchBarProps>(
+  ({ className, ...props }, ref) => {
+    
+    // We use a relative container to position the search icon.
     return (
-        <div className="relative rounded-md shadow-sm">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
-            </div>
-            <input
-                type="text"
-                name="search"
-                id="search"
-                className="block w-full rounded-md border-0 py-1.5 pl-10 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
-                placeholder={placeholder}
-                value={value}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
-            />
-        </div>
+      <div className={twMerge(clsx('relative w-full', className))}>
+        <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        
+        {/* We render our base Input component and add padding to the left
+            to make space for the icon, so the text doesn't overlap. */}
+        <Input
+          type="search"
+          className="pl-9" // Add padding on the left for the icon
+          ref={ref}
+          {...props}
+        />
+      </div>
     );
-};
+  }
+);
+SearchBar.displayName = 'SearchBar';
+
+export { SearchBar };

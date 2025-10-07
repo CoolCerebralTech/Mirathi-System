@@ -54,7 +54,7 @@ export const configValidationSchema = Joi.object({
   BCRYPT_ROUNDS: Joi.number().default(12).required(),
 
   // --- Messaging Configuration ---
-  RABBITMQ_URI: Joi.string().uri().required(),
+  RABBITMQ_URL: Joi.string().uri().required(),
 
   // --- Storage Configuration ---
   STORAGE_PROVIDER: Joi.string().valid('local', 's3').default('local').required(),

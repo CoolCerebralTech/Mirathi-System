@@ -169,29 +169,61 @@ export class AuditingRepository {
   /**
    * Get most active users
    */
-  async getMostActiveUsers(limit: number = 10, where?: Prisma.AuditLogWhereInput) {
-    const results = await this.prisma.auditLog.groupBy({
-      by: ['actorId'],
-      where: {
-        ...where,
-        actorId: { not: null }, // Exclude system events
-      },
-      _count: {
-        id: true,
-      },
-      orderBy: {
-        _count: {
-          id: 'desc',
-        },
-      },
-      take: limit,
-    });
+  async getMostActiveUsers(
+  limit: number = 10,
+  arg2?: Date | Prisma.AuditLogWhereInput,
+  arg3?: Date | Prisma.AuditLogWhereInput,
+  arg4?: Prisma.AuditLogWhereInput,
+): Promise<{ actorId: string; eventCount: number }[]> {
+  // Normalize arguments into startDate, endDate, where
+  let startDate: Date | undefined;
+  let endDate: Date | undefined;
+  let where: Prisma.AuditLogWhereInput | undefined;
 
-    return results.map(r => ({
-      actorId: r.actorId!,
-      eventCount: r._count.id,
-    }));
+  if (arg2 instanceof Date) {
+    // Called as getMostActiveUsers(limit, startDate, ...)
+    startDate = arg2;
+    if (arg3 instanceof Date) {
+      // Called as getMostActiveUsers(limit, startDate, endDate, maybeWhere)
+      endDate = arg3;
+      where = arg4;
+    } else {
+      // Called as getMostActiveUsers(limit, startDate, where)
+      where = arg3 as Prisma.AuditLogWhereInput | undefined;
+    }
+  } else {
+    // Called as getMostActiveUsers(limit, where)
+    where = arg2 as Prisma.AuditLogWhereInput | undefined;
   }
+
+  // Build date filter if dates provided
+  const dateFilter: Prisma.AuditLogWhereInput | undefined =
+    startDate && endDate
+      ? { timestamp: { gte: startDate, lte: endDate } }
+      : startDate
+      ? { timestamp: { gte: startDate } }
+      : undefined;
+
+  // Merge filters (ensure actorId is not null)
+  const finalWhere: Prisma.AuditLogWhereInput = {
+    ...(where ?? {}),
+    ...(dateFilter ?? {}),
+    actorId: { not: null },
+  };
+
+  const results = await this.prisma.auditLog.groupBy({
+    by: ['actorId'],
+    where: finalWhere,
+    _count: { id: true },
+    orderBy: { _count: { id: 'desc' } },
+    take: limit,
+  });
+
+  return results.map(r => ({
+    actorId: r.actorId!, // safe because we filtered out nulls
+    eventCount: r._count.id,
+  }));
+}
 
   /**
    * Get most common actions

@@ -83,4 +83,3 @@ import { UsersRepository } from './repositories/users.repository';
   ],
 })
 export class AccountsModule {}
-

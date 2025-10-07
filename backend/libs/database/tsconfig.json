@@ -1,23 +1,45 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    /* Output directory for compiled JS and type declarations */
+    /* Output setup */
     "outDir": "../../dist/libs/database",
-
-    /* Generate type declaration files for library consumers */
+    "rootDir": "./src",
+    // This is the crucial setting that enables this project to be referenced by others.
+    "composite": true,
+    // This generates the .d.ts files that the `common` library will use for type checking.
     "declaration": true,
     "declarationMap": true,
+    "sourceMap": true,
 
-    /* Ensure NodeJS types are available */
-    "types": ["node"]
+    /* Language & module system */
+    "module": "CommonJS",
+    "target": "ES2021",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+
+    /* Enable decorators (important for Nest + Prisma integrations) */
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+
+    /* Strictness */
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": false,
+    "forceConsistentCasingInFileNames": true,
+
+    /* Monorepo alias support */
+    "baseUrl": ".",
+    "paths": {
+      "@shamba/*": ["../../libs/*/src"]
+    }
   },
   "include": [
-    "src/**/*"
+    "src/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "test",
-    "**/*.spec.ts"
-  ]
+  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]
 }

@@ -1,106 +1,127 @@
-// src/pages/assets/AssetsPage.tsx
-// ============================================================================
-// Main Assets Page
-// ============================================================================
-// - The primary interface for users to manage their assets.
-// - Uses the useAssets hook to handle all data fetching and state management.
-// - Assembles the `AssetCard` components into a responsive grid.
-// - Manages the state and logic for opening the `AssetFormModal` for both
-// creating new assets and editing existing ones.
-// ============================================================================
-import { useState } from 'react';
-import { useAssets } from '../../hooks/useAssets';
-import { AssetCard } from '../../features/assets/AssetCard';
-import { AssetFormModal } from '../../features/assets/AssetFormModal';
-import { LoadingSpinner } from '../../components/common/LoadingSpinner';
-import { Button } from '../../components/ui/Button';
-import type { Asset, CreateAssetRequest, UpdateAssetRequest } from '../../types';
-export const AssetsPage = () => {
-// State for controlling the modal
-const [isModalOpen, setIsModalOpen] = useState(false);
-const [assetToEdit, setAssetToEdit] = useState<Asset | null>(null);
-// The hook provides all the data and functions we need
-const { assets, loading, error, createAsset, updateAsset, deleteAsset } = useAssets();
-const handleOpenCreateModal = () => {
-setAssetToEdit(null); // Ensure we're in "create" mode
-setIsModalOpen(true);
-};
-const handleOpenEditModal = (asset: Asset) => {
-setAssetToEdit(asset); // Set the asset to edit, switching to "edit" mode
-setIsModalOpen(true);
-};
-const handleDeleteAsset = (assetId: string) => {
-if (window.confirm('Are you sure you want to delete this asset? This cannot be undone.')) {
-deleteAsset(assetId);
-}
-}
-const handleSaveAsset = async (data: CreateAssetRequest | UpdateAssetRequest, assetId?: string) => {
-if (assetId) { // If there's an ID, we're updating
-await updateAsset(assetId, data as UpdateAssetRequest);
-} else { // Otherwise, we're creating
-await createAsset(data as CreateAssetRequest);
-}
-};
-const renderContent = () => {
-if (loading) {
-return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>;
-}
-if (error) {
-  return <div className="text-center py-20 text-red-600 font-medium">{error}</div>;
-}
+// FILE: src/pages/AssetsPage.tsx
 
-if (assets.length === 0) {
+import { useState } from 'react';
+import { PageHeader } from '../components/common/PageHeader';
+import { DataTable } from '../components/ui/DataTable';
+import { Button } from '../components/ui/Button';
+import { PlusCircle } from 'lucide-react';
+
+import { useMyAssets, useDeleteAsset } from '../features/assets/assets.api';
+import { getAssetColumns } from '../features/assets/components/AssetsTable';
+import { AssetForm } from '../features/assets/components/AssetForm';
+import type { Asset } from '../types/schemas';
+
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalTitle,
+  ModalTrigger,
+} from '../components/common/Modal';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/common/AlertDialog';
+import { toast } from '../hooks/useToast';
+
+
+export function AssetsPage() {
+  const { data: assetsData, isLoading } = useMyAssets();
+  const deleteAssetMutation = useDeleteAsset();
+
+  // State for controlling the Create/Edit Asset modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  
+  // State for controlling the Delete confirmation dialog
+  const [assetToDelete, setAssetToDelete] = useState<string | null>(null);
+
+  const handleEdit = (asset: Asset) => {
+    setSelectedAsset(asset);
+    setIsModalOpen(true);
+  };
+  
+  const handleAddNew = () => {
+    setSelectedAsset(null); // Ensure we're in "create" mode
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (assetId: string) => {
+    deleteAssetMutation.mutate(assetId, {
+      onSuccess: () => {
+        toast.success('Asset deleted successfully.');
+        setAssetToDelete(null); // Close the dialog
+      },
+      onError: (error: any) => {
+        toast.error('Deletion Failed', { description: error.message });
+      }
+    });
+  };
+
+  // Memoize the columns to prevent re-creation on every render
+  const columns = React.useMemo(() => getAssetColumns(handleEdit, setAssetToDelete), []);
+
+  const assets = assetsData || [];
+
   return (
-    <div className="text-center py-20">
-      <h3 className="text-lg font-medium text-gray-900">You haven't added any assets yet.</h3>
-      <p className="mt-1 text-sm text-gray-500">
-        Get started by creating your first asset.
-      </p>
+    <div className="space-y-6">
+      <PageHeader
+        title="My Assets"
+        description="Manage all your registered assets, including land, vehicles, and properties."
+        actions={
+          <Button onClick={handleAddNew}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Add New Asset
+          </Button>
+        }
+      />
+
+      <DataTable
+        columns={columns}
+        data={assets}
+        isLoading={isLoading}
+        // Pagination would be added here if the API supported it
+      />
+
+      {/* --- Modals and Dialogs --- */}
+      
+      {/* Create/Edit Asset Modal */}
+      <Modal open={isModalOpen} onOpenChange={setIsModalOpen}>
+        {/* We control this modal programmatically, so no ModalTrigger is needed here */}
+        <ModalContent>
+          <ModalHeader>
+            <ModalTitle>{selectedAsset ? 'Edit Asset' : 'Create New Asset'}</ModalTitle>
+          </ModalHeader>
+          <AssetForm 
+            asset={selectedAsset}
+            onSuccess={() => setIsModalOpen(false)} 
+          />
+        </ModalContent>
+      </Modal>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!assetToDelete} onOpenChange={() => setAssetToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the asset. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleDelete(assetToDelete!)}>
+              Yes, Delete Asset
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-
-return (
-  <ul role="list" className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-    {assets.map((asset) => (
-      <AssetCard
-        key={asset.id}
-        asset={asset}
-        onEdit={handleOpenEditModal}
-        onDelete={handleDeleteAsset}
-      />
-    ))}
-  </ul>
-);
-};
-return (
-<>
-{/* Page Header */}
-<div className="flex flex-col items-start justify-between gap-4 border-b border-gray-200 pb-5 sm:flex-row sm:items-center sm:gap-0">
-<div>
-<h1 className="text-3xl font-bold text-gray-900">My Assets</h1>
-<p className="mt-2 text-sm text-gray-500">
-A list of all your registered assets, such as land, property, and vehicles.
-</p>
-</div>
-<div className="ml-auto">
-<Button onClick={handleOpenCreateModal}>
-Add New Asset
-</Button>
-</div>
-</div>
-{/* Assets Grid */}
-  <div className="mt-8">
-    {renderContent()}
-  </div>
-
-  {/* Create/Edit Modal */}
-  <AssetFormModal
-    isOpen={isModalOpen}
-    onClose={() => setIsModalOpen(false)}
-    onSave={handleSaveAsset}
-    assetToEdit={assetToEdit}
-  />
-</>
-);
-};

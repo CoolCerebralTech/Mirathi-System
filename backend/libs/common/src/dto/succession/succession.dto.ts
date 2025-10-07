@@ -1,9 +1,7 @@
-import { IsString, IsOptional, IsEnum, IsArray, ValidateNested, IsNumber, Min, Max, IsUUID, IsNotEmptyObject, MaxLength, MinLength } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsOptional, IsEnum, IsNumber, Min, Max, IsUUID, MaxLength, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { WillStatus, AssetType, RelationshipType } from '../../enums';
 import { BaseResponseDto } from '../shared/base.response.dto';
-import { PaginationQueryDto } from '../shared/pagination.dto';
 import { UserResponseDto } from '../users/user.dto';
 
 // ============================================================================

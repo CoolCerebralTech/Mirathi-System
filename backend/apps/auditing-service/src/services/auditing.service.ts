@@ -55,14 +55,22 @@ export class AuditingService {
    * Extract actor ID from event data
    * Different events use different field names
    */
-  private extractActorId(data: ShambaEvent['data']): string | null {
-    if ('userId' in data) return data.userId;
-    if ('uploaderId' in data) return data.uploaderId;
-    if ('testatorId' in data) return data.testatorId;
-    if ('ownerId' in data) return data.ownerId;
-    if ('actorId' in data) return data.actorId;
-    return null;
-  }
+  private extractActorId(data: unknown): string | null {
+      if (typeof data !== 'object' || data === null) return null;
+
+      const record = data as Record<string, unknown>;
+      const keys = ['userId', 'uploaderId', 'testatorId', 'ownerId', 'actorId'] as const;
+
+      for (const key of keys) {
+        const value = record[key];
+        if (typeof value === 'string') {
+          return value;
+        }
+      }
+
+      return null;
+    }
+
 
   // ========================================================================
   // QUERY OPERATIONS
@@ -202,10 +210,11 @@ export class AuditingService {
     
     // Get users with high activity in last hour
     const activeUsers = await this.auditingRepository.getMostActiveUsers(
-      20,
-      oneHourAgo,
-      new Date()
-    );
+        20,
+        oneHourAgo,
+        new Date(), // endDate
+        { timestamp: { gte: oneHourAgo, lte: new Date() } } // optional filter
+      );
 
     // Flag users with more than 100 events in an hour
     const suspicious = activeUsers.filter(u => u.eventCount > 100);

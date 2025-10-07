@@ -1,4 +1,4 @@
-import { IsString, IsEnum, IsOptional, IsArray, MinLength, MaxLength, IsBoolean } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsArray, MinLength, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { NotificationChannel } from '../../enums';
 import { PaginationQueryDto } from '../shared/pagination.dto';

@@ -1,81 +1,105 @@
-// src/components/common/NotificationDropdown.tsx
-// ============================================================================
-// Notification Dropdown Component
-// ============================================================================
-// - Displays a list of recent notifications to the user.
-// - Built with Headless UI's `Menu` for accessibility.
-// - Currently uses mock data, but is architected to easily accept real data
-//   from a future `useNotifications` hook.
-// ============================================================================
+// FILE: src/components/common/NotificationDropdown.tsx
 
-import { Menu, Transition } from '@headlessui/react';
-import { BellIcon } from '@heroicons/react/24/outline';
-import { Fragment } from 'react';
+import * as React from 'react';
+import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import { Link } from 'react-router-dom';
+import { useMyNotifications } from '../../features/notifications/notifications.api'; // Our data-fetching hook
+import { LoadingSpinner } from './LoadingSpinner'; // Our loading indicator
+import type { Notification } from '../../types'; // Our Notification type
 
-// MOCK DATA - This will be replaced by data from an API call
-const mockNotifications = [
-    { id: 1, text: 'Your document "Title Deed ABC" has been verified.', time: '2h ago' },
-    { id: 2, text: 'A new heir, Jane Doe, was added to your "Family Will".', time: '1d ago' },
-    { id: 3, text: 'Reminder: Please review your will by Dec 31st.', time: '3d ago' },
-];
+// --- Helper Icon for the Bell ---
+const BellIcon = (props: React.SVGAttributes<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+);
 
-export const NotificationDropdown = () => {
-    return (
-        <Menu as="div" className="relative inline-block text-left">
-            <div>
-                <Menu.Button className="relative flex rounded-full bg-gray-100 p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                    <span className="sr-only">View notifications</span>
-                    <BellIcon className="h-6 w-6" aria-hidden="true" />
-                    {/* Notification count badge */}
-                    {mockNotifications.length > 0 && (
-                         <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
-                            {mockNotifications.length}
-                         </span>
-                    )}
-                </Menu.Button>
-            </div>
-            <Transition
-                as={Fragment}
-                enter="transition ease-out duration-100"
-                enterFrom="transform opacity-0 scale-95"
-                enterTo="transform opacity-100 scale-100"
-                leave="transition ease-in duration-75"
-                leaveFrom="transform opacity-100 scale-100"
-                leaveTo="transform opacity-0 scale-95"
-            >
-                <Menu.Items className="absolute right-0 z-10 mt-2 w-80 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                    <div className="p-2">
-                        <div className="border-b border-gray-200 pb-2 mb-2">
-                            <h3 className="text-sm font-medium text-gray-900 px-2">Notifications</h3>
-                        </div>
-                        <div className="max-h-60 overflow-y-auto">
-                            {mockNotifications.length > 0 ? (
-                                mockNotifications.map((notification) => (
-                                    <Menu.Item key={notification.id}>
-                                        {({ active }) => (
-                                            <a href="#" className={`${active ? 'bg-gray-100' : ''} block rounded-md px-2 py-2 text-sm text-gray-700`}>
-                                                <p className="font-medium">{notification.text}</p>
-                                                <p className="text-xs text-gray-500">{notification.time}</p>
-                                            </a>
-                                        )}
-                                    </Menu.Item>
-                                ))
-                            ) : (
-                                <div className="px-2 py-4 text-center text-sm text-gray-500">
-                                    No new notifications
-                                </div>
-                            )}
-                        </div>
-                         <div className="border-t border-gray-200 pt-2 mt-2">
-                            <Menu.Item>
-                                <a href="#" className="block text-center text-sm font-medium text-indigo-600 hover:text-indigo-500">
-                                    View all notifications
-                                </a>
-                            </Menu.Item>
-                        </div>
-                    </div>
-                </Menu.Items>
-            </Transition>
-        </Menu>
-    );
+
+// 1. We'll reuse the same styled Radix components from UserMenu.
+//    In a real project, these could be moved to a single ui/Dropdown.tsx file to avoid duplication.
+const DropdownMenu = DropdownMenuPrimitive.Root;
+const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
+
+const DropdownMenuContent = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
+>(({ className, sideOffset = 4, ...props }, ref) => (
+  <DropdownMenuPrimitive.Portal>
+    <DropdownMenuPrimitive.Content
+      ref={ref}
+      sideOffset={sideOffset}
+      className={twMerge(clsx('z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in data-[side=bottom]:slide-in-from-top-2', className))}
+      {...props}
+    />
+  </DropdownMenuPrimitive.Portal>
+));
+DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
+
+const DropdownMenuItem = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Item>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item>
+>(({ className, ...props }, ref) => (
+  <DropdownMenuPrimitive.Item
+    ref={ref}
+    className={twMerge(clsx('relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent data-[disabled]:opacity-50', className))}
+    {...props}
+  />
+));
+DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName;
+
+const DropdownMenuLabel = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Label>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Label>
+>(({ className, ...props }, ref) => (
+    <DropdownMenuPrimitive.Label ref={ref} className={twMerge(clsx('px-2 py-1.5 text-sm font-semibold', className))} {...props} />
+));
+DropdownMenuLabel.displayName = DropdownMenuPrimitive.Label.displayName;
+
+
+// 2. The main NotificationDropdown component
+export function NotificationDropdown() {
+  // Fetch the user's notifications using our hook.
+  // We'll fetch the first 5 as a preview.
+  const { data, isLoading, error } = useMyNotifications({ page: 1, limit: 5 });
+
+  const renderContent = () => {
+    if (isLoading) {
+      return <div className="flex justify-center items-center p-4"><LoadingSpinner /></div>;
+    }
+
+    if (error) {
+      return <div className="p-2 text-sm text-destructive">Failed to load notifications.</div>;
+    }
+    
+    const notifications = data?.data || [];
+
+    if (notifications.length === 0) {
+      return <div className="p-2 text-sm text-muted-foreground">No new notifications.</div>;
+    }
+
+    return notifications.map((notification: Notification) => (
+      <DropdownMenuItem key={notification.id} asChild>
+        <Link to={`/notifications/${notification.id}`} className="flex flex-col items-start">
+            <p className="font-semibold">{notification.templateName.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, s => s.toUpperCase())}</p>
+            <p className="text-xs text-muted-foreground">{new Date(notification.createdAt).toLocaleString()}</p>
+        </Link>
+      </DropdownMenuItem>
+    ));
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="relative rounded-full p-2 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+            <BellIcon className="h-5 w-5" />
+            {/* We can add a badge for unread notifications later */}
+        </button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="end" className="w-80">
+        <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+        {renderContent()}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }

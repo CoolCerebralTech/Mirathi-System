@@ -1,13 +1,15 @@
-// src/main.tsx
+// FILE: src/main.tsx (Final Version)
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { RouterProvider } from 'react-router-dom';
-import { router } from './router'; // Import our new router
-import './index.css'; // Assuming you have a base CSS file for UnoCSS
+import App from './App';
+import './index.css'; // Your global stylesheet
+import { AppProviders } from './providers/AppProviders';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <RouterProvider router={router} /> {/* Render the RouterProvider */}
-  </React.StrictMode>,
+    <AppProviders>
+      <App />
+    </AppProviders>
+  </React.StrictMode>
 );

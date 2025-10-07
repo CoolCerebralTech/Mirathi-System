@@ -17,6 +17,7 @@ import {
 } from '@shamba/common';
 import { TemplatesRepository } from '../repositories/templates.repository';
 import * as handlebars from 'handlebars';
+import { getErrorMessage } from '@shamba/common';
 
 /**
  * TemplatesService - Notification template management
@@ -153,24 +154,17 @@ export class TemplatesService {
     variables: Record<string, any>
   ): { subject: string | null; body: string } {
     try {
-      const compileString = (str: string) => {
-        const compiled = handlebars.compile(str);
-        return compiled(variables);
-      };
-
+      const compileString = (str: string) => handlebars.compile(str)(variables);
       return {
         subject: template.subject ? compileString(template.subject) : null,
         body: compileString(template.body),
       };
     } catch (error) {
-      this.logger.error(
-        `Failed to compile template ${template.name}`,
-        error
-      );
-      throw new BadRequestException(
-        `Template compilation failed: ${error.message}`
-      );
+      const message = getErrorMessage(error);
+      this.logger.error(`Failed to compile template ${template.name}: ${message}`);
+      throw new BadRequestException(`Template compilation failed: ${message}`);
     }
+
   }
 
   /**
@@ -200,14 +194,13 @@ export class TemplatesService {
    * Validate template syntax
    */
   private validateTemplateSyntax(templateString: string): void {
-    try {
-      handlebars.compile(templateString);
-    } catch (error) {
-      throw new BadRequestException(
-        `Invalid template syntax: ${error.message}`
-      );
+      try {
+        handlebars.compile(templateString);
+      } catch (error) {
+        const message = getErrorMessage(error);
+        throw new BadRequestException(`Invalid template syntax: ${message}`);
+      }
     }
-  }
 
   /**
    * Register custom Handlebars helpers

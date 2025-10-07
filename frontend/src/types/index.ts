@@ -1,15 +1,25 @@
-// src/types/index.ts
+// FILE: src/types/schemas/index.ts
+
 // ============================================================================
-// Barrel File for Type Definitions
-// ============================================================================
-// - Re-exports all types from the other files in this directory.
-// - This allows other modules in the application to import any type with a
-//   single, clean import statement, like:
-//   import type { User, LoginRequest } from '../types';
+// CENTRALIZED SCHEMA EXPORTS
+// Organized by microservice domain for easy maintenance
 // ============================================================================
 
-export * from './shared.types';
-export * from './user.types';
-export * from './auth.types';
-export * from './document.types';
-export * from './succession.types';
+// Common utilities and helpers
+export * from './common.schemas';
+
+// Accounts Service
+export * from './auth.schemas';
+export * from './user.schemas';
+
+// Succession Service
+export * from './succession.schemas';
+
+// Documents Service
+export * from './documents.schemas';
+
+// Notifications Service
+export * from './notifications.schemas';
+
+// Auditing Service
+export * from './auditing.schemas';

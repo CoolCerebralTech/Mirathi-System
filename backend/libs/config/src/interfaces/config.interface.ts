@@ -36,7 +36,7 @@ export interface AuthConfig {
 }
 
 export interface MessagingConfig {
-  RABBITMQ_URI: string;
+  RABBITMQ_URL: string;
 }
 
 export interface StorageConfig {

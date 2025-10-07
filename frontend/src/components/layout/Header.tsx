@@ -1,37 +1,48 @@
-// src/components/layout/Header.tsx
-// ============================================================================
-// Main Application Header for Authenticated Layout
-// ============================================================================
-// - The top navigation bar displayed to logged-in users.
-// - Integrates our common components: `SearchBar`, `NotificationDropdown`,
-//   and `UserMenu` for a fully functional header experience.
-// ============================================================================
+// FILE: src/components/layouts/Header.tsx
 
-import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Menu } from 'lucide-react';
+import { Button } from '../ui/Button';
 import { SearchBar } from '../common/SearchBar';
-import { NotificationDropdown } from '../common/NotificationDropdown';
 import { UserMenu } from '../common/UserMenu';
+import { NotificationDropdown } from '../common/NotificationDropdown';
 
-export const Header = () => {
-    const [searchQuery, setSearchQuery] = useState('');
+interface HeaderProps {
+  // This is a function that the Header will call to toggle the mobile sidebar's state.
+  // The state itself is managed by the parent DashboardLayout.
+  onMobileNavToggle: () => void;
+}
 
-    return (
-        <header className="bg-white shadow-sm h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8">
-            {/* Search Bar */}
-            <div className="w-full max-w-xs">
-                <SearchBar 
-                    value={searchQuery}
-                    onChange={setSearchQuery}
-                    placeholder="Search documents, wills..."
-                />
-            </div>
+export function Header({ onMobileNavToggle }: HeaderProps) {
+  return (
+    <header className="flex h-16 items-center gap-4 border-b bg-background px-6">
+      {/* Mobile Navigation Toggle - only visible on small screens */}
+      <Button
+        variant="outline"
+        size="icon"
+        className="shrink-0 sm:hidden" // Hide on sm screens and up
+        onClick={onMobileNavToggle}
+      >
+        <Menu className="h-5 w-5" />
+        <span className="sr-only">Toggle navigation menu</span>
+      </Button>
+      
+      {/* Breadcrumbs - A placeholder for now. This could be a more dynamic component later. */}
+      <div className="hidden sm:flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <Link to="/dashboard" className="hover:text-foreground">Dashboard</Link>
+        {/* Example of a second breadcrumb level */}
+        {/* <span>/</span>
+        <span className="text-foreground">Assets</span> */}
+      </div>
 
-            {/* Right-side actions */}
-            <div className="flex items-center gap-x-4">
-                <NotificationDropdown />
-                <div className="h-6 w-px bg-gray-200" aria-hidden="true" />
-                <UserMenu />
-            </div>
-        </header>
-    );
-};
+      {/* Search Bar and User Components - Pushed to the right */}
+      <div className="ml-auto flex items-center gap-4">
+        <div className="w-full max-w-sm">
+            <SearchBar placeholder="Search..." />
+        </div>
+        <NotificationDropdown />
+        <UserMenu />
+      </div>
+    </header>
+  );
+}

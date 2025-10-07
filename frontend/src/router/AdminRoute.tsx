@@ -1,35 +1,31 @@
-// src/router/AdminRoute.tsx
-// ============================================================================
-// Admin-Only Protected Route Component
-// ============================================================================
-// - A specialized route guard that ensures only users with the 'ADMIN' role
-//   can access a specific route.
-// - It first verifies if the user is authenticated.
-// - If authenticated, it then checks the user's role from the `useAuthStore`.
-// - If the user is not an admin, they are redirected to the main dashboard,
-//   preventing unauthorized access to sensitive admin areas.
-// ============================================================================
+// FILE: src/router/AdminRoute.tsx
 
-import { Navigate } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../store/auth.store';
+import { UserRoleSchema } from '../types'; // Import our Zod enum for type safety
 
-interface AdminRouteProps {
-  children: React.ReactNode;
-}
+/**
+ * This component protects routes that require a user to be an ADMIN.
+ * It checks for authentication first, then checks the user's role.
+ * If either check fails, it redirects the user appropriately.
+ */
+export function AdminRoute() {
+  const { status, user } = useAuthStore();
+  const isAuthenticated = status === 'authenticated';
+  const isAdmin = user?.role === UserRoleSchema.enum.ADMIN;
 
-export const AdminRoute = ({ children }: AdminRouteProps) => {
-  // 1. Get the full user object from our global store.
-  const user = useAuthStore((state) => state.user);
+  if (!isAuthenticated) {
+    // If not logged in at all, redirect to the login page.
+    return <Navigate to="/login" replace />;
+  }
 
-  // 2. Check if the user is authenticated AND has the 'ADMIN' role.
-  const isAdmin = user?.role === 'ADMIN';
-
-  // 3. If the user is not an admin, redirect them to the dashboard.
-  //    This provides a better user experience than showing an error page.
   if (!isAdmin) {
+    // If logged in but NOT an admin, redirect to their main dashboard.
+    // This prevents regular users from even seeing a "not found" page for admin routes.
     return <Navigate to="/dashboard" replace />;
   }
 
-  // 4. If they are an admin, render the requested admin page.
-  return <>{children}</>;
-};
+  // If authenticated AND an admin, render the requested admin page via <Outlet />.
+  // It will be rendered within the DashboardLayout because of how our router is structured.
+  return <Outlet />;
+}

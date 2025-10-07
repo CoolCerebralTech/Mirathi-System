@@ -1,50 +1,35 @@
-// src/components/ui/Input.tsx
-// ============================================================================
-// Reusable Input Component
-// ============================================================================
-// - A styled, accessible, and reusable input field for forms.
-// - It accepts all standard HTML input props for maximum flexibility.
-// - Includes built-in styling for labels, focus states, and error messages.
-// - Uses `clsx` to conditionally apply error styling.
-// ============================================================================
+// FILE: src/components/ui/Input.tsx
 
-import { forwardRef, type InputHTMLAttributes } from 'react';
-import clsx from 'clsx';
+import * as React from 'react';
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
-interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  label: string;
-  error?: string;
-}
+// 1. Define the props for our Input component.
+//    It extends the standard HTML input element's props.
+export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
 
-export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, name, error, ...props }, ref) => {
+// 2. Create the Input component.
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, type, ...props }, ref) => {
+    
+    // Define the base styles for the input using UnoCSS/Tailwind classes.
+    const baseStyles =
+      'flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
+
+    // Merge the base styles with any additional classes passed via props.
+    // twMerge is smart about overriding conflicting classes (e.g., if you pass 'w-1/2', it overrides 'w-full').
+    const finalClassName = twMerge(clsx(baseStyles, className));
+
     return (
-      <div className="w-full">
-        <label htmlFor={name} className="block text-sm font-medium text-gray-700">
-          {label}
-        </label>
-        <div className="mt-1">
-          <input
-            id={name}
-            name={name}
+        <input
+            type={type}
+            className={finalClassName}
             ref={ref}
-            className={clsx(
-              'block w-full rounded-md border-gray-300 shadow-sm',
-              'focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm',
-              'transition duration-150 ease-in-out',
-              { 'border-red-500 focus:border-red-500 focus:ring-red-500': error },
-            )}
             {...props}
-          />
-        </div>
-        {error && (
-          <p className="mt-2 text-sm text-red-600" id={`${name}-error`}>
-            {error}
-          </p>
-        )}
-      </div>
+        />
     );
-  },
+  }
 );
-
 Input.displayName = 'Input';
+
+export { Input };

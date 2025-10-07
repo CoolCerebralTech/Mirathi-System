@@ -48,7 +48,7 @@ async function bootstrap() {
 
   // --- Connect RabbitMQ Microservice Transport ---
   // This allows the service to consume events from other services
-  const rabbitmqUrl = configService.get('RABBITMQ_URI') || 'amqp://localhost:5672';
+  const rabbitmqUrl = configService.get('RABBITMQ_URL') || 'amqp://localhost:5672';
   
   app.connectMicroservice({
     transport: Transport.RMQ,
