@@ -1,0 +1,20 @@
+// FILE: src/i18n/locales/en/families.json
+
+{
+  "title": "Family",
+  "my_families": "My Families",
+  "create_family": "Create Family",
+  "family_name": "Family Name",
+  "members": "Members",
+  "add_member": "Add Member",
+  "remove_member": "Remove Member",
+  "relationship": "Relationship",
+  "spouse": "Spouse",
+  "child": "Child",
+  "parent": "Parent",
+  "sibling": "Sibling",
+  "family_created": "Family created successfully",
+  "member_added": "Family member added successfully",
+  "member_removed": "Family member removed successfully",
+  "no_families": "No families found. Create a family tree to manage inheritance."
+}

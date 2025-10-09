@@ -1,0 +1,16 @@
+// FILE: src/i18n/locales/en/documents.json
+
+{
+  "title": "Documents",
+  "my_documents": "My Documents",
+  "upload_document": "Upload Document",
+  "document_name": "Document Name",
+  "document_type": "Document Type",
+  "document_status": "Document Status",
+  "pending_verification": "Pending Verification",
+  "verified": "Verified",
+  "rejected": "Rejected",
+  "upload_success": "Document uploaded successfully",
+  "verification_pending": "Document is pending verification",
+  "no_documents": "No documents found. Upload your first document to get started."
+}

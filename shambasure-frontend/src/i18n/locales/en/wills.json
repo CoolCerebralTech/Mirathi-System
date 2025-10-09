@@ -1,0 +1,23 @@
+// FILE: src/i18n/locales/en/wills.json
+
+{
+  "title": "Wills",
+  "my_wills": "My Wills",
+  "create_will": "Create Will",
+  "edit_will": "Edit Will",
+  "delete_will": "Delete Will",
+  "will_title": "Will Title",
+  "will_status": "Will Status",
+  "draft": "Draft",
+  "active": "Active",
+  "revoked": "Revoked",
+  "executed": "Executed",
+  "beneficiaries": "Beneficiaries",
+  "add_beneficiary": "Add Beneficiary",
+  "assign_assets": "Assign Assets",
+  "share_percentage": "Share Percentage",
+  "will_created": "Will created successfully",
+  "will_updated": "Will updated successfully",
+  "will_deleted": "Will deleted successfully",
+  "no_wills": "No wills found. Create your first will to secure your legacy."
+}

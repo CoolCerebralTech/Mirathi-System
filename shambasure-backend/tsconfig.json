@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "resolvePackageJsonExports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2023",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "noUnusedLocals": true,
+    "strictNullChecks": true,
+    "noUnusedParameters": false,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@shamba/auth": ["libs/auth/src"],
+      "@shamba/auth/*": ["libs/auth/src/*"],
+      "@shamba/common": ["libs/common/src"],
+      "@shamba/common/*": ["libs/common/src/*"],
+      "@shamba/config": ["libs/config/src"],
+      "@shamba/config/*": ["libs/config/src/*"],
+      "@shamba/database": ["libs/database/src"],
+      "@shamba/database/*": ["libs/database/src/*"],
+      "@shamba/messaging": ["libs/messaging/src"],
+      "@shamba/messaging/*": ["libs/messaging/src/*"],
+      "@shamba/observability": ["libs/observability/src"],
+      "@shamba/observability/*": ["libs/observability/src/*"]
+    }
+  }
+}

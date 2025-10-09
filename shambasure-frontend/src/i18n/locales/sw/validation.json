@@ -1,0 +1,18 @@
+
+// FILE: src/i18n/locales/sw/validation.json
+
+{
+  "required": "{{field}} inahitajika",
+  "email_invalid": "Tafadhali weka barua pepe sahihi",
+  "min_length": "{{field}} lazima iwe na angalau herufi {{min}}",
+  "max_length": "{{field}} haiwezi kuzidi herufi {{max}}",
+  "number_min": "{{field}} lazima iwe angalau {{min}}",
+  "number_max": "{{field}} haiwezi kuzidi {{max}}",
+  "pattern_mismatch": "Muundo wa {{field}} si sahihi",
+  "passwords_must_match": "Nywila lazima zifanane",
+  "phone_invalid": "Tafadhali weka nambari ya simu sahihi",
+  "url_invalid": "Tafadhali weka URL sahihi",
+  "date_invalid": "Tafadhali weka tarehe sahihi",
+  "file_too_large": "Ukubwa wa faili hauwezi kuzidi {{max}}MB",
+  "file_type_invalid": "Aina ya faili haitegemezwa"
+}

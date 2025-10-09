@@ -1,0 +1,22 @@
+// FILE: src/i18n/locales/sw/assets.json
+
+{
+  "title": "Mali",
+  "my_assets": "Mali Yangu",
+  "create_asset": "Unda Mali",
+  "edit_asset": "Hariri Mali",
+  "delete_asset": "Futa Mali",
+  "asset_name": "Jina la Mali",
+  "asset_type": "Aina ya Mali",
+  "asset_description": "Maelezo ya Mali",
+  "land_parcel": "Kipande cha Ardhi",
+  "bank_account": "Akaunti ya Benki",
+  "vehicle": "Gari",
+  "property": "Mali",
+  "other": "Nyingine",
+  "asset_created": "Mali imeundwa kwa mafanikio",
+  "asset_updated": "Mali imesasishwa kwa mafanikio",
+  "asset_deleted": "Mali imefutwa kwa mafanikio",
+  "confirm_delete": "Una uhakika unataka kufuta mali hii?",
+  "no_assets": "Hakuna mali zilizopatikana. Unda mali yako ya kwanza kuanza."
+}

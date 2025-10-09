@@ -1,0 +1,16 @@
+// FILE: src/i18n/locales/sw/documents.json
+
+{
+  "title": "Hati",
+  "my_documents": "Hati Zangu",
+  "upload_document": "Pakia Hati",
+  "document_name": "Jina la Hati",
+  "document_type": "Aina ya Hati",
+  "document_status": "Hali ya Hati",
+  "pending_verification": "Inasubiri Uthibitisho",
+  "verified": "Imethibitishwa",
+  "rejected": "Imekataliwa",
+  "upload_success": "Hati imepakiwa kwa mafanikio",
+  "verification_pending": "Hati inasubiri uthibitisho",
+  "no_documents": "Hakuna hati zilizopatikana. Pakia hati yako ya kwanza kuanza."
+}

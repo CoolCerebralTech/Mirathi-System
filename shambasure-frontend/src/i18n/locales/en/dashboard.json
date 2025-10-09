@@ -1,0 +1,19 @@
+// FILE: src/i18n/locales/en/dashboard.json
+
+{
+  "title": "Dashboard",
+  "overview": "Overview",
+  "welcome_message": "Welcome back, {{name}}",
+  "quick_actions": "Quick Actions",
+  "recent_activity": "Recent Activity",
+  "statistics": "Statistics",
+  "total_assets": "Total Assets",
+  "active_wills": "Active Wills",
+  "family_members": "Family Members",
+  "pending_documents": "Pending Documents",
+  "view_all": "View All",
+  "create_will": "Create Will",
+  "add_asset": "Add Asset",
+  "upload_document": "Upload Document",
+  "invite_family": "Invite Family Member"
+}

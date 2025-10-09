@@ -1,0 +1,17 @@
+// FILE: src/i18n/locales/en/validation.json
+
+{
+  "required": "{{field}} is required",
+  "email_invalid": "Please enter a valid email address",
+  "min_length": "{{field}} must be at least {{min}} characters",
+  "max_length": "{{field}} cannot exceed {{max}} characters",
+  "number_min": "{{field}} must be at least {{min}}",
+  "number_max": "{{field}} cannot exceed {{max}}",
+  "pattern_mismatch": "{{field}} format is invalid",
+  "passwords_must_match": "Passwords must match",
+  "phone_invalid": "Please enter a valid phone number",
+  "url_invalid": "Please enter a valid URL",
+  "date_invalid": "Please enter a valid date",
+  "file_too_large": "File size cannot exceed {{max}}MB",
+  "file_type_invalid": "File type not supported"
+}

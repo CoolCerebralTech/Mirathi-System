@@ -1,0 +1,28 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+
+  "eslint.enable": true,
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"],
+
+  // ⭐ --- THE FIX IS HERE --- ⭐
+  // We are telling the ESLint extension to NOT auto-fix the 'no-unused-vars' rule on save.
+  // This will stop the editor from deleting your `_password` variable every time you save.
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "eslint.codeActionsOnSave.rules": [
+    // This disables the auto-fix for the specified rule. It will still show a warning.
+    "!@typescript-eslint/no-unused-vars"
+  ],
+
+  // Prettier settings remain the same
+  "prettier.printWidth": 100,
+  "prettier.singleQuote": true,
+  "prettier.trailingComma": "all",
+  "prettier.semi": true,
+  "prettier.endOfLine": "lf"
+}

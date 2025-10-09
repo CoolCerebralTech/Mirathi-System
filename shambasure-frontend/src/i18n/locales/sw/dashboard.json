@@ -1,0 +1,19 @@
+// FILE: src/i18n/locales/sw/dashboard.json
+
+{
+  "title": "Dashibodi",
+  "overview": "Muhtasari",
+  "welcome_message": "Karibu tena, {{name}}",
+  "quick_actions": "Vitendo vya Haraka",
+  "recent_activity": "Shughuli za Hivi Karibuni",
+  "statistics": "Takwimu",
+  "total_assets": "Jumla ya Mali",
+  "active_wills": "Wosia Hai",
+  "family_members": "Wanafamilia",
+  "pending_documents": "Hati Zinazosubiri",
+  "view_all": "Tazama Zote",
+  "create_will": "Unda Wosia",
+  "add_asset": "Ongeza Mali",
+  "upload_document": "Pakia Hati",
+  "invite_family": "Alika Mwanafamilia"
+}

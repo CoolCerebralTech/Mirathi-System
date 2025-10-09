@@ -1,0 +1,23 @@
+// FILE: src/i18n/locales/sw/wills.json
+
+{
+  "title": "Wosia",
+  "my_wills": "Wosia Wangu",
+  "create_will": "Unda Wosia",
+  "edit_will": "Hariri Wosia",
+  "delete_will": "Futa Wosia",
+  "will_title": "Kichwa cha Wosia",
+  "will_status": "Hali ya Wosia",
+  "draft": "Rasimu",
+  "active": "Hai",
+  "revoked": "Imefutwa",
+  "executed": "Imetekelezwa",
+  "beneficiaries": "Waathirika",
+  "add_beneficiary": "Ongeza Mwathirika",
+  "assign_assets": "Gawa Mali",
+  "share_percentage": "Asilimia ya Mgao",
+  "will_created": "Wosia imeundwa kwa mafanikio",
+  "will_updated": "Wosia imesasishwa kwa mafanikio",
+  "will_deleted": "Wosia imefutwa kwa mafanikio",
+  "no_wills": "Hakuna wosia zilizopatikana. Unda wosia yako ya kwanza kulinda urithi wako."
+}

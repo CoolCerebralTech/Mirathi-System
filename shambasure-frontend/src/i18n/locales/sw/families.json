@@ -1,0 +1,20 @@
+// FILE: src/i18n/locales/sw/families.json
+
+{
+  "title": "Familia",
+  "my_families": "Familia Zangu",
+  "create_family": "Unda Familia",
+  "family_name": "Jina la Familia",
+  "members": "Wanachama",
+  "add_member": "Ongeza Mwanachama",
+  "remove_member": "Ondoa Mwanachama",
+  "relationship": "Uhusiano",
+  "spouse": "Mwenzi",
+  "child": "Mtoto",
+  "parent": "Mzazi",
+  "sibling": "Ndugu",
+  "family_created": "Familia imeundwa kwa mafanikio",
+  "member_added": "Mwanafamilia ameongezwa kwa mafanikio",
+  "member_removed": "Mwanafamilia ameondolewa kwa mafanikio",
+  "no_families": "Hakuna familia zilizopatikana. Unda mti wa familia kudhibiti urithi."
+}
