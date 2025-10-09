@@ -2,21 +2,21 @@
 // families.repository.ts - Family/HeirLink™ Data Access Layer
 // ============================================================================
 
-import { 
-  Injectable as FamilyInjectable, 
-  NotFoundException as FamilyNotFoundException 
+import {
+  Injectable as FamilyInjectable,
+  NotFoundException as FamilyNotFoundException,
 } from '@nestjs/common';
-import { 
-  Prisma as FamilyPrisma, 
-  PrismaService as FamilyPrismaService, 
-  Family, 
+import {
+  Prisma as FamilyPrisma,
+  PrismaService as FamilyPrismaService,
+  Family,
   FamilyMember,
-  RelationshipType 
+  RelationshipType,
 } from '@shamba/database';
 
 /**
  * FamiliesRepository - Pure data access for families and family members
- * 
+ *
  * RESPONSIBILITIES:
  * - CRUD operations for families (HeirLink™)
  * - Manage family member relationships
@@ -38,9 +38,7 @@ export class FamiliesRepository {
     return this.prisma.family.findUnique({ where: { id } });
   }
 
-  async findByIdWithMembers(
-    id: string
-  ): Promise<(Family & { members: FamilyMember[] }) | null> {
+  async findByIdWithMembers(id: string): Promise<(Family & { members: FamilyMember[] }) | null> {
     return this.prisma.family.findUnique({
       where: { id },
       include: { members: true },
@@ -48,7 +46,7 @@ export class FamiliesRepository {
   }
 
   async findOneOrFail(
-    where: FamilyPrisma.FamilyWhereUniqueInput
+    where: FamilyPrisma.FamilyWhereUniqueInput,
   ): Promise<Family & { members: FamilyMember[] }> {
     const family = await this.prisma.family.findUnique({
       where,
@@ -91,30 +89,20 @@ export class FamiliesRepository {
   // FAMILY MEMBER OPERATIONS
   // ========================================================================
 
-  async addMember(
-    data: FamilyPrisma.FamilyMemberUncheckedCreateInput
-  ): Promise<FamilyMember> {
+  async addMember(data: FamilyPrisma.FamilyMemberUncheckedCreateInput): Promise<FamilyMember> {
     return this.prisma.familyMember.create({ data });
   }
 
-  async findMember(
-    userId: string,
-    familyId: string
-  ): Promise<FamilyMember | null> {
+  async findMember(userId: string, familyId: string): Promise<FamilyMember | null> {
     return this.prisma.familyMember.findUnique({
       where: { userId_familyId: { userId, familyId } },
     });
   }
 
-  async findMemberOrFail(
-    userId: string,
-    familyId: string
-  ): Promise<FamilyMember> {
+  async findMemberOrFail(userId: string, familyId: string): Promise<FamilyMember> {
     const member = await this.findMember(userId, familyId);
     if (!member) {
-      throw new FamilyNotFoundException(
-        `Member ${userId} not found in family ${familyId}`
-      );
+      throw new FamilyNotFoundException(`Member ${userId} not found in family ${familyId}`);
     }
     return member;
   }
@@ -126,9 +114,7 @@ export class FamiliesRepository {
     return this.prisma.familyMember.update({ where, data });
   }
 
-  async removeMember(
-    where: FamilyPrisma.FamilyMemberWhereUniqueInput
-  ): Promise<FamilyMember> {
+  async removeMember(where: FamilyPrisma.FamilyMemberWhereUniqueInput): Promise<FamilyMember> {
     return this.prisma.familyMember.delete({ where });
   }
 
@@ -140,7 +126,7 @@ export class FamiliesRepository {
 
   async getMembersByRelationship(
     familyId: string,
-    role: RelationshipType
+    role: RelationshipType,
   ): Promise<FamilyMember[]> {
     return this.prisma.familyMember.findMany({
       where: { familyId, role },

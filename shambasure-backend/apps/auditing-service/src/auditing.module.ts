@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 // ============================================================================
 // auditing.module.ts - Auditing Service Root Module
 // ============================================================================
@@ -32,11 +34,7 @@ import { SchedulerService as AuditSchedulerService } from './events/scheduler.se
     AuditingController,
     EventsHandler, // Event consumer controller
   ],
-  providers: [
-    AuditingService,
-    AuditingRepository,
-    AuditSchedulerService,
-  ],
+  providers: [AuditingService, AuditingRepository, AuditSchedulerService],
   exports: [AuditingService],
 })
 export class AuditingModule {}

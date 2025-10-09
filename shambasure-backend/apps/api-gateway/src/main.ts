@@ -1,14 +1,11 @@
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
 // ============================================================================
 // main.ts - API Gateway Bootstrap
 // ============================================================================
 
 import { NestFactory } from '@nestjs/core';
 import { Reflector } from '@nestjs/core';
-import { 
-  ValidationPipe, 
-  ClassSerializerInterceptor,
-  VersioningType,
-} from '@nestjs/common';
+import { ValidationPipe, ClassSerializerInterceptor, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { ConfigService } from '@shamba/config';
@@ -21,7 +18,7 @@ import rateLimit from 'express-rate-limit';
 
 /**
  * Bootstrap function - Initializes and starts the API Gateway
- * 
+ *
  * SETUP STEPS:
  * 1. Create NestJS app with custom logger
  * 2. Apply security middlewares (helmet, rate limiting)
@@ -32,7 +29,7 @@ import rateLimit from 'express-rate-limit';
  */
 async function bootstrap() {
   // --- Create Application ---
-  const app = await NestFactory.create(GatewayModule, { 
+  const app = await NestFactory.create(GatewayModule, {
     bufferLogs: true,
   });
 
@@ -49,10 +46,12 @@ async function bootstrap() {
 
   // --- Security Middlewares ---
   // Helmet: Sets various HTTP headers for security
-  app.use(helmet({
-    contentSecurityPolicy: false, // Allow Swagger UI to load
-    crossOriginEmbedderPolicy: false,
-  }));
+  app.use(
+    helmet({
+      contentSecurityPolicy: false, // Allow Swagger UI to load
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
 
   // Compression: Compress response bodies
   app.use(compression());
@@ -60,13 +59,13 @@ async function bootstrap() {
   // Rate Limiting: Protect against brute force attacks
   const rateLimitTtl = configService.get('RATE_LIMIT_TTL') || 60; // 60 seconds
   const rateLimitMax = configService.get('RATE_LIMIT_LIMIT') || 100; // 100 requests
-  
+
   app.use(
     rateLimit({
       windowMs: rateLimitTtl * 1000,
       max: rateLimitMax,
-      standardHeaders: true,  // Return rate limit info in headers
-      legacyHeaders: false,   // Disable X-RateLimit-* headers
+      standardHeaders: true, // Return rate limit info in headers
+      legacyHeaders: false, // Disable X-RateLimit-* headers
       message: {
         statusCode: 429,
         message: 'Too many requests, please try again later',
@@ -106,7 +105,7 @@ async function bootstrap() {
   // --- API Prefix and Versioning ---
   const globalPrefix = configService.get('GLOBAL_PREFIX') || 'api';
   app.setGlobalPrefix(globalPrefix);
-  
+
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
@@ -117,15 +116,15 @@ async function bootstrap() {
     .setTitle('Shamba Sure - API Gateway')
     .setDescription(
       'The unified API entry point for Shamba Sure platform.\n\n' +
-      '**Architecture:**\n' +
-      '- Single gateway for all client requests\n' +
-      '- Routes to 3 microservices (accounts, documents, succession)\n' +
-      '- JWT authentication at gateway level\n' +
-      '- Rate limiting and security headers\n\n' +
-      '**Microservices:**\n' +
-      '- **Accounts Service**: Authentication, users, profiles\n' +
-      '- **Documents Service**: Document upload, verification, storage\n' +
-      '- **Succession Service**: Wills, assets, family management'
+        '**Architecture:**\n' +
+        '- Single gateway for all client requests\n' +
+        '- Routes to 3 microservices (accounts, documents, succession)\n' +
+        '- JWT authentication at gateway level\n' +
+        '- Rate limiting and security headers\n\n' +
+        '**Microservices:**\n' +
+        '- **Accounts Service**: Authentication, users, profiles\n' +
+        '- **Documents Service**: Document upload, verification, storage\n' +
+        '- **Succession Service**: Wills, assets, family management',
     )
     .setVersion('1.0')
     .addBearerAuth(
@@ -164,12 +163,12 @@ async function bootstrap() {
   // --- Start HTTP Server ---
   const port = configService.get('PORT') || 3000;
   const host = configService.get('HOST') || '0.0.0.0';
-  
+
   await app.listen(port, host);
 
   // --- Startup Logs ---
   const nodeEnv = configService.get('NODE_ENV') || 'development';
-  
+
   logger.log(`🚀 API Gateway is running`);
   logger.log(`📍 Server: http://localhost:${port}`);
   logger.log(`📚 API Docs: http://localhost:${port}/${globalPrefix}/v1/docs`);

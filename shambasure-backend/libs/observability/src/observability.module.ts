@@ -5,7 +5,6 @@ import { randomUUID } from 'crypto';
 
 import { HealthModule } from './health/health.module';
 import { MetricsModule } from './metrics/metrics.module';
-import { HealthService } from './health/health.service';
 
 // ============================================================================
 // Shared Observability Module
@@ -71,9 +70,10 @@ export class ObservabilityModule {
           },
         }),
       ],
-      // Export HealthService so it can be injected into the root controller
-      // to create the /health endpoint.
-      exports: [HealthService],
+      // CORRECTED: Export the entire HealthModule.
+      // This makes all of HealthModule's exported providers (like HealthService)
+      // available to any module that imports ObservabilityModule.
+      exports: [HealthModule],
     };
   }
 }

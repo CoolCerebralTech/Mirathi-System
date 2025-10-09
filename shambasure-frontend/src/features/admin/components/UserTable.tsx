@@ -1,10 +1,14 @@
 // FILE: src/features/admin/components/UserTable.tsx
 
-import { ColumnDef } from '@tanstack/react-table';
-import { MoreHorizontal } from 'lucide-react';
+import * as React from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { MoreHorizontal, Trash2, Shield, Ban, CheckCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
-import { useAdminUsers } from '../admin.api'; // We will create this hook next
-import { type User } from '../../../types';
+import { useAdminUsers, useUpdateUserRole, useSuspendUser, useActivateUser, useDeleteUser } from '../admin.api';
+import type { User } from '../../../types';
+import { toast } from '../../../components/common/Toaster';
+import { extractErrorMessage } from '../../../api/client';
 
 import { DataTable, DataTableColumnHeader } from '../../../components/ui/DataTable';
 import { Button } from '../../../components/ui/Button';
@@ -15,110 +19,243 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '../../../components/common/UserMenu'; // Re-using the styled dropdown from UserMenu
-import { Badge } from '../../../components/ui/Badge'; // A new UI component we'll create
+} from '../../../components/ui/DropdownMenu';
+import { Badge } from '../../../components/ui/Badge';
 import { Checkbox } from '../../../components/ui/Checkbox';
+import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
+import { formatDate } from '../../../lib/utils';
 
-// 1. Define the columns for the User table.
-export const userColumns: ColumnDef<User>[] = [
-  // A column for row selection
-  {
-    id: 'select',
-    header: ({ table }) => (
-      <Checkbox
-        checked={table.getIsAllPageRowsSelected()}
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  // Column for User's name and email
-  {
-    accessorKey: 'email',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="User" />,
-    cell: ({ row }) => {
-      const user = row.original;
-      return (
-        <div className="font-medium">
-          {user.firstName} {user.lastName}
-          <div className="text-xs text-muted-foreground">{user.email}</div>
-        </div>
-      );
+interface UserTableProps {
+  filters: {
+    page: number;
+    limit: number;
+    role?: string;
+    search?: string;
+  };
+  onFiltersChange: (filters: any) => void;
+}
+
+export function UserTable({ filters, onFiltersChange }: UserTableProps) {
+  const { t } = useTranslation(['common', 'auth']);
+  const { data, isLoading } = useAdminUsers(filters);
+  
+  const updateRoleMutation = useUpdateUserRole();
+  const suspendMutation = useSuspendUser();
+  const activateMutation = useActivateUser();
+  const deleteMutation = useDeleteUser();
+
+  const [selectedUser, setSelectedUser] = React.useState<User | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+
+  const handleUpdateRole = (userId: string, newRole: 'LAND_OWNER' | 'HEIR' | 'ADMIN') => {
+    updateRoleMutation.mutate(
+      { userId, role: newRole },
+      {
+        onSuccess: () => {
+          toast.success('Role updated successfully');
+        },
+        onError: (error) => {
+          toast.error('Failed to update role', extractErrorMessage(error));
+        },
+      }
+    );
+  };
+
+  const handleSuspend = (userId: string) => {
+    suspendMutation.mutate(userId, {
+      onSuccess: () => {
+        toast.success('User suspended successfully');
+      },
+      onError: (error) => {
+        toast.error('Failed to suspend user', extractErrorMessage(error));
+      },
+    });
+  };
+
+  const handleActivate = (userId: string) => {
+    activateMutation.mutate(userId, {
+      onSuccess: () => {
+        toast.success('User activated successfully');
+      },
+      onError: (error) => {
+        toast.error('Failed to activate user', extractErrorMessage(error));
+      },
+    });
+  };
+
+  const handleDelete = () => {
+    if (!selectedUser) return;
+    
+    deleteMutation.mutate(selectedUser.id, {
+      onSuccess: () => {
+        toast.success('User deleted successfully');
+        setDeleteDialogOpen(false);
+        setSelectedUser(null);
+      },
+      onError: (error) => {
+        toast.error('Failed to delete user', extractErrorMessage(error));
+      },
+    });
+  };
+
+  const columns: ColumnDef<User>[] = [
+    {
+      id: 'select',
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllPageRowsSelected()}
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
     },
-  },
-  // Column for User's role, displayed as a styled badge
-  {
-    accessorKey: 'role',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Role" />,
-    cell: ({ row }) => {
-      const role = row.getValue('role') as string;
-      const variant = role === 'ADMIN' ? 'destructive' : 'default';
-      return <Badge variant={variant}>{role}</Badge>;
+    {
+      accessorKey: 'email',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="User" />,
+      cell: ({ row }) => {
+        const user = row.original;
+        return (
+          <div>
+            <div className="font-medium">
+              {user.firstName} {user.lastName}
+            </div>
+            <div className="text-sm text-muted-foreground">{user.email}</div>
+          </div>
+        );
+      },
     },
-  },
-  // Column for the date the user joined
-  {
-    accessorKey: 'createdAt',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Joined At" />,
-    cell: ({ row }) => {
-      return new Date(row.getValue('createdAt')).toLocaleDateString();
+    {
+      accessorKey: 'role',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Role" />,
+      cell: ({ row }) => {
+        const role = row.getValue('role') as string;
+        const variant = 
+          role === 'ADMIN' ? 'destructive' : 
+          role === 'HEIR' ? 'secondary' : 
+          'default';
+        return <Badge variant={variant}>{role.replace('_', ' ')}</Badge>;
+      },
     },
-  },
-  // Column for actions (Edit Role, Delete User)
-  {
-    id: 'actions',
-    cell: ({ row }) => {
-      const user = row.original;
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => navigator.clipboard.writeText(user.id)}>
-              Copy user ID
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Edit Role</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive focus:bg-destructive/80 focus:text-white">
+    {
+      accessorKey: 'createdAt',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Joined" />,
+      cell: ({ row }) => formatDate(row.getValue('createdAt')),
+    },
+    {
+      id: 'actions',
+      cell: ({ row }) => {
+        const user = row.original;
+        const isSuspended = false; // Add status field to your User type if needed
+
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              
+              <DropdownMenuItem
+                onClick={() => navigator.clipboard.writeText(user.id)}
+              >
+                Copy User ID
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem onClick={() => handleUpdateRole(user.id, 'LAND_OWNER')}>
+                <Shield className="mr-2 h-4 w-4" />
+                Set as Land Owner
+              </DropdownMenuItem>
+
+              <DropdownMenuItem onClick={() => handleUpdateRole(user.id, 'HEIR')}>
+                <Shield className="mr-2 h-4 w-4" />
+                Set as Heir
+              </DropdownMenuItem>
+
+              <DropdownMenuItem onClick={() => handleUpdateRole(user.id, 'ADMIN')}>
+                <Shield className="mr-2 h-4 w-4" />
+                Set as Admin
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              {isSuspended ? (
+                <DropdownMenuItem onClick={() => handleActivate(user.id)}>
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Activate User
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={() => handleSuspend(user.id)}>
+                  <Ban className="mr-2 h-4 w-4" />
+                  Suspend User
+                </DropdownMenuItem>
+              )}
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => {
+                  setSelectedUser(user);
+                  setDeleteDialogOpen(true);
+                }}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
                 Delete User
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      },
     },
-  },
-];
-
-// 2. The main UserTable component that fetches data and renders the DataTable.
-export function UserTable() {
-  // We'll create the `useAdminUsers` hook in the next step.
-  // This is a placeholder for now.
-  // const { data, isLoading } = useAdminUsers({ page: 1, limit: 10 });
-  const isLoading = true;
-  const users: User[] = []; // Placeholder
-
-  if (isLoading) {
-    // We can show a skeleton loader here for better UX
-    return <div>Loading users...</div>;
-  }
-
-  // const pageCount = data ? Math.ceil(data.total / data.limit) : 0;
+  ];
 
   return (
-    <DataTable columns={userColumns} data={users} />
+    <>
+      <DataTable
+        columns={columns}
+        data={data?.data || []}
+        isLoading={isLoading}
+        pageCount={data?.totalPages}
+        pagination={{
+          pageIndex: filters.page - 1,
+          pageSize: filters.limit,
+        }}
+        onPaginationChange={(updater) => {
+          const newState = typeof updater === 'function'
+            ? updater({ pageIndex: filters.page - 1, pageSize: filters.limit })
+            : updater;
+          
+          onFiltersChange({
+            ...filters,
+            page: newState.pageIndex + 1,
+            limit: newState.pageSize,
+          });
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete User"
+        description={`Are you sure you want to delete ${selectedUser?.firstName} ${selectedUser?.lastName}? This action cannot be undone.`}
+        onConfirm={handleDelete}
+        variant="destructive"
+        isLoading={deleteMutation.isPending}
+      />
+    </>
   );
 }

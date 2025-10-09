@@ -1,16 +1,19 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 // ============================================================================
 // auditing.service.ts - Audit Logging & Analytics
 // ============================================================================
 
 import { Injectable, Logger } from '@nestjs/common';
 import { AuditLog } from '@shamba/database';
-import { AuditQueryDto, ShambaEvent } from '@shamba/common';
+import { AuditQueryDto, ShambaEvent, SortOrder } from '@shamba/common';
 import { AuditingRepository } from '../repositories/auditing.repository';
 import { AuditSummaryEntity } from '../entities/audit.entity';
 
 /**
  * AuditingService - Audit logging and analytics
- * 
+ *
  * RESPONSIBILITIES:
  * - Create audit logs from events
  * - Query audit logs
@@ -44,9 +47,7 @@ export class AuditingService {
 
     const log = await this.auditingRepository.create(logData);
 
-    this.logger.debug(
-      `Audit log created: ${event.type} by ${actorId || 'system'}`
-    );
+    this.logger.debug(`Audit log created: ${event.type} by ${actorId || 'system'}`);
 
     return log;
   }
@@ -56,29 +57,26 @@ export class AuditingService {
    * Different events use different field names
    */
   private extractActorId(data: unknown): string | null {
-      if (typeof data !== 'object' || data === null) return null;
+    if (typeof data !== 'object' || data === null) return null;
 
-      const record = data as Record<string, unknown>;
-      const keys = ['userId', 'uploaderId', 'testatorId', 'ownerId', 'actorId'] as const;
+    const record = data as Record<string, unknown>;
+    const keys = ['userId', 'uploaderId', 'testatorId', 'ownerId', 'actorId'] as const;
 
-      for (const key of keys) {
-        const value = record[key];
-        if (typeof value === 'string') {
-          return value;
-        }
+    for (const key of keys) {
+      const value = record[key];
+      if (typeof value === 'string') {
+        return value;
       }
-
-      return null;
     }
 
+    return null;
+  }
 
   // ========================================================================
   // QUERY OPERATIONS
   // ========================================================================
 
-  async findMany(
-    query: AuditQueryDto
-  ): Promise<{ logs: AuditLog[]; total: number }> {
+  async findMany(query: AuditQueryDto): Promise<{ logs: AuditLog[]; total: number }> {
     const where: any = {};
 
     if (query.action) {
@@ -101,7 +99,7 @@ export class AuditingService {
 
   async findByActor(
     actorId: string,
-    query: AuditQueryDto
+    query: AuditQueryDto,
   ): Promise<{ logs: AuditLog[]; total: number }> {
     return this.auditingRepository.findByActor(actorId, query);
   }
@@ -131,7 +129,7 @@ export class AuditingService {
 
     // Transform to summary format
     const eventsByActionMap: Record<string, number> = {};
-    eventsByAction.forEach(e => {
+    eventsByAction.forEach((e) => {
       eventsByActionMap[e.action] = e._count.id;
     });
 
@@ -154,9 +152,8 @@ export class AuditingService {
    * Get most active users
    */
   async getMostActiveUsers(limit: number = 10, startDate?: Date, endDate?: Date) {
-    const where = startDate && endDate
-      ? { timestamp: { gte: startDate, lte: endDate } }
-      : undefined;
+    const where =
+      startDate && endDate ? { timestamp: { gte: startDate, lte: endDate } } : undefined;
 
     return this.auditingRepository.getMostActiveUsers(limit, where);
   }
@@ -165,9 +162,8 @@ export class AuditingService {
    * Get most common actions
    */
   async getMostCommonActions(limit: number = 10, startDate?: Date, endDate?: Date) {
-    const where = startDate && endDate
-      ? { timestamp: { gte: startDate, lte: endDate } }
-      : undefined;
+    const where =
+      startDate && endDate ? { timestamp: { gte: startDate, lte: endDate } } : undefined;
 
     return this.auditingRepository.getMostCommonActions(limit, where);
   }
@@ -178,12 +174,16 @@ export class AuditingService {
   async generateCsvReport(startDate: Date, endDate: Date): Promise<string> {
     const { logs } = await this.auditingRepository.findMany(
       { timestamp: { gte: startDate, lte: endDate } },
-      { page: 1, limit: 10000 } // Max 10k rows for CSV
+      {
+        page: 1,
+        limit: 10000,
+        sortOrder: SortOrder.ASC,
+      }, // Max 10k rows for CSV
     );
 
     // Generate CSV
     const headers = ['Timestamp', 'Action', 'Actor ID', 'Payload'];
-    const rows = logs.map(log => [
+    const rows = logs.map((log) => [
       log.timestamp.toISOString(),
       log.action,
       log.actorId || 'system',
@@ -192,7 +192,7 @@ export class AuditingService {
 
     const csv = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(',')),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
     ].join('\n');
 
     return csv;
@@ -207,22 +207,20 @@ export class AuditingService {
    */
   async detectSuspiciousActivity(): Promise<any[]> {
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    
+
     // Get users with high activity in last hour
     const activeUsers = await this.auditingRepository.getMostActiveUsers(
-        20,
-        oneHourAgo,
-        new Date(), // endDate
-        { timestamp: { gte: oneHourAgo, lte: new Date() } } // optional filter
-      );
+      20,
+      oneHourAgo,
+      new Date(), // endDate
+      { timestamp: { gte: oneHourAgo, lte: new Date() } }, // optional filter
+    );
 
     // Flag users with more than 100 events in an hour
-    const suspicious = activeUsers.filter(u => u.eventCount > 100);
+    const suspicious = activeUsers.filter((u) => u.eventCount > 100);
 
     if (suspicious.length > 0) {
-      this.logger.warn(
-        `Detected ${suspicious.length} users with suspicious activity`
-      );
+      this.logger.warn(`Detected ${suspicious.length} users with suspicious activity`);
     }
 
     return suspicious;
@@ -232,10 +230,12 @@ export class AuditingService {
    * Search for specific event patterns
    */
   async searchEvents(action: string, startDate: Date, endDate: Date) {
-    return this.auditingRepository.findByAction(
-      action,
-      { page: 1, limit: 100, startDate, endDate } as any
-    );
+    return this.auditingRepository.findByAction(action, {
+      page: 1,
+      limit: 100,
+      startDate,
+      endDate,
+    } as any);
   }
 
   // ========================================================================

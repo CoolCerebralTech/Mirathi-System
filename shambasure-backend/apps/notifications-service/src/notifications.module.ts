@@ -23,25 +23,25 @@ import { DefaultTemplatesSeed } from './events/default-templates.seed';
 
 /**
  * NotificationsModule - Root module for Notifications microservice
- * 
+ *
  * DOMAIN: Outbound Communications
- * 
+ *
  * RESPONSIBILITIES:
  * - Email and SMS delivery
  * - Template management
  * - Event-driven notification creation
  * - Scheduled notification processing
  * - Delivery tracking and retry logic
- * 
+ *
  * PUBLISHES EVENTS: None (this service only consumes)
- * 
+ *
  * SUBSCRIBES TO:
  * - user.created
  * - password.reset.requested
  * - will.created
  * - heir.assigned
  * - document.verified
- * 
+ *
  * DATA OWNED:
  * - Notification
  * - NotificationTemplate
@@ -49,9 +49,9 @@ import { DefaultTemplatesSeed } from './events/default-templates.seed';
 @Module({
   imports: [
     // --- Core Infrastructure ---
-    ConfigModule,      // Environment configuration
-    DatabaseModule,    // Prisma Client and database connection
-    AuthModule,        // JWT validation for API endpoints
+    ConfigModule, // Environment configuration
+    DatabaseModule, // Prisma Client and database connection
+    AuthModule, // JWT validation for API endpoints
 
     // --- Scheduling ---
     // Enable cron jobs for notification processing
@@ -60,7 +60,7 @@ import { DefaultTemplatesSeed } from './events/default-templates.seed';
     // --- Event-Driven Communication ---
     // This service consumes events from other services
     // Queue name: 'notifications.events'
-    MessagingModule.register({ 
+    MessagingModule.register({
       queue: 'notifications.events',
     }),
 
@@ -78,8 +78,8 @@ import { DefaultTemplatesSeed } from './events/default-templates.seed';
 
   // --- HTTP Layer ---
   controllers: [
-    NotificationsController,  // /notifications endpoints
-    TemplatesController,      // /templates endpoints (admin)
+    NotificationsController, // /notifications endpoints
+    TemplatesController, // /templates endpoints (admin)
   ],
 
   // --- Business Logic & Data Access ---
@@ -87,22 +87,18 @@ import { DefaultTemplatesSeed } from './events/default-templates.seed';
     // Services
     NotificationsService,
     TemplatesService,
-    
+
     // Repositories
     NotificationsRepository,
     TemplatesRepository,
 
     // Event Handlers
-    EventsHandler,        // Listens to RabbitMQ events
-    SchedulerService,     // Cron jobs for processing
+    EventsHandler, // Listens to RabbitMQ events
+    SchedulerService, // Cron jobs for processing
     DefaultTemplatesSeed, // Seeds default templates on startup
   ],
 
   // --- Exports ---
-  exports: [
-    NotificationsService,
-    TemplatesService,
-  ],
+  exports: [NotificationsService, TemplatesService],
 })
 export class NotificationsModule {}
-

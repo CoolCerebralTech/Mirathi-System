@@ -1,7 +1,13 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { ConfigService } from '@shamba/config';
-import { NotificationProvider, SendNotificationOptions, SendNotificationResult } from './provider.interface';
+import {
+  NotificationProvider,
+  SendNotificationOptions,
+  SendNotificationResult,
+} from './provider.interface';
 
 @Injectable()
 export class SmtpEmailProvider implements NotificationProvider {

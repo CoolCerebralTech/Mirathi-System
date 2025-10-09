@@ -17,6 +17,7 @@ import { PrismaHealthIndicator } from './indicators/prisma-health.indicator';
   providers: [PrismaService, DatabaseService, HealthService, PrismaHealthIndicator],
   exports: [
     PrismaService,
+    PrismaHealthIndicator,
     DatabaseService,
     HealthService, // Export the HealthService so other modules can use it
   ],

@@ -1,31 +1,22 @@
-
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // ============================================================================
 // notifications.service.ts - Notification Management & Processing
 // ============================================================================
 
-import { 
-  Inject as NotifyInject, 
-  Injectable as NotifyInjectable, 
+import {
+  Inject as NotifyInject,
+  Injectable as NotifyInjectable,
   Logger as NotifyLogger,
-  NotFoundException as NotifyNotFoundException,
 } from '@nestjs/common';
-import { 
-  Notification, 
-  NotificationStatus, 
-  NotificationChannel 
-} from '@shamba/database';
+import { Notification, NotificationStatus, NotificationChannel } from '@shamba/database';
 import { NotificationQueryDto } from '@shamba/common';
-import { 
-  NOTIFICATION_PROVIDER, 
-  NotificationProvider 
-} from '../providers/provider.interface';
+import * as providerInterface from '../providers/provider.interface';
 import { TemplatesService as NotifyTemplatesService } from './templates.service';
 import { NotificationsRepository } from '../repositories/notifications.repository';
-import { EventPattern, MessagePattern } from '@nestjs/microservices';
 
 /**
  * NotificationsService - Core notification management
- * 
+ *
  * RESPONSIBILITIES:
  * - Queue notifications for sending
  * - Process pending notifications
@@ -33,7 +24,7 @@ import { EventPattern, MessagePattern } from '@nestjs/microservices';
  * - Integrate with email/SMS providers
  * - Retry failed notifications
  * - Query notification history
- * 
+ *
  * ARCHITECTURE:
  * Uses Dependency Inversion - providers injected via interface
  */
@@ -44,10 +35,10 @@ export class NotificationsService {
   constructor(
     private readonly notificationsRepository: NotificationsRepository,
     private readonly templatesService: NotifyTemplatesService,
-    @NotifyInject(`${NOTIFICATION_PROVIDER}_EMAIL`) 
-    private readonly emailProvider: NotificationProvider,
-    @NotifyInject(`${NOTIFICATION_PROVIDER}_SMS`) 
-    private readonly smsProvider: NotificationProvider,
+    @NotifyInject(`${providerInterface.NOTIFICATION_PROVIDER}_EMAIL`)
+    private readonly emailProvider: providerInterface.NotificationProvider,
+    @NotifyInject(`${providerInterface.NOTIFICATION_PROVIDER}_SMS`)
+    private readonly smsProvider: providerInterface.NotificationProvider,
   ) {}
 
   // ========================================================================
@@ -59,9 +50,9 @@ export class NotificationsService {
    * Called by event handlers
    */
   async createAndQueueNotification(
-    templateName: string, 
-    recipientId: string, 
-    variables: Record<string, any>
+    templateName: string,
+    recipientId: string,
+    _variables: Record<string, any>,
   ): Promise<Notification> {
     // Find template
     const template = await this.templatesService.findOne(templateName);
@@ -75,7 +66,7 @@ export class NotificationsService {
     });
 
     this.logger.log(
-      `Notification queued: ${notification.id} (${template.name} → user ${recipientId})`
+      `Notification queued: ${notification.id} (${template.name} → user ${recipientId})`,
     );
 
     return notification;
@@ -87,11 +78,11 @@ export class NotificationsService {
   async createBatch(
     templateName: string,
     recipientIds: string[],
-    variables: Record<string, any>
+    _variables: Record<string, any>,
   ): Promise<number> {
     const template = await this.templatesService.findOne(templateName);
 
-    const notifications = recipientIds.map(recipientId => ({
+    const notifications = recipientIds.map((recipientId) => ({
       recipientId,
       templateId: template.id,
       channel: template.channel,
@@ -100,9 +91,7 @@ export class NotificationsService {
 
     const count = await this.notificationsRepository.createBatch(notifications);
 
-    this.logger.log(
-      `${count} notifications queued: ${template.name}`
-    );
+    this.logger.log(`${count} notifications queued: ${template.name}`);
 
     return count;
   }
@@ -115,9 +104,7 @@ export class NotificationsService {
    * Process pending notifications
    * Called by scheduled task (cron job)
    */
-  async processPendingNotifications(
-    limit = 100
-  ): Promise<{ success: number; failed: number }> {
+  async processPendingNotifications(limit = 100): Promise<{ success: number; failed: number }> {
     const pending = await this.notificationsRepository.findPending(limit);
 
     this.logger.log(`Processing ${pending.length} pending notifications`);
@@ -130,17 +117,12 @@ export class NotificationsService {
         await this.sendNotification(notification);
         success++;
       } catch (error) {
-        this.logger.error(
-          `Failed to send notification ${notification.id}`,
-          error
-        );
+        this.logger.error(`Failed to send notification ${notification.id}`, error);
         failed++;
       }
     }
 
-    this.logger.log(
-      `Batch complete: ${success} sent, ${failed} failed`
-    );
+    this.logger.log(`Batch complete: ${success} sent, ${failed} failed`);
 
     return { success, failed };
   }
@@ -150,44 +132,35 @@ export class NotificationsService {
    */
   private async sendNotification(notification: Notification): Promise<void> {
     // Get template
-    const template = await this.templatesService.findOne(
-      notification.templateId
-    );
+    const template = await this.templatesService.findOne(notification.templateId);
 
     // Compile template (variables stored in notification or fetched from context)
     const variables = {}; // TODO: Fetch from notification metadata or user service
-    const { subject, body } = this.templatesService.compileTemplate(
-      template, 
-      variables
-    );
+    const { subject, body } = this.templatesService.compileTemplate(template, variables);
 
     // Validate recipient
     if (!notification.recipientId) {
-      await this.notificationsRepository.markAsFailed(
-        notification.id,
-        'Recipient ID is missing'
-      );
+      await this.notificationsRepository.markAsFailed(notification.id, 'Recipient ID is missing');
       return;
     }
 
     // Get recipient contact info
-    const recipientAddress = await this.getRecipientAddress(
+    const recipientAddress = this.getRecipientAddress(
       notification.recipientId,
-      notification.channel
+      notification.channel,
     );
 
     if (!recipientAddress) {
       await this.notificationsRepository.markAsFailed(
         notification.id,
-        'Recipient contact information not found'
+        'Recipient contact information not found',
       );
       return;
     }
 
     // Select provider
-    const provider = notification.channel === NotificationChannel.EMAIL
-      ? this.emailProvider
-      : this.smsProvider;
+    const provider =
+      notification.channel === NotificationChannel.EMAIL ? this.emailProvider : this.smsProvider;
 
     // Send via provider
     const result = await provider.send({
@@ -199,17 +172,13 @@ export class NotificationsService {
     // Update status
     if (result.success) {
       await this.notificationsRepository.markAsSent(notification.id);
-      this.logger.log(
-        `Notification sent: ${notification.id} → ${recipientAddress}`
-      );
+      this.logger.log(`Notification sent: ${notification.id} → ${recipientAddress}`);
     } else {
       await this.notificationsRepository.markAsFailed(
         notification.id,
-        result.error || 'Unknown error'
+        result.error || 'Unknown error',
       );
-      this.logger.warn(
-        `Notification failed: ${notification.id} - ${result.error}`
-      );
+      this.logger.warn(`Notification failed: ${notification.id} - ${result.error}`);
     }
   }
 
@@ -257,7 +226,7 @@ export class NotificationsService {
     if (recipientId) {
       const stats = await this.notificationsRepository.getStatsByRecipient(recipientId);
       return {
-        byStatus: stats.map(s => ({
+        byStatus: stats.map((s) => ({
           status: s.status,
           channel: s.channel,
           count: s._count.id,
@@ -267,7 +236,7 @@ export class NotificationsService {
 
     const stats = await this.notificationsRepository.getGlobalStats();
     return {
-      byStatus: stats.map(s => ({
+      byStatus: stats.map((s) => ({
         status: s.status,
         channel: s.channel,
         count: s._count.id,
@@ -300,10 +269,7 @@ export class NotificationsService {
    * Get recipient contact information
    * In production, this would call accounts-service
    */
-  private async getRecipientAddress(
-    recipientId: string,
-    channel: NotificationChannel
-  ): Promise<string | null> {
+  private getRecipientAddress(recipientId: string, channel: NotificationChannel): string | null {
     // TODO: Make HTTP request to accounts-service or use event/cache
     // For now, return mock data
     if (channel === NotificationChannel.EMAIL) {

@@ -1,7 +1,13 @@
+/* eslint-disable @typescript-eslint/no-misused-promises */
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@shamba/config';
-import { ServiceName, ServiceConfig, ServiceHealth, GatewayHealth } from '../interfaces/gateway.interface';
+import {
+  ServiceName,
+  ServiceConfig,
+  ServiceHealth,
+  GatewayHealth,
+} from '../interfaces/gateway.interface';
 import { firstValueFrom } from 'rxjs';
 
 @Injectable()
@@ -20,7 +26,13 @@ export class HealthService {
       { name: ServiceName.DOCUMENTS, url: this.configService.get('DOCUMENTS_SERVICE_URL') },
       { name: ServiceName.SUCCESSION, url: this.configService.get('SUCCESSION_SERVICE_URL') },
     ];
-    this.services.forEach(s => this.serviceHealth.set(s.name, { name: s.name, status: 'down', lastChecked: new Date().toISOString() }));
+    this.services.forEach((s) =>
+      this.serviceHealth.set(s.name, {
+        name: s.name,
+        status: 'down',
+        lastChecked: new Date().toISOString(),
+      }),
+    );
   }
 
   async onModuleInit() {
@@ -43,7 +55,8 @@ export class HealthService {
           latency,
           lastChecked: new Date().toISOString(),
         });
-      } catch (error: unknown) { // Add type
+      } catch (error: unknown) {
+        // Add type
         const message = error instanceof Error ? error.message : 'Unknown error';
         this.serviceHealth.set(service.name, {
           name: service.name,
@@ -52,13 +65,13 @@ export class HealthService {
           lastChecked: new Date().toISOString(),
         });
         this.logger.warn(`Health check failed for ${service.name}: ${message}`); // Use safe message
-    }
+      }
     }
   }
 
   getGatewayHealth(): GatewayHealth {
     const services = Array.from(this.serviceHealth.values());
-    const isDegraded = services.some(s => s.status === 'down');
+    const isDegraded = services.some((s) => s.status === 'down');
     return {
       gatewayStatus: isDegraded ? 'down' : 'up',
       timestamp: new Date().toISOString(),

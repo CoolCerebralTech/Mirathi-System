@@ -2,33 +2,35 @@
 // auditing.controller.ts - Admin Audit Log Endpoints
 // ============================================================================
 
-import { 
-  Controller as AuditController, 
-  Get as AuditGet, 
-  Query as AuditQuery, 
+import {
+  Controller as AuditController,
+  Get as AuditGet,
+  Query as AuditQuery,
   Param as AuditParam,
   UseGuards as AuditUseGuards,
   UseInterceptors as AuditUseInterceptors,
   ClassSerializerInterceptor as AuditClassSerializerInterceptor,
   ParseUUIDPipe,
   Res,
-  StreamableFile,
 } from '@nestjs/common';
-import { 
-  ApiTags as AuditApiTags, 
-  ApiOperation as AuditApiOperation, 
+import {
+  ApiTags as AuditApiTags,
+  ApiOperation as AuditApiOperation,
   ApiResponse as AuditApiResponse,
   ApiBearerAuth as AuditApiBearerAuth,
   ApiParam as AuditApiParam,
 } from '@nestjs/swagger';
-import { Response } from 'express';
-import { 
-  AuditQueryDto as ControllerAuditQueryDto, 
-  createPaginatedResponseDto 
+import express from 'express';
+import {
+  AuditQueryDto as ControllerAuditQueryDto,
+  createPaginatedResponseDto,
 } from '@shamba/common';
 import { JwtAuthGuard, RolesGuard, Roles } from '@shamba/auth';
 import { UserRole } from '@shamba/database';
-import { AuditLogEntity, AuditSummaryEntity as ControllerAuditSummaryEntity } from '../entities/audit.entity';
+import {
+  AuditLogEntity,
+  AuditSummaryEntity as ControllerAuditSummaryEntity,
+} from '../entities/audit.entity';
 import { AuditingService as ControllerAuditingService } from '../services/auditing.service';
 
 const PaginatedAuditLogResponse = createPaginatedResponseDto(AuditLogEntity);
@@ -47,18 +49,18 @@ export class AuditingController {
   constructor(private readonly auditingService: ControllerAuditingService) {}
 
   @AuditGet('logs')
-  @AuditApiOperation({ 
+  @AuditApiOperation({
     summary: 'List audit logs',
-    description: 'Get paginated audit logs with filters'
+    description: 'Get paginated audit logs with filters',
   })
-  @AuditApiResponse({ 
-    status: 200, 
+  @AuditApiResponse({
+    status: 200,
     description: 'Logs retrieved successfully',
-    type: PaginatedAuditLogResponse 
+    type: PaginatedAuditLogResponse,
   })
   async findMany(@AuditQuery() query: ControllerAuditQueryDto) {
     const { logs, total } = await this.auditingService.findMany(query);
-    const logEntities = logs.map(log => new AuditLogEntity(log));
+    const logEntities = logs.map((log) => new AuditLogEntity(log));
     return new PaginatedAuditLogResponse(logEntities, total, query);
   }
 
@@ -72,19 +74,16 @@ export class AuditingController {
   }
 
   @AuditGet('summary')
-  @AuditApiOperation({ 
+  @AuditApiOperation({
     summary: 'Get audit summary',
-    description: 'Get aggregated statistics for date range'
+    description: 'Get aggregated statistics for date range',
   })
   @AuditApiResponse({ status: 200, type: ControllerAuditSummaryEntity })
   async getSummary(
     @AuditQuery('startDate') startDate: string,
     @AuditQuery('endDate') endDate: string,
   ) {
-    return this.auditingService.getSummary(
-      new Date(startDate),
-      new Date(endDate)
-    );
+    return this.auditingService.getSummary(new Date(startDate), new Date(endDate));
   }
 
   @AuditGet('analytics/trends')
@@ -93,10 +92,7 @@ export class AuditingController {
     @AuditQuery('startDate') startDate: string,
     @AuditQuery('endDate') endDate: string,
   ) {
-    return this.auditingService.getDailyTrends(
-      new Date(startDate),
-      new Date(endDate)
-    );
+    return this.auditingService.getDailyTrends(new Date(startDate), new Date(endDate));
   }
 
   @AuditGet('analytics/top-users')
@@ -116,11 +112,11 @@ export class AuditingController {
   async exportCsv(
     @AuditQuery('startDate') startDate: string,
     @AuditQuery('endDate') endDate: string,
-    @Res({ passthrough: true }) res: Response,
+    @Res({ passthrough: true }) res: express.Response,
   ) {
     const csv = await this.auditingService.generateCsvReport(
       new Date(startDate),
-      new Date(endDate)
+      new Date(endDate),
     );
 
     res.set({

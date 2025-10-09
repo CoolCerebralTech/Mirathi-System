@@ -13,46 +13,46 @@ import { ApiProperty } from '@nestjs/swagger';
 @Exclude()
 export class DocumentVersionEntity implements PrismaDocumentVersion {
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx789012345',
-    description: 'Unique version identifier'
+    description: 'Unique version identifier',
   })
   id!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 2,
-    description: 'Sequential version number'
+    description: 'Sequential version number',
   })
   versionNumber!: number;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'uploads/documents/title-deed-v2.pdf',
-    description: 'Storage path for this version'
+    description: 'Storage path for this version',
   })
   storagePath!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     required: false,
     nullable: true,
     example: 'Updated with clearer scan',
-    description: 'Optional note describing changes in this version'
+    description: 'Optional note describing changes in this version',
   })
   changeNote!: string | null;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx456789012',
-    description: 'Parent document ID'
+    description: 'Parent document ID',
   })
   documentId!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-20T14:30:00Z',
-    description: 'Version creation timestamp'
+    description: 'Version creation timestamp',
   })
   createdAt!: Date;
 
@@ -63,7 +63,7 @@ export class DocumentVersionEntity implements PrismaDocumentVersion {
 
 /**
  * DocumentEntity - Serializable document for API responses
- * 
+ *
  * ARCHITECTURAL NOTE:
  * ----------------------
  * This entity is a clean DTO for API responses. It:
@@ -71,7 +71,7 @@ export class DocumentVersionEntity implements PrismaDocumentVersion {
  * - Includes uploaderId for reference
  * - Optionally includes versions array
  * - Contains NO business logic (that lives in DocumentsService)
- * 
+ *
  * Business logic methods (validation, checks, transformations) belong in:
  * - DocumentsService: Domain logic
  * - Helper classes: Reusable utilities
@@ -80,74 +80,74 @@ export class DocumentVersionEntity implements PrismaDocumentVersion {
 @Exclude()
 export class DocumentEntity implements Omit<PrismaDocument, 'uploader'> {
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx456789012',
-    description: 'Unique document identifier'
+    description: 'Unique document identifier',
   })
   id!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'title-deed-parcel-123.pdf',
-    description: 'Original filename'
+    description: 'Original filename',
   })
   filename!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'uploads/documents/clx456789012/title-deed.pdf',
-    description: 'Current storage path (latest version)'
+    description: 'Current storage path (latest version)',
   })
   storagePath!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'application/pdf',
-    description: 'MIME type of the document'
+    description: 'MIME type of the document',
   })
   mimeType!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 2048576,
-    description: 'File size in bytes'
+    description: 'File size in bytes',
   })
   sizeBytes!: number;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     enum: DocumentStatus,
     example: DocumentStatus.VERIFIED,
-    description: 'Current verification status'
+    description: 'Current verification status',
   })
   status!: DocumentStatus;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx123456789',
-    description: 'ID of the user who uploaded this document'
+    description: 'ID of the user who uploaded this document',
   })
   uploaderId!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-15T10:30:00Z',
-    description: 'Document creation timestamp'
+    description: 'Document creation timestamp',
   })
   createdAt!: Date;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-20T14:45:00Z',
-    description: 'Last update timestamp'
+    description: 'Last update timestamp',
   })
   updatedAt!: Date;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     type: [DocumentVersionEntity],
     required: false,
-    description: 'Version history (optional, included when requested)'
+    description: 'Version history (optional, included when requested)',
   })
   @Type(() => DocumentVersionEntity)
   versions?: DocumentVersionEntity[];
@@ -157,7 +157,7 @@ export class DocumentEntity implements Omit<PrismaDocument, 'uploader'> {
 
     // Transform versions array if present
     if (partial.versions) {
-      this.versions = partial.versions.map(v => new DocumentVersionEntity(v));
+      this.versions = partial.versions.map((v) => new DocumentVersionEntity(v));
     }
   }
 }

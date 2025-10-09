@@ -1,82 +1,100 @@
 // FILE: src/features/auth/components/ChangePasswordForm.tsx
 
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-
-import { ChangePasswordSchema, type ChangePasswordInput } from '../../../types';
-import { useChangePassword } from '../auth.api';
-
-import { Button } from '../../../components/ui/Button';
-import { Input } from '../../../components/ui/Input';
-import { Label } from '../../../components/ui/Label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../../../components/ui/Card';
-import { toast } from '../../../hooks/useToast';
+import { useChangePassword } from '../../user/user.api';
 
 export function ChangePasswordForm() {
+  const { t } = useTranslation(['auth', 'common']);
   const changePasswordMutation = useChangePassword();
 
   const {
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<ChangePasswordInput>({
     resolver: zodResolver(ChangePasswordSchema),
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+    },
   });
 
-  const onSubmit = (data: ChangePasswordInput) => {
+  const onSubmit = async (data: ChangePasswordInput) => {
     changePasswordMutation.mutate(data, {
       onSuccess: () => {
-        toast.success('Password changed successfully!');
-        reset(); // Clear the form fields after successful change
+        toast.success(t('auth:password_changed'));
+        reset();
       },
-      onError: (error: any) => {
-        const errorMessage = error.response?.data?.message || 'An incorrect password was provided or an error occurred.';
-        toast.error('Failed to Change Password', {
-          description: errorMessage,
-        });
+      onError: (error) => {
+        toast.error(
+          t('common:error'),
+          extractErrorMessage(error)
+        );
       },
     });
   };
 
+  const isLoading = isSubmitting || changePasswordMutation.isPending;
+
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
-        <CardTitle>Change Password</CardTitle>
+        <CardTitle>{t('auth:change_password')}</CardTitle>
         <CardDescription>
-          For your security, you must provide your current password to make this change.
+          Update your password to keep your account secure
         </CardDescription>
       </CardHeader>
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <CardContent className="space-y-4">
+      <CardContent>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* Current Password */}
           <div className="space-y-2">
-            <Label htmlFor="currentPassword">Current Password</Label>
+            <Label htmlFor="currentPassword">{t('auth:current_password')}</Label>
             <Input
               id="currentPassword"
               type="password"
+              leftIcon={<Lock className="h-4 w-4" />}
+              error={errors.currentPassword?.message}
+              disabled={isLoading}
               {...register('currentPassword')}
-              disabled={changePasswordMutation.isLoading}
             />
-            {errors.currentPassword && <p className="text-sm text-destructive">{errors.currentPassword.message}</p>}
           </div>
 
+          {/* New Password */}
           <div className="space-y-2">
-            <Label htmlFor="newPassword">New Password</Label>
+            <Label htmlFor="newPassword">{t('auth:new_password')}</Label>
             <Input
               id="newPassword"
               type="password"
+              leftIcon={<Lock className="h-4 w-4" />}
+              error={errors.newPassword?.message}
+              disabled={isLoading}
               {...register('newPassword')}
-              disabled={changePasswordMutation.isLoading}
             />
-            {errors.newPassword && <p className="text-sm text-destructive">{errors.newPassword.message}</p>}
+            <p className="text-xs text-muted-foreground">
+              Must be at least 8 characters with uppercase, lowercase, number, and special character
+            </p>
           </div>
-        </CardContent>
-        <CardFooter className="flex justify-end">
-          <Button type="submit" disabled={changePasswordMutation.isLoading}>
-            {changePasswordMutation.isLoading ? 'Updating...' : 'Update Password'}
-          </Button>
-        </CardFooter>
-      </form>
+
+          {/* Submit Button */}
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => reset()}
+              disabled={isLoading}
+            >
+              {t('common:cancel')}
+            </Button>
+            <Button
+              type="submit"
+              isLoading={isLoading}
+              disabled={isLoading}
+            >
+              {t('common:update')}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
     </Card>
   );
 }

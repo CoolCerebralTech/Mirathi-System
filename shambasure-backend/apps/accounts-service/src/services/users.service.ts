@@ -2,34 +2,29 @@
 // users.service.ts - User Management Business Logic
 // ============================================================================
 
-import { 
-  Injectable, 
-  ConflictException, 
-  BadRequestException,
-  Logger 
-} from '@nestjs/common';
+import { Injectable, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { User, UserRole } from '@shamba/database';
-import { 
-  UserQueryDto, 
-  EventPattern, 
+import {
+  UserQueryDto,
+  EventPattern,
   UserCreatedEvent,
   UserDeletedEvent,
-  RegisterRequestDto
+  RegisterRequestDto,
 } from '@shamba/common';
 import { UsersRepository } from '../repositories/users.repository';
 import { MessagingService } from '@shamba/messaging';
-import  bcrypt from 'bcrypt';
+import bcrypt from 'bcrypt';
 
 /**
  * UsersService - Core user management business logic
- * 
+ *
  * RESPONSIBILITIES:
  * - User CRUD operations with business rule validation
  * - Password hashing and security
  * - Duplicate email validation
  * - Event publishing for domain events
  * - Orchestrating repository calls
- * 
+ *
  * DOES NOT:
  * - Handle HTTP concerns (controllers do this)
  * - Query database directly (repository does this)
@@ -86,12 +81,12 @@ export class UsersService {
 
   /**
    * Create a new user (called by AuthService during registration)
-   * 
+   *
    * BUSINESS RULES:
    * - Email must be unique
    * - Password must be hashed
    * - Publishes UserCreatedEvent
-   * 
+   *
    * @param data - User creation data with plain-text password
    * @returns Created user (with hashed password)
    * @throws ConflictException if email already exists
@@ -134,10 +129,7 @@ export class UsersService {
       this.messagingService.emit(event);
     } catch (error) {
       // Log but don't fail the operation - event delivery is eventually consistent
-      this.logger.error(
-        `Failed to publish UserCreatedEvent for user ${user.id}`,
-        error
-      );
+      this.logger.error(`Failed to publish UserCreatedEvent for user ${user.id}`, error);
     }
 
     this.logger.log(`User created successfully: ${user.id} (${user.email})`);
@@ -174,11 +166,7 @@ export class UsersService {
    * @throws NotFoundException if user not found
    * @throws BadRequestException if trying to change own role
    */
-  async updateRole(
-    userId: string, 
-    newRole: UserRole, 
-    actorId: string
-  ): Promise<User> {
+  async updateRole(userId: string, newRole: UserRole, actorId: string): Promise<User> {
     // Prevent self-role modification
     if (userId === actorId) {
       throw new BadRequestException('Cannot modify your own role');
@@ -199,11 +187,11 @@ export class UsersService {
 
   /**
    * Delete user and all associated data
-   * 
+   *
    * BUSINESS RULES:
    * - Cascading deletes handled by Prisma schema
    * - Publishes UserDeletedEvent
-   * 
+   *
    * @throws NotFoundException if user not found
    */
   async delete(id: string): Promise<User> {
@@ -228,10 +216,7 @@ export class UsersService {
     try {
       this.messagingService.emit(event);
     } catch (error) {
-      this.logger.error(
-        `Failed to publish UserDeletedEvent for user ${id}`,
-        error
-      );
+      this.logger.error(`Failed to publish UserDeletedEvent for user ${id}`, error);
     }
 
     this.logger.log(`User deleted: ${id} (${deletedUser.email})`);
@@ -257,4 +242,3 @@ export class UsersService {
     return !(await this.usersRepository.existsByEmail(email));
   }
 }
-

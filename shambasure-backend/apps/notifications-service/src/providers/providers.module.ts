@@ -23,7 +23,7 @@ export class ProvidersModule {
           provide: `${NOTIFICATION_PROVIDER}_EMAIL`,
           useFactory: (configService: ConfigService) => {
             const provider = configService.get('EMAIL_PROVIDER') || 'smtp';
-            
+
             switch (provider) {
               case 'smtp':
                 return new SmtpEmailProvider(configService);
@@ -39,7 +39,7 @@ export class ProvidersModule {
           provide: `${NOTIFICATION_PROVIDER}_SMS`,
           useFactory: (configService: ConfigService) => {
             const provider = configService.get('SMS_PROVIDER') || 'africas-talking';
-            
+
             switch (provider) {
               case 'africas-talking':
                 return new AfricasTalkingSmsProvider(configService);
@@ -51,10 +51,7 @@ export class ProvidersModule {
           inject: [ConfigService],
         },
       ],
-      exports: [
-        `${NOTIFICATION_PROVIDER}_EMAIL`,
-        `${NOTIFICATION_PROVIDER}_SMS`,
-      ],
+      exports: [`${NOTIFICATION_PROVIDER}_EMAIL`, `${NOTIFICATION_PROVIDER}_SMS`],
     };
   }
 }

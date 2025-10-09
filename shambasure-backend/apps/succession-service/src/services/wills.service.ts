@@ -1,26 +1,25 @@
-
 // ============================================================================
 // wills.service.ts - Will Management Business Logic
 // ============================================================================
 
-import { 
-  Injectable as WillInjectable, 
+import {
+  Injectable as WillInjectable,
   ForbiddenException as WillForbidden,
   ConflictException as WillConflict,
   BadRequestException as WillBadRequest,
   Logger as WillLogger,
 } from '@nestjs/common';
-import { 
-  Will, 
+import {
+  Will,
   WillStatus,
   BeneficiaryAssignment,
   UserRole as WillUserRole,
 } from '@shamba/database';
-import { 
-  CreateWillRequestDto, 
-  UpdateWillRequestDto, 
+import {
+  CreateWillRequestDto,
+  UpdateWillRequestDto,
   AssignBeneficiaryRequestDto,
-  EventPattern as WillEventPattern, 
+  EventPattern as WillEventPattern,
   WillCreatedEvent,
   WillUpdatedEvent,
   HeirAssignedEvent,
@@ -32,7 +31,7 @@ import { AssetsRepository as WillAssetsRepository } from '../repositories/assets
 
 /**
  * WillsService - Will and succession planning business logic
- * 
+ *
  * BUSINESS RULES:
  * - Only testator can manage their wills (unless admin)
  * - Only DRAFT wills can be edited
@@ -61,7 +60,7 @@ export class WillsService {
       status: WillStatus.DRAFT,
       testator: { connect: { id: testatorId } },
     });
-    
+
     // Publish event
     this.publishWillCreatedEvent(will);
 
@@ -74,8 +73,8 @@ export class WillsService {
   // ========================================================================
 
   async findOne(
-    willId: string, 
-    currentUser: WillJwtPayload
+    willId: string,
+    currentUser: WillJwtPayload,
   ): Promise<Will & { beneficiaryAssignments: BeneficiaryAssignment[] }> {
     const will = await this.willsRepository.findOneOrFail({ id: willId });
 
@@ -100,9 +99,9 @@ export class WillsService {
   // ========================================================================
 
   async update(
-    willId: string, 
-    data: UpdateWillRequestDto, 
-    currentUser: WillJwtPayload
+    willId: string,
+    data: UpdateWillRequestDto,
+    currentUser: WillJwtPayload,
   ): Promise<Will> {
     const will = await this.findOne(willId, currentUser);
 
@@ -128,21 +127,13 @@ export class WillsService {
     }
 
     // Business rule: Deactivate any existing active will
-    const existingActiveWill = await this.willsRepository.findActiveWill(
-      currentUser.sub
-    );
+    const existingActiveWill = await this.willsRepository.findActiveWill(currentUser.sub);
     if (existingActiveWill && existingActiveWill.id !== willId) {
-      await this.willsRepository.updateStatus(
-        existingActiveWill.id, 
-        WillStatus.REVOKED
-      );
+      await this.willsRepository.updateStatus(existingActiveWill.id, WillStatus.REVOKED);
       this.logger.log(`Previous active will revoked: ${existingActiveWill.id}`);
     }
 
-    const activatedWill = await this.willsRepository.updateStatus(
-      willId, 
-      WillStatus.ACTIVE
-    );
+    const activatedWill = await this.willsRepository.updateStatus(willId, WillStatus.ACTIVE);
 
     this.logger.log(`Will activated: ${willId} by testator ${currentUser.sub}`);
     return activatedWill;
@@ -156,10 +147,7 @@ export class WillsService {
       throw new WillConflict('Can only revoke active wills');
     }
 
-    const revokedWill = await this.willsRepository.updateStatus(
-      willId, 
-      WillStatus.REVOKED
-    );
+    const revokedWill = await this.willsRepository.updateStatus(willId, WillStatus.REVOKED);
 
     this.logger.log(`Will revoked: ${willId} by testator ${currentUser.sub}`);
     return revokedWill;
@@ -170,9 +158,9 @@ export class WillsService {
   // ========================================================================
 
   async addAssignment(
-    willId: string, 
-    data: AssignBeneficiaryRequestDto, 
-    currentUser: WillJwtPayload
+    willId: string,
+    data: AssignBeneficiaryRequestDto,
+    currentUser: WillJwtPayload,
   ): Promise<BeneficiaryAssignment> {
     const will = await this.findOne(willId, currentUser);
 
@@ -189,13 +177,10 @@ export class WillsService {
 
     // Business rule: Check total shares don't exceed 100%
     if (data.sharePercent) {
-      const totalShares = await this.willsRepository.getTotalShareForAsset(
-        willId, 
-        data.assetId
-      );
+      const totalShares = await this.willsRepository.getTotalShareForAsset(willId, data.assetId);
       if (totalShares + data.sharePercent > 100) {
         throw new WillBadRequest(
-          `Total shares would exceed 100%. Current: ${totalShares}%, Attempting to add: ${data.sharePercent}%`
+          `Total shares would exceed 100%. Current: ${totalShares}%, Attempting to add: ${data.sharePercent}%`,
         );
       }
     }
@@ -204,7 +189,7 @@ export class WillsService {
     const exists = await this.willsRepository.assignmentExists(
       willId,
       data.assetId,
-      data.beneficiaryId
+      data.beneficiaryId,
     );
     if (exists) {
       throw new WillConflict('This beneficiary is already assigned to this asset');
@@ -220,7 +205,7 @@ export class WillsService {
     this.publishHeirAssignedEvent(will, assignment);
 
     this.logger.log(
-      `Beneficiary assigned: ${data.beneficiaryId} to asset ${data.assetId} in will ${willId}`
+      `Beneficiary assigned: ${data.beneficiaryId} to asset ${data.assetId} in will ${willId}`,
     );
 
     return assignment;
@@ -252,9 +237,7 @@ export class WillsService {
 
     // Business rule: Cannot delete ACTIVE or EXECUTED wills
     if (will.status === WillStatus.ACTIVE || will.status === WillStatus.EXECUTED) {
-      throw new WillConflict(
-        `Cannot delete ${will.status.toLowerCase()} wills. Revoke it first.`
-      );
+      throw new WillConflict(`Cannot delete ${will.status.toLowerCase()} wills. Revoke it first.`);
     }
 
     await this.willsRepository.delete(willId);
@@ -272,11 +255,11 @@ export class WillsService {
       timestamp: new Date(),
       version: '1.0',
       source: 'succession-service',
-      data: { 
-        willId: will.id, 
-        testatorId: will.testatorId, 
-        title: will.title, 
-        status: will.status 
+      data: {
+        willId: will.id,
+        testatorId: will.testatorId,
+        title: will.title,
+        status: will.status,
       },
     };
 
@@ -293,8 +276,8 @@ export class WillsService {
       timestamp: new Date(),
       version: '1.0',
       source: 'succession-service',
-      data: { 
-        willId: will.id, 
+      data: {
+        willId: will.id,
         testatorId: will.testatorId,
         status: will.status,
       },
@@ -307,16 +290,13 @@ export class WillsService {
     }
   }
 
-  private publishHeirAssignedEvent(
-    will: Will, 
-    assignment: BeneficiaryAssignment
-  ): void {
+  private publishHeirAssignedEvent(will: Will, assignment: BeneficiaryAssignment): void {
     const event: HeirAssignedEvent = {
       type: WillEventPattern.HEIR_ASSIGNED,
       timestamp: new Date(),
       version: '1.0',
       source: 'succession-service',
-      data: { 
+      data: {
         willId: will.id,
         assetId: assignment.assetId,
         beneficiaryId: assignment.beneficiaryId,

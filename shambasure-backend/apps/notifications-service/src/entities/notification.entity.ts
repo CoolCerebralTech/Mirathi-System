@@ -18,54 +18,54 @@ import { ApiProperty } from '@nestjs/swagger';
 @Exclude()
 export class NotificationTemplateEntity implements PrismaTemplate {
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx123456789',
-    description: 'Unique template identifier'
+    description: 'Unique template identifier',
   })
   id!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'welcome-email',
-    description: 'Template name (unique identifier)'
+    description: 'Template name (unique identifier)',
   })
   name!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     enum: NotificationChannel,
     example: NotificationChannel.EMAIL,
-    description: 'Communication channel'
+    description: 'Communication channel',
   })
   channel!: NotificationChannel;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     required: false,
     nullable: true,
     example: 'Welcome to Shamba Sure!',
-    description: 'Email subject line (null for SMS)'
+    description: 'Email subject line (null for SMS)',
   })
   subject!: string | null;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'Hello {{firstName}}, welcome to Shamba Sure!',
-    description: 'Template body with placeholder variables'
+    description: 'Template body with placeholder variables',
   })
   body!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-15T10:30:00Z',
-    description: 'Template creation timestamp'
+    description: 'Template creation timestamp',
   })
   createdAt!: Date;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-20T14:45:00Z',
-    description: 'Last update timestamp'
+    description: 'Last update timestamp',
   })
   updatedAt!: Date;
 
@@ -81,74 +81,74 @@ export class NotificationTemplateEntity implements PrismaTemplate {
 @Exclude()
 export class NotificationEntity implements PrismaNotification {
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx789012345',
-    description: 'Unique notification identifier'
+    description: 'Unique notification identifier',
   })
   id!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     enum: NotificationChannel,
     example: NotificationChannel.EMAIL,
-    description: 'Communication channel'
+    description: 'Communication channel',
   })
   channel!: NotificationChannel;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     enum: NotificationStatus,
     example: NotificationStatus.SENT,
-    description: 'Notification delivery status'
+    description: 'Notification delivery status',
   })
   status!: NotificationStatus;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     required: false,
     nullable: true,
     example: '2025-01-15T10:32:00Z',
-    description: 'Timestamp when notification was sent (null if pending/failed)'
+    description: 'Timestamp when notification was sent (null if pending/failed)',
   })
   sentAt!: Date | null;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     required: false,
     nullable: true,
     example: 'SMTP connection timeout',
-    description: 'Error message if delivery failed'
+    description: 'Error message if delivery failed',
   })
   failReason!: string | null;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx123456789',
-    description: 'Template ID used for this notification'
+    description: 'Template ID used for this notification',
   })
   templateId!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     required: false,
     nullable: true,
     example: 'clx456789012',
-    description: 'Recipient user ID (null if deleted)'
+    description: 'Recipient user ID (null if deleted)',
   })
   recipientId!: string | null;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-15T10:30:00Z',
-    description: 'Notification creation timestamp'
+    description: 'Notification creation timestamp',
   })
   createdAt!: Date;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     type: () => NotificationTemplateEntity,
     required: false,
-    description: 'Template details (included when requested)'
+    description: 'Template details (included when requested)',
   })
   @Type(() => NotificationTemplateEntity)
   template?: NotificationTemplateEntity;
@@ -160,4 +160,3 @@ export class NotificationEntity implements PrismaNotification {
     }
   }
 }
-

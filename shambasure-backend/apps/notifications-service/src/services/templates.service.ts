@@ -1,19 +1,23 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 // ============================================================================
 // templates.service.ts - Template Management
 // ============================================================================
 
-import { 
-  Injectable, 
-  NotFoundException, 
+import {
+  Injectable,
+  NotFoundException,
   ConflictException,
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { NotificationTemplate, NotificationChannel } from '@shamba/database';
-import { 
-  CreateTemplateRequestDto, 
-  UpdateTemplateRequestDto, 
-  TemplateQueryDto 
+import { NotificationTemplate } from '@shamba/database';
+import {
+  CreateTemplateRequestDto,
+  UpdateTemplateRequestDto,
+  TemplateQueryDto,
 } from '@shamba/common';
 import { TemplatesRepository } from '../repositories/templates.repository';
 import * as handlebars from 'handlebars';
@@ -21,7 +25,7 @@ import { getErrorMessage } from '@shamba/common';
 
 /**
  * TemplatesService - Notification template management
- * 
+ *
  * RESPONSIBILITIES:
  * - Template CRUD operations
  * - Template compilation with Handlebars
@@ -70,7 +74,7 @@ export class TemplatesService {
     if (!template) {
       template = await this.templatesRepository.findByName(identifier);
     }
-    
+
     if (!template) {
       throw new NotFoundException(`Template '${identifier}' not found`);
     }
@@ -79,7 +83,7 @@ export class TemplatesService {
   }
 
   async findMany(
-    query: TemplateQueryDto
+    query: TemplateQueryDto,
   ): Promise<{ templates: NotificationTemplate[]; total: number }> {
     const where: any = {};
 
@@ -98,10 +102,7 @@ export class TemplatesService {
   // UPDATE OPERATIONS
   // ========================================================================
 
-  async update(
-    id: string, 
-    data: UpdateTemplateRequestDto
-  ): Promise<NotificationTemplate> {
+  async update(id: string, data: UpdateTemplateRequestDto): Promise<NotificationTemplate> {
     // Ensure template exists
     await this.templatesRepository.findOneOrFail({ id });
 
@@ -150,8 +151,8 @@ export class TemplatesService {
    * @returns Compiled subject and body
    */
   compileTemplate(
-    template: NotificationTemplate, 
-    variables: Record<string, any>
+    template: NotificationTemplate,
+    variables: Record<string, any>,
   ): { subject: string | null; body: string } {
     try {
       const compileString = (str: string) => handlebars.compile(str)(variables);
@@ -164,7 +165,6 @@ export class TemplatesService {
       this.logger.error(`Failed to compile template ${template.name}: ${message}`);
       throw new BadRequestException(`Template compilation failed: ${message}`);
     }
-
   }
 
   /**
@@ -194,13 +194,13 @@ export class TemplatesService {
    * Validate template syntax
    */
   private validateTemplateSyntax(templateString: string): void {
-      try {
-        handlebars.compile(templateString);
-      } catch (error) {
-        const message = getErrorMessage(error);
-        throw new BadRequestException(`Invalid template syntax: ${message}`);
-      }
+    try {
+      handlebars.compile(templateString);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      throw new BadRequestException(`Invalid template syntax: ${message}`);
     }
+  }
 
   /**
    * Register custom Handlebars helpers

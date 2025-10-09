@@ -15,19 +15,19 @@ import { SuccessionProxyController } from './proxy/succession.proxy.controller';
 
 /**
  * GatewayModule - Root module for API Gateway
- * 
+ *
  * RESPONSIBILITIES:
  * - Single entry point for all client requests
  * - Authentication and authorization at gateway level
  * - Request routing to downstream microservices
  * - Rate limiting and security
  * - Health checks and monitoring
- * 
+ *
  * ROUTES TO MICROSERVICES:
  * - /auth, /profile, /users → accounts-service
  * - /documents → documents-service
  * - /wills, /assets, /families → succession-service
- * 
+ *
  * DOES NOT:
  * - Route to notifications-service (internal event consumer)
  * - Route to auditing-service (internal event consumer)
@@ -35,14 +35,14 @@ import { SuccessionProxyController } from './proxy/succession.proxy.controller';
 @Module({
   imports: [
     // --- Core Infrastructure ---
-    ConfigModule,      // Environment configuration
-    AuthModule,        // JWT validation for all proxied requests
+    ConfigModule, // Environment configuration
+    AuthModule, // JWT validation for all proxied requests
 
     // --- HTTP Client for Proxying ---
     HttpModule.register({
-      timeout: 60000,           // 60s for file uploads
+      timeout: 60000, // 60s for file uploads
       maxRedirects: 5,
-      maxBodyLength: Infinity,  // Support large file uploads
+      maxBodyLength: Infinity, // Support large file uploads
       maxContentLength: Infinity,
     }),
 
@@ -56,11 +56,10 @@ import { SuccessionProxyController } from './proxy/succession.proxy.controller';
 
   // --- Controllers ---
   controllers: [
-    HealthController,              // /health endpoint
-    AccountsProxyController,       // /auth, /profile, /users
-    DocumentsProxyController,      // /documents
-    SuccessionProxyController,     // /wills, /assets, /families
+    HealthController, // /health endpoint
+    AccountsProxyController, // /auth, /profile, /users
+    DocumentsProxyController, // /documents
+    SuccessionProxyController, // /wills, /assets, /families
   ],
 })
 export class GatewayModule {}
-

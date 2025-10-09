@@ -2,18 +2,18 @@
 // assets.service.ts - Asset Management Business Logic
 // ============================================================================
 
-import { 
-  Injectable, 
+import {
+  Injectable,
   ForbiddenException,
   ConflictException,
   BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { Asset, AssetType, UserRole } from '@shamba/database';
-import { 
-  CreateAssetRequestDto, 
-  UpdateAssetRequestDto, 
-  EventPattern, 
+import {
+  CreateAssetRequestDto,
+  UpdateAssetRequestDto,
+  EventPattern,
   AssetCreatedEvent,
   AssetUpdatedEvent,
   AssetDeletedEvent,
@@ -25,7 +25,7 @@ import { WillsRepository } from '../repositories/wills.repository';
 
 /**
  * AssetsService - Asset management business logic
- * 
+ *
  * BUSINESS RULES:
  * - Users can only manage their own assets (unless admin)
  * - Assets cannot be deleted if assigned in an active will
@@ -50,7 +50,7 @@ export class AssetsService {
     // Business rule: Land parcels should have description (title deed info)
     if (data.type === AssetType.LAND_PARCEL && !data.description) {
       throw new BadRequestException(
-        'Land parcels must include a description with title deed information'
+        'Land parcels must include a description with title deed information',
       );
     }
 
@@ -73,8 +73,8 @@ export class AssetsService {
   // ========================================================================
 
   async findOne(assetId: string, currentUser: JwtPayload): Promise<Asset> {
-    const asset = await this.assetsRepository.findOneOrFailWithAssignments({ 
-      id: assetId 
+    const asset = await this.assetsRepository.findOneOrFailWithAssignments({
+      id: assetId,
     });
 
     // Authorization check
@@ -95,12 +95,15 @@ export class AssetsService {
 
   async getOwnerStats(ownerId: string) {
     const assets = await this.assetsRepository.findByOwner(ownerId);
-    
+
     // Group by type
-    const byType = assets.reduce((acc, asset) => {
-      acc[asset.type] = (acc[asset.type] || 0) + 1;
-      return acc;
-    }, {} as Record<AssetType, number>);
+    const byType = assets.reduce(
+      (acc, asset) => {
+        acc[asset.type] = (acc[asset.type] || 0) + 1;
+        return acc;
+      },
+      {} as Record<AssetType, number>,
+    );
 
     return {
       totalAssets: assets.length,
@@ -113,9 +116,9 @@ export class AssetsService {
   // ========================================================================
 
   async update(
-    assetId: string, 
-    data: UpdateAssetRequestDto, 
-    currentUser: JwtPayload
+    assetId: string,
+    data: UpdateAssetRequestDto,
+    currentUser: JwtPayload,
   ): Promise<Asset> {
     // Check ownership
     const asset = await this.findOne(assetId, currentUser);
@@ -124,9 +127,7 @@ export class AssetsService {
     if (data.type && data.type !== asset.type) {
       const assignments = await this.willsRepository.findAssignmentsByAsset(assetId);
       if (assignments.length > 0) {
-        throw new ConflictException(
-          'Cannot change asset type while it is assigned in a will'
-        );
+        throw new ConflictException('Cannot change asset type while it is assigned in a will');
       }
     }
 
@@ -151,7 +152,7 @@ export class AssetsService {
     const assignments = await this.willsRepository.findAssignmentsByAsset(assetId);
     if (assignments.length > 0) {
       throw new ConflictException(
-        'Cannot delete asset that is assigned in a will. Remove assignments first.'
+        'Cannot delete asset that is assigned in a will. Remove assignments first.',
       );
     }
 
@@ -173,11 +174,11 @@ export class AssetsService {
       timestamp: new Date(),
       version: '1.0',
       source: 'succession-service',
-      data: { 
-        assetId: asset.id, 
-        ownerId: asset.ownerId, 
-        name: asset.name, 
-        type: asset.type 
+      data: {
+        assetId: asset.id,
+        ownerId: asset.ownerId,
+        name: asset.name,
+        type: asset.type,
       },
     };
 
@@ -194,8 +195,8 @@ export class AssetsService {
       timestamp: new Date(),
       version: '1.0',
       source: 'succession-service',
-      data: { 
-        assetId: asset.id, 
+      data: {
+        assetId: asset.id,
         ownerId: asset.ownerId,
         name: asset.name,
       },
@@ -214,9 +215,9 @@ export class AssetsService {
       timestamp: new Date(),
       version: '1.0',
       source: 'succession-service',
-      data: { 
-        assetId: asset.id, 
-        ownerId: asset.ownerId 
+      data: {
+        assetId: asset.id,
+        ownerId: asset.ownerId,
       },
     };
 

@@ -23,16 +23,16 @@ import { WillsRepository } from './repositories/wills.repository';
 
 /**
  * SuccessionModule - Root module for Succession microservice
- * 
+ *
  * DOMAIN: Estate & Succession Planning (Core Business Logic)
- * 
+ *
  * RESPONSIBILITIES:
  * - Will creation and management
  * - Asset registration and tracking
  * - Family tree management (HeirLink™)
  * - Beneficiary assignments
  * - Succession planning workflows
- * 
+ *
  * PUBLISHES EVENTS:
  * - asset.created
  * - asset.updated
@@ -40,11 +40,11 @@ import { WillsRepository } from './repositories/wills.repository';
  * - will.created
  * - will.updated
  * - heir.assigned
- * 
+ *
  * SUBSCRIBES TO:
  * - user.created (for creating default family)
  * - document.verified (for asset validation)
- * 
+ *
  * DATA OWNED:
  * - Will
  * - Asset
@@ -55,14 +55,14 @@ import { WillsRepository } from './repositories/wills.repository';
 @Module({
   imports: [
     // --- Core Infrastructure ---
-    ConfigModule,      // Environment configuration
-    DatabaseModule,    // Prisma Client and database connection
-    AuthModule,        // JWT strategies, guards, decorators
+    ConfigModule, // Environment configuration
+    DatabaseModule, // Prisma Client and database connection
+    AuthModule, // JWT strategies, guards, decorators
 
     // --- Event-Driven Communication ---
     // This service both publishes and consumes events
     // Queue name: 'succession.events'
-    MessagingModule.register({ 
+    MessagingModule.register({
       queue: 'succession.events',
     }),
 
@@ -76,9 +76,9 @@ import { WillsRepository } from './repositories/wills.repository';
 
   // --- HTTP Layer ---
   controllers: [
-    AssetsController,    // /assets/* endpoints
-    FamiliesController,  // /families/* endpoints
-    WillsController,     // /wills/* endpoints
+    AssetsController, // /assets/* endpoints
+    FamiliesController, // /families/* endpoints
+    WillsController, // /wills/* endpoints
   ],
 
   // --- Business Logic & Data Access ---
@@ -87,7 +87,7 @@ import { WillsRepository } from './repositories/wills.repository';
     AssetsService,
     FamiliesService,
     WillsService,
-    
+
     // Repositories
     AssetsRepository,
     FamiliesRepository,
@@ -95,11 +95,6 @@ import { WillsRepository } from './repositories/wills.repository';
   ],
 
   // --- Exports (for testing or inter-module use) ---
-  exports: [
-    AssetsService,
-    FamiliesService,
-    WillsService,
-  ],
+  exports: [AssetsService, FamiliesService, WillsService],
 })
 export class SuccessionModule {}
-

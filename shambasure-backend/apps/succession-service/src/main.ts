@@ -1,14 +1,11 @@
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
 // ============================================================================
 // main.ts - Application Bootstrap
 // ============================================================================
 
 import { NestFactory } from '@nestjs/core';
 import { Reflector } from '@nestjs/core';
-import {
-  ValidationPipe,
-  VersioningType,
-  ClassSerializerInterceptor,
-} from '@nestjs/common';
+import { ValidationPipe, VersioningType, ClassSerializerInterceptor } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { Transport } from '@nestjs/microservices';
@@ -18,7 +15,7 @@ import { SuccessionModule } from './succession.module';
 
 /**
  * Bootstrap function - Initializes and starts the Succession microservice
- * 
+ *
  * SETUP STEPS:
  * 1. Create NestJS app with custom logger
  * 2. Connect RabbitMQ microservice transport (event consumer)
@@ -49,16 +46,16 @@ async function bootstrap() {
   // --- Connect RabbitMQ Microservice Transport ---
   // This allows the service to consume events from other services
   const rabbitmqUrl = configService.get('RABBITMQ_URL') || 'amqp://localhost:5672';
-  
+
   app.connectMicroservice({
     transport: Transport.RMQ,
     options: {
       urls: [rabbitmqUrl],
       queue: 'succession.events',
-      noAck: false,        // Require explicit acknowledgment
-      persistent: true,    // Persist messages to disk
+      noAck: false, // Require explicit acknowledgment
+      persistent: true, // Persist messages to disk
       queueOptions: {
-        durable: true,     // Queue survives broker restart
+        durable: true, // Queue survives broker restart
       },
       // Prefetch 1 message at a time for better load distribution
       prefetchCount: 1,
@@ -71,9 +68,9 @@ async function bootstrap() {
   // Automatically validates all incoming DTOs using class-validator
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,            // Strip unknown properties
+      whitelist: true, // Strip unknown properties
       forbidNonWhitelisted: true, // Reject requests with unknown properties
-      transform: true,            // Auto-transform payloads to DTO instances
+      transform: true, // Auto-transform payloads to DTO instances
       transformOptions: {
         enableImplicitConversion: true, // Convert primitive types automatically
       },
@@ -96,7 +93,7 @@ async function bootstrap() {
   // --- API Prefix and Versioning ---
   const globalPrefix = configService.get('GLOBAL_PREFIX') || 'api';
   app.setGlobalPrefix(globalPrefix);
-  
+
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
@@ -107,12 +104,12 @@ async function bootstrap() {
     .setTitle('Shamba Sure - Succession Service')
     .setDescription(
       'API for estate and succession planning management.\n\n' +
-      '**Features:**\n' +
-      '- Will creation and management\n' +
-      '- Asset registration and tracking\n' +
-      '- Family tree management (HeirLink™)\n' +
-      '- Beneficiary assignment with share distribution\n' +
-      '- Will status workflow (Draft → Active → Revoked/Executed)'
+        '**Features:**\n' +
+        '- Will creation and management\n' +
+        '- Asset registration and tracking\n' +
+        '- Family tree management (HeirLink™)\n' +
+        '- Beneficiary assignment with share distribution\n' +
+        '- Will status workflow (Draft → Active → Revoked/Executed)',
     )
     .setVersion('1.0')
     .addBearerAuth(
@@ -149,7 +146,7 @@ async function bootstrap() {
   // --- Start HTTP Server ---
   const port = configService.get('PORT') || 3003;
   const host = configService.get('HOST') || '0.0.0.0';
-  
+
   await app.listen(port, host);
 
   // --- Startup Logs ---

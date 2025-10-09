@@ -1,23 +1,22 @@
-
 // ============================================================================
 // families.service.ts - Family Management Business Logic
 // ============================================================================
 
-import { 
-  Injectable as FamilyInjectable, 
+import {
+  Injectable as FamilyInjectable,
   ForbiddenException as FamilyForbidden,
   ConflictException as FamilyConflict,
   BadRequestException as FamilyBadRequest,
   Logger as FamilyLogger,
 } from '@nestjs/common';
-import { 
-  Family, 
-  FamilyMember, 
+import {
+  Family,
+  FamilyMember,
   RelationshipType,
   UserRole as FamilyUserRole,
 } from '@shamba/database';
-import { 
-  CreateFamilyRequestDto, 
+import {
+  CreateFamilyRequestDto,
   AddFamilyMemberRequestDto,
   UpdateFamilyMemberRequestDto,
 } from '@shamba/common';
@@ -26,7 +25,7 @@ import { FamiliesRepository } from '../repositories/families.repository';
 
 /**
  * FamiliesService - Family/HeirLink™ management
- * 
+ *
  * BUSINESS RULES:
  * - Only family members can view family details
  * - Only family creator (PARENT) can add/remove members
@@ -37,33 +36,31 @@ import { FamiliesRepository } from '../repositories/families.repository';
 export class FamiliesService {
   private readonly logger = new FamilyLogger(FamiliesService.name);
 
-  constructor(
-    private readonly familiesRepository: FamiliesRepository,
-  ) {}
+  constructor(private readonly familiesRepository: FamiliesRepository) {}
 
   // ========================================================================
   // CREATE OPERATIONS
   // ========================================================================
 
   async create(
-    creatorId: string, 
-    data: CreateFamilyRequestDto
+    creatorId: string,
+    data: CreateFamilyRequestDto,
   ): Promise<Family & { members: FamilyMember[] }> {
     // Create family with creator as first PARENT member
     const family = await this.familiesRepository.create({
       name: data.name,
       creator: { connect: { id: creatorId } },
       members: {
-        create: { 
-          userId: creatorId, 
-          role: RelationshipType.PARENT 
+        create: {
+          userId: creatorId,
+          role: RelationshipType.PARENT,
         },
       },
     });
 
     // Fetch with members included
-    const familyWithMembers = await this.familiesRepository.findOneOrFail({ 
-      id: family.id 
+    const familyWithMembers = await this.familiesRepository.findOneOrFail({
+      id: family.id,
     });
 
     this.logger.log(`Family created: ${family.id} by creator ${creatorId}`);
@@ -75,13 +72,13 @@ export class FamiliesService {
   // ========================================================================
 
   async findOne(
-    familyId: string, 
-    currentUser: FamilyJwtPayload
+    familyId: string,
+    currentUser: FamilyJwtPayload,
   ): Promise<Family & { members: FamilyMember[] }> {
     const family = await this.familiesRepository.findOneOrFail({ id: familyId });
 
     // Authorization: Only members can view family
-    const isMember = family.members.some(m => m.userId === currentUser.sub);
+    const isMember = family.members.some((m) => m.userId === currentUser.sub);
     if (!isMember && currentUser.role !== FamilyUserRole.ADMIN) {
       throw new FamilyForbidden('You do not have permission to access this family');
     }
@@ -102,35 +99,33 @@ export class FamiliesService {
   // ========================================================================
 
   async addMember(
-    familyId: string, 
-    data: AddFamilyMemberRequestDto, 
-    currentUser: FamilyJwtPayload
+    familyId: string,
+    data: AddFamilyMemberRequestDto,
+    currentUser: FamilyJwtPayload,
   ): Promise<FamilyMember> {
     const family = await this.findOne(familyId, currentUser);
 
     // Authorization: Only PARENT can add members
-    const currentMember = family.members.find(m => m.userId === currentUser.sub);
+    const currentMember = family.members.find((m) => m.userId === currentUser.sub);
     const isParent = currentMember?.role === RelationshipType.PARENT;
-    
+
     if (!isParent && currentUser.role !== FamilyUserRole.ADMIN) {
       throw new FamilyForbidden('Only family parents can add new members');
     }
 
     // Business rule: Cannot add duplicate members
-    const isAlreadyMember = family.members.some(m => m.userId === data.userId);
+    const isAlreadyMember = family.members.some((m) => m.userId === data.userId);
     if (isAlreadyMember) {
       throw new FamilyConflict('User is already a member of this family');
     }
 
-    const member = await this.familiesRepository.addMember({ 
-      familyId, 
+    const member = await this.familiesRepository.addMember({
+      familyId,
       userId: data.userId,
       role: data.role,
     });
 
-    this.logger.log(
-      `Member added to family ${familyId}: ${data.userId} as ${data.role}`
-    );
+    this.logger.log(`Member added to family ${familyId}: ${data.userId} as ${data.role}`);
 
     return member;
   }
@@ -144,9 +139,9 @@ export class FamiliesService {
     const family = await this.findOne(familyId, currentUser);
 
     // Authorization: Only PARENT can update members
-    const currentMember = family.members.find(m => m.userId === currentUser.sub);
+    const currentMember = family.members.find((m) => m.userId === currentUser.sub);
     const isParent = currentMember?.role === RelationshipType.PARENT;
-    
+
     if (!isParent && currentUser.role !== FamilyUserRole.ADMIN) {
       throw new FamilyForbidden('Only family parents can update members');
     }
@@ -161,9 +156,7 @@ export class FamiliesService {
       { role: data.role },
     );
 
-    this.logger.log(
-      `Member updated in family ${familyId}: ${userId} to ${data.role}`
-    );
+    this.logger.log(`Member updated in family ${familyId}: ${userId} to ${data.role}`);
 
     return updatedMember;
   }
@@ -176,9 +169,9 @@ export class FamiliesService {
     const family = await this.findOne(familyId, currentUser);
 
     // Authorization: Only PARENT can remove members
-    const currentMember = family.members.find(m => m.userId === currentUser.sub);
+    const currentMember = family.members.find((m) => m.userId === currentUser.sub);
     const isParent = currentMember?.role === RelationshipType.PARENT;
-    
+
     if (!isParent && currentUser.role !== FamilyUserRole.ADMIN) {
       throw new FamilyForbidden('Only family parents can remove members');
     }
@@ -188,8 +181,8 @@ export class FamiliesService {
       throw new FamilyBadRequest('Cannot remove family creator');
     }
 
-    await this.familiesRepository.removeMember({ 
-      userId_familyId: { userId, familyId } 
+    await this.familiesRepository.removeMember({
+      userId_familyId: { userId, familyId },
     });
 
     this.logger.log(`Member removed from family ${familyId}: ${userId}`);

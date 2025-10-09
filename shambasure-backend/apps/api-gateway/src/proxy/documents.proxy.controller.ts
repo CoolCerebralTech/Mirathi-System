@@ -1,31 +1,27 @@
-import { 
-  All, 
-  Controller, 
-  Req, 
-  Res, 
-  UseGuards,
-  UseInterceptors,
-  Logger,
-  HttpStatus,
-} from '@nestjs/common';
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+import { All, Controller, Req, Res, UseGuards, Logger, HttpStatus } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@shamba/config';
 import { JwtAuthGuard } from '@shamba/auth';
-import { Request, Response } from 'express';
+import express from 'express';
 import { firstValueFrom, timeout, catchError } from 'rxjs';
 import { AxiosError } from 'axios';
 import { ApiTags, ApiExcludeController } from '@nestjs/swagger';
 
 /**
  * DocumentsProxyController - API Gateway proxy for documents-service
- * 
+ *
  * RESPONSIBILITIES:
  * - Route /documents requests to documents-service
  * - Handle JWT authentication at gateway level
  * - Forward multipart/form-data for file uploads
  * - Handle service unavailability gracefully
  * - Provide circuit breaker behavior
- * 
+ *
  * ROUTES PROXIED:
  * - POST /documents/upload (file upload)
  * - POST /documents/:id/versions (version upload)
@@ -37,7 +33,7 @@ import { ApiTags, ApiExcludeController } from '@nestjs/swagger';
  * - PATCH /documents/:id/verify (admin)
  * - PATCH /documents/:id/reject (admin)
  * - DELETE /documents/:id (delete)
- * 
+ *
  * SPECIAL HANDLING:
  * - File uploads (multipart/form-data)
  * - Binary downloads (streaming)
@@ -75,7 +71,7 @@ export class DocumentsProxyController {
    * Handles all HTTP methods including file uploads and downloads
    */
   @All('*')
-  async proxy(@Req() req: Request, @Res() res: Response): Promise<void> {
+  async proxy(@Req() req: express.Request, @Res() res: express.Response): Promise<void> {
     const { method, originalUrl, headers, body } = req;
     const startTime = Date.now();
     const context = `${method} ${originalUrl}`;
@@ -105,29 +101,28 @@ export class DocumentsProxyController {
 
       // Standard JSON request/response
       const response = await firstValueFrom(
-        this.httpService.request({
-          method,
-          url: targetUrl,
-          headers: headersToForward,
-          data: body,
-          validateStatus: () => true, // Accept all status codes
-          timeout: this.requestTimeout,
-        }).pipe(
-          timeout(this.requestTimeout),
-          catchError((error) => {
-            throw error;
-          }),
-        ),
+        this.httpService
+          .request({
+            method,
+            url: targetUrl,
+            headers: headersToForward,
+            data: body,
+            validateStatus: () => true, // Accept all status codes
+            timeout: this.requestTimeout,
+          })
+          .pipe(
+            timeout(this.requestTimeout),
+            catchError((error) => {
+              throw error;
+            }),
+          ),
       );
 
       const duration = Date.now() - startTime;
-      this.logger.debug(
-        `Proxy response: ${context} - ${response.status} (${duration}ms)`
-      );
+      this.logger.debug(`Proxy response: ${context} - ${response.status} (${duration}ms)`);
 
       // Forward response to client
       res.status(response.status).json(response.data);
-
     } catch (error) {
       const duration = Date.now() - startTime;
       this.handleProxyError(error, res, context, duration);
@@ -143,8 +138,8 @@ export class DocumentsProxyController {
    * Streams the request body directly to downstream service
    */
   private async proxyFileUpload(
-    req: Request,
-    res: Response,
+    req: express.Request,
+    res: express.Response,
     targetUrl: string,
     headers: Record<string, string>,
     context: string,
@@ -154,30 +149,29 @@ export class DocumentsProxyController {
     try {
       // Stream the raw request to downstream service
       const response = await firstValueFrom(
-        this.httpService.request({
-          method: req.method,
-          url: targetUrl,
-          headers: headers,
-          data: req, // Stream the request directly
-          validateStatus: () => true,
-          timeout: this.requestTimeout,
-          maxBodyLength: Infinity, // Allow large files
-          maxContentLength: Infinity,
-        }).pipe(
-          timeout(this.requestTimeout),
-          catchError((error) => {
-            throw error;
-          }),
-        ),
+        this.httpService
+          .request({
+            method: req.method,
+            url: targetUrl,
+            headers: headers,
+            data: req, // Stream the request directly
+            validateStatus: () => true,
+            timeout: this.requestTimeout,
+            maxBodyLength: Infinity, // Allow large files
+            maxContentLength: Infinity,
+          })
+          .pipe(
+            timeout(this.requestTimeout),
+            catchError((error) => {
+              throw error;
+            }),
+          ),
       );
 
       const duration = Date.now() - startTime;
-      this.logger.log(
-        `File upload proxied: ${context} - ${response.status} (${duration}ms)`
-      );
+      this.logger.log(`File upload proxied: ${context} - ${response.status} (${duration}ms)`);
 
       res.status(response.status).json(response.data);
-
     } catch (error) {
       const duration = Date.now() - startTime;
       this.handleProxyError(error, res, context, duration);
@@ -189,8 +183,8 @@ export class DocumentsProxyController {
    * Streams the binary response directly to client
    */
   private async proxyFileDownload(
-    req: Request,
-    res: Response,
+    req: express.Request,
+    res: express.Response,
     targetUrl: string,
     headers: Record<string, string>,
     context: string,
@@ -199,19 +193,21 @@ export class DocumentsProxyController {
 
     try {
       const response = await firstValueFrom(
-        this.httpService.request({
-          method: req.method,
-          url: targetUrl,
-          headers: headers,
-          responseType: 'arraybuffer', // Get binary data
-          validateStatus: () => true,
-          timeout: this.requestTimeout,
-        }).pipe(
-          timeout(this.requestTimeout),
-          catchError((error) => {
-            throw error;
-          }),
-        ),
+        this.httpService
+          .request({
+            method: req.method,
+            url: targetUrl,
+            headers: headers,
+            responseType: 'arraybuffer', // Get binary data
+            validateStatus: () => true,
+            timeout: this.requestTimeout,
+          })
+          .pipe(
+            timeout(this.requestTimeout),
+            catchError((error) => {
+              throw error;
+            }),
+          ),
       );
 
       const duration = Date.now() - startTime;
@@ -219,9 +215,7 @@ export class DocumentsProxyController {
       // If error response, convert buffer to JSON
       if (response.status >= 400) {
         const errorData = JSON.parse(response.data.toString());
-        this.logger.warn(
-          `Download error: ${context} - ${response.status} (${duration}ms)`
-        );
+        this.logger.warn(`Download error: ${context} - ${response.status} (${duration}ms)`);
         res.status(response.status).json(errorData);
       }
 
@@ -236,13 +230,10 @@ export class DocumentsProxyController {
         res.setHeader('Content-Length', response.headers['content-length']);
       }
 
-      this.logger.log(
-        `File download proxied: ${context} - ${response.status} (${duration}ms)`
-      );
+      this.logger.log(`File download proxied: ${context} - ${response.status} (${duration}ms)`);
 
       // Send binary data
       res.status(response.status).send(response.data);
-
     } catch (error) {
       const duration = Date.now() - startTime;
       this.handleProxyError(error, res, context, duration);
@@ -287,7 +278,7 @@ export class DocumentsProxyController {
    */
   private handleProxyError(
     error: any,
-    res: Response,
+    res: express.Response,
     context: string,
     duration: number,
   ): void {
@@ -295,7 +286,7 @@ export class DocumentsProxyController {
     if (error instanceof AxiosError && error.response) {
       this.logger.warn(
         `Proxy error: ${context} - ${error.response.status} (${duration}ms)`,
-        error.message
+        error.message,
       );
 
       // Handle binary error responses (from download endpoints)
@@ -317,9 +308,7 @@ export class DocumentsProxyController {
 
     // Timeout error
     if (error.name === 'TimeoutError' || error.code === 'ECONNABORTED') {
-      this.logger.error(
-        `Proxy timeout: ${context} (${duration}ms) - Service timeout exceeded`
-      );
+      this.logger.error(`Proxy timeout: ${context} (${duration}ms) - Service timeout exceeded`);
 
       res.status(HttpStatus.GATEWAY_TIMEOUT).json({
         statusCode: HttpStatus.GATEWAY_TIMEOUT,
@@ -337,7 +326,7 @@ export class DocumentsProxyController {
     ) {
       this.logger.error(
         `Proxy connection failed: ${context} - Documents service unreachable`,
-        error.message
+        error.message,
       );
 
       res.status(HttpStatus.SERVICE_UNAVAILABLE).json({
@@ -355,7 +344,7 @@ export class DocumentsProxyController {
     // Unknown error
     this.logger.error(
       `Proxy unknown error: ${context} (${duration}ms)`,
-      error.stack || error.message
+      error.stack || error.message,
     );
 
     res.status(HttpStatus.BAD_GATEWAY).json({

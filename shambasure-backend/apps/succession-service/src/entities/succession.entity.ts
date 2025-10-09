@@ -19,48 +19,48 @@ import { ApiProperty } from '@nestjs/swagger';
 @Exclude()
 export class BeneficiaryAssignmentEntity implements PrismaAssignment {
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx789012345',
-    description: 'Unique assignment identifier'
+    description: 'Unique assignment identifier',
   })
   id!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx456789012',
-    description: 'Will ID'
+    description: 'Will ID',
   })
   willId!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx123456789',
-    description: 'Asset ID'
+    description: 'Asset ID',
   })
   assetId!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx987654321',
-    description: 'Beneficiary user ID'
+    description: 'Beneficiary user ID',
   })
   beneficiaryId!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     required: false,
     nullable: true,
     type: 'number',
     example: 50.5,
-    description: 'Percentage share of asset (0-100)'
+    description: 'Percentage share of asset (0-100)',
   })
-  @Transform(({ value }) => value ? Number(value) : null) // Convert Decimal to number
+  @Transform(({ value }) => (value ? Number(value) : null)) // Convert Decimal to number
   sharePercent!: Decimal | null;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-15T10:30:00Z',
-    description: 'Assignment creation timestamp'
+    description: 'Assignment creation timestamp',
   })
   createdAt!: Date;
 
@@ -76,63 +76,63 @@ export class BeneficiaryAssignmentEntity implements PrismaAssignment {
 @Exclude()
 export class AssetEntity implements PrismaAsset {
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx123456789',
-    description: 'Unique asset identifier'
+    description: 'Unique asset identifier',
   })
   id!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'Land Parcel 123 - Kiambu',
-    description: 'Asset name'
+    description: 'Asset name',
   })
   name!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     required: false,
     nullable: true,
     example: '5 acres of agricultural land with title deed',
-    description: 'Detailed asset description'
+    description: 'Detailed asset description',
   })
   description!: string | null;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     enum: AssetType,
     example: AssetType.LAND_PARCEL,
-    description: 'Type of asset'
+    description: 'Type of asset',
   })
   type!: AssetType;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx987654321',
-    description: 'Owner user ID'
+    description: 'Owner user ID',
   })
   ownerId!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-15T10:30:00Z',
-    description: 'Asset creation timestamp'
+    description: 'Asset creation timestamp',
   })
   createdAt!: Date;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-20T14:45:00Z',
-    description: 'Last update timestamp'
+    description: 'Last update timestamp',
   })
   updatedAt!: Date;
 
   // Optional: Include assignments if loaded
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     type: [BeneficiaryAssignmentEntity],
     required: false,
-    description: 'Beneficiary assignments for this asset'
+    description: 'Beneficiary assignments for this asset',
   })
   @Type(() => BeneficiaryAssignmentEntity)
   beneficiaryAssignments?: BeneficiaryAssignmentEntity[];
@@ -141,7 +141,7 @@ export class AssetEntity implements PrismaAsset {
     Object.assign(this, partial);
     if (partial.beneficiaryAssignments) {
       this.beneficiaryAssignments = partial.beneficiaryAssignments.map(
-        a => new BeneficiaryAssignmentEntity(a)
+        (a) => new BeneficiaryAssignmentEntity(a),
       );
     }
   }
@@ -154,53 +154,53 @@ export class AssetEntity implements PrismaAsset {
 @Exclude()
 export class WillEntity implements PrismaWill {
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx456789012',
-    description: 'Unique will identifier'
+    description: 'Unique will identifier',
   })
   id!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'My Last Will and Testament',
-    description: 'Will title'
+    description: 'Will title',
   })
   title!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     enum: WillStatus,
     example: WillStatus.ACTIVE,
-    description: 'Current will status'
+    description: 'Current will status',
   })
   status!: WillStatus;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx123456789',
-    description: 'Testator (will creator) user ID'
+    description: 'Testator (will creator) user ID',
   })
   testatorId!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-15T10:30:00Z',
-    description: 'Will creation timestamp'
+    description: 'Will creation timestamp',
   })
   createdAt!: Date;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-20T14:45:00Z',
-    description: 'Last update timestamp'
+    description: 'Last update timestamp',
   })
   updatedAt!: Date;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     type: [BeneficiaryAssignmentEntity],
     required: false,
-    description: 'Beneficiary assignments (asset distributions)'
+    description: 'Beneficiary assignments (asset distributions)',
   })
   @Type(() => BeneficiaryAssignmentEntity)
   beneficiaryAssignments?: BeneficiaryAssignmentEntity[];
@@ -209,7 +209,7 @@ export class WillEntity implements PrismaWill {
     Object.assign(this, partial);
     if (partial.beneficiaryAssignments) {
       this.beneficiaryAssignments = partial.beneficiaryAssignments.map(
-        a => new BeneficiaryAssignmentEntity(a)
+        (a) => new BeneficiaryAssignmentEntity(a),
       );
     }
   }
@@ -222,24 +222,24 @@ export class WillEntity implements PrismaWill {
 @Exclude()
 export class FamilyMemberEntity implements PrismaFamilyMember {
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx123456789',
-    description: 'User ID'
+    description: 'User ID',
   })
   userId!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx987654321',
-    description: 'Family ID'
+    description: 'Family ID',
   })
   familyId!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     enum: RelationshipType,
     example: RelationshipType.SPOUSE,
-    description: 'Relationship type to family creator'
+    description: 'Relationship type to family creator',
   })
   role!: RelationshipType;
 
@@ -255,45 +255,45 @@ export class FamilyMemberEntity implements PrismaFamilyMember {
 @Exclude()
 export class FamilyEntity implements PrismaFamily {
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx987654321',
-    description: 'Unique family identifier'
+    description: 'Unique family identifier',
   })
   id!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'Kamau Family',
-    description: 'Family name'
+    description: 'Family name',
   })
   name!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx123456789',
-    description: 'Family creator user ID'
+    description: 'Family creator user ID',
   })
   creatorId!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-15T10:30:00Z',
-    description: 'Family creation timestamp'
+    description: 'Family creation timestamp',
   })
   createdAt!: Date;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-20T14:45:00Z',
-    description: 'Last update timestamp'
+    description: 'Last update timestamp',
   })
   updatedAt!: Date;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     type: [FamilyMemberEntity],
     required: false,
-    description: 'Family members with their relationships'
+    description: 'Family members with their relationships',
   })
   @Type(() => FamilyMemberEntity)
   members?: FamilyMemberEntity[];
@@ -301,7 +301,7 @@ export class FamilyEntity implements PrismaFamily {
   constructor(partial: Partial<PrismaFamily & { members?: PrismaFamilyMember[] }>) {
     Object.assign(this, partial);
     if (partial.members) {
-      this.members = partial.members.map(m => new FamilyMemberEntity(m));
+      this.members = partial.members.map((m) => new FamilyMemberEntity(m));
     }
   }
 }

@@ -3,18 +3,17 @@
 // ============================================================================
 
 import { Injectable } from '@nestjs/common';
-import { 
-  Prisma, 
-  PrismaService, 
-  Notification, 
+import {
+  Prisma,
+  PrismaService,
+  Notification,
   NotificationStatus as RepoNotificationStatus,
-  NotificationChannel as RepoNotificationChannel,
 } from '@shamba/database';
 import { PaginationQueryDto } from '@shamba/common';
 
 /**
  * NotificationsRepository - Pure data access for notifications
- * 
+ *
  * RESPONSIBILITIES:
  * - CRUD operations for notifications
  * - Query pending notifications for processing
@@ -145,8 +144,8 @@ export class NotificationsRepository {
     return this.prisma.notification.deleteMany({
       where: {
         createdAt: { lt: date },
-        status: { 
-          in: [RepoNotificationStatus.SENT, RepoNotificationStatus.FAILED] 
+        status: {
+          in: [RepoNotificationStatus.SENT, RepoNotificationStatus.FAILED],
         },
       },
     });
@@ -187,4 +186,3 @@ export class NotificationsRepository {
     });
   }
 }
-

@@ -1,28 +1,21 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 // ============================================================================
 // profile.service.ts - User Profile Management
 // ============================================================================
 
-import { 
-  Injectable, 
-  NotFoundException,
-  Logger as ProfileLogger 
-} from '@nestjs/common';
+import { Injectable, NotFoundException, Logger as ProfileLogger } from '@nestjs/common';
 import { PrismaService, User, UserProfile } from '@shamba/database';
-import {
-  UpdateUserProfileRequestDto,
-  EventPattern,
-  UserUpdatedEvent,
-} from '@shamba/common';
+import { UpdateUserProfileRequestDto, EventPattern, UserUpdatedEvent } from '@shamba/common';
 import { MessagingService as ProfileMessagingService } from '@shamba/messaging';
 
 /**
  * ProfileService - User profile management
- * 
+ *
  * RESPONSIBILITIES:
  * - Managing UserProfile data (bio, phone, address, nextOfKin)
  * - Atomic upsert operations
  * - Publishing profile update events
- * 
+ *
  * ARCHITECTURAL NOTE:
  * This service uses PrismaService directly for profile operations
  * since profiles are 1:1 with users and tightly coupled.
@@ -58,20 +51,17 @@ export class ProfileService {
 
   /**
    * Update or create user profile (atomic upsert)
-   * 
+   *
    * BUSINESS RULES:
    * - Creates profile if it doesn't exist
    * - Updates existing profile atomically
    * - Publishes UserUpdatedEvent with profile changes
-   * 
+   *
    * @param userId - User ID
    * @param data - Profile data to update
    * @returns Updated UserProfile
    */
-  async updateProfile(
-    userId: string,
-    data: UpdateUserProfileRequestDto,
-  ): Promise<UserProfile> {
+  async updateProfile(userId: string, data: UpdateUserProfileRequestDto): Promise<UserProfile> {
     // Validate user exists
     const userExists = await this.prisma.user.count({ where: { id: userId } });
     if (userExists === 0) {
@@ -115,10 +105,7 @@ export class ProfileService {
     try {
       this.messagingService.emit(event);
     } catch (error) {
-      this.logger.error(
-        `Failed to publish UserUpdatedEvent for user ${userId}`,
-        error
-      );
+      this.logger.error(`Failed to publish UserUpdatedEvent for user ${userId}`, error);
     }
 
     this.logger.log(`Profile updated for user ${userId}`);

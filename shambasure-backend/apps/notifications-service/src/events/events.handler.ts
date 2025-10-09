@@ -1,23 +1,16 @@
-
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 // ============================================================================
 // events.handler.ts - Event-Driven Notification Triggers
 // ============================================================================
 
 import { Injectable, Logger } from '@nestjs/common';
 import { EventPattern } from '@nestjs/microservices';
-import { 
-  UserCreatedEvent,
-  PasswordResetRequestedEvent,
-  WillCreatedEvent,
-  HeirAssignedEvent,
-  DocumentVerifiedEvent,
-  EventPattern as EventPatternEnum,
-} from '@shamba/common';
+import * as common from '@shamba/common';
 import { NotificationsService } from '../services/notifications.service';
 
 /**
  * EventsHandler - Listens to domain events and creates notifications
- * 
+ *
  * EVENTS HANDLED:
  * - user.created → Welcome email
  * - password.reset.requested → Password reset email
@@ -29,16 +22,14 @@ import { NotificationsService } from '../services/notifications.service';
 export class EventsHandler {
   private readonly logger = new Logger(EventsHandler.name);
 
-  constructor(
-    private readonly notificationsService: NotificationsService,
-  ) {}
+  constructor(private readonly notificationsService: NotificationsService) {}
 
   // ========================================================================
   // USER EVENTS
   // ========================================================================
 
-  @EventPattern(EventPatternEnum.USER_CREATED)
-  async handleUserCreated(event: UserCreatedEvent): Promise<void> {
+  @EventPattern(common.EventPattern.USER_CREATED)
+  async handleUserCreated(event: common.UserCreatedEvent): Promise<void> {
     this.logger.log(`Received user.created event: ${event.data.userId}`);
 
     try {
@@ -49,18 +40,15 @@ export class EventsHandler {
           firstName: event.data.firstName,
           lastName: event.data.lastName,
           email: event.data.email,
-        }
+        },
       );
     } catch (error) {
-      this.logger.error(
-        `Failed to queue welcome email for user ${event.data.userId}`,
-        error
-      );
+      this.logger.error(`Failed to queue welcome email for user ${event.data.userId}`, error);
     }
   }
 
-  @EventPattern(EventPatternEnum.PASSWORD_RESET_REQUESTED)
-  async handlePasswordResetRequested(event: PasswordResetRequestedEvent): Promise<void> {
+  @EventPattern(common.EventPattern.PASSWORD_RESET_REQUESTED)
+  async handlePasswordResetRequested(event: common.PasswordResetRequestedEvent): Promise<void> {
     this.logger.log(`Received password.reset.requested event: ${event.data.userId}`);
 
     try {
@@ -71,12 +59,12 @@ export class EventsHandler {
           resetToken: event.data.token,
           resetLink: `${process.env.FRONTEND_URL}/reset-password?token=${event.data.token}`,
           expiresAt: event.data.expiresAt,
-        }
+        },
       );
     } catch (error) {
       this.logger.error(
         `Failed to queue password reset email for user ${event.data.userId}`,
-        error
+        error,
       );
     }
   }
@@ -85,8 +73,8 @@ export class EventsHandler {
   // WILL EVENTS
   // ========================================================================
 
-  @EventPattern(EventPatternEnum.WILL_CREATED)
-  async handleWillCreated(event: WillCreatedEvent): Promise<void> {
+  @EventPattern(common.EventPattern.WILL_CREATED)
+  async handleWillCreated(event: common.WillCreatedEvent): Promise<void> {
     this.logger.log(`Received will.created event: ${event.data.willId}`);
 
     try {
@@ -97,18 +85,18 @@ export class EventsHandler {
           willTitle: event.data.title,
           willId: event.data.willId,
           status: event.data.status,
-        }
+        },
       );
     } catch (error) {
       this.logger.error(
         `Failed to queue will created email for user ${event.data.testatorId}`,
-        error
+        error,
       );
     }
   }
 
-  @EventPattern(EventPatternEnum.HEIR_ASSIGNED)
-  async handleHeirAssigned(event: HeirAssignedEvent): Promise<void> {
+  @EventPattern(common.EventPattern.HEIR_ASSIGNED)
+  async handleHeirAssigned(event: common.HeirAssignedEvent): Promise<void> {
     this.logger.log(`Received heir.assigned event: ${event.data.beneficiaryId}`);
 
     try {
@@ -119,12 +107,12 @@ export class EventsHandler {
           willId: event.data.willId,
           assetId: event.data.assetId,
           sharePercent: event.data.sharePercent,
-        }
+        },
       );
     } catch (error) {
       this.logger.error(
         `Failed to queue heir assigned email for user ${event.data.beneficiaryId}`,
-        error
+        error,
       );
     }
   }
@@ -133,8 +121,8 @@ export class EventsHandler {
   // DOCUMENT EVENTS
   // ========================================================================
 
-  @EventPattern(EventPatternEnum.DOCUMENT_VERIFIED)
-  async handleDocumentVerified(event: DocumentVerifiedEvent): Promise<void> {
+  @EventPattern(common.EventPattern.DOCUMENT_VERIFIED)
+  async handleDocumentVerified(event: common.DocumentVerifiedEvent): Promise<void> {
     this.logger.log(`Received document.verified event: ${event.data.documentId}`);
 
     try {
@@ -144,12 +132,12 @@ export class EventsHandler {
         {
           documentId: event.data.documentId,
           filename: event.data.filename,
-        }
+        },
       );
     } catch (error) {
       this.logger.error(
         `Failed to queue document verified email for user ${event.data.uploaderId}`,
-        error
+        error,
       );
     }
   }

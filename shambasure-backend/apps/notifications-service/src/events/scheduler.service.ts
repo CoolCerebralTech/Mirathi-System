@@ -8,7 +8,7 @@ import { NotificationsService as SchedulerNotificationsService } from '../servic
 
 /**
  * SchedulerService - Cron jobs for notification processing
- * 
+ *
  * SCHEDULED TASKS:
  * - Process pending notifications (every minute)
  * - Retry failed notifications (every 30 minutes)
@@ -18,9 +18,7 @@ import { NotificationsService as SchedulerNotificationsService } from '../servic
 export class SchedulerService {
   private readonly logger = new SchedulerLogger(SchedulerService.name);
 
-  constructor(
-    private readonly notificationsService: SchedulerNotificationsService,
-  ) {}
+  constructor(private readonly notificationsService: SchedulerNotificationsService) {}
 
   /**
    * Process pending notifications every minute
@@ -31,11 +29,9 @@ export class SchedulerService {
 
     try {
       const result = await this.notificationsService.processPendingNotifications(100);
-      
+
       if (result.success > 0 || result.failed > 0) {
-        this.logger.log(
-          `Processed notifications: ${result.success} sent, ${result.failed} failed`
-        );
+        this.logger.log(`Processed notifications: ${result.success} sent, ${result.failed} failed`);
       }
     } catch (error) {
       this.logger.error('Failed to process pending notifications', error);
@@ -51,10 +47,10 @@ export class SchedulerService {
 
     try {
       const result = await this.notificationsService.retryFailedNotifications(50);
-      
+
       if (result.success > 0 || result.failed > 0) {
         this.logger.log(
-          `Retried notifications: ${result.success} recovered, ${result.failed} still failed`
+          `Retried notifications: ${result.success} recovered, ${result.failed} still failed`,
         );
       }
     } catch (error) {

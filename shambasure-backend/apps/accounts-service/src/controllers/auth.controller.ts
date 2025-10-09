@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 // ============================================================================
 // auth.controller.ts - Authentication & Profile Management
 // ============================================================================
@@ -14,7 +17,6 @@ import {
   Req,
   UseInterceptors,
   ClassSerializerInterceptor,
-  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import {
@@ -35,12 +37,11 @@ import {
   AuthResult,
 } from '@shamba/auth';
 import { ProfileService } from '../services/profile.service';
-import { UsersService } from '../services/users.service';
 import { UserEntity, ProfileEntity } from '../entities/user.entity';
 
 /**
  * AuthController - Public authentication endpoints and authenticated profile management
- * 
+ *
  * ENDPOINTS:
  * - POST /auth/register - User registration
  * - POST /auth/login - Email/password login
@@ -58,7 +59,6 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly profileService: ProfileService,
-    private readonly usersService: UsersService,
   ) {}
 
   // ========================================================================
@@ -72,22 +72,22 @@ export class AuthController {
   @Public()
   @Post('auth/register')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Register a new user',
-    description: 'Creates a new user account and returns authentication tokens'
+    description: 'Creates a new user account and returns authentication tokens',
   })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'User registered successfully',
-    type: AuthResponseDto 
+    type: AuthResponseDto,
   })
-  @ApiResponse({ 
-    status: 409, 
-    description: 'Email already registered' 
+  @ApiResponse({
+    status: 409,
+    description: 'Email already registered',
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Invalid registration data' 
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid registration data',
   })
   async register(@Body() registerDto: RegisterRequestDto): Promise<AuthResponseDto> {
     // AuthService.register internally calls UsersService.createUserForRegistration
@@ -108,18 +108,18 @@ export class AuthController {
   @UseGuards(LocalAuthGuard)
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'User login',
-    description: 'Authenticate with email and password to receive JWT tokens'
+    description: 'Authenticate with email and password to receive JWT tokens',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Login successful',
-    type: AuthResponseDto 
+    type: AuthResponseDto,
   })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Invalid credentials' 
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid credentials',
   })
   async login(@Req() req: any): Promise<AuthResponseDto> {
     // LocalAuthGuard populates req.user with validated user
@@ -146,18 +146,18 @@ export class AuthController {
   @UseGuards(RefreshTokenGuard)
   @Post('auth/refresh')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Refresh access token',
-    description: 'Obtain new access token using valid refresh token'
+    description: 'Obtain new access token using valid refresh token',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Token refreshed successfully',
-    type: AuthResponseDto 
+    type: AuthResponseDto,
   })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Invalid or expired refresh token' 
+  @ApiResponse({
+    status: 401,
+    description: 'Invalid or expired refresh token',
   })
   async refreshTokens(@Req() req: any): Promise<AuthResponseDto> {
     const userId = req.user.sub;
@@ -182,13 +182,13 @@ export class AuthController {
   @Public()
   @Post('auth/forgot-password')
   @HttpCode(HttpStatus.ACCEPTED)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Request password reset',
-    description: 'Initiates password reset process by sending email with reset token'
+    description: 'Initiates password reset process by sending email with reset token',
   })
-  @ApiResponse({ 
-    status: 202, 
-    description: 'Password reset email sent (if account exists)' 
+  @ApiResponse({
+    status: 202,
+    description: 'Password reset email sent (if account exists)',
   })
   async forgotPassword(
     @Body() forgotPasswordDto: ForgotPasswordRequestDto,
@@ -196,8 +196,9 @@ export class AuthController {
     await this.authService.initiatePasswordReset(forgotPasswordDto.email);
 
     // Generic response for security (don't reveal if email exists)
-    return { 
-      message: 'If a matching account was found, a password reset link has been sent to your email.' 
+    return {
+      message:
+        'If a matching account was found, a password reset link has been sent to your email.',
     };
   }
 
@@ -208,17 +209,17 @@ export class AuthController {
   @Public()
   @Post('auth/reset-password')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Reset password with token',
-    description: 'Completes password reset using the token from email'
+    description: 'Completes password reset using the token from email',
   })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Password reset successful' 
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset successful',
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Invalid or expired token' 
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid or expired token',
   })
   async resetPassword(
     @Body() resetPasswordDto: ResetPasswordRequestDto,
@@ -228,8 +229,9 @@ export class AuthController {
       resetPasswordDto.newPassword,
     );
 
-    return { 
-      message: 'Your password has been successfully reset. You can now log in with your new password.' 
+    return {
+      message:
+        'Your password has been successfully reset. You can now log in with your new password.',
     };
   }
 
@@ -244,18 +246,18 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('profile')
   @ApiBearerAuth()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get current user profile',
-    description: 'Retrieve profile information for the authenticated user'
+    description: 'Retrieve profile information for the authenticated user',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Profile retrieved successfully',
-    type: UserEntity 
+    type: UserEntity,
   })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Unauthorized - invalid or missing token' 
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing token',
   })
   async getProfile(@CurrentUser('sub') userId: string): Promise<UserEntity> {
     const userWithProfile = await this.profileService.getProfile(userId);
@@ -269,22 +271,22 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Patch('profile')
   @ApiBearerAuth()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Update current user profile',
-    description: 'Update profile information (bio, phone number, address, next of kin)'
+    description: 'Update profile information (bio, phone number, address, next of kin)',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Profile updated successfully',
-    type: ProfileEntity 
+    type: ProfileEntity,
   })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Unauthorized' 
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Invalid profile data' 
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid profile data',
   })
   async updateProfile(
     @CurrentUser('sub') userId: string,
@@ -302,21 +304,21 @@ export class AuthController {
   @Patch('profile/change-password')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Change password',
-    description: 'Change password for the authenticated user (requires current password)'
+    description: 'Change password for the authenticated user (requires current password)',
   })
-  @ApiResponse({ 
-    status: 204, 
-    description: 'Password changed successfully' 
+  @ApiResponse({
+    status: 204,
+    description: 'Password changed successfully',
   })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Unauthorized or incorrect current password' 
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized or incorrect current password',
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Invalid password format' 
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid password format',
   })
   async changePassword(
     @CurrentUser('sub') userId: string,
@@ -329,4 +331,3 @@ export class AuthController {
     );
   }
 }
-

@@ -3,17 +3,11 @@
 // ============================================================================
 
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { 
-  Prisma, 
-  PrismaService, 
-  Asset, 
-  AssetType,
-  BeneficiaryAssignment 
-} from '@shamba/database';
+import { Prisma, PrismaService, Asset, AssetType, BeneficiaryAssignment } from '@shamba/database';
 
 /**
  * AssetsRepository - Pure data access for assets
- * 
+ *
  * RESPONSIBILITIES:
  * - CRUD operations for assets
  * - Query assets by owner, type, status
@@ -40,7 +34,7 @@ export class AssetsRepository {
   }
 
   async findByIdWithAssignments(
-    id: string
+    id: string,
   ): Promise<(Asset & { beneficiaryAssignments: BeneficiaryAssignment[] }) | null> {
     return this.prisma.asset.findUnique({
       where: { id },
@@ -58,7 +52,7 @@ export class AssetsRepository {
   }
 
   async findOneOrFailWithAssignments(
-    where: Prisma.AssetWhereUniqueInput
+    where: Prisma.AssetWhereUniqueInput,
   ): Promise<Asset & { beneficiaryAssignments: BeneficiaryAssignment[] }> {
     const asset = await this.prisma.asset.findUnique({
       where,
@@ -125,4 +119,3 @@ export class AssetsRepository {
     return this.prisma.asset.delete({ where: { id } });
   }
 }
-

@@ -1,14 +1,11 @@
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
 // ============================================================================
 // main.ts - Application Bootstrap
 // ============================================================================
 
 import { NestFactory } from '@nestjs/core';
 import { Reflector } from '@nestjs/core';
-import {
-  ValidationPipe,
-  VersioningType,
-  ClassSerializerInterceptor,
-} from '@nestjs/common';
+import { ValidationPipe, VersioningType, ClassSerializerInterceptor } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -18,7 +15,7 @@ import { DocumentsModule } from './documents.module';
 
 /**
  * Bootstrap function - Initializes and starts the Documents microservice
- * 
+ *
  * SETUP STEPS:
  * 1. Create NestJS app with custom logger
  * 2. Configure file upload limits
@@ -56,9 +53,9 @@ async function bootstrap() {
   // Automatically validates all incoming DTOs using class-validator
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,            // Strip unknown properties
+      whitelist: true, // Strip unknown properties
       forbidNonWhitelisted: true, // Reject requests with unknown properties
-      transform: true,            // Auto-transform payloads to DTO instances
+      transform: true, // Auto-transform payloads to DTO instances
       transformOptions: {
         enableImplicitConversion: true, // Convert primitive types automatically
       },
@@ -81,7 +78,7 @@ async function bootstrap() {
   // --- API Prefix and Versioning ---
   const globalPrefix = configService.get('GLOBAL_PREFIX') || 'api';
   app.setGlobalPrefix(globalPrefix);
-  
+
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
@@ -92,12 +89,12 @@ async function bootstrap() {
     .setTitle('Shamba Sure - Documents Service')
     .setDescription(
       'API for secure document upload, storage, and verification management.\n\n' +
-      '**Features:**\n' +
-      '- Document upload with validation (PDF, JPEG, PNG)\n' +
-      '- Version control and history\n' +
-      '- Admin verification workflow\n' +
-      '- Secure file download\n' +
-      '- Storage statistics and quotas'
+        '**Features:**\n' +
+        '- Document upload with validation (PDF, JPEG, PNG)\n' +
+        '- Version control and history\n' +
+        '- Admin verification workflow\n' +
+        '- Secure file download\n' +
+        '- Storage statistics and quotas',
     )
     .setVersion('1.0')
     .addBearerAuth(
@@ -127,7 +124,7 @@ async function bootstrap() {
   // --- Start Server ---
   const port = configService.get('PORT') || 3002;
   const host = configService.get('HOST') || '0.0.0.0';
-  
+
   await app.listen(port, host);
 
   // --- Startup Logs ---

@@ -13,40 +13,40 @@ import { ApiProperty } from '@nestjs/swagger';
 @Exclude()
 export class AuditLogEntity implements PrismaAuditLog {
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'clx123456789',
-    description: 'Unique audit log identifier'
+    description: 'Unique audit log identifier',
   })
   id!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-15T10:30:45.123Z',
-    description: 'Event timestamp'
+    description: 'Event timestamp',
   })
   timestamp!: Date;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     required: false,
     nullable: true,
     example: 'clx987654321',
-    description: 'User ID who performed the action (null for system events)'
+    description: 'User ID who performed the action (null for system events)',
   })
   actorId!: string | null;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'will.created',
-    description: 'Action/event type'
+    description: 'Action/event type',
   })
   action!: string;
 
   @Expose()
-  @ApiProperty({ 
-    type: 'object',
+  @ApiProperty({
+    type: Object,
     example: { willId: 'clx123', title: 'My Will', status: 'DRAFT' },
-    description: 'Event payload with contextual data'
+    description: 'Event payload with contextual data',
   })
   payload!: any; // Prisma JSON type
 
@@ -62,31 +62,31 @@ export class AuditLogEntity implements PrismaAuditLog {
 @Exclude()
 export class AuditSummaryEntity {
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: '2025-01-15',
-    description: 'Date or period for this summary'
+    description: 'Date or period for this summary',
   })
   date!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 1250,
-    description: 'Total number of events in period'
+    description: 'Total number of events in period',
   })
   totalEvents!: number;
 
   @Expose()
-  @ApiProperty({ 
-    type: 'object',
+  @ApiProperty({
+    type: Object,
     example: { 'will.created': 45, 'user.created': 12, 'document.uploaded': 78 },
-    description: 'Event count by action type'
+    description: 'Event count by action type',
   })
   eventsByAction!: Record<string, number>;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     example: 234,
-    description: 'Number of unique users who performed actions'
+    description: 'Number of unique users who performed actions',
   })
   uniqueUsers!: number;
 

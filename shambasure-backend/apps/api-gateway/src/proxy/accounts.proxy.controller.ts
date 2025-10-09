@@ -1,32 +1,25 @@
-import { 
-  All, 
-  Controller, 
-  Req, 
-  Res, 
-  UseGuards,
-  UseInterceptors,
-  Logger,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common';
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+import { All, Controller, Req, Res, UseGuards, Logger, HttpStatus } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@shamba/config';
 import { Public, JwtAuthGuard } from '@shamba/auth';
-import { Request, Response } from 'express';
+import express from 'express';
 import { firstValueFrom, timeout, catchError } from 'rxjs';
-import { AxiosError, AxiosRequestConfig } from 'axios';
+import { AxiosError } from 'axios';
 import { ApiTags, ApiExcludeController } from '@nestjs/swagger';
 
 /**
  * AccountsProxyController - API Gateway proxy for accounts-service
- * 
+ *
  * RESPONSIBILITIES:
  * - Route auth/profile/users requests to accounts-service
  * - Handle authentication at gateway level for protected routes
  * - Forward JWT tokens to downstream service
  * - Handle service unavailability gracefully
  * - Provide circuit breaker behavior
- * 
+ *
  * ROUTES PROXIED:
  * - POST /auth/register (public)
  * - POST /auth/login (public)
@@ -69,31 +62,31 @@ export class AccountsProxyController {
 
   @Public()
   @All('auth/register')
-  async proxyRegister(@Req() req: Request, @Res() res: Response) {
+  async proxyRegister(@Req() req: express.Request, @Res() res: express.Response) {
     return this.proxyRequest(req, res, 'POST /auth/register');
   }
 
   @Public()
   @All('auth/login')
-  async proxyLogin(@Req() req: Request, @Res() res: Response) {
+  async proxyLogin(@Req() req: express.Request, @Res() res: express.Response) {
     return this.proxyRequest(req, res, 'POST /auth/login');
   }
 
   @Public()
   @All('auth/refresh')
-  async proxyRefresh(@Req() req: Request, @Res() res: Response) {
+  async proxyRefresh(@Req() req: express.Request, @Res() res: express.Response) {
     return this.proxyRequest(req, res, 'POST /auth/refresh');
   }
 
   @Public()
   @All('auth/forgot-password')
-  async proxyForgotPassword(@Req() req: Request, @Res() res: Response) {
+  async proxyForgotPassword(@Req() req: express.Request, @Res() res: express.Response) {
     return this.proxyRequest(req, res, 'POST /auth/forgot-password');
   }
 
   @Public()
   @All('auth/reset-password')
-  async proxyResetPassword(@Req() req: Request, @Res() res: Response) {
+  async proxyResetPassword(@Req() req: express.Request, @Res() res: express.Response) {
     return this.proxyRequest(req, res, 'POST /auth/reset-password');
   }
 
@@ -107,7 +100,7 @@ export class AccountsProxyController {
    */
   @UseGuards(JwtAuthGuard)
   @All('*')
-  async proxyProtected(@Req() req: Request, @Res() res: Response) {
+  async proxyProtected(@Req() req: express.Request, @Res() res: express.Response) {
     return this.proxyRequest(req, res);
   }
 
@@ -117,7 +110,7 @@ export class AccountsProxyController {
 
   /**
    * Generic proxy method - forwards requests to accounts-service
-   * 
+   *
    * FEATURES:
    * - Timeout handling
    * - Error transformation
@@ -126,8 +119,8 @@ export class AccountsProxyController {
    * - Circuit breaker behavior
    */
   private async proxyRequest(
-    req: Request,
-    res: Response,
+    req: express.Request,
+    res: express.Response,
     logContext?: string,
   ): Promise<void> {
     const { method, originalUrl, headers, body } = req;
@@ -145,29 +138,28 @@ export class AccountsProxyController {
 
       // Make request to accounts-service with timeout
       const response = await firstValueFrom(
-        this.httpService.request({
-          method,
-          url: targetUrl,
-          headers: headersToForward,
-          data: body,
-          validateStatus: () => true, // Accept all status codes
-          timeout: this.requestTimeout,
-        }).pipe(
-          timeout(this.requestTimeout),
-          catchError((error) => {
-            throw error; // Let outer catch handle it
-          }),
-        ),
+        this.httpService
+          .request({
+            method,
+            url: targetUrl,
+            headers: headersToForward,
+            data: body,
+            validateStatus: () => true, // Accept all status codes
+            timeout: this.requestTimeout,
+          })
+          .pipe(
+            timeout(this.requestTimeout),
+            catchError((error) => {
+              throw error; // Let outer catch handle it
+            }),
+          ),
       );
 
       const duration = Date.now() - startTime;
-      this.logger.debug(
-        `Proxy response: ${context} - ${response.status} (${duration}ms)`
-      );
+      this.logger.debug(`Proxy response: ${context} - ${response.status} (${duration}ms)`);
 
       // Forward response to client
       res.status(response.status).json(response.data);
-
     } catch (error) {
       const duration = Date.now() - startTime;
       this.handleProxyError(error, res, context, duration);
@@ -212,7 +204,7 @@ export class AccountsProxyController {
    */
   private handleProxyError(
     error: any,
-    res: Response,
+    res: express.Response,
     context: string,
     duration: number,
   ): void {
@@ -220,7 +212,7 @@ export class AccountsProxyController {
     if (error instanceof AxiosError && error.response) {
       this.logger.warn(
         `Proxy error: ${context} - ${error.response.status} (${duration}ms)`,
-        error.message
+        error.message,
       );
 
       res.status(error.response.status).json(error.response.data);
@@ -229,9 +221,7 @@ export class AccountsProxyController {
 
     // Timeout error
     if (error.name === 'TimeoutError' || error.code === 'ECONNABORTED') {
-      this.logger.error(
-        `Proxy timeout: ${context} (${duration}ms) - Service timeout exceeded`
-      );
+      this.logger.error(`Proxy timeout: ${context} (${duration}ms) - Service timeout exceeded`);
 
       res.status(HttpStatus.GATEWAY_TIMEOUT).json({
         statusCode: HttpStatus.GATEWAY_TIMEOUT,
@@ -249,7 +239,7 @@ export class AccountsProxyController {
     ) {
       this.logger.error(
         `Proxy connection failed: ${context} - Accounts service unreachable`,
-        error.message
+        error.message,
       );
 
       res.status(HttpStatus.SERVICE_UNAVAILABLE).json({
@@ -267,7 +257,7 @@ export class AccountsProxyController {
     // Unknown error
     this.logger.error(
       `Proxy unknown error: ${context} (${duration}ms)`,
-      error.stack || error.message
+      error.stack || error.message,
     );
 
     res.status(HttpStatus.BAD_GATEWAY).json({

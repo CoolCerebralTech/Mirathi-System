@@ -2,13 +2,10 @@
 // templates.repository.ts - Template Data Access Layer
 // ============================================================================
 
-import { 
-  Injectable as TemplateInjectable, 
-  NotFoundException 
-} from '@nestjs/common';
-import { 
-  Prisma as TemplatePrisma, 
-  PrismaService as TemplatePrismaService, 
+import { Injectable as TemplateInjectable, NotFoundException } from '@nestjs/common';
+import {
+  Prisma as TemplatePrisma,
+  PrismaService as TemplatePrismaService,
   NotificationTemplate,
   NotificationChannel as TemplateNotificationChannel,
 } from '@shamba/database';
@@ -16,7 +13,7 @@ import { PaginationQueryDto as TemplatePaginationQueryDto } from '@shamba/common
 
 /**
  * TemplatesRepository - Pure data access for notification templates
- * 
+ *
  * RESPONSIBILITIES:
  * - CRUD operations for templates
  * - Query templates by name or channel
@@ -29,7 +26,9 @@ export class TemplatesRepository {
   // CREATE OPERATIONS
   // ========================================================================
 
-  async create(data: TemplatePrisma.NotificationTemplateCreateInput): Promise<NotificationTemplate> {
+  async create(
+    data: TemplatePrisma.NotificationTemplateCreateInput,
+  ): Promise<NotificationTemplate> {
     return this.prisma.notificationTemplate.create({ data });
   }
 
@@ -46,7 +45,7 @@ export class TemplatesRepository {
   }
 
   async findOneOrFail(
-    where: TemplatePrisma.NotificationTemplateWhereUniqueInput
+    where: TemplatePrisma.NotificationTemplateWhereUniqueInput,
   ): Promise<NotificationTemplate> {
     const template = await this.prisma.notificationTemplate.findUnique({ where });
     if (!template) {
@@ -93,8 +92,8 @@ export class TemplatesRepository {
   // ========================================================================
 
   async update(
-    id: string, 
-    data: TemplatePrisma.NotificationTemplateUpdateInput
+    id: string,
+    data: TemplatePrisma.NotificationTemplateUpdateInput,
   ): Promise<NotificationTemplate> {
     return this.prisma.notificationTemplate.update({
       where: { id },

@@ -56,11 +56,15 @@ export class MessagingService implements OnModuleInit, OnModuleDestroy {
 
   getHealth(): BrokerHealth {
     if (this.isConnected) {
-      return { isConnected: true };
+      return {
+        isConnected: true,
+        brokerUrl: undefined,
+      };
     }
     return {
       isConnected: false,
       error: 'Client is not connected to the message broker.',
+      brokerUrl: undefined,
     };
   }
 }

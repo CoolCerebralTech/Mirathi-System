@@ -17,24 +17,9 @@ import {
   HttpStatus,
   ParseUUIDPipe,
 } from '@nestjs/common';
-import { 
-  ApiTags, 
-  ApiOperation, 
-  ApiResponse, 
-  ApiBearerAuth,
-  ApiParam 
-} from '@nestjs/swagger';
-import { 
-  UserQueryDto, 
-  createPaginatedResponseDto,
-  UpdateUserRoleDto 
-} from '@shamba/common';
-import { 
-  JwtAuthGuard, 
-  RolesGuard, 
-  Roles,
-  CurrentUser as AdminCurrentUser 
-} from '@shamba/auth';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import { UserQueryDto, createPaginatedResponseDto, UpdateUserRoleDto } from '@shamba/common';
+import { JwtAuthGuard, RolesGuard, Roles, CurrentUser as AdminCurrentUser } from '@shamba/auth';
 import { UsersService as AdminUsersService } from '../services/users.service';
 import { UserRole } from '@shamba/database';
 import { UserEntity as AdminUserEntity } from '../entities/user.entity';
@@ -44,11 +29,11 @@ const PaginatedUserResponse = createPaginatedResponseDto(AdminUserEntity);
 
 /**
  * UsersController - Admin-only user management endpoints
- * 
+ *
  * SECURITY:
  * - All endpoints require authentication (JwtAuthGuard)
  * - All endpoints require ADMIN role (RolesGuard)
- * 
+ *
  * ENDPOINTS:
  * - GET /users - List all users (paginated, filtered, searchable)
  * - GET /users/:id - Get single user by ID
@@ -69,28 +54,28 @@ export class UsersController {
    */
   @Get()
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'List all users (Admin)',
-    description: 'Get paginated list of users with search and filter capabilities'
+    description: 'Get paginated list of users with search and filter capabilities',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Users retrieved successfully',
-    type: PaginatedUserResponse 
+    type: PaginatedUserResponse,
   })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Unauthorized' 
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized',
   })
-  @ApiResponse({ 
-    status: 403, 
-    description: 'Forbidden - Admin role required' 
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin role required',
   })
   async findMany(@Query() query: UserQueryDto) {
     const { users, total } = await this.usersService.findMany(query);
 
     // Serialize all users to strip passwords
-    const userEntities = users.map(user => new AdminUserEntity(user));
+    const userEntities = users.map((user) => new AdminUserEntity(user));
 
     return new PaginatedUserResponse(userEntities, total, query);
   }
@@ -101,32 +86,30 @@ export class UsersController {
    */
   @Get(':id')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get user by ID (Admin)',
-    description: 'Retrieve detailed information for a specific user'
+    description: 'Retrieve detailed information for a specific user',
   })
-  @ApiParam({ 
-    name: 'id', 
+  @ApiParam({
+    name: 'id',
     description: 'User UUID',
     type: 'string',
-    format: 'uuid'
+    format: 'uuid',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'User retrieved successfully',
-    type: AdminUserEntity 
+    type: AdminUserEntity,
   })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'User not found' 
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
   })
-  @ApiResponse({ 
-    status: 403, 
-    description: 'Forbidden - Admin role required' 
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin role required',
   })
-  async findOne(
-    @Param('id', ParseUUIDPipe) id: string
-  ): Promise<AdminUserEntity> {
+  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<AdminUserEntity> {
     const user = await this.usersService.findOne(id);
     return new AdminUserEntity(user);
   }
@@ -137,43 +120,39 @@ export class UsersController {
    */
   @Patch(':id/role')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Update user role (Admin)',
-    description: 'Change the role of a user (cannot modify own role)'
+    description: 'Change the role of a user (cannot modify own role)',
   })
-  @ApiParam({ 
-    name: 'id', 
+  @ApiParam({
+    name: 'id',
     description: 'User UUID',
     type: 'string',
-    format: 'uuid'
+    format: 'uuid',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'User role updated successfully',
-    type: AdminUserEntity 
+    type: AdminUserEntity,
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Cannot modify own role' 
+  @ApiResponse({
+    status: 400,
+    description: 'Cannot modify own role',
   })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'User not found' 
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
   })
-  @ApiResponse({ 
-    status: 403, 
-    description: 'Forbidden - Admin role required' 
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin role required',
   })
   async updateRole(
     @Param('id', ParseUUIDPipe) userId: string,
     @Body() updateRoleDto: UpdateUserRoleDto,
     @AdminCurrentUser('sub') actorId: string,
   ): Promise<AdminUserEntity> {
-    const updatedUser = await this.usersService.updateRole(
-      userId,
-      updateRoleDto.role,
-      actorId
-    );
+    const updatedUser = await this.usersService.updateRole(userId, updateRoleDto.role, actorId);
     return new AdminUserEntity(updatedUser);
   }
 
@@ -184,31 +163,29 @@ export class UsersController {
   @Delete(':id')
   @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Delete user (Admin)',
-    description: 'Permanently delete a user and all associated data (cascades)'
+    description: 'Permanently delete a user and all associated data (cascades)',
   })
-  @ApiParam({ 
-    name: 'id', 
+  @ApiParam({
+    name: 'id',
     description: 'User UUID',
     type: 'string',
-    format: 'uuid'
+    format: 'uuid',
   })
-  @ApiResponse({ 
-    status: 204, 
-    description: 'User deleted successfully' 
+  @ApiResponse({
+    status: 204,
+    description: 'User deleted successfully',
   })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'User not found' 
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
   })
-  @ApiResponse({ 
-    status: 403, 
-    description: 'Forbidden - Admin role required' 
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin role required',
   })
-  async remove(
-    @Param('id', ParseUUIDPipe) id: string
-  ): Promise<void> {
+  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.usersService.delete(id);
   }
 }

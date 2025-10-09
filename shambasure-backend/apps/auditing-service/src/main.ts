@@ -22,7 +22,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   const rabbitmqUrl = configService.get('RABBITMQ_URL') || 'amqp://localhost:5672';
-  
+
   app.connectMicroservice({
     transport: Transport.RMQ,
     options: {
@@ -37,12 +37,14 @@ async function bootstrap() {
 
   logger.log(`RabbitMQ connected: ${rabbitmqUrl}`);
 
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-    transformOptions: { enableImplicitConversion: true },
-  }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
 
   app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
 
@@ -79,3 +81,6 @@ async function bootstrap() {
   logger.log(`📚 API Docs: http://localhost:${port}/${globalPrefix}/v1/docs`);
   logger.log(`🐰 RabbitMQ: ${rabbitmqUrl}`);
 }
+
+// eslint-disable-next-line @typescript-eslint/no-floating-promises
+bootstrap();

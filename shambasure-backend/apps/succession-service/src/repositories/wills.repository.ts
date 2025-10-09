@@ -1,23 +1,22 @@
-
 // ============================================================================
 // wills.repository.ts - Will Data Access Layer
 // ============================================================================
 
-import { 
-  Injectable as WillInjectable, 
-  NotFoundException as WillNotFoundException 
+import {
+  Injectable as WillInjectable,
+  NotFoundException as WillNotFoundException,
 } from '@nestjs/common';
-import { 
-  Prisma as WillPrisma, 
-  PrismaService as WillPrismaService, 
-  Will, 
+import {
+  Prisma as WillPrisma,
+  PrismaService as WillPrismaService,
+  Will,
   BeneficiaryAssignment as Assignment,
-  WillStatus 
+  WillStatus,
 } from '@shamba/database';
 
 /**
  * WillsRepository - Pure data access for wills and beneficiary assignments
- * 
+ *
  * RESPONSIBILITIES:
  * - CRUD operations for wills
  * - Manage beneficiary assignments
@@ -40,7 +39,7 @@ export class WillsRepository {
   }
 
   async findByIdWithAssignments(
-    id: string
+    id: string,
   ): Promise<(Will & { beneficiaryAssignments: Assignment[] }) | null> {
     return this.prisma.will.findUnique({
       where: { id },
@@ -49,7 +48,7 @@ export class WillsRepository {
   }
 
   async findOneOrFail(
-    where: WillPrisma.WillWhereUniqueInput
+    where: WillPrisma.WillWhereUniqueInput,
   ): Promise<Will & { beneficiaryAssignments: Assignment[] }> {
     const will = await this.prisma.will.findUnique({
       where,
@@ -76,10 +75,7 @@ export class WillsRepository {
     });
   }
 
-  async findByTestatorAndStatus(
-    testatorId: string,
-    status: WillStatus
-  ): Promise<Will[]> {
+  async findByTestatorAndStatus(testatorId: string, status: WillStatus): Promise<Will[]> {
     return this.prisma.will.findMany({
       where: { testatorId, status },
       orderBy: { createdAt: 'desc' },
@@ -115,9 +111,7 @@ export class WillsRepository {
   // BENEFICIARY ASSIGNMENT OPERATIONS
   // ========================================================================
 
-  async addAssignment(
-    data: WillPrisma.BeneficiaryAssignmentCreateInput
-  ): Promise<Assignment> {
+  async addAssignment(data: WillPrisma.BeneficiaryAssignmentCreateInput): Promise<Assignment> {
     return this.prisma.beneficiaryAssignment.create({ data });
   }
 
@@ -127,9 +121,7 @@ export class WillsRepository {
     });
   }
 
-  async findAssignments(
-    where: WillPrisma.BeneficiaryAssignmentWhereInput
-  ): Promise<Assignment[]> {
+  async findAssignments(where: WillPrisma.BeneficiaryAssignmentWhereInput): Promise<Assignment[]> {
     return this.prisma.beneficiaryAssignment.findMany({ where });
   }
 
@@ -145,9 +137,7 @@ export class WillsRepository {
     });
   }
 
-  async findAssignmentsByBeneficiary(
-    beneficiaryId: string
-  ): Promise<Assignment[]> {
+  async findAssignmentsByBeneficiary(beneficiaryId: string): Promise<Assignment[]> {
     return this.prisma.beneficiaryAssignment.findMany({
       where: { beneficiaryId },
     });
@@ -155,7 +145,7 @@ export class WillsRepository {
 
   async updateAssignment(
     id: string,
-    data: WillPrisma.BeneficiaryAssignmentUpdateInput
+    data: WillPrisma.BeneficiaryAssignmentUpdateInput,
   ): Promise<Assignment> {
     return this.prisma.beneficiaryAssignment.update({
       where: { id },
@@ -164,7 +154,7 @@ export class WillsRepository {
   }
 
   async removeAssignment(
-    where: WillPrisma.BeneficiaryAssignmentWhereUniqueInput
+    where: WillPrisma.BeneficiaryAssignmentWhereUniqueInput,
   ): Promise<Assignment> {
     return this.prisma.beneficiaryAssignment.delete({ where });
   }
@@ -176,11 +166,7 @@ export class WillsRepository {
     return result.count;
   }
 
-  async assignmentExists(
-    willId: string,
-    assetId: string,
-    beneficiaryId: string
-  ): Promise<boolean> {
+  async assignmentExists(willId: string, assetId: string, beneficiaryId: string): Promise<boolean> {
     const count = await this.prisma.beneficiaryAssignment.count({
       where: { willId, assetId, beneficiaryId },
     });

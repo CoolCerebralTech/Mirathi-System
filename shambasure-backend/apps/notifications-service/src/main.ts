@@ -1,14 +1,11 @@
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
 // ============================================================================
 // main.ts - Application Bootstrap
 // ============================================================================
 
 import { NestFactory } from '@nestjs/core';
 import { Reflector } from '@nestjs/core';
-import {
-  ValidationPipe,
-  VersioningType,
-  ClassSerializerInterceptor,
-} from '@nestjs/common';
+import { ValidationPipe, VersioningType, ClassSerializerInterceptor } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { Transport } from '@nestjs/microservices';
@@ -18,7 +15,7 @@ import { NotificationsModule } from './notifications.module';
 
 /**
  * Bootstrap function - Initializes and starts the Notifications microservice
- * 
+ *
  * SETUP STEPS:
  * 1. Create NestJS app with custom logger
  * 2. Connect RabbitMQ microservice transport (event consumer)
@@ -49,18 +46,18 @@ async function bootstrap() {
   // --- Connect RabbitMQ Microservice Transport ---
   // This allows the service to consume events from other services
   const rabbitmqUrl = configService.get('RABBITMQ_URL') || 'amqp://localhost:5672';
-  
+
   app.connectMicroservice({
     transport: Transport.RMQ,
     options: {
       urls: [rabbitmqUrl],
       queue: 'notifications.events',
-      noAck: false,        // Require explicit acknowledgment
-      persistent: true,    // Persist messages to disk
+      noAck: false, // Require explicit acknowledgment
+      persistent: true, // Persist messages to disk
       queueOptions: {
-        durable: true,     // Queue survives broker restart
+        durable: true, // Queue survives broker restart
       },
-      prefetchCount: 1,    // Process 1 message at a time
+      prefetchCount: 1, // Process 1 message at a time
     },
   });
 
@@ -94,7 +91,7 @@ async function bootstrap() {
   // --- API Prefix and Versioning ---
   const globalPrefix = configService.get('GLOBAL_PREFIX') || 'api';
   app.setGlobalPrefix(globalPrefix);
-  
+
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
@@ -105,13 +102,13 @@ async function bootstrap() {
     .setTitle('Shamba Sure - Notifications Service')
     .setDescription(
       'API for notification and template management.\n\n' +
-      '**Features:**\n' +
-      '- Email delivery via SMTP\n' +
-      '- SMS delivery via Africa\'s Talking\n' +
-      '- Template management with Handlebars\n' +
-      '- Event-driven notification triggers\n' +
-      '- Scheduled batch processing\n' +
-      '- Delivery tracking and retry logic'
+        '**Features:**\n' +
+        '- Email delivery via SMTP\n' +
+        "- SMS delivery via Africa's Talking\n" +
+        '- Template management with Handlebars\n' +
+        '- Event-driven notification triggers\n' +
+        '- Scheduled batch processing\n' +
+        '- Delivery tracking and retry logic',
     )
     .setVersion('1.0')
     .addBearerAuth(
@@ -147,12 +144,12 @@ async function bootstrap() {
   // --- Start HTTP Server ---
   const port = configService.get('PORT') || 3004;
   const host = configService.get('HOST') || '0.0.0.0';
-  
+
   await app.listen(port, host);
 
   // --- Startup Logs ---
   const nodeEnv = configService.get('NODE_ENV') || 'development';
-  
+
   logger.log(`🚀 Notifications Service is running`);
   logger.log(`📍 Server: http://localhost:${port}`);
   logger.log(`📚 API Docs: http://localhost:${port}/${globalPrefix}/v1/docs`);

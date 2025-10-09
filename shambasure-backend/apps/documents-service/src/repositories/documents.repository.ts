@@ -1,23 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { 
-  Prisma, 
-  PrismaService, 
-  Document, 
-  DocumentVersion, 
-  DocumentStatus 
-} from '@shamba/database';
+import { Prisma, PrismaService, Document, DocumentVersion, DocumentStatus } from '@shamba/database';
 import { PaginationQueryDto } from '@shamba/common';
 
 /**
  * DocumentsRepository - Pure Data Access Layer for Documents
- * 
+ *
  * ARCHITECTURAL PRINCIPLES:
  * -------------------------
  * 1. NO business logic (file handling, validation, virus scanning)
  * 2. NO domain rules (ownership checks, status transitions)
  * 3. ONLY database queries and transactions
  * 4. Returns raw Prisma types
- * 
+ *
  * The SERVICE layer handles:
  * - File storage/retrieval
  * - Business validation
@@ -77,14 +71,14 @@ export class DocumentsRepository {
    * @throws NotFoundException if document not found
    */
   async findOneOrFail(
-    where: Prisma.DocumentWhereUniqueInput
+    where: Prisma.DocumentWhereUniqueInput,
   ): Promise<Document & { versions: DocumentVersion[] }> {
     const document = await this.prisma.document.findUnique({
       where,
-      include: { 
-        versions: { 
-          orderBy: { versionNumber: 'desc' } 
-        } 
+      include: {
+        versions: {
+          orderBy: { versionNumber: 'desc' },
+        },
       },
     });
 
@@ -101,14 +95,14 @@ export class DocumentsRepository {
    * Returns null if not found
    */
   async findByIdWithVersions(
-    id: string
+    id: string,
   ): Promise<(Document & { versions: DocumentVersion[] }) | null> {
     return this.prisma.document.findUnique({
       where: { id },
-      include: { 
-        versions: { 
-          orderBy: { versionNumber: 'desc' } 
-        } 
+      include: {
+        versions: {
+          orderBy: { versionNumber: 'desc' },
+        },
       },
     });
   }
@@ -216,15 +210,15 @@ export class DocumentsRepository {
    */
   async updateWithVersions(
     id: string,
-    data: Prisma.DocumentUpdateInput
+    data: Prisma.DocumentUpdateInput,
   ): Promise<Document & { versions: DocumentVersion[] }> {
     return this.prisma.document.update({
       where: { id },
       data,
-      include: { 
-        versions: { 
-          orderBy: { versionNumber: 'desc' } 
-        } 
+      include: {
+        versions: {
+          orderBy: { versionNumber: 'desc' },
+        },
       },
     });
   }
@@ -237,19 +231,14 @@ export class DocumentsRepository {
    * Add a new version to an existing document
    * Version number should be calculated by service layer
    */
-  async addVersion(
-    data: Prisma.DocumentVersionUncheckedCreateInput
-  ): Promise<DocumentVersion> {
+  async addVersion(data: Prisma.DocumentVersionUncheckedCreateInput): Promise<DocumentVersion> {
     return this.prisma.documentVersion.create({ data });
   }
 
   /**
    * Get specific version by version number
    */
-  async getVersion(
-    documentId: string,
-    versionNumber: number
-  ): Promise<DocumentVersion | null> {
+  async getVersion(documentId: string, versionNumber: number): Promise<DocumentVersion | null> {
     return this.prisma.documentVersion.findUnique({
       where: {
         documentId_versionNumber: {
@@ -296,10 +285,7 @@ export class DocumentsRepository {
    * Delete specific version
    * NOTE: Should validate this isn't the only version in service layer
    */
-  async deleteVersion(
-    documentId: string,
-    versionNumber: number
-  ): Promise<DocumentVersion> {
+  async deleteVersion(documentId: string, versionNumber: number): Promise<DocumentVersion> {
     return this.prisma.documentVersion.delete({
       where: {
         documentId_versionNumber: {
@@ -356,7 +342,7 @@ export class DocumentsRepository {
       },
     });
 
-    return results.map(r => ({
+    return results.map((r) => ({
       status: r.status,
       count: r._count.id,
     }));

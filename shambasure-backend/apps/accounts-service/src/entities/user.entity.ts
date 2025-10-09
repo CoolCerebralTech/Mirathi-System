@@ -13,36 +13,36 @@ export class ProfileEntity implements Partial<UserProfile> {
   id!: string;
 
   @Expose()
-  @ApiProperty({ 
-    required: false, 
+  @ApiProperty({
+    required: false,
     nullable: true,
-    example: 'Experienced land owner with 20+ years in agriculture' 
+    example: 'Experienced land owner with 20+ years in agriculture',
   })
   bio!: string | null;
 
   @Expose()
-  @ApiProperty({ 
-    required: false, 
+  @ApiProperty({
+    required: false,
     nullable: true,
-    example: '+254712345678' 
+    example: '+254712345678',
   })
   phoneNumber!: string | null;
 
   @Expose()
-  @ApiProperty({ 
-    required: false, 
+  @ApiProperty({
+    required: false,
     nullable: true,
-    type: 'object',
-    example: { street: '123 Main St', city: 'Nairobi', postCode: '00100', country: 'Kenya' }
+    type: Object,
+    example: { street: '123 Main St', city: 'Nairobi', postCode: '00100', country: 'Kenya' },
   })
   address!: Record<string, any> | null;
 
   @Expose()
-  @ApiProperty({ 
-    required: false, 
+  @ApiProperty({
+    required: false,
     nullable: true,
-    type: 'object',
-    example: { fullName: 'Jane Doe', relationship: 'Spouse', phoneNumber: '+254712345679' }
+    type: Object,
+    example: { fullName: 'Jane Doe', relationship: 'Spouse', phoneNumber: '+254712345679' },
   })
   nextOfKin!: Record<string, any> | null;
 
@@ -86,10 +86,10 @@ export class UserEntity implements Omit<PrismaUser, 'password'> {
   lastName!: string;
 
   @Expose()
-  @ApiProperty({ 
+  @ApiProperty({
     enum: UserRole,
     example: UserRole.LAND_OWNER,
-    description: 'User role in the system'
+    description: 'User role in the system',
   })
   role!: UserRole;
 
@@ -105,11 +105,11 @@ export class UserEntity implements Omit<PrismaUser, 'password'> {
   password?: string;
 
   @Expose()
-  @ApiProperty({ 
-    type: () => ProfileEntity, 
+  @ApiProperty({
+    type: () => ProfileEntity,
     required: false,
     nullable: true,
-    description: 'User profile details (optional)'
+    description: 'User profile details (optional)',
   })
   @Type(() => ProfileEntity)
   profile?: ProfileEntity | null;

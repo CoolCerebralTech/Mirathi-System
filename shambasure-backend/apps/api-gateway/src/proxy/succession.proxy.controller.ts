@@ -1,30 +1,25 @@
-import { 
-  All, 
-  Controller, 
-  Req, 
-  Res, 
-  UseGuards,
-  Logger,
-  HttpStatus,
-} from '@nestjs/common';
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+import { All, Controller, Req, Res, UseGuards, Logger, HttpStatus } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@shamba/config';
 import { JwtAuthGuard } from '@shamba/auth';
-import { Request, Response } from 'express';
+import express from 'express';
 import { firstValueFrom, timeout, catchError } from 'rxjs';
 import { AxiosError } from 'axios';
 import { ApiTags, ApiExcludeController } from '@nestjs/swagger';
 
 /**
  * SuccessionProxyController - API Gateway proxy for succession-service
- * 
+ *
  * RESPONSIBILITIES:
  * - Route wills/assets/families requests to succession-service
  * - Handle JWT authentication at gateway level
  * - Forward all HTTP methods and request bodies
  * - Handle service unavailability gracefully
  * - Provide circuit breaker behavior
- * 
+ *
  * ROUTES PROXIED:
  * - POST /wills - Create will
  * - GET /wills - List wills
@@ -34,13 +29,13 @@ import { ApiTags, ApiExcludeController } from '@nestjs/swagger';
  * - POST /wills/:id/revoke - Revoke will
  * - POST /wills/:id/assignments - Add beneficiary
  * - DELETE /wills/:id - Delete will
- * 
+ *
  * - POST /assets - Create asset
  * - GET /assets - List assets
  * - GET /assets/stats - Get statistics
  * - PATCH /assets/:id - Update asset
  * - DELETE /assets/:id - Delete asset
- * 
+ *
  * - POST /families - Create family
  * - GET /families - List families
  * - POST /families/:id/members - Add member
@@ -80,7 +75,7 @@ export class SuccessionProxyController {
    * Handles all HTTP methods for wills, assets, and families
    */
   @All('*')
-  async proxy(@Req() req: Request, @Res() res: Response): Promise<void> {
+  async proxy(@Req() req: express.Request, @Res() res: express.Response): Promise<void> {
     const { method, originalUrl, headers, body } = req;
     const startTime = Date.now();
     const context = `${method} ${originalUrl}`;
@@ -96,29 +91,28 @@ export class SuccessionProxyController {
 
       // Make request to succession-service with timeout
       const response = await firstValueFrom(
-        this.httpService.request({
-          method,
-          url: targetUrl,
-          headers: headersToForward,
-          data: body,
-          validateStatus: () => true, // Accept all status codes
-          timeout: this.requestTimeout,
-        }).pipe(
-          timeout(this.requestTimeout),
-          catchError((error) => {
-            throw error;
-          }),
-        ),
+        this.httpService
+          .request({
+            method,
+            url: targetUrl,
+            headers: headersToForward,
+            data: body,
+            validateStatus: () => true, // Accept all status codes
+            timeout: this.requestTimeout,
+          })
+          .pipe(
+            timeout(this.requestTimeout),
+            catchError((error) => {
+              throw error;
+            }),
+          ),
       );
 
       const duration = Date.now() - startTime;
-      this.logger.debug(
-        `Proxy response: ${context} - ${response.status} (${duration}ms)`
-      );
+      this.logger.debug(`Proxy response: ${context} - ${response.status} (${duration}ms)`);
 
       // Forward response to client
       res.status(response.status).json(response.data);
-
     } catch (error) {
       const duration = Date.now() - startTime;
       this.handleProxyError(error, res, context, duration, originalUrl);
@@ -173,7 +167,7 @@ export class SuccessionProxyController {
    */
   private handleProxyError(
     error: any,
-    res: Response,
+    res: express.Response,
     context: string,
     duration: number,
     originalUrl: string,
@@ -182,7 +176,7 @@ export class SuccessionProxyController {
     if (error instanceof AxiosError && error.response) {
       this.logger.warn(
         `Proxy error: ${context} - ${error.response.status} (${duration}ms)`,
-        error.message
+        error.message,
       );
 
       res.status(error.response.status).json(error.response.data);
@@ -191,9 +185,7 @@ export class SuccessionProxyController {
 
     // Timeout error
     if (error.name === 'TimeoutError' || error.code === 'ECONNABORTED') {
-      this.logger.error(
-        `Proxy timeout: ${context} (${duration}ms) - Service timeout exceeded`
-      );
+      this.logger.error(`Proxy timeout: ${context} (${duration}ms) - Service timeout exceeded`);
 
       res.status(HttpStatus.GATEWAY_TIMEOUT).json({
         statusCode: HttpStatus.GATEWAY_TIMEOUT,
@@ -211,7 +203,7 @@ export class SuccessionProxyController {
     ) {
       this.logger.error(
         `Proxy connection failed: ${context} - Succession service unreachable`,
-        error.message
+        error.message,
       );
 
       res.status(HttpStatus.SERVICE_UNAVAILABLE).json({
@@ -229,7 +221,7 @@ export class SuccessionProxyController {
     // Unknown error
     this.logger.error(
       `Proxy unknown error: ${context} (${duration}ms)`,
-      error.stack || error.message
+      error.stack || error.message,
     );
 
     res.status(HttpStatus.BAD_GATEWAY).json({

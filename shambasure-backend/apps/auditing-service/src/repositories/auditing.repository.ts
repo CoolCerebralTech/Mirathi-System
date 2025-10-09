@@ -1,4 +1,4 @@
-
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 // ============================================================================
 // auditing.repository.ts - Audit Log Data Access Layer
 // ============================================================================
@@ -9,13 +9,13 @@ import { PaginationQueryDto } from '@shamba/common';
 
 /**
  * AuditingRepository - Pure data access for audit logs
- * 
+ *
  * RESPONSIBILITIES:
  * - Create immutable audit log entries
  * - Query audit logs with filters
  * - Aggregate statistics
  * - Cleanup old logs (data retention)
- * 
+ *
  * ARCHITECTURAL NOTE:
  * Audit logs are append-only. There are NO update or delete (by ID) operations.
  * Only bulk deletion for data retention policies.
@@ -84,12 +84,15 @@ export class AuditingRepository {
     endDate: Date,
     pagination: PaginationQueryDto,
   ): Promise<{ logs: AuditLog[]; total: number }> {
-    return this.findMany({
-      timestamp: {
-        gte: startDate,
-        lte: endDate,
+    return this.findMany(
+      {
+        timestamp: {
+          gte: startDate,
+          lte: endDate,
+        },
       },
-    }, pagination);
+      pagination,
+    );
   }
 
   // ========================================================================
@@ -125,7 +128,7 @@ export class AuditingRepository {
     });
 
     // Filter out null actorIds (system events)
-    return result.filter(r => r.actorId !== null).length;
+    return result.filter((r) => r.actorId !== null).length;
   }
 
   /**
@@ -153,15 +156,18 @@ export class AuditingRepository {
     });
 
     // Group by day in application layer (Prisma doesn't support DATE() grouping)
-    const groupedByDay = logs.reduce((acc, log) => {
-      const day = log.timestamp.toISOString().split('T')[0];
-      if (!acc[day]) {
-        acc[day] = { date: day, count: 0, actions: {} };
-      }
-      acc[day].count++;
-      acc[day].actions[log.action] = (acc[day].actions[log.action] || 0) + 1;
-      return acc;
-    }, {} as Record<string, { date: string; count: number; actions: Record<string, number> }>);
+    const groupedByDay = logs.reduce(
+      (acc, log) => {
+        const day = log.timestamp.toISOString().split('T')[0];
+        if (!acc[day]) {
+          acc[day] = { date: day, count: 0, actions: {} };
+        }
+        acc[day].count++;
+        acc[day].actions[log.action] = (acc[day].actions[log.action] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, { date: string; count: number; actions: Record<string, number> }>,
+    );
 
     return Object.values(groupedByDay);
   }
@@ -170,60 +176,60 @@ export class AuditingRepository {
    * Get most active users
    */
   async getMostActiveUsers(
-  limit: number = 10,
-  arg2?: Date | Prisma.AuditLogWhereInput,
-  arg3?: Date | Prisma.AuditLogWhereInput,
-  arg4?: Prisma.AuditLogWhereInput,
-): Promise<{ actorId: string; eventCount: number }[]> {
-  // Normalize arguments into startDate, endDate, where
-  let startDate: Date | undefined;
-  let endDate: Date | undefined;
-  let where: Prisma.AuditLogWhereInput | undefined;
+    limit: number = 10,
+    arg2?: Date | Prisma.AuditLogWhereInput,
+    arg3?: Date | Prisma.AuditLogWhereInput,
+    arg4?: Prisma.AuditLogWhereInput,
+  ): Promise<{ actorId: string; eventCount: number }[]> {
+    // Normalize arguments into startDate, endDate, where
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+    let where: Prisma.AuditLogWhereInput | undefined;
 
-  if (arg2 instanceof Date) {
-    // Called as getMostActiveUsers(limit, startDate, ...)
-    startDate = arg2;
-    if (arg3 instanceof Date) {
-      // Called as getMostActiveUsers(limit, startDate, endDate, maybeWhere)
-      endDate = arg3;
-      where = arg4;
+    if (arg2 instanceof Date) {
+      // Called as getMostActiveUsers(limit, startDate, ...)
+      startDate = arg2;
+      if (arg3 instanceof Date) {
+        // Called as getMostActiveUsers(limit, startDate, endDate, maybeWhere)
+        endDate = arg3;
+        where = arg4;
+      } else {
+        // Called as getMostActiveUsers(limit, startDate, where)
+        where = arg3;
+      }
     } else {
-      // Called as getMostActiveUsers(limit, startDate, where)
-      where = arg3 as Prisma.AuditLogWhereInput | undefined;
+      // Called as getMostActiveUsers(limit, where)
+      where = arg2;
     }
-  } else {
-    // Called as getMostActiveUsers(limit, where)
-    where = arg2 as Prisma.AuditLogWhereInput | undefined;
+
+    // Build date filter if dates provided
+    const dateFilter: Prisma.AuditLogWhereInput | undefined =
+      startDate && endDate
+        ? { timestamp: { gte: startDate, lte: endDate } }
+        : startDate
+          ? { timestamp: { gte: startDate } }
+          : undefined;
+
+    // Merge filters (ensure actorId is not null)
+    const finalWhere: Prisma.AuditLogWhereInput = {
+      ...(where ?? {}),
+      ...(dateFilter ?? {}),
+      actorId: { not: null },
+    };
+
+    const results = await this.prisma.auditLog.groupBy({
+      by: ['actorId'],
+      where: finalWhere,
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
+      take: limit,
+    });
+
+    return results.map((r) => ({
+      actorId: r.actorId!, // safe because we filtered out nulls
+      eventCount: r._count.id,
+    }));
   }
-
-  // Build date filter if dates provided
-  const dateFilter: Prisma.AuditLogWhereInput | undefined =
-    startDate && endDate
-      ? { timestamp: { gte: startDate, lte: endDate } }
-      : startDate
-      ? { timestamp: { gte: startDate } }
-      : undefined;
-
-  // Merge filters (ensure actorId is not null)
-  const finalWhere: Prisma.AuditLogWhereInput = {
-    ...(where ?? {}),
-    ...(dateFilter ?? {}),
-    actorId: { not: null },
-  };
-
-  const results = await this.prisma.auditLog.groupBy({
-    by: ['actorId'],
-    where: finalWhere,
-    _count: { id: true },
-    orderBy: { _count: { id: 'desc' } },
-    take: limit,
-  });
-
-  return results.map(r => ({
-    actorId: r.actorId!, // safe because we filtered out nulls
-    eventCount: r._count.id,
-  }));
-}
 
   /**
    * Get most common actions
@@ -243,7 +249,7 @@ export class AuditingRepository {
       take: limit,
     });
 
-    return results.map(r => ({
+    return results.map((r) => ({
       action: r.action,
       count: r._count.id,
     }));
@@ -262,12 +268,15 @@ export class AuditingRepository {
     value: any,
     pagination: PaginationQueryDto,
   ): Promise<{ logs: AuditLog[]; total: number }> {
-    return this.findMany({
-      payload: {
-        path: [key],
-        equals: value,
+    return this.findMany(
+      {
+        payload: {
+          path: [key],
+          equals: value,
+        },
       },
-    }, pagination);
+      pagination,
+    );
   }
 
   // ========================================================================

@@ -4,20 +4,20 @@ import { UserQueryDto } from '@shamba/common';
 
 /**
  * UsersRepository - Pure Data Access Layer
- * 
+ *
  * ARCHITECTURAL PRINCIPLES:
  * -------------------------
  * 1. NO business logic (validation, password hashing, token generation)
  * 2. NO domain rules (checking duplicates, enforcing constraints)
  * 3. ONLY database queries and transactions
  * 4. Returns raw Prisma types (User, UserProfile)
- * 
+ *
  * The SERVICE layer is responsible for:
  * - Business logic and validation
  * - Password hashing and security
  * - Duplicate checks and domain rules
  * - Event publishing
- * 
+ *
  * This separation enables:
  * - Easy testing (mock repository, not database)
  * - Clear responsibilities
@@ -48,7 +48,7 @@ export class UsersRepository {
    */
   async createWithProfile(
     userData: Omit<Prisma.UserCreateInput, 'profile'>,
-    profileData?: Omit<Prisma.UserProfileCreateInput, 'user'>
+    profileData?: Omit<Prisma.UserProfileCreateInput, 'user'>,
   ): Promise<User & { profile: UserProfile | null }> {
     return this.prisma.user.create({
       data: {
@@ -90,7 +90,9 @@ export class UsersRepository {
   /**
    * Find user by email with profile included (returns null if not found)
    */
-  async findByEmailWithProfile(email: string): Promise<(User & { profile: UserProfile | null }) | null> {
+  async findByEmailWithProfile(
+    email: string,
+  ): Promise<(User & { profile: UserProfile | null }) | null> {
     return this.prisma.user.findUnique({
       where: { email },
       include: { profile: true },
@@ -115,7 +117,7 @@ export class UsersRepository {
    * @throws NotFoundException if user not found
    */
   async findOneOrFailWithProfile(
-    where: Prisma.UserWhereUniqueInput
+    where: Prisma.UserWhereUniqueInput,
   ): Promise<User & { profile: UserProfile | null }> {
     const user = await this.prisma.user.findUnique({
       where,
@@ -202,7 +204,7 @@ export class UsersRepository {
    */
   async updateWithProfile(
     id: string,
-    data: Prisma.UserUpdateInput
+    data: Prisma.UserUpdateInput,
   ): Promise<User & { profile: UserProfile | null }> {
     return this.prisma.user.update({
       where: { id },

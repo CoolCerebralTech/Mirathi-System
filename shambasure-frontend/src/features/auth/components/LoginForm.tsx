@@ -7,7 +7,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Mail, Lock } from 'lucide-react';
 
-import { LoginSchema, type LoginInput } from '../../../types/schemas';
+import { LoginSchema, type LoginInput } from '../../../types';
 import { useLogin } from '../auth.api';
 import { toast } from '../../../components/common/Toaster';
 import { extractErrorMessage } from '../../../api/client';

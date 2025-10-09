@@ -2,10 +2,10 @@
 // events.handler.ts - Universal Event Consumer
 // ============================================================================
 
-import { Injectable as EventInjectable, Logger as EventLogger } from '@nestjs/common';
+import { Logger as EventLogger } from '@nestjs/common';
 import { EventPattern as EventPatternDecorator } from '@nestjs/microservices';
 import { Controller as EventController } from '@nestjs/common';
-import { ShambaEvent as EventShambaEvent } from '@shamba/common';
+import * as common from '@shamba/common';
 import { AuditingService as EventAuditingService } from '../services/auditing.service';
 
 /**
@@ -23,16 +23,13 @@ export class EventsHandler {
    * Listens to all events using wildcard pattern
    */
   @EventPatternDecorator('*')
-  async handleAllEvents(event: EventShambaEvent): Promise<void> {
+  async handleAllEvents(event: common.ShambaEvent): Promise<void> {
     this.logger.debug(`Received event: ${event.type}`);
 
     try {
       await this.auditingService.createLogFromEvent(event);
     } catch (error) {
-      this.logger.error(
-        `Failed to create audit log for event ${event.type}`,
-        error
-      );
+      this.logger.error(`Failed to create audit log for event ${event.type}`, error);
     }
   }
 }
