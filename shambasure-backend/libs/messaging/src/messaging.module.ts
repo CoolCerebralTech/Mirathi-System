@@ -27,10 +27,11 @@ export class MessagingModule {
     const rabbitMqClientProvider: Provider = {
       provide: 'RABBITMQ_CLIENT',
       useFactory: (configService: ConfigService) => {
+        // CORRECTED: The 'transport' property now goes INSIDE the 'options' object.
         return ClientProxyFactory.create({
-          transport: Transport.RMQ,
           options: {
-            urls: [configService.get('RABBITMQ_URL')],
+            transport: Transport.RMQ, // <-- MOVED THIS LINE
+            urls: [configService.get('RABBITMQ_URI')],
             exchange: Exchange.SHAMBA_EVENTS,
             exchangeType: 'topic',
             // The queue name provided by the specific microservice

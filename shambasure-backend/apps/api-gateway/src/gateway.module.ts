@@ -9,6 +9,7 @@ import { AuthModule } from '@shamba/auth';
 import { ObservabilityModule } from '@shamba/observability';
 
 import { HealthController } from './controllers/health.controller';
+import { HealthService } from './health/health.service'; // <-- ADD THIS IMPORT
 import { AccountsProxyController } from './proxy/accounts.proxy.controller';
 import { DocumentsProxyController } from './proxy/documents.proxy.controller';
 import { SuccessionProxyController } from './proxy/succession.proxy.controller';
@@ -60,6 +61,12 @@ import { SuccessionProxyController } from './proxy/succession.proxy.controller';
     AccountsProxyController, // /auth, /profile, /users
     DocumentsProxyController, // /documents
     SuccessionProxyController, // /wills, /assets, /families
+  ],
+
+  // --- Providers ---
+  // Services used within this module (e.g., by the controllers)
+  providers: [
+    HealthService, // <-- ADD THIS LINE
   ],
 })
 export class GatewayModule {}
