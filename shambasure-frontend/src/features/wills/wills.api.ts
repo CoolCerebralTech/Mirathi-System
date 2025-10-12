@@ -1,6 +1,6 @@
 // FILE: src/features/wills/wills.api.ts
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, extractErrorMessage } from '../../api/client';
 import { useAuthStore } from '../../store/auth.store';
 import type {
@@ -8,7 +8,6 @@ import type {
   CreateWillInput,
   UpdateWillInput,
   AssignBeneficiaryInput,
-  UpdateBeneficiaryAssignmentInput,
   WillQuery,
   PaginatedResponse,
 } from '../../types';
@@ -23,7 +22,7 @@ export const willKeys = {
   list: (filters: WillQuery) => [...willKeys.lists(), filters] as const,
   details: () => [...willKeys.all, 'detail'] as const,
   detail: (id: string) => [...willKeys.details(), id] as const,
-  beneficiaries: (willId: string) => [...willKeys.detail(willId), 'beneficiaries'] as const,
+  assignments: (willId: string) => [...willKeys.detail(willId), 'assignments'] as const,
 };
 
 // ============================================================================
@@ -31,63 +30,68 @@ export const willKeys = {
 // ============================================================================
 
 const getWills = async (params: WillQuery): Promise<PaginatedResponse<Will>> => {
-  const response = await apiClient.get('/succession/wills', { params });
+  const response = await apiClient.get('/wills', { params });
   return response.data;
 };
 
 const getWillById = async (willId: string): Promise<Will> => {
-  const response = await apiClient.get(`/succession/wills/${willId}`);
+  const response = await apiClient.get(`/wills/${willId}`);
   return response.data;
 };
 
 const createWill = async (data: CreateWillInput): Promise<Will> => {
-  const response = await apiClient.post('/succession/wills', data);
+  const response = await apiClient.post('/wills', data);
   return response.data;
 };
 
-const updateWill = async (params: { willId: string; data: UpdateWillInput }): Promise<Will> => {
-  const response = await apiClient.patch(`/succession/wills/${params.willId}`, params.data);
+const updateWill = async (params: {
+  willId: string;
+  data: UpdateWillInput;
+}): Promise<Will> => {
+  const response = await apiClient.patch(`/wills/${params.willId}`, params.data);
   return response.data;
 };
 
 const deleteWill = async (willId: string): Promise<void> => {
-  await apiClient.delete(`/succession/wills/${willId}`);
+  await apiClient.delete(`/wills/${willId}`);
 };
 
-const assignBeneficiary = async (params: {
+const addBeneficiaryAssignment = async (params: {
   willId: string;
   data: AssignBeneficiaryInput;
+}): Promise<Will> => {
+  const response = await apiClient.post(
+    `/wills/${params.willId}/beneficiaries`,
+    params.data
+  );
+  return response.data;
+};
+
+const removeBeneficiaryAssignment = async (params: {
+  willId: string;
+  assignmentId: string;
 }): Promise<void> => {
-  await apiClient.post(`/succession/wills/${params.willId}/beneficiaries`, params.data);
+  await apiClient.delete(`/wills/${params.willId}/beneficiaries/${params.assignmentId}`);
 };
 
 const updateBeneficiaryAssignment = async (params: {
   willId: string;
   assignmentId: string;
-  data: UpdateBeneficiaryAssignmentInput;
-}): Promise<void> => {
-  await apiClient.patch(
-    `/succession/wills/${params.willId}/beneficiaries/${params.assignmentId}`,
-    params.data
+  sharePercent?: number;
+}): Promise<Will> => {
+  const response = await apiClient.patch(
+    `/wills/${params.willId}/beneficiaries/${params.assignmentId}`,
+    { sharePercent: params.sharePercent }
   );
-};
-
-const removeBeneficiary = async (params: {
-  willId: string;
-  assignmentId: string;
-}): Promise<void> => {
-  await apiClient.delete(`/succession/wills/${params.willId}/beneficiaries/${params.assignmentId}`);
+  return response.data;
 };
 
 // ============================================================================
-// REACT QUERY HOOKS - WILLS
+// REACT QUERY HOOKS
 // ============================================================================
 
 /**
  * Hook to fetch paginated list of wills
- * 
- * @example
- * const { data: willsPage, isLoading } = useWills({ page: 1, status: 'ACTIVE' });
  */
 export const useWills = (params: WillQuery = {}) => {
   const status = useAuthStore((state) => state.status);
@@ -96,15 +100,13 @@ export const useWills = (params: WillQuery = {}) => {
     queryKey: willKeys.list(params),
     queryFn: () => getWills(params),
     enabled: status === 'authenticated',
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
+    keepPreviousData: true,
   });
 };
 
 /**
- * Hook to fetch a single will by ID with full details
- * 
- * @example
- * const { data: will, isLoading } = useWill(willId);
+ * Hook to fetch a single will by ID
  */
 export const useWill = (willId: string) => {
   const status = useAuthStore((state) => state.status);
@@ -119,10 +121,6 @@ export const useWill = (willId: string) => {
 
 /**
  * Hook to create a new will
- * 
- * @example
- * const createMutation = useCreateWill();
- * createMutation.mutate({ title: 'My Will', status: 'DRAFT' });
  */
 export const useCreateWill = () => {
   const queryClient = useQueryClient();
@@ -140,10 +138,6 @@ export const useCreateWill = () => {
 
 /**
  * Hook to update an existing will
- * 
- * @example
- * const updateMutation = useUpdateWill();
- * updateMutation.mutate({ willId: '...', data: { title: 'Updated Title' } });
  */
 export const useUpdateWill = () => {
   const queryClient = useQueryClient();
@@ -162,10 +156,6 @@ export const useUpdateWill = () => {
 
 /**
  * Hook to delete a will
- * 
- * @example
- * const deleteMutation = useDeleteWill();
- * deleteMutation.mutate(willId);
  */
 export const useDeleteWill = () => {
   const queryClient = useQueryClient();
@@ -181,45 +171,44 @@ export const useDeleteWill = () => {
   });
 };
 
-// ============================================================================
-// REACT QUERY HOOKS - BENEFICIARIES
-// ============================================================================
-
 /**
- * Hook to assign a beneficiary to an asset in a will
- * 
- * @example
- * const assignMutation = useAssignBeneficiary();
- * assignMutation.mutate({ 
- *   willId: '...', 
- *   data: { assetId: '...', beneficiaryId: '...', sharePercent: 50 } 
- * });
+ * Hook to add a beneficiary assignment to a will
  */
-export const useAssignBeneficiary = () => {
+export const useAddBeneficiaryAssignment = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: assignBeneficiary,
+    mutationFn: addBeneficiaryAssignment,
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: willKeys.detail(variables.willId) });
-      queryClient.invalidateQueries({ queryKey: willKeys.beneficiaries(variables.willId) });
+      queryClient.invalidateQueries({ queryKey: willKeys.assignments(variables.willId) });
     },
     onError: (error) => {
-      console.error('Assign beneficiary failed:', extractErrorMessage(error));
+      console.error('Add beneficiary assignment failed:', extractErrorMessage(error));
     },
   });
 };
 
 /**
- * Hook to update a beneficiary assignment (e.g., change share percentage)
- * 
- * @example
- * const updateMutation = useUpdateBeneficiaryAssignment();
- * updateMutation.mutate({ 
- *   willId: '...', 
- *   assignmentId: '...', 
- *   data: { sharePercent: 75 } 
- * });
+ * Hook to remove a beneficiary assignment from a will
+ */
+export const useRemoveBeneficiaryAssignment = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: removeBeneficiaryAssignment,
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: willKeys.detail(variables.willId) });
+      queryClient.invalidateQueries({ queryKey: willKeys.assignments(variables.willId) });
+    },
+    onError: (error) => {
+      console.error('Remove beneficiary assignment failed:', extractErrorMessage(error));
+    },
+  });
+};
+
+/**
+ * Hook to update a beneficiary assignment
  */
 export const useUpdateBeneficiaryAssignment = () => {
   const queryClient = useQueryClient();
@@ -228,32 +217,10 @@ export const useUpdateBeneficiaryAssignment = () => {
     mutationFn: updateBeneficiaryAssignment,
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: willKeys.detail(variables.willId) });
-      queryClient.invalidateQueries({ queryKey: willKeys.beneficiaries(variables.willId) });
+      queryClient.invalidateQueries({ queryKey: willKeys.assignments(variables.willId) });
     },
     onError: (error) => {
       console.error('Update beneficiary assignment failed:', extractErrorMessage(error));
-    },
-  });
-};
-
-/**
- * Hook to remove a beneficiary from a will
- * 
- * @example
- * const removeMutation = useRemoveBeneficiary();
- * removeMutation.mutate({ willId: '...', assignmentId: '...' });
- */
-export const useRemoveBeneficiary = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: removeBeneficiary,
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: willKeys.detail(variables.willId) });
-      queryClient.invalidateQueries({ queryKey: willKeys.beneficiaries(variables.willId) });
-    },
-    onError: (error) => {
-      console.error('Remove beneficiary failed:', extractErrorMessage(error));
     },
   });
 };

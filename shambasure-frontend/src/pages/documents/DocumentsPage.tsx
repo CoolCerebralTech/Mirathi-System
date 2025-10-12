@@ -1,21 +1,22 @@
 // FILE: src/pages/DocumentsPage.tsx
 
-import { useState } from 'react';
-import { PageHeader } from '../components/common/PageHeader';
-import { DataTable } from '../components/ui/DataTable';
-import { Button } from '../components/ui/Button';
-import { UploadCloud } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { Upload, FileText, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 
-import { useMyDocuments, useDeleteDocument, useDownloadDocument } from '../features/documents/documents.api';
-import { getDocumentColumns } from '../features/documents/components/DocumentsTable';
-import { DocumentUploader } from '../features/documents/components/DocumentUploader';
-
+import { PageHeader } from '../../components/common/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { DataTable } from '../../components/ui/DataTable'; // Assuming you have a generic DataTable component
+import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import {
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalTitle,
-} from '../components/common/Modal';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../../components/ui/Dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,89 +26,121 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../components/common/AlertDialog';
-import { toast } from '../hooks/useToast';
+} from '../../components/ui/AlertDialog';
 
+import { getDocumentColumns } from '../../features/documents/components/DocumentsTable';
+import { DocumentUploader } from '../../features/documents/components/DocumentUploader';
+import { useDocuments, useDeleteDocument } from '../../features/documents/documents.api';
+import { Document } from '../../types';
 
 export function DocumentsPage() {
-  const { data: documentsData, isLoading } = useMyDocuments();
-  const deleteDocumentMutation = useDeleteDocument();
-  const downloadDocumentMutation = useDownloadDocument();
+  const { t } = useTranslation(['documents', 'common']);
+  const navigate = useNavigate();
 
-  // State for controlling the Upload modal
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // State for controlling the Delete confirmation dialog
-  const [docToDelete, setDocToDelete] = useState<string | null>(null);
+  // State for controlling modals
+  const [isUploaderOpen, setIsUploaderOpen] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<Document | null>(null);
 
-  const handleDelete = (docId: string) => {
-    deleteDocumentMutation.mutate(docId, {
+  // Data Fetching
+  const documentsQuery = useDocuments(); // Add filters/pagination state here later
+  const deleteMutation = useDeleteDocument();
+
+  // Memoize columns to prevent re-calculation on every render. This is a critical performance optimization.
+  const columns = useMemo(() => getDocumentColumns({
+    onDelete: (docId) => {
+      const doc = documentsQuery.data?.find(d => d.id === docId);
+      if (doc) setDocToDelete(doc);
+    },
+    onView: (docId) => navigate(`/dashboard/documents/${docId}`),
+    // You can add other handlers like onEdit, onShare here.
+  }), [documentsQuery.data, navigate]);
+
+  const handleDeleteConfirm = () => {
+    if (!docToDelete) return;
+    deleteMutation.mutate(docToDelete.id, {
       onSuccess: () => {
-        toast.success('Document deleted successfully.');
-        setDocToDelete(null); // Close the dialog
+        toast.success(t('documents:delete_success', { filename: docToDelete.filename }));
+        setDocToDelete(null);
       },
-      onError: (error: any) => {
-        toast.error('Deletion Failed', { description: error.message });
-      }
+      onError: (error) => {
+        toast.error(t('documents:delete_failed'), { description: error.message });
+      },
     });
   };
   
-  const handleDownload = (docId: string) => {
-      downloadDocumentMutation.mutate(docId, {
-          onError: (error: any) => {
-              toast.error('Download Failed', { description: error.message });
-          }
-      });
+  const renderContent = () => {
+    if (documentsQuery.isLoading) {
+      return (
+        <div className="flex h-64 items-center justify-center">
+          <LoadingSpinner size="lg" />
+        </div>
+      );
+    }
+
+    if (documentsQuery.isError) {
+      return (
+        <div className="text-center text-destructive">
+          <AlertTriangle className="mx-auto h-8 w-8" />
+          <p>{t('common:error_loading_data')}</p>
+        </div>
+      );
+    }
+    
+    if (!documentsQuery.data || documentsQuery.data.length === 0) {
+      return (
+        <div className="text-center py-16 border-2 border-dashed rounded-lg">
+           <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+           <h3 className="mt-4 text-lg font-medium">{t('documents:no_documents_title')}</h3>
+           <p className="mt-1 text-sm text-muted-foreground">{t('documents:no_documents_prompt')}</p>
+           <Button onClick={() => setIsUploaderOpen(true)} className="mt-6">
+              <Upload className="mr-2 h-4 w-4" />
+              {t('documents:upload_first_document')}
+           </Button>
+        </div>
+      );
+    }
+    
+    return <DataTable columns={columns} data={documentsQuery.data} />;
   };
-
-  const columns = React.useMemo(() => getDocumentColumns(handleDownload, setDocToDelete), []);
-
-  const documents = documentsData?.data || [];
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="My Documents"
-        description="Your secure vault for all important documents like title deeds, IDs, and more."
-        actions={
-          <Button onClick={() => setIsModalOpen(true)}>
-            <UploadCloud className="mr-2 h-4 w-4" />
-            Upload Document
-          </Button>
-        }
-      />
+        title={t('documents:title')}
+        description={t('documents:description')}
+      >
+        <Button onClick={() => setIsUploaderOpen(true)}>
+          <Upload className="mr-2 h-4 w-4" />
+          {t('documents:upload_document')}
+        </Button>
+      </PageHeader>
 
-      <DataTable
-        columns={columns}
-        data={documents}
-        isLoading={isLoading}
-      />
+      {renderContent()}
 
-      {/* --- Modals and Dialogs --- */}
+      {/* Upload Document Dialog */}
+      <Dialog open={isUploaderOpen} onOpenChange={setIsUploaderOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('documents:upload_new_document')}</DialogTitle>
+            <DialogDescription>{t('documents:upload_prompt')}</DialogDescription>
+          </DialogHeader>
+          <DocumentUploader onSuccess={() => setIsUploaderOpen(false)} />
+        </DialogContent>
+      </Dialog>
       
-      {/* Upload Document Modal */}
-      <Modal open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <ModalContent>
-          <ModalHeader>
-            <ModalTitle>Upload a New Document</ModalTitle>
-          </ModalHeader>
-          <DocumentUploader onSuccess={() => setIsModalOpen(false)} />
-        </ModalContent>
-      </Modal>
-
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!docToDelete} onOpenChange={() => setDocToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>{t('common:are_you_sure')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the document. This action cannot be undone.
+              {t('documents:delete_confirm_message', { filename: docToDelete?.filename })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => handleDelete(docToDelete!)}>
-              Yes, Delete Document
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} disabled={deleteMutation.isPending}>
+              {deleteMutation.isPending ? t('common:deleting') : t('common:delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

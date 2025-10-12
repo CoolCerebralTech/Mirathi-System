@@ -1,16 +1,59 @@
-// FILE: src/i18n/locales/sw/documents.json
-
 {
-  "title": "Hati",
-  "my_documents": "Hati Zangu",
-  "upload_document": "Pakia Hati",
-  "document_name": "Jina la Hati",
-  "document_type": "Aina ya Hati",
-  "document_status": "Hali ya Hati",
-  "pending_verification": "Inasubiri Uthibitisho",
+  "my_documents": "Nyaraka Zangu",
+  "my_documents_subtitle": "Hazina yako salama ya nyaraka muhimu kama hati za ardhi, vitambulisho, na zaidi",
+  
+  "upload_document": "Pakia Nyaraka",
+  "upload_document_description": "Pakia nyaraka mpya kwenye hazina yako salama",
+  "upload_success": "Nyaraka imepakiwa",
+  "download_started": "Kupakua kumeanza",
+  "delete_success": "Nyaraka imefutwa",
+  "rename_success": "Jina la nyaraka limebadilishwa",
+  "version_added_success": "Toleo jipya limeongezwa",
+  
+  "drag_drop_or_click": "Kokota na udondoshe faili hapa, au bonyeza kuchagua",
+  "drop_file_here": "Dondosha faili hapa",
+  "supported_formats": "Muundo unaotumika",
+  "description_optional": "Maelezo (Si lazima)",
+  "description_placeholder": "Ongeza maelezo kuhusu nyaraka hii...",
+  "upload": "Pakia",
+  "uploaded": "Imepakiwa",
+  
+  "filters": "Chuja",
+  "filter_documents_description": "Chuja nyaraka zako kwa hali",
+  "all_statuses": "Hali Zote",
+  "pending": "Inasubiri Ukaguzi",
   "verified": "Imethibitishwa",
   "rejected": "Imekataliwa",
-  "upload_success": "Hati imepakiwa kwa mafanikio",
-  "verification_pending": "Hati inasubiri uthibitisho",
-  "no_documents": "Hakuna hati zilizopatikana. Pakia hati yako ya kwanza kuanza."
+  "per_page": "kwa ukurasa",
+  
+  "current_version": "Toleo la Sasa",
+  "add_new_version": "Ongeza Toleo Jipya",
+  "upload_new_version": "Pakia Toleo Jipya",
+  "select_file": "Chagua Faili",
+  "selected": "Imechaguliwa",
+  "change_note": "Kumbukumbu ya Mabadiliko",
+  "change_note_placeholder": "Nini kimebadilika katika toleo hili?",
+  "upload_version": "Pakia Toleo",
+  "version_history": "Historia ya Matoleo",
+  "version_history_description": "Tazama na simamia matoleo yote ya nyaraka hii",
+  "download": "Pakua",
+  
+  "rename_document": "Badilisha Jina la Nyaraka",
+  "rename_document_description": "Badilisha jina la faili ya nyaraka yako",
+  "filename": "Jina la Faili",
+  "filename_placeholder": "Ingiza jina jipya la faili...",
+  
+  "confirm_delete_title": "Futa Nyaraka",
+  "confirm_delete_message": "Una uhakika unataka kufuta \"{{name}}\"? Kitendo hiki hakiwezi kufutwa.",
+  
+  "status_pending": "Inasubiri Uthibitisho",
+  "status_verified": "Imethibitishwa",
+  "status_rejected": "Imekataliwa",
+  
+  "no_documents": "Hakuna nyaraka bado",
+  "no_documents_description": "Pakia nyaraka yako ya kwanza kuanza",
+  
+  "file_too_large": "Faili ni kubwa sana",
+  "invalid_file_type": "Aina ya faili si sahihi",
+  "upload_failed": "Upakiaji umeshindwa"
 }

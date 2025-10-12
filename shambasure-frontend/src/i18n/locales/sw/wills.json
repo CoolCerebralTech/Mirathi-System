@@ -1,23 +1,75 @@
-// FILE: src/i18n/locales/sw/wills.json
-
 {
-  "title": "Wosia",
-  "my_wills": "Wosia Wangu",
+  "my_wills": "Wosia Zangu",
+  "my_wills_subtitle": "Unda na simamia nyaraka za mpango wa mali yako",
+  
   "create_will": "Unda Wosia",
   "edit_will": "Hariri Wosia",
   "delete_will": "Futa Wosia",
-  "will_title": "Kichwa cha Wosia",
-  "will_status": "Hali ya Wosia",
+  "view_details": "Tazama Maelezo",
+  
+  "create_will_description": "Unda wosia mpya kupanga urithi wa mali yako",
+  "edit_will_description": "Sasisha taarifa na hali ya wosia wako",
+  "create_will_info": "Anza kwa kutoa jina la wosia wako. Unaweza kuteua warithiwa baada ya kuunda.",
+  
+  "will_title": "Jina la Wosia",
+  "will_title_placeholder": "mfano, Wosia Wangu wa Mwisho 2024",
+  "will_title_hint": "Toa wosia wako jina wazi na la kuelezea",
+  
+  "will_status": "Hali",
+  "select_status": "Chagua hali",
+  "status_warning": "Weka kama 'Rasimu' mwanzoni. Weka kama 'Hai' tu unapokuwa tayari kufanya hii wosia wako rasmi.",
+  
   "draft": "Rasimu",
   "active": "Hai",
   "revoked": "Imefutwa",
   "executed": "Imetekelezwa",
-  "beneficiaries": "Waathirika",
-  "add_beneficiary": "Ongeza Mwathirika",
-  "assign_assets": "Gawa Mali",
-  "share_percentage": "Asilimia ya Mgao",
-  "will_created": "Wosia imeundwa kwa mafanikio",
-  "will_updated": "Wosia imesasishwa kwa mafanikio",
-  "will_deleted": "Wosia imefutwa kwa mafanikio",
-  "no_wills": "Hakuna wosia zilizopatikana. Unda wosia yako ya kwanza kulinda urithi wako."
+  "all_statuses": "Hali Zote",
+  "filter_by_status": "Chuja kwa hali",
+  "per_page": "kwa ukurasa",
+  
+  "create_success": "Wosia umeundwa",
+  "update_success": "Wosia umeboreshwa",
+  "delete_success": "Wosia umefutwa",
+  "save_changes": "Hifadhi Mabadiliko",
+  
+  "confirm_delete_title": "Futa Wosia",
+  "confirm_delete_message": "Una uhakika unataka kufuta \"{{title}}\"? Kitendo hiki hakiwezi kufutwa.",
+  
+  "will_information": "Taarifa za Wosia",
+  "created_on": "Imeundwa tarehe",
+  "last_updated": "Imeboreshwa mwisho",
+  "back_to_wills": "Rudi kwa Wosia",
+  "will_not_found": "Wosia haujapatikana",
+  
+  "beneficiary_assignments": "Uteaji Warithiwa",
+  "beneficiary_assignments_description": "Teua mali yako kwa wanafamilia na warithiwa",
+  "assign_beneficiary": "Teua Mrithi",
+  "assign_beneficiary_description": "Chagua mali na mrithi kwa urithi",
+  "assign_beneficiary_info": "Chagua mali kutoka kwenye hesabu yako na uteue kwa mwanafamilia na asilimia ya hisa (si lazima).",
+  
+  "select_asset": "Chagua Mali",
+  "choose_asset_placeholder": "Chagua mali...",
+  "no_description": "Hakuna maelezo",
+  
+  "select_beneficiary": "Chagua Mrithi",
+  "choose_beneficiary_placeholder": "Chagua mwanafamilia...",
+  
+  "share_percentage": "Asilimia ya Hisa",
+  "share_percentage_hint": "Acha tupu kuteua mali yote, au bainisha asilimia",
+  "optional": "Si Lazima",
+  "will_receive": "atapokea",
+  "of": "ya",
+  
+  "beneficiary_assigned_success": "Mrithi ameteuliwa",
+  "assignment_removed_success": "Uteaji umefutwa",
+  
+  "no_assignments": "Hakuna Uteaji wa Warithiwa",
+  "no_assignments_description": "Anza kuteua mali yako kwa warithiwa",
+  "assign_first_beneficiary": "Teua Mrithi wa Kwanza",
+  
+  "confirm_remove_assignment_title": "Ondoa Uteaji",
+  "confirm_remove_assignment_message": "Una uhakika unataka kuondoa uteaji huu wa mrithi?",
+  
+  "no_assets_available": "Hujaunda mali yoyote bado. Tafadhali ongeza mali kabla ya kuteua warithiwa.",
+  "no_family_members_available": "Hujaongeza wanafamilia bado. Tafadhali unda familia na ongeza wanachama kabla ya kuteua warithiwa."
 }

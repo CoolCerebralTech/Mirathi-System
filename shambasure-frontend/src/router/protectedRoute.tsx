@@ -1,25 +1,42 @@
 // FILE: src/router/ProtectedRoute.tsx
 
-import { Navigate, Outlet } from 'react-router-dom';
-import { useAuthStore } from '../store/auth.store';
-import { DashboardLayout } from '../components/layouts/DashboardLayout';
+import { Navigate, useLocation, Outlet } from 'react-router-dom';
+import { useAuthStatus, useCurrentUser } from '../store/auth.store';
+import { UserRole } from '../types';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
-/**
- * This component protects routes that require a user to be authenticated.
- * It renders the full DashboardLayout and the page content via <Outlet />.
- * If the user is not authenticated, it redirects them to the /login page.
- */
-export function ProtectedRoute() {
-  const { status } = useAuthStore();
-  const isAuthenticated = status === 'authenticated';
+interface ProtectedRouteProps {
+  allowedRoles?: UserRole[];
+}
 
-  if (!isAuthenticated) {
-    // Redirect them to the /login page, but save the current location they were
-    // trying to go to. This allows us to redirect them back to that page after they log in.
-    return <Navigate to="/login" replace />;
+export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
+  const status = useAuthStatus();
+  const user = useCurrentUser();
+  const location = useLocation();
+
+  // 1. While the store is rehydrating, show a loading state.
+  // This prevents a "flash" of the login page for an already authenticated user.
+  if (status === 'idle') {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
   }
 
-  // If authenticated, render the main DashboardLayout which contains its own <Outlet />
-  // for the specific page content.
-  return <DashboardLayout />;
+  // 2. If the user is not authenticated, redirect them to the login page.
+  // We pass the current location in `state` so we can redirect them back after login.
+  if (status !== 'authenticated' || !user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // 3. If the route requires specific roles, check if the user has one.
+  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+    // The user is logged in but doesn't have the required permission.
+    // Redirect to a dedicated "Unauthorized" page.
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  // 4. If all checks pass, render the nested child routes.
+  return <Outlet />;
 }

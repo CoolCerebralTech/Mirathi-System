@@ -1,14 +1,16 @@
-// FILE: src/features/auth/components/RegisterForm.tsx
+// FILE: src/features/auth/components/RegisterForm.tsx (Upgraded & Finalized)
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Mail, Lock, User } from 'lucide-react';
+import { Mail, Lock, User as UserIcon } from 'lucide-react';
+import { toast } from 'sonner';
 
-import { RegisterSchema, type RegisterInput } from '../../../types';
+import { RegisterRequestSchema, type RegisterInput } from '../../../types'; 
+import type { UserRole } from '../../../types';
+ // UPGRADE: Import the specific UserRole type
 import { useRegister } from '../auth.api';
-import { toast } from '../../../components/common/Toaster';
 import { extractErrorMessage } from '../../../api/client';
 
 import { Button } from '../../../components/ui/Button';
@@ -26,9 +28,9 @@ export function RegisterForm() {
     register,
     handleSubmit,
     setValue,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<RegisterInput>({
-    resolver: zodResolver(RegisterSchema),
+    resolver: zodResolver(RegisterRequestSchema),
     defaultValues: {
       firstName: '',
       lastName: '',
@@ -38,101 +40,87 @@ export function RegisterForm() {
     },
   });
 
-  const onSubmit = async (data: RegisterInput) => {
+  const onSubmit = (data: RegisterInput) => {
     registerMutation.mutate(data, {
       onSuccess: () => {
         toast.success(t('auth:register_success'));
-        navigate('/dashboard');
+        navigate('/dashboard', { replace: true });
       },
       onError: (error) => {
-        toast.error(
-          t('common:error'),
-          extractErrorMessage(error)
-        );
+        toast.error(t('auth:register_failed'), {
+          description: extractErrorMessage(error),
+        });
       },
     });
   };
 
-  const isLoading = isSubmitting || registerMutation.isPending;
-
   return (
-    <Card className="w-full">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold">{t('auth:create_account')}</CardTitle>
-        <CardDescription>
-          {t('auth:get_started')} with Shamba Sure
-        </CardDescription>
+    <Card className="w-full max-w-md">
+      <CardHeader>
+        <CardTitle>{t('auth:create_account')}</CardTitle>
+        <CardDescription>{t('auth:get_started_prompt')}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Name Fields */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
               <Label htmlFor="firstName">{t('auth:first_name')}</Label>
               <Input
                 id="firstName"
-                type="text"
                 placeholder="John"
-                leftIcon={<User className="h-4 w-4" />}
+                leftIcon={<UserIcon size={16} />}
                 error={errors.firstName?.message}
-                disabled={isLoading}
+                disabled={registerMutation.isPending}
                 {...register('firstName')}
               />
             </div>
-
-            <div className="space-y-2">
+            <div className="space-y-1">
               <Label htmlFor="lastName">{t('auth:last_name')}</Label>
               <Input
                 id="lastName"
-                type="text"
-                placeholder="Doe"
-                leftIcon={<User className="h-4 w-4" />}
+                placeholder="Mwangi"
+                leftIcon={<UserIcon size={16} />}
                 error={errors.lastName?.message}
-                disabled={isLoading}
+                disabled={registerMutation.isPending}
                 {...register('lastName')}
               />
             </div>
           </div>
 
-          {/* Email Field */}
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="email">{t('auth:email')}</Label>
             <Input
               id="email"
               type="email"
               placeholder="name@example.com"
-              leftIcon={<Mail className="h-4 w-4" />}
+              leftIcon={<Mail size={16} />}
               error={errors.email?.message}
-              disabled={isLoading}
+              disabled={registerMutation.isPending}
               {...register('email')}
             />
           </div>
 
-          {/* Password Field */}
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="password">{t('auth:password')}</Label>
             <Input
               id="password"
               type="password"
-              leftIcon={<Lock className="h-4 w-4" />}
+              leftIcon={<Lock size={16} />}
               error={errors.password?.message}
-              disabled={isLoading}
+              disabled={registerMutation.isPending}
               {...register('password')}
             />
-            <p className="text-xs text-muted-foreground">
-              Must be at least 8 characters with uppercase, lowercase, number, and special character
-            </p>
           </div>
-
-          {/* Role Selection */}
-          <div className="space-y-2">
-            <Label htmlFor="role">I am a</Label>
+          
+          <div className="space-y-1">
+            <Label htmlFor="role">{t('auth:i_am_a')}</Label>
             <Select
               defaultValue="LAND_OWNER"
-              onValueChange={(value) => setValue('role', value as any)}
-              disabled={isLoading}
+              // BUG FIX: Provide the correct, strong type instead of 'as any'
+              onValueChange={(value) => setValue('role', value as UserRole, { shouldValidate: true })}
+              disabled={registerMutation.isPending}
             >
-              <SelectTrigger>
+              <SelectTrigger id="role">
                 <SelectValue placeholder={t('common:select_option')} />
               </SelectTrigger>
               <SelectContent>
@@ -140,30 +128,18 @@ export function RegisterForm() {
                 <SelectItem value="HEIR">{t('auth:role_heir')}</SelectItem>
               </SelectContent>
             </Select>
-            {errors.role && (
-              <p className="text-sm text-destructive">{errors.role.message}</p>
-            )}
+            {errors.role && <p className="text-sm text-destructive">{errors.role.message}</p>}
           </div>
 
-          {/* Submit Button */}
-          <Button
-            type="submit"
-            className="w-full"
-            isLoading={isLoading}
-            disabled={isLoading}
-          >
+          <Button type="submit" className="w-full" isLoading={registerMutation.isPending}>
             {t('auth:create_account')}
           </Button>
         </form>
 
-        {/* Sign In Link */}
-        <div className="mt-6 text-center text-sm">
-          <span className="text-muted-foreground">{t('auth:have_account')} </span>
-          <Link
-            to="/login"
-            className="font-medium text-primary hover:underline"
-          >
-            {t('auth:sign_in')}
+        <div className="mt-4 text-center text-sm">
+          {t('auth:have_account')}{' '}
+          <Link to="/login" className="font-medium text-primary hover:underline">
+            {t('auth:sign_in_now')}
           </Link>
         </div>
       </CardContent>

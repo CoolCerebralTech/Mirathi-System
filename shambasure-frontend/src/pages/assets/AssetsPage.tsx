@@ -1,127 +1,190 @@
 // FILE: src/pages/AssetsPage.tsx
 
-import { useState } from 'react';
-import { PageHeader } from '../components/common/PageHeader';
-import { DataTable } from '../components/ui/DataTable';
-import { Button } from '../components/ui/Button';
-import { PlusCircle } from 'lucide-react';
+import * as React from 'react';
+import { useTranslation } from 'react-i18next';
+import { Plus, Building2 } from 'lucide-react';
 
-import { useMyAssets, useDeleteAsset } from '../features/assets/assets.api';
+import { useAssets, useDeleteAsset } from '../features/assets/assets.api';
 import { getAssetColumns } from '../features/assets/components/AssetsTable';
 import { AssetForm } from '../features/assets/components/AssetForm';
-import type { Asset } from '../types/schemas';
+import type { Asset, AssetQuery } from '../types';
+import { toast } from '../components/common/Toaster';
+import { extractErrorMessage } from '../api/client';
 
+import { Button } from '../components/ui/Button';
+import { DataTable } from '../components/ui/DataTable';
+import { Card, CardContent } from '../components/ui/Card';
 import {
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalTitle,
-  ModalTrigger,
-} from '../components/common/Modal';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '../components/common/AlertDialog';
-import { toast } from '../hooks/useToast';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/Dialog';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
 
+// ============================================================================
+// COMPONENT
+// ============================================================================
 
 export function AssetsPage() {
-  const { data: assetsData, isLoading } = useMyAssets();
-  const deleteAssetMutation = useDeleteAsset();
+  const { t } = useTranslation(['assets', 'common']);
 
-  // State for controlling the Create/Edit Asset modal
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
-  
-  // State for controlling the Delete confirmation dialog
-  const [assetToDelete, setAssetToDelete] = useState<string | null>(null);
+  // State
+  const [filters, setFilters] = React.useState<AssetQuery>({
+    page: 1,
+    limit: 10,
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
+  });
+  const [formDialogOpen, setFormDialogOpen] = React.useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [selectedAsset, setSelectedAsset] = React.useState<Asset | null>(null);
+
+  // API Hooks
+  const { data, isLoading } = useAssets(filters);
+  const deleteMutation = useDeleteAsset();
+
+  // ============================================================================
+  // HANDLERS
+  // ============================================================================
+
+  const handleCreate = () => {
+    setSelectedAsset(null);
+    setFormDialogOpen(true);
+  };
 
   const handleEdit = (asset: Asset) => {
     setSelectedAsset(asset);
-    setIsModalOpen(true);
-  };
-  
-  const handleAddNew = () => {
-    setSelectedAsset(null); // Ensure we're in "create" mode
-    setIsModalOpen(true);
+    setFormDialogOpen(true);
   };
 
-  const handleDelete = (assetId: string) => {
-    deleteAssetMutation.mutate(assetId, {
+  const handleDelete = () => {
+    if (!selectedAsset) return;
+
+    deleteMutation.mutate(selectedAsset.id, {
       onSuccess: () => {
-        toast.success('Asset deleted successfully.');
-        setAssetToDelete(null); // Close the dialog
+        toast.success(t('assets:delete_success'));
+        setDeleteDialogOpen(false);
+        setSelectedAsset(null);
       },
-      onError: (error: any) => {
-        toast.error('Deletion Failed', { description: error.message });
-      }
+      onError: (error) => {
+        toast.error(t('common:error'), extractErrorMessage(error));
+      },
     });
   };
 
-  // Memoize the columns to prevent re-creation on every render
-  const columns = React.useMemo(() => getAssetColumns(handleEdit, setAssetToDelete), []);
+  const handleFormSuccess = () => {
+    setFormDialogOpen(false);
+    setSelectedAsset(null);
+  };
 
-  const assets = assetsData || [];
+  // ============================================================================
+  // TABLE COLUMNS
+  // ============================================================================
+
+  const columns = React.useMemo(
+    () =>
+      getAssetColumns({
+        onEdit: handleEdit,
+        onDelete: (assetId) => {
+          const asset = data?.data.find((a) => a.id === assetId);
+          if (asset) {
+            setSelectedAsset(asset);
+            setDeleteDialogOpen(true);
+          }
+        },
+      }),
+    [data]
+  );
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="My Assets"
-        description="Manage all your registered assets, including land, vehicles, and properties."
-        actions={
-          <Button onClick={handleAddNew}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Add New Asset
-          </Button>
-        }
-      />
+      {/* Page Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+            <Building2 className="h-8 w-8" />
+            {t('assets:my_assets')}
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            {t('assets:my_assets_subtitle')}
+          </p>
+        </div>
 
-      <DataTable
-        columns={columns}
-        data={assets}
-        isLoading={isLoading}
-        // Pagination would be added here if the API supported it
-      />
+        <Button onClick={handleCreate} className="gap-2">
+          <Plus className="h-4 w-4" />
+          {t('assets:add_asset')}
+        </Button>
+      </div>
 
-      {/* --- Modals and Dialogs --- */}
-      
-      {/* Create/Edit Asset Modal */}
-      <Modal open={isModalOpen} onOpenChange={setIsModalOpen}>
-        {/* We control this modal programmatically, so no ModalTrigger is needed here */}
-        <ModalContent>
-          <ModalHeader>
-            <ModalTitle>{selectedAsset ? 'Edit Asset' : 'Create New Asset'}</ModalTitle>
-          </ModalHeader>
-          <AssetForm 
-            asset={selectedAsset}
-            onSuccess={() => setIsModalOpen(false)} 
+      {/* Assets Table */}
+      <Card>
+        <CardContent className="p-0">
+          <DataTable
+            columns={columns}
+            data={data?.data || []}
+            isLoading={isLoading}
+            pageCount={data?.totalPages || 0}
+            pagination={{
+              pageIndex: filters.page - 1,
+              pageSize: filters.limit,
+            }}
+            onPaginationChange={(updater) => {
+              const newState =
+                typeof updater === 'function'
+                  ? updater({ pageIndex: filters.page - 1, pageSize: filters.limit })
+                  : updater;
+
+              setFilters({
+                ...filters,
+                page: newState.pageIndex + 1,
+                limit: newState.pageSize,
+              });
+            }}
           />
-        </ModalContent>
-      </Modal>
+        </CardContent>
+      </Card>
+
+      {/* Asset Form Dialog */}
+      <Dialog open={formDialogOpen} onOpenChange={setFormDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedAsset ? t('assets:edit_asset') : t('assets:create_asset')}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedAsset
+                ? t('assets:edit_asset_description')
+                : t('assets:create_asset_description')}
+            </DialogDescription>
+          </DialogHeader>
+          <AssetForm
+            asset={selectedAsset}
+            onSuccess={handleFormSuccess}
+            onCancel={() => setFormDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!assetToDelete} onOpenChange={() => setAssetToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the asset. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => handleDelete(assetToDelete!)}>
-              Yes, Delete Asset
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title={t('assets:confirm_delete_title')}
+        description={t('assets:confirm_delete_message', {
+          name: selectedAsset?.name,
+        })}
+        onConfirm={handleDelete}
+        variant="destructive"
+        confirmText={t('common:delete')}
+        cancelText={t('common:cancel')}
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   );
 }

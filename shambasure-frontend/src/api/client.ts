@@ -1,14 +1,18 @@
 // FILE: src/api/client.ts
 
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '../store/auth.store';
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
 
-const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
-
+// ARCHITECTURAL UPGRADE: Ensure the base URL is correctly configured and throw an error if not.
+// This prevents silent failures. It MUST point to your API Gateway including prefix and version.
+const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+if (!VITE_API_BASE_URL) {
+  throw new Error("VITE_API_BASE_URL is not defined in your .env file. It should be 'http://localhost:3000/api/v1'");
+}
 // Token refresh tracking to prevent multiple simultaneous refresh attempts
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -72,18 +76,16 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = useAuthStore.getState().accessToken;
+    // ARCHITECTURAL UPGRADE: Use the selector for direct access to the token.
+    const accessToken = useAuthStore.getState().accessToken;
 
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (accessToken && config.headers) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
     }
-
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+  (error) => Promise.reject(error)
+);;
 
 // ============================================================================
 // RESPONSE INTERCEPTOR
@@ -102,11 +104,11 @@ apiClient.interceptors.response.use(
       // Prevent infinite loops
       originalRequest._retry = true;
 
-      const { refreshToken, logout, setTokens } = useAuthStore.getState();
+      const { refreshToken, actions } = useAuthStore.getState();
 
       // If no refresh token exists, logout immediately
       if (!refreshToken) {
-        logout();
+        actions.logout();
         return Promise.reject(error);
       }
 
@@ -130,15 +132,17 @@ apiClient.interceptors.response.use(
 
       try {
         // Attempt to refresh the token
-        const response = await axios.post(`${VITE_API_BASE_URL}/auth/refresh`, {
-          refreshToken,
+        const response = await axios.post(`${VITE_API_BASE_URL}/auth/refresh`, {}, {
+          headers: {
+            Authorization: `Bearer ${refreshToken}`
+          }
         });
 
         const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
           response.data;
 
         // Update tokens in store
-        setTokens(newAccessToken, newRefreshToken);
+        actions.setTokens(newAccessToken, newRefreshToken);
 
         // Process all queued requests with new token
         processQueue(null, newAccessToken);
@@ -151,7 +155,7 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         // Refresh failed - logout user
         processQueue(refreshError as Error, null);
-        logout();
+        actions.logout();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

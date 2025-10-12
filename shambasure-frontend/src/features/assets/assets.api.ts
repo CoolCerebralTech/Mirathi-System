@@ -1,6 +1,6 @@
 // FILE: src/features/assets/assets.api.ts
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, extractErrorMessage } from '../../api/client';
 import { useAuthStore } from '../../store/auth.store';
 import type {
@@ -21,7 +21,6 @@ export const assetKeys = {
   list: (filters: AssetQuery) => [...assetKeys.lists(), filters] as const,
   details: () => [...assetKeys.all, 'detail'] as const,
   detail: (id: string) => [...assetKeys.details(), id] as const,
-  byType: (type: string) => [...assetKeys.all, 'type', type] as const,
 };
 
 // ============================================================================
@@ -29,17 +28,17 @@ export const assetKeys = {
 // ============================================================================
 
 const getAssets = async (params: AssetQuery): Promise<PaginatedResponse<Asset>> => {
-  const response = await apiClient.get('/succession/assets', { params });
+  const response = await apiClient.get('/assets', { params });
   return response.data;
 };
 
 const getAssetById = async (assetId: string): Promise<Asset> => {
-  const response = await apiClient.get(`/succession/assets/${assetId}`);
+  const response = await apiClient.get(`/assets/${assetId}`);
   return response.data;
 };
 
 const createAsset = async (data: CreateAssetInput): Promise<Asset> => {
-  const response = await apiClient.post('/succession/assets', data);
+  const response = await apiClient.post('/assets', data);
   return response.data;
 };
 
@@ -47,12 +46,12 @@ const updateAsset = async (params: {
   assetId: string;
   data: UpdateAssetInput;
 }): Promise<Asset> => {
-  const response = await apiClient.patch(`/succession/assets/${params.assetId}`, params.data);
+  const response = await apiClient.patch(`/assets/${params.assetId}`, params.data);
   return response.data;
 };
 
 const deleteAsset = async (assetId: string): Promise<void> => {
-  await apiClient.delete(`/succession/assets/${assetId}`);
+  await apiClient.delete(`/assets/${assetId}`);
 };
 
 // ============================================================================
@@ -61,13 +60,6 @@ const deleteAsset = async (assetId: string): Promise<void> => {
 
 /**
  * Hook to fetch paginated list of assets
- * Supports filtering by type, sorting, and pagination
- * 
- * @example
- * const { data: assetsPage, isLoading } = useAssets({ 
- *   page: 1, 
- *   type: 'LAND_PARCEL' 
- * });
  */
 export const useAssets = (params: AssetQuery = {}) => {
   const status = useAuthStore((state) => state.status);
@@ -76,15 +68,13 @@ export const useAssets = (params: AssetQuery = {}) => {
     queryKey: assetKeys.list(params),
     queryFn: () => getAssets(params),
     enabled: status === 'authenticated',
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
+    keepPreviousData: true,
   });
 };
 
 /**
  * Hook to fetch a single asset by ID
- * 
- * @example
- * const { data: asset, isLoading } = useAsset(assetId);
  */
 export const useAsset = (assetId: string) => {
   const status = useAuthStore((state) => state.status);
@@ -99,14 +89,6 @@ export const useAsset = (assetId: string) => {
 
 /**
  * Hook to create a new asset
- * 
- * @example
- * const createMutation = useCreateAsset();
- * createMutation.mutate({ 
- *   name: 'Family Land', 
- *   type: 'LAND_PARCEL',
- *   description: 'Ancestral land in Nyeri' 
- * });
  */
 export const useCreateAsset = () => {
   const queryClient = useQueryClient();
@@ -124,51 +106,17 @@ export const useCreateAsset = () => {
 
 /**
  * Hook to update an existing asset
- * Supports optimistic updates for better UX
- * 
- * @example
- * const updateMutation = useUpdateAsset();
- * updateMutation.mutate({ 
- *   assetId: '...', 
- *   data: { name: 'Updated Asset Name' } 
- * });
  */
 export const useUpdateAsset = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: updateAsset,
-    onMutate: async (variables) => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: assetKeys.detail(variables.assetId) });
-
-      // Snapshot the previous value
-      const previousAsset = queryClient.getQueryData<Asset>(
-        assetKeys.detail(variables.assetId)
-      );
-
-      // Optimistically update to the new value
-      if (previousAsset) {
-        queryClient.setQueryData<Asset>(assetKeys.detail(variables.assetId), {
-          ...previousAsset,
-          ...variables.data,
-        });
-      }
-
-      return { previousAsset };
-    },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: assetKeys.detail(variables.assetId) });
       queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
     },
-    onError: (error, variables, context) => {
-      // Rollback on error
-      if (context?.previousAsset) {
-        queryClient.setQueryData(
-          assetKeys.detail(variables.assetId),
-          context.previousAsset
-        );
-      }
+    onError: (error) => {
       console.error('Update asset failed:', extractErrorMessage(error));
     },
   });
@@ -176,10 +124,6 @@ export const useUpdateAsset = () => {
 
 /**
  * Hook to delete an asset
- * 
- * @example
- * const deleteMutation = useDeleteAsset();
- * deleteMutation.mutate(assetId);
  */
 export const useDeleteAsset = () => {
   const queryClient = useQueryClient();
@@ -192,23 +136,5 @@ export const useDeleteAsset = () => {
     onError: (error) => {
       console.error('Delete asset failed:', extractErrorMessage(error));
     },
-  });
-};
-
-/**
- * Hook to fetch assets by specific type
- * Convenience hook for filtering by asset type
- * 
- * @example
- * const { data: landParcels } = useAssetsByType('LAND_PARCEL');
- */
-export const useAssetsByType = (type: string) => {
-  const status = useAuthStore((state) => state.status);
-
-  return useQuery({
-    queryKey: assetKeys.byType(type),
-    queryFn: () => getAssets({ type: type as any, limit: 100 }),
-    enabled: status === 'authenticated' && !!type,
-    staleTime: 5 * 60 * 1000,
   });
 };

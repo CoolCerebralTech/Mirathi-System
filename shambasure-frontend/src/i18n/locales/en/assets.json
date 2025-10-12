@@ -1,22 +1,33 @@
-// FILE: src/i18n/locales/en/assets.json
-
 {
-  "title": "Assets",
   "my_assets": "My Assets",
+  "my_assets_subtitle": "Manage your property, land, and valuable possessions",
+  
+  "add_asset": "Add Asset",
   "create_asset": "Create Asset",
   "edit_asset": "Edit Asset",
   "delete_asset": "Delete Asset",
+  
+  "create_asset_description": "Add a new asset to your inventory",
+  "edit_asset_description": "Update asset information",
+  
   "asset_name": "Asset Name",
+  "asset_name_placeholder": "e.g., Nairobi Land Parcel, Toyota Prado, KCB Savings Account",
+  
   "asset_type": "Asset Type",
-  "asset_description": "Asset Description",
-  "land_parcel": "Land Parcel",
-  "bank_account": "Bank Account",
-  "vehicle": "Vehicle",
-  "property": "Property",
-  "other": "Other",
-  "asset_created": "Asset created successfully",
-  "asset_updated": "Asset updated successfully",
-  "asset_deleted": "Asset deleted successfully",
-  "confirm_delete": "Are you sure you want to delete this asset?",
-  "no_assets": "No assets found. Create your first asset to get started."
+  "select_asset_type": "Select asset type",
+  
+  "description": "Description",
+  "description_placeholder": "Add details about this asset (location, size, account number, etc.)",
+  "description_hint": "Include any important details like location, registration numbers, account details, etc.",
+  
+  "save_changes": "Save Changes",
+  "create_success": "Asset created successfully",
+  "update_success": "Asset updated successfully",
+  "delete_success": "Asset deleted successfully",
+  
+  "confirm_delete_title": "Delete Asset",
+  "confirm_delete_message": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone and will remove all associated beneficiary assignments.",
+  
+  "no_assets": "No assets yet",
+  "no_assets_description": "Start building your asset inventory"
 }

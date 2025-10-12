@@ -1,6 +1,6 @@
 // FILE: src/features/families/families.api.ts
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, extractErrorMessage } from '../../api/client';
 import { useAuthStore } from '../../store/auth.store';
 import type {
@@ -9,6 +9,7 @@ import type {
   UpdateFamilyInput,
   AddFamilyMemberInput,
   UpdateFamilyMemberInput,
+  PaginatedResponse,
 } from '../../types';
 
 // ============================================================================
@@ -18,6 +19,7 @@ import type {
 export const familyKeys = {
   all: ['families'] as const,
   lists: () => [...familyKeys.all, 'list'] as const,
+  list: (filters?: any) => [...familyKeys.lists(), filters] as const,
   details: () => [...familyKeys.all, 'detail'] as const,
   detail: (id: string) => [...familyKeys.details(), id] as const,
   members: (familyId: string) => [...familyKeys.detail(familyId), 'members'] as const,
@@ -27,18 +29,18 @@ export const familyKeys = {
 // API FUNCTIONS
 // ============================================================================
 
-const getFamilies = async (): Promise<Family[]> => {
-  const response = await apiClient.get('/succession/families');
+const getFamilies = async (params?: any): Promise<PaginatedResponse<Family>> => {
+  const response = await apiClient.get('/families', { params });
   return response.data;
 };
 
 const getFamilyById = async (familyId: string): Promise<Family> => {
-  const response = await apiClient.get(`/succession/families/${familyId}`);
+  const response = await apiClient.get(`/families/${familyId}`);
   return response.data;
 };
 
 const createFamily = async (data: CreateFamilyInput): Promise<Family> => {
-  const response = await apiClient.post('/succession/families', data);
+  const response = await apiClient.post('/families', data);
   return response.data;
 };
 
@@ -46,65 +48,65 @@ const updateFamily = async (params: {
   familyId: string;
   data: UpdateFamilyInput;
 }): Promise<Family> => {
-  const response = await apiClient.patch(`/succession/families/${params.familyId}`, params.data);
+  const response = await apiClient.patch(`/families/${params.familyId}`, params.data);
   return response.data;
 };
 
 const deleteFamily = async (familyId: string): Promise<void> => {
-  await apiClient.delete(`/succession/families/${familyId}`);
+  await apiClient.delete(`/families/${familyId}`);
 };
 
 const addFamilyMember = async (params: {
   familyId: string;
   data: AddFamilyMemberInput;
-}): Promise<void> => {
-  await apiClient.post(`/succession/families/${params.familyId}/members`, params.data);
-};
-
-const updateFamilyMember = async (params: {
-  familyId: string;
-  userId: string;
-  data: UpdateFamilyMemberInput;
-}): Promise<void> => {
-  await apiClient.patch(
-    `/succession/families/${params.familyId}/members/${params.userId}`,
+}): Promise<Family> => {
+  const response = await apiClient.post(
+    `/families/${params.familyId}/members`,
     params.data
   );
+  return response.data;
 };
 
 const removeFamilyMember = async (params: {
   familyId: string;
   userId: string;
 }): Promise<void> => {
-  await apiClient.delete(`/succession/families/${params.familyId}/members/${params.userId}`);
+  await apiClient.delete(`/families/${params.familyId}/members/${params.userId}`);
+};
+
+const updateFamilyMember = async (params: {
+  familyId: string;
+  userId: string;
+  data: UpdateFamilyMemberInput;
+}): Promise<Family> => {
+  const response = await apiClient.patch(
+    `/families/${params.familyId}/members/${params.userId}`,
+    params.data
+  );
+  return response.data;
 };
 
 // ============================================================================
-// REACT QUERY HOOKS - FAMILIES
+// REACT QUERY HOOKS
 // ============================================================================
 
 /**
- * Hook to fetch all families for the authenticated user
- * 
- * @example
- * const { data: families, isLoading } = useFamilies();
+ * Hook to fetch paginated list of families
  */
-export const useFamilies = () => {
+export const useFamilies = (params?: any) => {
   const status = useAuthStore((state) => state.status);
 
   return useQuery({
-    queryKey: familyKeys.lists(),
-    queryFn: getFamilies,
+    queryKey: familyKeys.list(params),
+    queryFn: () => getFamilies(params),
     enabled: status === 'authenticated',
-    staleTime: 5 * 60 * 1000, // 5 minutes - families don't change often
+    staleTime: 2 * 60 * 1000,
+    keepPreviousData: true,
   });
 };
 
 /**
- * Hook to fetch a single family with all members
- * 
- * @example
- * const { data: family, isLoading } = useFamily(familyId);
+ * Hook to fetch a single family by ID
  */
 export const useFamily = (familyId: string) => {
   const status = useAuthStore((state) => state.status);
@@ -119,10 +121,6 @@ export const useFamily = (familyId: string) => {
 
 /**
  * Hook to create a new family
- * 
- * @example
- * const createMutation = useCreateFamily();
- * createMutation.mutate({ name: 'Kamau Family' });
  */
 export const useCreateFamily = () => {
   const queryClient = useQueryClient();
@@ -139,11 +137,7 @@ export const useCreateFamily = () => {
 };
 
 /**
- * Hook to update family information
- * 
- * @example
- * const updateMutation = useUpdateFamily();
- * updateMutation.mutate({ familyId: '...', data: { name: 'Updated Name' } });
+ * Hook to update an existing family
  */
 export const useUpdateFamily = () => {
   const queryClient = useQueryClient();
@@ -162,10 +156,6 @@ export const useUpdateFamily = () => {
 
 /**
  * Hook to delete a family
- * 
- * @example
- * const deleteMutation = useDeleteFamily();
- * deleteMutation.mutate(familyId);
  */
 export const useDeleteFamily = () => {
   const queryClient = useQueryClient();
@@ -181,19 +171,8 @@ export const useDeleteFamily = () => {
   });
 };
 
-// ============================================================================
-// REACT QUERY HOOKS - FAMILY MEMBERS
-// ============================================================================
-
 /**
- * Hook to add a new member to a family
- * 
- * @example
- * const addMutation = useAddFamilyMember();
- * addMutation.mutate({ 
- *   familyId: '...', 
- *   data: { userId: '...', role: 'CHILD' } 
- * });
+ * Hook to add a member to a family
  */
 export const useAddFamilyMember = () => {
   const queryClient = useQueryClient();
@@ -211,37 +190,7 @@ export const useAddFamilyMember = () => {
 };
 
 /**
- * Hook to update a family member's role
- * 
- * @example
- * const updateMutation = useUpdateFamilyMember();
- * updateMutation.mutate({ 
- *   familyId: '...', 
- *   userId: '...', 
- *   data: { role: 'SPOUSE' } 
- * });
- */
-export const useUpdateFamilyMember = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: updateFamilyMember,
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: familyKeys.detail(variables.familyId) });
-      queryClient.invalidateQueries({ queryKey: familyKeys.members(variables.familyId) });
-    },
-    onError: (error) => {
-      console.error('Update family member failed:', extractErrorMessage(error));
-    },
-  });
-};
-
-/**
  * Hook to remove a member from a family
- * 
- * @example
- * const removeMutation = useRemoveFamilyMember();
- * removeMutation.mutate({ familyId: '...', userId: '...' });
  */
 export const useRemoveFamilyMember = () => {
   const queryClient = useQueryClient();
@@ -254,6 +203,24 @@ export const useRemoveFamilyMember = () => {
     },
     onError: (error) => {
       console.error('Remove family member failed:', extractErrorMessage(error));
+    },
+  });
+};
+
+/**
+ * Hook to update a family member's role
+ */
+export const useUpdateFamilyMember = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: updateFamilyMember,
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: familyKeys.detail(variables.familyId) });
+      queryClient.invalidateQueries({ queryKey: familyKeys.members(variables.familyId) });
+    },
+    onError: (error) => {
+      console.error('Update family member failed:', extractErrorMessage(error));
     },
   });
 };

@@ -1,20 +1,77 @@
-// FILE: src/i18n/locales/en/families.json
-
 {
-  "title": "Family",
   "my_families": "My Families",
+  "my_families_subtitle": "Manage your family structures and relationships",
+  
   "create_family": "Create Family",
+  "edit_family": "Edit Family",
+  "delete_family": "Delete Family",
+  "save_changes": "Save Changes",
+  
+  "create_family_description": "Create a new family structure to organize your heirs and beneficiaries",
+  "edit_family_description": "Update your family information",
+  "create_family_info": "Give your family a name that helps you identify it. You can add members after creation.",
+  
   "family_name": "Family Name",
-  "members": "Members",
+  "family_name_placeholder": "e.g., The Kamau Family, Direct Descendants",
+  "family_name_hint": "Choose a descriptive name for this family group",
+  
+  "create_success": "Family created successfully",
+  "update_success": "Family updated successfully",
+  "delete_success": "Family deleted successfully",
+  
+  "family_information": "Family Information",
+  "total_members": "Total Members",
+  "created_on": "Created on",
+  "last_updated": "Last updated",
+  "back_to_families": "Back to Families",
+  "family_not_found": "Family not found",
+  
+  "member": "member",
+  "members": "members",
+  
+  "family_tree": "Family Tree",
+  "family_tree_description": "View all family members organized by relationship",
+  
+  "parents": "Parents",
+  "spouses": "Spouses",
+  "children": "Children",
+  "siblings": "Siblings",
+  "other_members": "Other Members",
+  
+  "no_members": "No family members yet",
+  "no_members_description": "Start building your family tree by adding members",
+  
   "add_member": "Add Member",
-  "remove_member": "Remove Member",
+  "add_member_description": "Add a new member to this family",
+  "add_member_info": "Search for a user and define their relationship to add them to this family.",
+  "member_added_success": "Member added successfully",
+  
+  "search_users": "Search Users",
+  "search_users_placeholder": "Search by name or email...",
+  "select_user": "Select User",
+  "choose_user_placeholder": "Choose a user...",
+  "no_users_found": "No users found. Try a different search.",
+  
   "relationship": "Relationship",
-  "spouse": "Spouse",
-  "child": "Child",
-  "parent": "Parent",
-  "sibling": "Sibling",
-  "family_created": "Family created successfully",
-  "member_added": "Family member added successfully",
-  "member_removed": "Family member removed successfully",
-  "no_families": "No families found. Create a family tree to manage inheritance."
+  "choose_relationship_placeholder": "Choose relationship...",
+  "preview": "Preview",
+  
+  "change_relationship": "Change Relationship",
+  "change_relationship_description": "Update this member's relationship type",
+  "new_relationship": "New Relationship",
+  "member_updated_success": "Member relationship updated",
+  
+  "remove_member": "Remove Member",
+  "member_removed_success": "Member removed successfully",
+  "confirm_remove_member_title": "Remove Member",
+  "confirm_remove_member_message": "Are you sure you want to remove {{name}} from this family?",
+  
+  "confirm_delete_family_title": "Delete Family",
+  "confirm_delete_family_message": "Are you sure you want to delete \"{{name}}\"? This will remove all family members but will not affect beneficiary assignments.",
+  
+  "actions": "Actions",
+  
+  "no_families": "No families yet",
+  "no_families_description": "Create your first family to organize your heirs and beneficiaries",
+  "create_first_family": "Create First Family"
 }

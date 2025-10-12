@@ -1,52 +1,66 @@
-// FILE: src/types/schemas/user.schemas.ts
+// FILE: src/types/user.schemas.ts
 
 import { z } from 'zod';
-import { UserRoleSchema } from './auth.schemas';
 
 // ============================================================================
-// NESTED SCHEMAS
+// ENUMS & SHARED PRIMITIVES
+// ============================================================================
+
+export const UserRoleSchema = z.enum(['LAND_OWNER', 'HEIR', 'ADMIN']);
+
+// ============================================================================
+// BASE SCHEMAS (Core Object Shapes)
 // ============================================================================
 
 /**
- * Schema for user address
+ * Defines the core, unwrapped shape of an Address object.
+ * This is our single source of truth for the address fields.
  */
-export const AddressSchema = z.object({
+const BaseAddressSchema = z.object({
   street: z.string().optional(),
   city: z.string().optional(),
   postCode: z.string().optional(),
   country: z.string().optional(),
-}).optional();
+});
 
 /**
- * Schema for next of kin information
+ * Defines the core, unwrapped shape of a NextOfKin object.
  */
-export const NextOfKinSchema = z.object({
-  fullName: z.string().min(1, 'Full name is required'),
-  relationship: z.string().min(1, 'Relationship is required'),
-  phoneNumber: z.string().min(10, 'Valid phone number is required'),
-}).optional();
+const BaseNextOfKinSchema = z.object({
+  fullName: z.string(),
+  relationship: z.string(),
+  phoneNumber: z.string(),
+});
 
-/**
- * Schema for user profile
- */
-export const UserProfileSchema = z.object({
-  id: z.string().uuid(),
-  userId: z.string().uuid(),
-  bio: z.string().max(500).nullish(),
-  phoneNumber: z.string().nullish(),
-  address: z.any().nullish(), // JSON field
-  nextOfKin: z.any().nullish(), // JSON field
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+const BaseNotificationSettingsSchema = z.object({
+  email: z.boolean().default(true),
+  sms: z.boolean().default(false),
 });
 
 // ============================================================================
-// USER SCHEMAS
+// API RESPONSE SCHEMAS (What we get from the backend)
 // ============================================================================
 
 /**
- * Schema for complete user object from API
+ * Schema for the Address object as it comes from the API.
+ * The entire object can be null or undefined.
  */
+export const AddressResponseSchema = BaseAddressSchema.nullable().optional();
+
+/**
+ * Schema for the NextOfKin object as it comes from the API.
+ */
+export const NextOfKinResponseSchema = BaseNextOfKinSchema.nullable().optional();
+
+export const UserProfileSchema = z.object({
+  id: z.string().uuid(),
+  bio: z.string().max(500).nullable(),
+  phoneNumber: z.string().nullable(),
+  address: AddressResponseSchema,
+  nextOfKin: NextOfKinResponseSchema,
+  notificationSettings: BaseNotificationSettingsSchema.nullable().optional(),
+});
+
 export const UserSchema = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
@@ -55,38 +69,35 @@ export const UserSchema = z.object({
   role: UserRoleSchema,
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
-  profile: UserProfileSchema.nullish(),
+  profile: UserProfileSchema.nullable(),
 });
 
+// ============================================================================
+// FORM/REQUEST SCHEMAS (What we send to the backend)
+// ============================================================================
+
 /**
- * Schema for updating user profile
+ * Schema for UPDATING a user profile.
+ * All fields, including nested ones, are optional.
  */
 export const UpdateUserProfileSchema = z.object({
   bio: z.string().max(500).optional(),
   phoneNumber: z.string().optional(),
-  address: AddressSchema,
-  nextOfKin: NextOfKinSchema,
-});
 
-/**
- * Schema for admin user queries with pagination
- */
-export const UserQuerySchema = z.object({
-  page: z.number().int().positive().optional().default(1),
-  limit: z.number().int().positive().max(100).optional().default(10),
-  role: UserRoleSchema.optional(),
-  search: z.string().optional(), // Search by name or email
-  sortBy: z.enum(['createdAt', 'email', 'firstName', 'lastName']).optional(),
-  sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
+  // THIS IS THE FIX:
+  // 1. Take the BaseAddressSchema (a raw z.object).
+  // 2. Call .partial() on it to make ITS fields optional.
+  // 3. Make the entire partial object optional for the update form.
+  address: BaseAddressSchema.partial().optional(),
+  nextOfKin: BaseNextOfKinSchema.partial().optional(),
+  notificationSettings: BaseNotificationSettingsSchema.partial().optional(),
 });
 
 // ============================================================================
 // INFERRED TYPES
 // ============================================================================
 
-export type Address = z.infer<typeof AddressSchema>;
-export type NextOfKin = z.infer<typeof NextOfKinSchema>;
-export type UserProfile = z.infer<typeof UserProfileSchema>;
 export type User = z.infer<typeof UserSchema>;
+export type UserProfile = z.infer<typeof UserProfileSchema>;
+export type UserRole = z.infer<typeof UserRoleSchema>;
 export type UpdateUserProfileInput = z.infer<typeof UpdateUserProfileSchema>;
-export type UserQuery = z.infer<typeof UserQuerySchema>;

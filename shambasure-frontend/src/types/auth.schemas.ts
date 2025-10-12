@@ -1,129 +1,70 @@
-// FILE: src/types/schemas/auth.schemas.ts
+// FILE: src/types/auth.schemas.ts
 
 import { z } from 'zod';
-import { UserSchema } from './user.schemas';
+import { UserRoleSchema, UserSchema } from './user.schemas';
 
 // ============================================================================
-// ENUMS
+// SHARED AUTH PRIMITIVES
 // ============================================================================
 
-export const UserRoleSchema = z.enum(['LAND_OWNER', 'HEIR', 'ADMIN']);
-
-// ============================================================================
-// AUTH REQUEST SCHEMAS
-// ============================================================================
-
-/**
- * Schema for user login
- */
-export const LoginSchema = z.object({
-  email: z
-    .string()
-    .min(1, 'Email is required')
-    .email('Invalid email address'),
-  password: z.string().min(1, 'Password is required'),
-});
-
-/**
- * Strong password validation rule (reusable)
- */
 export const PasswordSchema = z
   .string()
-  .min(8, 'Password must be at least 8 characters')
-  .regex(
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])/,
-    'Password must contain uppercase, lowercase, number, and special character'
-  );
+  .min(8, 'Password must be at least 8 characters long.')
+  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
+  .regex(/[a-z]/, 'Password must contain at least one lowercase letter.')
+  .regex(/[0-9]/, 'Password must contain at least one number.')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character.');
 
-/**
- * Schema for user registration
- */
-export const RegisterSchema = z.object({
-  firstName: z
-    .string()
-    .min(2, 'First name must be at least 2 characters')
-    .max(50, 'First name cannot exceed 50 characters'),
-  lastName: z
-    .string()
-    .min(2, 'Last name must be at least 2 characters')
-    .max(50, 'Last name cannot exceed 50 characters'),
-  email: z
-    .string()
-    .min(1, 'Email is required')
-    .email('Invalid email address'),
+// ============================================================================
+// AUTH REQUEST SCHEMAS (for UI Forms)
+// ============================================================================
+
+export const LoginRequestSchema = z.object({
+  email: z.string().email('A valid email address is required.'),
+  password: z.string().min(1, 'Password is required.'),
+});
+
+export const RegisterRequestSchema = z.object({
+  firstName: z.string().min(2, 'First name must be at least 2 characters.').max(50),
+  lastName: z.string().min(2, 'Last name must be at least 2 characters.').max(50),
+  email: z.string().email('A valid email address is required.'),
   password: PasswordSchema,
-  role: UserRoleSchema.optional().default('LAND_OWNER'),
+  role: UserRoleSchema.optional(),
 });
 
-/**
- * Schema for forgot password request
- */
+// We keep these for completeness of the auth domain, for future forms
 export const ForgotPasswordSchema = z.object({
-  email: z
-    .string()
-    .min(1, 'Email is required')
-    .email('Invalid email address'),
+  email: z.string().email('A valid email is required.'),
 });
 
-/**
- * Schema for password reset with token
- */
 export const ResetPasswordSchema = z.object({
-  token: z.string().min(1, 'Reset token is required'),
+  token: z.string().min(1, 'Reset token is required.'),
   newPassword: PasswordSchema,
 });
 
-/**
- * Schema for changing password (authenticated user)
- */
 export const ChangePasswordSchema = z.object({
-  currentPassword: z.string().min(1, 'Current password is required'),
+  currentPassword: z.string().min(1, 'Current password is required.'),
   newPassword: PasswordSchema,
 });
 
-/**
- * Schema for refreshing access token
- */
-export const RefreshTokenSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token is required'),
-});
-
 // ============================================================================
-// AUTH RESPONSE SCHEMAS
+// AUTH RESPONSE SCHEMA (for API Client & State)
 // ============================================================================
 
-/**
- * Schema for authentication response (login/register)
- */
 export const AuthResponseSchema = z.object({
   accessToken: z.string(),
   refreshToken: z.string(),
   user: UserSchema,
 });
 
-/**
- * Schema for token refresh response
- */
-export const RefreshTokenResponseSchema = z.object({
-  accessToken: z.string(),
-  refreshToken: z.string(),
-});
-
 // ============================================================================
 // INFERRED TYPES
 // ============================================================================
 
-// Request types
-export type LoginInput = z.infer<typeof LoginSchema>;
-export type RegisterInput = z.infer<typeof RegisterSchema>;
+export type LoginInput = z.infer<typeof LoginRequestSchema>;
+export type RegisterInput = z.infer<typeof RegisterRequestSchema>;
 export type ForgotPasswordInput = z.infer<typeof ForgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof ResetPasswordSchema>;
 export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;
-export type RefreshTokenInput = z.infer<typeof RefreshTokenSchema>;
 
-// Response types
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
-export type RefreshTokenResponse = z.infer<typeof RefreshTokenResponseSchema>;
-
-// Enum types
-export type UserRole = z.infer<typeof UserRoleSchema>;

@@ -43,7 +43,7 @@ export function ForgotPasswordForm() {
       },
       onError: (error) => {
         toast.error(
-          t('common:error'),
+          t('auth:password_reset_failed'),
           extractErrorMessage(error)
         );
       },

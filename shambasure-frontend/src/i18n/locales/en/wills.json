@@ -1,23 +1,75 @@
-// FILE: src/i18n/locales/en/wills.json
-
 {
-  "title": "Wills",
   "my_wills": "My Wills",
+  "my_wills_subtitle": "Create and manage your estate planning documents",
+  
   "create_will": "Create Will",
   "edit_will": "Edit Will",
   "delete_will": "Delete Will",
+  "view_details": "View Details",
+  
+  "create_will_description": "Create a new will to plan your estate succession",
+  "edit_will_description": "Update your will information and status",
+  "create_will_info": "Start by giving your will a descriptive title. You can assign beneficiaries after creation.",
+  
   "will_title": "Will Title",
-  "will_status": "Will Status",
+  "will_title_placeholder": "e.g., My Last Will and Testament 2024",
+  "will_title_hint": "Give your will a clear, descriptive name",
+  
+  "will_status": "Status",
+  "select_status": "Select status",
+  "status_warning": "Set to 'Draft' initially. Only set to 'Active' when you're ready to make this your official will.",
+  
   "draft": "Draft",
   "active": "Active",
   "revoked": "Revoked",
   "executed": "Executed",
-  "beneficiaries": "Beneficiaries",
-  "add_beneficiary": "Add Beneficiary",
-  "assign_assets": "Assign Assets",
+  "all_statuses": "All Statuses",
+  "filter_by_status": "Filter by status",
+  "per_page": "per page",
+  
+  "create_success": "Will created successfully",
+  "update_success": "Will updated successfully",
+  "delete_success": "Will deleted successfully",
+  "save_changes": "Save Changes",
+  
+  "confirm_delete_title": "Delete Will",
+  "confirm_delete_message": "Are you sure you want to delete \"{{title}}\"? This action cannot be undone.",
+  
+  "will_information": "Will Information",
+  "created_on": "Created on",
+  "last_updated": "Last updated",
+  "back_to_wills": "Back to Wills",
+  "will_not_found": "Will not found",
+  
+  "beneficiary_assignments": "Beneficiary Assignments",
+  "beneficiary_assignments_description": "Assign your assets to family members and heirs",
+  "assign_beneficiary": "Assign Beneficiary",
+  "assign_beneficiary_description": "Choose an asset and beneficiary for inheritance",
+  "assign_beneficiary_info": "Select an asset from your inventory and assign it to a family member with an optional share percentage.",
+  
+  "select_asset": "Select Asset",
+  "choose_asset_placeholder": "Choose an asset...",
+  "no_description": "No description",
+  
+  "select_beneficiary": "Select Beneficiary",
+  "choose_beneficiary_placeholder": "Choose a family member...",
+  
   "share_percentage": "Share Percentage",
-  "will_created": "Will created successfully",
-  "will_updated": "Will updated successfully",
-  "will_deleted": "Will deleted successfully",
-  "no_wills": "No wills found. Create your first will to secure your legacy."
+  "share_percentage_hint": "Leave blank to assign the entire asset, or specify a percentage",
+  "optional": "Optional",
+  "will_receive": "will receive",
+  "of": "of",
+  
+  "beneficiary_assigned_success": "Beneficiary assigned successfully",
+  "assignment_removed_success": "Assignment removed successfully",
+  
+  "no_assignments": "No Beneficiary Assignments",
+  "no_assignments_description": "Start assigning your assets to beneficiaries",
+  "assign_first_beneficiary": "Assign First Beneficiary",
+  
+  "confirm_remove_assignment_title": "Remove Assignment",
+  "confirm_remove_assignment_message": "Are you sure you want to remove this beneficiary assignment?",
+  
+  "no_assets_available": "You haven't created any assets yet. Please add assets before assigning beneficiaries.",
+  "no_family_members_available": "You haven't added any family members yet. Please create a family and add members before assigning beneficiaries."
 }

@@ -1,16 +1,59 @@
-// FILE: src/i18n/locales/en/documents.json
-
 {
-  "title": "Documents",
   "my_documents": "My Documents",
+  "my_documents_subtitle": "Your secure vault for important documents like title deeds, IDs, and more",
+  
   "upload_document": "Upload Document",
-  "document_name": "Document Name",
-  "document_type": "Document Type",
-  "document_status": "Document Status",
-  "pending_verification": "Pending Verification",
+  "upload_document_description": "Upload a new document to your secure vault",
+  "upload_success": "Document uploaded successfully",
+  "download_started": "Download started",
+  "delete_success": "Document deleted successfully",
+  "rename_success": "Document renamed successfully",
+  "version_added_success": "New version added successfully",
+  
+  "drag_drop_or_click": "Drag and drop a file here, or click to select",
+  "drop_file_here": "Drop the file here",
+  "supported_formats": "Supported formats",
+  "description_optional": "Description (Optional)",
+  "description_placeholder": "Add a note about this document...",
+  "upload": "Upload",
+  "uploaded": "Uploaded",
+  
+  "filters": "Filters",
+  "filter_documents_description": "Filter your documents by status",
+  "all_statuses": "All Statuses",
+  "pending": "Pending Review",
   "verified": "Verified",
   "rejected": "Rejected",
-  "upload_success": "Document uploaded successfully",
-  "verification_pending": "Document is pending verification",
-  "no_documents": "No documents found. Upload your first document to get started."
+  "per_page": "per page",
+  
+  "current_version": "Current Version",
+  "add_new_version": "Add New Version",
+  "upload_new_version": "Upload New Version",
+  "select_file": "Select File",
+  "selected": "Selected",
+  "change_note": "Change Note",
+  "change_note_placeholder": "What changed in this version?",
+  "upload_version": "Upload Version",
+  "version_history": "Version History",
+  "version_history_description": "View and manage all versions of this document",
+  "download": "Download",
+  
+  "rename_document": "Rename Document",
+  "rename_document_description": "Change the filename of your document",
+  "filename": "Filename",
+  "filename_placeholder": "Enter new filename...",
+  
+  "confirm_delete_title": "Delete Document",
+  "confirm_delete_message": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
+  
+  "status_pending": "Pending Verification",
+  "status_verified": "Verified",
+  "status_rejected": "Rejected",
+  
+  "no_documents": "No documents yet",
+  "no_documents_description": "Upload your first document to get started",
+  
+  "file_too_large": "File is too large",
+  "invalid_file_type": "Invalid file type",
+  "upload_failed": "Upload failed"
 }

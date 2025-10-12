@@ -2,201 +2,105 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { User } from '../types';
+import type { User } from '../types'; 
 
 // ============================================================================
-// TYPE DEFINITIONS
+// STATE & ACTION INTERFACE
 // ============================================================================
 
-/**
- * Authentication status states
- */
 export type AuthStatus = 'idle' | 'authenticated' | 'unauthenticated';
 
-/**
- * The shape of our authentication state
- */
-type AuthState = {
+interface AuthState {
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
   status: AuthStatus;
-};
-
-/**
- * Actions that can modify the authentication state
- */
-type AuthActions = {
-  login: (data: { user: User; accessToken: string; refreshToken: string }) => void;
-  logout: () => void;
-  setUser: (user: User) => void;
-  setTokens: (accessToken: string, refreshToken: string) => void;
-  clearAuth: () => void;
-  hydrate: () => void;
-};
+  actions: {
+    login: (data: { user: User; accessToken: string; refreshToken: string }) => void;
+    logout: () => void;
+    setUser: (user: User) => void;
+    setTokens: (tokens: { accessToken: string; refreshToken: string }) => void;
+    setStatus: (status: AuthStatus) => void;
+  };
+}
 
 // ============================================================================
 // INITIAL STATE
 // ============================================================================
 
-const initialState: AuthState = {
+const initialState = {
   user: null,
   accessToken: null,
   refreshToken: null,
-  status: 'idle',
+  status: 'idle' as AuthStatus, // Start in 'idle' to handle hydration
 };
 
 // ============================================================================
 // AUTH STORE
 // ============================================================================
 
-/**
- * Zustand store for authentication state management
- * 
- * This store handles ONLY authentication state (user, tokens, status).
- * For data fetching and caching, we use TanStack Query (React Query).
- * 
- * Why this separation?
- * - Zustand: Client-side state (auth, UI preferences)
- * - TanStack Query: Server state (API data, caching, refetching)
- */
-export const useAuthStore = create<AuthState & AuthActions>()(
+export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      // --- INITIAL STATE ---
       ...initialState,
-
-      // --- ACTIONS ---
-
-      /**
-       * Sets authentication data after successful login/register
-       */
-      login: (data) => {
-        set({
-          user: data.user,
-          accessToken: data.accessToken,
-          refreshToken: data.refreshToken,
-          status: 'authenticated',
-        });
-      },
-
-      /**
-       * Clears all authentication data and logs out the user
-       */
-      logout: () => {
-        set(initialState);
-        set({ status: 'unauthenticated' });
-        
-        // Clear persisted storage
-        localStorage.removeItem('shamba-sure-auth-session');
-        
-        // Optional: Clear TanStack Query cache on logout
-        // queryClient.clear();
-      },
-
-      /**
-       * Updates the user object (e.g., after profile update)
-       * Only updates if user is currently authenticated
-       */
-      setUser: (user) => {
-        const { status } = get();
-        if (status === 'authenticated') {
-          set({ user });
-        }
-      },
-
-      /**
-       * Updates tokens (used by token refresh interceptor)
-       */
-      setTokens: (accessToken, refreshToken) => {
-        set({ accessToken, refreshToken });
-      },
-
-      /**
-       * Clears authentication state without changing status
-       * Useful for cleanup operations
-       */
-      clearAuth: () => {
-        set({
-          user: null,
-          accessToken: null,
-          refreshToken: null,
-        });
-      },
-
-      /**
-       * Manually triggers hydration from storage
-       * Useful after app initialization
-       */
-      hydrate: () => {
-        const { accessToken, user } = get();
-        if (accessToken && user) {
-          set({ status: 'authenticated' });
-        } else {
+      actions: {
+        login: (data) => {
+          set({
+            user: data.user,
+            accessToken: data.accessToken,
+            refreshToken: data.refreshToken,
+            status: 'authenticated',
+          });
+        },
+        logout: () => {
+          // ARCHITECTURAL UPGRADE: Resetting to initial state is cleaner.
+          // The persist middleware will handle clearing the storage.
+          set(initialState);
+          // Immediately set status to unauthenticated for instant UI feedback.
           set({ status: 'unauthenticated' });
-        }
+        },
+        setUser: (user) => {
+          // This logic is good, only update if authenticated.
+          if (get().status === 'authenticated') {
+            set({ user });
+          }
+        },
+        // BUG FIX: The signature now matches what the apiClient expects.
+        setTokens: ({ accessToken, refreshToken }) => {
+          set({ accessToken, refreshToken });
+        },
+        setStatus: (status) => {
+          set({ status });
+        },
       },
     }),
     {
       name: 'shamba-sure-auth-session',
-      storage: createJSONStorage(() => localStorage),
-      
-      // Only persist these fields
-      partialize: (state) => ({
+      // ARCHITECTURAL UPGRADE: Allow dynamic storage
+      storage: createJSONStorage(() => {
+        // Check a flag in localStorage to decide which storage to use.
+        const storageType = localStorage.getItem('shamba-sure-storage-type');
+        return storageType === 'local' ? localStorage : sessionStorage;
+      }),
+        partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
-        status: state.status,
       }),
-
-      // Handle hydration on store initialization
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          // Set status based on whether we have valid tokens
-          if (state.accessToken && state.user) {
-            state.status = 'authenticated';
-          } else {
-            state.status = 'unauthenticated';
-          }
-        }
-      },
+      // SIMPLIFICATION: Removed complex onRehydrateStorage.
+      // The initial status check is now handled gracefully in the UI layer (see App.tsx example).
     }
   )
 );
 
 // ============================================================================
-// SELECTORS (Optional but recommended for performance)
+// SELECTORS & CONVENIENCE HOOKS
 // ============================================================================
 
-/**
- * Selectors for specific parts of the auth state
- * Use these in components to prevent unnecessary re-renders
- */
-export const authSelectors = {
-  user: (state: AuthState & AuthActions) => state.user,
-  isAuthenticated: (state: AuthState & AuthActions) => state.status === 'authenticated',
-  status: (state: AuthState & AuthActions) => state.status,
-  accessToken: (state: AuthState & AuthActions) => state.accessToken,
-};
+// Selectors for state data
+export const useCurrentUser = () => useAuthStore((state) => state.user);
+export const useAuthStatus = () => useAuthStore((state) => state.status);
+export const useIsAuthenticated = () => useAuthStore((state) => state.status === 'authenticated');
 
-// ============================================================================
-// HELPER HOOKS (Optional convenience hooks)
-// ============================================================================
-
-/**
- * Hook to check if user is authenticated
- */
-export const useIsAuthenticated = () => 
-  useAuthStore(authSelectors.isAuthenticated);
-
-/**
- * Hook to get current user
- */
-export const useCurrentUser = () => 
-  useAuthStore(authSelectors.user);
-
-/**
- * Hook to get auth status
- */
-export const useAuthStatus = () => 
-  useAuthStore(authSelectors.status);
+// A dedicated hook for actions prevents components from re-rendering when state changes.
+export const useAuthActions = () => useAuthStore((state) => state.actions);
