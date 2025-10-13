@@ -5,10 +5,10 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
 
-import { AssignBeneficiarySchema, type AssignBeneficiaryInput } from '../../../types';
-import { useAddBeneficiaryAssignment } from '../wills.api';
-import { useAssets } from '../../assets/assets.api';
-import { useFamilies } from '../../families/families.api';
+import { AssignBeneficiaryRequestSchema, type AssignBeneficiaryInput } from '../../../types';
+import { useAddBeneficiary } from '../wills.api';
+import { useMyAssets } from '../../assets/assets.api';
+import { useMyFamilies } from '../../families/families.api';
 import { toast } from '../../../components/common/Toaster';
 import { extractErrorMessage } from '../../../api/client';
 
@@ -55,11 +55,11 @@ export function BeneficiaryAssignmentForm({
   onCancel 
 }: BeneficiaryAssignmentFormProps) {
   const { t } = useTranslation(['wills', 'common']);
-  const addAssignmentMutation = useAddBeneficiaryAssignment();
+  const addAssignmentMutation = useAddBeneficiary();
   
   // Fetch data for dropdowns
-  const { data: assetsData, isLoading: assetsLoading } = useAssets({ limit: 100 });
-  const { data: familiesData, isLoading: familiesLoading } = useFamilies({ limit: 100 });
+  const { data: assetsData, isLoading: assetsLoading } = useMyAssets({ limit: 100 });
+  const { data: familiesData, isLoading: familiesLoading } = useMyFamilies({ limit: 100 });
   
   // Flatten family members
   const allFamilyMembers = React.useMemo(() => {
@@ -80,7 +80,7 @@ export function BeneficiaryAssignmentForm({
     watch,
     formState: { errors },
   } = useForm<AssignBeneficiaryInput>({
-    resolver: zodResolver(AssignBeneficiarySchema),
+    resolver: zodResolver(AssignBeneficiaryRequestSchema),
   });
 
   const selectedAssetId = watch('assetId');

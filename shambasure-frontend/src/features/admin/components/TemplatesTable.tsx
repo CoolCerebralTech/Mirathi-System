@@ -1,248 +1,103 @@
-// FILE: src/features/admin/components/TemplatesTable.tsx
+// FILE: src/features/admin/components/TemplatesTable.tsx (Finalized)
 
 import * as React from 'react';
-import type { ColumnDef } from '@tantml:react-table';
-import { MoreHorizontal, Edit, Trash2, Send, Copy } from 'lucide-react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { MoreHorizontal, Edit, Trash2, Copy } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 
-import { 
-  useTemplates, 
-  useDeleteTemplate,
-  useTestTemplate 
-} from '../templates.api';
-import type { NotificationTemplate, TemplateQuery, NotificationChannel } from '../../../types';
-import { toast } from '../../../components/common/Toaster';
+import { useTemplates, useDeleteTemplate } from '../templates.api';
+import { Template, TemplateQuery } from '../../../types/schemas/templates.schemas'; // UPGRADE: Correct imports
+import { NotificationChannel } from '../../../types/schemas/notifications.schemas';
 import { extractErrorMessage } from '../../../api/client';
 
 import { DataTable, DataTableColumnHeader } from '../../../components/ui/DataTable';
 import { Button } from '../../../components/ui/Button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../../../components/ui/DropdownMenu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../../components/ui/DropdownMenu';
 import { Badge } from '../../../components/ui/Badge';
-import { ConfirmDialog } from '../../../components/common/ConfirmDialog';
-
-// ============================================================================
-// TYPE DEFINITIONS
-// ============================================================================
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../../../components/ui/AlertDialog';
 
 interface TemplatesTableProps {
-  filters: TemplateQuery;
-  onFiltersChange: (filters: TemplateQuery) => void;
-  onEditTemplate?: (template: NotificationTemplate) => void;
-  onTestTemplate?: (template: NotificationTemplate) => void;
+  filters: Partial<TemplateQuery>;
+  onPaginationChange: (updater: any) => void;
+  onEdit: (template: Template) => void;
 }
 
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-const getChannelBadgeVariant = (channel: NotificationChannel) => {
-  return channel === 'EMAIL' ? 'default' : 'secondary';
-};
-
-// ============================================================================
-// COMPONENT
-// ============================================================================
-
-export function TemplatesTable({ 
-  filters, 
-  onFiltersChange,
-  onEditTemplate,
-  onTestTemplate 
-}: TemplatesTableProps) {
+export function TemplatesTable({ filters, onPaginationChange, onEdit }: TemplatesTableProps) {
   const { t } = useTranslation(['admin', 'common']);
   const { data, isLoading } = useTemplates(filters);
-  
   const deleteMutation = useDeleteTemplate();
 
-  const [selectedTemplate, setSelectedTemplate] = React.useState<NotificationTemplate | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [templateToDelete, setTemplateToDelete] = React.useState<Template | null>(null);
 
-  // ============================================================================
-  // MUTATION HANDLERS
-  // ============================================================================
-
-  const handleDelete = React.useCallback(() => {
-    if (!selectedTemplate) return;
-    
-    deleteMutation.mutate(selectedTemplate.id, {
+  const handleDeleteConfirm = () => {
+    if (!templateToDelete) return;
+    deleteMutation.mutate(templateToDelete.id, {
       onSuccess: () => {
         toast.success(t('admin:template_deleted_success'));
-        setDeleteDialogOpen(false);
-        setSelectedTemplate(null);
+        setTemplateToDelete(null);
       },
-      onError: (error) => {
-        toast.error(t('common:error'), extractErrorMessage(error));
-      },
+      onError: (error) => toast.error(t('common:error'), { description: extractErrorMessage(error) }),
     });
-  }, [selectedTemplate, deleteMutation, t]);
+  };
 
-  const handleCopyId = React.useCallback((id: string) => {
-    navigator.clipboard.writeText(id);
-    toast.success(t('common:copied_to_clipboard'));
-  }, [t]);
-
-  // ============================================================================
-  // TABLE COLUMNS
-  // ============================================================================
-
-  const columns: ColumnDef<NotificationTemplate>[] = React.useMemo(() => [
+  const columns: ColumnDef<Template>[] = React.useMemo(() => [
     {
       accessorKey: 'name',
       header: ({ column }) => <DataTableColumnHeader column={column} title={t('admin:template_name')} />,
-      cell: ({ row }) => {
-        const template = row.original;
-        return (
-          <div className="flex flex-col">
-            <span className="font-medium">{template.name}</span>
-            {template.subject && (
-              <span className="text-sm text-muted-foreground line-clamp-1">
-                {template.subject}
-              </span>
-            )}
-          </div>
-        );
-      },
+      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
     },
     {
       accessorKey: 'channel',
       header: ({ column }) => <DataTableColumnHeader column={column} title={t('admin:channel')} />,
-      cell: ({ row }) => {
-        const channel = row.getValue('channel') as NotificationChannel;
-        return (
-          <Badge variant={getChannelBadgeVariant(channel)}>
-            {channel}
-          </Badge>
-        );
-      },
-      filterFn: (row, id, value) => {
-        return value.includes(row.getValue(id));
-      },
-    },
-    {
-      accessorKey: 'body',
-      header: t('admin:preview'),
-      cell: ({ row }) => {
-        const body = row.getValue('body') as string;
-        return (
-          <p className="text-sm text-muted-foreground line-clamp-2 max-w-md">
-            {body}
-          </p>
-        );
-      },
-      enableSorting: false,
+      cell: ({ row }) => <Badge variant={row.original.channel === 'EMAIL' ? 'default' : 'secondary'}>{row.original.channel}</Badge>,
     },
     {
       accessorKey: 'updatedAt',
       header: ({ column }) => <DataTableColumnHeader column={column} title={t('admin:last_updated')} />,
-      cell: ({ row }) => {
-        const date = new Date(row.getValue('updatedAt'));
-        return (
-          <span className="text-sm">
-            {formatDistanceToNow(date, { addSuffix: true })}
-          </span>
-        );
-      },
+      cell: ({ row }) => <span>{formatDistanceToNow(new Date(row.getValue('updatedAt')), { addSuffix: true })}</span>,
     },
     {
       id: 'actions',
       cell: ({ row }) => {
         const template = row.original;
-
         return (
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreHorizontal className="h-4 w-4" />
-                <span className="sr-only">Open menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[180px]">
-              <DropdownMenuLabel>{t('admin:actions')}</DropdownMenuLabel>
-              
-              <DropdownMenuItem onClick={() => onEditTemplate?.(template)}>
-                <Edit className="mr-2 h-4 w-4" />
-                {t('admin:edit_template')}
-              </DropdownMenuItem>
-
-              <DropdownMenuItem onClick={() => onTestTemplate?.(template)}>
-                <Send className="mr-2 h-4 w-4" />
-                {t('admin:test_template')}
-              </DropdownMenuItem>
-
-              <DropdownMenuItem onClick={() => handleCopyId(template.id)}>
-                <Copy className="mr-2 h-4 w-4" />
-                {t('admin:copy_template_id')}
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator />
-
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => {
-                  setSelectedTemplate(template);
-                  setDeleteDialogOpen(true);
-                }}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                {t('admin:delete_template')}
-              </DropdownMenuItem>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal size={16} /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(template)}><Edit className="mr-2 h-4 w-4" />{t('common:edit')}</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigator.clipboard.writeText(template.id)}><Copy className="mr-2 h-4 w-4" />{t('admin:copy_template_id')}</DropdownMenuItem>
+              {/* UPGRADE: Removed "Test Template" as the backend endpoint doesn't exist. */}
+              <DropdownMenuItem className="text-destructive" onClick={() => setTemplateToDelete(template)}><Trash2 className="mr-2 h-4 w-4" />{t('common:delete')}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         );
       },
     },
-  ], [t, onEditTemplate, onTestTemplate, handleCopyId]);
-
-  // ============================================================================
-  // RENDER
-  // ============================================================================
+  ], [t, onEdit]);
+  
+  const pageCount = data ? Math.ceil(data.total / (filters.limit || 10)) : 0;
 
   return (
     <>
       <DataTable
         columns={columns}
-        data={data?.data || []}
+        data={data?.templates || []} // UPGRADE: Use `data.templates`
         isLoading={isLoading}
-        pageCount={data?.totalPages || 0}
-        pagination={{
-          pageIndex: filters.page - 1,
-          pageSize: filters.limit,
-        }}
-        onPaginationChange={(updater) => {
-          const newState = typeof updater === 'function'
-            ? updater({ pageIndex: filters.page - 1, pageSize: filters.limit })
-            : updater;
-          
-          onFiltersChange({
-            ...filters,
-            page: newState.pageIndex + 1,
-            limit: newState.pageSize,
-          });
-        }}
+        pageCount={pageCount}
+        pagination={{ pageIndex: (filters.page || 1) - 1, pageSize: filters.limit || 10 }}
+        onPaginationChange={onPaginationChange}
       />
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        title={t('admin:confirm_delete_title')}
-        description={t('admin:confirm_delete_template_message', {
-          name: selectedTemplate?.name,
-        })}
-        onConfirm={handleDelete}
-        variant="destructive"
-        confirmText={t('admin:delete')}
-        cancelText={t('common:cancel')}
-        isLoading={deleteMutation.isPending}
-      />
+      <AlertDialog open={!!templateToDelete} onOpenChange={() => setTemplateToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>{t('common:are_you_sure')}</AlertDialogTitle><AlertDialogDescription>{t('admin:confirm_delete_template_message', { name: templateToDelete?.name })}</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} disabled={deleteMutation.isPending}>{t('common:delete')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

@@ -1,37 +1,43 @@
-// FILE: src/components/layouts/Header.tsx
+// FILE: src/components/layout/Header.tsx
 
-import * as React from 'react';
-import { Menu } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { LogOut, User as UserIcon, Settings } from 'lucide-react';
+import { useCurrentUser, useAuthActions } from '../../store/auth.store';
 import { Button } from '../ui/Button';
-import { UserMenu } from '../common/UserMenu';
-import { NotificationDropdown } from '../common/NotificationDropdown';
+import { Avatar } from '../common/Avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/DropdownMenu';
 
-interface HeaderProps {
-  onMobileNavToggle: () => void;
-}
+export function Header() {
+  const user = useCurrentUser();
+  const { logout } = useAuthActions();
 
-export function Header({ onMobileNavToggle }: HeaderProps) {
+  const getInitials = (firstName = '', lastName = '') => `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 sm:px-6">
-      {/* Mobile Menu Button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="sm:hidden"
-        onClick={onMobileNavToggle}
-      >
-        <Menu className="h-5 w-5" />
-        <span className="sr-only">Toggle Menu</span>
-      </Button>
-
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Right Side Actions */}
-      <div className="flex items-center gap-2">
-        <NotificationDropdown />
-        <UserMenu />
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-6">
+      <div className="flex-1">
+        {/* Can add Breadcrumbs or a global search here later */}
       </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+            <Avatar fallback={getInitials(user?.firstName, user?.lastName)} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-56" align="end" forceMount>
+          <DropdownMenuLabel className="font-normal">
+            <div className="flex flex-col space-y-1">
+              <p className="text-sm font-medium leading-none">{user?.firstName} {user?.lastName}</p>
+              <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+            </div>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild><Link to="/dashboard/profile"><UserIcon className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
+          <DropdownMenuItem asChild><Link to="/dashboard/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => logout()}><LogOut className="mr-2 h-4 w-4" />Sign Out</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </header>
   );
 }

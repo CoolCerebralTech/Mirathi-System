@@ -7,7 +7,7 @@ import { useAuthActions, useIsAuthenticated } from '../../store/auth.store'; // 
 import type {
   User,
   UpdateUserProfileInput,
-} from '../../types'; // CORRECTED: Import from specific schema files
+} from '../../types';
 import type { ChangePasswordInput } from '../../types';
 
 // ============================================================================

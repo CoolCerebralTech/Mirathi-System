@@ -1,4 +1,4 @@
-// FILE: src/features/auth/components/RegisterForm.tsx (Upgraded & Finalized)
+// FILE: src/features/auth/components/RegisterForm.tsx
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,7 +9,6 @@ import { toast } from 'sonner';
 
 import { RegisterRequestSchema, type RegisterInput } from '../../../types'; 
 import type { UserRole } from '../../../types';
- // UPGRADE: Import the specific UserRole type
 import { useRegister } from '../auth.api';
 import { extractErrorMessage } from '../../../api/client';
 

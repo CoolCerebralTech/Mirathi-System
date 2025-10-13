@@ -1,4 +1,4 @@
-// FILE: src/types/schemas/assets.schemas.ts (Finalized)
+// FILE: src/types/assets.schemas.ts
 
 import { z } from 'zod';
 
@@ -37,6 +37,17 @@ export const CreateAssetRequestSchema = z.object({
 export const UpdateAssetRequestSchema = CreateAssetRequestSchema.partial();
 
 // ============================================================================
+// QUERY SCHEMA
+// ============================================================================
+
+// UPGRADE: Added the missing schema for query parameters.
+export const AssetQuerySchema = z.object({
+  page: z.number().int().positive().optional(),
+  limit: z.number().int().positive().optional(),
+  type: AssetTypeSchema.optional(),
+});
+
+// ============================================================================
 // INFERRED TYPES
 // ============================================================================
 
@@ -44,3 +55,4 @@ export type AssetType = z.infer<typeof AssetTypeSchema>;
 export type Asset = z.infer<typeof AssetResponseSchema>;
 export type CreateAssetInput = z.infer<typeof CreateAssetRequestSchema>;
 export type UpdateAssetInput = z.infer<typeof UpdateAssetRequestSchema>;
+export type AssetQuery = z.infer<typeof AssetQuerySchema>;

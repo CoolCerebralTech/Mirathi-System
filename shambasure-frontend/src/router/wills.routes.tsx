@@ -1,27 +1,14 @@
 // FILE: src/router/wills.routes.tsx
 
-import { RouteObject } from 'react-router-dom';
-import { DashboardLayout } from '../components/layout/DashboardLayout';
-import { WillsPage } from '../pages/WillsPage';
-import { WillDetailPage } from '../pages/WillDetailPage';
+import { Route, Routes } from 'react-router-dom';
+import { WillsPage } from '../pages/wills/WillsPage';
+import { WillDetailPage } from '../pages/wills/WillDetailPage';
 
-// ============================================================================
-// WILLS ROUTES
-// ============================================================================
-
-export const willsRoutes: RouteObject[] = [
-  {
-    path: '/wills',
-    element: <DashboardLayout />,
-    children: [
-      {
-        index: true,
-        element: <WillsPage />,
-      },
-      {
-        path: ':id',
-        element: <WillDetailPage />,
-      },
-    ],
-  },
-];
+export function WillRoutes() {
+  return (
+    <Routes>
+      <Route index element={<WillsPage />} />
+      <Route path=":id" element={<WillDetailPage />} />
+    </Routes>
+  );
+}

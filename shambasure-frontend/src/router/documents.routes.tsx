@@ -1,8 +1,8 @@
-// FILE: src/router/documents.routes.tsx (New & Finalized)
+// FILE: src/router/documents.routes.tsx
 
 import { Route, Routes } from 'react-router-dom';
-import { DocumentsPage } from '../pages/DocumentsPage';
-import { DocumentDetailPage } from '../pages/DocumentDetailPage';
+import { DocumentsPage } from '../pages/documents/DocumentsPage';
+import { DocumentDetailPage } from '../pages/documents/DocumentDetailPage';
 
 /**
  * DocumentRoutes - Defines all routes for the document management feature.

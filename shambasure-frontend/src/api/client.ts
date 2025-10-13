@@ -142,7 +142,10 @@ apiClient.interceptors.response.use(
           response.data;
 
         // Update tokens in store
-        actions.setTokens(newAccessToken, newRefreshToken);
+        actions.setTokens({
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken,
+        });
 
         // Process all queued requests with new token
         processQueue(null, newAccessToken);

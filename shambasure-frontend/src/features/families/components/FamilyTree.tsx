@@ -1,6 +1,5 @@
 // FILE: src/features/families/components/FamilyTree.tsx
 
-import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { MoreHorizontal, Edit, Trash2, Crown } from 'lucide-react';
 

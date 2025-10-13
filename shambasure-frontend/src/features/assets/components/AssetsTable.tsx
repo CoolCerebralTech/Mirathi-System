@@ -1,113 +1,69 @@
-// FILE: src/features/assets/components/AssetsTable.tsx
+// FILE: src/features/assets/components/AssetsTable.tsx (New & Finalized)
 
-import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { MoreHorizontal, Edit, Trash2, Eye, Users } from 'lucide-react';
+import { MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { formatDistanceToNow } from 'date-fns';
 
-import type { Asset, AssetType } from '../../../types';
+import { Asset, AssetType } from '../../../types/schemas/assets.schemas';
 import { Button } from '../../../components/ui/Button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../../../components/ui/DropdownMenu';
-import { Badge } from '../../../components/ui/Badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../../components/ui/DropdownMenu';
 import { DataTableColumnHeader } from '../../../components/ui/DataTable';
 
-// ============================================================================
-// TYPE DEFINITIONS
-// ============================================================================
-
-interface AssetsTableProps {
+interface AssetsTableHandlers {
   onEdit: (asset: Asset) => void;
-  onDelete: (assetId: string) => void;
-  onViewDetails?: (asset: Asset) => void;
-  onAssignBeneficiaries?: (asset: Asset) => void;
+  onDelete: (asset: Asset) => void;
 }
 
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-const getAssetTypeInfo = (type: AssetType) => {
+// Helper to get icon and label for an asset type
+const getAssetTypeDetails = (type: AssetType, t: Function) => {
   const types = {
-    LAND_PARCEL: { label: 'Land Parcel', icon: '🏞️', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
-    PROPERTY: { label: 'Property', icon: '🏠', color: 'bg-blue-100 text-blue-700 border-blue-300' },
-    VEHICLE: { label: 'Vehicle', icon: '🚗', color: 'bg-purple-100 text-purple-700 border-purple-300' },
-    BANK_ACCOUNT: { label: 'Bank Account', icon: '💰', color: 'bg-amber-100 text-amber-700 border-amber-300' },
-    OTHER: { label: 'Other', icon: '📦', color: 'bg-slate-100 text-slate-700 border-slate-300' },
+    LAND_PARCEL: { label: t('assets:type_land_parcel'), icon: '🏞️' },
+    PROPERTY: { label: t('assets:type_property'), icon: '🏠' },
+    VEHICLE: { label: t('assets:type_vehicle'), icon: '🚗' },
+    BANK_ACCOUNT: { label: t('assets:type_bank_account'), icon: '💰' },
+    OTHER: { label: t('assets:type_other'), icon: '📦' },
   };
-  return types[type] || types.OTHER;
+  return types[type] || types['OTHER'];
 };
 
-// ============================================================================
-// COLUMNS FACTORY
-// ============================================================================
+export const getAssetColumns = (handlers: AssetsTableHandlers): ColumnDef<Asset>[] => {
+  const { t } = useTranslation(['assets']);
 
-export const getAssetColumns = (handlers: AssetsTableProps): ColumnDef<Asset>[] => {
   return [
     {
       accessorKey: 'name',
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Asset" />,
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t('assets:asset_name')} />,
       cell: ({ row }) => {
         const asset = row.original;
-        const typeInfo = getAssetTypeInfo(asset.type);
-        
+        const details = getAssetTypeDetails(asset.type, t);
         return (
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <span className="text-xl">{typeInfo.icon}</span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+              <span className="text-xl">{details.icon}</span>
             </div>
             <div className="flex flex-col">
-              <span className="font-medium">{asset.name}</span>
-              {asset.description && (
-                <span className="text-sm text-muted-foreground line-clamp-1">
-                  {asset.description}
-                </span>
-              )}
+              <span className="font-medium line-clamp-1">{asset.name}</span>
+              <span className="text-xs text-muted-foreground">{details.label}</span>
             </div>
           </div>
         );
       },
     },
     {
-      accessorKey: 'type',
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Type" />,
+      accessorKey: 'description',
+      header: () => <span>{t('assets:description')}</span>,
       cell: ({ row }) => {
-        const type = row.getValue('type') as AssetType;
-        const typeInfo = getAssetTypeInfo(type);
-        
-        return (
-          <Badge variant="outline" className={typeInfo.color}>
-            <span className="mr-1">{typeInfo.icon}</span>
-            {typeInfo.label}
-          </Badge>
-        );
-      },
-      filterFn: (row, id, value) => {
-        return value.includes(row.getValue(id));
+        const description = row.getValue('description') as string;
+        return <p className="text-sm text-muted-foreground line-clamp-2">{description || '—'}</p>;
       },
     },
     {
       accessorKey: 'createdAt',
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Created" />,
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t('assets:date_added')} />,
       cell: ({ row }) => {
         const date = new Date(row.getValue('createdAt'));
-        return (
-          <div className="flex flex-col">
-            <span className="text-sm">
-              {formatDistanceToNow(date, { addSuffix: true })}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {date.toLocaleDateString()}
-            </span>
-          </div>
-        );
+        return <span className="text-sm">{formatDistanceToNow(date, { addSuffix: true })}</span>;
       },
     },
     {
@@ -120,39 +76,19 @@ export const getAssetColumns = (handlers: AssetsTableProps): ColumnDef<Asset>[] 
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">
                 <MoreHorizontal className="h-4 w-4" />
-                <span className="sr-only">Open menu</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[200px]">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              
-              {handlers.onViewDetails && (
-                <DropdownMenuItem onClick={() => handlers.onViewDetails!(asset)}>
-                  <Eye className="mr-2 h-4 w-4" />
-                  View Details
-                </DropdownMenuItem>
-              )}
-
+            <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => handlers.onEdit(asset)}>
                 <Edit className="mr-2 h-4 w-4" />
-                Edit Asset
+                <span>{t('common:edit')}</span>
               </DropdownMenuItem>
-
-              {handlers.onAssignBeneficiaries && (
-                <DropdownMenuItem onClick={() => handlers.onAssignBeneficiaries!(asset)}>
-                  <Users className="mr-2 h-4 w-4" />
-                  Assign Beneficiaries
-                </DropdownMenuItem>
-              )}
-
-              <DropdownMenuSeparator />
-
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
-                onClick={() => handlers.onDelete(asset.id)}
+                onClick={() => handlers.onDelete(asset)}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
-                Delete Asset
+                <span>{t('common:delete')}</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

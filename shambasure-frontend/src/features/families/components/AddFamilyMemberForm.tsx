@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Search } from 'lucide-react';
 
 import { 
-  AddFamilyMemberSchema, 
+  AddFamilyMemberRequestSchema, 
   type AddFamilyMemberInput,
   type RelationshipType 
 } from '../../../types';
@@ -89,7 +89,7 @@ export function AddFamilyMemberForm({
     watch,
     formState: { errors },
   } = useForm<AddFamilyMemberInput>({
-    resolver: zodResolver(AddFamilyMemberSchema),
+    resolver: zodResolver(AddFamilyMemberRequestSchema),
   });
 
   const selectedUserId = watch('userId');

@@ -6,23 +6,32 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Lock } from 'lucide-react';
 
-import { ResetPasswordSchema, type ResetPasswordInput } from '../../../types';
+import {
+  ResetPasswordSchema,
+  type ResetPasswordInput,
+} from '../../../types';
 import { useResetPassword } from '../auth.api';
-import { toast } from '../../../components/common/Toaster';
+import { toast } from 'sonner';
 import { extractErrorMessage } from '../../../api/client';
 
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Label } from '../../../components/ui/Label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../../../components/ui/Card';
 
 export function ResetPasswordForm() {
   const { t } = useTranslation(['auth', 'common']);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const resetPasswordMutation = useResetPassword();
 
-  const token = searchParams.get('token') || '';
+  const resetPasswordMutation = useResetPassword();
+  const token = searchParams.get('token') ?? '';
 
   const {
     register,
@@ -36,17 +45,16 @@ export function ResetPasswordForm() {
     },
   });
 
-  const onSubmit = async (data: ResetPasswordInput) => {
+  const onSubmit = (data: ResetPasswordInput) => {
     resetPasswordMutation.mutate(data, {
       onSuccess: () => {
         toast.success(t('auth:password_changed'));
         setTimeout(() => navigate('/login'), 2000);
       },
       onError: (error) => {
-        toast.error(
-          t('common:error'),
-          extractErrorMessage(error)
-        );
+        toast.error(t('common:error'), {
+          description: extractErrorMessage(error),
+        });
       },
     });
   };
@@ -57,14 +65,17 @@ export function ResetPasswordForm() {
     return (
       <Card className="w-full">
         <CardHeader>
-          <CardTitle>Invalid Reset Link</CardTitle>
+          <CardTitle>{t('auth:invalid_reset_link')}</CardTitle>
           <CardDescription>
-            The password reset link is invalid or has expired.
+            {t('auth:invalid_reset_link_description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={() => navigate('/forgot-password')} className="w-full">
-            Request New Reset Link
+          <Button
+            onClick={() => navigate('/forgot-password')}
+            className="w-full"
+          >
+            {t('auth:request_new_reset_link')}
           </Button>
         </CardContent>
       </Card>
@@ -74,13 +85,16 @@ export function ResetPasswordForm() {
   return (
     <Card className="w-full">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold">{t('auth:reset_password')}</CardTitle>
+        <CardTitle className="text-2xl font-bold">
+          {t('auth:reset_password')}
+        </CardTitle>
         <CardDescription>
-          Enter your new password below
+          {t('auth:reset_password_description')}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* Hidden token field */}
           <input type="hidden" {...register('token')} />
 
           {/* New Password Field */}
@@ -95,7 +109,7 @@ export function ResetPasswordForm() {
               {...register('newPassword')}
             />
             <p className="text-xs text-muted-foreground">
-              Must be at least 8 characters with uppercase, lowercase, number, and special character
+              {t('auth:password_requirements')}
             </p>
           </div>
 
@@ -106,7 +120,7 @@ export function ResetPasswordForm() {
             isLoading={isLoading}
             disabled={isLoading}
           >
-            Reset Password
+            {t('auth:reset_password')}
           </Button>
         </form>
       </CardContent>

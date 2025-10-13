@@ -1,7 +1,7 @@
-// FILE: src/types/schemas/families.schemas.ts (Finalized)
+// FILE: src/types/families.schemas.ts
 
 import { z } from 'zod';
-import { UserResponseSchema } from './user.schemas';
+import { UserSchema } from './user.schemas';
 
 // ============================================================================
 // ENUMS
@@ -18,7 +18,7 @@ export const RelationshipTypeSchema = z.enum([
 export const FamilyMemberResponseSchema = z.object({
   userId: z.string().uuid(),
   role: RelationshipTypeSchema,
-  user: UserResponseSchema,
+  user: UserSchema,
 });
 
 export const FamilyResponseSchema = z.object({
@@ -43,6 +43,10 @@ export const AddFamilyMemberRequestSchema = z.object({
   role: RelationshipTypeSchema,
 });
 
+export const UpdateFamilyMemberRequestSchema = z.object({
+  role: RelationshipTypeSchema,
+});
+
 // ============================================================================
 // INFERRED TYPES
 // ============================================================================
@@ -52,3 +56,4 @@ export type Family = z.infer<typeof FamilyResponseSchema>;
 export type FamilyMember = z.infer<typeof FamilyMemberResponseSchema>;
 export type CreateFamilyInput = z.infer<typeof CreateFamilyRequestSchema>;
 export type AddFamilyMemberInput = z.infer<typeof AddFamilyMemberRequestSchema>;
+export type UpdateFamilyMemberInput = z.infer<typeof UpdateFamilyMemberRequestSchema>;

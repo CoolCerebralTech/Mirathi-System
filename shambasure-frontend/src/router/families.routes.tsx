@@ -1,27 +1,14 @@
 // FILE: src/router/families.routes.tsx
 
-import { RouteObject } from 'react-router-dom';
-import { DashboardLayout } from '../components/layout/DashboardLayout';
-import { FamiliesPage } from '../pages/FamiliesPage';
-import { FamilyPage } from '../pages/FamilyPage';
+import { Route, Routes } from 'react-router-dom';
+import { FamiliesPage } from '../pages/families/FamiliesPage';
+import { FamilyDetailPage } from '../pages/families/FamilyDetailPage';
 
-// ============================================================================
-// FAMILIES ROUTES
-// ============================================================================
-
-export const familiesRoutes: RouteObject[] = [
-  {
-    path: '/families',
-    element: <DashboardLayout />,
-    children: [
-      {
-        index: true,
-        element: <FamiliesPage />,
-      },
-      {
-        path: ':id',
-        element: <FamilyPage />,
-      },
-    ],
-  },
-];
+export function FamilyRoutes() {
+  return (
+    <Routes>
+      <Route index element={<FamiliesPage />} />
+      <Route path=":id" element={<FamilyDetailPage />} />
+    </Routes>
+  );
+}

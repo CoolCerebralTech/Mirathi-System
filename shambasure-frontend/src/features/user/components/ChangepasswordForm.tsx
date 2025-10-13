@@ -1,4 +1,4 @@
-// FILE: src/features/user/components/ChangePasswordForm.tsx)
+// FILE: src/features/user/components/ChangePasswordForm.tsx
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';

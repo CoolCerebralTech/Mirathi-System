@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
 
 import { 
-  CreateWillSchema, 
+  CreateWillRequestSchema, 
   type Will, 
   type CreateWillInput,
   type WillStatus 
@@ -79,7 +79,7 @@ export function WillForm({ will, onSuccess, onCancel }: WillFormProps) {
     reset,
     formState: { errors, isSubmitting },
   } = useForm<CreateWillInput>({
-    resolver: zodResolver(CreateWillSchema),
+    resolver: zodResolver(CreateWillRequestSchema),
     defaultValues: will || {
       title: '',
       status: 'DRAFT',
@@ -92,30 +92,23 @@ export function WillForm({ will, onSuccess, onCancel }: WillFormProps) {
     }
   }, [will, isEditing, reset]);
 
-  const onSubmit = async (data: CreateWillInput) => {
+ const onSubmit = (data: CreateWillInput) => {
     if (isEditing && will) {
-      updateMutation.mutate(
-        { willId: will.id, data },
-        {
-          onSuccess: () => {
-            toast.success(t('wills:update_success'));
-            onSuccess();
-          },
-          onError: (error) => {
-            toast.error(t('common:error'), extractErrorMessage(error));
-          },
-        }
-      );
+      // UPGRADE: The mutation hook expects `id`, not `willId`
+      updateMutation.mutate({ id: will.id, data }, {
+        onSuccess: () => {
+          toast.success(t('wills:update_success'));
+          onSuccess();
+        },
+        onError: (error) => toast.error(t('wills:update_failed'), { description: extractErrorMessage(error) }),
+      });
     } else {
       createMutation.mutate(data, {
         onSuccess: () => {
           toast.success(t('wills:create_success'));
-          reset();
           onSuccess();
         },
-        onError: (error) => {
-          toast.error(t('common:error'), extractErrorMessage(error));
-        },
+        onError: (error) => toast.error(t('wills:create_failed'), { description: extractErrorMessage(error) }),
       });
     }
   };

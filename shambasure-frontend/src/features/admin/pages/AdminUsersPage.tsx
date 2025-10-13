@@ -1,114 +1,42 @@
-// FILE: src/features/admin/pages/AdminUsersPage.tsx
+// FILE: src/features/admin/pages/AdminUsersPage.tsx (Finalized)
 
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Users, Download, UserPlus } from 'lucide-react';
+import { Users } from 'lucide-react';
+import { useDebounce } from 'use-debounce'; // A common helper hook for debouncing
 
-import { Button } from '../../../components/ui/Button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
+import { PageHeader } from '../../../components/common/PageHeader';
+import { Card, CardContent } from '../../../components/ui/Card';
 import { UserTable } from '../components/UserTable';
 import { UserFilters } from '../components/UserFilters';
-import type { User, UserRole } from '../../../types';
-
-// ============================================================================
-// COMPONENT
-// ============================================================================
+import { UserQuery, UserRole } from '../../../types/schemas/user.schemas'; // UPGRADE: Correct import
 
 export function AdminUsersPage() {
   const { t } = useTranslation(['admin', 'common']);
 
-  const [filters, setFilters] = React.useState({
-    page: 1,
-    limit: 10,
-    search: undefined as string | undefined,
-    role: undefined as UserRole | undefined,
-    sortBy: 'createdAt' as string,
-    sortOrder: 'desc' as 'asc' | 'desc',
-  });
+  const [filters, setFilters] = React.useState<Partial<UserQuery>>({ page: 1, limit: 10 });
+  const [debouncedFilters] = useDebounce(filters, 300);
 
-  const [selectedUser, setSelectedUser] = React.useState<User | null>(null);
-
-  const handleFiltersChange = (newFilters: typeof filters) => {
-    setFilters(newFilters);
-  };
-
-  const handleResetFilters = () => {
-    setFilters({
-      page: 1,
-      limit: 10,
-      search: undefined,
-      role: undefined,
-      sortBy: 'createdAt',
-      sortOrder: 'desc',
-    });
-  };
-
-  const handleExportCSV = () => {
-    // TODO: Implement CSV export
-    console.log('Export CSV with filters:', filters);
-  };
-
-  const handleViewUser = (user: User) => {
-    setSelectedUser(user);
-    // TODO: Open user details modal/drawer
-    console.log('View user:', user);
+  const handlePaginationChange = (updater: any) => {
+    const newState = typeof updater === 'function' ? updater({ pageIndex: (filters.page || 1) - 1, pageSize: filters.limit || 10 }) : updater;
+    setFilters(prev => ({ ...prev, page: newState.pageIndex + 1, limit: newState.pageSize }));
   };
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Users className="h-8 w-8" />
-            {t('admin:users_page_title')}
-          </h1>
-          <p className="mt-1 text-muted-foreground">
-            {t('admin:users_page_subtitle')}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={handleExportCSV}
-            className="gap-2"
-          >
-            <Download className="h-4 w-4" />
-            {t('admin:export_csv')}
-          </Button>
-          <Button className="gap-2">
-            <UserPlus className="h-4 w-4" />
-            {t('admin:add_user')}
-          </Button>
-        </div>
-      </div>
-
-      {/* Filters Card */}
+      <PageHeader
+        title={t('admin:users_page_title')}
+        description={t('admin:users_page_subtitle')}
+        icon={<Users />}
+      />
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">{t('admin:filters')}</CardTitle>
-          <CardDescription>
-            {t('admin:filter_users_description')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <UserFilters
-            filters={filters}
-            onFiltersChange={handleFiltersChange}
-            onReset={handleResetFilters}
-          />
+        <CardContent className="p-4">
+          <UserFilters filters={filters} onFiltersChange={setFilters} />
         </CardContent>
       </Card>
-
-      {/* Users Table Card */}
       <Card>
         <CardContent className="p-0">
-          <UserTable
-            filters={filters}
-            onFiltersChange={handleFiltersChange}
-            onViewUser={handleViewUser}
-          />
+          <UserTable filters={debouncedFilters} onPaginationChange={handlePaginationChange} />
         </CardContent>
       </Card>
     </div>

@@ -21,6 +21,8 @@ export const PasswordSchema = z
 
 export const LoginRequestSchema = z.object({
   email: z.string().email('A valid email address is required.'),
+  // For login, we only check presence — not strength — since the password
+  // was already validated at registration.
   password: z.string().min(1, 'Password is required.'),
 });
 
@@ -29,10 +31,9 @@ export const RegisterRequestSchema = z.object({
   lastName: z.string().min(2, 'Last name must be at least 2 characters.').max(50),
   email: z.string().email('A valid email address is required.'),
   password: PasswordSchema,
-  role: UserRoleSchema.optional(),
+  role: UserRoleSchema.default('LAND_OWNER'), // safe default for production
 });
 
-// We keep these for completeness of the auth domain, for future forms
 export const ForgotPasswordSchema = z.object({
   email: z.string().email('A valid email is required.'),
 });

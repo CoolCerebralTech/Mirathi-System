@@ -1,7 +1,7 @@
-// FILE: src/types/schemas/wills.schemas.ts (Finalized)
+// FILE: src/types/wills.schemas.ts
 
 import { z } from 'zod';
-import { UserResponseSchema } from './user.schemas';
+import { UserSchema } from './user.schemas';
 import { AssetResponseSchema } from './assets.schemas';
 
 // ============================================================================
@@ -19,11 +19,10 @@ export const BeneficiaryAssignmentResponseSchema = z.object({
   willId: z.string().uuid(),
   assetId: z.string().uuid(),
   beneficiaryId: z.string().uuid(),
-  sharePercent: z.number().nullish(),
+  sharePercent: z.number().nullable(),
   createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
   asset: AssetResponseSchema,
-  beneficiary: UserResponseSchema,
+  beneficiary: UserSchema,
 });
 
 export const WillResponseSchema = z.object({
@@ -51,7 +50,18 @@ export const UpdateWillRequestSchema = CreateWillRequestSchema.partial().extend(
 export const AssignBeneficiaryRequestSchema = z.object({
   assetId: z.string().uuid('An asset must be selected.'),
   beneficiaryId: z.string().uuid('A beneficiary must be selected.'),
-  sharePercent: z.number().min(0.01).max(100).optional(),
+  sharePercent: z.number().min(1).max(100).optional(),
+});
+
+// ============================================================================
+// QUERY SCHEMA
+// ============================================================================
+
+// UPGRADE: Added the missing schema for query parameters.
+export const WillQuerySchema = z.object({
+  page: z.number().int().positive().optional(),
+  limit: z.number().int().positive().optional(),
+  status: WillStatusSchema.optional(),
 });
 
 // ============================================================================
@@ -64,3 +74,4 @@ export type BeneficiaryAssignment = z.infer<typeof BeneficiaryAssignmentResponse
 export type CreateWillInput = z.infer<typeof CreateWillRequestSchema>;
 export type UpdateWillInput = z.infer<typeof UpdateWillRequestSchema>;
 export type AssignBeneficiaryInput = z.infer<typeof AssignBeneficiaryRequestSchema>;
+export type WillQuery = z.infer<typeof WillQuerySchema>;

@@ -1,4 +1,4 @@
-// FILE: src/types/schemas/common.schemas.ts
+// FILE: src/types/common.schemas.ts
 
 import { z } from 'zod';
 

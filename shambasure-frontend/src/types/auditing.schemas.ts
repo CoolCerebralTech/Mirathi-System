@@ -1,33 +1,38 @@
-// FILE: src/types/schemas/auditing.schemas.ts
+// FILE: src/types/auditing.schemas.ts
 
 import { z } from 'zod';
+import { UserSchema } from './user.schemas';
 
 // ============================================================================
-// AUDIT LOG SCHEMAS
+// API RESPONSE SCHEMA
 // ============================================================================
 
-export const AuditLogSchema = z.object({
+export const AuditLogResponseSchema = z.object({
+  
   id: z.string().uuid(),
   timestamp: z.string().datetime(),
   actorId: z.string().uuid().nullable(),
   action: z.string(),
-  payload: z.any(), // JSON field - varies by action type
+  payload: z.record(z.string(), z.any()), 
+  actor: UserSchema.nullable(),
 });
 
-export const AuditLogQuerySchema = z.object({
-  page: z.number().int().positive().optional().default(1),
-  limit: z.number().int().positive().max(100).optional().default(10),
+// ============================================================================
+// QUERY SCHEMA (for filtering)
+// ============================================================================
+
+export const AuditQuerySchema = z.object({
+  page: z.number().int().positive().optional(),
+  limit: z.number().int().positive().optional(),
   action: z.string().optional(),
-  actorId: z.string().uuid().optional(),
+  userId: z.string().uuid().optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
-  sortBy: z.enum(['timestamp', 'action']).optional().default('timestamp'),
-  sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
 });
 
 // ============================================================================
 // INFERRED TYPES
 // ============================================================================
 
-export type AuditLog = z.infer<typeof AuditLogSchema>;
-export type AuditLogQuery = z.infer<typeof AuditLogQuerySchema>;
+export type AuditLog = z.infer<typeof AuditLogResponseSchema>;
+export type AuditQuery = z.infer<typeof AuditQuerySchema>;
