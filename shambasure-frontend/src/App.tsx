@@ -1,11 +1,19 @@
-// FILE: src/App.tsx (Final Version)
+// FILE: src/App.tsx
 
-import { AppRouter } from './router';
+import { RouterProvider } from 'react-router-dom';
+import { router } from './router';
+import { AppProviders } from './providers/AppProviders';
+
+// ============================================================================
+// APP COMPONENT
+// ============================================================================
 
 function App() {
-  // The App component's only job is to render the router.
-  // All layout and page logic is handled within the AppRouter.
-  return <AppRouter />;
+  return (
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>
+  );
 }
 
 export default App;

@@ -13,8 +13,9 @@ export * from './auth.schemas';
 export * from './user.schemas';
 
 // Succession Service
-export * from './succession.schemas';
-
+export * from './assets.schemas';
+export * from './families.schemas';
+export * from './wills.schemas ';
 // Documents Service
 export * from './documents.schemas';
 
