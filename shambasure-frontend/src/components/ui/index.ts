@@ -15,5 +15,6 @@ export * from './Select';
 export * from './Textarea';
 export * from './Dialog';
 export * from './Alert';
+export * from './AlertDialog';
 export * from './DataTable';
 export * from './DropdownMenu';

@@ -1,12 +1,17 @@
-// FILE: src/features/wills/wills.api.ts (Finalized)
+// FILE: src/features/wills/wills.api.ts
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../../api/client';
+import { apiClient, extractErrorMessage } from '../../api/client';
 import {
-  Will,
-  CreateWillInput,
-  UpdateWillInput,
-  AssignBeneficiaryInput,
+  WillResponseSchema,
+  CreateWillRequestSchema,
+  UpdateWillRequestSchema,
+  AssignBeneficiaryRequestSchema,
+  type Will,
+  type CreateWillInput,
+  type UpdateWillInput,
+  type AssignBeneficiaryInput,
+  type BeneficiaryAssignment,
 } from '../../types';
 import { assetKeys } from '../assets/assets.api';
 
@@ -23,58 +28,156 @@ export const willKeys = {
 };
 
 // ============================================================================
-// API FUNCTIONS & HOOKS
+// API FUNCTIONS
 // ============================================================================
 
 const createWill = async (data: CreateWillInput): Promise<Will> => {
-  const response = await apiClient.post('/wills', data);
-  return response.data;
+  try {
+    const parsed = CreateWillRequestSchema.parse(data);
+    const response = await apiClient.post('/wills', parsed);
+    return WillResponseSchema.parse(response.data);
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
 };
 
 const getMyWills = async (): Promise<Will[]> => {
-  const response = await apiClient.get('/wills');
-  return response.data;
+  try {
+    const response = await apiClient.get('/wills');
+    return response.data.map((w: unknown) => WillResponseSchema.parse(w));
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
 };
 
 const getActiveWill = async (): Promise<Will | null> => {
-  const response = await apiClient.get('/wills/active');
-  return response.data;
+  try {
+    const response = await apiClient.get('/wills/active');
+    return response.data ? WillResponseSchema.parse(response.data) : null;
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
 };
 
 const getWillById = async (id: string): Promise<Will> => {
-  const response = await apiClient.get(`/wills/${id}`);
-  return response.data;
+  try {
+    const response = await apiClient.get(`/wills/${id}`);
+    return WillResponseSchema.parse(response.data);
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
 };
 
-const updateWill = async (params: { id: string; data: UpdateWillInput }) => {
-  const response = await apiClient.patch(`/wills/${params.id}`, params.data);
-  return response.data;
+const updateWill = async (params: { id: string; data: UpdateWillInput }): Promise<Will> => {
+  try {
+    const parsed = UpdateWillRequestSchema.parse(params.data);
+    const response = await apiClient.patch(`/wills/${params.id}`, parsed);
+    return WillResponseSchema.parse(response.data);
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
 };
 
-const activateWill = async (id: string) => {
-  const response = await apiClient.post(`/wills/${id}/activate`);
-  return response.data;
+const deleteWill = async (id: string): Promise<void> => {
+  try {
+    await apiClient.delete(`/wills/${id}`);
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
 };
 
-const addBeneficiary = async (params: { willId: string; data: AssignBeneficiaryInput }) => {
-  // UPGRADE: Corrected endpoint from /beneficiaries to /assignments
-  const response = await apiClient.post(`/wills/${params.willId}/assignments`, params.data);
-  return response.data;
+const activateWill = async (id: string): Promise<Will> => {
+  try {
+    const response = await apiClient.post(`/wills/${id}/activate`);
+    return WillResponseSchema.parse(response.data);
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
 };
 
-const removeBeneficiary = async (params: { willId: string; assignmentId: string }) => {
-  await apiClient.delete(`/wills/${params.willId}/assignments/${params.assignmentId}`);
+const revokeWill = async (id: string): Promise<Will> => {
+  try {
+    const response = await apiClient.post(`/wills/${id}/revoke`);
+    return WillResponseSchema.parse(response.data);
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
 };
 
-export const useMyWills = () => useQuery({ queryKey: willKeys.lists(), queryFn: getMyWills });
-export const useActiveWill = () => useQuery({ queryKey: willKeys.active(), queryFn: getActiveWill });
-export const useWill = (id: string) => useQuery({ queryKey: willKeys.detail(id), queryFn: () => getWillById(id), enabled: !!id });
+const addBeneficiary = async (params: { 
+  willId: string; 
+  data: AssignBeneficiaryInput 
+}): Promise<BeneficiaryAssignment> => {
+  try {
+    const parsed = AssignBeneficiaryRequestSchema.parse(params.data);
+    const response = await apiClient.post(`/wills/${params.willId}/assignments`, parsed);
+    return response.data;
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
+};
+
+const removeBeneficiary = async (params: { 
+  willId: string; 
+  assignmentId: string 
+}): Promise<void> => {
+  try {
+    await apiClient.delete(`/wills/${params.willId}/assignments/${params.assignmentId}`);
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
+};
+
+const updateBeneficiaryAssignment = async (params: {
+  willId: string;
+  assignmentId: string;
+  data: Partial<AssignBeneficiaryInput>;
+}): Promise<BeneficiaryAssignment> => {
+  try {
+    const response = await apiClient.patch(
+      `/wills/${params.willId}/assignments/${params.assignmentId}`,
+      params.data
+    );
+    return response.data;
+  } catch (err) {
+    throw new Error(extractErrorMessage(err));
+  }
+};
+
+// ============================================================================
+// HOOKS
+// ============================================================================
+
+export const useMyWills = () =>
+  useQuery({ 
+    queryKey: willKeys.lists(), 
+    queryFn: getMyWills,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+export const useActiveWill = () =>
+  useQuery({ 
+    queryKey: willKeys.active(), 
+    queryFn: getActiveWill,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+export const useWill = (id: string) =>
+  useQuery({
+    queryKey: willKeys.detail(id),
+    queryFn: () => getWillById(id),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
 
 export const useCreateWill = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createWill,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: willKeys.lists() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: willKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: willKeys.active() });
+    },
   });
 };
 
@@ -84,7 +187,18 @@ export const useUpdateWill = () => {
     mutationFn: updateWill,
     onSuccess: (updatedWill) => {
       queryClient.invalidateQueries({ queryKey: willKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: willKeys.active() });
       queryClient.setQueryData(willKeys.detail(updatedWill.id), updatedWill);
+    },
+  });
+};
+
+export const useDeleteWill = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteWill,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: willKeys.all });
     },
   });
 };
@@ -99,12 +213,23 @@ export const useActivateWill = () => {
   });
 };
 
+export const useRevokeWill = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: revokeWill,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: willKeys.all });
+    },
+  });
+};
+
 export const useAddBeneficiary = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: addBeneficiary,
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: willKeys.detail(variables.willId) });
+      queryClient.invalidateQueries({ queryKey: willKeys.lists() });
       queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
     },
   });
@@ -116,7 +241,19 @@ export const useRemoveBeneficiary = () => {
     mutationFn: removeBeneficiary,
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: willKeys.detail(variables.willId) });
+      queryClient.invalidateQueries({ queryKey: willKeys.lists() });
       queryClient.invalidateQueries({ queryKey: assetKeys.lists() });
+    },
+  });
+};
+
+export const useUpdateBeneficiaryAssignment = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateBeneficiaryAssignment,
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: willKeys.detail(variables.willId) });
+      queryClient.invalidateQueries({ queryKey: willKeys.lists() });
     },
   });
 };

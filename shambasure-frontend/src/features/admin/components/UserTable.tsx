@@ -2,13 +2,14 @@
 
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { MoreHorizontal, Trash2, Shield, Eye } from 'lucide-react';
+import { MoreHorizontal, Trash2, Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 
 import { useAdminUsers, useUpdateUserRole, useDeleteUser } from '../admin.api';
-import { User, UserRole, UserQuery } from '../../../types/schemas/user.schemas'; // UPGRADE: Corrected imports
+import type { User, UserRole, UserQuery } from '../../../types'; // UPGRADE: Corrected imports
+ // UPGRADE: Corrected imports
 import { extractErrorMessage } from '../../../api/client';
 
 import { DataTable, DataTableColumnHeader } from '../../../components/ui/DataTable';

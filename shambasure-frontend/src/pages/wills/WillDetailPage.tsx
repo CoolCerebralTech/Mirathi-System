@@ -8,36 +8,47 @@ import { format } from 'date-fns';
 
 import { 
   useWill, 
-  useUpdateWill,
-  useRemoveBeneficiaryAssignment 
-} from '../features/wills/wills.api';
-import { getBeneficiaryAssignmentColumns } from '../features/wills/components/BeneficiaryAssignmentTable';
-import { BeneficiaryAssignmentForm } from '../features/wills/components/BeneficiaryAssignmentForm';
-import { WillForm } from '../features/wills/components/WillForm';
-import { toast } from '../components/common/Toaster';
-import { extractErrorMessage } from '../api/client';
+  useRemoveBeneficiary 
+} from '../../features/wills/wills.api';
+import { getBeneficiaryAssignmentColumns } from '../../features/wills/components/BeneficiaryAssignmentsTable';
+import { BeneficiaryAssignmentForm } from '../../features/wills/components/BeneficiaryAssignmentForm';
+import { WillForm } from '../../features/wills/components/WillForm';
+import { toast } from 'sonner';
+import { extractErrorMessage } from '../../api/client';
 
-import { Button } from '../components/ui/Button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
-import { DataTable } from '../components/ui/DataTable';
+import { Button } from '../../components/ui';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
+import { Badge } from '../../components/ui/Badge';
+import { DataTable } from '../../components/ui/DataTable';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '../components/ui/Dialog';
-import { ConfirmDialog } from '../components/common/ConfirmDialog';
-import { Separator } from '../components/ui/Separator';
-import { Alert, AlertDescription, AlertTitle } from '../components/ui/Alert';
+} from '../../components/ui/Dialog';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
 
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
-const getStatusInfo = (status: string) => {
-  const statuses: Record<string, { label: string; color: string; variant: any }> = {
+const getStatusInfo = (status: string): { 
+  label: string; 
+  color: string; 
+  variant: BadgeVariant 
+} => {
+  const statuses: Record<string, { 
+    label: string; 
+    color: string; 
+    variant: BadgeVariant 
+  }> = {
     DRAFT: { label: 'Draft', color: 'bg-slate-100 text-slate-700', variant: 'secondary' },
     ACTIVE: { label: 'Active', color: 'bg-emerald-100 text-emerald-700', variant: 'default' },
     REVOKED: { label: 'Revoked', color: 'bg-red-100 text-red-700', variant: 'destructive' },
@@ -62,9 +73,8 @@ export function WillDetailPage() {
   const [selectedAssignmentId, setSelectedAssignmentId] = React.useState<string | null>(null);
 
   // API Hooks
-  const { data: will, isLoading } = useWill(id!);
-  const updateMutation = useUpdateWill();
-  const removeAssignmentMutation = useRemoveBeneficiaryAssignment();
+  const { data: will, isLoading } = useWill(id || '');
+  const removeAssignmentMutation = useRemoveBeneficiary();
 
   // ============================================================================
   // HANDLERS
@@ -82,7 +92,10 @@ export function WillDetailPage() {
           setSelectedAssignmentId(null);
         },
         onError: (error) => {
-          toast.error(t('common:error'), extractErrorMessage(error));
+          const errorMessage = extractErrorMessage(error);
+          toast.error(errorMessage, {
+            description: t('common:error')
+          });
         },
       }
     );
@@ -95,7 +108,7 @@ export function WillDetailPage() {
   const columns = React.useMemo(
     () =>
       getBeneficiaryAssignmentColumns({
-        onDelete: (assignmentId) => {
+        onDelete: (assignmentId: string) => {
           setSelectedAssignmentId(assignmentId);
           setDeleteAssignmentDialogOpen(true);
         },
@@ -115,7 +128,7 @@ export function WillDetailPage() {
     );
   }
 
-  if (!will) {
+  if (!will || !id) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
         <p className="text-lg text-muted-foreground">{t('wills:will_not_found')}</p>

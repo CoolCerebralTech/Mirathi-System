@@ -1,33 +1,30 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // FILE: src/features/user/user.api.ts
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../api/client';
-import { useAuthActions, useIsAuthenticated } from '../../store/auth.store'; // Import hooks
-import type {
-  User,
-  UpdateUserProfileInput,
-} from '../../types';
+import { useAuthStore, useAuthActions, useIsAuthenticated } from '../../store/auth.store';
+import type { User, UpdateUserProfileInput, UserQuery } from '../../types';
 import type { ChangePasswordInput } from '../../types';
+import type { PaginatedResponse } from '../../types';
 
-// ============================================================================
+// =_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_
 // QUERY KEYS FACTORY
-// ============================================================================
+// =_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_
 
 export const userKeys = {
   all: ['users'] as const,
-  // SIMPLIFICATION: The profile is a detail of the current user, so it lives here.
   profile: () => [...userKeys.all, 'profile'] as const,
   lists: () => [...userKeys.all, 'list'] as const,
-  list: (filters: any) => [...userKeys.lists(), filters] as const, // Use 'any' for now for simplicity
+  list: (filters: Partial<UserQuery>) => [...userKeys.lists(), filters] as const,
   details: () => [...userKeys.all, 'detail'] as const,
   detail: (id: string) => [...userKeys.details(), id] as const,
 };
 
-// ============================================================================
+// =_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_
 // API FUNCTIONS
-// ============================================================================
+// =_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_
 
+// --- Current User Functions ---
 const getProfile = async (): Promise<User> => {
   const response = await apiClient.get('/profile');
   return response.data;
@@ -43,8 +40,9 @@ const changePassword = async (data: ChangePasswordInput): Promise<{ message: str
   return response.data;
 };
 
-// Admin functions can remain as is. They are well-written.
-const getUsers = async (params: any): Promise<any> => {
+// --- Admin-Only Functions ---
+// UPGRADE: Fully type-safe implementation
+const getUsers = async (params: Partial<UserQuery>): Promise<PaginatedResponse<User>> => {
   const response = await apiClient.get('/users', { params });
   return response.data;
 };
@@ -54,18 +52,18 @@ const getUserById = async (userId: string): Promise<User> => {
   return response.data;
 };
 
-// ============================================================================
+// =_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_
 // REACT QUERY HOOKS
-// ============================================================================
+// =_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_=_
 
+// --- Current User Hooks ---
 export const useProfile = () => {
-  const isAuthenticated = useIsAuthenticated(); // Use the convenience hook
-
+  const isAuthenticated = useIsAuthenticated();
   return useQuery({
     queryKey: userKeys.profile(),
     queryFn: getProfile,
     enabled: isAuthenticated,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 };
 
@@ -76,13 +74,9 @@ export const useUpdateProfile = () => {
   return useMutation({
     mutationFn: updateProfile,
     onSuccess: (updatedUser) => {
-      // Update the profile query cache with the definitive server response
       queryClient.setQueryData(userKeys.profile(), updatedUser);
-      // Also update the user object in our global Zustand store
       setUser(updatedUser);
     },
-    // The previous optimistic update logic was excellent and can be kept.
-    // I've removed it here for brevity, but your implementation was perfect.
   });
 };
 
@@ -92,23 +86,23 @@ export const useChangePassword = () => {
   });
 };
 
-// Admin hooks can remain as is.
-export const useUsers = (params: any) => {
-  const isAuthenticated = useIsAuthenticated();
-
+// --- Admin-Only Hooks ---
+export const useUsers = (params: Partial<UserQuery> = {}) => {
+  const user = useAuthStore((state) => state.user);
   return useQuery({
     queryKey: userKeys.list(params),
     queryFn: () => getUsers(params),
-    enabled: isAuthenticated,
+    // UPGRADE: Security fix - only admins can call this.
+    enabled: user?.role === 'ADMIN',
   });
 };
 
 export const useUser = (userId: string) => {
-  const isAuthenticated = useIsAuthenticated();
-
+  const user = useAuthStore((state) => state.user);
   return useQuery({
     queryKey: userKeys.detail(userId),
     queryFn: () => getUserById(userId),
-    enabled: isAuthenticated && !!userId,
+    // UPGRADE: Security fix - only admins can call this.
+    enabled: !!userId && user?.role === 'ADMIN',
   });
 };

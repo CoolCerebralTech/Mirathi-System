@@ -1,9 +1,7 @@
 // FILE: src/features/wills/components/BeneficiaryAssignmentTable.tsx
 
-import * as React from 'react';
-import type { ColumnDef } from '@tantml:react-table';
+import type { ColumnDef } from '@tanstack/react-table';
 import { Trash2, Percent } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 
 import type { BeneficiaryAssignment } from '../../../types';
 import { Button } from '../../../components/ui/Button';
@@ -24,10 +22,11 @@ interface BeneficiaryAssignmentTableProps {
 // ============================================================================
 
 const getInitials = (firstName: string, lastName: string): string => {
+  if (!firstName || !lastName) return '??';
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 };
 
-const getAssetTypeInfo = (type: string) => {
+const getAssetTypeInfo = (type: string): { icon: string; color: string } => {
   const types: Record<string, { icon: string; color: string }> = {
     LAND_PARCEL: { icon: '🏞️', color: 'bg-emerald-100 text-emerald-700' },
     PROPERTY: { icon: '🏠', color: 'bg-blue-100 text-blue-700' },
@@ -63,7 +62,7 @@ export const getBeneficiaryAssignmentColumns = (
             <div className="flex flex-col">
               <span className="font-medium">{asset.name}</span>
               <Badge variant="outline" className={`text-xs ${typeInfo.color}`}>
-                {asset.type.replace('_', ' ')}
+                {asset.type.replace(/_/g, ' ')}
               </Badge>
             </div>
           </div>
@@ -77,19 +76,24 @@ export const getBeneficiaryAssignmentColumns = (
         const beneficiary = row.original.beneficiary;
         if (!beneficiary) return <span className="text-muted-foreground">—</span>;
         
+        const firstName = beneficiary.firstName || '';
+        const lastName = beneficiary.lastName || '';
+        
         return (
           <div className="flex items-center gap-3">
             <Avatar
               src={undefined}
-              alt={`${beneficiary.firstName} ${beneficiary.lastName}`}
-              fallback={getInitials(beneficiary.firstName, beneficiary.lastName)}
+              alt={`${firstName} ${lastName}`.trim() || 'User'}
+              fallback={getInitials(firstName, lastName)}
               className="h-8 w-8"
             />
             <div className="flex flex-col">
               <span className="font-medium">
-                {beneficiary.firstName} {beneficiary.lastName}
+                {firstName} {lastName}
               </span>
-              <span className="text-sm text-muted-foreground">{beneficiary.email}</span>
+              {beneficiary.email && (
+                <span className="text-sm text-muted-foreground">{beneficiary.email}</span>
+              )}
             </div>
           </div>
         );
@@ -99,9 +103,9 @@ export const getBeneficiaryAssignmentColumns = (
       accessorKey: 'sharePercent',
       header: ({ column }) => <DataTableColumnHeader column={column} title="Share" />,
       cell: ({ row }) => {
-        const share = row.getValue('sharePercent') as number | null;
+        const share = row.getValue('sharePercent') as number | null | undefined;
         
-        if (!share) {
+        if (!share && share !== 0) {
           return <span className="text-muted-foreground">Not specified</span>;
         }
         
@@ -124,9 +128,10 @@ export const getBeneficiaryAssignmentColumns = (
             size="icon"
             className="h-8 w-8 text-destructive hover:text-destructive"
             onClick={() => handlers.onDelete(assignment.id)}
+            aria-label="Delete assignment"
           >
             <Trash2 className="h-4 w-4" />
-            <span className="sr-only">Delete</span>
+            <span className="sr-only">Delete assignment</span>
           </Button>
         );
       },

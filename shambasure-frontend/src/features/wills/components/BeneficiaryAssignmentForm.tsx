@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // FILE: src/features/wills/components/BeneficiaryAssignmentForm.tsx
 
 import * as React from 'react';
@@ -9,7 +10,7 @@ import { AssignBeneficiaryRequestSchema, type AssignBeneficiaryInput } from '../
 import { useAddBeneficiary } from '../wills.api';
 import { useMyAssets } from '../../assets/assets.api';
 import { useMyFamilies } from '../../families/families.api';
-import { toast } from '../../../components/common/Toaster';
+import { toast } from 'sonner';
 import { extractErrorMessage } from '../../../api/client';
 
 import { Button } from '../../../components/ui/Button';
@@ -37,6 +38,25 @@ interface BeneficiaryAssignmentFormProps {
   onCancel?: () => void;
 }
 
+// Type for asset from API
+interface Asset {
+  id: string;
+  name: string;
+  type: string;
+  description?: string;
+}
+
+// Type for family member with user info
+interface FamilyMember {
+  userId: string;
+  role: string;
+  familyName?: string;
+  user?: {
+    firstName?: string;
+    lastName?: string;
+  };
+}
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -58,20 +78,29 @@ export function BeneficiaryAssignmentForm({
   const addAssignmentMutation = useAddBeneficiary();
   
   // Fetch data for dropdowns
-  const { data: assetsData, isLoading: assetsLoading } = useMyAssets({ limit: 100 });
-  const { data: familiesData, isLoading: familiesLoading } = useMyFamilies({ limit: 100 });
+  const { data: assetsData, isLoading: assetsLoading } = useMyAssets();
+  const { data: familiesData, isLoading: familiesLoading } = useMyFamilies();
   
   // Flatten family members
   const allFamilyMembers = React.useMemo(() => {
-    return familiesData?.data.flatMap(family => 
-      family.members?.map(member => ({
+    if (!familiesData || !Array.isArray(familiesData)) {
+      return [];
+    }
+    
+    return familiesData.flatMap((family: any) => 
+      family.members?.map((member: any) => ({
         ...member,
         familyName: family.name,
       })) || []
-    ) || [];
+    ) as FamilyMember[];
   }, [familiesData]);
 
-  const assets = assetsData?.data || [];
+  const assets = React.useMemo(() => {
+    if (!assetsData || !Array.isArray(assetsData)) {
+      return [];
+    }
+    return assetsData as Asset[];
+  }, [assetsData]);
 
   const {
     control,
@@ -87,8 +116,8 @@ export function BeneficiaryAssignmentForm({
   const selectedBeneficiaryId = watch('beneficiaryId');
   const sharePercent = watch('sharePercent');
 
-  const selectedAsset = assets.find(a => a.id === selectedAssetId);
-  const selectedBeneficiary = allFamilyMembers.find(m => m.userId === selectedBeneficiaryId);
+  const selectedAsset = assets.find((a: Asset) => a.id === selectedAssetId);
+  const selectedBeneficiary = allFamilyMembers.find((m: FamilyMember) => m.userId === selectedBeneficiaryId);
 
   const onSubmit = (data: AssignBeneficiaryInput) => {
     addAssignmentMutation.mutate(
@@ -99,7 +128,10 @@ export function BeneficiaryAssignmentForm({
           onSuccess();
         },
         onError: (error) => {
-          toast.error(t('common:error'), extractErrorMessage(error));
+          const errorMessage = extractErrorMessage(error);
+          toast.error(errorMessage, {
+            description: t('common:error')
+          });
         },
       }
     );
@@ -173,12 +205,12 @@ export function BeneficiaryAssignmentForm({
                 <SelectValue placeholder={t('wills:choose_asset_placeholder')} />
               </SelectTrigger>
               <SelectContent>
-                {assets.map((asset) => (
+                {assets.map((asset: Asset) => (
                   <SelectItem key={asset.id} value={asset.id}>
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{asset.name}</span>
                       <Badge variant="outline" className="text-xs">
-                        {asset.type.replace('_', ' ')}
+                        {asset.type.replace(/_/g, ' ')}
                       </Badge>
                     </div>
                   </SelectItem>
@@ -215,12 +247,12 @@ export function BeneficiaryAssignmentForm({
                 <SelectValue placeholder={t('wills:choose_beneficiary_placeholder')} />
               </SelectTrigger>
               <SelectContent>
-                {allFamilyMembers.map((member) => (
+                {allFamilyMembers.map((member: FamilyMember) => (
                   <SelectItem key={member.userId} value={member.userId}>
                     <div className="flex items-center gap-2">
                       <Avatar
                         src={undefined}
-                        alt={`${member.user?.firstName} ${member.user?.lastName}`}
+                        alt={`${member.user?.firstName || ''} ${member.user?.lastName || ''}`}
                         fallback={getInitials(
                           member.user?.firstName || '',
                           member.user?.lastName || ''
@@ -232,7 +264,7 @@ export function BeneficiaryAssignmentForm({
                           {member.user?.firstName} {member.user?.lastName}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {member.role.replace('_', ' ')} • {member.familyName}
+                          {member.role.replace(/_/g, ' ')} • {member.familyName}
                         </span>
                       </div>
                     </div>
@@ -266,12 +298,12 @@ export function BeneficiaryAssignmentForm({
         <p className="text-xs text-muted-foreground">
           {t('wills:share_percentage_hint')}
         </p>
-        {sharePercent && (
+        {sharePercent && selectedBeneficiary && selectedAsset && (
           <div className="rounded-lg bg-muted p-3">
             <p className="text-sm">
-              <span className="font-medium">{selectedBeneficiary?.user?.firstName}</span>{' '}
+              <span className="font-medium">{selectedBeneficiary.user?.firstName}</span>{' '}
               {t('wills:will_receive')} <span className="font-medium">{sharePercent}%</span>{' '}
-              {t('wills:of')} <span className="font-medium">{selectedAsset?.name}</span>
+              {t('wills:of')} <span className="font-medium">{selectedAsset.name}</span>
             </p>
           </div>
         )}

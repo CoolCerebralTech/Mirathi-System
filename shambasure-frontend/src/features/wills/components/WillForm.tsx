@@ -12,7 +12,7 @@ import {
   type WillStatus 
 } from '../../../types';
 import { useCreateWill, useUpdateWill } from '../wills.api';
-import { toast } from '../../../components/common/Toaster';
+import { toast } from 'sonner';
 import { extractErrorMessage } from '../../../api/client';
 
 import { Button } from '../../../components/ui/Button';
@@ -60,6 +60,11 @@ interface WillFormProps {
   onCancel?: () => void;
 }
 
+// Extended form input to include status
+type WillFormInput = CreateWillInput & {
+  status?: WillStatus;
+};
+
 // ============================================================================
 // COMPONENT
 // ============================================================================
@@ -77,39 +82,68 @@ export function WillForm({ will, onSuccess, onCancel }: WillFormProps) {
     handleSubmit,
     control,
     reset,
+    watch,
     formState: { errors, isSubmitting },
-  } = useForm<CreateWillInput>({
+  } = useForm<WillFormInput>({
     resolver: zodResolver(CreateWillRequestSchema),
-    defaultValues: will || {
+    defaultValues: isEditing && will ? {
+      title: will.title,
+      status: will.status,
+    } : {
       title: '',
-      status: 'DRAFT',
+      status: 'DRAFT' as WillStatus,
     },
   });
 
   React.useEffect(() => {
     if (isEditing && will) {
-      reset(will);
+      reset({
+        title: will.title,
+        status: will.status,
+      });
     }
   }, [will, isEditing, reset]);
 
- const onSubmit = (data: CreateWillInput) => {
+  const selectedStatus = watch('status');
+
+  const onSubmit = (data: WillFormInput) => {
+    // Extract only the fields needed for CreateWillInput
+    const payload: CreateWillInput = {
+      title: data.title,
+    };
+
     if (isEditing && will) {
-      // UPGRADE: The mutation hook expects `id`, not `willId`
-      updateMutation.mutate({ id: will.id, data }, {
-        onSuccess: () => {
-          toast.success(t('wills:update_success'));
-          onSuccess();
-        },
-        onError: (error) => toast.error(t('wills:update_failed'), { description: extractErrorMessage(error) }),
-      });
+      updateMutation.mutate(
+        { id: will.id, data: payload }, 
+        {
+          onSuccess: () => {
+            toast.success(t('wills:update_success'));
+            onSuccess();
+          },
+          onError: (error) => {
+            const errorMessage = extractErrorMessage(error);
+            toast.error(errorMessage, { 
+              description: t('wills:update_failed') 
+            });
+          },
+        }
+      );
     } else {
-      createMutation.mutate(data, {
-        onSuccess: () => {
-          toast.success(t('wills:create_success'));
-          onSuccess();
-        },
-        onError: (error) => toast.error(t('wills:create_failed'), { description: extractErrorMessage(error) }),
-      });
+      createMutation.mutate(
+        payload, 
+        {
+          onSuccess: () => {
+            toast.success(t('wills:create_success'));
+            onSuccess();
+          },
+          onError: (error) => {
+            const errorMessage = extractErrorMessage(error);
+            toast.error(errorMessage, { 
+              description: t('wills:create_failed') 
+            });
+          },
+        }
+      );
     }
   };
 
@@ -144,49 +178,61 @@ export function WillForm({ will, onSuccess, onCancel }: WillFormProps) {
         </p>
       </div>
 
-      {/* Will Status */}
-      <div className="space-y-2">
-        <Label htmlFor="status">
-          {t('wills:will_status')} <span className="text-destructive">*</span>
-        </Label>
-        <Controller
-          control={control}
-          name="status"
-          render={({ field }) => (
-            <Select 
-              value={field.value} 
-              onValueChange={field.onChange}
-              disabled={isLoading}
-            >
-              <SelectTrigger id="status">
-                <SelectValue placeholder={t('wills:select_status')} />
-              </SelectTrigger>
-              <SelectContent>
-                {WILL_STATUSES.map((status) => (
-                  <SelectItem key={status.value} value={status.value}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{status.label}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {status.description}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      {/* Will Status - Display Only for Editing */}
+      {isEditing && (
+        <div className="space-y-2">
+          <Label htmlFor="status">
+            {t('wills:will_status')}
+          </Label>
+          <Controller
+            control={control}
+            name="status"
+            render={({ field }) => (
+              <Select 
+                value={field.value} 
+                onValueChange={field.onChange}
+                disabled={isLoading}
+              >
+                <SelectTrigger id="status">
+                  <SelectValue placeholder={t('wills:select_status')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {WILL_STATUSES.map((status) => (
+                    <SelectItem key={status.value} value={status.value}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{status.label}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {status.description}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          {errors.status && (
+            <p className="text-sm text-destructive">{errors.status.message}</p>
           )}
-        />
-        {errors.status && (
-          <p className="text-sm text-destructive">{errors.status.message}</p>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Warning for Active Status */}
-      {!isEditing && (
+      {selectedStatus === 'ACTIVE' && (
         <Alert variant="default" className="border-amber-200 bg-amber-50">
           <Info className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-amber-800">
             {t('wills:status_warning')}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Info for New Wills */}
+      {!isEditing && (
+        <Alert variant="default" className="border-blue-200 bg-blue-50">
+          <Info className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-800">
+            {t('wills:new_will_status_info', { defaultValue: 'New wills are created with DRAFT status by default.' })}
           </AlertDescription>
         </Alert>
       )}
