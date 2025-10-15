@@ -6,20 +6,35 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
-import { UpdateUserProfileSchema, type UpdateUserProfileInput } from '../../../types';
+import {
+  UpdateUserProfileSchema,
+  type UpdateUserProfileInput,
+} from '../../../types';
 import { useProfile, useUpdateProfile } from '../user.api';
 import { extractErrorMessage } from '../../../api/client';
 
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Label } from '../../../components/ui/Label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
+import { Textarea } from '../../../components/ui/Textarea';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from '../../../components/ui/Card';
 import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
 
+/**
+ * A form for users to view and update their detailed profile information,
+ * including bio, contact details, address, and next of kin.
+ */
 export function ProfileForm() {
-  const { t } = useTranslation(['user', 'common']);
-  const { data: profile, isLoading: isLoadingProfile } = useProfile();
-  const updateProfileMutation = useUpdateProfile();
+  const { t } = useTranslation(['user', 'validation', 'common']);
+  const { data: user, isLoading: isLoadingProfile } = useProfile();
+  const { mutate: updateProfile, isPending } = useUpdateProfile();
 
   const {
     register,
@@ -28,7 +43,6 @@ export function ProfileForm() {
     formState: { errors, isDirty },
   } = useForm<UpdateUserProfileInput>({
     resolver: zodResolver(UpdateUserProfileSchema),
-    // This is excellent practice for initializing the form structure.
     defaultValues: {
       bio: '',
       phoneNumber: '',
@@ -37,21 +51,26 @@ export function ProfileForm() {
     },
   });
 
-  // This useEffect correctly populates the form once the profile data is loaded.
+  /**
+   * This effect synchronizes the form state with the fetched user profile data.
+   * When the `user` data arrives from the API, `reset` is called to populate
+   * the form fields with the current values. This also updates the form's
+   * "default values", so `isDirty` will correctly track changes against the
+   * fetched data.
+   */
   React.useEffect(() => {
-    if (profile?.profile) {
-      // The `reset` function updates the form's values and its "default" state.
+    if (user?.profile) {
       reset({
-        bio: profile.profile.bio ?? '',
-        phoneNumber: profile.profile.phoneNumber ?? '',
-        address: profile.profile.address ?? undefined,
-        nextOfKin: profile.profile.nextOfKin ?? undefined,
+        bio: user.profile.bio ?? '',
+        phoneNumber: user.profile.phoneNumber ?? '',
+        address: user.profile.address ?? undefined,
+        nextOfKin: user.profile.nextOfKin ?? undefined,
       });
     }
-  }, [profile, reset]);
+  }, [user, reset]);
 
-  const onSubmit = (data: UpdateUserProfileInput) => {
-    updateProfileMutation.mutate(data, {
+  const onSubmit = (formData: UpdateUserProfileInput) => {
+    updateProfile(formData, {
       onSuccess: () => {
         toast.success(t('user:profile_update_success'));
       },
@@ -72,76 +91,117 @@ export function ProfileForm() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('user:profile_information')}</CardTitle>
-        <CardDescription>{t('user:profile_information_prompt')}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle>{t('user:profile_information')}</CardTitle>
+          <CardDescription>
+            {t('user:profile_information_prompt')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
           {/* --- Bio & Phone --- */}
           <div className="space-y-4">
-             {/* ... Bio and Phone fields are great as is ... */}
+            <div className="space-y-2">
+              <Label htmlFor="bio">{t('user:bio')}</Label>
+              <Textarea
+                id="bio"
+                rows={3}
+                disabled={isPending}
+                aria-invalid={!!errors.bio}
+                aria-describedby="bio-error"
+                {...register('bio')}
+              />
+              {errors.bio && (
+                <p id="bio-error" className="text-sm text-destructive">
+                  {errors.bio.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phoneNumber">{t('user:phone_number')}</Label>
+              <Input
+                id="phoneNumber"
+                type="tel"
+                disabled={isPending}
+                aria-invalid={!!errors.phoneNumber}
+                aria-describedby="phoneNumber-error"
+                {...register('phoneNumber')}
+              />
+              {errors.phoneNumber && (
+                <p id="phoneNumber-error" className="text-sm text-destructive">
+                  {errors.phoneNumber.message}
+                </p>
+              )}
+            </div>
           </div>
 
-          {/* --- Address Fields (Now Complete) --- */}
+          {/* --- Address Fields --- */}
           <div className="space-y-4 border-t pt-6">
             <h3 className="font-medium">{t('user:address')}</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor="address.street">{t('user:street')}</Label>
-                <Input id="address.street" {...register('address.street')} disabled={updateProfileMutation.isPending} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="address.city">{t('user:city')}</Label>
-                <Input id="address.city" {...register('address.city')} disabled={updateProfileMutation.isPending} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="address.postCode">{t('user:post_code')}</Label>
-                <Input id="address.postCode" {...register('address.postCode')} disabled={updateProfileMutation.isPending} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="address.country">{t('user:country')}</Label>
-                <Input id="address.country" {...register('address.country')} disabled={updateProfileMutation.isPending} />
-              </div>
+              {/* Fields are dynamically generated for consistency */}
+              {(
+                ['street', 'city', 'postCode', 'country'] as const
+              ).map((field) => (
+                <div key={field} className="space-y-2">
+                  <Label htmlFor={`address.${field}`}>{t(`user:${field}`)}</Label>
+                  <Input
+                    id={`address.${field}`}
+                    disabled={isPending}
+                    {...register(`address.${field}`)}
+                  />
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* --- Next of Kin Fields (Now Complete) --- */}
+          {/* --- Next of Kin Fields --- */}
           <div className="space-y-4 border-t pt-6">
             <h3 className="font-medium">{t('user:next_of_kin')}</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor="nextOfKin.fullName">{t('user:full_name')}</Label>
-                <Input id="nextOfKin.fullName" {...register('nextOfKin.fullName')} error={errors.nextOfKin?.fullName?.message} disabled={updateProfileMutation.isPending} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="nextOfKin.relationship">{t('user:relationship')}</Label>
-                <Input id="nextOfKin.relationship" {...register('nextOfKin.relationship')} error={errors.nextOfKin?.relationship?.message} disabled={updateProfileMutation.isPending} />
-              </div>
-              <div className="col-span-full space-y-1">
-                <Label htmlFor="nextOfKin.phoneNumber">{t('user:phone_number')}</Label>
-                <Input id="nextOfKin.phoneNumber" type="tel" {...register('nextOfKin.phoneNumber')} error={errors.nextOfKin?.phoneNumber?.message} disabled={updateProfileMutation.isPending} />
-              </div>
+              {(
+                ['fullName', 'relationship', 'phoneNumber'] as const
+              ).map((field) => (
+                <div key={field} className="space-y-2 sm:col-span-1">
+                  <Label htmlFor={`nextOfKin.${field}`}>
+                    {t(`user:${field}`)}
+                  </Label>
+                  <Input
+                    id={`nextOfKin.${field}`}
+                    type={field === 'phoneNumber' ? 'tel' : 'text'}
+                    disabled={isPending}
+                    aria-invalid={!!errors.nextOfKin?.[field]}
+                    aria-describedby={`nextOfKin.${field}-error`}
+                    {...register(`nextOfKin.${field}`)}
+                  />
+                  {errors.nextOfKin?.[field] && (
+                    <p
+                      id={`nextOfKin.${field}-error`}
+                      className="text-sm text-destructive"
+                    >
+                      {errors.nextOfKin?.[field]?.message}
+                    </p>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
-
-          <div className="flex justify-end gap-2 border-t pt-6">
-            <Button
-              type="button"
-              variant="outline"
-              // UPGRADE: `reset()` with no args reverts to the last populated values from useEffect.
-              onClick={() => reset()}
-              disabled={!isDirty || updateProfileMutation.isPending}
-            >
-              {t('common:cancel')}
-            </Button>
-            <Button type="submit" isLoading={updateProfileMutation.isPending} disabled={!isDirty}>
-              {t('common:save_changes')}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+        </CardContent>
+        <CardFooter className="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => reset()}
+            disabled={!isDirty || isPending}
+          >
+            {t('common:cancel')}
+          </Button>
+          <Button type="submit" isLoading={isPending} disabled={!isDirty}>
+            {t('common:save_changes')}
+          </Button>
+        </CardFooter>
+      </Card>
+    </form>
   );
 }

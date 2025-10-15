@@ -13,29 +13,44 @@ import { extractErrorMessage } from '../../../api/client';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Label } from '../../../components/ui/Label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/Card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from '../../../components/ui/Card';
 
+/**
+ * A form for an authenticated user to change their password.
+ */
 export function ChangePasswordForm() {
-  const { t } = useTranslation(['auth', 'common']);
-  const changePasswordMutation = useChangePassword();
+  const { t } = useTranslation(['auth', 'validation', 'common']);
+  const { mutate: changePassword, isPending } = useChangePassword();
 
   const {
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<ChangePasswordInput>({
     resolver: zodResolver(ChangePasswordSchema),
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+      confirmNewPassword: '',
+    },
   });
 
-  const onSubmit = (data: ChangePasswordInput) => {
-    changePasswordMutation.mutate(data, {
+  const onSubmit = (formData: ChangePasswordInput) => {
+    changePassword(formData, {
       onSuccess: () => {
-        toast.success(t('auth:password_changed_success'));
+        toast.success(t('auth:password_changed_success_title'));
         reset();
       },
       onError: (error) => {
-        toast.error(t('auth:password_changed_failed'), {
+        toast.error(t('auth:password_changed_failed_title'), {
           description: extractErrorMessage(error),
         });
       },
@@ -43,52 +58,87 @@ export function ChangePasswordForm() {
   };
 
   return (
-    <Card>
+    <Card className="shadow-lg">
       <CardHeader>
         <CardTitle>{t('auth:change_password')}</CardTitle>
         <CardDescription>{t('auth:change_password_prompt')}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-1">
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
             <Label htmlFor="currentPassword">{t('auth:current_password')}</Label>
             <Input
               id="currentPassword"
               type="password"
-              leftIcon={<Lock size={16} />}
-              error={errors.currentPassword?.message}
-              disabled={changePasswordMutation.isPending}
+              autoComplete="current-password"
+              leftIcon={<Lock className="text-muted-foreground" size={16} />}
+              disabled={isPending}
+              aria-invalid={!!errors.currentPassword}
+              aria-describedby="currentPassword-error"
               {...register('currentPassword')}
             />
+            {errors.currentPassword && (
+              <p id="currentPassword-error" className="text-sm text-destructive">
+                {errors.currentPassword.message}
+              </p>
+            )}
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-2">
             <Label htmlFor="newPassword">{t('auth:new_password')}</Label>
             <Input
               id="newPassword"
               type="password"
-              leftIcon={<Lock size={16} />}
-              error={errors.newPassword?.message}
-              disabled={changePasswordMutation.isPending}
+              autoComplete="new-password"
+              leftIcon={<Lock className="text-muted-foreground" size={16} />}
+              disabled={isPending}
+              aria-invalid={!!errors.newPassword}
+              aria-describedby="newPassword-error"
               {...register('newPassword')}
             />
+            {errors.newPassword && (
+              <p id="newPassword-error" className="text-sm text-destructive">
+                {errors.newPassword.message}
+              </p>
+            )}
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => reset()}
-              disabled={changePasswordMutation.isPending}
-            >
-              {t('common:cancel')}
-            </Button>
-            <Button type="submit" isLoading={changePasswordMutation.isPending}>
-              {t('common:update_password')}
-            </Button>
+          <div className="space-y-2">
+            <Label htmlFor="confirmNewPassword">{t('auth:confirm_new_password')}</Label>
+            <Input
+              id="confirmNewPassword"
+              type="password"
+              autoComplete="new-password"
+              leftIcon={<Lock className="text-muted-foreground" size={16} />}
+              disabled={isPending}
+              aria-invalid={!!errors.confirmNewPassword}
+              aria-describedby="confirmNewPassword-error"
+              {...register('confirmNewPassword')}
+            />
+            {errors.confirmNewPassword && (
+              <p
+                id="confirmNewPassword-error"
+                className="text-sm text-destructive"
+              >
+                {errors.confirmNewPassword.message}
+              </p>
+            )}
           </div>
-        </form>
-      </CardContent>
+        </CardContent>
+        <CardFooter className="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => reset()}
+            disabled={isPending || !isDirty}
+          >
+            {t('common:cancel')}
+          </Button>
+          <Button type="submit" isLoading={isPending} disabled={!isDirty}>
+            {t('common:update_password')}
+          </Button>
+        </CardFooter>
+      </form>
     </Card>
   );
 }

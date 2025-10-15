@@ -1,4 +1,4 @@
-/ FILE: src/providers/index.ts
+// FILE: src/providers/index.ts
 
 /**
  * Centralized exports for all providers

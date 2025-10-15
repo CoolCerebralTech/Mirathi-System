@@ -171,6 +171,8 @@ export const AssetQuerySchema = z.object({
 // ============================================================================
 
 export type Asset = z.infer<typeof AssetSchema>;
+export type CreateAssetFormInput = z.input<typeof CreateAssetSchema>;
 export type CreateAssetInput = z.infer<typeof CreateAssetSchema>;
+export type UpdateAssetFormInput = z.input<typeof UpdateAssetSchema>;
 export type UpdateAssetInput = z.infer<typeof UpdateAssetSchema>;
 export type AssetQuery = z.infer<typeof AssetQuerySchema>;

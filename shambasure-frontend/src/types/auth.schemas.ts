@@ -133,6 +133,7 @@ export const AuthResponseSchema = z.object({
 // ============================================================================
 
 export type LoginInput = z.infer<typeof LoginRequestSchema>;
+export type RegisterFormInput = z.input<typeof RegisterRequestSchema>;
 export type RegisterInput = z.infer<typeof RegisterRequestSchema>;
 export type ForgotPasswordInput = z.infer<typeof ForgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof ResetPasswordSchema>;

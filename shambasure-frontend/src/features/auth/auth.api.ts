@@ -1,112 +1,194 @@
 // FILE: src/features/auth/auth.api.ts
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../../api/client';
-import { useAuthActions } from '../../store/auth.store';
+import { apiClient, extractErrorMessage } from '../../api/client';
+import { useAuthStore } from '../../store/auth.store';
 import { userKeys } from '../user/user.api';
-import  type {
-  LoginInput,
-  RegisterInput,
-  ForgotPasswordInput,
-  ResetPasswordInput,
-  AuthResponse,
+import {
+  type LoginInput,
+  type RegisterInput,
+  type ForgotPasswordInput,
+  type ResetPasswordInput,
+  type AuthResponse,
+  AuthResponseSchema,
+  type SuccessResponse,
+  SuccessResponseSchema,
 } from '../../types';
+import { toast } from 'sonner'
 
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// API ENDPOINTS
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+const ApiEndpoints = {
+  LOGIN: '/auth/login',
+  REGISTER: '/auth/register',
+  FORGOT_PASSWORD: '/auth/forgot-password',
+  RESET_PASSWORD: '/auth/reset-password',
+  // A future endpoint for server-side token invalidation could go here
+  // LOGOUT: '/auth/logout',
+};
+
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // API FUNCTIONS
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-const loginUser = async (data: LoginInput): Promise<AuthResponse> => {
-  const response = await apiClient.post('/auth/login', data);
-  return response.data;
+/**
+ * Sends login credentials to the server.
+ * @returns A promise resolving to the full AuthResponse.
+ */
+const loginUser = async (credentials: LoginInput): Promise<AuthResponse> => {
+  const { data } = await apiClient.post(ApiEndpoints.LOGIN, credentials);
+  return AuthResponseSchema.parse(data); // Runtime validation
 };
 
-const registerUser = async (data: RegisterInput): Promise<AuthResponse> => {
-  const response = await apiClient.post('/auth/register', data);
-  return response.data;
+/**
+ * Sends registration data to the server.
+ * @returns A promise resolving to the full AuthResponse.
+ */
+const registerUser = async (
+  registrationData: RegisterInput,
+): Promise<AuthResponse> => {
+  const { data } = await apiClient.post(ApiEndpoints.REGISTER, registrationData);
+  return AuthResponseSchema.parse(data);
 };
 
-const forgotPassword = async (data: ForgotPasswordInput): Promise<{ message: string }> => {
-  const response = await apiClient.post('/auth/forgot-password', data);
-  return response.data;
+/**
+ * Sends a forgot password request for a given email.
+ */
+const forgotPassword = async (
+  forgotPasswordData: ForgotPasswordInput,
+): Promise<SuccessResponse> => {
+  const { data } = await apiClient.post(
+    ApiEndpoints.FORGOT_PASSWORD,
+    forgotPasswordData,
+  );
+  return SuccessResponseSchema.parse(data);
 };
 
-const resetPassword = async (data: ResetPasswordInput): Promise<{ message: string }> => {
-  const response = await apiClient.post('/auth/reset-password', data);
-  return response.data;
+/**
+ * Sends a new password and reset token to the server.
+ */
+const resetPassword = async (
+  resetPasswordData: ResetPasswordInput,
+): Promise<SuccessResponse> => {
+  const { data } = await apiClient.post(
+    ApiEndpoints.RESET_PASSWORD,
+    resetPasswordData,
+  );
+  return SuccessResponseSchema.parse(data);
 };
 
-// ARCHITECTURAL UPGRADE: The backend does not have a /auth/logout endpoint.
-// A true logout is a client-side state-clearing operation.
-// We remove the failing API call but keep the mutation hook structure.
+/**
+ * Simulates a logout. In a real app, this could call a server endpoint
+ * to invalidate the refresh token. For now, it's a client-side operation.
+ */
 const logoutUser = async (): Promise<void> => {
-  // In the future, if a POST /auth/logout endpoint is added to invalidate
-  // the refresh token on the server, the call will go here.
-  // For now, it resolves immediately.
+  // Example: await apiClient.post(ApiEndpoints.LOGOUT);
   return Promise.resolve();
 };
 
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // REACT QUERY HOOKS
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+type AuthMutationPayload = {
+  data: LoginInput | RegisterInput;
+  rememberMe?: boolean;
+};
+
+/**
+ * Hook for handling user login.
+ */
 export const useLogin = () => {
-  const { login: loginAction } = useAuthActions();
+  const { login: loginAction } = useAuthStore();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: loginUser,
-    onSuccess: (data) => {
-      loginAction(data);
-      // SIMPLIFICATION: Use the single, authoritative query key from user.api.ts
-      queryClient.setQueryData(userKeys.profile(), data.user);
+    mutationFn: ({ data }: AuthMutationPayload) => loginUser(data as LoginInput),
+    onSuccess: (authData, { rememberMe }) => {
+      loginAction(authData, rememberMe);
+      queryClient.setQueryData(userKeys.profile(), authData.user);
+      toast.success('Logged in successfully');
     },
-    // The onError is better handled in the component (e.g., to show a toast)
-    // than with a console.error here.
+    onError: (error) => {
+      toast.error(extractErrorMessage(error));
+      console.error('Login failed:', extractErrorMessage(error));
+    },
   });
 };
 
+/**
+ * Hook for handling user registration.
+ */
 export const useRegister = () => {
-  const { login: loginAction } = useAuthActions();
+  const { login: loginAction } = useAuthStore();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: registerUser,
-    onSuccess: (data) => {
-      loginAction(data);
-      queryClient.setQueryData(userKeys.profile(), data.user);
+    mutationFn: ({ data }: AuthMutationPayload) =>
+      registerUser(data as RegisterInput),
+    onSuccess: (authData, { rememberMe }) => {
+      loginAction(authData, rememberMe);
+      queryClient.setQueryData(userKeys.profile(), authData.user);
+      toast.success('Account created successfully');
+    },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error));
     },
   });
 };
 
+/**
+ * Hook for handling forgot password requests.
+ */
 export const useForgotPassword = () => {
   return useMutation({
     mutationFn: forgotPassword,
+    onSuccess: () => {
+      toast.success('Password reset link sent to your email');
+    },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error));
+    },
   });
 };
 
+/**
+ * Hook for handling password resets.
+ */
 export const useResetPassword = () => {
   return useMutation({
     mutationFn: resetPassword,
+    onSuccess: () => {
+      toast.success('Password reset successfully. You can now log in.');
+    },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error)); 
+    },
   });
 };
 
-// ARCHITECTURAL UPGRADE: useRefreshToken hook is removed. The apiClient interceptor handles this automatically.
-
+/**
+ * Hook for handling user logout.
+ * This action clears both the Zustand store and the React Query cache.
+ */
 export const useLogout = () => {
-  const { logout: logoutAction } = useAuthActions();
+  const { logout: logoutAction } = useAuthStore();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: logoutUser,
     onSuccess: () => {
       logoutAction();
-      queryClient.clear();
+      queryClient.clear(); // Clear all cached data on logout
+      toast.success('Logged out successfully');
     },
-    // Add an onError to ensure logout happens even if the (future) API call fails
     onError: () => {
+      // Ensure client-side logout happens even if the server call fails
       logoutAction();
       queryClient.clear();
-    }
+      toast.error('Logout failed on server, but you have been logged out locally');
+    },
   });
 };

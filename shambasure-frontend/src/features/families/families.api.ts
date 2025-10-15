@@ -2,168 +2,197 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, extractErrorMessage } from '../../api/client';
-import { useAuthStore } from '../../store/auth.store';
 import {
-  FamilyResponseSchema,
-  CreateFamilyRequestSchema,
-  AddFamilyMemberRequestSchema,
-  UpdateFamilyMemberRequestSchema,
-  type Family,
-  type CreateFamilyInput,
-  type AddFamilyMemberInput,
-  type UpdateFamilyMemberInput,
+  type FamilyTree,
+  FamilyTreeSchema,
+  type Relationship,
+  RelationshipSchema,
+  type FamilyInvitation,
+  FamilyInvitationSchema,
+  type InviteMemberInput,
+  type CreateRelationshipInput,
+  type UpdateRelationshipInput,
+  type RespondToInvitationInput,
+  type InvitationQuery,
+  type SuccessResponse,
+  SuccessResponseSchema,
 } from '../../types';
+import { z } from 'zod';
+import { toast } from 'sonner';
 
-// ============================================================================
-// QUERY KEYS FACTORY
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// API ENDPOINTS
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+const ApiEndpoints = {
+  FAMILY_TREE: '/family/tree',
+  RELATIONSHIPS: '/family/relationships',
+  RELATIONSHIP_BY_ID: (id: string) => `/family/relationships/${id}`,
+  INVITATIONS: '/family/invitations',
+  RESPOND_TO_INVITATION: (id: string) => `/family/invitations/${id}/respond`,
+};
+
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// QUERY KEY FACTORY
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 export const familyKeys = {
-  all: ['families'] as const,
-  lists: () => [...familyKeys.all, 'list'] as const,
-  details: () => [...familyKeys.all, 'detail'] as const,
-  detail: (id: string) => [...familyKeys.details(), id] as const,
+  all: ['family'] as const,
+  tree: () => [...familyKeys.all, 'tree'] as const,
+  invitations: () => [...familyKeys.all, 'invitations'] as const,
+  invitationList: (filters: InvitationQuery) => [
+    ...familyKeys.invitations(),
+    filters,
+  ] as const,
 };
 
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // API FUNCTIONS
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-const createFamily = async (data: CreateFamilyInput): Promise<Family> => {
-  try {
-    const parsed = CreateFamilyRequestSchema.parse(data);
-    const response = await apiClient.post('/families', parsed);
-    return FamilyResponseSchema.parse(response.data);
-  } catch (err) {
-    throw new Error(extractErrorMessage(err));
-  }
+const getFamilyTree = async (): Promise<FamilyTree> => {
+  const { data } = await apiClient.get(ApiEndpoints.FAMILY_TREE);
+  return FamilyTreeSchema.parse(data);
 };
 
-const getMyFamilies = async (): Promise<Family[]> => {
-  try {
-    const response = await apiClient.get('/families');
-    return response.data.map((f: unknown) => FamilyResponseSchema.parse(f));
-  } catch (err) {
-    throw new Error(extractErrorMessage(err));
-  }
+const inviteMember = async (
+  invitationData: InviteMemberInput,
+): Promise<FamilyInvitation> => {
+  const { data } = await apiClient.post(
+    ApiEndpoints.INVITATIONS,
+    invitationData,
+  );
+  return FamilyInvitationSchema.parse(data);
 };
 
-const getFamilyById = async (id: string): Promise<Family> => {
-  try {
-    const response = await apiClient.get(`/families/${id}`);
-    return FamilyResponseSchema.parse(response.data);
-  } catch (err) {
-    throw new Error(extractErrorMessage(err));
-  }
+const getInvitations = async (
+  params: InvitationQuery,
+): Promise<FamilyInvitation[]> => {
+  const { data } = await apiClient.get(ApiEndpoints.INVITATIONS, { params });
+  return z.array(FamilyInvitationSchema).parse(data);
 };
 
-const addFamilyMember = async (params: { familyId: string; data: AddFamilyMemberInput }) => {
-  try {
-    const parsed = AddFamilyMemberRequestSchema.parse(params.data);
-    const response = await apiClient.post(`/families/${params.familyId}/members`, parsed);
-    return response.data;
-  } catch (err) {
-    throw new Error(extractErrorMessage(err));
-  }
+const respondToInvitation = async ({
+  id,
+  ...responseData
+}: RespondToInvitationInput & { id: string }): Promise<SuccessResponse> => {
+  const { data } = await apiClient.post(
+    ApiEndpoints.RESPOND_TO_INVITATION(id),
+    responseData,
+  );
+  return SuccessResponseSchema.parse(data);
 };
 
-const updateFamilyMember = async (params: {
-  familyId: string;
-  userId: string;
-  data: UpdateFamilyMemberInput;
-}) => {
-  try {
-    const parsed = UpdateFamilyMemberRequestSchema.parse(params.data);
-    const response = await apiClient.patch(
-      `/families/${params.familyId}/members/${params.userId}`,
-      parsed
-    );
-    return response.data;
-  } catch (err) {
-    throw new Error(extractErrorMessage(err));
-  }
+const createRelationship = async (
+  relationshipData: CreateRelationshipInput,
+): Promise<Relationship> => {
+  const { data } = await apiClient.post(
+    ApiEndpoints.RELATIONSHIPS,
+    relationshipData,
+  );
+  return RelationshipSchema.parse(data);
 };
 
-const removeFamilyMember = async (params: { familyId: string; userId: string }) => {
-  try {
-    await apiClient.delete(`/families/${params.familyId}/members/${params.userId}`);
-  } catch (err) {
-    throw new Error(extractErrorMessage(err));
-  }
+const updateRelationship = async ({
+  id,
+  ...updateData
+}: UpdateRelationshipInput & { id: string }): Promise<Relationship> => {
+  const { data } = await apiClient.patch(
+    ApiEndpoints.RELATIONSHIP_BY_ID(id),
+    updateData,
+  );
+  return RelationshipSchema.parse(data);
 };
 
-const deleteFamily = async (id: string) => {
-  try {
-    await apiClient.delete(`/families/${id}`);
-  } catch (err) {
-    throw new Error(extractErrorMessage(err));
-  }
+const deleteRelationship = async (id: string): Promise<SuccessResponse> => {
+  const { data } = await apiClient.delete(ApiEndpoints.RELATIONSHIP_BY_ID(id));
+  return SuccessResponseSchema.parse(data);
 };
 
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // REACT QUERY HOOKS
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-export const useMyFamilies = () => {
-  const isAuthenticated = useAuthStore((state) => state.status === 'authenticated');
-  return useQuery({
-    queryKey: familyKeys.lists(),
-    queryFn: getMyFamilies,
-    enabled: isAuthenticated,
+export const useFamilyTree = () =>
+  useQuery({
+    queryKey: familyKeys.tree(),
+    queryFn: getFamilyTree,
   });
-};
 
-export const useFamily = (id: string) => {
-  const isAuthenticated = useAuthStore((state) => state.status === 'authenticated');
-  return useQuery({
-    queryKey: familyKeys.detail(id),
-    queryFn: () => getFamilyById(id),
-    enabled: isAuthenticated && !!id,
+export const useInvitations = (params: InvitationQuery) =>
+  useQuery({
+    queryKey: familyKeys.invitationList(params),
+    queryFn: () => getInvitations(params),
   });
-};
 
-export const useCreateFamily = () => {
+export const useInviteMember = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: createFamily,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: familyKeys.lists() }),
-  });
-};
-
-export const useAddFamilyMember = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: addFamilyMember,
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: familyKeys.detail(variables.familyId) });
+    mutationFn: inviteMember,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: familyKeys.invitations() });
+      toast.success('Invitation sent successfully');
+    },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error));
     },
   });
 };
 
-export const useUpdateFamilyMember = () => {
+export const useRespondToInvitation = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: updateFamilyMember,
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: familyKeys.detail(variables.familyId) });
+    mutationFn: respondToInvitation,
+    onSuccess: () => {
+      // After responding, refetch both the tree and invitations
+      queryClient.invalidateQueries({ queryKey: familyKeys.tree() });
+      queryClient.invalidateQueries({ queryKey: familyKeys.invitations() });
+      toast.success('Invitation response submitted');
+    },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error));
     },
   });
 };
 
-export const useRemoveFamilyMember = () => {
+export const useCreateRelationship = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: removeFamilyMember,
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: familyKeys.detail(variables.familyId) });
+    mutationFn: createRelationship,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: familyKeys.tree() });
+      toast.success('Relationship created successfully');
+    },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error));
     },
   });
 };
 
-export const useDeleteFamily = () => {
+export const useUpdateRelationship = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: deleteFamily,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: familyKeys.lists() }),
+    mutationFn: updateRelationship,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: familyKeys.tree() });
+      toast.success('Relationship updated successfully');
+    },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error));
+    },
+  });
+};
+
+export const useDeleteRelationship = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteRelationship,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: familyKeys.tree() });
+      toast.success('Relationship deleted successfully');
+    },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error));
+    },
   });
 };

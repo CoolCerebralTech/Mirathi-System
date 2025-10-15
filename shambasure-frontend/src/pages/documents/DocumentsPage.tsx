@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/ui/Button';
-import { DataTable } from '../../components/ui/DataTable'; // Assuming you have a generic DataTable component
+import { DataTable } from '../../components/ui/DataTable';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import {
   Dialog,
@@ -31,47 +31,57 @@ import {
 import { getDocumentColumns } from '../../features/documents/components/DocumentsTable';
 import { DocumentUploader } from '../../features/documents/components/DocumentUploader';
 import { useDocuments, useDeleteDocument } from '../../features/documents/documents.api';
-import { Document } from '../../types';
+import type { Document } from '../../types';
 
+/**
+ * The main dashboard page for users to view, upload, and manage their documents.
+ */
 export function DocumentsPage() {
   const { t } = useTranslation(['documents', 'common']);
   const navigate = useNavigate();
 
-  // State for controlling modals
   const [isUploaderOpen, setIsUploaderOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<Document | null>(null);
 
-  // Data Fetching
-  const documentsQuery = useDocuments(); // Add filters/pagination state here later
-  const deleteMutation = useDeleteDocument();
+  const documentsQuery = useDocuments();
+  const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
 
-  // Memoize columns to prevent re-calculation on every render. This is a critical performance optimization.
-  const columns = useMemo(() => getDocumentColumns({
-    onDelete: (docId) => {
-      const doc = documentsQuery.data?.find(d => d.id === docId);
-      if (doc) setDocToDelete(doc);
-    },
-    onView: (docId) => navigate(`/dashboard/documents/${docId}`),
-    // You can add other handlers like onEdit, onShare here.
-  }), [documentsQuery.data, navigate]);
+  const columns = useMemo(
+    () =>
+      getDocumentColumns(t, {
+        onDelete: (docId: string) => {
+          const doc = documentsQuery.data?.data.find((d) => d.id === docId);
+          if (doc) setDocToDelete(doc);
+        },
+        onEdit: (doc: Document) => navigate(`/dashboard/documents/${doc.id}/edit`),
+        onViewVersions: (doc: Document) => navigate(`/dashboard/documents/${doc.id}`),
+      }),
+    [documentsQuery.data?.data, navigate, t],
+  );
 
   const handleDeleteConfirm = () => {
     if (!docToDelete) return;
-    deleteMutation.mutate(docToDelete.id, {
+
+    deleteDocument(docToDelete.id, {
       onSuccess: () => {
-        toast.success(t('documents:delete_success', { filename: docToDelete.filename }));
+        toast.success(
+          t('delete_success', {
+            filename: docToDelete.versions[0]?.filename ?? 'document',
+          }),
+        );
         setDocToDelete(null);
       },
       onError: (error) => {
-        toast.error(t('documents:delete_failed'), { description: error.message });
+        toast.error(t('delete_failed'), { description: error.message });
+        setDocToDelete(null);
       },
     });
   };
-  
+
   const renderContent = () => {
     if (documentsQuery.isLoading) {
       return (
-        <div className="flex h-64 items-center justify-center">
+        <div className="flex h-96 items-center justify-center">
           <LoadingSpinner size="lg" />
         </div>
       );
@@ -80,67 +90,70 @@ export function DocumentsPage() {
     if (documentsQuery.isError) {
       return (
         <div className="text-center text-destructive">
-          <AlertTriangle className="mx-auto h-8 w-8" />
-          <p>{t('common:error_loading_data')}</p>
+          <AlertTriangle className="mx-auto h-12 w-12" />
+          <p className="mt-4 font-semibold">{t('common:error_loading_data')}</p>
         </div>
       );
     }
-    
-    if (!documentsQuery.data || documentsQuery.data.length === 0) {
+
+    const documents = documentsQuery.data?.data ?? [];
+
+    if (documents.length === 0) {
       return (
-        <div className="text-center py-16 border-2 border-dashed rounded-lg">
-           <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-           <h3 className="mt-4 text-lg font-medium">{t('documents:no_documents_title')}</h3>
-           <p className="mt-1 text-sm text-muted-foreground">{t('documents:no_documents_prompt')}</p>
-           <Button onClick={() => setIsUploaderOpen(true)} className="mt-6">
-              <Upload className="mr-2 h-4 w-4" />
-              {t('documents:upload_first_document')}
-           </Button>
+        <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed py-16 text-center">
+          <FileText className="h-12 w-12 text-muted-foreground" />
+          <h3 className="mt-4 text-lg font-medium">{t('no_documents_title')}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{t('no_documents_prompt')}</p>
+          <Button onClick={() => setIsUploaderOpen(true)} className="mt-6">
+            <Upload className="mr-2 h-4 w-4" />
+            {t('upload_first_document')}
+          </Button>
         </div>
       );
     }
-    
-    return <DataTable columns={columns} data={documentsQuery.data} />;
+
+    return <DataTable columns={columns} data={documents} />;
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={t('documents:title')}
-        description={t('documents:description')}
-      >
-        <Button onClick={() => setIsUploaderOpen(true)}>
-          <Upload className="mr-2 h-4 w-4" />
-          {t('documents:upload_document')}
-        </Button>
-      </PageHeader>
+        title={t('title')}
+        description={t('description')}
+        actions={
+          <Button onClick={() => setIsUploaderOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            {t('upload_document')}
+          </Button>
+        }
+      />
 
       {renderContent()}
 
-      {/* Upload Document Dialog */}
       <Dialog open={isUploaderOpen} onOpenChange={setIsUploaderOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[650px]">
           <DialogHeader>
-            <DialogTitle>{t('documents:upload_new_document')}</DialogTitle>
-            <DialogDescription>{t('documents:upload_prompt')}</DialogDescription>
+            <DialogTitle>{t('upload_new_document')}</DialogTitle>
+            <DialogDescription>{t('upload_prompt')}</DialogDescription>
           </DialogHeader>
-          <DocumentUploader onSuccess={() => setIsUploaderOpen(false)} />
+          <DocumentUploader onSuccess={() => setIsUploaderOpen(false)} onCancel={() => setIsUploaderOpen(false)}/>
         </DialogContent>
       </Dialog>
-      
-      {/* Delete Confirmation Dialog */}
+
       <AlertDialog open={!!docToDelete} onOpenChange={() => setDocToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('common:are_you_sure')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('documents:delete_confirm_message', { filename: docToDelete?.filename })}
+              {t('delete_confirm_message', {
+                filename: docToDelete?.versions[0]?.filename ?? 'this document',
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} disabled={deleteMutation.isPending}>
-              {deleteMutation.isPending ? t('common:deleting') : t('common:delete')}
+            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isDeleting}>
+              {isDeleting ? t('common:deleting') : t('common:delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

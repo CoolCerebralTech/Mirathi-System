@@ -37,8 +37,14 @@ export const DocumentTypeSchema = z.enum([
  * This is crucial for legal and official documents.
  */
 export const DocumentMetadataSchema = z.object({
-  issueDate: z.coerce.date().optional(),
-  expiryDate: z.coerce.date().optional(),
+  issueDate: z.preprocess(
+    (val) => (val ? new Date(val as string) : undefined),
+    z.date().optional()
+    ),
+  expiryDate: z.preprocess(
+    (val) => (val ? new Date(val as string) : undefined),
+    z.date().optional()
+    ),
   issuingAuthority: z.string().trim().optional(),
   documentNumber: z.string().trim().optional(), // e.g., Title number, ID number
 });
@@ -90,9 +96,14 @@ export const DocumentSchema = z.object({
  * The actual file is sent via multipart/form-data, and this schema represents the associated metadata.
  */
 export const UploadDocumentSchema = z.object({
-  documentType: DocumentTypeSchema,
-  assetId: z.string().uuid().optional(),
-  metadata: DocumentMetadataSchema.optional(),
+  documentType: z.string().optional(),
+  assetId: z.string().optional(),
+  metadata: z.object({
+    issueDate: z.string().optional(),
+    expiryDate: z.string().optional(),
+    issuingAuthority: z.string().optional(),
+    documentNumber: z.string().optional(),
+  }),
 });
 
 /**
@@ -147,6 +158,7 @@ export type DocumentMetadata = z.infer<typeof DocumentMetadataSchema>;
 export type Document = z.infer<typeof DocumentSchema>;
 export type DocumentVersion = z.infer<typeof DocumentVersionSchema>;
 
+export type UploadDocumentFormInput = z.input<typeof UploadDocumentSchema>;
 export type UploadDocumentInput = z.infer<typeof UploadDocumentSchema>;
 export type CreateDocumentVersionInput = z.infer<
   typeof CreateDocumentVersionSchema

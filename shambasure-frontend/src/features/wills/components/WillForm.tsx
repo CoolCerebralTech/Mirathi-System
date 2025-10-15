@@ -1,18 +1,28 @@
 // FILE: src/features/wills/components/WillForm.tsx
 
 import * as React from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import {
+  useForm,
+  useFieldArray,
+  Controller,
+  type FieldError,
+  type SubmitHandler,
+} from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
-
-import { 
-  CreateWillRequestSchema, 
-  type Will, 
-  type CreateWillInput,
-  type WillStatus 
-} from '../../../types';
-import { useCreateWill, useUpdateWill } from '../wills.api';
 import { toast } from 'sonner';
+import { PlusCircle, Trash2 } from 'lucide-react';
+
+import {
+  UpdateWillContentsSchema,
+  type Will,
+  type UpdateWillContentsFormInput, // form input type (z.input)
+  type UpdateWillContentsInput,      // parsed output type (z.infer)
+  type Asset,
+} from '../../../types';
+import { useCreateWill, useUpdateWillContents } from '../wills.api';
+import { useAssets } from '../../assets/assets.api';
+import { useFamilyTree } from '../../families/families.api';
 import { extractErrorMessage } from '../../../api/client';
 
 import { Button } from '../../../components/ui/Button';
@@ -26,33 +36,12 @@ import {
   SelectValue,
 } from '../../../components/ui/Select';
 import { Alert, AlertDescription } from '../../../components/ui/Alert';
-import { Info } from 'lucide-react';
+import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
+import { Separator } from '../../../components/ui/Separator';
 
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-const WILL_STATUSES: Array<{ value: WillStatus; label: string; description: string }> = [
-  { 
-    value: 'DRAFT', 
-    label: 'Draft', 
-    description: 'Work in progress, not yet finalized' 
-  },
-  { 
-    value: 'ACTIVE', 
-    label: 'Active', 
-    description: 'Current and legally binding will' 
-  },
-  { 
-    value: 'REVOKED', 
-    label: 'Revoked', 
-    description: 'No longer valid or superseded' 
-  },
-];
-
-// ============================================================================
-// TYPE DEFINITIONS
-// ============================================================================
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
 
 interface WillFormProps {
   will?: Will | null;
@@ -60,199 +49,336 @@ interface WillFormProps {
   onCancel?: () => void;
 }
 
-// Extended form input to include status
-type WillFormInput = CreateWillInput & {
-  status?: WillStatus;
+type FormValues = UpdateWillContentsFormInput;
+
+// Shape for a beneficiary (from family tree)
+type Heir = {
+  id: string;
+  firstName: string;
+  lastName: string;
 };
 
-// ============================================================================
-// COMPONENT
-// ============================================================================
+// Helper to safely read nested field errors
+function getFieldError(
+  cursor: unknown,
+): FieldError | undefined {
+  return typeof cursor === 'object' && cursor !== null && 'message' in cursor
+    ? (cursor as FieldError)
+    : undefined;
+}
 
+// -----------------------------------------------------------------------------
+// Component
+// -----------------------------------------------------------------------------
+
+/**
+ * WillForm allows creating or updating a will's contents (title + asset assignments).
+ * - Uses zodResolver with UpdateWillContentsSchema
+ * - For create flow: creates the will, then immediately updates contents (assignments)
+ * - For edit flow: updates contents directly
+ */
 export function WillForm({ will, onSuccess, onCancel }: WillFormProps) {
   const { t } = useTranslation(['wills', 'common']);
   const isEditing = !!will;
-  
-  const createMutation = useCreateWill();
-  const updateMutation = useUpdateWill();
-  const mutation = isEditing ? updateMutation : createMutation;
 
+  // API hooks
+  const createWillMutation = useCreateWill();
+  const updateWillMutation = useUpdateWillContents();
+  const mutation = isEditing ? updateWillMutation : createWillMutation;
+  const { isPending } = mutation;
+
+  // Data hooks
+  const { data: assetsData, isLoading: isLoadingAssets } = useAssets();
+  const { data: familyTree, isLoading: isLoadingFamily } = useFamilyTree();
+  const availableAssets: Asset[] = assetsData?.data ?? [];
+  const availableHeirs: Heir[] = familyTree?.nodes ?? [];
+
+  // Form setup (use input type with resolver)
   const {
     register,
     handleSubmit,
     control,
     reset,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm<WillFormInput>({
-    resolver: zodResolver(CreateWillRequestSchema),
-    defaultValues: isEditing && will ? {
-      title: will.title,
-      status: will.status,
-    } : {
+    formState: { errors },
+  } = useForm<FormValues>({
+    resolver: zodResolver(UpdateWillContentsSchema),
+    defaultValues: {
       title: '',
-      status: 'DRAFT' as WillStatus,
+      assignments: [],
     },
   });
 
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'assignments',
+  });
+
+  // Initialize when editing
   React.useEffect(() => {
-    if (isEditing && will) {
+    if (will) {
       reset({
         title: will.title,
-        status: will.status,
+        assignments: will.assignments.map((a) => ({
+          assetId: a.assetId,
+          beneficiaryId: a.beneficiaryId,
+          sharePercentage: a.sharePercentage,
+        })),
       });
     }
-  }, [will, isEditing, reset]);
+  }, [will, reset]);
 
-  const selectedStatus = watch('status');
-
-  const onSubmit = (data: WillFormInput) => {
-    // Extract only the fields needed for CreateWillInput
-    const payload: CreateWillInput = {
-      title: data.title,
-    };
+  // Submit handler: parse to output type before API
+  const onSubmit: SubmitHandler<FormValues> = (formData) => {
+    const parsed: UpdateWillContentsInput = UpdateWillContentsSchema.parse(formData);
 
     if (isEditing && will) {
-      updateMutation.mutate(
-        { id: will.id, data: payload }, 
+      updateWillMutation.mutate(
+        { id: will.id, willData: parsed },
         {
           onSuccess: () => {
-            toast.success(t('wills:update_success'));
+            toast.success(t('update_success'));
             onSuccess();
           },
-          onError: (error) => {
-            const errorMessage = extractErrorMessage(error);
-            toast.error(errorMessage, { 
-              description: t('wills:update_failed') 
-            });
-          },
-        }
+          onError: (error) =>
+            toast.error(t('update_failed'), { description: extractErrorMessage(error) }),
+        },
       );
     } else {
-      createMutation.mutate(
-        payload, 
+      // NOTE: Replace testatorId with the actual current user ID from your auth context or backend
+      createWillMutation.mutate(
+        { title: parsed.title!, testatorId: 'CURRENT_USER_ID_FROM_BACKEND' },
         {
-          onSuccess: () => {
-            toast.success(t('wills:create_success'));
-            onSuccess();
+          onSuccess: (newWill) => {
+            // After creating, update assignments
+            updateWillMutation.mutate(
+              { id: newWill.id, willData: parsed },
+              {
+                onSuccess: () => {
+                  toast.success(t('create_success'));
+                  onSuccess();
+                },
+                onError: (error) =>
+                  toast.error(t('create_failed_assignments'), {
+                    description: extractErrorMessage(error),
+                  }),
+              },
+            );
           },
-          onError: (error) => {
-            const errorMessage = extractErrorMessage(error);
-            toast.error(errorMessage, { 
-              description: t('wills:create_failed') 
-            });
-          },
-        }
+          onError: (error) =>
+            toast.error(t('create_failed'), { description: extractErrorMessage(error) }),
+        },
       );
     }
   };
 
-  const isLoading = isSubmitting || mutation.isPending;
+  if (isLoadingAssets || isLoadingFamily) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {/* Information Alert */}
-      {!isEditing && (
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            {t('wills:create_will_info')}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Will Title */}
       <div className="space-y-2">
         <Label htmlFor="title">
-          {t('wills:will_title')} <span className="text-destructive">*</span>
+          {t('will_title')} <span className="text-destructive">*</span>
         </Label>
         <Input
           id="title"
-          placeholder={t('wills:will_title_placeholder')}
-          error={errors.title?.message}
-          disabled={isLoading}
+          placeholder={t('will_title_placeholder')}
+          disabled={isPending}
           {...register('title')}
         />
-        <p className="text-xs text-muted-foreground">
-          {t('wills:will_title_hint')}
+        {getFieldError(errors.title)?.message && (
+          <p className="text-sm text-destructive">
+            {getFieldError(errors.title)!.message}
+          </p>
+        )}
+      </div>
+
+      <Separator />
+
+      <div>
+        <h3 className="text-lg font-medium">{t('beneficiary_assignments')}</h3>
+        <p className="text-sm text-muted-foreground">
+          {t('beneficiary_assignments_description')}
         </p>
       </div>
 
-      {/* Will Status - Display Only for Editing */}
-      {isEditing && (
+      {fields.length > 0 && (
+        <div className="space-y-4">
+          {fields.map((field, index) => (
+            <BeneficiaryAssignmentFields
+              key={field.id}
+              index={index}
+              control={control}
+              register={register}
+              errors={errors}
+              assets={availableAssets}
+              heirs={availableHeirs}
+              onRemove={() => remove(index)}
+              disabled={isPending}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Root-level array validation error */}
+      {getFieldError(errors.assignments?.root)?.message && (
+        <Alert variant="destructive">
+          <AlertDescription>{getFieldError(errors.assignments!.root)!.message}</AlertDescription>
+        </Alert>
+      )}
+
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() =>
+          append({ assetId: '', beneficiaryId: '', sharePercentage: 100 })
+        }
+        disabled={isPending}
+      >
+        <PlusCircle className="mr-2 h-4 w-4" />
+        {t('add_assignment')}
+      </Button>
+
+      {/* TODO: Add fields for Executor and Witnesses here */}
+
+      <div className="flex justify-end gap-2 border-t pt-6">
+        {onCancel && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isPending}
+          >
+            {t('common:cancel')}
+          </Button>
+        )}
+        <Button type="submit" isLoading={isPending}>
+          {isEditing ? t('common:save_changes') : t('create_will')}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Child component: one assignment row
+// -----------------------------------------------------------------------------
+
+interface BeneficiaryAssignmentFieldsProps {
+  index: number;
+  control: ReturnType<typeof useForm<FormValues>>['control'];
+  register: ReturnType<typeof useForm<FormValues>>['register'];
+  errors: ReturnType<typeof useForm<FormValues>>['formState']['errors'];
+  assets: Asset[];
+  heirs: Heir[];
+  onRemove: () => void;
+  disabled: boolean;
+}
+
+function BeneficiaryAssignmentFields({
+  index,
+  control,
+  register,
+  errors,
+  assets,
+  heirs,
+  onRemove,
+  disabled,
+}: BeneficiaryAssignmentFieldsProps) {
+  const { t } = useTranslation('wills');
+
+  const shareError = errors.assignments?.[index]?.sharePercentage;
+
+  return (
+    <div className="relative rounded-lg border bg-muted/50 p-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="status">
-            {t('wills:will_status')}
-          </Label>
+          <Label>{t('asset')}</Label>
           <Controller
+            name={`assignments.${index}.assetId`}
             control={control}
-            name="status"
             render={({ field }) => (
-              <Select 
-                value={field.value} 
+              <Select
                 onValueChange={field.onChange}
-                disabled={isLoading}
+                value={field.value}
+                disabled={disabled}
               >
-                <SelectTrigger id="status">
-                  <SelectValue placeholder={t('wills:select_status')} />
+                <SelectTrigger>
+                  <SelectValue placeholder={t('select_asset_placeholder')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {WILL_STATUSES.map((status) => (
-                    <SelectItem key={status.value} value={status.value}>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{status.label}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {status.description}
-                        </span>
-                      </div>
+                  {assets.map((asset) => (
+                    <SelectItem key={asset.id} value={asset.id}>
+                      {asset.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
           />
-          {errors.status && (
-            <p className="text-sm text-destructive">{errors.status.message}</p>
-          )}
         </div>
-      )}
 
-      {/* Warning for Active Status */}
-      {selectedStatus === 'ACTIVE' && (
-        <Alert variant="default" className="border-amber-200 bg-amber-50">
-          <Info className="h-4 w-4 text-amber-600" />
-          <AlertDescription className="text-amber-800">
-            {t('wills:status_warning')}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Info for New Wills */}
-      {!isEditing && (
-        <Alert variant="default" className="border-blue-200 bg-blue-50">
-          <Info className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-blue-800">
-            {t('wills:new_will_status_info', { defaultValue: 'New wills are created with DRAFT status by default.' })}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Form Actions */}
-      <div className="flex justify-end gap-2 pt-4">
-        {onCancel && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            disabled={isLoading}
-          >
-            {t('common:cancel')}
-          </Button>
-        )}
-        <Button type="submit" isLoading={isLoading} disabled={isLoading}>
-          {isEditing ? t('wills:save_changes') : t('wills:create_will')}
-        </Button>
+        <div className="space-y-2">
+          <Label>{t('beneficiary')}</Label>
+          <Controller
+            name={`assignments.${index}.beneficiaryId`}
+            control={control}
+            render={({ field }) => (
+              <Select
+                onValueChange={field.onChange}
+                value={field.value}
+                disabled={disabled}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t('select_beneficiary_placeholder')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {heirs.map((heir) => (
+                    <SelectItem key={heir.id} value={heir.id}>
+                      {`${heir.firstName} ${heir.lastName}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+        </div>
       </div>
-    </form>
+
+      <div className="mt-4">
+        <Label>{t('share_percentage')}</Label>
+        <Input
+          type="number"
+          min="0.01"
+          max="100"
+          step="0.01"
+          disabled={disabled}
+          {...register(`assignments.${index}.sharePercentage`, {
+            valueAsNumber: true,
+          })}
+        />
+        {getFieldError(shareError)?.message && (
+          <p className="text-sm text-destructive">
+            {getFieldError(shareError)!.message}
+          </p>
+        )}
+      </div>
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="absolute right-1 top-1 h-7 w-7 text-muted-foreground"
+        onClick={onRemove}
+        disabled={disabled}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }

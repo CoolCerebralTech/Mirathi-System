@@ -2,12 +2,15 @@
 
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { format } from 'date-fns';
-import { Download, Upload, FileText } from 'lucide-react';
+import { format, formatDistanceToNow } from 'date-fns';
+import { Download, Upload, FileText, History } from 'lucide-react';
+import { toast } from 'sonner';
 
 import type { Document } from '../../../types';
-import { useAddDocumentVersion, useDownloadDocument } from '../documents.api';
-import { toast } from '../../../components/common/Toaster';
+import {
+  useAddDocumentVersion,
+  useDownloadDocumentVersion,
+} from '../documents.api';
 import { extractErrorMessage } from '../../../api/client';
 
 import { Button } from '../../../components/ui/Button';
@@ -16,36 +19,46 @@ import { Input } from '../../../components/ui/Input';
 import { Textarea } from '../../../components/ui/Textarea';
 import { Separator } from '../../../components/ui/Separator';
 
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // TYPE DEFINITIONS
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 interface DocumentVersionsProps {
   document: Document;
 }
 
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // COMPONENT
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+/**
+ * A component to display a document's version history and allow uploading new versions.
+ */
 export function DocumentVersions({ document }: DocumentVersionsProps) {
   const { t } = useTranslation(['documents', 'common']);
-  const addVersionMutation = useAddDocumentVersion();
-  const downloadMutation = useDownloadDocument();
+  const { mutate: addVersion, isPending: isAdding } = useAddDocumentVersion();
+  const { mutate: downloadVersion, isPending: isDownloading } =
+    useDownloadDocumentVersion();
 
-  const [isAddingVersion, setIsAddingVersion] = React.useState(false);
+  const [isAddingMode, setIsAddingMode] = React.useState(false);
   const [newVersionFile, setNewVersionFile] = React.useState<File | null>(null);
   const [changeNote, setChangeNote] = React.useState('');
 
-  const handleDownload = (docId: string) => {
-    toast.info('Starting download...');
-    downloadMutation.mutate(docId, {
-        onError: (error) => toast.error('Download failed', { description: error.message }),
-    });
+  const handleDownload = (versionId: string) => {
+    toast.info(t('download_started_toast'));
+    downloadVersion(
+      { documentId: document.id, versionId },
+      {
+        onError: (error) =>
+          toast.error(t('download_failed_toast'), {
+            description: extractErrorMessage(error),
+          }),
+      },
+    );
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
+    if (e.target.files?.[0]) {
       setNewVersionFile(e.target.files[0]);
     }
   };
@@ -53,139 +66,165 @@ export function DocumentVersions({ document }: DocumentVersionsProps) {
   const handleAddVersion = () => {
     if (!newVersionFile) return;
 
-    addVersionMutation.mutate(
+    addVersion(
       {
-        documentId: document.id,
+        id: document.id,
         file: newVersionFile,
-        data: { changeNote },
+        metadata: {
+        documentId: document.id,
+        changeNote,
+      },
       },
       {
         onSuccess: () => {
-          toast.success(t('documents:version_added_success'));
+          toast.success(t('version_added_success'));
           setNewVersionFile(null);
           setChangeNote('');
-          setIsAddingVersion(false);
+          setIsAddingMode(false);
         },
         onError: (error) => {
-          toast.error(t('common:error'), extractErrorMessage(error));
+          toast.error(t('common:error'), {
+            description: extractErrorMessage(error),
+          });
         },
-      }
+      },
     );
   };
 
-  const sortedVersions = [...document.versions].sort((a, b) => b.versionNumber - a.versionNumber);
-  const currentVersion = sortedVersions[0];
+  // Ensure versions are always sorted from newest to oldest
+  const sortedVersions = React.useMemo(
+    () =>
+      [...document.versions].sort(
+        (a, b) => b.versionNumber - a.versionNumber,
+      ),
+    [document.versions],
+  );
+
+  const latestVersion = sortedVersions[0];
 
   return (
     <div className="space-y-6">
+      {/* --- Current Version --- */}
       <div>
-        <h3 className="mb-4 text-lg font-semibold">{t('documents:current_version')}</h3>
+        <h3 className="mb-2 text-lg font-semibold">{t('current_version')}</h3>
         <div className="flex items-center justify-between rounded-lg border p-4">
-          <div>
-            <p className="font-medium">{document.filename}</p>
-            <p className="text-sm text-muted-foreground">
-              {/* The latest version's details */}
-              Version {currentVersion.versionNumber} • {format(new Date(currentVersion.createdAt), 'PPp')}
-            </p>
+          <div className="flex items-center gap-4">
+            <FileText className="h-8 w-8 flex-shrink-0 text-muted-foreground" />
+            <div>
+              <p className="font-medium">{latestVersion.filename}</p>
+              <p className="text-sm text-muted-foreground">
+                {t('version_details', {
+                  version: latestVersion.versionNumber,
+                  date: format(new Date(latestVersion.createdAt), 'PPp'),
+                })}
+              </p>
+            </div>
           </div>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => handleDownload(document.id)}
-            disabled={downloadMutation.isPending}
+            onClick={() => handleDownload(latestVersion.id)}
+            disabled={isDownloading}
+            isLoading={isDownloading}
           >
             <Download className="mr-2 h-4 w-4" />
-            {t('documents:download_latest')}
+            {t('download_latest')}
           </Button>
         </div>
       </div>
 
       <Separator />
 
-      {/* Add New Version */}
+      {/* --- Add New Version --- */}
       <div>
-        <h3 className="mb-4 text-lg font-semibold">{t('documents:add_new_version')}</h3>
-        
-        {!isAddingVersion ? (
-          <Button onClick={() => setIsAddingVersion(true)} variant="outline" className="w-full">
+        <h3 className="mb-2 text-lg font-semibold">{t('add_new_version')}</h3>
+        {!isAddingMode ? (
+          <Button onClick={() => setIsAddingMode(true)} variant="secondary" className="w-full">
             <Upload className="mr-2 h-4 w-4" />
-            {t('documents:upload_new_version')}
+            {t('upload_new_version')}
           </Button>
         ) : (
           <div className="space-y-4 rounded-lg border p-4">
             <div className="space-y-2">
-              <Label htmlFor="version-file">{t('documents:select_file')}</Label>
-              <Input
-                id="version-file"
-                type="file"
-                onChange={handleFileSelect}
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-              />
+              <Label htmlFor="version-file">{t('select_file')}</Label>
+              <Input id="version-file" type="file" onChange={handleFileSelect} />
               {newVersionFile && (
                 <p className="text-sm text-muted-foreground">
-                  {t('documents:selected')}: {newVersionFile.name}
+                  {t('selected_file', { name: newVersionFile.name })}
                 </p>
               )}
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="change-note">{t('documents:change_note')}</Label>
+              <Label htmlFor="change-note">{t('change_note_optional')}</Label>
               <Textarea
                 id="change-note"
-                placeholder={t('documents:change_note_placeholder')}
+                placeholder={t('change_note_placeholder')}
                 value={changeNote}
                 onChange={(e) => setChangeNote(e.target.value)}
                 rows={3}
               />
             </div>
-
-            <div className="flex gap-2">
+            <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setIsAddingVersion(false);
-                  setNewVersionFile(null);
-                  setChangeNote('');
-                }}
-                disabled={addVersionMutation.isPending}
+                onClick={() => setIsAddingMode(false)}
+                disabled={isAdding}
               >
                 {t('common:cancel')}
               </Button>
               <Button
                 onClick={handleAddVersion}
-                disabled={!newVersionFile || addVersionMutation.isPending}
-                isLoading={addVersionMutation.isPending}
+                disabled={!newVersionFile || isAdding}
+                isLoading={isAdding}
               >
-                {t('documents:upload_version')}
+                {t('upload_version')}
               </Button>
             </div>
           </div>
         )}
       </div>
 
-       {/* Version History (excluding the current version) */}
+      {/* --- Version History --- */}
       {sortedVersions.length > 1 && (
         <>
           <Separator />
           <div>
-            <h3 className="mb-4 text-lg font-semibold">{t('documents:version_history')}</h3>
-            <div className="space-y-3">
+            <div className="mb-4 flex items-center gap-2">
+              <History className="h-5 w-5 text-muted-foreground" />
+              <h3 className="text-lg font-semibold">{t('version_history')}</h3>
+            </div>
+            <ul className="space-y-3">
               {sortedVersions.slice(1).map((version) => (
-                <div key={version.id} /* ... existing JSX ... */>
-                  {/* ... existing version details ... */}
+                <li
+                  key={version.id}
+                  className="flex items-center justify-between rounded-lg border p-3"
+                >
+                  <div>
+                    <p className="font-medium">
+                      {t('version_title', { number: version.versionNumber })}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {t('uploaded_ago', {
+                        time: formatDistanceToNow(new Date(version.createdAt), {
+                          addSuffix: true,
+                        }),
+                      })}
+                    </p>
+                    {version.changeNote && (
+                      <p className="mt-1 text-xs italic">"{version.changeNote}"</p>
+                    )}
+                  </div>
                   <Button
                     variant="ghost"
-                    size="sm"
-                    // BUG FIX: The backend needs the main document ID and version number for this download
-                    // We will need a new API endpoint/hook for downloading specific versions
-                    // For now, this is a placeholder for that functionality.
-                    onClick={() => alert(`Downloading version ${version.versionNumber} - requires dedicated endpoint`)}
+                    size="icon"
+                    onClick={() => handleDownload(version.id)}
+                    disabled={isDownloading}
                   >
                     <Download className="h-4 w-4" />
                   </Button>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         </>
       )}

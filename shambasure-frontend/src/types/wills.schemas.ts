@@ -172,6 +172,7 @@ export type Executor = z.infer<typeof ExecutorSchema>;
 export type Witness = z.infer<typeof WitnessSchema>;
 export type BeneficiaryAssignment = z.infer<typeof BeneficiaryAssignmentSchema>;
 export type CreateWillInput = z.infer<typeof CreateWillSchema>;
+export type UpdateWillContentsFormInput = z.input<typeof UpdateWillContentsSchema>;
 export type UpdateWillContentsInput = z.infer<
   typeof UpdateWillContentsSchema
 >;

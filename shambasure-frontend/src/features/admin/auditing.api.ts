@@ -1,91 +1,158 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // FILE: src/features/admin/auditing.api.ts
 
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { apiClient } from '../../api/client';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { apiClient, extractErrorMessage } from '../../api/client';
 import { useAuthStore } from '../../store/auth.store';
-import type { AuditLog, AuditQuery } from '../../types';
-import type { PaginatedResponse } from '../../types';
+import {
+  type AuditLog,
+  AuditLogSchema,
+  type AuditQuery,
+  type Paginated,
+  createPaginatedResponseSchema,
+} from '../../types';
+import { z } from 'zod';
+import { toast } from 'sonner';
 
-// ============================================================================
-// QUERY KEYS FACTORY (Your implementation is good)
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// API ENDPOINTS
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+const ApiEndpoints = {
+  LOGS: '/auditing/logs',
+  SUMMARY: '/auditing/summary',
+  ANALYTICS: (type: string) => `/auditing/analytics/${type}`,
+  EXPORT_CSV: '/auditing/export/csv',
+};
+
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// QUERY KEY FACTORY
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 export const auditKeys = {
   all: ['auditing'] as const,
   logs: () => [...auditKeys.all, 'logs'] as const,
-  log: (filters: Partial<AuditQuery>) => [...auditKeys.logs(), filters] as const,
+  logList: (filters: AuditQuery) => [...auditKeys.logs(), filters] as const,
   summaries: () => [...auditKeys.all, 'summaries'] as const,
-  summary: (params: Pick<AuditQuery, 'startDate' | 'endDate'>) => [...auditKeys.summaries(), params] as const,
-  analytics: () => [...auditKeys.all, 'analytics'] as const,
-  analytic: (type: string, params: any) => [...auditKeys.analytics(), type, params] as const,
+  summary: (params: Pick<AuditQuery, 'startDate' | 'endDate'>) =>
+    [...auditKeys.summaries(), params] as const,
 };
 
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// SCHEMAS
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+const AuditSummarySchema = z.object({
+  totalEvents: z.number(),
+  userLogins: z.number(),
+  assetCreations: z.number(),
+  documentUploads: z.number(),
+});
+type AuditSummary = z.infer<typeof AuditSummarySchema>;
+
+const AuditAnalyticsSchema = z.object({
+  // Define a flexible schema that can accommodate different analytics reports
+  title: z.string(),
+  data: z.record(z.string(), z.any()), // e.g., [{ date: '2023-01-01', count: 10 }]
+});
+type AuditAnalytics = z.infer<typeof AuditAnalyticsSchema>;
+
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // API FUNCTIONS
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-// UPGRADE: All functions are now fully type-safe
-const getAuditLogs = async (params: Partial<AuditQuery>): Promise<PaginatedResponse<AuditLog>> => {
-  const response = await apiClient.get('/auditing/logs', { params });
-  return response.data;
+const getAuditLogs = async (
+  params: AuditQuery,
+): Promise<Paginated<AuditLog>> => {
+  const { data } = await apiClient.get(ApiEndpoints.LOGS, { params });
+  return createPaginatedResponseSchema(AuditLogSchema).parse(data);
 };
 
-const getAuditSummary = async (params: Pick<AuditQuery, 'startDate' | 'endDate'>): Promise<any> => {
-  const response = await apiClient.get('/auditing/summary', { params });
-  return response.data;
+const getAuditSummary = async (
+  params: Pick<AuditQuery, 'startDate' | 'endDate'>,
+): Promise<AuditSummary> => {
+  const { data } = await apiClient.get(ApiEndpoints.SUMMARY, { params });
+  return AuditSummarySchema.parse(data);
 };
 
-const getAnalytics = async (type: 'trends' | 'top-users' | 'top-actions', params: any): Promise<any> => {
-  const response = await apiClient.get(`/auditing/analytics/${type}`, { params });
-  return response.data;
+const getAnalytics = async (
+  type: 'trends' | 'top-users',
+  params: Pick<AuditQuery, 'startDate' | 'endDate'>,
+): Promise<AuditAnalytics> => {
+  const { data } = await apiClient.get(ApiEndpoints.ANALYTICS(type), {
+    params,
+  });
+  return AuditAnalyticsSchema.parse(data);
 };
 
-const exportCsv = async (params: Pick<AuditQuery, 'startDate' | 'endDate'>): Promise<void> => {
-  const response = await apiClient.get('/auditing/export/csv', { params, responseType: 'blob' });
+const exportCsv = async (
+  params: Pick<AuditQuery, 'startDate' | 'endDate'>,
+): Promise<void> => {
+  const response = await apiClient.get(ApiEndpoints.EXPORT_CSV, {
+    params,
+    responseType: 'blob',
+  });
+
   const url = window.URL.createObjectURL(new Blob([response.data]));
   const link = document.createElement('a');
   link.href = url;
-  link.setAttribute('download', `audit-logs-${params.startDate}-${params.endDate}.csv`);
+  const formattedStartDate = params.startDate?.toISOString().split('T')[0];
+  const formattedEndDate = params.endDate?.toISOString().split('T')[0];
+  link.setAttribute(
+    'download',
+    `audit-logs_${formattedStartDate}_to_${formattedEndDate}.csv`,
+  );
   document.body.appendChild(link);
   link.click();
   link.remove();
   window.URL.revokeObjectURL(url);
 };
 
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // REACT QUERY HOOKS
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-export const useAuditLogs = (filters: Partial<AuditQuery> = {}) => {
-  const user = useAuthStore((state) => state.user);
+const useIsAdmin = () => useAuthStore((state) => state.user?.role === 'ADMIN');
+
+export const useAuditLogs = (filters: AuditQuery = {}) => {
+  const isAdmin = useIsAdmin();
   return useQuery({
-    queryKey: auditKeys.log(filters),
+    queryKey: auditKeys.logList(filters),
     queryFn: () => getAuditLogs(filters),
-    enabled: user?.role === 'ADMIN',
+    enabled: isAdmin,
   });
 };
 
-export const useAuditSummary = (params: Pick<AuditQuery, 'startDate' | 'endDate'>) => {
-  const user = useAuthStore((state) => state.user);
+export const useAuditSummary = (
+  params: Pick<AuditQuery, 'startDate' | 'endDate'>,
+) => {
+  const isAdmin = useIsAdmin();
   return useQuery({
     queryKey: auditKeys.summary(params),
     queryFn: () => getAuditSummary(params),
-    enabled: user?.role === 'ADMIN' && !!params.startDate && !!params.endDate,
+    enabled: isAdmin && !!params.startDate && !!params.endDate,
   });
 };
 
-export const useAuditAnalytics = (type: 'trends' | 'top-users' | 'top-actions', params: any) => {
-  const user = useAuthStore((state) => state.user);
+export const useAuditAnalytics = (
+  type: 'trends' | 'top-users',
+  params: Pick<AuditQuery, 'startDate' | 'endDate'>,
+) => {
+  const isAdmin = useIsAdmin();
   return useQuery({
-    queryKey: auditKeys.analytic(type, params),
+    queryKey: ['audit-analytics', type, params], // Simpler key for analytics
     queryFn: () => getAnalytics(type, params),
-    enabled: user?.role === 'ADMIN',
+    enabled: isAdmin && !!params.startDate && !!params.endDate,
   });
 };
 
 export const useExportAuditCsv = () => {
   return useMutation({
     mutationFn: exportCsv,
+    onSuccess: () => {
+       toast.success('Your download has started.');
+    },
+    onError: (error) => {
+      toast.error(`Failed to export audit logs: ${extractErrorMessage(error)}`);
+    },
   });
 };

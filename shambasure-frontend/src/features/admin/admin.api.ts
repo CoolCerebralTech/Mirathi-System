@@ -1,72 +1,135 @@
 // FILE: src/features/admin/admin.api.ts
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../../api/client';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiClient, extractErrorMessage } from '../../api/client';
 import { useAuthStore } from '../../store/auth.store';
-import type { User, UserRole, UserQuery } from '../../types';
-import type { PaginatedResponse } from '../../types';
+import {
+  type User,
+  UserSchema,
+  type UserQuery,
+  type UserRole,
+  type Document,
+  DocumentSchema,
+  type DocumentQuery,
+  type SuccessResponse,
+  SuccessResponseSchema,
+  type Paginated,
+  createPaginatedResponseSchema,
+} from '../../types';
+import { z } from 'zod';
+import { toast } from 'sonner';
 
-// ============================================================================
-// QUERY KEYS FACTORY
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// API ENDPOINTS
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+const ApiEndpoints = {
+  // User Management
+  USERS: '/users',
+  USER_BY_ID: (id: string) => `/users/${id}`,
+  UPDATE_USER_ROLE: (id: string) => `/users/${id}/role`,
+  // Document Management
+  ADMIN_DOCUMENTS: '/documents/admin/all',
+  VERIFY_DOCUMENT: (id:string) => `/documents/${id}/verify`,
+  REJECT_DOCUMENT: (id:string) => `/documents/${id}/reject`,
+  // Dashboard
+  DASHBOARD_STATS: '/admin/stats',
+};
+
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// QUERY KEY FACTORY
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 export const adminKeys = {
   all: ['admin'] as const,
-  users: () => [...adminKeys.all, 'users'] as const,
-  userLists: () => [...adminKeys.users(), 'list'] as const,
-  userList: (filters: UserQuery) => [...adminKeys.userLists(), filters] as const,
-  userDetails: () => [...adminKeys.users(), 'detail'] as const,
-  userDetail: (id: string) => [...adminKeys.userDetails(), id] as const,
-  stats: () => [...adminKeys.all, 'stats'] as const,
+  // User Keys
+  users: {
+    all: () => [...adminKeys.all, 'users'] as const,
+    lists: () => [...adminKeys.users.all(), 'list'] as const,
+    list: (filters: UserQuery) => [...adminKeys.users.lists(), filters] as const,
+    details: () => [...adminKeys.users.all(), 'detail'] as const,
+    detail: (id: string) => [...adminKeys.users.details(), id] as const,
+  },
+  // Document Keys
+  documents: {
+    all: () => [...adminKeys.all, 'documents'] as const,
+    lists: () => [...adminKeys.documents.all(), 'list'] as const,
+    list: (filters: DocumentQuery) =>
+      [...adminKeys.documents.lists(), filters] as const,
+  },
+  // Dashboard Keys
+  dashboard: {
+    stats: () => [...adminKeys.all, 'dashboard', 'stats'] as const,
+  }
 };
 
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// SCHEMAS
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+const AdminDashboardStatsSchema = z.object({
+  totalUsers: z.number(),
+  totalAssets: z.number(),
+  pendingDocuments: z.number(),
+  activeWills: z.number(),
+});
+type AdminDashboardStats = z.infer<typeof AdminDashboardStatsSchema>;
+
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // API FUNCTIONS
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-// UPGRADE: All admin user routes are under /users, not /admin/users
-const getUsers = async (params: UserQuery): Promise<PaginatedResponse<User>> => {
-  const response = await apiClient.get('/users', { params });
-  return response.data;
+// --- User Management ---
+const getUsers = async (params: UserQuery): Promise<Paginated<User>> => {
+  const { data } = await apiClient.get(ApiEndpoints.USERS, { params });
+  return createPaginatedResponseSchema(UserSchema).parse(data);
 };
 
-const getUserById = async (userId: string): Promise<User> => {
-  const response = await apiClient.get(`/users/${userId}`);
-  return response.data;
+const updateUserRole = async ({ userId, role }: { userId: string; role: UserRole }): Promise<User> => {
+  const { data } = await apiClient.patch(ApiEndpoints.UPDATE_USER_ROLE(userId), { role });
+  return UserSchema.parse(data);
 };
 
-const updateUserRole = async (params: { userId: string; role: UserRole }): Promise<User> => {
-  const response = await apiClient.patch(`/users/${params.userId}/role`, { role: params.role });
-  return response.data;
+const deleteUser = async (userId: string): Promise<SuccessResponse> => {
+  const { data } = await apiClient.delete(ApiEndpoints.USER_BY_ID(userId));
+  return SuccessResponseSchema.parse(data);
 };
 
-const deleteUser = async (userId: string): Promise<void> => {
-  await apiClient.delete(`/users/${userId}`);
+// --- Document Management ---
+const getAdminDocuments = async (params: DocumentQuery): Promise<Paginated<Document>> => {
+    const { data } = await apiClient.get(ApiEndpoints.ADMIN_DOCUMENTS, { params });
+    return createPaginatedResponseSchema(DocumentSchema).parse(data);
 };
 
-// NOTE: suspendUser and activateUser hooks are removed as they don't have
-// corresponding endpoints in the users.controller.ts you shared.
-// They can be added back if the backend implements these routes.
+const verifyDocument = async (documentId: string): Promise<Document> => {
+    const { data } = await apiClient.patch(ApiEndpoints.VERIFY_DOCUMENT(documentId));
+    return DocumentSchema.parse(data);
+};
 
-// ============================================================================
+const rejectDocument = async (documentId: string): Promise<Document> => {
+    const { data } = await apiClient.patch(ApiEndpoints.REJECT_DOCUMENT(documentId));
+    return DocumentSchema.parse(data);
+};
+
+// --- Dashboard ---
+const getDashboardStats = async (): Promise<AdminDashboardStats> => {
+  const { data } = await apiClient.get(ApiEndpoints.DASHBOARD_STATS);
+  return AdminDashboardStatsSchema.parse(data);
+};
+
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // REACT QUERY HOOKS
-// ============================================================================
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
+const useIsAdmin = () => useAuthStore((state) => state.user?.role === 'ADMIN');
+
+// --- User Management Hooks ---
 export const useAdminUsers = (params: UserQuery = {}) => {
-  const user = useAuthStore((state) => state.user);
+  const isAdmin = useIsAdmin();
   return useQuery({
-    queryKey: adminKeys.userList(params),
+    queryKey: adminKeys.users.list(params),
     queryFn: () => getUsers(params),
-    enabled: user?.role === 'ADMIN',
-  });
-};
-
-export const useAdminUser = (userId: string) => {
-  const user = useAuthStore((state) => state.user);
-  return useQuery({
-    queryKey: adminKeys.userDetail(userId),
-    queryFn: () => getUserById(userId),
-    enabled: !!userId && user?.role === 'ADMIN',
+    enabled: isAdmin,
   });
 };
 
@@ -75,8 +138,12 @@ export const useUpdateUserRole = () => {
   return useMutation({
     mutationFn: updateUserRole,
     onSuccess: (updatedUser) => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.userLists() });
-      queryClient.setQueryData(adminKeys.userDetail(updatedUser.id), updatedUser);
+      queryClient.invalidateQueries({ queryKey: adminKeys.users.lists() });
+      queryClient.setQueryData(adminKeys.users.detail(updatedUser.id), updatedUser);
+      toast.success('User role updated successfully');
+    },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error));
     },
   });
 };
@@ -86,7 +153,51 @@ export const useDeleteUser = () => {
   return useMutation({
     mutationFn: deleteUser,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: adminKeys.userLists() });
+      queryClient.invalidateQueries({ queryKey: adminKeys.users.lists() });
+      toast.success('User deleted successfully');
     },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error));
+    },
+  });
+};
+
+// --- Document Management Hooks ---
+export const useAdminDocuments = (params: DocumentQuery = {}) => {
+  const isAdmin = useIsAdmin();
+  return useQuery({
+    queryKey: adminKeys.documents.list(params),
+    queryFn: () => getAdminDocuments(params),
+    enabled: isAdmin,
+  });
+};
+
+const useUpdateDocumentStatus = (mutationFn: (id: string) => Promise<Document>) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: (updatedDocument) => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.documents.lists() });
+      queryClient.setQueryData(['documents', 'detail', updatedDocument.id], updatedDocument);
+      const action =
+        mutationFn === verifyDocument ? 'verified' : 'rejected';
+      toast.success(`Document ${action} successfully`);
+    },
+    onError: (error) => {
+      toast.error(extractErrorMessage(error));
+    },
+  });
+};
+
+export const useVerifyDocument = () => useUpdateDocumentStatus(verifyDocument);
+export const useRejectDocument = () => useUpdateDocumentStatus(rejectDocument);
+
+// --- Dashboard Hooks ---
+export const useAdminDashboardStats = () => {
+  const isAdmin = useIsAdmin();
+  return useQuery({
+    queryKey: adminKeys.dashboard.stats(),
+    queryFn: getDashboardStats,
+    enabled: isAdmin,
   });
 };

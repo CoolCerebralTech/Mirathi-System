@@ -1,246 +1,162 @@
 // FILE: src/features/documents/components/DocumentsTable.tsx
 
 import type { ColumnDef } from '@tanstack/react-table';
-import { 
-  MoreHorizontal, 
-  Download, 
-  Edit, 
-  Trash2, 
-  Eye,
-  Copy,
-  History,
-  Share2
-} from 'lucide-react';
+import type { TFunction } from 'i18next';
 import { formatDistanceToNow } from 'date-fns';
 
 import type { Document, DocumentStatus } from '../../../types';
-import { Button } from '../../../components/ui/Button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../../../components/ui/DropdownMenu';
 import { Badge } from '../../../components/ui/Badge';
 import { DataTableColumnHeader } from '../../../components/ui/DataTable';
-import { useDownloadDocument } from '../documents.api';
-import { toast } from 'sonner';
+import { ActionsCell } from './ActionsCell'; // 👈 we moved this to its own file
 
-// ============================================================================
+// -----------------------------------------------------------------------------
 // TYPE DEFINITIONS
-// ============================================================================
+// -----------------------------------------------------------------------------
 
-interface DocumentsTableColumn {
-  onDownload: (documentId: string, filename: string) => void;
+/**
+ * Defines the callbacks that can be triggered from the documents table.
+ * - onDelete: required, deletes a document by ID
+ * - onEdit: optional, opens edit form for a document
+ * - onViewVersions: optional, shows version history
+ * - onPreview: optional, previews the document
+ */
+export interface DocumentsTableActions {
   onDelete: (documentId: string) => void;
   onEdit?: (document: Document) => void;
   onViewVersions?: (document: Document) => void;
   onPreview?: (document: Document) => void;
-  onShare?: (document: Document) => void;
 }
 
-// ============================================================================
+// -----------------------------------------------------------------------------
 // HELPER FUNCTIONS
-// ============================================================================
+// -----------------------------------------------------------------------------
 
+/**
+ * Maps a document status to a badge variant for consistent styling.
+ */
 const getStatusBadgeVariant = (status: DocumentStatus) => {
   switch (status) {
     case 'VERIFIED':
-      return 'default';
+      return 'success';
     case 'PENDING_VERIFICATION':
       return 'secondary';
     case 'REJECTED':
       return 'destructive';
-    default:
+    case 'ARCHIVED':
       return 'outline';
-  }
-};
-
-const getStatusLabel = (status: DocumentStatus) => {
-  switch (status) {
-    case 'VERIFIED':
-      return 'Verified';
-    case 'PENDING_VERIFICATION':
-      return 'Pending Review';
-    case 'REJECTED':
-      return 'Rejected';
     default:
-      return status;
+      return 'default';
   }
 };
 
+/**
+ * Formats a file size in bytes into a human-readable string.
+ */
 const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 };
 
+/**
+ * Returns a simple emoji icon based on MIME type.
+ */
 const getFileIcon = (mimeType: string) => {
   if (mimeType.startsWith('image/')) return '🖼️';
   if (mimeType.includes('pdf')) return '📄';
   if (mimeType.includes('word')) return '📝';
-  if (mimeType.includes('sheet') || mimeType.includes('excel')) return '📊';
   return '📎';
 };
 
-// ============================================================================
+// -----------------------------------------------------------------------------
 // COLUMNS FACTORY
-// ============================================================================
+// -----------------------------------------------------------------------------
 
-export const getDocumentColumns = (handlers: DocumentsTableColumn): ColumnDef<Document>[] => {
-  return [
-    {
-      accessorKey: 'filename',
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Document" />,
-      cell: ({ row }) => {
-        const doc = row.original;
-        return (
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <span className="text-xl">{getFileIcon(doc.mimeType)}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-medium line-clamp-1">{doc.filename}</span>
-              <span className="text-xs text-muted-foreground">
-                {formatFileSize(doc.sizeBytes)}
-              </span>
-            </div>
+/**
+ * Factory function that returns the column definitions for the documents table.
+ * It uses the i18n translation function `t` for labels and the provided
+ * `actions` callbacks for row-level actions.
+ */
+export const getDocumentColumns = (
+  t: TFunction,
+  actions: DocumentsTableActions,
+): ColumnDef<Document>[] => [
+  {
+    accessorKey: 'documentType',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={t('documents:columns.document')} />
+    ),
+    cell: ({ row }) => {
+      const doc = row.original;
+      const latestVersion = doc.versions[0];
+      if (!latestVersion) return null;
+
+      return (
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-muted">
+            <span className="text-xl">{getFileIcon(latestVersion.mimeType)}</span>
           </div>
-        );
-      },
-    },
-    {
-      accessorKey: 'status',
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
-      cell: ({ row }) => {
-        const status = row.getValue('status') as DocumentStatus;
-        return (
-          <Badge variant={getStatusBadgeVariant(status)}>
-            {getStatusLabel(status)}
-          </Badge>
-        );
-      },
-      filterFn: (row, id, value) => {
-        return value.includes(row.getValue(id));
-      },
-    },
-    {
-      accessorKey: 'mimeType',
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Type" />,
-      cell: ({ row }) => {
-        const mimeType = row.getValue('mimeType') as string;
-        const displayType = mimeType.split('/')[1]?.toUpperCase() || 'FILE';
-        return (
-          <span className="text-sm text-muted-foreground">
-            {displayType}
-          </span>
-        );
-      },
-      enableSorting: false,
-    },
-    {
-      accessorKey: 'createdAt',
-      header: ({ column }) => <DataTableColumnHeader column={column} title="Uploaded" />,
-      cell: ({ row }) => {
-        const date = new Date(row.getValue('createdAt'));
-        return (
           <div className="flex flex-col">
-            <span className="text-sm">
-              {formatDistanceToNow(date, { addSuffix: true })}
-            </span>
+            <span className="font-medium line-clamp-1">{latestVersion.filename}</span>
             <span className="text-xs text-muted-foreground">
-              {date.toLocaleDateString()}
+              {t(`documents:document_type_options.${doc.documentType}`)}
             </span>
           </div>
-        );
-      },
+        </div>
+      );
     },
-    {
-      id: 'actions',
-      cell: ({ row }) => {
-        const doc = row.original;
-        const downloadMutation = useDownloadDocument();
-
-        const handleDownload = () => {
-          toast.info('Your download is starting...');
-          downloadMutation.mutate(doc.id, {
-            onError: (error) => toast.error('Download failed', { description: error.message }),
-          });
-        };
-
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreHorizontal className="h-4 w-4" />
-                <span className="sr-only">Open menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[200px]">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              
-              {handlers.onPreview && (
-                <DropdownMenuItem onClick={() => handlers.onPreview!(doc)}>
-                  <Eye className="mr-2 h-4 w-4" />
-                  Preview
-                </DropdownMenuItem>
-              )}
-
-              <DropdownMenuItem 
-                onClick={() => handlers.onDownload(doc.id, doc.filename)}
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Download
-              </DropdownMenuItem>
-
-              {handlers.onEdit && (
-                <DropdownMenuItem onClick={() => handlers.onEdit!(doc)}>
-                  <Edit className="mr-2 h-4 w-4" />
-                  Rename
-                </DropdownMenuItem>
-              )}
-
-              {handlers.onViewVersions && doc.versions && doc.versions.length > 0 && (
-                <DropdownMenuItem onClick={() => handlers.onViewVersions!(doc)}>
-                  <History className="mr-2 h-4 w-4" />
-                  Version History ({doc.versions.length})
-                </DropdownMenuItem>
-              )}
-
-              <DropdownMenuItem
-                onClick={() => {
-                  navigator.clipboard.writeText(doc.id);
-                }}
-              >
-                <Copy className="mr-2 h-4 w-4" />
-                Copy Document ID
-              </DropdownMenuItem>
-
-              {handlers.onShare && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handlers.onShare!(doc)}>
-                    <Share2 className="mr-2 h-4 w-4" />
-                    Share
-                  </DropdownMenuItem>
-                </>
-              )}
-
-              <DropdownMenuSeparator />
-
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => handlers.onDelete(doc.id)}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
-      },
+  },
+  {
+    accessorKey: 'status',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={t('documents:columns.status')} />
+    ),
+    cell: ({ row }) => {
+      const status = row.getValue('status') as DocumentStatus;
+      return (
+        <Badge variant={getStatusBadgeVariant(status)}>
+          {t(`documents:status_options.${status}`)}
+        </Badge>
+      );
     },
-  ];
-};
+    filterFn: (row, id, value) => value.includes(row.getValue(id)),
+  },
+  {
+    accessorKey: 'versions',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={t('documents:columns.size')} />
+    ),
+    cell: ({ row }) => {
+      const latestVersion = row.original.versions[0];
+      return (
+        <span className="text-sm text-muted-foreground">
+          {latestVersion ? formatFileSize(latestVersion.sizeBytes) : 'N/A'}
+        </span>
+      );
+    },
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'updatedAt',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={t('documents:columns.last_updated')} />
+    ),
+    cell: ({ row }) => {
+      const date = new Date(row.getValue('updatedAt') as string);
+      return (
+        <div className="flex flex-col">
+          <span className="text-sm">{formatDistanceToNow(date, { addSuffix: true })}</span>
+          <span className="text-xs text-muted-foreground">{date.toLocaleDateString()}</span>
+        </div>
+      );
+    },
+  },
+  {
+    id: 'actions',
+    cell: ({ row }) => (
+      <ActionsCell doc={row.original} t={t} actions={actions} />
+    ),
+  },
+];
