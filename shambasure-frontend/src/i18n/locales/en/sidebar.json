@@ -1,0 +1,15 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "assets": "Assets",
+    "wills": "Wills",
+    "families": "Family Tree",
+    "documents": "Documents",
+    "settings": "Settings",
+    "admin_overview": "Overview",
+    "admin_users": "Users",
+    "admin_documents": "Documents",
+    "admin_auditing": "Audit Logs"
+  },
+  "admin_section_title": "Admin Panel"
+}

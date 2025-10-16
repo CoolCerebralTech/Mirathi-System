@@ -1,75 +1,73 @@
 {
   "my_wills": "My Wills",
-  "my_wills_subtitle": "Create and manage your estate planning documents",
-  
+  "my_wills_subtitle": "Create, manage, and review your estate planning documents.",
   "create_will": "Create Will",
-  "edit_will": "Edit Will",
-  "delete_will": "Delete Will",
-  "view_details": "View Details",
-  
-  "create_will_description": "Create a new will to plan your estate succession",
-  "edit_will_description": "Update your will information and status",
-  "create_will_info": "Start by giving your will a descriptive title. You can assign beneficiaries after creation.",
-  
-  "will_title": "Will Title",
-  "will_title_placeholder": "e.g., My Last Will and Testament 2024",
-  "will_title_hint": "Give your will a clear, descriptive name",
-  
-  "will_status": "Status",
-  "select_status": "Select status",
-  "status_warning": "Set to 'Draft' initially. Only set to 'Active' when you're ready to make this your official will.",
-  
-  "draft": "Draft",
-  "active": "Active",
-  "revoked": "Revoked",
-  "executed": "Executed",
-  "all_statuses": "All Statuses",
-  "filter_by_status": "Filter by status",
-  "per_page": "per page",
-  
-  "create_success": "Will created successfully",
-  "update_success": "Will updated successfully",
-  "delete_success": "Will deleted successfully",
-  "save_changes": "Save Changes",
-  
-  "confirm_delete_title": "Delete Will",
-  "confirm_delete_message": "Are you sure you want to delete \"{{title}}\"? This action cannot be undone.",
-  
-  "will_information": "Will Information",
-  "created_on": "Created on",
-  "last_updated": "Last updated",
+  "create_first_will": "Create Your First Will",
   "back_to_wills": "Back to Wills",
-  "will_not_found": "Will not found",
-  
+  "edit_will_button": "Edit Will",
+
+  "will_not_found_title": "Will Not Found",
+  "will_not_found_description": "We couldn't find the will you were looking for. It may have been deleted.",
+
+  "no_wills_title": "No Wills Created Yet",
+  "no_wills_prompt": "Create your first will to begin planning your legacy and securing your family's future.",
+
+  "detail_page_description": "Review the details and beneficiary assignments for this will.",
+  "will_information": "Will Information",
   "beneficiary_assignments": "Beneficiary Assignments",
-  "beneficiary_assignments_description": "Assign your assets to family members and heirs",
-  "assign_beneficiary": "Assign Beneficiary",
-  "assign_beneficiary_description": "Choose an asset and beneficiary for inheritance",
-  "assign_beneficiary_info": "Select an asset from your inventory and assign it to a family member with an optional share percentage.",
-  
-  "select_asset": "Select Asset",
-  "choose_asset_placeholder": "Choose an asset...",
-  "no_description": "No description",
-  
-  "select_beneficiary": "Select Beneficiary",
-  "choose_beneficiary_placeholder": "Choose a family member...",
-  
-  "share_percentage": "Share Percentage",
-  "share_percentage_hint": "Leave blank to assign the entire asset, or specify a percentage",
-  "optional": "Optional",
-  "will_receive": "will receive",
-  "of": "of",
-  
-  "beneficiary_assigned_success": "Beneficiary assigned successfully",
-  "assignment_removed_success": "Assignment removed successfully",
-  
-  "no_assignments": "No Beneficiary Assignments",
-  "no_assignments_description": "Start assigning your assets to beneficiaries",
-  "assign_first_beneficiary": "Assign First Beneficiary",
-  
-  "confirm_remove_assignment_title": "Remove Assignment",
-  "confirm_remove_assignment_message": "Are you sure you want to remove this beneficiary assignment?",
-  
-  "no_assets_available": "You haven't created any assets yet. Please add assets before assigning beneficiaries.",
-  "no_family_members_available": "You haven't added any family members yet. Please create a family and add members before assigning beneficiaries."
+  "beneficiary_assignments_summary": "A summary of how your assets are assigned to beneficiaries in this will.",
+  "beneficiary_assignments_description": "Assign assets from your inventory to your family members. The total share for each asset cannot exceed 100%.",
+
+  "add_assignment": "Add Assignment",
+  "remove_assignment": "Remove this assignment",
+  "no_assignments_yet": "No assignments have been added to this will yet.",
+
+  "will_title": "Will Title",
+  "will_title_placeholder": "e.g., My Last Will - 2025",
+  "asset": "Asset",
+  "select_asset_placeholder": "Select an asset...",
+  "beneficiary": "Beneficiary",
+  "select_beneficiary_placeholder": "Select a beneficiary...",
+  "share": "Share",
+  "share_percentage": "Share Percentage (%)",
+  "receives_asset": "receives {{assetName}}",
+
+  "status": "Status",
+  "created_on": "Created On",
+  "last_updated": "Last Updated",
+  "status_options": {
+    "DRAFT": "Draft",
+    "ACTIVE": "Active",
+    "REVOKED": "Revoked",
+    "EXECUTED": "Executed"
+  },
+
+  "columns": {
+    "title": "Title",
+    "status": "Status",
+    "assignments": "Assignments",
+    "last_updated": "Last Updated"
+  },
+  "assignment_count": "{{count}} assignment",
+  "assignment_count_plural": "{{count}} assignments",
+
+  "edit_will_modal_title": "Edit Will",
+  "edit_will_modal_description": "Make changes to your will's title and beneficiary assignments below.",
+  "create_will_modal_title": "Create New Will",
+  "create_will_modal_description": "Start by giving your will a title. You can add beneficiary assignments right away.",
+
+  "dialogs": {
+    "confirm_delete_title": "Delete Will",
+    "confirm_delete_message": "Are you sure you want to delete \"{{title}}\"? This action is permanent and cannot be undone."
+  },
+
+  "toasts": {
+    "create_success": "Will created successfully!",
+    "create_failed": "Failed to create will.",
+    "create_failed_assignments": "Will was created, but failed to save assignments.",
+    "update_success": "Will updated successfully!",
+    "update_failed": "Failed to update will.",
+    "delete_success": "Will \"{{title}}\" was deleted successfully.",
+    "delete_failed": "Failed to delete will."
+  }
 }

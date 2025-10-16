@@ -1,18 +1,36 @@
-
-// FILE: src/i18n/locales/sw/validation.json
-
 {
-  "required": "{{field}} inahitajika",
-  "email_invalid": "Tafadhali weka barua pepe sahihi",
-  "min_length": "{{field}} lazima iwe na angalau herufi {{min}}",
-  "max_length": "{{field}} haiwezi kuzidi herufi {{max}}",
-  "number_min": "{{field}} lazima iwe angalau {{min}}",
-  "number_max": "{{field}} haiwezi kuzidi {{max}}",
-  "pattern_mismatch": "Muundo wa {{field}} si sahihi",
-  "passwords_must_match": "Nywila lazima zifanane",
-  "phone_invalid": "Tafadhali weka nambari ya simu sahihi",
-  "url_invalid": "Tafadhali weka URL sahihi",
-  "date_invalid": "Tafadhali weka tarehe sahihi",
-  "file_too_large": "Ukubwa wa faili hauwezi kuzidi {{max}}MB",
-  "file_type_invalid": "Aina ya faili haitegemezwa"
+  "required": "Sehemu hii inahitajika",
+  "invalid_email": "Tafadhali ingiza anwani sahihi ya barua pepe",
+  "password_min_length": "Nenosiri lazima liwe na angalau herufi 8",
+  "password_uppercase": "Nenosiri lazima liwe na angalau herufi moja kubwa",
+  "password_lowercase": "Nenosiri lazima liwe na angalau herufi moja ndogo",
+  "password_number": "Nenosiri lazima liwe na angalau nambari moja",
+  "password_special_char": "Nenosiri lazima liwe na angalau alama moja maalum",
+  "passwords_do_not_match": "Manenosiri hayafanani",
+
+  "first_name_min_length": "Jina la kwanza lazima liwe na angalau herufi 2",
+  "last_name_min_length": "Jina la mwisho lazima liwe na angalau herufi 2",
+
+  "phone_e164": "Nambari ya simu lazima iwe katika muundo wa E.164 (k.m., +254712345678)",
+
+  "file_too_large": "Faili ni kubwa mno. Ukubwa wa juu ni {{size}}MB.",
+  "file_invalid_type": "Aina ya faili si sahihi. Tafadhali pakia muundo unaotumika.",
+  "file_rejected": "Faili imekataliwa. Tafadhali jaribu faili nyingine.",
+
+  "asset_name_required": "Jina la mali linahitajika",
+  "parcel_number_required": "Nambari ya kiwanja inahitajika",
+  "location_required": "Mahali panahitajika",
+  "acreage_positive": "Ukubwa (ekari) lazima uwe nambari chanya",
+  "bank_name_required": "Jina la benki linahitajika",
+  "account_number_required": "Nambari ya akaunti inahitajika",
+  "branch_required": "Tawi linahitajika",
+  "make_required": "Mtengenezaji wa gari anahitajika",
+  "model_required": "Mfano wa gari unahitajika",
+  "year_invalid": "Tafadhali ingiza mwaka sahihi",
+  "license_plate_required": "Nambari ya usajili inahitajika",
+
+  "will_title_required": "Kichwa cha wosia lazima kiwe na angalau herufi 3",
+  "share_percentage_exceeds_100": "Jumla ya asilimia ya hisa kwa mali haiwezi kuzidi 100%",
+
+  "contact_message_min_length": "Ujumbe lazima uwe na angalau herufi 10"
 }

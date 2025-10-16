@@ -71,19 +71,23 @@ export function LoginForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* Email Field */}
           <div className="space-y-2">
             <Label htmlFor="email">{t('auth:email')}</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="name@example.com"
-              autoComplete="email"
-              leftIcon={<Mail className="text-muted-foreground" size={16} />}
-              disabled={isPending}
-              aria-invalid={!!errors.email}
-              aria-describedby="email-error"
-              {...register('email')}
-            />
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input
+                id="email"
+                type="email"
+                placeholder="name@example.com"
+                autoComplete="email"
+                disabled={isPending}
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? 'email-error' : undefined}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pl-10 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                {...register('email')}
+              />
+            </div>
             {errors.email && (
               <p id="email-error" className="text-sm text-destructive">
                 {errors.email.message}
@@ -91,6 +95,7 @@ export function LoginForm() {
             )}
           </div>
 
+          {/* Password Field */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="password">{t('auth:password')}</Label>
@@ -101,16 +106,19 @@ export function LoginForm() {
                 {t('auth:forgot_password')}
               </Link>
             </div>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              leftIcon={<Lock className="text-muted-foreground" size={16} />}
-              disabled={isPending}
-              aria-invalid={!!errors.password}
-              aria-describedby="password-error"
-              {...register('password')}
-            />
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                disabled={isPending}
+                aria-invalid={!!errors.password}
+                aria-describedby={errors.password ? 'password-error' : undefined}
+                className="pl-10"
+                {...register('password')}
+              />
+            </div>
             {errors.password && (
               <p id="password-error" className="text-sm text-destructive">
                 {errors.password.message}
@@ -118,6 +126,7 @@ export function LoginForm() {
             )}
           </div>
 
+          {/* Remember Me Checkbox */}
           <div className="flex items-center space-x-2">
             <Checkbox
               id="remember"
@@ -130,11 +139,13 @@ export function LoginForm() {
             </Label>
           </div>
 
+          {/* Submit Button */}
           <Button type="submit" className="w-full" isLoading={isPending}>
             {t('auth:sign_in')}
           </Button>
         </form>
 
+        {/* Sign Up Link */}
         <p className="mt-6 text-center text-sm text-muted-foreground">
           {t('auth:no_account')}{' '}
           <Link

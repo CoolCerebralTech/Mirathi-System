@@ -1,86 +1,47 @@
 // FILE: src/router/ProtectedRoute.tsx
 
-import * as React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/auth.store';
 import type { UserRole } from '../types';
+import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
-// ============================================================================
-// TYPE DEFINITIONS
-// ============================================================================
-
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  allowedRoles?: UserRole[];
-  redirectTo?: string;
-}
-
-// ============================================================================
-// COMPONENT
-// ============================================================================
-
-export function ProtectedRoute({ 
-  children, 
-  allowedRoles,
-  redirectTo = '/login' 
-}: ProtectedRouteProps) {
-  const location = useLocation();
+/**
+ * A route guard that renders its child routes (`<Outlet />`) only if the user is authenticated.
+ * It also handles role-based access control.
+ */
+export function ProtectedRoute({ allowedRoles }: { allowedRoles?: UserRole[] }) {
   const status = useAuthStore((state) => state.status);
   const user = useAuthStore((state) => state.user);
+  const location = useLocation();
 
-  // Show loading state while checking auth
-  if (status === 'idle') {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
+  if (status === 'loading') {
+    return <div className="flex h-screen w-full items-center justify-center"><LoadingSpinner size="lg" /></div>;
   }
 
-  // Redirect to login if not authenticated
   if (status === 'unauthenticated') {
-    return <Navigate to={redirectTo} state={{ from: location }} replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Check role-based access
+  // If roles are specified, check if the user has one of them
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    // Redirect to the main dashboard if role is not authorized
     return <Navigate to="/dashboard" replace />;
   }
 
-  return <>{children}</>;
+  // If all checks pass, render the nested routes
+  return <Outlet />;
 }
 
-// ============================================================================
-// ADMIN ROUTE GUARD
-// ============================================================================
-
-interface AdminRouteProps {
-  children: React.ReactNode;
-}
-
-export function AdminRoute({ children }: AdminRouteProps) {
-  return (
-    <ProtectedRoute allowedRoles={['ADMIN']}>
-      {children}
-    </ProtectedRoute>
-  );
-}
-
-// ============================================================================
-// GUEST ROUTE (Only for unauthenticated users)
-// ============================================================================
-
-interface GuestRouteProps {
-  children: React.ReactNode;
-  redirectTo?: string;
-}
-
-export function GuestRoute({ children, redirectTo = '/dashboard' }: GuestRouteProps) {
+/**
+ * A route guard that renders its child routes (`<Outlet />`) only if the user is NOT authenticated.
+ * Used for pages like Login and Register.
+ */
+export function GuestRoute() {
   const status = useAuthStore((state) => state.status);
 
   if (status === 'authenticated') {
-    return <Navigate to={redirectTo} replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
-  return <>{children}</>;
+  return <Outlet />;
 }

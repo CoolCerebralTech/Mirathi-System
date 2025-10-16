@@ -1,4 +1,4 @@
-// FILE: src/pages/public/HomePage.tsx (New & Finalized)
+// FILE: src/pages/public/HomePage.tsx
 
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,83 +6,114 @@ import { useNavigate } from 'react-router-dom';
 import { Shield, FileText, Users, ArrowRight } from 'lucide-react';
 
 import { Button } from '../../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// TYPE DEFINITIONS
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+interface PillarCardProps {
+  icon: React.ElementType;
+  title: string;
+  description: string;
+  iconBgColor: string;
+  iconColor: string;
+}
+
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// COMPONENT
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+/**
+ * The main public-facing homepage and landing page for the application.
+ * Its goal is to communicate the value proposition and convert visitors into users.
+ */
 export function HomePage() {
-  const { t } = useTranslation(['public', 'common']);
+  const { t } = useTranslation(['home', 'common']);
   const navigate = useNavigate();
 
+  const pillars = React.useMemo(() => [
+    { icon: FileText, titleKey: 'pillars.will.title', descriptionKey: 'pillars.will.description', iconBgColor: 'bg-blue-100', iconColor: 'text-blue-600' },
+    { icon: Shield, titleKey: 'pillars.assets.title', descriptionKey: 'pillars.assets.description', iconBgColor: 'bg-emerald-100', iconColor: 'text-emerald-600' },
+    { icon: Users, titleKey: 'pillars.heirs.title', descriptionKey: 'pillars.heirs.description', iconBgColor: 'bg-purple-100', iconColor: 'text-purple-600' },
+  ], []);
+
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Hero Section */}
-      <section className="flex-grow flex items-center bg-gradient-to-b from-primary/5 to-background">
-        <div className="container max-w-6xl py-24 text-center">
+    <div className="flex flex-col">
+      {/* --- Hero Section --- */}
+      <section className="flex items-center bg-gradient-to-b from-primary/5 to-background">
+        <div className="container max-w-6xl py-24 text-center sm:py-32">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-7xl">
-            {t('home:hero_title', 'Secure Your Family’s Future')}
-            <span className="block text-primary">{t('home:hero_subtitle', 'Digital Succession Planning for Kenya')}</span>
+            {t('hero.title')}
+            <span className="block text-primary">{t('hero.subtitle')}</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-3xl text-lg text-muted-foreground">
-            {t('home:hero_description', 'Easily create a legally-sound will, manage your assets, and protect your legacy. Shamba Sure makes estate planning simple, secure, and accessible for every Kenyan family.')}
-          </p>
-          <div className="mt-10 flex justify-center gap-4">
-            <Button size="lg" onClick={() => navigate('/register')} className="gap-2">
-              {t('common:get_started_free')}
-              <ArrowRight className="h-4 w-4" />
+          <p className="mx-auto mt-6 max-w-3xl text-lg text-muted-foreground">{t('hero.description')}</p>
+          <div className="mt-10 flex flex-wrap justify-center gap-4">
+            <Button size="lg" onClick={() => navigate('/register')}>
+              {t('hero.cta_main')}
+              <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
             <Button size="lg" variant="outline" onClick={() => navigate('/features')}>
-              {t('common:explore_features')}
+              {t('hero.cta_secondary')}
             </Button>
           </div>
         </div>
       </section>
 
-      {/* Core Pillars Section */}
+      {/* --- Core Pillars Section --- */}
       <section className="py-20 border-t">
         <div className="container max-w-6xl">
-          <div className="grid gap-8 md:grid-cols-3">
-            <div className="flex flex-col items-center text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 mb-4">
-                <FileText className="h-8 w-8 text-blue-600" />
-              </div>
-              <h3 className="text-xl font-semibold">{t('home:pillar1_title', 'Create Your Will')}</h3>
-              <p className="mt-2 text-muted-foreground">{t('home:pillar1_desc', 'Our guided process helps you create a comprehensive will in minutes.')}</p>
-            </div>
-            <div className="flex flex-col items-center text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 mb-4">
-                <Shield className="h-8 w-8 text-emerald-600" />
-              </div>
-              <h3 className="text-xl font-semibold">{t('home:pillar2_title', 'Manage Your Assets')}</h3>
-              <p className="mt-2 text-muted-foreground">{t('home:pillar2_desc', 'A secure digital vault for all your land, property, and financial assets.')}</p>
-            </div>
-            <div className="flex flex-col items-center text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-purple-100 mb-4">
-                <Users className="h-8 w-8 text-purple-600" />
-              </div>
-              <h3 className="text-xl font-semibold">{t('home:pillar3_title', 'Protect Your Heirs')}</h3>
-              <p className="mt-2 text-muted-foreground">{t('home:pillar3_desc', 'Clearly define beneficiaries and ensure a smooth inheritance process.')}</p>
-            </div>
+          <div className="grid gap-10 md:grid-cols-3">
+            {pillars.map((pillar) => (
+              <PillarCard
+                key={pillar.titleKey}
+                icon={pillar.icon}
+                title={t(pillar.titleKey)}
+                description={t(pillar.descriptionKey)}
+                iconBgColor={pillar.iconBgColor}
+                iconColor={pillar.iconColor}
+              />
+            ))}
           </div>
         </div>
       </section>
       
-      {/* Social Proof / Testimonials (Placeholder) */}
-      <section className="py-20 bg-muted/50 border-t">
+      {/* --- Social Proof / Testimonials Section --- */}
+      <section className="py-20 bg-muted/40 border-t">
         <div className="container max-w-4xl text-center">
-             <h2 className="text-3xl font-bold tracking-tight">{t('home:testimonials_title', 'Trusted by Families Across Kenya')}</h2>
-             <p className="mt-4 text-lg text-muted-foreground">{t('home:testimonials_quote', '"Shamba Sure gave me peace of mind. I finally have a clear plan for my children\'s future." - A. Kamau, Nakuru')}</p>
+             <h2 className="text-3xl font-bold tracking-tight">{t('testimonials.title')}</h2>
+             <blockquote className="mt-6">
+                <p className="text-xl italic text-muted-foreground">"{t('testimonials.quote')}"</p>
+                <footer className="mt-4 font-semibold">{t('testimonials.attribution')}</footer>
+             </blockquote>
         </div>
       </section>
 
-      {/* Final CTA */}
+      {/* --- Final CTA Section --- */}
       <section className="py-24 border-t">
           <div className="container max-w-4xl text-center">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">{t('home:cta_title', 'Ready to Protect Your Legacy?')}</h2>
-              <p className="mt-4 text-lg text-muted-foreground">{t('home:cta_desc', 'Take the first step towards securing your family’s future today.')}</p>
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">{t('cta.title')}</h2>
+              <p className="mt-4 text-lg text-muted-foreground">{t('cta.description')}</p>
               <Button size="lg" onClick={() => navigate('/register')} className="mt-8">
-                  {t('common:create_your_will_now')}
+                  {t('cta.button')}
               </Button>
           </div>
       </section>
+    </div>
+  );
+}
+
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// CHILD COMPONENT
+// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+function PillarCard({ icon: Icon, title, description, iconBgColor, iconColor }: PillarCardProps) {
+  return (
+    <div className="flex flex-col items-center text-center">
+      <div className={`flex h-16 w-16 items-center justify-center rounded-full ${iconBgColor} mb-4`}>
+        <Icon className={`h-8 w-8 ${iconColor}`} />
+      </div>
+      <h3 className="text-xl font-semibold">{title}</h3>
+      <p className="mt-2 text-muted-foreground">{description}</p>
     </div>
   );
 }

@@ -1,54 +1,97 @@
+
 {
-  "welcome_back": "Karibu tena, {{name}}",
-  "dashboard_subtitle": "Hii ndiyo inayoendelea na jukwaa lako leo",
-  
-  "total_users": "Watumiaji Wote",
-  "total_wills": "Wosia Wote",
-  "total_assets": "Mali Yote",
-  "total_families": "Familia Zote",
-  
-  "quick_actions": "Vitendo vya Haraka",
-  "manage_users": "Simamia Watumiaji",
-  "manage_users_desc": "Tazama, hariri, na simamia akaunti za watumiaji",
-  "review_documents": "Kagua Nyaraka",
-  "review_documents_desc": "Thibitisha nyaraka zinazosubiri",
-  "view_audit_logs": "Tazama Kumbukumbu",
-  "view_audit_logs_desc": "Fuatilia shughuli zote za mfumo",
-  "notification_templates": "Violezo vya Arifa",
-  "notification_templates_desc": "Simamia violezo vya barua pepe na SMS",
-  "system_settings": "Mipangilio ya Mfumo",
-  "system_settings_desc": "Sanidi mipangilio ya jukwaa",
-  
-  "recent_activity": "Shughuli za Hivi Karibuni",
-  "no_activity": "Hakuna shughuli za hivi karibuni",
-  "view_all": "Tazama Zote",
-  
-  "users_page_title": "Usimamizi wa Watumiaji",
-  "users_page_subtitle": "Simamia watumiaji wote waliosajiliwa kwenye jukwaa",
-  
-  "logs_page_title": "Kumbukumbu za Ukaguzi",
-  "logs_page_subtitle": "Fuatilia shughuli zote na mabadiliko ya mfumo",
-  
-  "templates_page_title": "Violezo vya Arifa",
-  "templates_page_subtitle": "Simamia violezo vya arifa za barua pepe na SMS",
-  
-  "create_template": "Unda Kiolezo",
-  "edit_template": "Hariri Kiolezo",
-  "delete_template": "Futa Kiolezo",
-  "test_template": "Jaribu Kiolezo",
-  
-  "export_csv": "Hamisha CSV",
-  "filter": "Chuja",
-  "search_placeholder": "Tafuta...",
-  
-  "status": "Hali",
-  "role": "Jukumu",
-  "actions": "Vitendo",
-  "created_at": "Imeundwa",
-  "updated_at": "Imeboreshwa",
-  
-  "confirm_delete_title": "Thibitisha Kufuta",
-  "confirm_delete_message": "Una uhakika unataka kufuta kipengee hiki? Kitendo hiki hakiwezi kufutwa.",
-  "confirm_delete_confirm": "Futa",
-  "confirm_delete_cancel": "Ghairi"
+  "dashboard": {
+    "title": "Dashibodi ya Msimamizi",
+    "description": "Muhtasari wa shughuli za mfumo na metriki muhimu.",
+    "stats": {
+      "total_users": "Jumla ya Watumiaji",
+      "pending_documents": "Nyaraka Zinazosubiri",
+      "active_wills": "Wosia Zinazotumika",
+      "total_assets": "Jumla ya Mali"
+    }
+  },
+  "users": {
+    "title": "Usimamizi wa Watumiaji",
+    "description": "Tazama, dhibiti, na sasisha majukumu na hali za watumiaji.",
+    "columns": {
+      "user": "Mtumiaji",
+      "role": "Jukumu",
+      "status": "Hali",
+      "joined": "Tarehe ya Kujiunga"
+    },
+    "actions": {
+      "change_role": "Badilisha Jukumu",
+      "suspend_user": "Simamisha Mtumiaji",
+      "delete_user": "Futa Mtumiaji"
+    },
+    "dialogs": {
+      "confirm_role_change_title": "Thibitisha Mabadiliko ya Jukumu",
+      "confirm_role_change_message": "Una uhakika unataka kubadilisha jukumu la {{name}} kuwa {{role}}?",
+      "confirm_delete_title": "Thibitisha Kufuta Mtumiaji",
+      "confirm_delete_message": "Una uhakika unataka kumfuta kabisa mtumiaji {{name}}? Kitendo hiki hakiwezi kutenduliwa."
+    }
+  },
+  "documents": {
+    "title": "Uhakiki wa Nyaraka",
+    "description": "Pitia na uidhinishe au ukatae nyaraka zilizowasilishwa na watumiaji.",
+    "columns": {
+      "document": "Hati",
+      "uploader": "Mpakiaji",
+      "status": "Hali",
+      "submitted": "Tarehe ya Kuwasilisha"
+    },
+    "actions": {
+      "view_document": "Tazama Hati",
+      "verify": "Hakiki",
+      "reject": "Kataa"
+    },
+    "empty_title": "Hakuna Nyaraka za Kupitia",
+    "empty_description": "Nyaraka zote zilizowasilishwa zimeshughulikiwa."
+  },
+  "templates": {
+    "title": "Violezo vya Arifa",
+    "description": "Dhibiti maudhui ya barua pepe na arifa za kiotomatiki.",
+    "create_template": "Tengeneza Kiolezo",
+    "edit_template": "Hariri Kiolezo",
+    "columns": {
+      "name": "Jina la Kiolezo",
+      "type": "Aina",
+      "channel": "Njia",
+      "status": "Hali"
+    },
+    "form": {
+      "name": "Jina la Kiolezo",
+      "description": "Maelezo (kwa kumbukumbu ya ndani)",
+      "type": "Aina ya Kiolezo",
+      "channel": "Njia",
+      "subject": "Kichwa cha Barua Pepe",
+      "body": "Mwili wa Kiolezo",
+      "variables": "Vigezo Vinavyopatikana"
+    }
+  },
+  "auditing": {
+    "title": "Kumbukumbu za Ukaguzi",
+    "description": "Fuatilia vitendo vyote muhimu vilivyofanywa ndani ya programu.",
+    "export_csv": "Hamisha kama CSV",
+    "columns": {
+      "actor": "Mtendaji",
+      "action": "Kitendo",
+      "target": "Lengo",
+      "status": "Hali",
+      "timestamp": "Muda"
+    },
+    "filters": {
+      "date_range": "Kipindi cha Tarehe",
+      "user": "Mtumiaji",
+      "action_type": "Aina ya Kitendo"
+    }
+  },
+  "toasts": {
+    "user_role_updated": "Jukumu la mtumiaji limesasishwa kikamilifu.",
+    "user_deleted": "Mtumiaji amefutwa kikamilifu.",
+    "document_verified": "Hati imewekwa alama kama iliyohakikiwa.",
+    "document_rejected": "Hati imewekwa alama kama iliyokataliwa.",
+    "template_created": "Kiolezo kimetengenezwa kikamilifu.",
+    "template_updated": "Kiolezo kimesasishwa kikamilifu."
+  }
 }

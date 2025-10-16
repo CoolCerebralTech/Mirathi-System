@@ -1,0 +1,34 @@
+
+{
+  "hero": {
+    "title": "Secure Your Family’s Future",
+    "subtitle": "Digital Succession Planning for Kenya",
+    "description": "Easily create a legally-sound will, manage your assets, and protect your legacy. Shamba Sure makes estate planning simple, secure, and accessible for every Kenyan family.",
+    "cta_main": "Get Started for Free",
+    "cta_secondary": "Explore Features"
+  },
+  "pillars": {
+    "will": {
+      "title": "Create Your Will",
+      "description": "Our guided process helps you create a comprehensive will in minutes."
+    },
+    "assets": {
+      "title": "Manage Your Assets",
+      "description": "A secure digital vault for all your land, property, and financial assets."
+    },
+    "heirs": {
+      "title": "Protect Your Heirs",
+      "description": "Clearly define beneficiaries and ensure a smooth inheritance process."
+    }
+  },
+  "testimonials": {
+    "title": "Trusted by Families Across Kenya",
+    "quote": "Shamba Sure gave me peace of mind. I finally have a clear plan for my children's future.",
+    "attribution": "- A. Kamau, Nakuru"
+  },
+  "cta": {
+    "title": "Ready to Protect Your Legacy?",
+    "description": "Take the first step towards securing your family’s future today.",
+    "button": "Create Your Will Now"
+  }
+}

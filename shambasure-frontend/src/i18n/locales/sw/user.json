@@ -1,0 +1,24 @@
+
+{
+  "profile_page_title": "Wasifu na Mipangilio",
+  "profile_page_description": "Dhibiti taarifa zako za kibinafsi, mapendeleo, na mipangilio ya usalama.",
+  "profile_tab": "Wasifu",
+  "security_tab": "Usalama",
+
+  "profile_information": "Taarifa za Wasifu",
+  "profile_information_prompt": "Sasisha maelezo yako ya kibinafsi na taarifa za mawasiliano hapa.",
+  "profile_update_success": "Wasifu umesasishwa kikamilifu!",
+  "profile_update_failed": "Imeshindwa kusasisha wasifu.",
+
+  "bio": "Wasifu / Kunihusu",
+  "phone_number": "Nambari ya Simu",
+  "address": "Anwani",
+  "street": "Anwani ya Mtaa",
+  "city": "Jiji / Mji",
+  "post_code": "Nambari ya Posta",
+  "country": "Nchi",
+
+  "next_of_kin": "Ndugu wa Karibu",
+  "full_name": "Jina Kamili",
+  "relationship": "Uhusiano"
+}

@@ -1,0 +1,15 @@
+{
+  "nav": {
+    "dashboard": "Dashibodi",
+    "assets": "Mali",
+    "wills": "Wosia",
+    "families": "Mti wa Familia",
+    "documents": "Nyaraka",
+    "settings": "Mipangilio",
+    "admin_overview": "Muhtasari",
+    "admin_users": "Watumiaji",
+    "admin_documents": "Nyaraka",
+    "admin_auditing": "Kumbukumbu za Ukaguzi"
+  },
+  "admin_section_title": "Jopo la Msimamizi"
+}

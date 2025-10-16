@@ -3,6 +3,7 @@
 import * as React from 'react';
 import {
   type ColumnDef,
+  type Column,
   flexRender,
   getCoreRowModel,
   getPaginationRowModel,
@@ -15,7 +16,22 @@ import {
 } from '@tanstack/react-table';
 import { cn } from '../../lib/utils';
 import { Button } from './Button';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  ChevronsLeft, 
+  ChevronsRight, 
+  ArrowUpDown, 
+  ArrowUp, 
+  ArrowDown 
+} from 'lucide-react';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from './Select';
 
 // ============================================================================
 // TABLE PRIMITIVES
@@ -112,22 +128,40 @@ interface DataTableProps<TData, TValue> {
   manualSorting?: boolean;
   onSortingChange?: (updater: SortingState | ((old: SortingState) => SortingState)) => void;
   emptyMessage?: string;
+  showPagination?: boolean;
+  showPageSizeSelector?: boolean;
+  pageSizeOptions?: number[];
+  totalItems?: number;
+  className?: string;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
-  isLoading,
+  isLoading = false,
   pageCount,
   pagination,
   onPaginationChange,
-  manualPagination = true,
+  manualPagination = false,
   manualSorting = false,
   onSortingChange: externalSortingChange,
   emptyMessage = 'No results found.',
+  showPagination = true,
+  showPageSizeSelector = false,
+  pageSizeOptions = [10, 20, 30, 50, 100],
+  totalItems,
+  className,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  
+  const [internalPagination, setInternalPagination] = React.useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+
+  const currentPagination = pagination ?? internalPagination;
+  const handlePaginationChange = onPaginationChange ?? setInternalPagination;
 
   const table = useReactTable({
     data,
@@ -139,14 +173,12 @@ export function DataTable<TData, TValue>({
     manualPagination,
     manualSorting,
     pageCount: pageCount ?? -1,
-    onPaginationChange: onPaginationChange
-      ? (updater) => {
-          const newState = typeof updater === 'function' && pagination
-            ? updater(pagination)
-            : updater;
-          onPaginationChange(newState);
-        }
-      : undefined,
+    onPaginationChange: (updater) => {
+      const newState = typeof updater === 'function'
+        ? updater(currentPagination)
+        : updater;
+      handlePaginationChange(newState);
+    },
     onSortingChange: (updater) => {
       const newState = typeof updater === 'function' ? updater(sorting) : updater;
       setSorting(newState);
@@ -156,19 +188,26 @@ export function DataTable<TData, TValue>({
     state: {
       sorting,
       columnFilters,
-      pagination,
+      pagination: currentPagination,
     },
   });
 
+  const startRow = currentPagination.pageIndex * currentPagination.pageSize + 1;
+  const endRow = Math.min(
+    (currentPagination.pageIndex + 1) * currentPagination.pageSize,
+    totalItems ?? data.length
+  );
+  const totalRows = totalItems ?? data.length;
+
   return (
-    <div className="space-y-4">
+    <div className={cn('space-y-4', className)}>
       <div className="rounded-md border bg-card">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead key={header.id} style={{ width: header.getSize() }}>
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -220,18 +259,44 @@ export function DataTable<TData, TValue>({
       </div>
 
       {/* Pagination */}
-      {pagination && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            Page {pagination.pageIndex + 1} of{' '}
-            {pageCount || table.getPageCount()}
+      {showPagination && !isLoading && table.getRowModel().rows.length > 0 && (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-muted-foreground">
+              Showing {startRow} to {endRow} of {totalRows.toLocaleString()} results
+            </div>
+            
+            {showPageSizeSelector && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Rows per page</span>
+                <Select
+                  value={currentPagination.pageSize.toString()}
+                  onValueChange={(value) => {
+                    table.setPageSize(Number(value));
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[70px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pageSizeOptions.map((size) => (
+                      <SelectItem key={size} value={size.toString()}>
+                        {size}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
+          
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => table.setPageIndex(0)}
               disabled={!table.getCanPreviousPage()}
+              aria-label="Go to first page"
             >
               <ChevronsLeft className="h-4 w-4" />
             </Button>
@@ -240,14 +305,24 @@ export function DataTable<TData, TValue>({
               size="sm"
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
+              aria-label="Go to previous page"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
+            
+            <div className="flex items-center gap-1">
+              <span className="text-sm text-muted-foreground">
+                Page {currentPagination.pageIndex + 1} of{' '}
+                {pageCount || table.getPageCount()}
+              </span>
+            </div>
+            
             <Button
               variant="outline"
               size="sm"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
+              aria-label="Go to next page"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -256,6 +331,7 @@ export function DataTable<TData, TValue>({
               size="sm"
               onClick={() => table.setPageIndex(table.getPageCount() - 1)}
               disabled={!table.getCanNextPage()}
+              aria-label="Go to last page"
             >
               <ChevronsRight className="h-4 w-4" />
             </Button>
@@ -272,7 +348,7 @@ export function DataTable<TData, TValue>({
 
 interface DataTableColumnHeaderProps<TData, TValue>
   extends React.HTMLAttributes<HTMLDivElement> {
-  column: any;
+  column: Column<TData, TValue>;
   title: string;
 }
 
@@ -285,21 +361,30 @@ export function DataTableColumnHeader<TData, TValue>({
     return <div className={cn(className)}>{title}</div>;
   }
 
+  const sorted = column.getIsSorted();
+
   return (
     <div className={cn('flex items-center space-x-2', className)}>
       <Button
         variant="ghost"
         size="sm"
         className="-ml-3 h-8 data-[state=open]:bg-accent"
-        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+        onClick={() => column.toggleSorting(sorted === 'asc')}
+        aria-label={
+          sorted === 'desc'
+            ? `Sorted descending. Click to sort ascending.`
+            : sorted === 'asc'
+            ? `Sorted ascending. Click to remove sorting.`
+            : `Not sorted. Click to sort ascending.`
+        }
       >
         <span>{title}</span>
-        {column.getIsSorted() === 'desc' ? (
-          <ArrowDown className="ml-2 h-4 w-4" />
-        ) : column.getIsSorted() === 'asc' ? (
-          <ArrowUp className="ml-2 h-4 w-4" />
+        {sorted === 'desc' ? (
+          <ArrowDown className="ml-2 h-4 w-4" aria-hidden="true" />
+        ) : sorted === 'asc' ? (
+          <ArrowUp className="ml-2 h-4 w-4" aria-hidden="true" />
         ) : (
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          <ArrowUpDown className="ml-2 h-4 w-4" aria-hidden="true" />
         )}
       </Button>
     </div>

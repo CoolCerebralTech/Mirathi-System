@@ -1,17 +1,37 @@
-// FILE: src/i18n/locales/en/validation.json
 
 {
-  "required": "{{field}} is required",
-  "email_invalid": "Please enter a valid email address",
-  "min_length": "{{field}} must be at least {{min}} characters",
-  "max_length": "{{field}} cannot exceed {{max}} characters",
-  "number_min": "{{field}} must be at least {{min}}",
-  "number_max": "{{field}} cannot exceed {{max}}",
-  "pattern_mismatch": "{{field}} format is invalid",
-  "passwords_must_match": "Passwords must match",
-  "phone_invalid": "Please enter a valid phone number",
-  "url_invalid": "Please enter a valid URL",
-  "date_invalid": "Please enter a valid date",
-  "file_too_large": "File size cannot exceed {{max}}MB",
-  "file_type_invalid": "File type not supported"
+  "required": "This field is required",
+  "invalid_email": "Please enter a valid email address",
+  "password_min_length": "Password must be at least 8 characters long",
+  "password_uppercase": "Password must contain at least one uppercase letter",
+  "password_lowercase": "Password must contain at least one lowercase letter",
+  "password_number": "Password must contain at least one number",
+  "password_special_char": "Password must contain at least one special character",
+  "passwords_do_not_match": "Passwords do not match",
+
+  "first_name_min_length": "First name must be at least 2 characters",
+  "last_name_min_length": "Last name must be at least 2 characters",
+
+  "phone_e164": "Phone number must be in E.164 format (e.g., +254712345678)",
+
+  "file_too_large": "File is too large. Maximum size is {{size}}MB.",
+  "file_invalid_type": "Invalid file type. Please upload a supported format.",
+  "file_rejected": "File was rejected. Please try another file.",
+
+  "asset_name_required": "Asset name is required",
+  "parcel_number_required": "Parcel number is required",
+  "location_required": "Location is required",
+  "acreage_positive": "Acreage must be a positive number",
+  "bank_name_required": "Bank name is required",
+  "account_number_required": "Account number is required",
+  "branch_required": "Branch name is required",
+  "make_required": "Vehicle make is required",
+  "model_required": "Vehicle model is required",
+  "year_invalid": "Please enter a valid year",
+  "license_plate_required": "License plate is required",
+  
+  "will_title_required": "Will title must be at least 3 characters",
+  "share_percentage_exceeds_100": "The total share percentage for an asset cannot exceed 100%",
+
+  "contact_message_min_length": "Message must be at least 10 characters long"
 }

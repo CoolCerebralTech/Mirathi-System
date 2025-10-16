@@ -1,0 +1,25 @@
+
+{
+  "hero": {
+    "title": "Get in Touch",
+    "subtitle": "We’re here to help. Ask us anything or share your feedback."
+  },
+  "form": {
+    "title": "Send Us a Message",
+    "first_name": "First Name",
+    "last_name": "Last Name",
+    "email": "Email Address",
+    "message": "Your Message",
+    "send_button": "Send Message"
+  },
+  "info": {
+    "title": "Contact Information",
+    "email_title": "Email",
+    "phone_title": "Phone",
+    "address_title": "Address"
+  },
+  "toasts": {
+    "submit_success_title": "Message Sent!",
+    "submit_success_description": "Thank you for contacting us. We will get back to you shortly."
+  }
+}

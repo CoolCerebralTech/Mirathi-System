@@ -1,77 +1,69 @@
 {
-  "my_families": "My Families",
-  "my_families_subtitle": "Manage your family structures and relationships",
-  
-  "create_family": "Create Family",
-  "edit_family": "Edit Family",
-  "delete_family": "Delete Family",
-  "save_changes": "Save Changes",
-  
-  "create_family_description": "Create a new family structure to organize your heirs and beneficiaries",
-  "edit_family_description": "Update your family information",
-  "create_family_info": "Give your family a name that helps you identify it. You can add members after creation.",
-  
-  "family_name": "Family Name",
-  "family_name_placeholder": "e.g., The Kamau Family, Direct Descendants",
-  "family_name_hint": "Choose a descriptive name for this family group",
-  
-  "create_success": "Family created successfully",
-  "update_success": "Family updated successfully",
-  "delete_success": "Family deleted successfully",
-  
-  "family_information": "Family Information",
-  "total_members": "Total Members",
-  "created_on": "Created on",
-  "last_updated": "Last updated",
-  "back_to_families": "Back to Families",
-  "family_not_found": "Family not found",
-  
-  "member": "member",
-  "members": "members",
-  
-  "family_tree": "Family Tree",
-  "family_tree_description": "View all family members organized by relationship",
-  
-  "parents": "Parents",
-  "spouses": "Spouses",
-  "children": "Children",
-  "siblings": "Siblings",
-  "other_members": "Other Members",
-  
-  "no_members": "No family members yet",
-  "no_members_description": "Start building your family tree by adding members",
-  
-  "add_member": "Add Member",
-  "add_member_description": "Add a new member to this family",
-  "add_member_info": "Search for a user and define their relationship to add them to this family.",
-  "member_added_success": "Member added successfully",
-  
-  "search_users": "Search Users",
-  "search_users_placeholder": "Search by name or email...",
-  "select_user": "Select User",
-  "choose_user_placeholder": "Choose a user...",
-  "no_users_found": "No users found. Try a different search.",
-  
-  "relationship": "Relationship",
-  "choose_relationship_placeholder": "Choose relationship...",
-  "preview": "Preview",
-  
-  "change_relationship": "Change Relationship",
-  "change_relationship_description": "Update this member's relationship type",
-  "new_relationship": "New Relationship",
-  "member_updated_success": "Member relationship updated",
-  
-  "remove_member": "Remove Member",
-  "member_removed_success": "Member removed successfully",
-  "confirm_remove_member_title": "Remove Member",
-  "confirm_remove_member_message": "Are you sure you want to remove {{name}} from this family?",
-  
-  "confirm_delete_family_title": "Delete Family",
-  "confirm_delete_family_message": "Are you sure you want to delete \"{{name}}\"? This will remove all family members but will not affect beneficiary assignments.",
-  
-  "actions": "Actions",
-  
-  "no_families": "No families yet",
-  "no_families_description": "Create your first family to organize your heirs and beneficiaries",
-  "create_first_family": "Create First Family"
+  "page_title": "My Family Tree",
+  "page_description": "Visually manage your family relationships, invite new members, and connect with existing users.",
+
+  "add_existing_member_button": "Add Existing Member",
+  "invite_member_button": "Invite Member",
+
+  "no_members_title": "Your Family Tree is Empty",
+  "no_members_description": "Start building your family tree by inviting a family member or adding an existing user.",
+
+  "invite_member_modal_title": "Invite a New Member",
+  "invite_member_modal_description": "Send an invitation to a family member's email address. They will be prompted to create an account if they don't have one.",
+  "invite_member_info": "They will receive an email with a secure link to join your family tree.",
+
+  "add_existing_member_modal_title": "Add Existing Member",
+  "add_existing_member_modal_description": "Search for a person who is already on Shamba Sure and establish your relationship with them.",
+
+  "relationship_group_SPOUSE": "Spouse / Partner",
+  "relationship_group_PARTNER": "Spouse / Partner",
+  "relationship_group_CHILD": "Children",
+  "relationship_group_PARENT": "Parents",
+  "relationship_group_SIBLING": "Siblings",
+  "relationship_group_OTHER": "Other Relatives",
+
+  "relationship_type_options": {
+    "SPOUSE": "Spouse",
+    "PARTNER": "Partner",
+
+    "CHILD": "Child",
+    "PARENT": "Parent",
+    "GRANDPARENT": "Grandparent",
+    "GRANDCHILD": "Grandchild",
+    "SIBLING": "Sibling",
+    "AUNT_UNCLE": "Aunt / Uncle",
+    "NIECE_NEPHEW": "Niece / Nephew",
+    "COUSIN": "Cousin",
+    "GUARDIAN": "Guardian",
+    "DEPENDENT": "Dependent",
+    "OTHER": "Other"
+  },
+
+  "invitee_email": "Invitee's Email Address",
+  "relationship_to_you": "What is their relationship to you?",
+  "select_relationship_placeholder": "Select a relationship...",
+  "send_invitation": "Send Invitation",
+
+  "search_for_user": "Search for a User",
+  "search_by_name_or_email": "Search by name or email...",
+  "select_person": "Select Person",
+  "select_person_placeholder": "Select a person...",
+  "start_typing_to_search": "Start typing to search for users.",
+  "no_users_found": "No users found.",
+  "their_relationship_to_you": "What is their relationship to you?",
+  "create_relationship": "Create Relationship",
+  "edit_relationship": "Edit Relationship",
+  "remove_relationship": "Remove Relationship",
+
+  "confirm_remove_relationship_message": "Are you sure you want to remove {{name}} from your family tree? This will sever the relationship link.",
+
+  "toasts": {
+    "invitation_sent_success_title": "Invitation Sent!",
+    "invitation_sent_success_description": "An invitation has been sent to {{email}}.",
+    "invitation_sent_failed_title": "Invitation Failed",
+    "relationship_created_success": "Relationship created successfully!",
+    "relationship_created_failed": "Failed to create relationship.",
+    "relationship_removed_success": "Relationship removed successfully.",
+    "relationship_removed_failed": "Failed to remove relationship."
+  }
 }

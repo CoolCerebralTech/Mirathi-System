@@ -1,59 +1,112 @@
 {
-  "my_documents": "My Documents",
-  "my_documents_subtitle": "Your secure vault for important documents like title deeds, IDs, and more",
-  
+  "title": "My Documents",
+  "description": "Manage your secure vault of important files like title deeds, IDs, and wills.",
   "upload_document": "Upload Document",
-  "upload_document_description": "Upload a new document to your secure vault",
-  "upload_success": "Document uploaded successfully",
-  "download_started": "Download started",
-  "delete_success": "Document deleted successfully",
-  "rename_success": "Document renamed successfully",
-  "version_added_success": "New version added successfully",
-  
-  "drag_drop_or_click": "Drag and drop a file here, or click to select",
-  "drop_file_here": "Drop the file here",
-  "supported_formats": "Supported formats",
-  "description_optional": "Description (Optional)",
-  "description_placeholder": "Add a note about this document...",
-  "upload": "Upload",
-  "uploaded": "Uploaded",
-  
-  "filters": "Filters",
-  "filter_documents_description": "Filter your documents by status",
-  "all_statuses": "All Statuses",
-  "pending": "Pending Review",
-  "verified": "Verified",
-  "rejected": "Rejected",
-  "per_page": "per page",
-  
-  "current_version": "Current Version",
-  "add_new_version": "Add New Version",
-  "upload_new_version": "Upload New Version",
-  "select_file": "Select File",
-  "selected": "Selected",
-  "change_note": "Change Note",
-  "change_note_placeholder": "What changed in this version?",
-  "upload_version": "Upload Version",
-  "version_history": "Version History",
-  "version_history_description": "View and manage all versions of this document",
-  "download": "Download",
-  
-  "rename_document": "Rename Document",
-  "rename_document_description": "Change the filename of your document",
-  "filename": "Filename",
-  "filename_placeholder": "Enter new filename...",
-  
-  "confirm_delete_title": "Delete Document",
-  "confirm_delete_message": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
-  
-  "status_pending": "Pending Verification",
-  "status_verified": "Verified",
-  "status_rejected": "Rejected",
-  
-  "no_documents": "No documents yet",
-  "no_documents_description": "Upload your first document to get started",
-  
-  "file_too_large": "File is too large",
-  "invalid_file_type": "Invalid file type",
-  "upload_failed": "Upload failed"
+  "upload_first_document": "Upload Your First Document",
+  "back_to_documents": "Back to All Documents",
+
+  "no_documents_title": "No Documents Found",
+  "no_documents_prompt": "Get started by uploading your first important document.",
+  "error_loading_title": "Could Not Load Document",
+  "error_loading_prompt": "The requested document could not be found or you may not have permission to view it.",
+  "error_invalid_id": "Invalid Document ID provided.",
+
+  "detail_page_description": "View document details, manage versions, and see all related metadata.",
+  "metadata_title": "Document Details",
+
+  "metadata_labels": {
+    "status": "Status",
+    "document_type": "Document Type",
+    "file_type": "File Type",
+    "file_size": "File Size",
+    "document_number": "Document Number",
+    "issuing_authority": "Issuing Authority",
+    "issue_date": "Issue Date",
+    "expiry_date": "Expiry Date",
+    "uploaded_on": "Uploaded On",
+    "last_updated": "Last Updated",
+    "linked_asset": "Linked Asset",
+    "verification_notes": "Verification Notes"
+  },
+
+  "status_options": {
+    "PENDING_VERIFICATION": "Pending Verification",
+    "VERIFIED": "Verified",
+    "REJECTED": "Rejected",
+    "ARCHIVED": "Archived"
+  },
+  "document_type_options": {
+    "TITLE_DEED": "Title Deed",
+    "NATIONAL_ID": "National ID",
+    "PASSPORT": "Passport",
+    "WILL": "Will / Testament",
+    "BANK_STATEMENT": "Bank Statement",
+    "VEHICLE_LOGBOOK": "Vehicle Logbook",
+    "BUSINESS_PERMIT": "Business Permit",
+    "SURVEY_MAP": "Survey Map",
+    "OTHER": "Other"
+  },
+
+  "columns": {
+    "document": "Document",
+    "status": "Status",
+    "size": "Size",
+    "last_updated": "Last Updated"
+  },
+  "actions": {
+    "title": "Actions",
+    "open_menu": "Open document menu",
+    "preview": "Preview",
+    "download": "Download",
+    "edit_details": "Edit Details",
+    "version_history": "Version History ({{count}})",
+    "copy_id": "Copy Document ID"
+  },
+
+  "uploader": {
+    "upload_new_document": "Upload New Document",
+    "upload_prompt": "Add a new file to your secure vault. You can link it to an asset.",
+    "drag_drop_or_click": "Drag & drop a file here, or click to browse",
+    "drop_file_here": "Drop the file to upload",
+    "supported_formats_with_size": "PDF, JPG, PNG, DOC up to {{size}}MB",
+    "document_type": "Document Type",
+    "select_document_type_placeholder": "Select a type...",
+    "link_to_asset_optional": "Link to Asset (Optional)",
+    "select_asset_placeholder": "Select an asset...",
+    "upload_document_button": "Upload Document",
+    "uploading": "Uploading...",
+    "complete": "Complete",
+    "uploaded": "Uploaded"
+  },
+
+  "versions": {
+    "current_version": "Current Version",
+    "version_details": "Version {{version}} • {{date}}",
+    "download_latest": "Download Latest",
+    "add_new_version": "Add New Version",
+    "upload_new_version": "Upload a New Version",
+    "select_file": "Select new file",
+    "selected_file": "Selected: {{name}}",
+    "change_note_optional": "Change Note (Optional)",
+    "change_note_placeholder": "Describe what changed in this version...",
+    "upload_version": "Upload Version",
+    "version_history": "Version History",
+    "version_title": "Version {{number}}",
+    "uploaded_ago": "Uploaded {{time}}"
+  },
+
+  "dialogs": {
+    "delete_confirm_message": "Are you sure you want to permanently delete \"{{filename}}\"? This action cannot be undone."
+  },
+
+  "toasts": {
+    "upload_success": "Document uploaded successfully!",
+    "upload_failed": "Document upload failed.",
+    "delete_success": "\"{{filename}}\" was deleted successfully.",
+    "delete_failed": "Failed to delete document.",
+    "download_started_toast": "Your download has started.",
+    "download_failed_toast": "Download failed.",
+    "id_copied_toast": "Document ID copied to clipboard!",
+    "version_added_success": "New version added successfully!"
+  }
 }

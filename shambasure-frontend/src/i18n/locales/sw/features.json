@@ -1,0 +1,41 @@
+
+{
+  "hero": {
+    "badge": "Suluhisho Kamili",
+    "title": "Kila Kitu Unachohitaji Kwa",
+    "subtitle": "Mpango wa Urithi wa Kidijitali",
+    "description": "Shamba Sure inatoa zana kamili za kukusaidia kupanga, kulinda, na kuhifadhi urithi wako kwa vizazi vijavyo.",
+    "contact_us": "Wasiliana Nasi"
+  },
+  "main_features": {
+    "title": "Vipengele Muhimu",
+    "description": "Zana zenye nguvu zilizoundwa kwa ajili ya upangaji kamili wa urithi.",
+    "will_creation": { "title": "Uundaji wa Wosia wa Kidijitali", "description": "Tengeneza wosia halali kisheria na mwongozo wetu wa hatua kwa hatua. Chagua warithi na bainisha asilimia." },
+    "asset_management": { "title": "Usimamizi wa Mali", "description": "Panga na fuatilia mali zako zote zikiwemo ardhi, majengo, magari, na akaunti za benki katika hifadhi moja salama ya kidijitali." },
+    "family_tree": { "title": "Muunganisho wa Mti wa Familia", "description": "Jenga nasaba ya familia yako, bainisha uhusiano, na gawa urithi kwa wanafamilia kwa urahisi na uwazi." },
+    "document_vault": { "title": "Hifadhi Salama ya Nyaraka", "description": "Pakia, hakiki, na panga nyaraka muhimu kama hati miliki na vitambulisho kwa usimbaji fiche wa kiwango cha benki." }
+  },
+  "additional_features": {
+    "title": "Imejengwa kwa Usalama na Uaminifu",
+    "description": "Vipengele vya hali ya juu kuhakikisha data yako iko salama na urithi wako umelindwa.",
+    "item1": "Utambuzi wa ulaghai unaotumia AI",
+    "item2": "Uhakiki wa hiari wa blockchain",
+    "item3": "Msaada wa lugha nyingi (Kiingereza na Kiswahili)",
+    "item4": "Muundo unaoendana na simu kwanza",
+    "item5": "Arifa za moja kwa moja kwa warithi",
+    "item6": "Ukaguzi wa kufuata sheria",
+    "item7": "Zana za kutambua na kusuluhisha mizozo",
+    "item8": "Itifaki za ufikiaji wa dharura",
+    "item9": "Rekodi kamili ya mabadiliko yote"
+  },
+  "highlights": {
+    "mobile_first": { "title": "Simu Kwanza", "description": "Fikia zana zako za kupanga urithi popote, wakati wowote na jukwaa letu lililoboreshwa kwa simu." },
+    "security": { "title": "Usalama wa Kiwango cha Benki", "description": "Data zako nyeti zinalindwa na usimbaji fiche wa mwanzo hadi mwisho na itifaki za hali ya juu za usalama." },
+    "language": { "title": "Msaada wa Lugha ya Kienyeji", "description": "Tumia jukwaa kwa Kiingereza au Kiswahili kwa ufikiaji bora kote nchini Kenya." }
+  },
+  "cta": {
+    "title": "Uko Tayari Kulinda Urithi Wako?",
+    "description": "Jiunge na maelfu ya Wakenya wanaoamini Shamba Sure kwa upangaji wao wa urithi.",
+    "learn_more": "Jifunze Zaidi"
+  }
+}

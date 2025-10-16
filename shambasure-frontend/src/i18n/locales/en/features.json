@@ -1,0 +1,41 @@
+
+{
+  "hero": {
+    "badge": "A Comprehensive Solution",
+    "title": "Everything You Need for",
+    "subtitle": "Digital Estate Planning",
+    "description": "Shamba Sure provides a complete suite of tools to help you plan, protect, and preserve your legacy for future generations.",
+    "contact_us": "Contact Us"
+  },
+  "main_features": {
+    "title": "Core Features",
+    "description": "Powerful tools designed for comprehensive estate planning.",
+    "will_creation": { "title": "Digital Will Creation", "description": "Create legally compliant wills with our step-by-step wizard. Assign heirs and define percentages." },
+    "asset_management": { "title": "Asset Management", "description": "Organize and track all your assets including land, property, vehicles, and bank accounts in one secure digital vault." },
+    "family_tree": { "title": "Family Tree Integration", "description": "Build your family lineage, define relationships, and easily assign inheritance to family members with visual clarity." },
+    "document_vault": { "title": "Secure Document Vault", "description": "Upload, verify, and organize important documents like title deeds and IDs with bank-level encryption." }
+  },
+  "additional_features": {
+    "title": "Built with Security & Trust",
+    "description": "Advanced features to ensure your data is safe and your legacy is protected.",
+    "item1": "AI-powered fraud detection",
+    "item2": "Optional blockchain verification",
+    "item3": "Multi-language support (English & Swahili)",
+    "item4": "Mobile-first responsive design",
+    "item5": "Automated beneficiary notifications",
+    "item6": "Legal compliance checks",
+    "item7": "Dispute detection & mediation tools",
+    "item8": "Emergency access protocols",
+    "item9": "Complete audit trail for all changes"
+  },
+  "highlights": {
+    "mobile_first": { "title": "Mobile First", "description": "Access your estate planning tools anywhere, anytime with our mobile-optimized platform." },
+    "security": { "title": "Bank-Level Security", "description": "Your sensitive data is protected with end-to-end encryption and advanced security protocols." },
+    "language": { "title": "Local Language Support", "description": "Use the platform in English or Swahili for better accessibility across Kenya." }
+  },
+  "cta": {
+    "title": "Ready to Secure Your Legacy?",
+    "description": "Join thousands of Kenyans who trust Shamba Sure with their estate planning.",
+    "learn_more": "Learn More"
+  }
+}

@@ -1,7 +1,6 @@
 
 // FILE: src/components/common/EmptyState.tsx
 
-// FILE: src/components/common/EmptyState.tsx
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';

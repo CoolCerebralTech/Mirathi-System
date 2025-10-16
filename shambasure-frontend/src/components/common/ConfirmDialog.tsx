@@ -1,6 +1,5 @@
 // FILE: src/components/common/ConfirmDialog.tsx
 
-import * as React from 'react';
 import {
   Dialog,
   DialogContent,

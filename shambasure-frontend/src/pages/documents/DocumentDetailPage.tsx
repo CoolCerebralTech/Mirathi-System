@@ -2,21 +2,17 @@
 
 import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, LinkIcon } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { useDocument } from '../../features/documents/documents.api';
+import { useAsset } from '../../features/assets/assets.api';
 import { DocumentVersions } from '../../features/documents/components/DocumentVersions';
 
 import { PageHeader } from '../../components/common/PageHeader';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import { Badge } from '../../components/ui/Badge';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '../../components/ui/Card';
+import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Separator } from '../../components/ui/Separator';
 
@@ -27,25 +23,17 @@ export function DocumentDetailPage() {
   const { t } = useTranslation(['documents', 'common']);
   const { id } = useParams<{ id: string }>();
 
-  // Always call the hook
-  const { data: document, isLoading, isError } = useDocument(id!, {
-    enabled: !!id, // only runs if id is truthy
-  });
+  const { data: document, isLoading, isError } = useDocument(id);
+  // Fetch linked asset data to display its name
+  const { data: linkedAsset } = useAsset(document?.assetId ?? undefined);
 
-if (!id) {
-  return (
-    <div className="text-center">
-      <h1 className="text-xl font-bold">{t('error_invalid_id')}</h1>
-    </div>
-  );
-}
+  if (!id) {
+    // This case is handled by the router, but it's a safe fallback.
+    return <div className="text-center"><h1 className="text-xl font-bold">{t('error_invalid_id')}</h1></div>;
+  }
 
   if (isLoading) {
-    return (
-      <div className="flex h-96 items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
+    return <div className="flex h-96 items-center justify-center"><LoadingSpinner size="lg" /></div>;
   }
 
   if (isError || !document) {
@@ -77,8 +65,6 @@ if (!id) {
     { label: t('metadata_labels.expiry_date'), value: document.metadata?.expiryDate ? format(new Date(document.metadata.expiryDate), 'PP') : null },
     { label: t('metadata_labels.uploaded_on'), value: format(new Date(document.createdAt), 'PP') },
     { label: t('metadata_labels.last_updated'), value: format(new Date(document.updatedAt), 'PP') },
-    // TODO: Add linked asset display when asset pages are built
-    // { label: 'Linked Asset', value: document.assetId ? <Link to={`/assets/${document.assetId}`}>View Asset</Link> : 'None' },
   ];
 
   return (
@@ -91,17 +77,13 @@ if (!id) {
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* --- Left Column: Version History & Management --- */}
         <div className="lg:col-span-2">
           <DocumentVersions document={document} />
         </div>
 
-        {/* --- Right Column: Metadata --- */}
         <div className="lg:col-span-1">
           <Card className="sticky top-20">
-            <CardHeader>
-              <CardTitle>{t('metadata_title')}</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>{t('metadata_title')}</CardTitle></CardHeader>
             <CardContent>
               <ul className="space-y-3 text-sm">
                 {metadataItems.map(({ label, value }) =>
@@ -113,6 +95,29 @@ if (!id) {
                   ) : null,
                 )}
               </ul>
+              
+              {/* --- LINKED ASSET SECTION (TODO Implemented) --- */}
+              {document.assetId && (
+                <>
+                  <Separator className="my-4" />
+                  <div>
+                    <h4 className="font-medium text-muted-foreground">{t('metadata_labels.linked_asset')}</h4>
+                    {linkedAsset ? (
+                      <div className="mt-2">
+                        <Button asChild variant="secondary" className="w-full justify-start">
+                          <Link to={`/dashboard/assets/${linkedAsset.id}`}>
+                             <LinkIcon className="mr-2 h-4 w-4" />
+                             {linkedAsset.name}
+                          </Link>
+                        </Button>
+                      </div>
+                    ) : (
+                      <LoadingSpinner size="sm" className="mt-2" />
+                    )}
+                  </div>
+                </>
+              )}
+
               {document.verificationNotes && (
                  <>
                   <Separator className="my-4"/>

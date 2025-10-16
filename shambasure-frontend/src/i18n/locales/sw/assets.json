@@ -1,22 +1,62 @@
-// FILE: src/i18n/locales/sw/assets.json
-
 {
-  "title": "Mali",
-  "my_assets": "Mali Yangu",
-  "create_asset": "Unda Mali",
+  "my_assets": "Mali Zangu",
+  "my_assets_subtitle": "Dhibiti orodha yako ya ardhi, majengo, magari, na mali nyingine za thamani.",
+  "add_asset": "Ongeza Mali",
+  "add_first_asset": "Ongeza Mali Yako ya Kwanza",
+
   "edit_asset": "Hariri Mali",
-  "delete_asset": "Futa Mali",
+  "create_asset": "Tengeneza Mali Mpya",
+  "edit_asset_description": "Sasisha maelezo ya mali yako hapa chini.",
+  "create_asset_description": "Toa maelezo ya mali mpya unayotaka kuongeza.",
+
   "asset_name": "Jina la Mali",
   "asset_type": "Aina ya Mali",
-  "asset_description": "Maelezo ya Mali",
-  "land_parcel": "Kipande cha Ardhi",
-  "bank_account": "Akaunti ya Benki",
-  "vehicle": "Gari",
-  "property": "Mali",
-  "other": "Nyingine",
-  "asset_created": "Mali imeundwa kwa mafanikio",
-  "asset_updated": "Mali imesasishwa kwa mafanikio",
-  "asset_deleted": "Mali imefutwa kwa mafanikio",
-  "confirm_delete": "Una uhakika unataka kufuta mali hii?",
-  "no_assets": "Hakuna mali zilizopatikana. Unda mali yako ya kwanza kuanza."
+  "description_optional": "Maelezo (Si lazima)",
+  "asset_details": "Maelezo ya Mali",
+
+  "no_assets_title": "Bado Hujongeza Mali",
+  "no_assets_prompt": "Anza kwa kuongeza kipande chako cha kwanza cha ardhi, jengo, au kitu kingine cha thamani.",
+
+  "type_options": {
+    "LAND_PARCEL": "Kipande cha Ardhi",
+    "BANK_ACCOUNT": "Akaunti ya Benki",
+    "VEHICLE": "Gari",
+    "RESIDENTIAL_PROPERTY": "Jengo la Makazi",
+    "COMMERCIAL_PROPERTY": "Jengo la Biashara",
+    "OTHER": "Nyingine"
+  },
+
+  "columns": {
+    "name": "Jina",
+    "details": "Maelezo",
+    "last_updated": "Ilisasishwa Mwisho"
+  },
+
+  "form": {
+    "parcel_number": "Nambari ya Kiwanja (LR No.)",
+    "parcel_number_short": "LR No.",
+    "location": "Mahali (k.m., Kaunti, Mji)",
+    "acreage": "Ukubwa (Ekari)",
+    "bank_name": "Jina la Benki",
+    "account_number": "Nambari ya Akaunti",
+    "branch": "Tawi",
+    "make": "Tengenezo (k.m., Toyota)",
+    "model": "Mfano (k.m., Prado)",
+    "year": "Mwaka wa Kutengenezwa",
+    "license_plate": "Nambari ya Usajili (Plate)"
+  },
+
+  "dialogs": {
+    "confirm_delete_title": "Futa Mali",
+    "confirm_delete_message": "Una uhakika unataka kufuta \"{{name}}\"? Kitendo hiki hakiwezi kutenduliwa."
+  },
+
+  "toasts": {
+    "create_success": "Mali imetengenezwa kikamilifu!",
+    "create_failed": "Imeshindwa kutengeneza mali.",
+    "update_success": "Mali imesasishwa kikamilifu!",
+    "update_failed": "Imeshindwa kusasisha mali.",
+    "delete_success": "\"{{name}}\" imefutwa kikamilifu.",
+    "delete_failed": "Imeshindwa kufuta mali."
+  }
 }

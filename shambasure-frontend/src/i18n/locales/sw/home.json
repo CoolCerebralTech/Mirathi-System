@@ -1,0 +1,33 @@
+{
+  "hero": {
+    "title": "Linda Mustakabali wa Familia Yako",
+    "subtitle": "Mpango wa Urithi wa Kidijitali kwa Kenya",
+    "description": "Tengeneza wosia halali kisheria kwa urahisi, dhibiti mali zako, na linda urithi wako. Shamba Sure inafanya upangaji wa urithi kuwa rahisi, salama, na kupatikana kwa kila familia ya Kenya.",
+    "cta_main": "Anza Bure",
+    "cta_secondary": "Gundua Vipengele"
+  },
+  "pillars": {
+    "will": {
+      "title": "Tengeneza Wosia Wako",
+      "description": "Mfumo wetu unaokuongoza unakusaidia kutengeneza wosia kamili kwa dakika chache."
+    },
+    "assets": {
+      "title": "Dhibiti Mali Zako",
+      "description": "Hifadhi salama ya kidijitali kwa ardhi, majengo, na mali zako zote za kifedha."
+    },
+    "heirs": {
+      "title": "Linda Warithi Wako",
+      "description": "Bainisha warithi kwa uwazi na hakikisha mchakato wa urithi unakwenda vizuri."
+    }
+  },
+  "testimonials": {
+    "title": "Inaaminika na Familia Kote Nchini Kenya",
+    "quote": "Shamba Sure ilinipa amani ya moyo. Hatimaye nina mpango wazi kwa mustakabali wa watoto wangu.",
+    "attribution": "- A. Kamau, Nakuru"
+  },
+  "cta": {
+    "title": "Uko Tayari Kulinda Urithi Wako?",
+    "description": "Chukua hatua ya kwanza kuelekea kulinda mustakabali wa familia yako leo.",
+    "button": "Tengeneza Wosia Wako Sasa"
+  }
+}

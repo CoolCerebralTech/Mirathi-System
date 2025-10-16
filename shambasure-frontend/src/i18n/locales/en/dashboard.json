@@ -1,19 +1,32 @@
-// FILE: src/i18n/locales/en/dashboard.json
-
 {
-  "title": "Dashboard",
-  "overview": "Overview",
-  "welcome_message": "Welcome back, {{name}}",
-  "quick_actions": "Quick Actions",
-  "recent_activity": "Recent Activity",
-  "statistics": "Statistics",
-  "total_assets": "Total Assets",
-  "active_wills": "Active Wills",
-  "family_members": "Family Members",
-  "pending_documents": "Pending Documents",
-  "view_all": "View All",
-  "create_will": "Create Will",
-  "add_asset": "Add Asset",
-  "upload_document": "Upload Document",
-  "invite_family": "Invite Family Member"
+  "welcome_subtitle": "Here’s a summary of your estate planning progress.",
+  "greetings": { "morning": "Good Morning", "afternoon": "Good Afternoon", "evening": "Good Evening" },
+  "onboarding": {
+    "title": "Getting Started",
+    "steps_completed": "{{done}} of {{total}} steps completed",
+    "add_assets": "Add your first asset",
+    "add_family": "Add a family member",
+    "upload_documents": "Upload a document",
+    "create_will": "Create your first will"
+  },
+  "stats": {
+    "total_assets": "Total Assets",
+    "total_wills": "Wills Created",
+    "family_members": "Family Members",
+    "secure_documents": "Secure Documents"
+  },
+  "actions": {
+    "title": "Quick Actions",
+    "subtitle": "Jump right into your most common tasks.",
+    "add_asset": "Add an Asset", "add_asset_desc": "Log a new piece of property or land.",
+    "create_will": "Create a Will", "create_will_desc": "Start drafting a new will document.",
+    "add_family": "Add Family Member", "add_family_desc": "Invite or connect with a relative.",
+    "upload_document": "Upload Document", "upload_document_desc": "Secure a title deed, ID, or other file."
+  },
+  "resources": {
+    "title": "Resources & Support",
+    "subtitle": "Need help? We're here for you.",
+    "help_title": "Help & Support Center",
+    "help_desc": "Find answers or get in touch with our team."
+  }
 }

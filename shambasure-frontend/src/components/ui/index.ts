@@ -18,3 +18,10 @@ export * from './Alert';
 export * from './AlertDialog';
 export * from './DataTable';
 export * from './DropdownMenu';
+export * from './Sheet';
+export * from './Switch';
+export * from './Tabs';
+export * from './HoverCard';
+export * from './Progress';
+export * from './Separator';
+

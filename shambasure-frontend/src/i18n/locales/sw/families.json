@@ -1,20 +1,68 @@
-// FILE: src/i18n/locales/sw/families.json
-
 {
-  "title": "Familia",
-  "my_families": "Familia Zangu",
-  "create_family": "Unda Familia",
-  "family_name": "Jina la Familia",
-  "members": "Wanachama",
-  "add_member": "Ongeza Mwanachama",
-  "remove_member": "Ondoa Mwanachama",
-  "relationship": "Uhusiano",
-  "spouse": "Mwenzi",
-  "child": "Mtoto",
-  "parent": "Mzazi",
-  "sibling": "Ndugu",
-  "family_created": "Familia imeundwa kwa mafanikio",
-  "member_added": "Mwanafamilia ameongezwa kwa mafanikio",
-  "member_removed": "Mwanafamilia ameondolewa kwa mafanikio",
-  "no_families": "Hakuna familia zilizopatikana. Unda mti wa familia kudhibiti urithi."
+  "page_title": "Mti Wangu wa Familia",
+  "page_description": "Dhibiti uhusiano wako wa familia, alika wanafamilia wapya, na ungana na watumiaji waliopo.",
+
+  "add_existing_member_button": "Ongeza Mwanachama Aliyepo",
+  "invite_member_button": "Alika Mwanachama",
+
+  "no_members_title": "Mti wako wa Familia Uko Tupu",
+  "no_members_description": "Anza kujenga mti wako wa familia kwa kumwalika mwanafamilia au kuongeza mtumiaji aliyepo.",
+
+  "invite_member_modal_title": "Alika Mwanachama Mpya",
+  "invite_member_modal_description": "Tuma mwaliko kwa anwani ya barua pepe ya mwanafamilia. Ataombwa kufungua akaunti ikiwa hana.",
+  "invite_member_info": "Atapokea barua pepe yenye kiungo salama cha kujiunga na mti wako wa familia.",
+
+  "add_existing_member_modal_title": "Ongeza Mwanachama Aliyepo",
+  "add_existing_member_modal_description": "Tafuta mtu ambaye tayari yuko Shamba Sure na uanzishe uhusiano wenu.",
+
+  "relationship_group_SPOUSE": "Mke / Mume / Mpenzi",
+  "relationship_group_PARTNER": "Mke / Mume / Mpenzi",
+  "relationship_group_CHILD": "Watoto",
+  "relationship_group_PARENT": "Wazazi",
+  "relationship_group_SIBLING": "Ndugu",
+  "relationship_group_OTHER": "Ndugu Wengine",
+
+  "relationship_type_options": {
+    "SPOUSE": "Mke / Mume",
+    "PARTNER": "Mpenzi",
+    "CHILD": "Mtoto",
+    "PARENT": "Mzazi",
+    "GRANDPARENT": "Babu / Bibi",
+    "GRANDCHILD": "Mjukuu",
+    "SIBLING": "Ndugu",
+    "AUNT_UNCLE": "Shangazi / Mjomba",
+    "NIECE_NEPHEW": "Mpwa",
+    "COUSIN": "Binamu",
+    "GUARDIAN": "Mlezi",
+    "DEPENDENT": "Mtegemezi",
+    "OTHER": "Nyingine"
+  },
+
+  "invitee_email": "Anwani ya Barua Pepe ya Mwalikwa",
+  "relationship_to_you": "Uhusiano wao kwako ni upi?",
+  "select_relationship_placeholder": "Chagua uhusiano...",
+  "send_invitation": "Tuma Mwaliko",
+
+  "search_for_user": "Tafuta Mtumiaji",
+  "search_by_name_or_email": "Tafuta kwa jina au barua pepe...",
+  "select_person": "Chagua Mtu",
+  "select_person_placeholder": "Chagua mtu...",
+  "start_typing_to_search": "Anza kuandika ili kutafuta watumiaji.",
+  "no_users_found": "Hakuna watumiaji waliopatikana.",
+  "their_relationship_to_you": "Uhusiano wao kwako ni upi?",
+  "create_relationship": "Tengeneza Uhusiano",
+  "edit_relationship": "Hariri Uhusiano",
+  "remove_relationship": "Ondoa Uhusiano",
+
+  "confirm_remove_relationship_message": "Una uhakika unataka kumwondoa {{name}} kwenye mti wako wa familia? Hii itavunja kiungo cha uhusiano.",
+
+  "toasts": {
+    "invitation_sent_success_title": "Mwaliko Umetumwa!",
+    "invitation_sent_success_description": "Mwaliko umetmwa kwa {{email}}.",
+    "invitation_sent_failed_title": "Mwaliko Umeshindwa",
+    "relationship_created_success": "Uhusiano umetengenezwa kikamilifu!",
+    "relationship_created_failed": "Imeshindwa kutengeneza uhusiano.",
+    "relationship_removed_success": "Uhusiano umeondolewa kikamilifu.",
+    "relationship_removed_failed": "Imeshindwa kuondoa uhusiano."
+  }
 }

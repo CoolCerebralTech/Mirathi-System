@@ -1,0 +1,41 @@
+
+{
+  "title": "Mipangilio",
+  "description": "Dhibiti akaunti yako na mapendeleo ya programu.",
+  "preferences_saved_toast": "Mapendeleo yamehifadhiwa kikamilifu!",
+
+  "appearance": {
+    "title": "Muonekano",
+    "description": "Badilisha mwonekano na hisia za programu.",
+    "theme": "Mandhari",
+    "theme_placeholder": "Chagua mandhari",
+    "light": "Mwangaza",
+    "dark": "Giza",
+    "system": "Chaguo-msingi la Mfumo"
+  },
+  "language": {
+    "title": "Lugha",
+    "description": "Chagua lugha kwa ajili ya kiolesura cha programu.",
+    "language": "Lugha",
+    "language_placeholder": "Chagua lugha"
+  },
+  "notifications": {
+    "title": "Mapendeleo ya Arifa",
+    "description": "Chagua jinsi unavyotaka kupokea arifa kutoka kwetu.",
+    "email": "Arifa za Barua Pepe",
+    "sms": "Arifa za SMS"
+  },
+  "security": {
+    "title": "Usalama",
+    "description": "Dhibiti nenosiri lako na usalama wa akaunti.",
+    "change_password_button": "Badilisha Nenosiri Lako"
+  },
+  "danger_zone": {
+    "title": "Eneo la Hatari",
+    "description": "Vitendo hivi ni vya kudumu na haviwezi kutenduliwa.",
+    "delete_account_button": "Futa Akaunti Yangu",
+    "confirm_title": "Una uhakika kabisa?",
+    "confirm_description": "Kitendo hiki hakiwezi kutenduliwa. Hii itafuta akaunti yako kabisa na data zote zinazohusiana kutoka kwenye seva zetu.",
+    "confirm_action": "Ndio, futa akaunti yangu"
+  }
+}

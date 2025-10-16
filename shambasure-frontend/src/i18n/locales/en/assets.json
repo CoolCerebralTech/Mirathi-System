@@ -1,33 +1,62 @@
 {
   "my_assets": "My Assets",
-  "my_assets_subtitle": "Manage your property, land, and valuable possessions",
-  
+  "my_assets_subtitle": "Manage your inventory of land, property, vehicles, and other valuables.",
   "add_asset": "Add Asset",
-  "create_asset": "Create Asset",
+  "add_first_asset": "Add Your First Asset",
+
   "edit_asset": "Edit Asset",
-  "delete_asset": "Delete Asset",
-  
-  "create_asset_description": "Add a new asset to your inventory",
-  "edit_asset_description": "Update asset information",
-  
+  "create_asset": "Create New Asset",
+  "edit_asset_description": "Update the details of your asset below.",
+  "create_asset_description": "Provide the details for the new asset you want to add.",
+
   "asset_name": "Asset Name",
-  "asset_name_placeholder": "e.g., Nairobi Land Parcel, Toyota Prado, KCB Savings Account",
-  
   "asset_type": "Asset Type",
-  "select_asset_type": "Select asset type",
-  
-  "description": "Description",
-  "description_placeholder": "Add details about this asset (location, size, account number, etc.)",
-  "description_hint": "Include any important details like location, registration numbers, account details, etc.",
-  
-  "save_changes": "Save Changes",
-  "create_success": "Asset created successfully",
-  "update_success": "Asset updated successfully",
-  "delete_success": "Asset deleted successfully",
-  
-  "confirm_delete_title": "Delete Asset",
-  "confirm_delete_message": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone and will remove all associated beneficiary assignments.",
-  
-  "no_assets": "No assets yet",
-  "no_assets_description": "Start building your asset inventory"
+  "description_optional": "Description (Optional)",
+  "asset_details": "Asset Details",
+
+  "no_assets_title": "No Assets Added Yet",
+  "no_assets_prompt": "Start by adding your first piece of land, property, or other valuable item.",
+
+  "type_options": {
+    "LAND_PARCEL": "Land Parcel",
+    "BANK_ACCOUNT": "Bank Account",
+    "VEHICLE": "Vehicle",
+    "RESIDENTIAL_PROPERTY": "Residential Property",
+    "COMMERCIAL_PROPERTY": "Commercial Property",
+    "OTHER": "Other"
+  },
+
+  "columns": {
+    "name": "Name",
+    "details": "Details",
+    "last_updated": "Last Updated"
+  },
+
+  "form": {
+    "parcel_number": "Parcel Number (LR No.)",
+    "parcel_number_short": "LR No.",
+    "location": "Location (e.g., County, Town)",
+    "acreage": "Acreage",
+    "bank_name": "Bank Name",
+    "account_number": "Account Number",
+    "branch": "Branch",
+    "make": "Make (e.g., Toyota)",
+    "model": "Model (e.g., Prado)",
+    "year": "Year of Manufacture",
+    "license_plate": "License Plate"
+  },
+
+  "dialogs": {
+    "confirm_delete_title": "Delete Asset",
+    "confirm_delete_message": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
+  },
+
+  "toasts": {
+    "create_success": "Asset created successfully!",
+    "create_failed": "Failed to create asset.",
+    "update_success": "Asset updated successfully!",
+    "update_failed": "Failed to update asset.",
+    "delete_success": "\"{{name}}\" was deleted successfully.",
+    "delete_failed": "Failed to delete asset."
+  }
 }

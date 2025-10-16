@@ -1,41 +1,46 @@
-// FILE: src/i18n/locales/en/common.json
-
 {
   "app_name": "Shamba Sure",
-  "welcome": "Welcome",
   "loading": "Loading...",
   "error": "Error",
+  "error_loading_data": "There was a problem loading your data. Please try again.",
   "success": "Success",
+
+  "actions": "Actions",
+  "open_menu": "Open menu",
   "cancel": "Cancel",
   "save": "Save",
+  "save_changes": "Save Changes",
   "delete": "Delete",
+  "deleting": "Deleting...",
+  "remove": "Remove",
+  "removing": "Removing...",
   "edit": "Edit",
   "create": "Create",
   "update": "Update",
-  "search": "Search",
-  "filter": "Filter",
-  "clear": "Clear",
+  "update_password": "Update Password",
+  "submit": "Submit",
+  "confirm": "Confirm",
   "close": "Close",
   "back": "Back",
   "next": "Next",
   "previous": "Previous",
-  "submit": "Submit",
-  "confirm": "Confirm",
-  "yes": "Yes",
-  "no": "No",
-  "actions": "Actions",
+  "view_details": "View Details",
+  "are_you_sure": "Are you sure?",
+
+  "search": "Search...",
+  "filter": "Filter",
+  "clear": "Clear",
+
   "status": "Status",
   "date": "Date",
   "name": "Name",
   "description": "Description",
   "type": "Type",
-  "view": "View",
-  "download": "Download",
-  "upload": "Upload",
-  "no_results": "No results found",
-  "showing_results": "Showing {{from}} to {{to}} of {{total}} results",
-  "page": "Page",
-  "of": "of",
-  "select_option": "Select an option",
-  "required_field": "This field is required"
+  "select_option": "Select an option...",
+
+  "pagination": {
+    "showing_results": "Showing {{start}} to {{end}} of {{total}} results",
+    "page": "Page",
+    "of": "of"
+  }
 }

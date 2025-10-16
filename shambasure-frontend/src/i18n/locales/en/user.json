@@ -1,0 +1,23 @@
+{
+  "profile_page_title": "Profile & Settings",
+  "profile_page_description": "Manage your personal information, preferences, and security settings.",
+  "profile_tab": "Profile",
+  "security_tab": "Security",
+
+  "profile_information": "Profile Information",
+  "profile_information_prompt": "Update your personal details and contact information here.",
+  "profile_update_success": "Profile updated successfully!",
+  "profile_update_failed": "Failed to update profile.",
+
+  "bio": "Bio / About Me",
+  "phone_number": "Phone Number",
+  "address": "Address",
+  "street": "Street Address",
+  "city": "City / Town",
+  "post_code": "Postal Code",
+  "country": "Country",
+
+  "next_of_kin": "Next of Kin",
+  "full_name": "Full Name",
+  "relationship": "Relationship"
+}

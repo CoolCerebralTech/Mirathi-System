@@ -1,6 +1,5 @@
 // FILE: src/components/common/LanguageSwitcher.tsx
 
-import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Globe } from 'lucide-react';
 import {

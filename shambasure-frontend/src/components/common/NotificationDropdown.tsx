@@ -2,12 +2,14 @@
 
 import * as React from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, Check, Trash2 } from 'lucide-react';
-import { useMyNotifications, useUnreadCount, useMarkAsRead, useDeleteNotification } from '../../features/notifications/notifications.api';
+import { useTranslation } from 'react-i18next';
+import { Bell, Check, MailCheck } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+
+import { useNotifications, useNotificationStats, useMarkNotificationsAsRead } from '../../features/notifications/notifications.api';
 import { LoadingSpinner } from './LoadingSpinner';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { formatRelativeTime } from '../../lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,140 +18,97 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../ui/DropdownMenu';
-import type { Notification } from '../../types/schemas';
 
+/**
+ * A self-contained dropdown component for displaying user notifications.
+ * It fetches notification data, displays a list, and handles marking notifications as read.
+ */
 export function NotificationDropdown() {
-  const { data: notificationsData, isLoading, error } = useMyNotifications({ page: 1, limit: 5 });
-  const { data: unreadData } = useUnreadCount();
-  const markAsRead = useMarkAsRead();
-  const deleteNotification = useDeleteNotification();
+  const { t } = useTranslation(['header', 'common']);
+  const { data: notificationsData, isLoading } = useNotifications({ limit: 7 });
+  const { data: stats } = useNotificationStats();
+  const { mutate: markAsRead } = useMarkNotificationsAsRead();
 
-  const notifications = notificationsData?.data || [];
-  const unreadCount = unreadData?.count || 0;
+  const notifications = notificationsData?.data ?? [];
+  const unreadCount = stats?.unreadCount ?? 0;
 
-  const handleMarkAsRead = (notificationId: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    markAsRead.mutate(notificationId);
+  const handleMarkOneAsRead = (notificationId: string, e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent link navigation
+    markAsRead({ notificationIds: [notificationId] });
   };
 
-  const handleDelete = (notificationId: string, e: React.MouseEvent) => {
+  const handleMarkAllAsRead = (e: React.MouseEvent) => {
     e.preventDefault();
-    e.stopPropagation();
-    deleteNotification.mutate(notificationId);
+    markAsRead({ notificationIds: [] }); // Empty array marks all
   };
 
   const renderContent = () => {
     if (isLoading) {
-      return (
-        <div className="flex justify-center items-center p-8">
-          <LoadingSpinner size="sm" />
-        </div>
-      );
+      return <div className="flex h-32 items-center justify-center"><LoadingSpinner /></div>;
     }
-
-    if (error) {
-      return (
-        <div className="p-4 text-sm text-center text-destructive">
-          Failed to load notifications
-        </div>
-      );
-    }
-
     if (notifications.length === 0) {
       return (
-        <div className="p-8 text-center">
-          <Bell className="mx-auto h-12 w-12 text-muted-foreground/50" />
-          <p className="mt-2 text-sm text-muted-foreground">No notifications yet</p>
+        <div className="p-8 text-center text-sm text-muted-foreground">
+          <Bell className="mx-auto h-8 w-8" />
+          <p className="mt-2">{t('no_notifications')}</p>
         </div>
       );
     }
-
     return (
-      <>
-        {notifications.map((notification: Notification) => (
-          <DropdownMenuItem
-            key={notification.id}
-            className="flex items-start gap-3 p-3 cursor-pointer"
-            asChild
-          >
-            <Link to={`/dashboard/notifications/${notification.id}`}>
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium line-clamp-1">
-                    {notification.templateId || 'Notification'}
-                  </p>
-                  <Badge variant={notification.status === 'SENT' ? 'success' : 'warning'} className="text-xs">
-                    {notification.channel}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {formatRelativeTime(notification.createdAt)}
-                </p>
+      <div className="flex flex-col">
+        {notifications.map((n) => (
+          <DropdownMenuItem key={n.id} asChild className="p-0">
+            <Link to={n.link || '#'} className={`flex items-start gap-3 p-3 transition-colors hover:bg-accent ${!n.readAt ? 'bg-accent/50' : ''}`}>
+              {!n.readAt && <div className="mt-1 h-2 w-2 rounded-full bg-primary" />}
+              <div className={`flex-1 space-y-1 ${!n.readAt ? 'pl-0' : 'pl-4'}`}>
+                <p className="text-sm font-medium leading-snug">{n.title}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">{n.body}</p>
+                <p className="text-xs text-blue-500">{formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}</p>
               </div>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={(e) => handleMarkAsRead(notification.id, e)}
-                >
-                  <Check className="h-3.5 w-3.5" />
+              {!n.readAt && (
+                <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={(e) => handleMarkOneAsRead(n.id, e)} aria-label={t('mark_as_read')}>
+                  <Check className="h-4 w-4" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-destructive hover:text-destructive"
-                  onClick={(e) => handleDelete(notification.id, e)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+              )}
             </Link>
           </DropdownMenuItem>
         ))}
-      </>
+      </div>
     );
   };
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="relative rounded-lg p-2 hover:bg-accent transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+        <Button variant="ghost" size="icon" className="relative h-9 w-9">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white">
+            <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 justify-center rounded-full p-0 text-xs">
               {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-        </button>
-      </DropdownMenuTrigger>
-
-      <DropdownMenuContent align="end" className="w-[380px]">
-        <DropdownMenuLabel className="flex items-center justify-between">
-          <span>Notifications</span>
-          {unreadCount > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              {unreadCount} new
             </Badge>
           )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-[380px] p-0">
+        <DropdownMenuLabel className="flex items-center justify-between p-3">
+          <span className="font-semibold">{t('notifications')}</span>
+          {unreadCount > 0 && (
+            <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs" onClick={handleMarkAllAsRead}>
+              <MailCheck className="mr-1 h-3 w-3" />
+              {t('mark_all_as_read')}
+            </Button>
+          )}
         </DropdownMenuLabel>
-        
         <DropdownMenuSeparator />
-        
         <div className="max-h-[400px] overflow-y-auto">
           {renderContent()}
         </div>
-        
         {notifications.length > 0 && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link 
-                to="/dashboard/notifications" 
-                className="cursor-pointer text-center justify-center font-medium"
-              >
-                View all notifications
+              <Link to="/notifications" className="cursor-pointer justify-center py-2 text-sm font-medium text-primary">
+                {t('view_all_notifications')}
               </Link>
             </DropdownMenuItem>
           </>

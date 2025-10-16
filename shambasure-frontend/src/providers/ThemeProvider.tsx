@@ -1,17 +1,12 @@
 // FILE: src/providers/ThemeProvider.tsx
 
-import { ThemeProvider as NextThemesProvider } from 'next-themes';
-import type { ThemeProviderProps } from 'next-themes';
-
-
-// ============================================================================
-// THEME PROVIDER
-// ============================================================================
+import { ThemeProvider as NextThemesProvider, type ThemeProviderProps } from 'next-themes';
 
 /**
- * Wraps the application with the NextThemesProvider to enable theme switching.
- * - Uses `class` attribute for Tailwind CSS compatibility.
- * - Default theme is set to "system".
+ * Application-wide theme provider.
+ *
+ * - Uses `class` attribute for Tailwind CSS dark mode support.
+ * - Defaults to system preference.
  * - Persists theme preference in localStorage under the key "shamba-sure-theme".
  */
 export function ThemeProvider({ children, ...props }: ThemeProviderProps) {

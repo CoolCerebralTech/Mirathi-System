@@ -1,19 +1,32 @@
-// FILE: src/i18n/locales/sw/dashboard.json
-
 {
-  "title": "Dashibodi",
-  "overview": "Muhtasari",
-  "welcome_message": "Karibu tena, {{name}}",
-  "quick_actions": "Vitendo vya Haraka",
-  "recent_activity": "Shughuli za Hivi Karibuni",
-  "statistics": "Takwimu",
-  "total_assets": "Jumla ya Mali",
-  "active_wills": "Wosia Hai",
-  "family_members": "Wanafamilia",
-  "pending_documents": "Hati Zinazosubiri",
-  "view_all": "Tazama Zote",
-  "create_will": "Unda Wosia",
-  "add_asset": "Ongeza Mali",
-  "upload_document": "Pakia Hati",
-  "invite_family": "Alika Mwanafamilia"
+  "welcome_subtitle": "Huu ni muhtasari wa maendeleo yako ya kupanga urithi.",
+  "greetings": { "morning": "Habari za Asubuhi", "afternoon": "Habari za Mchana", "evening": "Habari za Jioni" },
+  "onboarding": {
+    "title": "Kuanza",
+    "steps_completed": "Hatua {{done}} kati ya {{total}} zimekamilika",
+    "add_assets": "Ongeza mali yako ya kwanza",
+    "add_family": "Ongeza mwanafamilia",
+    "upload_documents": "Pakia hati",
+    "create_will": "Tengeneza wosia wako wa kwanza"
+  },
+  "stats": {
+    "total_assets": "Jumla ya Mali",
+    "total_wills": "Wosia Zilizotengenezwa",
+    "family_members": "Wanafamilia",
+    "secure_documents": "Nyaraka Salama"
+  },
+  "actions": {
+    "title": "Vitendo vya Haraka",
+    "subtitle": "Anza moja kwa moja na kazi zako za kawaida.",
+    "add_asset": "Ongeza Mali", "add_asset_desc": "Sajili kipande kipya cha mali au ardhi.",
+    "create_will": "Tengeneza Wosia", "create_will_desc": "Anza kuandaa rasimu ya wosia mpya.",
+    "add_family": "Ongeza Mwanafamilia", "add_family_desc": "Alika au ungana na ndugu.",
+    "upload_document": "Pakia Hati", "upload_document_desc": "Hifadhi hati miliki, kitambulisho, au faili nyingine."
+  },
+  "resources": {
+    "title": "Rasilimali na Msaada",
+    "subtitle": "Unahitaji msaada? Tuko hapa kwa ajili yako.",
+    "help_title": "Kituo cha Msaada na Usaidizi",
+    "help_desc": "Pata majibu au wasiliana na timu yetU."
+  }
 }

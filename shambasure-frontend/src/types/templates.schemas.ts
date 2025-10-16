@@ -109,6 +109,8 @@ export const TemplateQuerySchema = z.object({
 // ============================================================================
 
 export type Template = z.infer<typeof TemplateSchema>;
+export type CreateTemplateFormInput = z.input<typeof CreateTemplateSchema>;
 export type CreateTemplateInput = z.infer<typeof CreateTemplateSchema>;
+export type UpdateTemplateFormInput = z.input<typeof UpdateTemplateSchema>;
 export type UpdateTemplateInput = z.infer<typeof UpdateTemplateSchema>;
 export type TemplateQuery = z.infer<typeof TemplateQuerySchema>;

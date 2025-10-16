@@ -1,7 +1,6 @@
 // FILE: src/components/common/StatCard.tsx
 
-import * as React from 'react';
-import { LucideIcon, TrendingUp, TrendingDown } from 'lucide-react';
+import { type LucideIcon, TrendingUp, TrendingDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { cn } from '../../lib/utils';
 

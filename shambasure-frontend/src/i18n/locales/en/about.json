@@ -1,0 +1,25 @@
+
+{
+  "hero": {
+    "title": "Our Mission: Empowering Kenyan Families",
+    "subtitle": "We are dedicated to making succession planning simple, secure, and accessible for everyone, preventing land disputes and protecting family legacies."
+  },
+  "story": {
+    "title": "The Shamba Sure Story",
+    "p1": "Founded by a team of legal, tech, and land management experts, Shamba Sure was born from a shared vision: to solve one of Kenya’s most pressing challenges – land inheritance disputes. We saw countless families torn apart and legacies lost due to unclear wills and complex legal processes.",
+    "p2": "We believed technology could provide a better way. By combining legal expertise with a user-friendly digital platform, we created a solution that puts the power of estate planning directly into your hands."
+  },
+  "values": {
+    "title": "Our Core Values",
+    "security_title": "Security",
+    "security_desc": "Your data and your legacy are protected with the highest standards of digital security.",
+    "accessibility_title": "Accessibility",
+    "accessibility_desc": "We make complex legal tools simple and available to everyone, on any device.",
+    "trust_title": "Trust",
+    "trust_desc": "We are committed to transparency and ethical practices in everything we do."
+  },
+  "cta": {
+    "title": "Join Us in Securing Legacies",
+    "description": "Become part of a community dedicated to building a more secure future for Kenyan families."
+  }
+}

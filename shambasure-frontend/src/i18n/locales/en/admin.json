@@ -1,183 +1,97 @@
+
 {
-  "welcome_back": "Welcome back, {{name}}",
-  "dashboard_subtitle": "Here's what's happening with your platform today",
-  
-  "total_users": "Total Users",
-  "total_wills": "Total Wills",
-  "total_assets": "Total Assets",
-  "total_families": "Total Families",
-  
-  "quick_actions": "Quick Actions",
-  "manage_users": "Manage Users",
-  "manage_users_desc": "View, edit, and manage user accounts",
-  "review_documents": "Review Documents",
-  "review_documents_desc": "Verify pending document uploads",
-  "view_audit_logs": "View Audit Logs",
-  "view_audit_logs_desc": "Track all system activities",
-  "notification_templates": "Notification Templates",
-  "notification_templates_desc": "Manage email and SMS templates",
-  "system_settings": "System Settings",
-  "system_settings_desc": "Configure platform settings",
-  
-  "recent_activity": "Recent Activity",
-  "no_activity": "No recent activity",
-  "view_all": "View All",
-  
-  "users_page_title": "User Management",
-  "users_page_subtitle": "Manage all registered users on the platform",
-  
-  "logs_page_title": "Audit Logs",
-  "logs_page_subtitle": "Track all system activities and changes",
-  
-  "templates_page_title": "Notification Templates",
-  "templates_page_subtitle": "Manage email and SMS notification templates",
-  
-  "create_template": "Create Template",
-  "edit_template": "Edit Template",
-  "delete_template": "Delete Template",
-  "test_template": "Test Template",
-  
-  "export_csv": "Export CSV",
-  "filter": "Filter",
-  "search_placeholder": "Search...",
-  
-  "status": "Status",
-  "role": "Role",
-  "actions": "Actions",
-  "created_at": "Created",
-  "updated_at": "Updated",
-  
-  "confirm_delete_title": "Confirm Deletion",
-  "confirm_delete_message": "Are you sure you want to delete this item? This action cannot be undone.",
-  "confirm_delete_user_message": "Are you sure you want to delete {{name}}? This action cannot be undone.",
-  "confirm_delete_confirm": "Delete",
-  "confirm_delete_cancel": "Cancel",
-  
-  "user": "User",
-  "contact": "Contact",
-  "joined": "Joined",
-  "view_details": "View Details",
-  "copy_user_id": "Copy User ID",
-  "change_role": "Change Role",
-  "activate_user": "Activate User",
-  "suspend_user": "Suspend User",
-  "delete_user": "Delete User",
-  "add_user": "Add User",
-  
-  "role_updated_success": "Role updated successfully",
-  "user_suspended_success": "User suspended successfully",
-  "user_activated_success": "User activated successfully",
-  "user_deleted_success": "User deleted successfully",
-  
-  "filters": "Filters",
-  "filter_users_description": "Search and filter users by role, name, or email",
-  "search_users_placeholder": "Search by name or email...",
-  "filter_by_role": "Filter by role",
-  "all_roles": "All Roles",
-  "sort_by": "Sort by",
-  "newest_first": "Newest First",
-  "oldest_first": "Oldest First",
-  "email_asc": "Email (A-Z)",
-  "email_desc": "Email (Z-A)",
-  "name_asc": "Name (A-Z)",
-  "name_desc": "Name (Z-A)",
-  
-  "active_filters": "Active filters",
-  "search": "Search",
-  "clear_all": "Clear All",
-  "delete": "Delete",
-  
-  "timestamp": "Timestamp",
-  "actor": "Actor",
-  "action": "Action",
-  "payload": "Payload",
-  "log_id": "Log ID",
-  "system": "System",
-  "view": "View",
-  "no_data": "No Data",
-  "audit_log_details": "Audit Log Details",
-  
-  "action_type": "Action Type",
-  "all_actions": "All Actions",
-  "actor_id": "Actor ID",
-  "enter_actor_id": "Enter actor ID...",
-  "start_date": "Start Date",
-  "end_date": "End Date",
-  "from": "From",
-  "to": "To",
-  "action_asc": "Action (A-Z)",
-  "action_desc": "Action (Z-A)",
-  "per_page": "per page",
-  
-  "filter_logs_description": "Filter audit logs by action type, date range, or actor",
-  "export_success": "Export completed successfully",
-  
-  "template_name": "Template Name",
-  "template_name_placeholder": "e.g., Welcome Email",
-  "channel": "Channel",
-  "select_channel": "Select channel",
-  "all_channels": "All Channels",
-  "preview": "Preview",
-  "last_updated": "Last Updated",
-  "copy_template_id": "Copy Template ID",
-  "template_deleted_success": "Template deleted successfully",
-  "confirm_delete_template_message": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
-  
-  "create_template_description": "Create a new notification template for emails or SMS",
-  "edit_template_description": "Update the template details",
-  "subject": "Subject",
-  "subject_placeholder": "Email subject line...",
-  "template_body": "Template Body",
-  "template_body_placeholder": "Write your template content here...",
-  "template_variables_hint": "Use {{variableName}} for dynamic content",
-  "available_variables": "Available Variables",
-  "template_created_success": "Template created successfully",
-  "template_updated_success": "Template updated successfully",
-  "create": "Create",
-  "save_changes": "Save Changes",
-  
-  "test_template_description": "Send a test notification using \"{{name}}\"",
-  "recipient_email": "Recipient Email",
-  "test_variables": "Test Variables (Optional)",
-  "first_name_variable": "First Name",
-  "last_name_variable": "Last Name",
-  "other_variables_info": "Other variables (email, date) will be auto-filled",
-  "send_test": "Send Test",
-  "test_template_success": "Test notification sent successfully",
-  
-  "filter_templates_description": "Filter templates by channel or search by name",
-  
-  "documents_page_title": "Document Management",
-  "documents_page_subtitle": "Review and verify uploaded documents",
-  "document": "Document",
-  "uploader": "Uploader",
-  "uploaded": "Uploaded",
-  "download": "Download",
-  "verify": "Verify",
-  "reject": "Reject",
-  "document_verified_success": "Document verified successfully",
-  "document_rejected_success": "Document rejected successfully",
-  "document_deleted_success": "Document deleted successfully",
-  "download_started": "Download started",
-  "confirm_delete_document_message": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
-  
-  "reject_document": "Reject Document",
-  "reject_document_description": "Provide a reason for rejecting this document",
-  "rejection_reason": "Rejection Reason",
-  "rejection_reason_placeholder": "e.g., Document is unclear, missing signatures, incorrect format...",
-  
-  "pending_documents_alert_title": "Documents Pending Review",
-  "pending_documents_alert_description": "You have {{count}} document(s) waiting for verification",
-  "review_now": "Review Now",
-  
-  "filter_documents_description": "Filter documents by status or search by filename",
-  "filter_by_status": "Filter by status",
-  "all_statuses": "All Statuses",
-  "pending": "Pending",
-  "verified": "Verified",
-  "rejected": "Rejected",
-  "filename_asc": "Filename (A-Z)",
-  "filename_desc": "Filename (Z-A)",
-  "status_asc": "Status (A-Z)",
-  "status_desc": "Status (Z-A)"
+  "dashboard": {
+    "title": "Admin Dashboard",
+    "description": "Overview of system activity and key metrics.",
+    "stats": {
+      "total_users": "Total Users",
+      "pending_documents": "Pending Documents",
+      "active_wills": "Active Wills",
+      "total_assets": "Total Assets"
+    }
+  },
+  "users": {
+    "title": "User Management",
+    "description": "View, manage, and update user roles and statuses.",
+    "columns": {
+      "user": "User",
+      "role": "Role",
+      "status": "Status",
+      "joined": "Date Joined"
+    },
+    "actions": {
+      "change_role": "Change Role",
+      "suspend_user": "Suspend User",
+      "delete_user": "Delete User"
+    },
+    "dialogs": {
+      "confirm_role_change_title": "Confirm Role Change",
+      "confirm_role_change_message": "Are you sure you want to change the role for {{name}} to {{role}}?",
+      "confirm_delete_title": "Confirm User Deletion",
+      "confirm_delete_message": "Are you sure you want to permanently delete the user {{name}}? This action cannot be undone."
+    }
+  },
+  "documents": {
+    "title": "Document Verification",
+    "description": "Review and approve or reject user-submitted documents.",
+    "columns": {
+      "document": "Document",
+      "uploader": "Uploader",
+      "status": "Status",
+      "submitted": "Date Submitted"
+    },
+    "actions": {
+      "view_document": "View Document",
+      "verify": "Verify",
+      "reject": "Reject"
+    },
+    "empty_title": "No Documents to Review",
+    "empty_description": "All submitted documents have been processed."
+  },
+  "templates": {
+    "title": "Notification Templates",
+    "description": "Manage the content of automated emails and notifications.",
+    "create_template": "Create Template",
+    "edit_template": "Edit Template",
+    "columns": {
+      "name": "Template Name",
+      "type": "Type",
+      "channel": "Channel",
+      "status": "Status"
+    },
+    "form": {
+      "name": "Template Name",
+      "description": "Description (for internal reference)",
+      "type": "Template Type",
+      "channel": "Channel",
+      "subject": "Email Subject",
+      "body": "Template Body",
+      "variables": "Available Variables"
+    }
+  },
+  "auditing": {
+    "title": "Audit Logs",
+    "description": "Track all significant actions performed within the application.",
+    "export_csv": "Export as CSV",
+    "columns": {
+      "actor": "Actor",
+      "action": "Action",
+      "target": "Target",
+      "status": "Status",
+      "timestamp": "Timestamp"
+    },
+    "filters": {
+      "date_range": "Date Range",
+      "user": "User",
+      "action_type": "Action Type"
+    }
+  },
+  "toasts": {
+    "user_role_updated": "User role updated successfully.",
+    "user_deleted": "User deleted successfully.",
+    "document_verified": "Document marked as verified.",
+    "document_rejected": "Document marked as rejected.",
+    "template_created": "Template created successfully.",
+    "template_updated": "Template updated successfully."
+  }
 }
