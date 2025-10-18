@@ -9,6 +9,8 @@ import { AuthModule } from '@shamba/auth';
 import { MessagingModule } from '@shamba/messaging';
 import { ObservabilityModule } from '@shamba/observability';
 
+import { HealthModule } from './health/health.module'; // <-- ADDED: Import the service-specific health module
+
 import { AuthController } from './controllers/auth.controller';
 import { UsersController } from './controllers/users.controller';
 
@@ -46,6 +48,11 @@ import { UsersRepository } from './repositories/users.repository';
     ConfigModule, // Environment configuration (JWT secrets, DB URL, etc.)
     DatabaseModule, // Prisma Client and database connection
     AuthModule, // JWT strategies, guards, decorators
+
+    // --- Service-Specific Modules ---
+    // ADDED: Exposes the /api/v1/health endpoint specific to this microservice.
+    // It uses the tools from ObservabilityModule to check its own health (e.g., database connection).
+    HealthModule,
 
     // --- Event-Driven Communication ---
     // Register messaging for publishing events to RabbitMQ

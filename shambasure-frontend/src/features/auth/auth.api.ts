@@ -21,10 +21,10 @@ import { toast } from 'sonner'
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 const ApiEndpoints = {
-  LOGIN: '/auth/login',
-  REGISTER: '/auth/register',
-  FORGOT_PASSWORD: '/auth/forgot-password',
-  RESET_PASSWORD: '/auth/reset-password',
+  LOGIN: '/v1/auth/login',
+  REGISTER: '/v1/auth/register',
+  FORGOT_PASSWORD: '/v1/auth/forgot-password',
+  RESET_PASSWORD: '/v1/auth/reset-password',
   // A future endpoint for server-side token invalidation could go here
   // LOGOUT: '/auth/logout',
 };

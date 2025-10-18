@@ -115,7 +115,7 @@ async function bootstrap() {
   });
 
   // --- Start Server ---
-  const port = configService.get('PORT') || 3001;
+  const port = configService.get('ACCOUNTS_SERVICE_PORT') || 3001;
   const host = configService.get('HOST') || '0.0.0.0';
 
   await app.listen(port, host);

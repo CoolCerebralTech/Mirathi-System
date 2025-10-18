@@ -1,19 +1,20 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Injectable, ExecutionContext, UnauthorizedException, Logger } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { Observable } from 'rxjs';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
+  private readonly logger = new Logger(JwtAuthGuard.name);
+
   constructor(private readonly reflector: Reflector) {
     super();
   }
 
   /**
-   * This method is the entry point for the guard.
-   * It first checks if the route is marked as @Public().
+   * Entry point for the guard.
+   * Checks if the route is marked as @Public() before enforcing authentication.
    */
   canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -21,26 +22,39 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       context.getClass(),
     ]);
 
-    // If the route is public, allow access immediately.
+    // Debugging logs for development/staging environments
+    if (process.env.NODE_ENV !== 'production') {
+      const request = context.switchToHttp().getRequest<{ method: string; url: string }>();
+      this.logger.debug(`--- JWT GUARD CHECKING ---`);
+      this.logger.debug(`Request: ${request.method} ${request.url}`);
+      this.logger.debug(`Is Route Public: ${isPublic ?? false}`);
+      this.logger.debug(`--------------------------`);
+    }
+
+    // Allow access immediately if route is public
     if (isPublic) {
       return true;
     }
 
-    // Otherwise, proceed with the standard JWT authentication flow.
+    // Proceed with standard JWT authentication flow
     return super.canActivate(context);
   }
 
   /**
-   * This method is called by the underlying Passport strategy after it has
-   * validated (or failed to validate) the token.
+   * Called by Passport strategy after token validation.
+   * Customizes error handling for authentication failures.
    */
-  handleRequest<TUser = any>(err: any, user: any, info: any): TUser {
-    // This allows us to customize the error thrown.
+  handleRequest<TUser = unknown>(
+    err: Error | null,
+    user: TUser | false,
+    info: Error | undefined,
+  ): TUser {
     if (err || !user) {
-      // 'info' can contain details like 'TokenExpiredError' or 'JsonWebTokenError'
-      const errorMessage = info instanceof Error ? info.message : 'Invalid or missing token.';
-      throw err || new UnauthorizedException(`Authentication failed: ${errorMessage}`);
+      const errorMessage = info?.message ?? 'Invalid or missing token';
+      this.logger.warn(`Authentication failed: ${errorMessage}`);
+      throw err ?? new UnauthorizedException(`Authentication failed: ${errorMessage}`);
     }
+
     return user;
   }
 }

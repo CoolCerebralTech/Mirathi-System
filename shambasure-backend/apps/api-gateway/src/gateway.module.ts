@@ -5,11 +5,13 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@shamba/config';
-import { AuthModule } from '@shamba/auth';
+import { AuthModule, JwtAuthGuard } from '@shamba/auth';
 import { ObservabilityModule } from '@shamba/observability';
+import { MessagingModule } from '@shamba/messaging';
+import { APP_GUARD } from '@nestjs/core';
 
 import { HealthController } from './controllers/health.controller';
-import { HealthService } from './health/health.service'; // <-- ADD THIS IMPORT
+import { HealthService } from './health/health.service';
 import { AccountsProxyController } from './proxy/accounts.proxy.controller';
 import { DocumentsProxyController } from './proxy/documents.proxy.controller';
 import { SuccessionProxyController } from './proxy/succession.proxy.controller';
@@ -39,7 +41,14 @@ import { SuccessionProxyController } from './proxy/succession.proxy.controller';
     ConfigModule, // Environment configuration
     AuthModule, // JWT validation for all proxied requests
 
-    // --- HTTP Client for Proxying ---
+    // --- Event-Driven Communication ---
+    // ADDED: Register messaging for publishing events to other services if needed.
+    // Even if the gateway doesn't publish, this initializes the connection.
+    MessagingModule.register({
+      queue: 'gateway.events', // The gateway can have its own queue if needed
+    }),
+
+    // --- HTTP Client for Proxying & Health Checks ---
     HttpModule.register({
       timeout: 60000, // 60s for file uploads
       maxRedirects: 5,
@@ -66,7 +75,11 @@ import { SuccessionProxyController } from './proxy/succession.proxy.controller';
   // --- Providers ---
   // Services used within this module (e.g., by the controllers)
   providers: [
-    HealthService, // <-- ADD THIS LINE
+    HealthService,
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
   ],
 })
 export class GatewayModule {}

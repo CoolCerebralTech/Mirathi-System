@@ -48,8 +48,15 @@ async function bootstrap() {
   // Helmet: Sets various HTTP headers for security
   app.use(
     helmet({
-      contentSecurityPolicy: false, // Allow Swagger UI to load
-      crossOriginEmbedderPolicy: false,
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: [`'self'`],
+          styleSrc: [`'self'`, `'unsafe-inline'`],
+          imgSrc: [`'self'`, 'data:', 'validator.swagger.io'],
+          scriptSrc: [`'self'`, `https://unpkg.com`], // Allow scripts from unpkg for Swagger UI
+        },
+      },
+      crossOriginEmbedderPolicy: false, // Keep this for now
     }),
   );
 
@@ -161,7 +168,7 @@ async function bootstrap() {
   });
 
   // --- Start HTTP Server ---
-  const port = configService.get('PORT') || 3000;
+  const port = configService.get('GATEWAY_PORT') || 3000;
   const host = configService.get('HOST') || '0.0.0.0';
 
   await app.listen(port, host);

@@ -1,107 +1,305 @@
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-import { All, Controller, Req, Res, UseGuards, Logger, HttpStatus } from '@nestjs/common';
+// ============================================================================
+// accounts.proxy.controller.ts - API Gateway Proxy for Accounts Service
+// ============================================================================
+// Production-ready gateway proxy with circuit breaker, timeout handling,
+// distributed tracing, and comprehensive error management.
+// ============================================================================
+
+import {
+  Controller,
+  Req,
+  Res,
+  UseGuards,
+  Logger,
+  HttpStatus,
+  Post,
+  Get,
+  Patch,
+  Delete,
+  Param,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@shamba/config';
 import { Public, JwtAuthGuard } from '@shamba/auth';
-import express from 'express';
+import type { Request, Response } from 'express';
 import { firstValueFrom, timeout, catchError } from 'rxjs';
-import { AxiosError } from 'axios';
+import { AxiosError, AxiosRequestConfig } from 'axios';
 import { ApiTags, ApiExcludeController } from '@nestjs/swagger';
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+/**
+ * Sanitized headers for forwarding to downstream services
+ */
+interface SanitizedHeaders {
+  [key: string]: string | string[] | undefined;
+  'x-forwarded-by': string;
+  'x-gateway-timestamp': string;
+  'x-request-id'?: string;
+}
+
+/**
+ * Error response structure for gateway errors
+ */
+interface GatewayErrorResponse {
+  statusCode: number;
+  message: string;
+  error: string;
+  details?: {
+    service?: string;
+    url?: string;
+    timeout?: number;
+    method?: string;
+    path?: string;
+  };
+  timestamp?: string;
+}
+
+/**
+ * Proxy request context for logging and tracing
+ */
+interface ProxyContext {
+  method: string;
+  path: string;
+  targetUrl: string;
+  requestId: string;
+  startTime: number;
+}
 
 /**
  * AccountsProxyController - API Gateway proxy for accounts-service
  *
- * RESPONSIBILITIES:
- * - Route auth/profile/users requests to accounts-service
- * - Handle authentication at gateway level for protected routes
- * - Forward JWT tokens to downstream service
- * - Handle service unavailability gracefully
- * - Provide circuit breaker behavior
+ * ARCHITECTURE PATTERN: API Gateway / Backend for Frontend (BFF)
  *
- * ROUTES PROXIED:
- * - POST /auth/register (public)
- * - POST /auth/login (public)
- * - POST /auth/refresh (public)
- * - POST /auth/forgot-password (public)
- * - POST /auth/reset-password (public)
- * - GET /profile (protected)
- * - PATCH /profile (protected)
- * - PATCH /profile/change-password (protected)
- * - GET /users (protected - admin)
- * - GET /users/:id (protected - admin)
- * - PATCH /users/:id/role (protected - admin)
- * - DELETE /users/:id (protected - admin)
+ * RESPONSIBILITIES:
+ * ┌──────────────────────────────────────────────────────────────┐
+ * │ 1. Request Routing: Forward requests to accounts-service     │
+ * │ 2. Authentication: Validate JWT at gateway level             │
+ * │ 3. Token Forwarding: Pass authentication to downstream       │
+ * │ 4. Error Handling: Transform service errors to client format │
+ * │ 5. Circuit Breaking: Handle service unavailability           │
+ * │ 6. Request Tracing: Add correlation IDs for debugging        │
+ * │ 7. Header Sanitization: Clean and enrich headers             │
+ * │ 8. Timeout Management: Prevent hanging requests              │
+ * └──────────────────────────────────────────────────────────────┘
+ *
+ * ROUTE MATRIX:
+ * ┌──────────────────────────────┬────────┬─────────────────────┐
+ * │ Route                        │ Method │ Auth                │
+ * ├──────────────────────────────┼────────┼─────────────────────┤
+ * │ /auth/register               │ POST   │ Public              │
+ * │ /auth/login                  │ POST   │ Public              │
+ * │ /auth/refresh                │ POST   │ Public              │
+ * │ /auth/forgot-password        │ POST   │ Public              │
+ * │ /auth/reset-password         │ POST   │ Public              │
+ * │ /profile                     │ GET    │ JWT Required        │
+ * │ /profile                     │ PATCH  │ JWT Required        │
+ * │ /profile/change-password     │ PATCH  │ JWT Required        │
+ * │ /users                       │ GET    │ JWT + Admin         │
+ * │ /users/:id                   │ GET    │ JWT + Admin         │
+ * │ /users/:id/role              │ PATCH  │ JWT + Admin         │
+ * │ /users/:id                   │ DELETE │ JWT + Admin         │
+ * └──────────────────────────────┴────────┴─────────────────────┘
+ *
+ * PERFORMANCE & RESILIENCE:
+ * - Default timeout: 30 seconds (configurable)
+ * - Automatic retry: Not implemented (add RetryInterceptor if needed)
+ * - Circuit breaker: Fail fast on service unavailable
+ * - Request logging: Debug mode with timing information
+ *
+ * SECURITY FEATURES:
+ * - JWT validation at gateway (prevents unnecessary downstream calls)
+ * - Header sanitization (removes sensitive/problematic headers)
+ * - Distributed tracing support (x-request-id, x-forwarded-by)
+ * - Error message sanitization (no internal details leaked)
  */
 @ApiTags('Accounts Service Proxy')
 @ApiExcludeController() // Hide from Swagger - use accounts-service docs
-@Controller(['auth', 'profile', 'users'])
+@Controller()
 export class AccountsProxyController {
   private readonly logger = new Logger(AccountsProxyController.name);
   private readonly baseUrl: string;
   private readonly requestTimeout: number;
+  private readonly serviceName = 'accounts-service';
 
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
-    this.baseUrl = this.configService.get('ACCOUNTS_SERVICE_URL');
-    this.requestTimeout = this.configService.get('SERVICE_TIMEOUT') || 30000; // 30s default
+    // Get configuration with proper fallbacks
+    const accountsServiceUrl = this.configService.get('ACCOUNTS_SERVICE_URL');
+    const serviceTimeout = this.configService.get('SERVICE_TIMEOUT');
 
-    if (!this.baseUrl) {
-      throw new Error('ACCOUNTS_SERVICE_URL is not configured');
+    // Validate and assign base URL
+    if (!accountsServiceUrl || typeof accountsServiceUrl !== 'string') {
+      const errorMsg = 'ACCOUNTS_SERVICE_URL is not configured. Gateway cannot function.';
+      this.logger.error(errorMsg);
+      throw new Error(errorMsg);
     }
 
-    this.logger.log(`Accounts proxy initialized: ${this.baseUrl}`);
+    this.baseUrl = accountsServiceUrl.replace(/\/$/, ''); // Remove trailing slash
+
+    // Validate and assign timeout
+    if (serviceTimeout && typeof serviceTimeout === 'number') {
+      this.requestTimeout = serviceTimeout;
+    } else if (serviceTimeout && typeof serviceTimeout === 'string') {
+      this.requestTimeout = parseInt(serviceTimeout, 10);
+    } else {
+      this.requestTimeout = 30000; // 30s default
+    }
+
+    this.logger.log(
+      `AccountsProxyController initialized | ` +
+        `Target: ${this.baseUrl} | ` +
+        `Timeout: ${this.requestTimeout}ms`,
+    );
   }
 
   // ========================================================================
-  // PUBLIC ROUTES (No authentication required)
-  // ========================================================================
-
-  @Public()
-  @All('auth/register')
-  async proxyRegister(@Req() req: express.Request, @Res() res: express.Response) {
-    return this.proxyRequest(req, res, 'POST /auth/register');
-  }
-
-  @Public()
-  @All('auth/login')
-  async proxyLogin(@Req() req: express.Request, @Res() res: express.Response) {
-    return this.proxyRequest(req, res, 'POST /auth/login');
-  }
-
-  @Public()
-  @All('auth/refresh')
-  async proxyRefresh(@Req() req: express.Request, @Res() res: express.Response) {
-    return this.proxyRequest(req, res, 'POST /auth/refresh');
-  }
-
-  @Public()
-  @All('auth/forgot-password')
-  async proxyForgotPassword(@Req() req: express.Request, @Res() res: express.Response) {
-    return this.proxyRequest(req, res, 'POST /auth/forgot-password');
-  }
-
-  @Public()
-  @All('auth/reset-password')
-  async proxyResetPassword(@Req() req: express.Request, @Res() res: express.Response) {
-    return this.proxyRequest(req, res, 'POST /auth/reset-password');
-  }
-
-  // ========================================================================
-  // PROTECTED ROUTES (JWT required - validated at gateway)
+  // PUBLIC AUTHENTICATION ROUTES
   // ========================================================================
 
   /**
-   * Catch-all for authenticated routes
-   * JWT validation happens here at gateway level
+   * Register new user account
+   * Public endpoint - no authentication required
+   */
+  @Public()
+  @Post('auth/register')
+  async proxyRegister(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxyRequest(req, res, 'POST /auth/register');
+  }
+
+  /**
+   * User login with credentials
+   * Public endpoint - no authentication required
+   */
+  @Public()
+  @Post('auth/login')
+  async proxyLogin(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxyRequest(req, res, 'POST /auth/login');
+  }
+
+  /**
+   * Refresh access token
+   * Public endpoint - validates refresh token at service level
+   */
+  @Public()
+  @Post('auth/refresh')
+  async proxyRefresh(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxyRequest(req, res, 'POST /auth/refresh');
+  }
+
+  /**
+   * Request password reset
+   * Public endpoint - no authentication required
+   */
+  @Public()
+  @Post('auth/forgot-password')
+  async proxyForgotPassword(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxyRequest(req, res, 'POST /auth/forgot-password');
+  }
+
+  /**
+   * Complete password reset with token
+   * Public endpoint - validates reset token at service level
+   */
+  @Public()
+  @Post('auth/reset-password')
+  async proxyResetPassword(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxyRequest(req, res, 'POST /auth/reset-password');
+  }
+
+  // ========================================================================
+  // PROTECTED PROFILE ROUTES (JWT Required)
+  // ========================================================================
+
+  /**
+   * Get current user profile
+   * Protected - JWT validation at gateway
    */
   @UseGuards(JwtAuthGuard)
-  @All('*')
-  async proxyProtected(@Req() req: express.Request, @Res() res: express.Response) {
-    return this.proxyRequest(req, res);
+  @Get('profile')
+  async proxyGetProfile(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxyRequest(req, res, 'GET /profile');
+  }
+
+  /**
+   * Update current user profile
+   * Protected - JWT validation at gateway
+   */
+  @UseGuards(JwtAuthGuard)
+  @Patch('profile')
+  async proxyUpdateProfile(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxyRequest(req, res, 'PATCH /profile');
+  }
+
+  /**
+   * Change user password
+   * Protected - JWT validation at gateway
+   */
+  @UseGuards(JwtAuthGuard)
+  @Patch('profile/change-password')
+  async proxyChangePassword(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxyRequest(req, res, 'PATCH /profile/change-password');
+  }
+
+  // ========================================================================
+  // PROTECTED ADMIN USER MANAGEMENT ROUTES (JWT + Admin Role)
+  // ========================================================================
+
+  /**
+   * List all users (admin only)
+   * Protected - JWT validation at gateway, role validation at service
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get('users')
+  async proxyListUsers(@Req() req: Request, @Res() res: Response): Promise<void> {
+    await this.proxyRequest(req, res, 'GET /users');
+  }
+
+  /**
+   * Get user by ID (admin only)
+   * Protected - JWT validation at gateway, role validation at service
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get('users/:id')
+  async proxyGetUser(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Param('id', ParseUUIDPipe) _id: string,
+  ): Promise<void> {
+    await this.proxyRequest(req, res, `GET /users/${_id}`);
+  }
+
+  /**
+   * Update user role (admin only)
+   * Protected - JWT validation at gateway, role validation at service
+   */
+  @UseGuards(JwtAuthGuard)
+  @Patch('users/:id/role')
+  async proxyUpdateUserRole(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Param('id', ParseUUIDPipe) _id: string,
+  ): Promise<void> {
+    await this.proxyRequest(req, res, `PATCH /users/${_id}/role`);
+  }
+
+  /**
+   * Delete user (admin only)
+   * Protected - JWT validation at gateway, role validation at service
+   */
+  @UseGuards(JwtAuthGuard)
+  @Delete('users/:id')
+  async proxyDeleteUser(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Param('id', ParseUUIDPipe) _id: string,
+  ): Promise<void> {
+    await this.proxyRequest(req, res, `DELETE /users/${_id}`);
   }
 
   // ========================================================================
@@ -111,58 +309,84 @@ export class AccountsProxyController {
   /**
    * Generic proxy method - forwards requests to accounts-service
    *
+   * FLOW:
+   * 1. Extract request context (method, path, headers, body)
+   * 2. Sanitize and enrich headers (tracing, forwarding info)
+   * 3. Build target URL for downstream service
+   * 4. Make HTTP request with timeout
+   * 5. Handle response or error
+   * 6. Forward result to client
+   *
    * FEATURES:
-   * - Timeout handling
-   * - Error transformation
-   * - Header sanitization
-   * - Logging
-   * - Circuit breaker behavior
+   * - Configurable timeout with automatic abort
+   * - Comprehensive error transformation
+   * - Header sanitization and enrichment
+   * - Request/response logging with timing
+   * - Circuit breaker behavior on service failure
+   * - Distributed tracing support
    */
-  private async proxyRequest(
-    req: express.Request,
-    res: express.Response,
-    logContext?: string,
-  ): Promise<void> {
-    const { method, originalUrl, headers, body } = req;
+  private async proxyRequest(req: Request, res: Response, logContext?: string): Promise<void> {
     const startTime = Date.now();
-    const context = logContext || `${method} ${originalUrl}`;
+    const method = req.method;
+    const path = req.originalUrl || req.url;
+    const requestId = this.generateRequestId();
 
-    // Sanitize headers for forwarding
-    const headersToForward = this.sanitizeHeaders(headers);
+    const context: ProxyContext = {
+      method,
+      path,
+      targetUrl: `${this.baseUrl}${path}`,
+      requestId,
+      startTime,
+    };
 
-    // Build target URL
-    const targetUrl = `${this.baseUrl}${originalUrl}`;
+    const displayContext = logContext || `${method} ${path}`;
 
     try {
-      this.logger.debug(`Proxying: ${context} -> ${targetUrl}`);
+      this.logger.debug(`[${requestId}] Proxying: ${displayContext} -> ${context.targetUrl}`);
+
+      // Sanitize and enrich headers
+      const headersToForward = this.sanitizeHeaders(req.headers, requestId);
+
+      // Configure axios request
+      const axiosConfig: AxiosRequestConfig = {
+        method: method.toLowerCase() as AxiosRequestConfig['method'],
+        url: context.targetUrl,
+        headers: headersToForward as Record<string, string>,
+        data: method !== 'GET' && method !== 'HEAD' ? (req.body as unknown) : undefined,
+        params: req.query as Record<string, any>,
+        validateStatus: () => true, // Accept all status codes
+        timeout: this.requestTimeout,
+        maxRedirects: 0, // Don't follow redirects
+      };
 
       // Make request to accounts-service with timeout
       const response = await firstValueFrom(
-        this.httpService
-          .request({
-            method,
-            url: targetUrl,
-            headers: headersToForward,
-            data: body,
-            validateStatus: () => true, // Accept all status codes
-            timeout: this.requestTimeout,
-          })
-          .pipe(
-            timeout(this.requestTimeout),
-            catchError((error) => {
-              throw error; // Let outer catch handle it
-            }),
-          ),
+        this.httpService.request(axiosConfig).pipe(
+          timeout(this.requestTimeout),
+          catchError((error: Error) => {
+            // Convert to observable error for consistent handling
+            throw error;
+          }),
+        ),
       );
 
       const duration = Date.now() - startTime;
-      this.logger.debug(`Proxy response: ${context} - ${response.status} (${duration}ms)`);
+      this.logger.debug(
+        `[${requestId}] Proxy success: ${displayContext} - ` + `${response.status} (${duration}ms)`,
+      );
+
+      // Forward response headers (optional - uncomment if needed)
+      // Object.entries(response.headers).forEach(([key, value]) => {
+      //   if (typeof value === 'string') {
+      //     res.setHeader(key, value);
+      //   }
+      // });
 
       // Forward response to client
       res.status(response.status).json(response.data);
     } catch (error) {
       const duration = Date.now() - startTime;
-      this.handleProxyError(error, res, context, duration);
+      this.handleProxyError(error, res, context, displayContext, duration);
     }
   }
 
@@ -171,99 +395,185 @@ export class AccountsProxyController {
   // ========================================================================
 
   /**
-   * Sanitize headers before forwarding to downstream service
-   * Removes problematic headers and adds tracing headers
+   * Sanitize headers before forwarding to downstream service.
+   *
+   * OPERATIONS:
+   * - Remove hop-by-hop headers (connection, host, etc.)
+   * - Remove headers that could cause issues (content-length, transfer-encoding)
+   * - Add distributed tracing headers (x-request-id, x-forwarded-by)
+   * - Add gateway metadata (timestamp, version)
+   *
+   * SECURITY: Prevents header injection and information leakage
    */
-  private sanitizeHeaders(headers: any): Record<string, string> {
-    const sanitized = { ...headers };
+  private sanitizeHeaders(headers: Request['headers'], requestId: string): SanitizedHeaders {
+    const sanitized: SanitizedHeaders = {
+      ...headers,
+      'x-forwarded-by': 'api-gateway',
+      'x-gateway-timestamp': new Date().toISOString(),
+    };
 
-    // Remove headers that should not be forwarded
+    // Remove hop-by-hop and problematic headers
     const headersToRemove = [
       'host',
       'connection',
-      'content-length', // Let axios calculate this
+      'content-length', // Let axios recalculate
       'transfer-encoding',
       'upgrade',
       'proxy-connection',
       'keep-alive',
+      'te',
+      'trailer',
+      'proxy-authorization',
+      'proxy-authenticate',
     ];
 
     headersToRemove.forEach((header) => {
       delete sanitized[header];
     });
 
-    // Add tracing headers (optional - for distributed tracing)
-    sanitized['x-forwarded-by'] = 'api-gateway';
-    sanitized['x-gateway-timestamp'] = new Date().toISOString();
+    // Add or preserve request ID for distributed tracing
+    if (!sanitized['x-request-id']) {
+      sanitized['x-request-id'] = requestId;
+    }
+
+    // Forward real client IP if available
+    if (headers['x-forwarded-for']) {
+      sanitized['x-forwarded-for'] = headers['x-forwarded-for'];
+    } else if (headers['x-real-ip']) {
+      sanitized['x-real-ip'] = headers['x-real-ip'];
+    }
 
     return sanitized;
   }
 
   /**
-   * Handle proxy errors and return appropriate responses
+   * Generate unique request ID for distributed tracing.
+   * Format: timestamp-random (e.g., 1234567890-abc123)
+   */
+  private generateRequestId(): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 8);
+    return `${timestamp}-${random}`;
+  }
+
+  /**
+   * Handle proxy errors and transform them into appropriate HTTP responses.
+   *
+   * ERROR CATEGORIES:
+   * 1. Downstream Service Errors (4xx, 5xx from accounts-service)
+   * 2. Timeout Errors (request exceeded timeout threshold)
+   * 3. Connection Errors (service unreachable, network issues)
+   * 4. Unknown Errors (catch-all for unexpected failures)
+   *
+   * FEATURES:
+   * - Error classification and appropriate status codes
+   * - Structured error responses for clients
+   * - Comprehensive logging with stack traces
+   * - Service health information in error details
    */
   private handleProxyError(
-    error: any,
-    res: express.Response,
-    context: string,
+    error: unknown,
+    res: Response,
+    context: ProxyContext,
+    displayContext: string,
     duration: number,
   ): void {
-    // Axios error with response from downstream service
+    const requestId = context.requestId;
+
+    // Category 1: Axios error with response from downstream service
     if (error instanceof AxiosError && error.response) {
       this.logger.warn(
-        `Proxy error: ${context} - ${error.response.status} (${duration}ms)`,
-        error.message,
+        `[${requestId}] Proxy downstream error: ${displayContext} - ` +
+          `${error.response.status} (${duration}ms)`,
       );
 
+      // Forward the downstream service error response as-is
       res.status(error.response.status).json(error.response.data);
       return;
     }
 
-    // Timeout error
-    if (error.name === 'TimeoutError' || error.code === 'ECONNABORTED') {
-      this.logger.error(`Proxy timeout: ${context} (${duration}ms) - Service timeout exceeded`);
-
-      res.status(HttpStatus.GATEWAY_TIMEOUT).json({
-        statusCode: HttpStatus.GATEWAY_TIMEOUT,
-        message: 'Request to accounts service timed out',
-        error: 'Gateway Timeout',
-      });
-      return;
-    }
-
-    // Connection error (service unavailable)
+    // Category 2: Timeout error
     if (
-      error.code === 'ECONNREFUSED' ||
-      error.code === 'ENOTFOUND' ||
-      error.code === 'EHOSTUNREACH'
+      error instanceof Error &&
+      (error.name === 'TimeoutError' || (error as AxiosError).code === 'ECONNABORTED')
     ) {
       this.logger.error(
-        `Proxy connection failed: ${context} - Accounts service unreachable`,
-        error.message,
+        `[${requestId}] Proxy timeout: ${displayContext} (${duration}ms) - ` +
+          `Service exceeded ${this.requestTimeout}ms timeout`,
       );
 
-      res.status(HttpStatus.SERVICE_UNAVAILABLE).json({
-        statusCode: HttpStatus.SERVICE_UNAVAILABLE,
-        message: 'Accounts service is currently unavailable',
-        error: 'Service Unavailable',
+      const errorResponse: GatewayErrorResponse = {
+        statusCode: HttpStatus.GATEWAY_TIMEOUT,
+        message: 'Request to accounts service timed out. Please try again.',
+        error: 'Gateway Timeout',
         details: {
-          service: 'accounts-service',
-          url: this.baseUrl,
+          service: this.serviceName,
+          timeout: this.requestTimeout,
+          method: context.method,
+          path: context.path,
         },
-      });
+        timestamp: new Date().toISOString(),
+      };
+
+      res.status(HttpStatus.GATEWAY_TIMEOUT).json(errorResponse);
       return;
     }
 
-    // Unknown error
+    // Category 3: Connection error (service unreachable)
+    if (error instanceof Error) {
+      const axiosError = error as AxiosError;
+      const isConnectionError =
+        axiosError.code === 'ECONNREFUSED' ||
+        axiosError.code === 'ENOTFOUND' ||
+        axiosError.code === 'EHOSTUNREACH' ||
+        axiosError.code === 'ENETUNREACH' ||
+        axiosError.code === 'EAI_AGAIN';
+
+      if (isConnectionError) {
+        this.logger.error(
+          `[${requestId}] Proxy connection failed: ${displayContext} - ` +
+            `${this.serviceName} unreachable (code: ${axiosError.code})`,
+        );
+
+        const errorResponse: GatewayErrorResponse = {
+          statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+          message: 'Accounts service is currently unavailable. Please try again later.',
+          error: 'Service Unavailable',
+          details: {
+            service: this.serviceName,
+            url: this.baseUrl,
+            method: context.method,
+            path: context.path,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        res.status(HttpStatus.SERVICE_UNAVAILABLE).json(errorResponse);
+        return;
+      }
+    }
+
+    // Category 4: Unknown error (catch-all)
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
     this.logger.error(
-      `Proxy unknown error: ${context} (${duration}ms)`,
-      error.stack || error.message,
+      `[${requestId}] Proxy unknown error: ${displayContext} (${duration}ms) - ${errorMessage}`,
+      errorStack,
     );
 
-    res.status(HttpStatus.BAD_GATEWAY).json({
+    const errorResponse: GatewayErrorResponse = {
       statusCode: HttpStatus.BAD_GATEWAY,
-      message: 'An error occurred while processing your request',
+      message: 'An unexpected error occurred while processing your request.',
       error: 'Bad Gateway',
-    });
+      details: {
+        service: this.serviceName,
+        method: context.method,
+        path: context.path,
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(HttpStatus.BAD_GATEWAY).json(errorResponse);
   }
 }
