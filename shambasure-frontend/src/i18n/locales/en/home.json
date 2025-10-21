@@ -1,36 +1,68 @@
 {
   "hero": {
-    "title": "Secure Your Family’s Future",
-    "subtitle": "Digital Succession Planning for Kenya",
-    "description": "Easily create a legally-sound will, manage your assets, and protect your legacy. Shamba Sure makes estate planning simple, secure, and accessible for every Kenyan family.",
-    "cta_main": "Get Started for Free",
-    "cta_secondary": "Explore Features"
+    "badge": "Trusted by 10,000+ Kenyan Families",
+    "title": "Preserve Your Legacy.",
+    "subtitle": "Protect Your Family.",
+    "description": "End land disputes before they begin. Shamba Sure is the trusted digital platform helping Kenyan families secure inheritance, prevent conflict, and preserve generational wealth.",
+    "cta_main": "Start Protecting Your Legacy",
+    "cta_secondary": "Explore Features",
+    "trust": {
+      "secure": "Bank-Level Security",
+      "compliant": "KDPA Compliant",
+      "support": "24/7 Support"
+    }
   },
+
+  "stats": {
+    "headline": "The Land Inheritance Crisis in Kenya",
+    "succession_conflicts": "Families experience succession-related conflicts",
+    "land_loss": "Reported loss of land due to poor documentation",
+    "court_years": "Years families spend in court over inheritance",
+    "source": "Source: Kenya National Bureau of Statistics, 2024"
+  },
+
+  "features": {
+    "eyebrow": "Comprehensive Solution",
+    "headline": "Everything You Need to Secure Your Land Legacy",
+    "subheadline": "From digital will creation to dispute prevention, Shamba Sure provides the tools your family needs for peaceful succession."
+  },
+
   "pillars": {
     "will": {
       "title": "Create Your Will",
-      "description": "Our guided process helps you create a comprehensive will in minutes."
-    },
-    "assets": {
-      "title": "Manage Your Assets",
-      "description": "A secure digital vault for all your land, property, and financial assets."
+      "description": "Our guided process helps you create a legally sound will in minutes — clear, compliant, and accessible to your loved ones."
     },
     "heirs": {
       "title": "Protect Your Heirs",
-      "description": "Clearly define beneficiaries and ensure a smooth inheritance process."
+      "description": "Define your beneficiaries clearly and ensure a smooth inheritance process that minimizes family disputes."
+    },
+    "assets": {
+      "title": "Manage Your Assets",
+      "description": "Keep your land, property, and financial assets safe in one secure digital vault — encrypted and always accessible."
     }
   },
+
   "testimonials": {
-    "quote_family": "Shamba Sure gave us peace of mind knowing our children’s inheritance is secure.",
+    "eyebrow": "Success Stories",
+    "headline": "Trusted by Families Across Kenya",
+
+    "quote_family": "Shamba Sure gave us peace of mind knowing our children’s inheritance is secure and future disputes avoided.",
     "attribution_family": "The Mwangi Family, Nairobi",
-    "quote_couple": "We finally created a will together without the stress of paperwork.",
+    "role_family": "Parents & Landowners",
+
+    "quote_couple": "We finally created a will together — no lawyers, no stress, just guidance that made everything clear.",
     "attribution_couple": "Mr. & Mrs. Otieno, Kisumu",
-    "quote_professional": "As a lawyer, I recommend Shamba Sure to clients for its simplicity and compliance.",
-    "attribution_professional": "Grace N., Estate Lawyer"
+    "role_couple": "Married Couple",
+
+    "quote_professional": "As a lawyer, I recommend Shamba Sure for its simplicity, compliance, and focus on family harmony.",
+    "attribution_professional": "Grace N., Estate Lawyer",
+    "role_professional": "Legal Professional"
   },
+
   "cta": {
-    "title": "Ready to Protect Your Legacy?",
-    "description": "Take the first step towards securing your family’s future today.",
-    "button": "Create Your Will Now"
+    "title": "Your Family’s Peace Starts Today",
+    "description": "Join thousands of Kenyan families who have secured their legacy and prevented disputes with Shamba Sure.",
+    "button": "Get Started Free",
+    "guarantee": "No credit card required • Free forever for basic features"
   }
 }

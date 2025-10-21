@@ -1,41 +1,94 @@
-
 {
   "hero": {
-    "badge": "A Comprehensive Solution",
+    "badge": "Comprehensive Platform",
     "title": "Everything You Need for",
-    "subtitle": "Digital Estate Planning",
-    "description": "Shamba Sure provides a complete suite of tools to help you plan, protect, and preserve your legacy for future generations.",
-    "contact_us": "Contact Us"
+    "title_accent": "Peaceful Succession",
+    "description": "From digital will creation to dispute prevention...",
+    "contact_us": "Schedule Demo",
+    "trust": {
+      "no_credit": "No credit card required",
+      "free_trial": "Free forever for basic features",
+      "setup": "5-minute setup"
+    }
   },
   "main_features": {
-    "title": "Core Features",
-    "description": "Powerful tools designed for comprehensive estate planning.",
-    "will_creation": { "title": "Digital Will Creation", "description": "Create legally compliant wills with our step-by-step wizard. Assign heirs and define percentages." },
-    "asset_management": { "title": "Asset Management", "description": "Organize and track all your assets including land, property, vehicles, and bank accounts in one secure digital vault." },
-    "family_tree": { "title": "Family Tree Integration", "description": "Build your family lineage, define relationships, and easily assign inheritance to family members with visual clarity." },
-    "document_vault": { "title": "Secure Document Vault", "description": "Upload, verify, and organize important documents like title deeds and IDs with bank-level encryption." }
+    "eyebrow": "Core Capabilities",
+    "title": "Your Succession Operating System",
+    "description": "Four pillars of protection working together...",
+    "will_creation": {
+      "title": "Digital Will Creator",
+      "description": "Step-by-step wizard for legally compliant wills",
+      "stat": "✓ Legally recognized in Kenya"
+    },
+    "asset_management": {
+      "title": "Asset Management",
+      "description": "Track and organize all your land parcels",
+      "stat": "✓ Unlimited document storage"
+    },
+    "family_tree": {
+      "title": "HeirLink™ Family Tree",
+      "description": "Visual family lineage with inheritance mapping",
+      "stat": "✓ Invite unlimited family members"
+    },
+    "document_vault": {
+      "title": "Secure Document Vault",
+      "description": "Bank-level encryption for your title deeds",
+      "stat": "✓ 256-bit AES encryption"
+    }
   },
   "additional_features": {
-    "title": "Built with Security & Trust",
-    "description": "Advanced features to ensure your data is safe and your legacy is protected.",
-    "item1": "AI-powered fraud detection",
-    "item2": "Optional blockchain verification",
-    "item3": "Multi-language support (English & Swahili)",
-    "item4": "Mobile-first responsive design",
-    "item5": "Automated beneficiary notifications",
-    "item6": "Legal compliance checks",
-    "item7": "Dispute detection & mediation tools",
-    "item8": "Emergency access protocols",
-    "item9": "Complete audit trail for all changes"
+    "eyebrow": "Complete Toolkit",
+    "title": "Every Feature You'll Ever Need",
+    "description": "We've thought of everything. From document verification...",
+    "cta": "Explore All Features",
+    "item1": "Real-time succession tracking",
+    "item2": "Automated family notifications",
+    "item3": "Built-in mediation tools",
+    "item4": "Fraud detection AI",
+    "item5": "Multi-generational planning",
+    "item6": "Legal document templates",
+    "item7": "Compliance monitoring",
+    "item8": "Biometric access control",
+    "item9": "Dispute resolution pathways"
   },
   "highlights": {
-    "mobile_first": { "title": "Mobile First", "description": "Access your estate planning tools anywhere, anytime with our mobile-optimized platform." },
-    "security": { "title": "Bank-Level Security", "description": "Your sensitive data is protected with end-to-end encryption and advanced security protocols." },
-    "language": { "title": "Local Language Support", "description": "Use the platform in English or Swahili for better accessibility across Kenya." }
+    "eyebrow": "Built for Kenya",
+    "title": "Designed for Kenyan Families",
+    "description": "Every feature is crafted with deep understanding...",
+    "mobile_first": {
+      "title": "Mobile-First Platform",
+      "description": "Access from any device, anywhere in Kenya",
+      "badge": "iOS & Android"
+    },
+    "security": {
+      "title": "Bank-Grade Security",
+      "description": "Your data is protected with military-level encryption",
+      "badge": "256-bit AES"
+    },
+    "language": {
+      "title": "Multi-Language Support",
+      "description": "Available in English, Swahili, and local languages",
+      "badge": "10+ Languages"
+    },
+    "compliance": {
+      "title": "KDPA Compliant",
+      "description": "Fully compliant with Kenya Data Protection Act",
+      "badge": "Certified"
+    },
+    "mediation": {
+      "title": "Dispute Mediation",
+      "description": "Built-in tools to resolve family conflicts peacefully",
+      "badge": "Proactive"
+    },
+    "heir_access": {
+      "title": "Transparent Heir Access",
+      "description": "Family members see what they need, when they need it",
+      "badge": "Role-Based"
+    }
   },
   "cta": {
-    "title": "Ready to Secure Your Legacy?",
-    "description": "Join thousands of Kenyans who trust Shamba Sure with their estate planning.",
-    "learn_more": "Learn More"
+    "title": "Start Protecting Your Legacy Today",
+    "description": "Join thousands of Kenyan families who trust Shamba Sure...",
+    "guarantee": "No credit card • Free setup • Cancel anytime"
   }
 }
