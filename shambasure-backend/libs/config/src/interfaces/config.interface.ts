@@ -16,7 +16,7 @@ export interface AppConfig {
   HOST: string;
   GLOBAL_PREFIX: string;
   /** Comma-separated list of allowed origins (parsed into array) */
-  CORS_ORIGINS: string[];
+  CORS_ORIGINS: string;
   RATE_LIMIT_TTL: number;
   RATE_LIMIT_LIMIT: number;
   HEALTH_MEMORY_HEAP_THRESHOLD_MB: number;

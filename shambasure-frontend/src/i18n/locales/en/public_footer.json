@@ -1,5 +1,24 @@
 {
-  "copyright": "All rights reserved.",
-  "privacy_policy": "Privacy Policy",
-  "terms_of_service": "Terms of Service"
+  "tagline": "Preserving generational wealth through trusted digital estate planning.",
+  "headings": {
+    "product": "Product",
+    "support": "Support",
+    "contact": "Contact"
+  },
+  "links": {
+    "features": "Features",
+    "trust_security": "Trust & Security",
+    "pricing": "Pricing",
+    "about": "About Us",
+    "privacy_policy": "Privacy Policy",
+    "terms_of_service": "Terms of Service",
+    "cookie_policy": "Cookie Policy",
+    "data_protection": "Data Protection",
+    "contact": "Contact",
+    "help_center": "Help Center",
+    "faq": "FAQ",
+    "community": "Community"
+  },
+  "copyright": "Shamba Sure. All rights reserved.",
+  "built_with": "Built with trust for Kenyan families"
 }

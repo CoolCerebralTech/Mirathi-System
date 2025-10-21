@@ -17,6 +17,7 @@ import { HomePage } from './pages/public/HomePage';
 import { AboutPage } from './pages/public/AboutPage';
 import { FeaturesPage } from './pages/public/FeaturesPage';
 import { ContactPage } from './pages/public/ContactPage';
+import { SecurityPage } from './pages/public/SecurityPage';
 // Auth
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
@@ -50,6 +51,7 @@ function App() {
         <Route path="about" element={<AboutPage />} />
         <Route path="features" element={<FeaturesPage />} />
         <Route path="contact" element={<ContactPage />} />
+        <Route path="security" element={<SecurityPage />} />
       </Route>
 
       {/* --- Authentication Routes (for guests only) --- */}

@@ -1,0 +1,38 @@
+{
+  "features": {
+    "encryption": {
+      "title": "End-to-End Encryption",
+      "description": "Your data is encrypted from the moment it leaves your device until you view it again. No one, not even Shamba Sure, can access your unencrypted documents."
+    },
+    "infrastructure": {
+      "title": "Secure Cloud Infrastructure",
+      "description": "We partner with leading cloud providers who meet the highest global standards for security and reliability, ensuring your data is stored in a world-class environment."
+    },
+    "access_control": {
+      "title": "You Control Your Data",
+      "description": "You have complete control over who can view your documents and family information. Your privacy settings are paramount."
+    },
+    "data_privacy": {
+      "title": "Kenyan Data Law Compliant",
+      "description": "We are fully compliant with the Kenya Data Protection Act (DPA). Your data is handled with the utmost respect for your rights and local regulations."
+    },
+    "audits": {
+      "title": "Regular Security Audits",
+      "description": "We engage independent security experts to regularly audit our systems and test our defenses, ensuring we stay ahead of potential threats."
+    },
+    "support": {
+      "title": "Secure Customer Support",
+      "description": "Our support team is trained in security best practices. We will never ask for your password and have strict protocols to protect your account."
+    }
+  },
+  "faq": {
+    "q1": "Who can see my documents?",
+    "a1": "Only you and the individuals you explicitly grant access to (such as designated heirs or trusted contacts) can see your documents. Our internal team cannot view the content of your encrypted files.",
+    "q2": "Where is my data stored?",
+    "a2": "Your data is stored in highly secure, geographically distributed data centers managed by our top-tier cloud infrastructure partners. This ensures high availability and disaster recovery.",
+    "q3": "Is this platform legally compliant in Kenya?",
+    "a3": "Yes. We have designed Shamba Sure to be fully compliant with the Kenya Data Protection Act (DPA) and other relevant regulations. We are committed to upholding the legal standards for data privacy and security.",
+    "q4": "What happens to my data if I close my account?",
+    "a4": "If you choose to close your account, you will have the option to securely download all of your data. Following a grace period, your data will be permanently and irretrievably deleted from our systems in accordance with data protection best practices."
+  }
+}

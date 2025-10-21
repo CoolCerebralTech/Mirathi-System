@@ -24,6 +24,7 @@ import enSidebar from './locales/en/sidebar.json';
 import enUser from './locales/en/user.json';
 import enValidation from './locales/en/validation.json';
 import enWills from './locales/en/wills.json';
+import enSecurity from './locales/en/security.json';
 
 // Import ALL Swahili translations
 import swAbout from './locales/sw/about.json';
@@ -45,6 +46,7 @@ import swSidebar from './locales/sw/sidebar.json';
 import swUser from './locales/sw/user.json';
 import swValidation from './locales/sw/validation.json';
 import swWills from './locales/sw/wills.json';
+import swSecurity from './locales/sw/security.json';
 
 // Define the complete resource bundle
 const resources = {
@@ -53,14 +55,14 @@ const resources = {
     dashboard: enDashboard, documents: enDocuments, families: enFamilies, features: enFeatures,
     header: enHeader, home: enHome, not_found: enNotFound, public_footer: enPublicFooter,
     public_header: enPublicHeader, settings: enSettings, sidebar: enSidebar, user: enUser,
-    validation: enValidation, wills: enWills,
+    validation: enValidation, wills: enWills, security: enSecurity,
   },
   sw: {
     about: swAbout, assets: swAssets, auth: swAuth, common: swCommon, contact: swContact,
     dashboard: swDashboard, documents: swDocuments, families: swFamilies, features: swFeatures,
     header: swHeader, home: swHome, not_found: swNotFound, public_footer: swPublicFooter,
     public_header: swPublicHeader, settings: swSettings, sidebar: swSidebar, user: swUser,
-    validation: swValidation, wills: swWills,
+    validation: swValidation, wills: swWills, security: swSecurity,
   },
 };
 
@@ -68,7 +70,7 @@ const resources = {
 const allNamespaces = [
   'about', 'assets', 'auth', 'common', 'contact', 'dashboard', 'documents',
   'families', 'features', 'header', 'home', 'not_found', 'public_footer',
-  'public_header', 'settings', 'sidebar', 'user', 'validation', 'wills',
+  'public_header', 'settings', 'sidebar', 'user', 'validation', 'wills', 'security',
 ];
 
 i18n

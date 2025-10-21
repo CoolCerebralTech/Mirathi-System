@@ -1,0 +1,38 @@
+{
+  "features": {
+    "encryption": {
+      "title": "Usimbaji wa Mwisho kwa Mwisho",
+      "description": "Data zako zinasimbwa mara tu zinapotoka kwenye kifaa chako hadi pale unapoziona tena. Hakuna mtu yeyote, hata Shamba Sure, anayeweza kufikia nyaraka zako ambazo hazijasimbwa."
+    },
+    "infrastructure": {
+      "title": "Miundombinu Salama ya Wingu",
+      "description": "Tunashirikiana na watoa huduma wakuu wa wingu wanaokidhi viwango vya juu zaidi vya kimataifa vya usalama na uaminifu, kuhakikisha data zako zinahifadhiwa katika mazingira ya kiwango cha juu."
+    },
+    "access_control": {
+      "title": "Wewe Ndiyo Unadhibiti Data Zako",
+      "description": "Una udhibiti kamili juu ya nani anaweza kuona nyaraka zako na taarifa za familia. Mipangilio yako ya faragha ndiyo kipaumbele chetu."
+    },
+    "data_privacy": {
+      "title": "Kufuata Sheria ya Data ya Kenya",
+      "description": "Tumezingatia kikamilifu Sheria ya Ulinzi wa Data ya Kenya (DPA). Data zako zinashughulikiwa kwa heshima kubwa kwa haki zako na kanuni za ndani."
+    },
+    "audits": {
+      "title": "Ukaguzi wa Usalama wa Mara kwa Mara",
+      "description": "Tunawaalika wataalamu huru wa usalama kufanya ukaguzi wa mara kwa mara na kujaribu mifumo yetu, kuhakikisha tunabaki mbele ya vitisho vinavyoweza kujitokeza."
+    },
+    "support": {
+      "title": "Huduma ya Wateja Salama",
+      "description": "Timu yetu ya msaada imefunzwa katika mbinu bora za usalama. Hatuwezi kamwe kukuuliza nenosiri lako na tuna taratibu madhubuti za kulinda akaunti yako."
+    }
+  },
+  "faq": {
+    "q1": "Nani anaweza kuona nyaraka zangu?",
+    "a1": "Ni wewe pekee na watu unaowapa ruhusa waziwazi (kama warithi walioteuliwa au watu unaowaamini) wanaoweza kuona nyaraka zako. Timu yetu ya ndani haiwezi kuona yaliyomo kwenye mafaili yako yaliyosimbwa.",
+    "q2": "Data zangu zinahifadhiwa wapi?",
+    "a2": "Data zako zinahifadhiwa katika vituo vya data vilivyo salama sana na vilivyosambazwa kijiografia, vinavyosimamiwa na washirika wetu wa miundombinu ya wingu wa kiwango cha juu. Hii inahakikisha upatikanaji wa juu na urejeshaji baada ya majanga.",
+    "q3": "Je, jukwaa hili linakubaliana kisheria nchini Kenya?",
+    "a3": "Ndiyo. Tumeunda Shamba Sure ili izingatie kikamilifu Sheria ya Ulinzi wa Data ya Kenya (DPA) na kanuni nyingine husika. Tumejitolea kudumisha viwango vya kisheria vya faragha na usalama wa data.",
+    "q4": "Nini kitatokea kwa data zangu nikifunga akaunti yangu?",
+    "a4": "Ukiamua kufunga akaunti yako, utapewa nafasi ya kupakua data zako zote kwa usalama. Baada ya kipindi cha muda maalum, data zako zitafutwa kabisa na milele kutoka kwenye mifumo yetu kwa mujibu wa mbinu bora za ulinzi wa data."
+  }
+}

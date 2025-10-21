@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/restrict-template-expressions */
 // ============================================================================
 // main.ts - API Gateway Bootstrap
 // ============================================================================
@@ -100,9 +99,41 @@ async function bootstrap() {
   app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
 
   // --- CORS Configuration ---
-  const corsOrigins = configService.get('CORS_ORIGINS') || '*';
+  const corsOriginsRaw = configService.get('CORS_ORIGINS');
+  let corsOrigins: string[] = []; // Initialize as an array
+
+  if (corsOriginsRaw && typeof corsOriginsRaw === 'string') {
+    // Split the comma-separated string from the .env file into an array
+    corsOrigins = corsOriginsRaw.split(',').map((origin) => origin.trim());
+    logger.log(`🔒 CORS Origins configured: ${corsOrigins.join(', ')}`);
+  } else {
+    // Fallback for safety if the .env variable is missing
+    corsOrigins = ['*'];
+    logger.warn(`🔒 CORS_ORIGINS not set, allowing all origins (development only).`);
+  }
+
   app.enableCors({
-    origin: corsOrigins,
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (corsOrigins.includes('*') || corsOrigins.includes(origin)) {
+        // Origin is in the allow list
+        callback(null, true);
+        return;
+      } else {
+        // Origin is not allowed
+        logger.warn(`CORS blocked for origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+        return;
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -181,7 +212,7 @@ async function bootstrap() {
   logger.log(`📚 API Docs: http://localhost:${port}/${globalPrefix}/v1/docs`);
   logger.log(`🔗 Health Check: http://localhost:${port}/${globalPrefix}/v1/health`);
   logger.log(`🌍 Environment: ${nodeEnv}`);
-  logger.log(`🔒 CORS Origins: ${corsOrigins}`);
+  logger.log(`🔒 CORS Origins: ${corsOrigins.join(', ')}`);
   logger.log(`🛡️  Rate Limit: ${rateLimitMax} requests/${rateLimitTtl}s`);
   logger.log(`🔗 Accounts Service: ${configService.get('ACCOUNTS_SERVICE_URL')}`);
   logger.log(`🔗 Documents Service: ${configService.get('DOCUMENTS_SERVICE_URL')}`);

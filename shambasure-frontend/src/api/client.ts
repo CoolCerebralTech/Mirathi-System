@@ -8,16 +8,14 @@ import axios, {
 import { useAuthStore } from '../store/auth.store';
 import { AuthResponseSchema, ErrorResponseSchema } from '../types';
 
-// Define a custom type that extends Axios's request config
-interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
-  _retry?: boolean;
-}
-
-
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// ============================================================================
 // CONFIGURATION AND SETUP
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// ============================================================================
 
+// THE FIX: The base URL should NOT include the '/api' prefix.
+// The '/api' prefix is a global setting on the backend, and our individual
+// endpoint paths should include it. This prevents the "double api" bug.
+// Ensure your .env file has: VITE_API_BASE_URL=http://localhost:3000
 const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 if (!VITE_API_BASE_URL) {
   throw new Error(
@@ -25,9 +23,13 @@ if (!VITE_API_BASE_URL) {
   );
 }
 
-/** Centralized API endpoint paths for easy management. */
+/**
+ * Centralized API endpoint paths.
+ * THE FIX: All paths now correctly start with `/api/v1/` to match the backend's
+ * global prefix and versioning scheme.
+ */
 const ApiEndpoints = {
-  REFRESH_TOKEN: '/auth/refresh',
+  REFRESH_TOKEN: '/api/v1/auth/refresh',
 };
 
 // State for handling token refresh logic to prevent multiple refresh requests.
@@ -37,15 +39,10 @@ let failedQueue: Array<{
   reject: (reason?: unknown) => void;
 }> = [];
 
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// ============================================================================
 // HELPER FUNCTIONS
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// ============================================================================
 
-/**
- * Processes the queue of failed requests after a token refresh.
- * @param error - An error if the refresh failed.
- * @param token - The new access token if the refresh was successful.
- */
 const processQueue = (error: Error | null, token: string | null = null) => {
   failedQueue.forEach((prom) => {
     if (error) {
@@ -57,19 +54,19 @@ const processQueue = (error: Error | null, token: string | null = null) => {
   failedQueue = [];
 };
 
-/**
- * A type-safe utility to extract a user-friendly error message from an unknown error.
- * It prioritizes structured API errors defined by `ErrorResponseSchema`.
- * @param error - The error caught in a catch block.
- * @returns A user-friendly error message string.
- */
 export const extractErrorMessage = (error: unknown): string => {
-  if (axios.isAxiosError(error) && error.response) {
-    const parsed = ErrorResponseSchema.safeParse(error.response.data);
-    if (parsed.success) {
-      return parsed.data.message;
+  if (axios.isAxiosError(error)) {
+    // Prioritize structured API error messages
+    if (error.response) {
+      const parsed = ErrorResponseSchema.safeParse(error.response.data);
+      if (parsed.success) {
+        return parsed.data.message;
+      }
     }
-    return error.message;
+    // Fallback for network errors or timeouts
+    if (error.code === 'ECONNABORTED') return 'The request timed out. Please try again.';
+    if (error.code === 'ERR_NETWORK') return 'Network error. Please check your connection.';
+    return `Request failed: ${error.message}`;
   }
   if (error instanceof Error) {
     return error.message;
@@ -77,9 +74,9 @@ export const extractErrorMessage = (error: unknown): string => {
   return 'An unexpected error occurred. Please try again.';
 };
 
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// ============================================================================
 // MAIN AXIOS INSTANCE
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// ============================================================================
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: VITE_API_BASE_URL,
@@ -90,8 +87,7 @@ export const apiClient: AxiosInstance = axios.create({
 });
 
 /**
- * REQUEST INTERCEPTOR: Injects the access token into the Authorization header
- * for every outgoing request.
+ * REQUEST INTERCEPTOR: Injects the access token.
  */
 apiClient.interceptors.request.use(
   (config) => {
@@ -105,45 +101,42 @@ apiClient.interceptors.request.use(
 );
 
 /**
- * RESPONSE INTERCEPTOR: Handles API responses, with a focus on automatic
- * token refresh for 401 Unauthorized errors.
+ * RESPONSE INTERCEPTOR: Handles automatic token refresh for 401 errors.
  */
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as CustomAxiosRequestConfig;
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
-      return handle401Error(originalRequest, error);
-    }
-
-    if (import.meta.env.DEV) {
-      handleGenericError(error);
+    // Only handle 401s, ensure it's not a retry, and not the refresh endpoint itself that failed.
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      originalRequest.url !== ApiEndpoints.REFRESH_TOKEN
+    ) {
+      return handle401Error(originalRequest);
     }
 
     return Promise.reject(error);
   },
 );
 
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// ============================================================================
 // TOKEN REFRESH LOGIC
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+// ============================================================================
 
-/**
- * Handles the logic for a 401 Unauthorized error, including token refresh.
- * @param originalRequest - The original request that failed.
- * @param error - The original Axios error.
- */
-async function handle401Error(originalRequest: CustomAxiosRequestConfig, error: AxiosError) {
+async function handle401Error(originalRequest: InternalAxiosRequestConfig & { _retry?: boolean }) {
   originalRequest._retry = true;
   const { refreshToken, logout, setTokens } = useAuthStore.getState();
 
+  // If no refresh token, logout immediately.
   if (!refreshToken) {
     logout();
-    return Promise.reject(error);
+    return Promise.reject(new Error('No refresh token available.'));
   }
 
-  // If a refresh is already in progress, queue the original request.
+  // If a refresh is already in progress, queue subsequent failed requests.
   if (isRefreshing) {
     return new Promise<string>((resolve, reject) => {
       failedQueue.push({ resolve, reject });
@@ -158,51 +151,29 @@ async function handle401Error(originalRequest: CustomAxiosRequestConfig, error: 
   isRefreshing = true;
 
   try {
-    // Perform the token refresh request
-    const { data } = await axios.post(
-      `${VITE_API_BASE_URL}${ApiEndpoints.REFRESH_TOKEN}`,
-      {},
-      { headers: { Authorization: `Bearer ${refreshToken}` } },
+    console.log('[Auth] Access token expired. Attempting to refresh...');
+
+    // Perform the token refresh request using the base apiClient.
+    const { data } = await apiClient.post<unknown>(
+      ApiEndpoints.REFRESH_TOKEN,
+      { refreshToken }, // Send the refreshToken in the body as expected by the backend
     );
 
-    // Validate the refresh response with Zod
     const parsed = AuthResponseSchema.parse(data);
 
-    // Update tokens in the auth store
     setTokens(parsed);
-
-    // Process the queue with the new access token
     processQueue(null, parsed.accessToken);
 
-    // Retry the original request with the new token
+    console.log('[Auth] Token refresh successful. Retrying original request.');
     originalRequest.headers!.Authorization = `Bearer ${parsed.accessToken}`;
     return apiClient(originalRequest);
+
   } catch (refreshError) {
+    console.error('[Auth] Token refresh failed. Logging out.', refreshError);
     processQueue(refreshError as Error, null);
     logout();
     return Promise.reject(refreshError);
   } finally {
     isRefreshing = false;
-  }
-}
-
-/**
- * Handles generic network/server errors for development logging.
- * @param error - The Axios error object.
- */
-function handleGenericError(error: AxiosError) {
-  if (error.response) {
-    const { status } = error.response;
-    if (status >= 500) {
-      console.error('Server Error:', status, error.message);
-    } else if (status === 403) {
-      console.error('Forbidden:', status, 'Check permissions.');
-    } else if (status === 404) {
-      console.error('Not Found:', status, 'Endpoint may be incorrect.');
-    }
-  } else if (error.code === 'ECONNABORTED') {
-    console.error('Request Timeout:', error.message);
-  } else {
-    console.error('Network Error:', 'Could not connect to the server.');
   }
 }

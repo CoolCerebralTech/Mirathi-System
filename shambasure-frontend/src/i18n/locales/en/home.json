@@ -1,4 +1,3 @@
-
 {
   "hero": {
     "title": "Secure Your Family’s Future",
@@ -22,9 +21,12 @@
     }
   },
   "testimonials": {
-    "title": "Trusted by Families Across Kenya",
-    "quote": "Shamba Sure gave me peace of mind. I finally have a clear plan for my children's future.",
-    "attribution": "- A. Kamau, Nakuru"
+    "quote_family": "Shamba Sure gave us peace of mind knowing our children’s inheritance is secure.",
+    "attribution_family": "The Mwangi Family, Nairobi",
+    "quote_couple": "We finally created a will together without the stress of paperwork.",
+    "attribution_couple": "Mr. & Mrs. Otieno, Kisumu",
+    "quote_professional": "As a lawyer, I recommend Shamba Sure to clients for its simplicity and compliance.",
+    "attribution_professional": "Grace N., Estate Lawyer"
   },
   "cta": {
     "title": "Ready to Protect Your Legacy?",
