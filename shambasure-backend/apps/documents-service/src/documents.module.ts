@@ -13,6 +13,7 @@ import { DocumentsController } from './controllers/documents.controller';
 import { DocumentsService } from './services/documents.service';
 import { DocumentsRepository } from './repositories/documents.repository';
 import { StorageService } from './storage/storage.service';
+import { HealthModule } from './health/health.module';
 
 /**
  * DocumentsModule - Root module for Documents microservice
@@ -43,6 +44,7 @@ import { StorageService } from './storage/storage.service';
     ConfigModule, // Environment configuration
     DatabaseModule, // Prisma Client and database connection
     AuthModule, // JWT strategies, guards, decorators
+    HealthModule, // Health checks
 
     // --- Event-Driven Communication ---
     // Register messaging for publishing events to RabbitMQ

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/restrict-template-expressions */
 // ============================================================================
 // main.ts - Application Bootstrap
 // ============================================================================
