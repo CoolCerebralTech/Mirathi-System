@@ -36,7 +36,7 @@ export function PublicHeader() {
         border-b transition-all duration-500 ease-out
         ${scrolled 
           ? 'border-neutral-200 bg-background/95 shadow-soft backdrop-blur-md' 
-          : 'border-transparent bg-background/80 backdrop-blur-sm'
+          : 'border-transparent bg-transparent'
         }
       `}
     >
@@ -65,14 +65,15 @@ export function PublicHeader() {
                 to={link.to} 
                 className={({ isActive }) => 
                   `
-                    relative px-4 py-2 font-serif text-base font-medium
+                    relative px-4 py-2 font-sans text-base font-medium tracking-relaxed
                     transition-all duration-300 ease-out
                     ${isActive 
                       ? 'text-primary' 
-                      : 'text-text hover:text-primary-600'
+                      : 'text-text-subtle hover:text-primary'
                     }
-                    after:absolute after:bottom-0 after:left-0 after:h-0.5 
-                    after:w-full after:origin-left after:scale-x-0 
+                    after:absolute after:bottom-0 after:left-1/2 after:-translate-x-1/2 
+                    after:h-0.5 after:w-1/2
+                    after:origin-center after:scale-x-0 
                     after:bg-primary after:transition-transform after:duration-300
                     ${isActive ? 'after:scale-x-100' : 'hover:after:scale-x-100'}
                   `
@@ -99,10 +100,16 @@ export function PublicHeader() {
               className="
                 bg-primary font-sans text-sm font-semibold text-primary-foreground 
                 shadow-soft transition-all duration-300 
-                hover:bg-primary-hover hover:shadow-lifted
+                hover:bg-primary-hover hover:shadow-lifted hover:-translate-y-0.5
+    p-0
               "
             >
-              <Link to="/register">{t('nav.get_started')}</Link>
+              <Link to="/register" className="flex items-center justify-between px-5 py-2.5">
+                <span>{t('nav.get_started')}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </Link>
             </Button>
           </div>
 

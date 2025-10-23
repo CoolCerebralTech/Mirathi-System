@@ -1,37 +1,20 @@
-
 {
-  "required": "This field is required",
-  "invalid_email": "Please enter a valid email address",
+  "first_name_required": "First name is required",
+  "last_name_required": "Last name is required",
+  "subject_required": "Subject is required",
+  "message_too_short": "Message must be at least 10 characters long",
+
+  "email_required": "Email is required",
+  "email_invalid": "Please enter a valid email address",
+  "password_required": "Password is required",
   "password_min_length": "Password must be at least 8 characters long",
-  "password_uppercase": "Password must contain at least one uppercase letter",
-  "password_lowercase": "Password must contain at least one lowercase letter",
-  "password_number": "Password must contain at least one number",
-  "password_special_char": "Password must contain at least one special character",
+  "confirm_password_required": "Please confirm your password",
   "passwords_do_not_match": "Passwords do not match",
 
-  "first_name_min_length": "First name must be at least 2 characters",
-  "last_name_min_length": "Last name must be at least 2 characters",
+  "current_password_required": "Current password is required",
+  "new_password_required": "New password is required",
+  "confirm_new_password_required": "Please confirm your new password",
 
-  "phone_e164": "Phone number must be in E.164 format (e.g., +254712345678)",
-
-  "file_too_large": "File is too large. Maximum size is {{size}}MB.",
-  "file_invalid_type": "Invalid file type. Please upload a supported format.",
-  "file_rejected": "File was rejected. Please try another file.",
-
-  "asset_name_required": "Asset name is required",
-  "parcel_number_required": "Parcel number is required",
-  "location_required": "Location is required",
-  "acreage_positive": "Acreage must be a positive number",
-  "bank_name_required": "Bank name is required",
-  "account_number_required": "Account number is required",
-  "branch_required": "Branch name is required",
-  "make_required": "Vehicle make is required",
-  "model_required": "Vehicle model is required",
-  "year_invalid": "Please enter a valid year",
-  "license_plate_required": "License plate is required",
-  
-  "will_title_required": "Will title must be at least 3 characters",
-  "share_percentage_exceeds_100": "The total share percentage for an asset cannot exceed 100%",
-
-  "contact_message_min_length": "Message must be at least 10 characters long"
+  "generic_error": "Something went wrong. Please try again.",
+  "invalid_credentials": "Invalid credentials. Please check your details and try again."
 }

@@ -26,6 +26,7 @@
   "previous": "Previous",
   "view_details": "View Details",
   "are_you_sure": "Are you sure?",
+  "or": "or",
 
   "search": "Search...",
   "filter": "Filter",
@@ -42,5 +43,38 @@
     "showing_results": "Showing {{start}} to {{end}} of {{total}} results",
     "page": "Page",
     "of": "of"
+  },
+
+  "navigation": {
+    "home": "Home",
+    "about": "About",
+    "contact": "Contact",
+    "dashboard": "Dashboard",
+    "logout": "Logout",
+    "login": "Login",
+    "register": "Register"
+  },
+
+  "footer": {
+    "rights_reserved": "All rights reserved.",
+    "powered_by": "Powered by {{company}}",
+    "back_to_top": "Back to top"
+  },
+
+  "language": {
+    "select_language": "Select Language",
+    "english": "English",
+    "swahili": "Swahili"
+  },
+
+  "security": {
+    "secure_message": "Your information is protected by bank-grade security.",
+    "privacy_notice": "We respect your privacy and never share your data without consent."
+  },
+
+  "accessibility": {
+    "skip_to_content": "Skip to main content",
+    "aria_label_logo": "Company logo",
+    "aria_label_navigation": "Main navigation"
   }
 }

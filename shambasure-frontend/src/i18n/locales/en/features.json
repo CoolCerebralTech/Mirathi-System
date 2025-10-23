@@ -3,92 +3,77 @@
     "badge": "Comprehensive Platform",
     "title": "Everything You Need for",
     "title_accent": "Peaceful Succession",
-    "description": "From digital will creation to dispute prevention...",
+    "description": "From digital will creation to dispute prevention, Shamba Sure provides a complete ecosystem for securing your family’s land legacy.",
     "contact_us": "Schedule Demo",
     "trust": {
       "no_credit": "No credit card required",
-      "free_trial": "Free forever for basic features",
+      "free_trial": "Free forever",
       "setup": "5-minute setup"
     }
   },
-  "main_features": {
-    "eyebrow": "Core Capabilities",
-    "title": "Your Succession Operating System",
-    "description": "Four pillars of protection working together...",
+  "showcase": {
+    "eyebrow": "Complete Toolkit",
+    "title": "A Powerful, Unified System",
+    "description": "Each feature is designed to work seamlessly with the others, creating a single source of truth for your family's legacy.",
     "will_creation": {
       "title": "Digital Will Creator",
-      "description": "Step-by-step wizard for legally compliant wills",
-      "stat": "✓ Legally recognized in Kenya"
-    },
-    "asset_management": {
-      "title": "Asset Management",
-      "description": "Track and organize all your land parcels",
-      "stat": "✓ Unlimited document storage"
+      "description": "Create a legally compliant will with guided steps and smart templates."
     },
     "family_tree": {
       "title": "HeirLink™ Family Tree",
-      "description": "Visual family lineage with inheritance mapping",
-      "stat": "✓ Invite unlimited family members"
+      "description": "Visualize your family lineage and map inheritance connections with ease."
     },
     "document_vault": {
       "title": "Secure Document Vault",
-      "description": "Bank-level encryption for your title deeds",
-      "stat": "✓ 256-bit AES encryption"
+      "description": "Store title deeds and sensitive documents in a bank-grade encrypted vault."
+    },
+    "mediation_tools": {
+      "title": "Mediation Tools",
+      "description": "Resolve family conflicts peacefully through guided dispute resolution tools."
+    },
+    "succession_tracking": {
+      "title": "Succession Tracking",
+      "description": "Track every step of your succession plan and stay compliant effortlessly."
     }
-  },
-  "additional_features": {
-    "eyebrow": "Complete Toolkit",
-    "title": "Every Feature You'll Ever Need",
-    "description": "We've thought of everything. From document verification...",
-    "cta": "Explore All Features",
-    "item1": "Real-time succession tracking",
-    "item2": "Automated family notifications",
-    "item3": "Built-in mediation tools",
-    "item4": "Fraud detection AI",
-    "item5": "Multi-generational planning",
-    "item6": "Legal document templates",
-    "item7": "Compliance monitoring",
-    "item8": "Biometric access control",
-    "item9": "Dispute resolution pathways"
   },
   "highlights": {
     "eyebrow": "Built for Kenya",
     "title": "Designed for Kenyan Families",
-    "description": "Every feature is crafted with deep understanding...",
+    "description": "Every feature is crafted with deep understanding of Kenya’s land ownership challenges, cultural dynamics, and legal framework.",
     "mobile_first": {
       "title": "Mobile-First Platform",
-      "description": "Access from any device, anywhere in Kenya",
+      "description": "Access your account anytime, anywhere — optimized for all devices.",
       "badge": "iOS & Android"
     },
     "security": {
       "title": "Bank-Grade Security",
-      "description": "Your data is protected with military-level encryption",
+      "description": "Your data is protected with military-level 256-bit AES encryption.",
       "badge": "256-bit AES"
     },
     "language": {
       "title": "Multi-Language Support",
-      "description": "Available in English, Swahili, and local languages",
+      "description": "Available in English, Swahili, and multiple local languages.",
       "badge": "10+ Languages"
     },
     "compliance": {
       "title": "KDPA Compliant",
-      "description": "Fully compliant with Kenya Data Protection Act",
+      "description": "Fully compliant with the Kenya Data Protection Act for your peace of mind.",
       "badge": "Certified"
     },
     "mediation": {
       "title": "Dispute Mediation",
-      "description": "Built-in tools to resolve family conflicts peacefully",
+      "description": "Built-in tools to prevent and resolve family disputes before escalation.",
       "badge": "Proactive"
     },
     "heir_access": {
       "title": "Transparent Heir Access",
-      "description": "Family members see what they need, when they need it",
+      "description": "Grant family members secure, role-based access to relevant assets.",
       "badge": "Role-Based"
     }
   },
   "cta": {
     "title": "Start Protecting Your Legacy Today",
-    "description": "Join thousands of Kenyan families who trust Shamba Sure...",
+    "description": "Join thousands of Kenyan families who trust Shamba Sure to secure their land inheritance and preserve family harmony.",
     "guarantee": "No credit card • Free setup • Cancel anytime"
   }
 }
