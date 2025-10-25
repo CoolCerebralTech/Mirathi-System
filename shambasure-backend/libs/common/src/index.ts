@@ -10,7 +10,7 @@ export * from './dto/templates/template.dto';
 export * from './dto/auditing/auditing.dto';
 
 // Interfaces
-export * from './interfaces/events';
+export * from './events';
 export * from './interfaces/responses';
 
 // Enums

@@ -1,12 +1,5 @@
-import { EventPattern } from '../../enums';
+import { EventPattern } from '../enums';
 import { UserRole, WillStatus, DocumentStatus, AssetType } from '@shamba/database';
-
-// ============================================================================
-// ARCHITECTURAL NOTE:
-// These interfaces define the strict data contracts for all event-driven
-// communication between microservices via RabbitMQ. They are the single
-// source of truth for event payloads.
-// ============================================================================
 
 /**
  * The base structure for all events published within the Shamba Sure ecosystem.
@@ -38,10 +31,7 @@ export interface UserCreatedData {
 
 export interface UserUpdatedData {
   userId: string;
-  profile?: {
-    bio?: string | null;
-    phoneNumber?: string | null;
-  };
+  updatedFields?: string[];
 }
 
 export interface UserDeletedData {
@@ -49,13 +39,52 @@ export interface UserDeletedData {
   email: string;
 }
 
+export interface UserLoggedInData {
+  userId: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+export interface EmailVerificationRequestedData {
+  userId: string;
+  email: string;
+  firstName: string;
+  verificationToken: string;
+  expiresAt: string; // ISO 8601 string
+}
+
+export interface EmailVerifiedData {
+  userId: string;
+  email: string;
+}
+
+export interface PasswordChangedData {
+  userId: string;
+}
+
 export interface PasswordResetRequestedData {
   expiresAt: any;
-  token: any;
   userId: string;
   email: string;
   firstName: string;
   resetToken: string; // The service sends the token, not just a request
+}
+
+export interface PasswordResetData {
+  userId: string;
+}
+
+export interface RoleChangedData {
+  userId: string;
+  oldRole: UserRole;
+  newRole: UserRole;
+  changedBy: string; // The admin's userId
+  reason?: string | null;
+}
+
+export interface UserSessionsInvalidatedData {
+  userId: string;
+  reason: 'PASSWORD_CHANGE' | 'ROLE_CHANGE' | 'ADMIN_ACTION'; // A reason for the invalidation
 }
 
 export interface WillCreatedData {
@@ -124,9 +153,23 @@ export interface DocumentDeletedData {
 export type UserCreatedEvent = BaseEvent<EventPattern.USER_CREATED, UserCreatedData>;
 export type UserUpdatedEvent = BaseEvent<EventPattern.USER_UPDATED, UserUpdatedData>;
 export type UserDeletedEvent = BaseEvent<EventPattern.USER_DELETED, UserDeletedData>;
+export type UserLoggedInEvent = BaseEvent<EventPattern.USER_LOGGED_IN, UserLoggedInData>;
+export type EmailVerificationRequestedEvent = BaseEvent<
+  EventPattern.EMAIL_VERIFICATION_REQUESTED,
+  EmailVerificationRequestedData
+>;
+export type EmailVerifiedEvent = BaseEvent<EventPattern.EMAIL_VERIFIED, EmailVerifiedData>;
+export type PasswordChangedEvent = BaseEvent<EventPattern.PASSWORD_CHANGED, PasswordChangedData>;
+export type PasswordResetEvent = BaseEvent<EventPattern.PASSWORD_RESET, PasswordResetData>;
+export type RoleChangedEvent = BaseEvent<EventPattern.ROLE_CHANGED, RoleChangedData>;
+
 export type PasswordResetRequestedEvent = BaseEvent<
   EventPattern.PASSWORD_RESET_REQUESTED,
   PasswordResetRequestedData
+>;
+export type UserSessionsInvalidatedEvent = BaseEvent<
+  EventPattern.USER_SESSIONS_INVALIDATED,
+  UserSessionsInvalidatedData
 >;
 export type WillCreatedEvent = BaseEvent<EventPattern.WILL_CREATED, WillCreatedData>;
 export type WillUpdatedEvent = BaseEvent<EventPattern.WILL_UPDATED, WillUpdatedData>;
@@ -143,7 +186,14 @@ export type ShambaEvent =
   | UserCreatedEvent
   | UserUpdatedEvent
   | UserDeletedEvent
+  | UserLoggedInEvent
+  | EmailVerificationRequestedEvent
+  | EmailVerifiedEvent
+  | PasswordChangedEvent
   | PasswordResetRequestedEvent
+  | PasswordResetEvent
+  | RoleChangedEvent
+  | UserSessionsInvalidatedEvent
   | DocumentUploadedEvent
   | WillCreatedEvent
   | WillUpdatedEvent

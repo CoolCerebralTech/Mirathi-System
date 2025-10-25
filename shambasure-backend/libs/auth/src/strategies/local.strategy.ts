@@ -1,7 +1,7 @@
 import { Strategy } from 'passport-local';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException, Inject, forwardRef } from '@nestjs/common'; // <-- Add Inject and forwardRef
-import { AuthService } from '../services/auth.service';
+import { AuthService } from '../../../../apps/accounts-service/src/services/auth.service';
 import { User } from '@shamba/database';
 
 @Injectable()

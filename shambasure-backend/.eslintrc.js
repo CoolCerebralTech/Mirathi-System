@@ -13,35 +13,35 @@ module.exports = {
   extends: [
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
-    'prettier', // must be LAST to turn off conflicting rules
+    'prettier', // must be LAST
   ],
   rules: {
-    // Keep Prettier as the single source of truth for formatting
-    'prettier/prettier': [
-      'error',
-      {
-        endOfLine: 'lf',
-      },
-    ],
+    'prettier/prettier': ['error', { endOfLine: 'lf' }],
 
-    // --- Disable ALL "unsafe" type-aware linting rules ---
-    // This will stop the linter from complaining about returning, assigning,
-    // or using variables that it infers as `any`.
+    // Disable unsafe type rules (decorator-heavy code)
     '@typescript-eslint/no-unsafe-return': 'off',
     '@typescript-eslint/no-unsafe-assignment': 'off',
     '@typescript-eslint/no-unsafe-call': 'off',
     '@typescript-eslint/no-unsafe-member-access': 'off',
     '@typescript-eslint/no-unsafe-argument': 'off',
 
-    // Other helpful rules remain
     '@typescript-eslint/explicit-module-boundary-types': 'off',
-    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' , varsIgnorePattern: '^_' }],
+    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+
+    // CommonJS still valid for NestJS
+    'import/no-commonjs': 'off',
   },
   overrides: [
     {
       files: ['*.js'],
       parser: 'espree',
     },
+    {
+      files: ['*.dto.ts'],
+      rules: {
+        '@typescript-eslint/no-unsafe-assignment': 'off',
+      },
+    },
   ],
-  ignorePatterns: ['dist', 'node_modules', 'coverage'],
+  ignorePatterns: ['dist', 'node_modules', 'coverage', '.eslintrc.js'],
 };

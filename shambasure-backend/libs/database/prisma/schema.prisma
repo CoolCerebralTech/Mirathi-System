@@ -1,13 +1,4 @@
-// ============================================================================
-// Shamba Sure - Production-Ready Schema v1.3 (Corrected & Validated)
-// ============================================================================
-// Principles:
-// 1. Prisma Compatibility: All relations are bi-directionally defined as required by Prisma.
-// 2. Architectural Decoupling (Application-Level): The `accounts-service` MUST NOT use
-//    the back-relations in its application code. They exist for schema validity only.
-// 3. Data Integrity & Performance: All previous enhancements (indexes, Decimal, etc.) remain.
-// ============================================================================
-
+// Shamba Sure - Production-Ready Schema v2.0
 generator client {
   provider = "prisma-client-js"
 }
@@ -22,9 +13,10 @@ datasource db {
 // -----------------------------------------------------------------------------
 
 enum UserRole {
-  LAND_OWNER
-  HEIR
+  USER
   ADMIN
+  VERIFIER
+  AUDITOR
 }
 
 enum RelationshipType {
@@ -78,18 +70,24 @@ model User {
   password  String
   firstName String
   lastName  String
-  role      UserRole @default(LAND_OWNER)
+  role      UserRole @default(USER)
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  loginAttempts Int     @default(0)
+  lockedUntil  DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt DateTime?
 
   // --- Relationships Owned by this Service ---
   profile             UserProfile?
   passwordResetTokens PasswordResetToken[]
+  refreshTokens       RefreshToken[]
+  roleChanges         RoleChange[]
+  emailVerificationToken EmailVerificationToken?
 
   // --- Back-relations from other services ---
-  // NOTE: These fields are required for Prisma schema validity but MUST NOT be
-  // used by the accounts-service. They are owned by their respective services.
   createdFamilies     Family[]
   familyMemberships   FamilyMember[]
   willsAsTestator     Will[]
@@ -98,140 +96,172 @@ model User {
   documentsUploaded   Document[]
   notifications       Notification[]
   auditLogsAsActor    AuditLog[]
+
+  @@index([email, isActive])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@map("users")
 }
 
 model UserProfile {
-  id      String @id @default(uuid())
-  userId  String @unique
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  bio         String?
-  phoneNumber String?
-  address     Json? // e.g., { street, city, postCode, country }
-  nextOfKin   Json? // e.g., { fullName, relationship, phoneNumber }
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio           String?
+  phoneNumber   String?  @db.VarChar(20)
+  phoneVerified Boolean  @default(false)
+  emailVerified Boolean  @default(false)
+  marketingOptIn Boolean @default(false)
+  address       Json?
+  nextOfKin     Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([phoneNumber])
+  @@map("user_profiles")
 }
 
 model PasswordResetToken {
   id        String   @id @default(uuid())
   tokenHash String   @unique
   expiresAt DateTime
+  used      Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, used])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
 
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId  String?
   createdAt DateTime @default(now())
 
   @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model RoleChange {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oldRole   UserRole
+  newRole   UserRole
+  changedBy String?
+  reason    String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("role_changes")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@map("email_verification_tokens")
 }
 
 // ============================================================================
-// SUCCESSION SERVICE MODELS
+// SUCCESSION SERVICE MODELS (Unchanged for now)
 // Owner: succession-service
 // ============================================================================
 
 model Family {
-  id   String @id @default(uuid())
-  name String
-
+  id        String   @id @default(uuid())
+  name      String
   creatorId String
-  creator   User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-
+  creator   User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  members FamilyMember[]
+  members   FamilyMember[]
 
   @@index([creatorId])
 }
 
 model FamilyMember {
   userId   String
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   familyId String
-  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
-
-  role RelationshipType
+  family   Family           @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  role     RelationshipType
 
   @@id([userId, familyId])
 }
 
 model Will {
-  id     String     @id @default(uuid())
-  title  String
-  status WillStatus @default(DRAFT)
-
-  testatorId String
-  testator   User   @relation(fields: [testatorId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id                     String                  @id @default(uuid())
+  title                  String
+  status                 WillStatus              @default(DRAFT)
+  testatorId             String
+  testator               User                    @relation(fields: [testatorId], references: [id], onDelete: Cascade)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
   beneficiaryAssignments BeneficiaryAssignment[]
 
   @@index([testatorId])
 }
 
 model Asset {
-  id          String    @id @default(uuid())
-  name        String
-  description String?
-  type        AssetType
-
-  ownerId String
-  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id                     String                  @id @default(uuid())
+  name                   String
+  description            String?
+  type                   AssetType
+  ownerId                String
+  owner                  User                    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
   beneficiaryAssignments BeneficiaryAssignment[]
 
   @@index([ownerId])
 }
 
 model BeneficiaryAssignment {
-  id String @id @default(uuid())
-
-  willId String
-  will   Will   @relation(fields: [willId], references: [id], onDelete: Cascade)
-
-  assetId String
-  asset   Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
-
+  id            String   @id @default(uuid())
+  willId        String
+  will          Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  assetId       String
+  asset         Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
   beneficiaryId String
-  beneficiary   User   @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
-
-  sharePercent Decimal?
-
-  createdAt DateTime @default(now())
+  beneficiary   User     @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  sharePercent  Decimal?
+  createdAt     DateTime @default(now())
 
   @@unique([willId, assetId, beneficiaryId])
   @@index([beneficiaryId])
 }
 
 // ============================================================================
-// DOCUMENTS SERVICE MODELS
+// DOCUMENTS SERVICE MODELS (Unchanged for now)
 // Owner: documents-service
 // ============================================================================
 
 model Document {
-  id           String         @id @default(uuid())
-  filename     String
-  storagePath  String
-  mimeType     String
-  sizeBytes    Int
-  status       DocumentStatus @default(PENDING_VERIFICATION)
-
-  uploaderId String
-  uploader   User   @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  versions DocumentVersion[]
+  id          String         @id @default(uuid())
+  filename    String
+  storagePath String
+  mimeType    String
+  sizeBytes   Int
+  status      DocumentStatus @default(PENDING_VERIFICATION)
+  uploaderId  String
+  uploader    User           @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  versions    DocumentVersion[]
 
   @@index([uploaderId])
 }
@@ -241,18 +271,15 @@ model DocumentVersion {
   versionNumber Int
   storagePath   String
   changeNote    String?
-
-  documentId String
-  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
+  documentId    String
+  document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
 
   @@unique([documentId, versionNumber])
 }
 
-
 // ============================================================================
-// NOTIFICATIONS SERVICE MODELS
+// NOTIFICATIONS SERVICE MODELS (Unchanged for now)
 // Owner: notifications-service
 // ============================================================================
 
@@ -263,45 +290,38 @@ model NotificationTemplate {
   subject String?
   body    String
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   notifications Notification[]
 }
 
 model Notification {
-  id         String             @id @default(uuid())
-  channel    NotificationChannel
-  status     NotificationStatus @default(PENDING)
-  sentAt     DateTime?
-  failReason String?
-
-  templateId String
-  template   NotificationTemplate @relation(fields: [templateId], references: [id])
-
+  id          String             @id @default(uuid())
+  channel     NotificationChannel
+  status      NotificationStatus @default(PENDING)
+  sentAt      DateTime?
+  failReason  String?
+  templateId  String
+  template    NotificationTemplate @relation(fields: [templateId], references: [id])
   recipientId String?
-  recipient   User?  @relation(fields: [recipientId], references: [id], onDelete: SetNull)
-
-  createdAt DateTime @default(now())
+  recipient   User?              @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  createdAt   DateTime           @default(now())
 
   @@index([recipientId, status])
 }
 
-
 // ============================================================================
-// AUDITING SERVICE MODEL
+// AUDITING SERVICE MODEL (Unchanged for now)
 // Owner: auditing-service
 // ============================================================================
 
 model AuditLog {
   id        String   @id @default(uuid())
   timestamp DateTime @default(now())
-
-  actorId String?
-  actor   User?  @relation(fields: [actorId], references: [id], onDelete: SetNull)
-
-  action  String
-  payload Json
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String
+  payload   Json
 
   @@index([actorId])
   @@index([action, timestamp])

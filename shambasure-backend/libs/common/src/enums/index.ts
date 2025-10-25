@@ -27,7 +27,15 @@ export enum EventPattern {
   USER_CREATED = 'accounts.user.created',
   USER_UPDATED = 'accounts.user.updated',
   USER_DELETED = 'accounts.user.deleted',
+  USER_LOGGED_IN = 'accounts.user.login',
+  EMAIL_VERIFICATION_REQUESTED = 'accounts.email.verification_requested',
+  EMAIL_VERIFIED = 'accounts.email.verified',
+  PASSWORD_CHANGED = 'accounts.password.changed',
   PASSWORD_RESET_REQUESTED = 'accounts.password.reset_requested',
+  PASSWORD_RESET = 'accounts.password.reset',
+
+  ROLE_CHANGED = 'accounts.user.role_changed',
+  USER_SESSIONS_INVALIDATED = 'accounts.user.sessions_invalidated',
 
   // Succession Service Events
   WILL_CREATED = 'succession.will.created',

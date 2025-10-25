@@ -1,30 +1,122 @@
-import { applyDecorators } from '@nestjs/common';
-import { IsString, Matches, MinLength, MaxLength } from 'class-validator';
+import {
+  registerDecorator,
+  ValidationOptions,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  ValidationArguments,
+} from 'class-validator';
 
 /**
- * A custom composite decorator for validating a strong password.
- * It combines multiple `class-validator` decorators into one.
- * The policy is: 8-100 characters, at least one uppercase letter,
- * one lowercase letter, one number, and one special character.
+ * Password strength requirements for Shamba Sure
  */
-export function IsStrongPassword(min = 8, max = 100) {
-  return applyDecorators(
-    IsString(),
-    MinLength(min, {
-      message: `Password must be at least ${min} characters long`,
-    }),
-    MaxLength(max, {
-      message: `Password cannot be longer than ${max} characters`,
-    }),
-    Matches(/(?=.*[a-z])/, {
-      message: 'Password must contain a lowercase letter',
-    }),
-    Matches(/(?=.*[A-Z])/, {
-      message: 'Password must contain an uppercase letter',
-    }),
-    Matches(/(?=.*\d)/, { message: 'Password must contain a number' }),
-    Matches(/(?=.*[@$!%*?&])/, {
-      message: 'Password must contain a special character',
-    }),
-  );
+export interface PasswordRequirements {
+  minLength: number;
+  requireUppercase: boolean;
+  requireLowercase: boolean;
+  requireNumbers: boolean;
+  requireSpecialChars: boolean;
+}
+
+/**
+ * Default password requirements
+ */
+const DEFAULT_REQUIREMENTS: PasswordRequirements = {
+  minLength: 8,
+  requireUppercase: true,
+  requireLowercase: true,
+  requireNumbers: true,
+  requireSpecialChars: true,
+};
+
+@ValidatorConstraint({ name: 'IsStrongPassword', async: false })
+export class IsStrongPasswordConstraint implements ValidatorConstraintInterface {
+  validate(password: string, args: ValidationArguments): boolean {
+    if (!password || typeof password !== 'string') {
+      return false;
+    }
+
+    // FIX #1: Assert the type of the constraint
+    const requirements = (args.constraints[0] as PasswordRequirements) || DEFAULT_REQUIREMENTS;
+
+    // Check minimum length
+    if (password.length < requirements.minLength) {
+      return false;
+    }
+
+    // Check for uppercase letters
+    if (requirements.requireUppercase && !/[A-Z]/.test(password)) {
+      return false;
+    }
+
+    // Check for lowercase letters
+    if (requirements.requireLowercase && !/[a-z]/.test(password)) {
+      return false;
+    }
+
+    // Check for numbers
+    if (requirements.requireNumbers && !/\d/.test(password)) {
+      return false;
+    }
+
+    // Check for special characters
+    if (
+      requirements.requireSpecialChars &&
+      !/[!@#$%^&*()_+\-=\\[\]{};':"\\|,.<>\\/?]/.test(password)
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  defaultMessage(args: ValidationArguments): string {
+    // FIX #1: Assert the type of the constraint here as well
+    const requirements = (args.constraints[0] as PasswordRequirements) || DEFAULT_REQUIREMENTS;
+    const messages: string[] = [];
+
+    messages.push(`at least ${requirements.minLength} characters`);
+
+    if (requirements.requireUppercase) {
+      messages.push('one uppercase letter');
+    }
+
+    if (requirements.requireLowercase) {
+      messages.push('one lowercase letter');
+    }
+
+    if (requirements.requireNumbers) {
+      messages.push('one number');
+    }
+
+    if (requirements.requireSpecialChars) {
+      messages.push('one special character');
+    }
+
+    return `Password must contain ${messages.join(', ')}.`;
+  }
+}
+
+/**
+ * Validates that a password meets the configured strength requirements.
+ */
+export function IsStrongPassword(
+  requirements?: Partial<PasswordRequirements>,
+  validationOptions?: ValidationOptions,
+) {
+  // FIX #2: Change 'any' to 'object' for better type safety
+  return (object: object, propertyName: string) => {
+    const finalRequirements: PasswordRequirements = {
+      ...DEFAULT_REQUIREMENTS,
+      ...requirements,
+    };
+
+    registerDecorator({
+      // Now, TypeScript knows object.constructor is a Function, so this is safe
+      target: object.constructor,
+      propertyName,
+      options: validationOptions,
+      constraints: [finalRequirements],
+      validator: IsStrongPasswordConstraint,
+    });
+  };
 }

@@ -16,7 +16,7 @@ export interface JwtPayload {
   /** The user's email address. */
   email: string;
   /** The user's role, used for authorization. */
-  role: UserRole;
+  role: UserRole; // Correctly uses the new enum
   /** Issued At timestamp (Standard JWT claim 'iat'). */
   iat?: number;
   /** Expiration timestamp (Standard JWT claim 'exp'). */
@@ -30,8 +30,6 @@ export interface JwtPayload {
 export interface RefreshTokenPayload {
   /** The subject of the token, which is the User's ID. */
   sub: string;
-  /** A version number, can be used to invalidate all refresh tokens for a user. */
-  version?: number;
 }
 
 /**

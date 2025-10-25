@@ -1,7 +1,3 @@
-// ============================================================================
-// accounts.module.ts - Accounts Service Root Module
-// ============================================================================
-
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@shamba/config';
 import { DatabaseModule } from '@shamba/database';
@@ -9,81 +5,97 @@ import { AuthModule } from '@shamba/auth';
 import { MessagingModule } from '@shamba/messaging';
 import { ObservabilityModule } from '@shamba/observability';
 
-import { HealthModule } from './health/health.module'; // <-- ADDED: Import the service-specific health module
+import { HealthModule } from './health/health.module';
 
 import { AuthController } from './controllers/auth.controller';
-import { UsersController } from './controllers/users.controller';
+import { AdminController } from './controllers/admin.controller';
 
-import { UsersService } from './services/users.service';
-import { ProfileService } from './services/profile.service';
+import { AccountsService } from './services/accounts.service';
 import { UsersRepository } from './repositories/users.repository';
 
 /**
- * AccountsModule - Root module for Accounts microservice
+ * Accounts Module - Root module for the Accounts microservice.
  *
- * DOMAIN: Identity & User Management
+ * Domain: Identity & User Management
  *
- * RESPONSIBILITIES:
+ * Responsibilities:
  * - User registration and authentication
- * - Profile management
- * - Password reset flows
- * - User CRUD operations (admin)
+ * - JWT token management (access + refresh)
+ * - Password management (change, reset, forgot)
+ * - User profile management
+ * - Role-based access control (RBAC)
+ * - Admin user management operations
  *
- * PUBLISHES EVENTS:
- * - user.created
- * - user.updated
- * - user.deleted
- * - password.reset.requested
+ * Events Published:
+ * - user.created       - New user registered
+ * - user.updated       - User information changed
+ * - user.deleted       - User account deleted
+ * - password.changed   - User changed password
+ * - role.changed       - User role modified by admin
  *
- * SUBSCRIBES TO: None (this service does not consume events)
- *
- * DATA OWNED:
- * - User
- * - UserProfile
- * - PasswordResetToken
+ * Data Owned:
+ * - User               - Core user identity
+ * - UserProfile        - Extended user information
+ * - RefreshToken       - Active refresh tokens
+ * - PasswordResetToken - Password reset tokens
+ * - RoleChange         - Role change audit trail
  */
 @Module({
   imports: [
-    // --- Core Infrastructure ---
-    ConfigModule, // Environment configuration (JWT secrets, DB URL, etc.)
-    DatabaseModule, // Prisma Client and database connection
-    AuthModule, // JWT strategies, guards, decorators
+    // ============================================================================
+    // CORE INFRASTRUCTURE
+    // ============================================================================
 
-    // --- Service-Specific Modules ---
-    // ADDED: Exposes the /api/v1/health endpoint specific to this microservice.
-    // It uses the tools from ObservabilityModule to check its own health (e.g., database connection).
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
+
+    DatabaseModule.forRoot(),
+
+    AuthModule.forRoot(),
+
+    // ============================================================================
+    // MICROSERVICE MODULES
+    // ============================================================================
+
     HealthModule,
 
-    // --- Event-Driven Communication ---
-    // Register messaging for publishing events to RabbitMQ
-    // Queue name: 'accounts.events' - where this service publishes events
     MessagingModule.register({
+      name: 'ACCOUNTS_SERVICE',
       queue: 'accounts.events',
     }),
 
-    // --- Observability ---
-    // Structured logging, health checks, and metrics
     ObservabilityModule.register({
       serviceName: 'accounts-service',
       version: '1.0.0',
     }),
   ],
 
-  // --- HTTP Layer ---
+  // ============================================================================
+  // HTTP LAYER
+  // ============================================================================
+
   controllers: [
-    AuthController, // /auth/* and /profile endpoints
-    UsersController, // /users/* (admin only)
+    AuthController, // /auth/* - Authentication & user profile
+    AdminController, // /admin/users/* - Admin user management
   ],
 
-  // --- Business Logic & Data Access ---
+  // ============================================================================
+  // BUSINESS LOGIC & DATA ACCESS
+  // ============================================================================
+
   providers: [
-    UsersService, // User management business logic
-    ProfileService, // Profile management business logic
+    // Services
+    AccountsService, // User & profile management
+
+    // Repositories
     UsersRepository, // User data access layer
   ],
 
-  // --- Exports (for testing or inter-module use) ---
-  // Export services if other modules in the same app need them
-  exports: [UsersService, ProfileService],
+  // ============================================================================
+  // EXPORTS
+  // ============================================================================
+
+  exports: [AccountsService, UsersRepository],
 })
 export class AccountsModule {}

@@ -1,7 +1,6 @@
 import { IsOptional, IsInt, Min, Max, IsString, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type as NestType } from '@nestjs/common';
 
 // --- Reusable Enum for Sorting ---
 export enum SortOrder {
@@ -71,7 +70,7 @@ export class PaginationQueryDto {
 /**
  * Defines the metadata for a paginated response.
  */
-class PaginationMetaDto {
+export class PaginationMetaDto {
   @ApiProperty({ description: 'Current page number.', example: 1 })
   page!: number;
 
@@ -101,42 +100,31 @@ class PaginationMetaDto {
 }
 
 /**
- * A generic, type-safe factory function to create a PaginatedResponseDto class.
- * This is the correct way to handle generic DTOs with `@nestjs/swagger`.
- * It ensures that the `data` property is correctly documented in the API.
+ * Base class for paginated responses.
+ * Extend this class in your specific DTOs.
  */
-export function createPaginatedResponseDto<T extends NestType>(dataType: T) {
-  class PaginatedResponse {
-    @ApiProperty({ isArray: true, type: dataType })
-    data: InstanceType<T>[];
+export class PaginatedResponseDto<T = any> {
+  @ApiProperty({ isArray: true })
+  data!: T[];
 
-    @ApiProperty({ type: () => PaginationMetaDto })
-    meta: PaginationMetaDto;
+  @ApiProperty({ type: () => PaginationMetaDto })
+  meta!: PaginationMetaDto;
+}
 
-    constructor(data: InstanceType<T>[], total: number, query: PaginationQueryDto) {
-      this.data = data;
+/**
+ * Helper function to create pagination metadata.
+ */
+export function createPaginationMeta(total: number, query: PaginationQueryDto): PaginationMetaDto {
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 10;
+  const totalPages = Math.ceil(total / limit);
 
-      // --- Safe defaults for strict null checks ---
-      const page = query.page ?? 1;
-      const limit = query.limit ?? 10;
-      // --------------------------------------------
-
-      const totalPages = Math.ceil(total / limit);
-      this.meta = {
-        total,
-        limit,
-        page,
-        totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
-      };
-    }
-  }
-
-  // Dynamically set the class name for clear Swagger documentation
-  Object.defineProperty(PaginatedResponse, 'name', {
-    value: `Paginated${dataType.name}Response`,
-  });
-
-  return PaginatedResponse;
+  return {
+    total,
+    limit,
+    page,
+    totalPages,
+    hasNext: page < totalPages,
+    hasPrev: page > 1,
+  };
 }

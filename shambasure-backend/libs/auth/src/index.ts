@@ -1,8 +1,6 @@
 // Modules
 export * from './auth.module.';
 
-// Services
-export * from './services/auth.service';
 // Strategies
 export * from './strategies/jwt.strategy';
 export * from './strategies/local.strategy';

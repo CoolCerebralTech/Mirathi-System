@@ -9,13 +9,5 @@
     "db:migrate:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
     "db:reset": "prisma migrate reset --schema=./prisma/schema.prisma",
     "db:seed": "tsx prisma/seed.ts"
-  },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.js"
-    }
   }
 }
