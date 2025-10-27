@@ -12,7 +12,7 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { WillStatus, AssetType, RelationshipType } from '../../enums';
 import { BaseResponseDto } from '../shared/base.response.dto';
-import { UserResponseDto } from '../users/user.dto';
+import { UserResponseDto } from '../../../../../apps/accounts-service/src/2_application/dtos/user.dto';
 
 // ============================================================================
 // REQUEST DTOs (Input Validation)

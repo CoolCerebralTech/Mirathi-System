@@ -71,37 +71,41 @@ async function bootstrap() {
     .setTitle('Shamba Sure - Accounts Service')
     .setDescription(
       '## Overview\n\n' +
-        'Handles user identity, authentication, and profile management.\n\n' +
+        'Handles user identity, authentication, and profile management for the Shamba Sure platform.\n\n' +
         '## Features\n\n' +
-        '- **Authentication**: Registration, login, logout, token refresh\n' +
+        '- **Authentication**: Registration, login, logout, token refresh with JWT\n' +
+        '- **Email Verification**: Secure email verification flow\n' +
         '- **Password Management**: Change, forgot, reset password flows\n' +
-        '- **User Profile**: Get and update profile information\n' +
-        '- **Admin Operations**: User management, role changes, audit trails\n\n' +
+        '- **User Profile**: Self-service profile management with phone verification\n' +
+        '- **Admin Operations**: User management, role changes, account locking, audit trails\n\n' +
         '## Authentication\n\n' +
         'Most endpoints require JWT authentication. Obtain tokens via `/auth/login` or `/auth/register`.\n\n' +
         '## Authorization\n\n' +
-        'Admin endpoints require `ADMIN` role. Role changes are audited.',
+        'Admin endpoints require `ADMIN` role. All role changes are audited for compliance.\n\n' +
+        '## Architecture\n\n' +
+        'Built with Clean Architecture principles for maintainability and scalability.',
     )
-    .setVersion('1.0.0')
+    .setVersion('2.0.0')
     .addBearerAuth(
       {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
-        description: 'Enter JWT access token',
+        description: 'Enter JWT access token obtained from /auth/login or /auth/register',
         name: 'Authorization',
         in: 'header',
       },
       'JWT',
     )
-    .addTag('Authentication', 'User authentication and token management')
-    .addTag('Admin - User Management', 'Administrative user operations')
-    .addTag('Health', 'Service health and readiness checks')
+    .addTag('Authentication', 'User authentication, registration, and token management')
+    .addTag('User Profile', 'User self-service profile and settings management')
+    .addTag('Admin - User Management', 'Administrative user operations (requires ADMIN role)')
+    .addTag('Health', 'Service health, liveness, and readiness checks')
     .addServer(
       `http://localhost:${configService.get('ACCOUNTS_SERVICE_PORT', 3001)}`,
       'Local Development',
     )
-    .addServer(`https://api.shambasure.com`, 'Production')
+    .addServer(`https://api.shambasure.co.ke`, 'Production')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig, {
@@ -110,8 +114,8 @@ async function bootstrap() {
   });
 
   SwaggerModule.setup(`${globalPrefix}/docs`, app, document, {
-    customSiteTitle: 'Shamba Sure Accounts API',
-    customfavIcon: 'https://nestjs.com/img/logo_text.svg',
+    customSiteTitle: 'Shamba Sure Accounts API Documentation',
+    customfavIcon: 'https://shambasure.co.ke/favicon.ico',
     swaggerOptions: {
       persistAuthorization: true,
       tagsSorter: 'alpha',
@@ -126,6 +130,8 @@ async function bootstrap() {
       .swagger-ui .topbar { display: none }
       .swagger-ui .info { margin: 50px 0 }
       .swagger-ui .scheme-container { margin: 0 0 20px 0 }
+      .swagger-ui .info .title { color: #16a34a; font-size: 2.5em; }
+      .swagger-ui .info .description { font-size: 1.1em; line-height: 1.6; }
     `,
   });
 
@@ -143,20 +149,23 @@ async function bootstrap() {
   // STARTUP LOGS
   // ============================================================================
 
-  logger.log('='.repeat(60));
-  logger.log('🚀 Shamba Sure - Accounts Service');
-  logger.log('='.repeat(60));
+  logger.log('='.repeat(70));
+  logger.log('🚀 Shamba Sure - Accounts Service v2.0 (Clean Architecture)');
+  logger.log('='.repeat(70));
   logger.log(`📍 Server URL:      http://localhost:${port}`);
   logger.log(`📚 API Docs:        http://localhost:${port}/${globalPrefix}/docs`);
   logger.log(`💚 Health Check:    http://localhost:${port}/${globalPrefix}/health`);
   logger.log(`🔍 Liveness:        http://localhost:${port}/${globalPrefix}/health/liveness`);
   logger.log(`✅ Readiness:       http://localhost:${port}/${globalPrefix}/health/readiness`);
-  logger.log('─'.repeat(60));
+  logger.log('─'.repeat(70));
   logger.log(`🌍 Environment:     ${nodeEnv}`);
   logger.log(`🔒 CORS Origins:    ${corsOrigins}`);
   logger.log(`📦 API Version:     v1`);
   logger.log(`🏷️  Global Prefix:   /${globalPrefix}`);
-  logger.log('='.repeat(60));
+  logger.log(`🏗️  Architecture:    Clean Architecture (4 Layers)`);
+  logger.log(`🔐 Security:        Argon2, JWT, Rate Limiting, Account Lockout`);
+  logger.log(`📨 Events:          RabbitMQ (user.created, email.verified, etc.)`);
+  logger.log('='.repeat(70));
 }
 
 bootstrap().catch((error) => {

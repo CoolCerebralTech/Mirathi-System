@@ -28,7 +28,7 @@ accounts-service/
     │       └── user-created.event.ts
     │
     └── 4_infrastructure/     (The Technical Details Layer)
-        └── persistence/
+        └──
             ├── repositories/
             │   └── prisma-user.repository.ts
             └── entities/

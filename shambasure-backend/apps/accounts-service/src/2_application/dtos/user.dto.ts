@@ -16,10 +16,11 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UserRole, RelationshipType } from '../../enums';
-import { BaseResponseDto } from '../shared/base.response.dto';
+import { UserRole, RelationshipType } from '@shamba/common';
+import { BaseResponseDto } from '@shamba/common';
 import { Type } from 'class-transformer';
-import { PaginationQueryDto, PaginationMetaDto } from '../shared/pagination.dto';
+import { PaginationQueryDto, PaginationMetaDto } from '@shamba/common';
+import { object } from 'joi';
 
 // ============================================================================
 // NESTED DTOs (For Input Validation)
@@ -64,6 +65,7 @@ export class NextOfKinDto {
   })
   @IsEnum(RelationshipType)
   relationship!: RelationshipType;
+
   @ApiProperty({ example: '+254712345678' })
   @IsPhoneNumber('KE')
   phoneNumber!: string;
@@ -99,12 +101,8 @@ export class UpdateMyUserDto {
   @MaxLength(50)
   lastName?: string;
 
-  // Note: Email changes require a separate, secure verification flow.
-  // This is a placeholder for a future implementation.
-  @ApiPropertyOptional({ description: 'Updated email address.' })
-  @IsOptional()
-  @IsEmail()
-  email?: string;
+  // NOTE: Email changes are a high-security operation and are handled
+  // through a separate, dedicated endpoint and flow, not in this DTO.
 }
 
 export class UpdateMyProfileDto {
@@ -117,19 +115,21 @@ export class UpdateMyProfileDto {
   @ApiPropertyOptional({ description: "User's primary phone number." })
   @IsOptional()
   @IsPhoneNumber('KE')
-  phoneNumber?: string;
+  phoneNumber?: string | null;
 
-  @ApiPropertyOptional({ type: AddressDto })
+  @ApiPropertyOptional({ type: object })
   @IsOptional()
-  @ValidateNested()
-  @Type(() => AddressDto)
-  address?: AddressDto;
+  address?: AddressDto | null;
 
-  @ApiPropertyOptional({ type: NextOfKinDto })
+  @ApiPropertyOptional({ type: object })
   @IsOptional()
-  @ValidateNested()
-  @Type(() => NextOfKinDto)
-  nextOfKin?: NextOfKinDto;
+  nextOfKin?: NextOfKinDto | null;
+}
+
+export class UpdateMarketingPreferencesDto {
+  @ApiProperty()
+  @IsBoolean()
+  marketingOptIn!: boolean;
 }
 
 // ============================================================================
@@ -233,16 +233,41 @@ export class RoleChangeQueryDto extends PaginationQueryDto {
   changedBy?: string;
 }
 
+export class UpdateUserRoleDto {
+  @ApiProperty({ enum: UserRole })
+  @IsEnum(UserRole)
+  newRole!: UserRole;
+
+  @ApiPropertyOptional({ description: 'Reason for the role change, for auditing.' })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+export class LockUserDto {
+  @ApiPropertyOptional({ description: 'Duration of the lock in minutes. 0 for indefinite.' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  durationMinutes?: number;
+
+  @ApiProperty({ description: 'Reason for locking the account.' })
+  @IsString()
+  reason!: string;
+}
 // ============================================================================
 // RESPONSE DTOs (API Output)
 // ============================================================================
 
-class UserProfileResponseDto {
+export class UserProfileResponseDto {
   @ApiPropertyOptional()
   bio?: string;
 
   @ApiPropertyOptional()
   phoneNumber?: string;
+
+  @ApiProperty({ example: false, description: 'Whether the user has verified their phone number.' })
+  phoneVerified!: boolean;
 
   @ApiPropertyOptional({ example: false })
   emailVerified?: boolean;
@@ -272,6 +297,12 @@ export class UserResponseDto extends BaseResponseDto {
 
   @ApiProperty({ example: true })
   isActive!: boolean;
+
+  @ApiProperty({
+    example: false,
+    description: 'Whether the user has verified their email address.',
+  })
+  emailVerified!: boolean;
 
   @ApiPropertyOptional({ type: () => UserProfileResponseDto })
   profile?: UserProfileResponseDto;
@@ -402,4 +433,37 @@ export class UpdateProfileResponseDto {
 
   @ApiProperty({ type: () => UserProfileResponseDto })
   profile!: UserProfileResponseDto;
+}
+
+export class SendPhoneVerificationResponseDto {
+  @ApiProperty({ example: 'Verification code sent to your phone.' })
+  message!: string;
+
+  @ApiProperty({ description: 'Timestamp when the next code can be sent.' })
+  nextRetryAt!: Date;
+
+  @ApiProperty({ description: 'Seconds to wait before the next attempt.' })
+  retryAfterSeconds!: number;
+
+  @ApiProperty({ description: 'Minutes until the sent code expires.' })
+  expiresInMinutes!: number;
+}
+
+export class UpdateMarketingPreferencesResponseDto {
+  @ApiProperty({ example: 'Marketing preferences updated successfully.' })
+  message!: string;
+
+  @ApiProperty()
+  marketingOptIn!: boolean;
+}
+
+export class UserStatsResponseDto {
+  @ApiProperty() total!: number;
+  @ApiProperty() active!: number;
+  @ApiProperty() inactive!: number;
+  @ApiProperty() deleted!: number;
+  @ApiProperty() locked!: number;
+  @ApiProperty() newLast30Days!: number;
+  @ApiProperty({ type: 'object', additionalProperties: { type: 'number' }})
+  byRole!: Record<UserRole, number>;
 }

@@ -10,9 +10,9 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, TransformFnParams } from 'class-transformer';
 import { UserRole } from '@shamba/common/enums';
-import { BaseResponseDto } from '../shared/base.response.dto';
-import { IsStrongPassword } from '../../decorators/is-password.decorator';
-import { Match } from '../../decorators/match.decorator';
+import { BaseResponseDto } from '@shamba/common';
+import { IsStrongPassword } from '@shamba/common';
+import { Match } from '@shamba/common';
 
 // ============================================================================
 // REQUEST DTOs (Input Validation)
@@ -24,9 +24,12 @@ export class LoginRequestDto {
     example: 'john.mwangi@example.com',
   })
   @IsEmail({}, { message: 'Please provide a valid email address.' })
-  @Transform(({ value }: TransformFnParams) =>
-    typeof value === 'string' ? value.toLowerCase().trim() : value,
-  )
+  @Transform(({ value }: TransformFnParams): string | undefined => {
+    if (typeof value === 'string') {
+      return value.toLowerCase().trim();
+    }
+    return undefined;
+  })
   email!: string;
 
   @ApiProperty({
@@ -57,7 +60,12 @@ export class RegisterRequestDto {
   @IsString()
   @MinLength(2, { message: 'First name must be at least 2 characters long.' })
   @MaxLength(50, { message: 'First name cannot exceed 50 characters.' })
-  @Transform(({ value }) => value?.trim())
+  @Transform(({ value }: TransformFnParams): string | undefined => {
+    if (typeof value === 'string') {
+      return value.toLowerCase().trim();
+    }
+    return undefined;
+  })
   firstName!: string;
 
   @ApiProperty({
@@ -69,7 +77,12 @@ export class RegisterRequestDto {
   @IsString()
   @MinLength(2, { message: 'Last name must be at least 2 characters long.' })
   @MaxLength(50, { message: 'Last name cannot exceed 50 characters.' })
-  @Transform(({ value }) => value?.trim())
+  @Transform(({ value }: TransformFnParams): string | undefined => {
+    if (typeof value === 'string') {
+      return value.toLowerCase().trim();
+    }
+    return undefined;
+  })
   lastName!: string;
 
   @ApiProperty({
@@ -77,7 +90,12 @@ export class RegisterRequestDto {
     example: 'john.mwangi@example.com',
   })
   @IsEmail({}, { message: 'Please provide a valid email address.' })
-  @Transform(({ value }) => value?.toLowerCase().trim())
+  @Transform(({ value }: TransformFnParams): string | undefined => {
+    if (typeof value === 'string') {
+      return value.toLowerCase().trim();
+    }
+    return undefined;
+  })
   email!: string;
 
   @ApiProperty({
@@ -103,6 +121,7 @@ export class RegisterRequestDto {
   })
   @IsBoolean({ message: 'Accepted terms must be a boolean value.' })
   @Equals(true, { message: 'You must accept the terms and conditions to proceed.' })
+  @Transform(({ value }) => value === 'true' || value === true)
   acceptedTerms!: boolean;
 
   @ApiPropertyOptional({
@@ -140,7 +159,12 @@ export class ResendVerificationRequestDto {
     example: 'john.mwangi@example.com',
   })
   @IsEmail({}, { message: 'Please provide a valid email address.' })
-  @Transform(({ value }) => value?.toLowerCase().trim())
+  @Transform(({ value }: TransformFnParams): string | undefined => {
+    if (typeof value === 'string') {
+      return value.toLowerCase().trim();
+    }
+    return undefined;
+  })
   email!: string;
 }
 
@@ -150,7 +174,12 @@ export class ForgotPasswordRequestDto {
     example: 'john.mwangi@example.com',
   })
   @IsEmail({}, { message: 'Please provide a valid email address.' })
-  @Transform(({ value }) => value?.toLowerCase().trim())
+  @Transform(({ value }: TransformFnParams): string | undefined => {
+    if (typeof value === 'string') {
+      return value.toLowerCase().trim();
+    }
+    return undefined;
+  })
   email!: string;
 }
 
@@ -253,7 +282,7 @@ export class LogoutRequestDto {
 // RESPONSE DTOs (API Output)
 // ============================================================================
 
-class AuthUserResponseDto extends BaseResponseDto {
+export class AuthUserResponseDto extends BaseResponseDto {
   @ApiProperty({ example: 'john.mwangi@example.com' })
   email!: string;
 
@@ -276,10 +305,10 @@ class AuthUserResponseDto extends BaseResponseDto {
   lastLoginAt?: Date;
 
   @ApiProperty({ example: '2024-01-15T08:20:00.000Z' })
-  declare createdAt: Date;
+  override createdAt: Date = new Date();
 }
 
-class TokenMetadataDto {
+export class TokenMetadataDto {
   @ApiProperty({
     description: 'Access token expiry time in seconds.',
     example: 900,
