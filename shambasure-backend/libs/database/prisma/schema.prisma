@@ -1,4 +1,4 @@
-// Shamba Sure - Production-Ready Schema v2.0
+// Shamba Sure - Production-Ready
 generator client {
   provider = "prisma-client-js"
 }
@@ -46,6 +46,14 @@ enum DocumentStatus {
   PENDING_VERIFICATION
   VERIFIED
   REJECTED
+}
+
+enum DocumentCategory {
+  LAND_OWNERSHIP       // Title deeds, purchase agreements, land registry extracts
+  IDENTITY_PROOF       // National ID, birth certificate, death certificate
+  SUCCESSION_DOCUMENT  // Wills, grant of probate, letters of administration
+  FINANCIAL_PROOF      // Bank statements, lease documents
+  OTHER                // Affidavits, court orders, witness statements
 }
 
 enum NotificationChannel {
@@ -214,6 +222,7 @@ model Will {
   beneficiaryAssignments BeneficiaryAssignment[]
 
   @@index([testatorId])
+  Document Document[]
 }
 
 model Asset {
@@ -228,6 +237,7 @@ model Asset {
   beneficiaryAssignments BeneficiaryAssignment[]
 
   @@index([ownerId])
+  Document Document[]
 }
 
 model BeneficiaryAssignment {
@@ -246,36 +256,76 @@ model BeneficiaryAssignment {
 }
 
 // ============================================================================
-// DOCUMENTS SERVICE MODELS (Unchanged for now)
+// DOCUMENTS SERVICE MODELS
 // Owner: documents-service
 // ============================================================================
 
 model Document {
-  id          String         @id @default(uuid())
+  id          String           @id @default(uuid())
   filename    String
-  storagePath String
-  mimeType    String
+  storagePath String           // Local path or cloud URL
+  mimeType    String           @db.VarChar(100)
   sizeBytes   Int
-  status      DocumentStatus @default(PENDING_VERIFICATION)
+  category    DocumentCategory
+  status      DocumentStatus   @default(PENDING_VERIFICATION)
+
+  // --- Ownership & Upload Info ---
   uploaderId  String
-  uploader    User           @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  uploader    User             @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  // --- Verification Tracking ---
+  verifiedBy     String?       // User ID of verifier (ADMIN or VERIFIER role)
+  verifiedAt     DateTime?
+  rejectionReason String?      @db.Text
+
+  // --- Cross-Service Links (Direct Foreign Keys) ---
+  // A document can be linked to EITHER an Asset OR a Will (or neither for identity docs)
+  assetId     String?
+  asset       Asset?           @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  willId      String?
+  will        Will?            @relation(fields: [willId], references: [id], onDelete: Cascade)
+
+  // --- Metadata (Optional - for future AI/OCR extraction) ---
+  metadata    Json?            // Store extracted data like parcel numbers, ID numbers, etc.
+
+  // --- Timestamps ---
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime?        // Soft delete support
+
+  // --- Relations ---
   versions    DocumentVersion[]
 
+  // --- Indexes for Performance ---
   @@index([uploaderId])
+  @@index([status])
+  @@index([category])
+  @@index([assetId])
+  @@index([willId])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@map("documents")
 }
 
 model DocumentVersion {
   id            String   @id @default(uuid())
   versionNumber Int
   storagePath   String
-  changeNote    String?
+  changeNote    String?  @db.Text
+  sizeBytes     Int      // Track size per version
+  mimeType      String   @db.VarChar(100)
+  
   documentId    String
   document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  uploadedBy    String   // User who uploaded this version
   createdAt     DateTime @default(now())
 
   @@unique([documentId, versionNumber])
+  @@index([documentId])
+  @@index([createdAt])
+  @@map("document_versions")
 }
 
 // ============================================================================
