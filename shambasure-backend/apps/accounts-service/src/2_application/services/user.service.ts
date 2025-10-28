@@ -17,7 +17,7 @@ import {
   UserFilters,
   PaginationOptions,
   UserStats,
-} from '../../3_domain/interfaces/user.repository.interface';
+} from '../../3_domain/interfaces/repository.interface';
 
 // Infrastructure
 import { UserRepository, ProfileRepository } from '../../4_infrastructure/persistence/repositories';

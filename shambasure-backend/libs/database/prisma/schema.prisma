@@ -75,7 +75,7 @@ enum NotificationStatus {
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
-  password  String
+  password  String   // Argon2id hashed password
   firstName String
   lastName  String
   role      UserRole @default(USER)
@@ -89,11 +89,15 @@ model User {
   deletedAt DateTime?
 
   // --- Relationships Owned by this Service ---
-  profile             UserProfile?
-  passwordResetTokens PasswordResetToken[]
-  refreshTokens       RefreshToken[]
-  roleChanges         RoleChange[]
+  profile                UserProfile?
+  passwordResetTokens    PasswordResetToken[]
+  refreshTokens          RefreshToken[]
+  roleChanges            RoleChange[]
   emailVerificationToken EmailVerificationToken?
+  phoneVerificationTokens PhoneVerificationToken[]
+  emailChangeTokens      EmailChangeToken[]
+  loginSessions          LoginSession[]
+  passwordHistory        PasswordHistory[]
 
   // --- Back-relations from other services ---
   createdFamilies     Family[]
@@ -111,6 +115,7 @@ model User {
   @@map("users")
 }
 
+
 model UserProfile {
   id            String   @id @default(uuid())
   userId        String   @unique
@@ -120,8 +125,8 @@ model UserProfile {
   phoneVerified Boolean  @default(false)
   emailVerified Boolean  @default(false)
   marketingOptIn Boolean @default(false)
-  address       Json?
-  nextOfKin     Json?
+  address       Json?    // {street, city, county, postalCode}
+  nextOfKin     Json?    // {name, relationship, phone, email}
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -151,6 +156,8 @@ model RefreshToken {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   deviceId  String?
+  ipAddress String?  @db.VarChar(45) // IPv6 support
+  userAgent String?  @db.Text
   createdAt DateTime @default(now())
 
   @@index([userId])
@@ -181,9 +188,67 @@ model EmailVerificationToken {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
+  @@index([expiresAt])
   @@map("email_verification_tokens")
 }
+model PhoneVerificationToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique  // Hashed OTP (6-digit code)
+  expiresAt DateTime
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  used      Boolean  @default(false)
+  attempts  Int      @default(0) // Track verification attempts
+  createdAt DateTime @default(now())
 
+  @@index([userId, used])
+  @@index([expiresAt])
+  @@map("phone_verification_tokens")
+}
+
+model EmailChangeToken {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  newEmail     String   // The new email user wants to change to
+  tokenHash    String   @unique
+  expiresAt    DateTime
+  used         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([userId, used])
+  @@index([expiresAt])
+  @@map("email_change_tokens")
+}
+
+model LoginSession {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash     String    @unique 
+  ipAddress     String?   @db.VarChar(45) // IPv6 support
+  userAgent     String?   @db.Text
+  deviceId      String?   // Unique device identifier
+  lastActivity  DateTime  @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime? // For manual session termination
+  createdAt     DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+  @@index([deviceId])
+  @@map("login_sessions")
+}
+
+model PasswordHistory {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passwordHash String   // Store Argon2id hash of old password
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("password_history")
+}
 // ============================================================================
 // SUCCESSION SERVICE MODELS (Unchanged for now)
 // Owner: succession-service

@@ -14,6 +14,9 @@ CREATE TYPE "AssetType" AS ENUM ('LAND_PARCEL', 'BANK_ACCOUNT', 'VEHICLE', 'PROP
 CREATE TYPE "DocumentStatus" AS ENUM ('PENDING_VERIFICATION', 'VERIFIED', 'REJECTED');
 
 -- CreateEnum
+CREATE TYPE "DocumentCategory" AS ENUM ('LAND_OWNERSHIP', 'IDENTITY_PROOF', 'SUCCESSION_DOCUMENT', 'FINANCIAL_PROOF', 'OTHER');
+
+-- CreateEnum
 CREATE TYPE "NotificationChannel" AS ENUM ('EMAIL', 'SMS');
 
 -- CreateEnum
@@ -74,6 +77,8 @@ CREATE TABLE "refresh_tokens" (
     "expiresAt" TIMESTAMP(3) NOT NULL,
     "userId" TEXT NOT NULL,
     "deviceId" TEXT,
+    "ipAddress" VARCHAR(45),
+    "userAgent" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "refresh_tokens_pkey" PRIMARY KEY ("id")
@@ -101,6 +106,58 @@ CREATE TABLE "email_verification_tokens" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "email_verification_tokens_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "phone_verification_tokens" (
+    "id" TEXT NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "userId" TEXT NOT NULL,
+    "used" BOOLEAN NOT NULL DEFAULT false,
+    "attempts" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "phone_verification_tokens_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "email_change_tokens" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "newEmail" TEXT NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "used" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "email_change_tokens_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "login_sessions" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "ipAddress" VARCHAR(45),
+    "userAgent" TEXT,
+    "deviceId" TEXT,
+    "lastActivity" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "revokedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "login_sessions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "password_history" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "passwordHash" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "password_history_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -161,30 +218,41 @@ CREATE TABLE "BeneficiaryAssignment" (
 );
 
 -- CreateTable
-CREATE TABLE "Document" (
+CREATE TABLE "documents" (
     "id" TEXT NOT NULL,
     "filename" TEXT NOT NULL,
     "storagePath" TEXT NOT NULL,
-    "mimeType" TEXT NOT NULL,
+    "mimeType" VARCHAR(100) NOT NULL,
     "sizeBytes" INTEGER NOT NULL,
+    "category" "DocumentCategory" NOT NULL,
     "status" "DocumentStatus" NOT NULL DEFAULT 'PENDING_VERIFICATION',
     "uploaderId" TEXT NOT NULL,
+    "verifiedBy" TEXT,
+    "verifiedAt" TIMESTAMP(3),
+    "rejectionReason" TEXT,
+    "assetId" TEXT,
+    "willId" TEXT,
+    "metadata" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
-    CONSTRAINT "Document_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "documents_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "DocumentVersion" (
+CREATE TABLE "document_versions" (
     "id" TEXT NOT NULL,
     "versionNumber" INTEGER NOT NULL,
     "storagePath" TEXT NOT NULL,
     "changeNote" TEXT,
+    "sizeBytes" INTEGER NOT NULL,
+    "mimeType" VARCHAR(100) NOT NULL,
     "documentId" TEXT NOT NULL,
+    "uploadedBy" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "DocumentVersion_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "document_versions_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -274,6 +342,39 @@ CREATE UNIQUE INDEX "email_verification_tokens_tokenHash_key" ON "email_verifica
 CREATE UNIQUE INDEX "email_verification_tokens_userId_key" ON "email_verification_tokens"("userId");
 
 -- CreateIndex
+CREATE INDEX "email_verification_tokens_expiresAt_idx" ON "email_verification_tokens"("expiresAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "phone_verification_tokens_tokenHash_key" ON "phone_verification_tokens"("tokenHash");
+
+-- CreateIndex
+CREATE INDEX "phone_verification_tokens_userId_used_idx" ON "phone_verification_tokens"("userId", "used");
+
+-- CreateIndex
+CREATE INDEX "phone_verification_tokens_expiresAt_idx" ON "phone_verification_tokens"("expiresAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "email_change_tokens_tokenHash_key" ON "email_change_tokens"("tokenHash");
+
+-- CreateIndex
+CREATE INDEX "email_change_tokens_userId_used_idx" ON "email_change_tokens"("userId", "used");
+
+-- CreateIndex
+CREATE INDEX "email_change_tokens_expiresAt_idx" ON "email_change_tokens"("expiresAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "login_sessions_tokenHash_key" ON "login_sessions"("tokenHash");
+
+-- CreateIndex
+CREATE INDEX "login_sessions_userId_expiresAt_idx" ON "login_sessions"("userId", "expiresAt");
+
+-- CreateIndex
+CREATE INDEX "login_sessions_deviceId_idx" ON "login_sessions"("deviceId");
+
+-- CreateIndex
+CREATE INDEX "password_history_userId_createdAt_idx" ON "password_history"("userId", "createdAt");
+
+-- CreateIndex
 CREATE INDEX "Family_creatorId_idx" ON "Family"("creatorId");
 
 -- CreateIndex
@@ -289,10 +390,34 @@ CREATE INDEX "BeneficiaryAssignment_beneficiaryId_idx" ON "BeneficiaryAssignment
 CREATE UNIQUE INDEX "BeneficiaryAssignment_willId_assetId_beneficiaryId_key" ON "BeneficiaryAssignment"("willId", "assetId", "beneficiaryId");
 
 -- CreateIndex
-CREATE INDEX "Document_uploaderId_idx" ON "Document"("uploaderId");
+CREATE INDEX "documents_uploaderId_idx" ON "documents"("uploaderId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "DocumentVersion_documentId_versionNumber_key" ON "DocumentVersion"("documentId", "versionNumber");
+CREATE INDEX "documents_status_idx" ON "documents"("status");
+
+-- CreateIndex
+CREATE INDEX "documents_category_idx" ON "documents"("category");
+
+-- CreateIndex
+CREATE INDEX "documents_assetId_idx" ON "documents"("assetId");
+
+-- CreateIndex
+CREATE INDEX "documents_willId_idx" ON "documents"("willId");
+
+-- CreateIndex
+CREATE INDEX "documents_createdAt_idx" ON "documents"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "documents_deletedAt_idx" ON "documents"("deletedAt");
+
+-- CreateIndex
+CREATE INDEX "document_versions_documentId_idx" ON "document_versions"("documentId");
+
+-- CreateIndex
+CREATE INDEX "document_versions_createdAt_idx" ON "document_versions"("createdAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "document_versions_documentId_versionNumber_key" ON "document_versions"("documentId", "versionNumber");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "NotificationTemplate_name_key" ON "NotificationTemplate"("name");
@@ -322,6 +447,18 @@ ALTER TABLE "role_changes" ADD CONSTRAINT "role_changes_userId_fkey" FOREIGN KEY
 ALTER TABLE "email_verification_tokens" ADD CONSTRAINT "email_verification_tokens_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "phone_verification_tokens" ADD CONSTRAINT "phone_verification_tokens_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "email_change_tokens" ADD CONSTRAINT "email_change_tokens_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "login_sessions" ADD CONSTRAINT "login_sessions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "password_history" ADD CONSTRAINT "password_history_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Family" ADD CONSTRAINT "Family_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -346,10 +483,16 @@ ALTER TABLE "BeneficiaryAssignment" ADD CONSTRAINT "BeneficiaryAssignment_assetI
 ALTER TABLE "BeneficiaryAssignment" ADD CONSTRAINT "BeneficiaryAssignment_beneficiaryId_fkey" FOREIGN KEY ("beneficiaryId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Document" ADD CONSTRAINT "Document_uploaderId_fkey" FOREIGN KEY ("uploaderId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "documents" ADD CONSTRAINT "documents_uploaderId_fkey" FOREIGN KEY ("uploaderId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "DocumentVersion" ADD CONSTRAINT "DocumentVersion_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "Document"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "documents" ADD CONSTRAINT "documents_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "Asset"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "documents" ADD CONSTRAINT "documents_willId_fkey" FOREIGN KEY ("willId") REFERENCES "Will"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "document_versions" ADD CONSTRAINT "document_versions_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Notification" ADD CONSTRAINT "Notification_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "NotificationTemplate"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

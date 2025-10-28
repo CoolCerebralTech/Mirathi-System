@@ -1,6 +1,12 @@
 import { RelationshipType } from '@shamba/common';
 import { PhoneNumber } from '../value-objects';
-import { DomainEvent, PhoneVerifiedEvent } from '../events';
+import {
+  DomainEvent,
+  PhoneVerifiedEvent,
+  PhoneVerificationRequestedEvent,
+  PhoneNumberUpdatedEvent,
+  ProfileUpdatedEvent,
+} from '../events';
 
 // ============================================================================
 // Custom Domain Errors
@@ -14,6 +20,22 @@ export class UserProfileDomainError extends Error {
   }
 }
 
+/** Thrown when phone verification is attempted without a phone number. */
+export class PhoneNumberNotSetError extends UserProfileDomainError {
+  constructor() {
+    super('Cannot verify phone because no phone number is set.');
+    this.name = 'PhoneNumberNotSetError';
+  }
+}
+
+/** Thrown when next of kin validation fails. */
+export class InvalidNextOfKinError extends UserProfileDomainError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidNextOfKinError';
+  }
+}
+
 // ============================================================================
 // Embedded Value Objects
 // ============================================================================
@@ -21,14 +43,15 @@ export class UserProfileDomainError extends Error {
 export interface Address {
   street?: string;
   city?: string;
-  postCode?: string;
+  county?: string;
+  postalCode?: string;
   country: string;
 }
 
 export interface NextOfKin {
   fullName: string;
   relationship: RelationshipType;
-  phoneNumber: string;
+  phoneNumber: string; // E.164 format
   email?: string;
   address?: Address;
 }
@@ -71,6 +94,9 @@ export class UserProfile {
 
   private readonly _domainEvents: DomainEvent[] = [];
 
+  private static readonly MAX_BIO_LENGTH = 500;
+  private static readonly MAX_NOK_NAME_LENGTH = 100;
+
   private constructor(props: UserProfileProps) {
     this._id = props.id;
     this._userId = props.userId;
@@ -88,7 +114,12 @@ export class UserProfile {
   /**
    * Factory for creating a new, empty profile for a user.
    */
-  static create(props: { id: string; userId: string; marketingOptIn?: boolean }): UserProfile {
+  static create(props: {
+    id: string;
+    userId: string;
+    email: string;
+    marketingOptIn?: boolean;
+  }): UserProfile {
     const now = new Date();
     return new UserProfile({
       id: props.id,
@@ -96,7 +127,7 @@ export class UserProfile {
       bio: null,
       phoneNumber: null,
       phoneVerified: false,
-      emailVerified: false, // This will be set by an event from the User aggregate
+      emailVerified: false,
       marketingOptIn: props.marketingOptIn ?? false,
       address: null,
       nextOfKin: null,
@@ -134,14 +165,17 @@ export class UserProfile {
   get isEmailVerified(): boolean {
     return this._emailVerified;
   }
+  get hasPhoneNumber(): boolean {
+    return this._phoneNumber !== null;
+  }
   get marketingOptIn(): boolean {
     return this._marketingOptIn;
   }
   get address(): Address | null {
-    return this._address;
+    return this._address ? { ...this._address } : null; // Return copy
   }
   get nextOfKin(): NextOfKin | null {
-    return this._nextOfKin;
+    return this._nextOfKin ? { ...this._nextOfKin } : null; // Return copy
   }
   get createdAt(): Date {
     return this._createdAt;
@@ -149,9 +183,32 @@ export class UserProfile {
   get updatedAt(): Date {
     return this._updatedAt;
   }
+  get isComplete(): boolean {
+    return (
+      this._bio !== null &&
+      this._phoneNumber !== null &&
+      this._phoneVerified &&
+      this._emailVerified &&
+      this._address !== null &&
+      this._nextOfKin !== null
+    );
+  }
+  get completionPercentage(): number {
+    let completed = 0;
+    const total = 6;
+
+    if (this._bio) completed++;
+    if (this._phoneNumber) completed++;
+    if (this._phoneVerified) completed++;
+    if (this._emailVerified) completed++;
+    if (this._address) completed++;
+    if (this._nextOfKin) completed++;
+
+    return Math.round((completed / total) * 100);
+  }
 
   get domainEvents(): DomainEvent[] {
-    return this._domainEvents;
+    return [...this._domainEvents]; // Return copy
   }
 
   private addDomainEvent(event: DomainEvent): void {
@@ -163,74 +220,390 @@ export class UserProfile {
   }
 
   // ============================================================================
-  // Business Logic Methods
+  // Validation Helpers
   // ============================================================================
 
-  update(props: {
-    bio?: string;
-    phoneNumber?: PhoneNumber | null;
-    address?: Address | null;
-    nextOfKin?: NextOfKin | null;
-  }): void {
-    let hasChanged = false;
-
-    if (props.bio !== undefined) {
-      this._bio = props.bio || null;
-      hasChanged = true;
-    }
-    if (props.phoneNumber !== undefined) {
-      // If phone number changes, we must reset its verification status
-      const newNumber = props.phoneNumber?.getValue();
-      const oldNumber = this._phoneNumber?.getValue();
-      if (newNumber !== oldNumber) {
-        this._phoneVerified = false;
-      }
-      this._phoneNumber = props.phoneNumber;
-      hasChanged = true;
-    }
-    if (props.address !== undefined) {
-      this._address = props.address || null;
-      hasChanged = true;
-    }
-    if (props.nextOfKin !== undefined) {
-      this._nextOfKin = props.nextOfKin || null;
-      hasChanged = true;
-    }
-
-    if (hasChanged) {
-      this._updatedAt = new Date();
+  private validateBio(bio: string): void {
+    if (bio.length > UserProfile.MAX_BIO_LENGTH) {
+      throw new UserProfileDomainError(
+        `Bio cannot exceed ${UserProfile.MAX_BIO_LENGTH} characters`,
+      );
     }
   }
 
-  /** Marks the phone number as verified and publishes an event. */
-  verifyPhone(): void {
-    if (this._phoneVerified) return;
-    if (!this._phoneNumber) {
-      throw new UserProfileDomainError('Cannot verify phone because no phone number is set.');
+  private validateNextOfKin(nok: NextOfKin): void {
+    if (!nok.fullName || nok.fullName.trim().length === 0) {
+      throw new InvalidNextOfKinError('Next of kin full name is required');
     }
+
+    if (nok.fullName.length > UserProfile.MAX_NOK_NAME_LENGTH) {
+      throw new InvalidNextOfKinError(
+        `Next of kin name cannot exceed ${UserProfile.MAX_NOK_NAME_LENGTH} characters`,
+      );
+    }
+
+    if (!nok.phoneNumber || nok.phoneNumber.trim().length === 0) {
+      throw new InvalidNextOfKinError('Next of kin phone number is required');
+    }
+
+    // Validate phone number format (basic E.164 check)
+    if (!nok.phoneNumber.startsWith('+')) {
+      throw new InvalidNextOfKinError('Next of kin phone number must be in E.164 format (+254...)');
+    }
+
+    if (nok.email && !this.isValidEmail(nok.email)) {
+      throw new InvalidNextOfKinError('Next of kin email format is invalid');
+    }
+  }
+
+  private validateAddress(address: Address): void {
+    if (!address.country || address.country.trim().length === 0) {
+      throw new UserProfileDomainError('Address country is required');
+    }
+  }
+
+  private isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
+  // ============================================================================
+  // Profile Update Methods
+  // ============================================================================
+
+  updateBio(bio: string): void {
+    const trimmedBio = bio.trim();
+    this.validateBio(trimmedBio);
+
+    if (this._bio === trimmedBio) return; // No change
+
+    const oldBio = this._bio;
+    this._bio = trimmedBio || null;
+    this._updatedAt = new Date();
+
+    this.addDomainEvent(
+      new ProfileUpdatedEvent({
+        aggregateId: this._userId,
+        email: '', // Will be populated by application layer
+        updatedFields: ['bio'],
+        changes: {
+          bio: { old: oldBio, new: this._bio },
+        },
+      }),
+    );
+  }
+
+  updatePhoneNumber(phoneNumber: PhoneNumber): void {
+    const previousPhoneNumber = this._phoneNumber?.getValue();
+    const newPhoneNumber = phoneNumber.getValue();
+
+    if (previousPhoneNumber === newPhoneNumber) return; // No change
+
+    // Reset verification status when phone changes
+    this._phoneNumber = phoneNumber;
+    this._phoneVerified = false;
+    this._updatedAt = new Date();
+
+    this.addDomainEvent(
+      new PhoneNumberUpdatedEvent({
+        aggregateId: this._userId,
+        previousPhoneNumber,
+        newPhoneNumber,
+        verified: false,
+      }),
+    );
+  }
+
+  removePhoneNumber(): void {
+    if (!this._phoneNumber) return; // Already removed
+
+    const previousPhoneNumber = this._phoneNumber.getValue();
+    this._phoneNumber = null;
+    this._phoneVerified = false;
+    this._updatedAt = new Date();
+
+    this.addDomainEvent(
+      new ProfileUpdatedEvent({
+        aggregateId: this._userId,
+        email: '',
+        updatedFields: ['phoneNumber'],
+        changes: {
+          phoneNumber: { old: previousPhoneNumber, new: null },
+        },
+      }),
+    );
+  }
+
+  updateAddress(address: Address): void {
+    this.validateAddress(address);
+
+    const oldAddress = this._address;
+    this._address = { ...address }; // Store copy
+    this._updatedAt = new Date();
+
+    this.addDomainEvent(
+      new ProfileUpdatedEvent({
+        aggregateId: this._userId,
+        email: '',
+        updatedFields: ['address'],
+        changes: {
+          address: { old: oldAddress, new: this._address },
+        },
+      }),
+    );
+  }
+
+  removeAddress(): void {
+    if (!this._address) return;
+
+    const oldAddress = this._address;
+    this._address = null;
+    this._updatedAt = new Date();
+
+    this.addDomainEvent(
+      new ProfileUpdatedEvent({
+        aggregateId: this._userId,
+        email: '',
+        updatedFields: ['address'],
+        changes: {
+          address: { old: oldAddress, new: null },
+        },
+      }),
+    );
+  }
+
+  updateNextOfKin(nextOfKin: NextOfKin): void {
+    this.validateNextOfKin(nextOfKin);
+
+    const oldNextOfKin = this._nextOfKin;
+    this._nextOfKin = { ...nextOfKin }; // Store copy
+    this._updatedAt = new Date();
+
+    this.addDomainEvent(
+      new ProfileUpdatedEvent({
+        aggregateId: this._userId,
+        email: '',
+        updatedFields: ['nextOfKin'],
+        changes: {
+          nextOfKin: { old: oldNextOfKin, new: this._nextOfKin },
+        },
+      }),
+    );
+  }
+
+  removeNextOfKin(): void {
+    if (!this._nextOfKin) return;
+
+    const oldNextOfKin = this._nextOfKin;
+    this._nextOfKin = null;
+    this._updatedAt = new Date();
+
+    this.addDomainEvent(
+      new ProfileUpdatedEvent({
+        aggregateId: this._userId,
+        email: '',
+        updatedFields: ['nextOfKin'],
+        changes: {
+          nextOfKin: { old: oldNextOfKin, new: null },
+        },
+      }),
+    );
+  }
+
+  updateMarketingPreferences(optIn: boolean): void {
+    if (this._marketingOptIn === optIn) return; // No change
+
+    const oldOptIn = this._marketingOptIn;
+    this._marketingOptIn = optIn;
+    this._updatedAt = new Date();
+
+    this.addDomainEvent(
+      new ProfileUpdatedEvent({
+        aggregateId: this._userId,
+        email: '',
+        updatedFields: ['marketingOptIn'],
+        changes: {
+          marketingOptIn: { old: oldOptIn, new: optIn },
+        },
+      }),
+    );
+  }
+
+  // ============================================================================
+  // Phone Verification Methods
+  // ============================================================================
+
+  requestPhoneVerification(otp: string): void {
+    if (!this._phoneNumber) {
+      throw new PhoneNumberNotSetError();
+    }
+
+    if (this._phoneVerified) {
+      throw new UserProfileDomainError('Phone number is already verified');
+    }
+
+    this.addDomainEvent(
+      new PhoneVerificationRequestedEvent({
+        aggregateId: this._userId,
+        phoneNumber: this._phoneNumber.getValue(),
+        otp,
+        provider: this._phoneNumber.getProvider(),
+      }),
+    );
+  }
+
+  verifyPhone(): void {
+    if (!this._phoneNumber) {
+      throw new PhoneNumberNotSetError();
+    }
+
+    if (this._phoneVerified) return; // Already verified
 
     this._phoneVerified = true;
     this._updatedAt = new Date();
 
     this.addDomainEvent(
       new PhoneVerifiedEvent({
-        aggregateId: this.userId,
+        aggregateId: this._userId,
         phoneNumber: this._phoneNumber.getValue(),
         provider: this._phoneNumber.getProvider(),
       }),
     );
   }
 
-  /** This should be called in response to an EmailVerifiedEvent from the User aggregate. */
+  resetPhoneVerification(): void {
+    if (!this._phoneVerified) return; // Already not verified
+
+    this._phoneVerified = false;
+    this._updatedAt = new Date();
+  }
+
+  // ============================================================================
+  // Email Verification Methods
+  // ============================================================================
+
   markEmailAsVerified(): void {
-    if (this._emailVerified) return;
+    if (this._emailVerified) return; // Already verified
+
     this._emailVerified = true;
     this._updatedAt = new Date();
   }
 
-  updateMarketingPreferences(optIn: boolean): void {
-    if (this._marketingOptIn === optIn) return;
-    this._marketingOptIn = optIn;
+  resetEmailVerification(): void {
+    if (!this._emailVerified) return; // Already not verified
+
+    this._emailVerified = false;
     this._updatedAt = new Date();
+  }
+
+  // ============================================================================
+  // Bulk Update Method
+  // ============================================================================
+
+  updateProfile(props: {
+    bio?: string;
+    phoneNumber?: PhoneNumber;
+    address?: Address;
+    nextOfKin?: NextOfKin;
+  }): void {
+    const changes: Record<string, { old: any; new: any }> = {};
+    const updatedFields: string[] = [];
+
+    // Update bio
+    if (props.bio !== undefined) {
+      const trimmedBio = props.bio.trim();
+      this.validateBio(trimmedBio);
+      if (this._bio !== trimmedBio) {
+        changes.bio = { old: this._bio, new: trimmedBio || null };
+        updatedFields.push('bio');
+        this._bio = trimmedBio || null;
+      }
+    }
+
+    // Update phone number
+    if (props.phoneNumber !== undefined) {
+      const newNumber = props.phoneNumber?.getValue();
+      const oldNumber = this._phoneNumber?.getValue();
+      if (newNumber !== oldNumber) {
+        changes.phoneNumber = { old: oldNumber, new: newNumber };
+        updatedFields.push('phoneNumber');
+        this._phoneNumber = props.phoneNumber;
+        this._phoneVerified = false; // Reset verification
+      }
+    }
+
+    // Update address
+    if (props.address !== undefined) {
+      this.validateAddress(props.address);
+      changes.address = { old: this._address, new: props.address };
+      updatedFields.push('address');
+      this._address = { ...props.address };
+    }
+
+    // Update next of kin
+    if (props.nextOfKin !== undefined) {
+      this.validateNextOfKin(props.nextOfKin);
+      changes.nextOfKin = { old: this._nextOfKin, new: props.nextOfKin };
+      updatedFields.push('nextOfKin');
+      this._nextOfKin = { ...props.nextOfKin };
+    }
+
+    if (updatedFields.length > 0) {
+      this._updatedAt = new Date();
+
+      this.addDomainEvent(
+        new ProfileUpdatedEvent({
+          aggregateId: this._userId,
+          email: '',
+          updatedFields,
+          changes,
+        }),
+      );
+    }
+  }
+
+  // ============================================================================
+  // Utility Methods
+  // ============================================================================
+
+  getPhoneProvider(): 'Safaricom' | 'Airtel' | 'Telkom' | 'Unknown' | null {
+    return this._phoneNumber?.getProvider() ?? null;
+  }
+
+  getMaskedPhone(): string | null {
+    return this._phoneNumber?.getMasked() ?? null;
+  }
+
+  toJSON(): Record<string, any> {
+    return {
+      id: this._id,
+      userId: this._userId,
+      bio: this._bio,
+      phoneNumber: this._phoneNumber?.getValue() ?? null,
+      phoneVerified: this._phoneVerified,
+      emailVerified: this._emailVerified,
+      marketingOptIn: this._marketingOptIn,
+      address: this._address,
+      nextOfKin: this._nextOfKin,
+      isComplete: this.isComplete,
+      completionPercentage: this.completionPercentage,
+      createdAt: this._createdAt,
+      updatedAt: this._updatedAt,
+    };
+  }
+  public toPrimitives() {
+    return {
+      id: this._id,
+      userId: this._userId,
+      bio: this._bio,
+      phoneNumber: this._phoneNumber?.getValue() ?? null,
+      phoneVerified: this._phoneVerified,
+      emailVerified: this._emailVerified,
+      marketingOptIn: this._marketingOptIn,
+      address: this._address,
+      nextOfKin: this._nextOfKin,
+      createdAt: this._createdAt,
+      updatedAt: this._updatedAt,
+    };
   }
 }

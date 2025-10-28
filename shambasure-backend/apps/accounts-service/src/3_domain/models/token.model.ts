@@ -36,6 +36,22 @@ export class TokenRevokedError extends TokenError {
   }
 }
 
+/** Thrown when maximum OTP attempts are exceeded. */
+export class MaxOTPAttemptsExceededError extends TokenError {
+  constructor(maxAttempts: number) {
+    super(`Maximum OTP verification attempts (${maxAttempts}) exceeded.`);
+    this.name = 'MaxOTPAttemptsExceededError';
+  }
+}
+
+/** Thrown when an invalid OTP is provided. */
+export class InvalidOTPError extends TokenError {
+  constructor() {
+    super('The provided OTP is invalid.');
+    this.name = 'InvalidOTPError';
+  }
+}
+
 // ============================================================================
 // Base Token Entity
 // ============================================================================
@@ -65,13 +81,25 @@ abstract class Token<T extends ITokenProps> {
   isExpired(): boolean {
     return new Date() > this.expiresAt;
   }
+
+  isValid(): boolean {
+    return !this.isExpired();
+  }
+
+  getRemainingTime(): number {
+    const now = new Date().getTime();
+    const expiry = this.expiresAt.getTime();
+    return Math.max(0, expiry - now);
+  }
+
+  getRemainingTimeInMinutes(): number {
+    return Math.floor(this.getRemainingTime() / (1000 * 60));
+  }
 }
 
 // ============================================================================
-// Specific Token Implementations
+// Password Reset Token
 // ============================================================================
-
-// --- Password Reset Token ---
 
 export interface PasswordResetTokenProps extends ITokenProps {
   isUsed: boolean;
@@ -100,29 +128,44 @@ export class PasswordResetToken extends Token<PasswordResetTokenProps> {
     return new PasswordResetToken(props);
   }
 
-  /** Marks the token as used, enforcing single-use and expiry rules. */
-  use(): void {
+  validate(): void {
     if (this.isUsed) throw new TokenAlreadyUsedError();
     if (this.isExpired()) throw new TokenExpiredError();
+  }
+
+  use(): void {
+    this.validate();
     this.isUsed = true;
+  }
+
+  canBeUsed(): boolean {
+    return !this.isUsed && !this.isExpired();
   }
 }
 
-// --- Refresh Token ---
+// ============================================================================
+// Refresh Token
+// ============================================================================
 
 export interface RefreshTokenProps extends ITokenProps {
   isRevoked: boolean;
   deviceId: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
 }
 
 export class RefreshToken extends Token<RefreshTokenProps> {
   public isRevoked: boolean;
   public readonly deviceId: string | null;
+  public readonly ipAddress: string | null;
+  public readonly userAgent: string | null;
 
   private constructor(props: RefreshTokenProps & { id: string; createdAt: Date }) {
     super(props);
     this.isRevoked = props.isRevoked;
     this.deviceId = props.deviceId;
+    this.ipAddress = props.ipAddress;
+    this.userAgent = props.userAgent;
   }
 
   static create(props: Omit<RefreshTokenProps, 'isRevoked'>): RefreshToken {
@@ -138,35 +181,42 @@ export class RefreshToken extends Token<RefreshTokenProps> {
     return new RefreshToken(props);
   }
 
-  /** Marks the token as revoked (e.g., during logout). */
+  validate(): void {
+    if (this.isRevoked) throw new TokenRevokedError();
+    if (this.isExpired()) throw new TokenExpiredError();
+  }
+
   revoke(): void {
+    if (this.isRevoked) return; // Already revoked
     this.isRevoked = true;
   }
 
-  /**
-   * Implements refresh token rotation.
-   * Revokes the current token and returns a new one.
-   * @param newHash The hash of the new refresh token to be issued.
-   * @param newExpiresAt The expiry date of the new refresh token.
-   * @returns A new, valid RefreshToken instance.
-   */
   rotate(newHash: string, newExpiresAt: Date): RefreshToken {
-    if (this.isRevoked) throw new TokenRevokedError();
-    if (this.isExpired()) throw new TokenExpiredError();
+    this.validate();
+    this.revoke();
 
-    this.revoke(); // Revoke the current token
-
-    // Return a new token instance with the new details
     return RefreshToken.create({
       tokenHash: newHash,
       userId: this.userId,
       expiresAt: newExpiresAt,
       deviceId: this.deviceId,
+      ipAddress: this.ipAddress,
+      userAgent: this.userAgent,
     });
+  }
+
+  canBeUsed(): boolean {
+    return !this.isRevoked && !this.isExpired();
+  }
+
+  isSameDevice(deviceId: string): boolean {
+    return this.deviceId === deviceId;
   }
 }
 
-// --- Email Verification Token ---
+// ============================================================================
+// Email Verification Token
+// ============================================================================
 
 export type EmailVerificationTokenProps = ITokenProps;
 
@@ -185,8 +235,330 @@ export class EmailVerificationToken extends Token<EmailVerificationTokenProps> {
     return new EmailVerificationToken(props);
   }
 
-  /** Validates the token for use, checking only for expiry. */
   validate(): void {
     if (this.isExpired()) throw new TokenExpiredError();
+  }
+
+  canBeUsed(): boolean {
+    return !this.isExpired();
+  }
+}
+
+// ============================================================================
+// Phone Verification Token (OTP)
+// ============================================================================
+
+export interface PhoneVerificationTokenProps extends ITokenProps {
+  isUsed: boolean;
+  attempts: number;
+}
+
+export class PhoneVerificationToken extends Token<PhoneVerificationTokenProps> {
+  public isUsed: boolean;
+  public attempts: number;
+
+  private static readonly MAX_ATTEMPTS = 3;
+
+  private constructor(props: PhoneVerificationTokenProps & { id: string; createdAt: Date }) {
+    super(props);
+    this.isUsed = props.isUsed;
+    this.attempts = props.attempts;
+  }
+
+  static create(
+    props: Omit<PhoneVerificationTokenProps, 'isUsed' | 'attempts'>,
+  ): PhoneVerificationToken {
+    return new PhoneVerificationToken({
+      ...props,
+      id: randomUUID(),
+      createdAt: new Date(),
+      isUsed: false,
+      attempts: 0,
+    });
+  }
+
+  static fromPersistence(
+    props: PhoneVerificationTokenProps & { id: string; createdAt: Date },
+  ): PhoneVerificationToken {
+    return new PhoneVerificationToken(props);
+  }
+
+  validate(): void {
+    if (this.isUsed) throw new TokenAlreadyUsedError();
+    if (this.isExpired()) throw new TokenExpiredError();
+    if (this.attempts >= PhoneVerificationToken.MAX_ATTEMPTS) {
+      throw new MaxOTPAttemptsExceededError(PhoneVerificationToken.MAX_ATTEMPTS);
+    }
+  }
+
+  incrementAttempts(): void {
+    this.attempts++;
+  }
+
+  verify(providedOTPHash: string): boolean {
+    this.validate();
+    this.incrementAttempts();
+
+    const isValid = this.tokenHash === providedOTPHash;
+
+    if (isValid) {
+      this.isUsed = true;
+      return true;
+    }
+
+    if (this.attempts >= PhoneVerificationToken.MAX_ATTEMPTS) {
+      throw new MaxOTPAttemptsExceededError(PhoneVerificationToken.MAX_ATTEMPTS);
+    }
+
+    return false;
+  }
+
+  canBeUsed(): boolean {
+    return !this.isUsed && !this.isExpired() && this.attempts < PhoneVerificationToken.MAX_ATTEMPTS;
+  }
+
+  getRemainingAttempts(): number {
+    return Math.max(0, PhoneVerificationToken.MAX_ATTEMPTS - this.attempts);
+  }
+
+  hasAttemptsRemaining(): boolean {
+    return this.attempts < PhoneVerificationToken.MAX_ATTEMPTS;
+  }
+}
+
+// ============================================================================
+// Email Change Token
+// ============================================================================
+
+export interface EmailChangeTokenProps extends ITokenProps {
+  newEmail: string;
+  isUsed: boolean;
+}
+
+export class EmailChangeToken extends Token<EmailChangeTokenProps> {
+  public readonly newEmail: string;
+  public isUsed: boolean;
+
+  private constructor(props: EmailChangeTokenProps & { id: string; createdAt: Date }) {
+    super(props);
+    this.newEmail = props.newEmail;
+    this.isUsed = props.isUsed;
+  }
+
+  static create(props: Omit<EmailChangeTokenProps, 'isUsed'>): EmailChangeToken {
+    return new EmailChangeToken({
+      ...props,
+      id: randomUUID(),
+      createdAt: new Date(),
+      isUsed: false,
+    });
+  }
+
+  static fromPersistence(
+    props: EmailChangeTokenProps & { id: string; createdAt: Date },
+  ): EmailChangeToken {
+    return new EmailChangeToken(props);
+  }
+
+  validate(): void {
+    if (this.isUsed) throw new TokenAlreadyUsedError();
+    if (this.isExpired()) throw new TokenExpiredError();
+  }
+
+  use(): void {
+    this.validate();
+    this.isUsed = true;
+  }
+
+  canBeUsed(): boolean {
+    return !this.isUsed && !this.isExpired();
+  }
+}
+
+// ============================================================================
+// Login Session Token
+// ============================================================================
+
+export interface LoginSessionProps extends ITokenProps {
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceId: string | null;
+  lastActivity: Date;
+  isRevoked: boolean;
+}
+
+export class LoginSession extends Token<LoginSessionProps> {
+  public readonly ipAddress: string | null;
+  public readonly userAgent: string | null;
+  public readonly deviceId: string | null;
+  public lastActivity: Date;
+  public isRevoked: boolean;
+
+  private static readonly ACTIVITY_TIMEOUT_MINUTES = 30;
+
+  private constructor(props: LoginSessionProps & { id: string; createdAt: Date }) {
+    super(props);
+    this.ipAddress = props.ipAddress;
+    this.userAgent = props.userAgent;
+    this.deviceId = props.deviceId;
+    this.lastActivity = props.lastActivity;
+    this.isRevoked = props.isRevoked;
+  }
+
+  static create(props: Omit<LoginSessionProps, 'lastActivity' | 'isRevoked'>): LoginSession {
+    const now = new Date();
+    return new LoginSession({
+      ...props,
+      id: randomUUID(),
+      createdAt: now,
+      lastActivity: now,
+      isRevoked: false,
+    });
+  }
+
+  static fromPersistence(props: LoginSessionProps & { id: string; createdAt: Date }): LoginSession {
+    return new LoginSession(props);
+  }
+
+  validate(): void {
+    if (this.isRevoked) throw new TokenRevokedError();
+    if (this.isExpired()) throw new TokenExpiredError();
+    if (this.isInactive()) {
+      throw new TokenError('Session is inactive due to inactivity timeout.');
+    }
+  }
+
+  updateActivity(): void {
+    this.validate();
+    this.lastActivity = new Date();
+  }
+
+  revoke(): void {
+    if (this.isRevoked) return;
+    this.isRevoked = true;
+  }
+
+  isInactive(): boolean {
+    const now = new Date().getTime();
+    const lastActivityTime = this.lastActivity.getTime();
+    const timeoutMs = LoginSession.ACTIVITY_TIMEOUT_MINUTES * 60 * 1000;
+    return now - lastActivityTime > timeoutMs;
+  }
+
+  canBeUsed(): boolean {
+    return !this.isRevoked && !this.isExpired() && !this.isInactive();
+  }
+
+  isSameDevice(deviceId: string): boolean {
+    return this.deviceId === deviceId;
+  }
+
+  isSameIP(ipAddress: string): boolean {
+    return this.ipAddress === ipAddress;
+  }
+
+  getDeviceInfo(): { deviceId: string | null; userAgent: string | null; ipAddress: string | null } {
+    return {
+      deviceId: this.deviceId,
+      userAgent: this.userAgent,
+      ipAddress: this.ipAddress,
+    };
+  }
+
+  getSessionDuration(): number {
+    const now = new Date().getTime();
+    const startTime = this.createdAt.getTime();
+    return now - startTime;
+  }
+
+  getSessionDurationInMinutes(): number {
+    return Math.floor(this.getSessionDuration() / (1000 * 60));
+  }
+
+  getInactivityDuration(): number {
+    const now = new Date().getTime();
+    const lastActivityTime = this.lastActivity.getTime();
+    return now - lastActivityTime;
+  }
+
+  getInactivityDurationInMinutes(): number {
+    return Math.floor(this.getInactivityDuration() / (1000 * 60));
+  }
+}
+
+// ============================================================================
+// Token Factory (Optional Helper)
+// ============================================================================
+
+export class TokenFactory {
+  static createPasswordResetToken(
+    userId: string,
+    tokenHash: string,
+    expiryHours: number = 1,
+  ): PasswordResetToken {
+    const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+    return PasswordResetToken.create({ tokenHash, userId, expiresAt });
+  }
+
+  static createEmailVerificationToken(
+    userId: string,
+    tokenHash: string,
+    expiryHours: number = 24,
+  ): EmailVerificationToken {
+    const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+    return EmailVerificationToken.create({ tokenHash, userId, expiresAt });
+  }
+
+  static createPhoneVerificationToken(
+    userId: string,
+    tokenHash: string,
+    expiryMinutes: number = 10,
+  ): PhoneVerificationToken {
+    const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
+    return PhoneVerificationToken.create({ tokenHash, userId, expiresAt });
+  }
+
+  static createEmailChangeToken(
+    userId: string,
+    newEmail: string,
+    tokenHash: string,
+    expiryHours: number = 24,
+  ): EmailChangeToken {
+    const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+    return EmailChangeToken.create({ tokenHash, userId, newEmail, expiresAt });
+  }
+
+  static createRefreshToken(
+    userId: string,
+    tokenHash: string,
+    expiryDays: number = 7,
+    metadata?: { deviceId?: string; ipAddress?: string; userAgent?: string },
+  ): RefreshToken {
+    const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
+    return RefreshToken.create({
+      tokenHash,
+      userId,
+      expiresAt,
+      deviceId: metadata?.deviceId ?? null,
+      ipAddress: metadata?.ipAddress ?? null,
+      userAgent: metadata?.userAgent ?? null,
+    });
+  }
+
+  static createLoginSession(
+    userId: string,
+    tokenHash: string,
+    expiryHours: number = 24,
+    metadata?: { deviceId?: string; ipAddress?: string; userAgent?: string },
+  ): LoginSession {
+    const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+    return LoginSession.create({
+      tokenHash,
+      userId,
+      expiresAt,
+      deviceId: metadata?.deviceId ?? null,
+      ipAddress: metadata?.ipAddress ?? null,
+      userAgent: metadata?.userAgent ?? null,
+    });
   }
 }

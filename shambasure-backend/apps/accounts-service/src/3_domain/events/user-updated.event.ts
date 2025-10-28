@@ -16,6 +16,7 @@ export interface UpdatedFields {
  * Defines the specific data payload for the UserUpdatedEvent.
  */
 export interface UserUpdatedEventData {
+  readonly email: string;
   readonly updatedFields: UpdatedFields;
   /** The ID of the user (often an admin) who performed the update. Optional. */
   readonly updatedBy?: string;
@@ -30,6 +31,7 @@ export interface UserUpdatedEventData {
 export class UserUpdatedEvent extends DomainEvent implements UserUpdatedEventData {
   public readonly eventName = 'user.updated';
 
+  public readonly email: string;
   public readonly updatedFields: UpdatedFields;
   public readonly updatedBy?: string;
 
@@ -37,7 +39,7 @@ export class UserUpdatedEvent extends DomainEvent implements UserUpdatedEventDat
     // Call the base class constructor with the updated user's ID
     super(props.aggregateId);
 
-    // Assign the specific payload properties
+    this.email = props.email;
     this.updatedFields = props.updatedFields;
     this.updatedBy = props.updatedBy;
   }

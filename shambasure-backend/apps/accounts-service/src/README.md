@@ -5,7 +5,7 @@ accounts-service/
     │   │   └── accounts.controller.ts
     │   ├── health/
     │   │   └── health.controller.ts
-    │   └── accounts.module.ts
+    │
     │
     ├── 2_application/        (The Use Case Layer)
     │   ├── services/

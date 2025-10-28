@@ -1,3 +1,2 @@
-export * from './user.repository.interface';
-export * from './user-profile.repository.interface';
-export * from './token.repository.interface';
+export * from './repository.interface';
+export * from './services.interface';
