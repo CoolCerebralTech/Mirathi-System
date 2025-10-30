@@ -1,12 +1,5 @@
 import { RelationshipType } from '@shamba/common';
 import { PhoneNumber } from '../value-objects';
-import {
-  DomainEvent,
-  PhoneVerifiedEvent,
-  PhoneVerificationRequestedEvent,
-  PhoneNumberUpdatedEvent,
-  ProfileUpdatedEvent,
-} from '../events';
 
 // ============================================================================
 // Custom Domain Errors
@@ -57,6 +50,15 @@ export interface NextOfKin {
 }
 
 // ============================================================================
+// Profile Update Result (for aggregate root event publishing)
+// ============================================================================
+
+export interface ProfileUpdateResult {
+  updatedFields: string[];
+  changes: Record<string, { old: any; new: any }>;
+}
+
+// ============================================================================
 // UserProfile Entity
 // ============================================================================
 
@@ -78,6 +80,9 @@ export interface UserProfileProps {
  * UserProfile Domain Model.
  * Manages all personal information related to a user, separate from their
  * core identity and authentication details.
+ *
+ * Note: This entity does NOT publish domain events directly. All events
+ * are published through the User aggregate root.
  */
 export class UserProfile {
   private readonly _id: string;
@@ -91,8 +96,6 @@ export class UserProfile {
   private _nextOfKin: NextOfKin | null;
   private readonly _createdAt: Date;
   private _updatedAt: Date;
-
-  private readonly _domainEvents: DomainEvent[] = [];
 
   private static readonly MAX_BIO_LENGTH = 500;
   private static readonly MAX_NOK_NAME_LENGTH = 100;
@@ -114,12 +117,7 @@ export class UserProfile {
   /**
    * Factory for creating a new, empty profile for a user.
    */
-  static create(props: {
-    id: string;
-    userId: string;
-    email: string;
-    marketingOptIn?: boolean;
-  }): UserProfile {
+  static create(props: { id: string; userId: string; marketingOptIn?: boolean }): UserProfile {
     const now = new Date();
     return new UserProfile({
       id: props.id,
@@ -144,7 +142,7 @@ export class UserProfile {
   }
 
   // ============================================================================
-  // Getters & Event Management
+  // Getters
   // ============================================================================
 
   get id(): string {
@@ -159,6 +157,9 @@ export class UserProfile {
   get phoneNumber(): PhoneNumber | null {
     return this._phoneNumber;
   }
+  get phoneNumberValue(): string | null {
+    return this._phoneNumber?.getValue() ?? null;
+  }
   get isPhoneVerified(): boolean {
     return this._phoneVerified;
   }
@@ -172,10 +173,10 @@ export class UserProfile {
     return this._marketingOptIn;
   }
   get address(): Address | null {
-    return this._address ? { ...this._address } : null; // Return copy
+    return this._address ? { ...this._address } : null;
   }
   get nextOfKin(): NextOfKin | null {
-    return this._nextOfKin ? { ...this._nextOfKin } : null; // Return copy
+    return this._nextOfKin ? { ...this._nextOfKin } : null;
   }
   get createdAt(): Date {
     return this._createdAt;
@@ -183,6 +184,7 @@ export class UserProfile {
   get updatedAt(): Date {
     return this._updatedAt;
   }
+
   get isComplete(): boolean {
     return (
       this._bio !== null &&
@@ -193,6 +195,7 @@ export class UserProfile {
       this._nextOfKin !== null
     );
   }
+
   get completionPercentage(): number {
     let completed = 0;
     const total = 6;
@@ -205,18 +208,6 @@ export class UserProfile {
     if (this._nextOfKin) completed++;
 
     return Math.round((completed / total) * 100);
-  }
-
-  get domainEvents(): DomainEvent[] {
-    return [...this._domainEvents]; // Return copy
-  }
-
-  private addDomainEvent(event: DomainEvent): void {
-    this._domainEvents.push(event);
-  }
-
-  public clearDomainEvents(): void {
-    this._domainEvents.length = 0;
   }
 
   // ============================================================================
@@ -268,191 +259,159 @@ export class UserProfile {
   }
 
   // ============================================================================
-  // Profile Update Methods
+  // Profile Update Methods (Return changes for aggregate root event publishing)
   // ============================================================================
 
-  updateBio(bio: string): void {
+  updateBio(bio: string): ProfileUpdateResult {
     const trimmedBio = bio.trim();
     this.validateBio(trimmedBio);
 
-    if (this._bio === trimmedBio) return; // No change
+    if (this._bio === trimmedBio) {
+      return { updatedFields: [], changes: {} };
+    }
 
     const oldBio = this._bio;
     this._bio = trimmedBio || null;
     this._updatedAt = new Date();
 
-    this.addDomainEvent(
-      new ProfileUpdatedEvent({
-        aggregateId: this._userId,
-        email: '', // Will be populated by application layer
-        updatedFields: ['bio'],
-        changes: {
-          bio: { old: oldBio, new: this._bio },
-        },
-      }),
-    );
+    return {
+      updatedFields: ['bio'],
+      changes: {
+        bio: { old: oldBio, new: this._bio },
+      },
+    };
   }
 
-  updatePhoneNumber(phoneNumber: PhoneNumber): void {
+  updatePhoneNumber(phoneNumber: PhoneNumber): ProfileUpdateResult {
     const previousPhoneNumber = this._phoneNumber?.getValue();
     const newPhoneNumber = phoneNumber.getValue();
 
-    if (previousPhoneNumber === newPhoneNumber) return; // No change
+    if (previousPhoneNumber === newPhoneNumber) {
+      return { updatedFields: [], changes: {} };
+    }
 
     // Reset verification status when phone changes
+    const oldPhoneVerified = this._phoneVerified;
     this._phoneNumber = phoneNumber;
     this._phoneVerified = false;
     this._updatedAt = new Date();
 
-    this.addDomainEvent(
-      new PhoneNumberUpdatedEvent({
-        aggregateId: this._userId,
-        previousPhoneNumber,
-        newPhoneNumber,
-        verified: false,
-      }),
-    );
+    return {
+      updatedFields: ['phoneNumber', 'phoneVerified'],
+      changes: {
+        phoneNumber: { old: previousPhoneNumber, new: newPhoneNumber },
+        phoneVerified: { old: oldPhoneVerified, new: false },
+      },
+    };
   }
 
-  removePhoneNumber(): void {
-    if (!this._phoneNumber) return; // Already removed
+  removePhoneNumber(): ProfileUpdateResult {
+    if (!this._phoneNumber) {
+      return { updatedFields: [], changes: {} };
+    }
 
     const previousPhoneNumber = this._phoneNumber.getValue();
+    const oldPhoneVerified = this._phoneVerified;
+
     this._phoneNumber = null;
     this._phoneVerified = false;
     this._updatedAt = new Date();
 
-    this.addDomainEvent(
-      new ProfileUpdatedEvent({
-        aggregateId: this._userId,
-        email: '',
-        updatedFields: ['phoneNumber'],
-        changes: {
-          phoneNumber: { old: previousPhoneNumber, new: null },
-        },
-      }),
-    );
+    return {
+      updatedFields: ['phoneNumber', 'phoneVerified'],
+      changes: {
+        phoneNumber: { old: previousPhoneNumber, new: null },
+        phoneVerified: { old: oldPhoneVerified, new: false },
+      },
+    };
   }
 
-  updateAddress(address: Address): void {
+  updateAddress(address: Address): ProfileUpdateResult {
     this.validateAddress(address);
 
     const oldAddress = this._address;
-    this._address = { ...address }; // Store copy
+    this._address = { ...address };
     this._updatedAt = new Date();
 
-    this.addDomainEvent(
-      new ProfileUpdatedEvent({
-        aggregateId: this._userId,
-        email: '',
-        updatedFields: ['address'],
-        changes: {
-          address: { old: oldAddress, new: this._address },
-        },
-      }),
-    );
+    return {
+      updatedFields: ['address'],
+      changes: {
+        address: { old: oldAddress, new: this._address },
+      },
+    };
   }
 
-  removeAddress(): void {
-    if (!this._address) return;
+  removeAddress(): ProfileUpdateResult {
+    if (!this._address) {
+      return { updatedFields: [], changes: {} };
+    }
 
     const oldAddress = this._address;
     this._address = null;
     this._updatedAt = new Date();
 
-    this.addDomainEvent(
-      new ProfileUpdatedEvent({
-        aggregateId: this._userId,
-        email: '',
-        updatedFields: ['address'],
-        changes: {
-          address: { old: oldAddress, new: null },
-        },
-      }),
-    );
+    return {
+      updatedFields: ['address'],
+      changes: {
+        address: { old: oldAddress, new: null },
+      },
+    };
   }
 
-  updateNextOfKin(nextOfKin: NextOfKin): void {
+  updateNextOfKin(nextOfKin: NextOfKin): ProfileUpdateResult {
     this.validateNextOfKin(nextOfKin);
 
     const oldNextOfKin = this._nextOfKin;
-    this._nextOfKin = { ...nextOfKin }; // Store copy
+    this._nextOfKin = { ...nextOfKin };
     this._updatedAt = new Date();
 
-    this.addDomainEvent(
-      new ProfileUpdatedEvent({
-        aggregateId: this._userId,
-        email: '',
-        updatedFields: ['nextOfKin'],
-        changes: {
-          nextOfKin: { old: oldNextOfKin, new: this._nextOfKin },
-        },
-      }),
-    );
+    return {
+      updatedFields: ['nextOfKin'],
+      changes: {
+        nextOfKin: { old: oldNextOfKin, new: this._nextOfKin },
+      },
+    };
   }
 
-  removeNextOfKin(): void {
-    if (!this._nextOfKin) return;
+  removeNextOfKin(): ProfileUpdateResult {
+    if (!this._nextOfKin) {
+      return { updatedFields: [], changes: {} };
+    }
 
     const oldNextOfKin = this._nextOfKin;
     this._nextOfKin = null;
     this._updatedAt = new Date();
 
-    this.addDomainEvent(
-      new ProfileUpdatedEvent({
-        aggregateId: this._userId,
-        email: '',
-        updatedFields: ['nextOfKin'],
-        changes: {
-          nextOfKin: { old: oldNextOfKin, new: null },
-        },
-      }),
-    );
+    return {
+      updatedFields: ['nextOfKin'],
+      changes: {
+        nextOfKin: { old: oldNextOfKin, new: null },
+      },
+    };
   }
 
-  updateMarketingPreferences(optIn: boolean): void {
-    if (this._marketingOptIn === optIn) return; // No change
+  updateMarketingPreferences(optIn: boolean): ProfileUpdateResult {
+    if (this._marketingOptIn === optIn) {
+      return { updatedFields: [], changes: {} };
+    }
 
     const oldOptIn = this._marketingOptIn;
     this._marketingOptIn = optIn;
     this._updatedAt = new Date();
 
-    this.addDomainEvent(
-      new ProfileUpdatedEvent({
-        aggregateId: this._userId,
-        email: '',
-        updatedFields: ['marketingOptIn'],
-        changes: {
-          marketingOptIn: { old: oldOptIn, new: optIn },
-        },
-      }),
-    );
+    return {
+      updatedFields: ['marketingOptIn'],
+      changes: {
+        marketingOptIn: { old: oldOptIn, new: optIn },
+      },
+    };
   }
 
   // ============================================================================
   // Phone Verification Methods
   // ============================================================================
 
-  requestPhoneVerification(otp: string): void {
-    if (!this._phoneNumber) {
-      throw new PhoneNumberNotSetError();
-    }
-
-    if (this._phoneVerified) {
-      throw new UserProfileDomainError('Phone number is already verified');
-    }
-
-    this.addDomainEvent(
-      new PhoneVerificationRequestedEvent({
-        aggregateId: this._userId,
-        phoneNumber: this._phoneNumber.getValue(),
-        otp,
-        provider: this._phoneNumber.getProvider(),
-      }),
-    );
-  }
-
-  verifyPhone(): void {
+  markPhoneAsVerified(): void {
     if (!this._phoneNumber) {
       throw new PhoneNumberNotSetError();
     }
@@ -461,14 +420,6 @@ export class UserProfile {
 
     this._phoneVerified = true;
     this._updatedAt = new Date();
-
-    this.addDomainEvent(
-      new PhoneVerifiedEvent({
-        aggregateId: this._userId,
-        phoneNumber: this._phoneNumber.getValue(),
-        provider: this._phoneNumber.getProvider(),
-      }),
-    );
   }
 
   resetPhoneVerification(): void {
@@ -489,6 +440,13 @@ export class UserProfile {
     this._updatedAt = new Date();
   }
 
+  markEmailAsUnverified(): void {
+    if (!this._emailVerified) return; // Already not verified
+
+    this._emailVerified = false;
+    this._updatedAt = new Date();
+  }
+
   resetEmailVerification(): void {
     if (!this._emailVerified) return; // Already not verified
 
@@ -497,15 +455,20 @@ export class UserProfile {
   }
 
   // ============================================================================
-  // Bulk Update Method
+  // Bulk Update Method (Used by User aggregate root)
   // ============================================================================
 
-  updateProfile(props: {
+  private isDeepEqual(obj1: any, obj2: any): boolean {
+    // A simple implementation for demonstration
+    return JSON.stringify(obj1) === JSON.stringify(obj2);
+    // For production, a more robust library like lodash.isEqual or a custom recursive function is better
+  }
+  update(props: {
     bio?: string;
-    phoneNumber?: PhoneNumber;
-    address?: Address;
-    nextOfKin?: NextOfKin;
-  }): void {
+    marketingOptIn?: boolean;
+    address?: Address | null;
+    nextOfKin?: NextOfKin | null;
+  }): Record<string, { old: any; new: any }> {
     const changes: Record<string, { old: any; new: any }> = {};
     const updatedFields: string[] = [];
 
@@ -520,46 +483,62 @@ export class UserProfile {
       }
     }
 
-    // Update phone number
-    if (props.phoneNumber !== undefined) {
-      const newNumber = props.phoneNumber?.getValue();
-      const oldNumber = this._phoneNumber?.getValue();
-      if (newNumber !== oldNumber) {
-        changes.phoneNumber = { old: oldNumber, new: newNumber };
-        updatedFields.push('phoneNumber');
-        this._phoneNumber = props.phoneNumber;
-        this._phoneVerified = false; // Reset verification
+    // Update marketing preferences
+    if (props.marketingOptIn !== undefined) {
+      if (this._marketingOptIn !== props.marketingOptIn) {
+        changes.marketingOptIn = { old: this._marketingOptIn, new: props.marketingOptIn };
+        updatedFields.push('marketingOptIn');
+        this._marketingOptIn = props.marketingOptIn;
       }
     }
 
-    // Update address
+    // Update address (handle null for removal)
     if (props.address !== undefined) {
-      this.validateAddress(props.address);
-      changes.address = { old: this._address, new: props.address };
-      updatedFields.push('address');
-      this._address = { ...props.address };
+      if (props.address === null) {
+        // Remove address
+        if (this._address !== null) {
+          changes.address = { old: this._address, new: null };
+          updatedFields.push('address');
+          this._address = null;
+        }
+      } else {
+        // Update address
+        this.validateAddress(props.address);
+        const newAddress = { ...props.address };
+        if (!this.isDeepEqual(this._address, newAddress)) {
+          changes.address = { old: this._address, new: newAddress };
+          updatedFields.push('address');
+          this._address = newAddress;
+        }
+      }
     }
 
-    // Update next of kin
+    // Update next of kin (handle null for removal)
     if (props.nextOfKin !== undefined) {
-      this.validateNextOfKin(props.nextOfKin);
-      changes.nextOfKin = { old: this._nextOfKin, new: props.nextOfKin };
-      updatedFields.push('nextOfKin');
-      this._nextOfKin = { ...props.nextOfKin };
+      if (props.nextOfKin === null) {
+        // Remove next of kin
+        if (this._nextOfKin !== null) {
+          changes.nextOfKin = { old: this._nextOfKin, new: null };
+          updatedFields.push('nextOfKin');
+          this._nextOfKin = null;
+        }
+      } else {
+        // Update next of kin
+        this.validateNextOfKin(props.nextOfKin);
+        const newNextOfKin = { ...props.nextOfKin };
+        if (!this.isDeepEqual(this._nextOfKin, newNextOfKin)) {
+          changes.nextOfKin = { old: this._nextOfKin, new: newNextOfKin };
+          updatedFields.push('nextOfKin');
+          this._nextOfKin = newNextOfKin;
+        }
+      }
     }
 
     if (updatedFields.length > 0) {
       this._updatedAt = new Date();
-
-      this.addDomainEvent(
-        new ProfileUpdatedEvent({
-          aggregateId: this._userId,
-          email: '',
-          updatedFields,
-          changes,
-        }),
-      );
     }
+
+    return changes;
   }
 
   // ============================================================================
@@ -591,6 +570,7 @@ export class UserProfile {
       updatedAt: this._updatedAt,
     };
   }
+
   public toPrimitives() {
     return {
       id: this._id,

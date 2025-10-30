@@ -8,6 +8,7 @@ export interface UserCreatedEventData {
   readonly lastName: string;
   readonly role: UserRole;
   readonly marketingOptIn: boolean;
+  readonly requiresEmailVerification: boolean;
 }
 
 /**
@@ -23,6 +24,7 @@ export class UserCreatedEvent extends DomainEvent implements UserCreatedEventDat
   public readonly lastName: string;
   public readonly role: UserRole;
   public readonly marketingOptIn: boolean;
+  public readonly requiresEmailVerification: boolean;
 
   constructor(props: { aggregateId: string } & UserCreatedEventData) {
     // Call the base class constructor with the user's ID
@@ -34,5 +36,6 @@ export class UserCreatedEvent extends DomainEvent implements UserCreatedEventDat
     this.lastName = props.lastName;
     this.role = props.role;
     this.marketingOptIn = props.marketingOptIn;
+    this.requiresEmailVerification = props.requiresEmailVerification;
   }
 }

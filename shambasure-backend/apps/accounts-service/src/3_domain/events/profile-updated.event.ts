@@ -5,8 +5,7 @@ import { DomainEvent } from './domain-event.base';
  */
 export interface ProfileUpdatedEventData {
   readonly email: string;
-  readonly updatedFields: string[]; // Array of field names that were updated
-  readonly changes: Record<string, { old: any; new: any }>;
+  readonly updatedFields: Record<string, { old: any; new: any }>;
 }
 
 /**
@@ -19,13 +18,11 @@ export class ProfileUpdatedEvent extends DomainEvent implements ProfileUpdatedEv
   public readonly eventName = 'user.profile_updated';
 
   public readonly email: string;
-  public readonly updatedFields: string[];
-  public readonly changes: Record<string, { old: any; new: any }>;
+  public readonly updatedFields: Record<string, { old: any; new: any }>;
 
   constructor(props: { aggregateId: string } & ProfileUpdatedEventData) {
     super(props.aggregateId);
     this.email = props.email;
     this.updatedFields = props.updatedFields;
-    this.changes = props.changes;
   }
 }

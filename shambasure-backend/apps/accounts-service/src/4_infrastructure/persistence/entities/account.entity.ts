@@ -1,4 +1,16 @@
 import { Prisma } from '@prisma/client';
+import { Address, NextOfKin } from '../../../3_domain/models';
+
+// ============================================================================
+// JSON FIELD TYPE DEFINITIONS
+// ============================================================================
+
+/**
+ * Enhanced type safety for JSON fields that are stored in the database.
+ * These types match the domain value objects but are serialized for storage.
+ */
+export type AddressData = Address | null;
+export type NextOfKinData = NextOfKin | null;
 
 // ============================================================================
 // USER ENTITY
@@ -10,13 +22,33 @@ import { Prisma } from '@prisma/client';
  */
 export const UserInclude = {
   profile: true,
-} as const; // 'as const' is crucial for type inference
+} as const;
+
+/**
+ * Extended include for user with all relations (for admin queries)
+ */
+export const UserIncludeWithAll = {
+  profile: true,
+  passwordResetTokens: true,
+  refreshTokens: true,
+  roleChanges: true,
+  emailVerificationToken: true,
+  phoneVerificationTokens: true,
+  emailChangeTokens: true,
+  loginSessions: true,
+  passwordHistory: true,
+} as const;
 
 /**
  * UserEntity: The full User object from Prisma, including the profile relation.
  * This is the primary data transfer object within the infrastructure layer for a user.
  */
 export type UserEntity = Prisma.UserGetPayload<{ include: typeof UserInclude }>;
+
+/**
+ * UserEntity with all relations (for admin and reporting purposes)
+ */
+export type UserEntityWithAll = Prisma.UserGetPayload<{ include: typeof UserIncludeWithAll }>;
 
 /** Prisma type for creating a new User record. */
 export type UserCreateData = Prisma.UserCreateInput;
@@ -36,11 +68,17 @@ export type UserProfileEntity = Prisma.UserProfileGetPayload<{
   include: typeof UserProfileInclude;
 }>;
 
-/** Prisma type for creating a new UserProfile record. */
-export type ProfileCreateData = Prisma.UserProfileCreateInput;
+/** Prisma type for creating a new UserProfile record with enhanced JSON typing */
+export type ProfileCreateData = Omit<Prisma.UserProfileCreateInput, 'address' | 'nextOfKin'> & {
+  address?: AddressData;
+  nextOfKin?: NextOfKinData;
+};
 
-/** Prisma type for updating an existing UserProfile record. */
-export type ProfileUpdateData = Prisma.UserProfileUpdateInput;
+/** Prisma type for updating an existing UserProfile record with enhanced JSON typing */
+export type ProfileUpdateData = Omit<Prisma.UserProfileUpdateInput, 'address' | 'nextOfKin'> & {
+  address?: AddressData;
+  nextOfKin?: NextOfKinData;
+};
 
 // ============================================================================
 // TOKENS & SESSIONS (Following a consistent pattern)
@@ -102,6 +140,34 @@ export type PasswordHistoryEntity = Prisma.PasswordHistoryGetPayload<{
 export type PasswordHistoryCreateData = Prisma.PasswordHistoryCreateInput;
 
 // ============================================================================
+// AGGREGATE QUERY TYPES
+// ============================================================================
+
+/**
+ * Common filter options for user queries
+ */
+export interface UserQueryFilters {
+  where?: Prisma.UserWhereInput;
+  include?: Prisma.UserInclude;
+  orderBy?: Prisma.UserOrderByWithRelationInput;
+}
+
+/**
+ * Common filter options for token queries
+ */
+export interface TokenQueryFilters {
+  where?:
+    | Prisma.PasswordResetTokenWhereInput
+    | Prisma.EmailVerificationTokenWhereInput
+    | Prisma.PhoneVerificationTokenWhereInput
+    | Prisma.EmailChangeTokenWhereInput
+    | Prisma.RefreshTokenWhereInput
+    | Prisma.LoginSessionWhereInput;
+  include?: any;
+  orderBy?: any;
+}
+
+// ============================================================================
 // GENERIC HELPER TYPES
 // ============================================================================
 
@@ -118,3 +184,76 @@ export type WhereClause<T extends keyof Prisma.TypeMap['model']> =
  */
 export type OrderByClause<T extends keyof Prisma.TypeMap['model']> =
   Prisma.TypeMap['model'][T]['operations']['findMany']['args']['orderBy'];
+
+/**
+ * Generic type for pagination parameters
+ */
+export interface PaginationParams {
+  skip?: number;
+  take?: number;
+  cursor?: any;
+}
+
+/**
+ * Generic type for repository operations that return multiple results
+ */
+export type FindManyResult<T> = {
+  data: T[];
+  total: number;
+  hasNext: boolean;
+};
+
+// ============================================================================
+// ENTITY VALIDATION TYPES
+// ============================================================================
+
+/**
+ * Validation result for entity operations
+ */
+export interface EntityValidationResult {
+  isValid: boolean;
+  errors: string[];
+}
+
+/**
+ * Type guard to check if an object is a valid UserEntity
+ */
+export function isValidUserEntity(entity: unknown): entity is UserEntity {
+  // First, ensure the entity is an object and not null
+  if (typeof entity !== 'object' || entity === null) {
+    return false;
+  }
+
+  // Now that we know it's an object, we can safely check its properties
+  const user = entity as UserEntity; // Cast for easier access
+  return (
+    typeof user.id === 'string' &&
+    typeof user.email === 'string' &&
+    typeof user.password === 'string' &&
+    typeof user.firstName === 'string' &&
+    typeof user.lastName === 'string' &&
+    typeof user.role === 'string' &&
+    typeof user.isActive === 'boolean' &&
+    user.createdAt instanceof Date &&
+    user.updatedAt instanceof Date &&
+    user.profile !== undefined // This check is also now safe
+  );
+}
+
+/**
+ * Type guard to check if an object is a valid UserProfileEntity
+ */
+export function isValidUserProfileEntity(entity: unknown): entity is UserProfileEntity {
+  // First, ensure the entity is an object and not null
+  if (typeof entity !== 'object' || entity === null) {
+    return false;
+  }
+
+  const profile = entity as UserProfileEntity;
+  return (
+    typeof profile.id === 'string' &&
+    typeof profile.userId === 'string' &&
+    profile.createdAt instanceof Date &&
+    profile.updatedAt instanceof Date
+  );
+}

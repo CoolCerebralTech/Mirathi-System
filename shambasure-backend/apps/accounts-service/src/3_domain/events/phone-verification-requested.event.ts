@@ -4,16 +4,15 @@ import { DomainEvent } from './domain-event.base';
  * Defines the specific data payload for PhoneVerificationRequestedEvent.
  */
 export interface PhoneVerificationRequestedEventData {
+  readonly email: string;
   readonly phoneNumber: string; // E.164 format
-  readonly otp: string; // Plain OTP to be sent (hashed in DB)
-  readonly provider: 'Safaricom' | 'Airtel' | 'Telkom' | 'Unknown';
 }
 
 /**
  * PhoneVerificationRequestedEvent
  *
  * Published when a phone verification OTP is requested.
- * Triggers the notifications service to send SMS with OTP code.
+ * Triggers a downstream service (e.g., notifications) to generate and send an SMS with an OTP code.
  */
 export class PhoneVerificationRequestedEvent
   extends DomainEvent
@@ -21,14 +20,12 @@ export class PhoneVerificationRequestedEvent
 {
   public readonly eventName = 'user.phone_verification_requested';
 
+  public readonly email: string;
   public readonly phoneNumber: string;
-  public readonly otp: string;
-  public readonly provider: 'Safaricom' | 'Airtel' | 'Telkom' | 'Unknown';
 
   constructor(props: { aggregateId: string } & PhoneVerificationRequestedEventData) {
     super(props.aggregateId);
+    this.email = props.email;
     this.phoneNumber = props.phoneNumber;
-    this.otp = props.otp;
-    this.provider = props.provider;
   }
 }

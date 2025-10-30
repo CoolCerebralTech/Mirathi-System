@@ -1,94 +1,273 @@
 import { Injectable } from '@nestjs/common';
-import { createHash, randomBytes } from 'crypto';
+import {
+  PasswordResetTokenEntity,
+  EmailVerificationTokenEntity,
+  PhoneVerificationTokenEntity,
+  RefreshTokenEntity,
+  LoginSessionEntity,
+  PasswordHistoryEntity,
+  EmailChangeTokenEntity,
+} from '../../4_infrastructure/persistence/entities/account.entity';
+import {
+  PasswordResetToken,
+  EmailVerificationToken,
+  PhoneVerificationToken,
+  RefreshToken,
+  LoginSession,
+  EmailChangeToken,
+} from '../../3_domain/models';
+import { Prisma } from '@prisma/client';
 
-/**
- * A custom error for parsing invalid time strings.
- */
-export class InvalidExpiryFormatError extends Error {
-  constructor(expiry: string) {
-    super(`Invalid expiry format: "${expiry}". Expected format like "15m" or "7d".`);
-    this.name = 'InvalidExpiryFormatError';
-  }
+export interface IPasswordHistory {
+  id: string;
+  userId: string;
+  passwordHash: string;
+  createdAt: Date;
 }
 
-/**
- * TokenService
- *
- * Provides centralized, secure methods for generating, hashing, and managing
- * lifecycles of various tokens (e.g., for password reset, email verification).
- * This is an application-level service.
- */
 @Injectable()
-export class TokenService {
-  /**
-   * Generates a secure random token and its corresponding SHA-256 hash.
-   * @returns An object containing the plaintext token (to send to the user)
-   *          and the hashed token (to store in the database).
-   */
-  public generateAndHashToken(): { token: string; hashedToken: string } {
-    const token = randomBytes(32).toString('hex');
-    const hashedToken = this.hashToken(token);
-    return { token, hashedToken };
-  }
+export class TokenMapper {
+  // ============================================================================
+  // PASSWORD RESET TOKEN MAPPING
+  // ============================================================================
 
-  /**
-   * Hashes a token using SHA-256. This is a one-way, deterministic hash.
-   * @param token The plaintext token to hash.
-   */
-  public hashToken(token: string): string {
-    return createHash('sha256').update(token).digest('hex');
-  }
-
-  /**
-   * Calculates an expiry date from a time string (e.g., "15m", "7d").
-   * @param expiry A string representing the duration (e.g., "15m" for 15 minutes).
-   * @throws InvalidExpiryFormatError if the format is invalid.
-   */
-  public calculateExpiryDate(expiry: string): Date {
-    const seconds = this.parseExpiryToSeconds(expiry);
-    return new Date(Date.now() + seconds * 1000);
-  }
-
-  /**
-   * Generates token metadata for JWT authentication responses.
-   */
-  public generateTokenMetadata(
-    accessTokenExpiry: string,
-    refreshTokenExpiry: string,
-  ): {
-    accessTokenExpiresIn: number;
-    refreshTokenExpiresIn: number;
-    accessTokenExpiresAt: Date;
-    refreshTokenExpiresAt: Date;
-    issuedAt: Date;
+  passwordResetToPersistence(token: PasswordResetToken): {
+    create: Prisma.PasswordResetTokenCreateInput;
+    update: Prisma.PasswordResetTokenUpdateInput;
   } {
-    const accessSeconds = this.parseExpiryToSeconds(accessTokenExpiry);
-    const refreshSeconds = this.parseExpiryToSeconds(refreshTokenExpiry);
-    const issuedAt = new Date();
-
     return {
-      accessTokenExpiresIn: accessSeconds,
-      refreshTokenExpiresIn: refreshSeconds,
-      accessTokenExpiresAt: new Date(issuedAt.getTime() + accessSeconds * 1000),
-      refreshTokenExpiresAt: new Date(issuedAt.getTime() + refreshSeconds * 1000),
-      issuedAt,
+      create: {
+        id: token.id,
+        user: { connect: { id: token.userId } },
+        tokenHash: token.tokenHash,
+        expiresAt: token.expiresAt,
+        used: token.isUsed,
+        createdAt: token.createdAt,
+      },
+      update: {
+        used: token.isUsed,
+      },
     };
   }
 
-  /**
-   * Parses a time string (e.g., "15m", "7d") into seconds.
-   */
-  private parseExpiryToSeconds(expiry: string): number {
-    const match = expiry.match(/^(\d+)([smhd])$/);
-    if (!match) {
-      throw new InvalidExpiryFormatError(expiry);
-    }
+  passwordResetToDomain(entity: PasswordResetTokenEntity): PasswordResetToken {
+    return PasswordResetToken.fromPersistence({
+      id: entity.id,
+      userId: entity.userId,
+      tokenHash: entity.tokenHash,
+      expiresAt: entity.expiresAt,
+      isUsed: entity.used,
+      createdAt: entity.createdAt,
+    });
+  }
 
-    const value = parseInt(match[1], 10);
-    const unit = match[2];
+  // ============================================================================
+  // EMAIL VERIFICATION TOKEN MAPPING
+  // ============================================================================
 
-    const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
+  emailVerificationToPersistence(token: EmailVerificationToken): {
+    create: Prisma.EmailVerificationTokenCreateInput;
+  } {
+    // This token is single-use and should not be updated.
+    return {
+      create: {
+        id: token.id,
+        user: { connect: { id: token.userId } },
+        tokenHash: token.tokenHash,
+        expiresAt: token.expiresAt,
+        createdAt: token.createdAt,
+      },
+    };
+  }
 
-    return value * multipliers[unit];
+  emailVerificationToDomain(entity: EmailVerificationTokenEntity): EmailVerificationToken {
+    return EmailVerificationToken.fromPersistence({
+      id: entity.id,
+      userId: entity.userId,
+      tokenHash: entity.tokenHash,
+      expiresAt: entity.expiresAt,
+      createdAt: entity.createdAt,
+    });
+  }
+
+  // ============================================================================
+  // PHONE VERIFICATION TOKEN MAPPING
+  // ============================================================================
+
+  phoneVerificationToPersistence(token: PhoneVerificationToken): {
+    create: Prisma.PhoneVerificationTokenCreateInput;
+    update: Prisma.PhoneVerificationTokenUpdateInput;
+  } {
+    return {
+      create: {
+        id: token.id,
+        user: { connect: { id: token.userId } },
+        tokenHash: token.tokenHash,
+        expiresAt: token.expiresAt,
+        used: token.isUsed,
+        attempts: token.attempts,
+        createdAt: token.createdAt,
+      },
+      update: {
+        used: token.isUsed,
+        attempts: token.attempts,
+      },
+    };
+  }
+
+  phoneVerificationToDomain(entity: PhoneVerificationTokenEntity): PhoneVerificationToken {
+    return PhoneVerificationToken.fromPersistence({
+      id: entity.id,
+      userId: entity.userId,
+      tokenHash: entity.tokenHash,
+      expiresAt: entity.expiresAt,
+      isUsed: entity.used,
+      attempts: entity.attempts,
+      createdAt: entity.createdAt,
+    });
+  }
+
+  // ============================================================================
+  // REFRESH TOKEN MAPPING
+  // ============================================================================
+
+  refreshTokenToPersistence(token: RefreshToken): {
+    create: Prisma.RefreshTokenCreateInput;
+    update: Prisma.RefreshTokenUpdateInput;
+  } {
+    return {
+      create: {
+        id: token.id,
+        user: { connect: { id: token.userId } },
+        tokenHash: token.tokenHash,
+        expiresAt: token.expiresAt,
+        deviceId: token.deviceId,
+        ipAddress: token.ipAddress,
+        userAgent: token.userAgent,
+        revokedAt: token.revokedAt,
+        createdAt: token.createdAt,
+      },
+      update: {
+        revokedAt: token.revokedAt,
+      },
+    };
+  }
+
+  refreshTokenToDomain(entity: RefreshTokenEntity): RefreshToken {
+    return RefreshToken.fromPersistence({
+      id: entity.id,
+      userId: entity.userId,
+      tokenHash: entity.tokenHash,
+      expiresAt: entity.expiresAt,
+      deviceId: entity.deviceId,
+      ipAddress: entity.ipAddress,
+      userAgent: entity.userAgent,
+      revokedAt: entity.revokedAt,
+      createdAt: entity.createdAt,
+    });
+  }
+
+  // ============================================================================
+  // LOGIN SESSION MAPPING
+  // ============================================================================
+
+  loginSessionToPersistence(session: LoginSession): {
+    create: Prisma.LoginSessionCreateInput;
+    update: Prisma.LoginSessionUpdateInput;
+  } {
+    return {
+      create: {
+        id: session.id,
+        user: { connect: { id: session.userId } },
+        tokenHash: session.tokenHash,
+        expiresAt: session.expiresAt,
+        deviceId: session.deviceId,
+        ipAddress: session.ipAddress,
+        userAgent: session.userAgent,
+        lastActivity: session.lastActivity,
+        revokedAt: session.revokedAt,
+        createdAt: session.createdAt,
+      },
+      update: {
+        lastActivity: session.lastActivity,
+        revokedAt: session.revokedAt,
+      },
+    };
+  }
+
+  loginSessionToDomain(entity: LoginSessionEntity): LoginSession {
+    return LoginSession.fromPersistence({
+      id: entity.id,
+      userId: entity.userId,
+      tokenHash: entity.tokenHash,
+      expiresAt: entity.expiresAt,
+      deviceId: entity.deviceId,
+      ipAddress: entity.ipAddress,
+      userAgent: entity.userAgent,
+      lastActivity: entity.lastActivity,
+      revokedAt: entity.revokedAt,
+      createdAt: entity.createdAt,
+    });
+  }
+  // ============================================================================
+  // EMAIL CHANGE TOKEN MAPPING
+  // ============================================================================
+
+  emailChangeToPersistence(token: EmailChangeToken): {
+    create: Prisma.EmailChangeTokenCreateInput;
+    update: Prisma.EmailChangeTokenUpdateInput;
+  } {
+    return {
+      create: {
+        id: token.id,
+        user: { connect: { id: token.userId } },
+        newEmail: token.newEmail,
+        tokenHash: token.tokenHash,
+        expiresAt: token.expiresAt,
+        used: token.isUsed,
+        createdAt: token.createdAt,
+      },
+      update: {
+        used: token.isUsed,
+      },
+    };
+  }
+
+  emailChangeToDomain(entity: EmailChangeTokenEntity): EmailChangeToken {
+    return EmailChangeToken.fromPersistence({
+      id: entity.id,
+      userId: entity.userId,
+      newEmail: entity.newEmail,
+      tokenHash: entity.tokenHash,
+      expiresAt: entity.expiresAt,
+      isUsed: entity.used,
+      createdAt: entity.createdAt,
+    });
+  }
+
+  // ============================================================================
+  // PASSWORD HISTORY MAPPING
+  // ============================================================================
+
+  passwordHistoryToPersistence(history: IPasswordHistory): {
+    create: Prisma.PasswordHistoryCreateInput;
+  } {
+    return {
+      create: {
+        id: history.id,
+        user: { connect: { id: history.userId } },
+        passwordHash: history.passwordHash,
+        createdAt: history.createdAt,
+      },
+    };
+  }
+
+  passwordHistoryToDomain(entity: PasswordHistoryEntity): IPasswordHistory {
+    return {
+      id: entity.id,
+      userId: entity.userId,
+      passwordHash: entity.passwordHash,
+      createdAt: entity.createdAt,
+    };
   }
 }

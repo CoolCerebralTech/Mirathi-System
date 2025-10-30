@@ -3,120 +3,93 @@ import {
   ValidationOptions,
   ValidatorConstraint,
   ValidatorConstraintInterface,
-  ValidationArguments,
+  IsStrongPassword,
 } from 'class-validator';
+import { createHash } from 'crypto';
+import axios from 'axios';
 
-/**
- * Password strength requirements for Shamba Sure
- */
-export interface PasswordRequirements {
-  minLength: number;
-  requireUppercase: boolean;
-  requireLowercase: boolean;
-  requireNumbers: boolean;
-  requireSpecialChars: boolean;
-}
+// ============================================================================
+// CONSTRAINT 1: Check against Have I Been Pwned (HIBP) database
+// ============================================================================
 
-/**
- * Default password requirements
- */
-const DEFAULT_REQUIREMENTS: PasswordRequirements = {
-  minLength: 8,
-  requireUppercase: true,
-  requireLowercase: true,
-  requireNumbers: true,
-  requireSpecialChars: true,
-};
-
-@ValidatorConstraint({ name: 'IsStrongPassword', async: false })
-export class IsStrongPasswordConstraint implements ValidatorConstraintInterface {
-  validate(password: string, args: ValidationArguments): boolean {
+@ValidatorConstraint({ name: 'isNotCommonPassword', async: true })
+export class IsNotCommonPasswordConstraint implements ValidatorConstraintInterface {
+  async validate(password: string): Promise<boolean> {
     if (!password || typeof password !== 'string') {
-      return false;
+      return true; // Let other validators like @IsString handle this
     }
 
-    // FIX #1: Assert the type of the constraint
-    const requirements = (args.constraints[0] as PasswordRequirements) || DEFAULT_REQUIREMENTS;
+    try {
+      // 1. Hash the password with SHA-1 (HIBP API requirement)
+      const sha1Hash = createHash('sha1').update(password).digest('hex').toUpperCase();
+      const hashPrefix = sha1Hash.substring(0, 5);
+      const hashSuffix = sha1Hash.substring(5);
 
-    // Check minimum length
-    if (password.length < requirements.minLength) {
-      return false;
+      // 2. Query the HIBP k-Anonymity API
+      const response = await axios.get<string>(
+        `https://api.pwnedpasswords.com/range/${hashPrefix}`,
+        {
+          responseType: 'text',
+          timeout: 3000,
+          headers: {
+            'Add-Padding': 'true', // recommended for privacy
+            'User-Agent': 'ShambaApp/1.0',
+          },
+        },
+      );
+
+      // 3. Check if the password's hash suffix appears in the response list
+      const found = response.data.split('\n').some((line: string) => {
+        const [suffix] = line.split(':');
+        return suffix === hashSuffix;
+      });
+
+      return !found;
+    } catch (err) {
+      // Fail open: don’t block user if API is unavailable
+      console.warn('Pwned Passwords API check failed:', (err as Error).message);
+      return true;
     }
-
-    // Check for uppercase letters
-    if (requirements.requireUppercase && !/[A-Z]/.test(password)) {
-      return false;
-    }
-
-    // Check for lowercase letters
-    if (requirements.requireLowercase && !/[a-z]/.test(password)) {
-      return false;
-    }
-
-    // Check for numbers
-    if (requirements.requireNumbers && !/\d/.test(password)) {
-      return false;
-    }
-
-    // Check for special characters
-    if (
-      requirements.requireSpecialChars &&
-      !/[!@#$%^&*()_+\-=\\[\]{};':"\\|,.<>\\/?]/.test(password)
-    ) {
-      return false;
-    }
-
-    return true;
   }
 
-  defaultMessage(args: ValidationArguments): string {
-    // FIX #1: Assert the type of the constraint here as well
-    const requirements = (args.constraints[0] as PasswordRequirements) || DEFAULT_REQUIREMENTS;
-    const messages: string[] = [];
-
-    messages.push(`at least ${requirements.minLength} characters`);
-
-    if (requirements.requireUppercase) {
-      messages.push('one uppercase letter');
-    }
-
-    if (requirements.requireLowercase) {
-      messages.push('one lowercase letter');
-    }
-
-    if (requirements.requireNumbers) {
-      messages.push('one number');
-    }
-
-    if (requirements.requireSpecialChars) {
-      messages.push('one special character');
-    }
-
-    return `Password must contain ${messages.join(', ')}.`;
+  defaultMessage(): string {
+    return 'This password has been exposed in a data breach and is not safe to use. Please choose a different password.';
   }
 }
 
-/**
- * Validates that a password meets the configured strength requirements.
- */
-export function IsStrongPassword(
-  requirements?: Partial<PasswordRequirements>,
-  validationOptions?: ValidationOptions,
-) {
-  // FIX #2: Change 'any' to 'object' for better type safety
-  return (object: object, propertyName: string) => {
-    const finalRequirements: PasswordRequirements = {
-      ...DEFAULT_REQUIREMENTS,
-      ...requirements,
-    };
+// ============================================================================
+// DECORATOR: The final composite decorator to be used in DTOs
+// ============================================================================
 
+/**
+ * A composite decorator that validates a password for both strength and for being
+ * exposed in a public data breach.
+ */
+export function IsSecurePassword(validationOptions?: ValidationOptions) {
+  return function (object: Record<string, any>, propertyName: string): void {
+    // Rule 1: Apply the strong password requirements
+    IsStrongPassword(
+      {
+        minLength: 8,
+        minLowercase: 1,
+        minUppercase: 1,
+        minNumbers: 1,
+        minSymbols: 1,
+      },
+      {
+        message:
+          'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.',
+        ...validationOptions,
+      },
+    )(object, propertyName);
+
+    // Rule 2: Apply the "pwned password" check
     registerDecorator({
-      // Now, TypeScript knows object.constructor is a Function, so this is safe
       target: object.constructor,
       propertyName,
       options: validationOptions,
-      constraints: [finalRequirements],
-      validator: IsStrongPasswordConstraint,
+      constraints: [],
+      validator: IsNotCommonPasswordConstraint,
     });
   };
 }

@@ -105,6 +105,19 @@ export class Password {
   }
 
   /**
+   * Checks if this password (plain or hashed) matches a given stored hash.
+   * Useful for preventing password reuse.
+   */
+  async matchesHash(storedHash: string): Promise<boolean> {
+    try {
+      // Compare the *new* password's plain value against an old stored hash
+      return await argon2.verify(storedHash, this.hashedPassword);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Checks if the current hash uses outdated security parameters.
    */
   needsRehash(): boolean {

@@ -38,3 +38,5 @@ export * from './profile-updated.event';
 
 // Security events
 export * from './suspicious-activity-detected.event';
+
+export * from './users-bulk-updated.event';

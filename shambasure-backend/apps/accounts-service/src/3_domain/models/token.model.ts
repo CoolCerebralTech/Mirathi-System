@@ -148,21 +148,21 @@ export class PasswordResetToken extends Token<PasswordResetTokenProps> {
 // ============================================================================
 
 export interface RefreshTokenProps extends ITokenProps {
-  isRevoked: boolean;
+  revokedAt: Date | null;
   deviceId: string | null;
   ipAddress: string | null;
   userAgent: string | null;
 }
 
 export class RefreshToken extends Token<RefreshTokenProps> {
-  public isRevoked: boolean;
+  public revokedAt: Date | null;
   public readonly deviceId: string | null;
   public readonly ipAddress: string | null;
   public readonly userAgent: string | null;
 
   private constructor(props: RefreshTokenProps & { id: string; createdAt: Date }) {
     super(props);
-    this.isRevoked = props.isRevoked;
+    this.revokedAt = props.revokedAt;
     this.deviceId = props.deviceId;
     this.ipAddress = props.ipAddress;
     this.userAgent = props.userAgent;
@@ -173,7 +173,7 @@ export class RefreshToken extends Token<RefreshTokenProps> {
       ...props,
       id: randomUUID(),
       createdAt: new Date(),
-      isRevoked: false,
+      revokedAt: null,
     });
   }
 
@@ -182,13 +182,13 @@ export class RefreshToken extends Token<RefreshTokenProps> {
   }
 
   validate(): void {
-    if (this.isRevoked) throw new TokenRevokedError();
+    if (this.revokedAt) throw new TokenRevokedError();
     if (this.isExpired()) throw new TokenExpiredError();
   }
 
   revoke(): void {
-    if (this.isRevoked) return; // Already revoked
-    this.isRevoked = true;
+    if (this.revokedAt) return; // Already revoked
+    this.revokedAt = new Date();
   }
 
   rotate(newHash: string, newExpiresAt: Date): RefreshToken {
@@ -202,11 +202,12 @@ export class RefreshToken extends Token<RefreshTokenProps> {
       deviceId: this.deviceId,
       ipAddress: this.ipAddress,
       userAgent: this.userAgent,
+      revokedAt: this.revokedAt,
     });
   }
 
   canBeUsed(): boolean {
-    return !this.isRevoked && !this.isExpired();
+    return !this.revokedAt && !this.isExpired();
   }
 
   isSameDevice(deviceId: string): boolean {
@@ -384,7 +385,7 @@ export interface LoginSessionProps extends ITokenProps {
   userAgent: string | null;
   deviceId: string | null;
   lastActivity: Date;
-  isRevoked: boolean;
+  revokedAt: Date | null;
 }
 
 export class LoginSession extends Token<LoginSessionProps> {
@@ -392,7 +393,7 @@ export class LoginSession extends Token<LoginSessionProps> {
   public readonly userAgent: string | null;
   public readonly deviceId: string | null;
   public lastActivity: Date;
-  public isRevoked: boolean;
+  public revokedAt: Date | null;
 
   private static readonly ACTIVITY_TIMEOUT_MINUTES = 30;
 
@@ -402,17 +403,17 @@ export class LoginSession extends Token<LoginSessionProps> {
     this.userAgent = props.userAgent;
     this.deviceId = props.deviceId;
     this.lastActivity = props.lastActivity;
-    this.isRevoked = props.isRevoked;
+    this.revokedAt = props.revokedAt;
   }
 
-  static create(props: Omit<LoginSessionProps, 'lastActivity' | 'isRevoked'>): LoginSession {
+  static create(props: Omit<LoginSessionProps, 'lastActivity' | 'revokedAt'>): LoginSession {
     const now = new Date();
     return new LoginSession({
       ...props,
       id: randomUUID(),
       createdAt: now,
       lastActivity: now,
-      isRevoked: false,
+      revokedAt: null,
     });
   }
 
@@ -421,7 +422,7 @@ export class LoginSession extends Token<LoginSessionProps> {
   }
 
   validate(): void {
-    if (this.isRevoked) throw new TokenRevokedError();
+    if (this.revokedAt) throw new TokenRevokedError();
     if (this.isExpired()) throw new TokenExpiredError();
     if (this.isInactive()) {
       throw new TokenError('Session is inactive due to inactivity timeout.');
@@ -434,8 +435,8 @@ export class LoginSession extends Token<LoginSessionProps> {
   }
 
   revoke(): void {
-    if (this.isRevoked) return;
-    this.isRevoked = true;
+    if (this.revokedAt) return;
+    this.revokedAt = new Date();
   }
 
   isInactive(): boolean {
@@ -446,7 +447,7 @@ export class LoginSession extends Token<LoginSessionProps> {
   }
 
   canBeUsed(): boolean {
-    return !this.isRevoked && !this.isExpired() && !this.isInactive();
+    return !this.revokedAt && !this.isExpired() && !this.isInactive();
   }
 
   isSameDevice(deviceId: string): boolean {
@@ -539,6 +540,7 @@ export class TokenFactory {
       tokenHash,
       userId,
       expiresAt,
+      revokedAt: null,
       deviceId: metadata?.deviceId ?? null,
       ipAddress: metadata?.ipAddress ?? null,
       userAgent: metadata?.userAgent ?? null,

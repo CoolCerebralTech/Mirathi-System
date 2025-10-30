@@ -159,6 +159,8 @@ model RefreshToken {
   ipAddress String?  @db.VarChar(45) // IPv6 support
   userAgent String?  @db.Text
   createdAt DateTime @default(now())
+  revokedAt DateTime?
+  lastUsedAt DateTime?
 
   @@index([userId])
   @@index([expiresAt])

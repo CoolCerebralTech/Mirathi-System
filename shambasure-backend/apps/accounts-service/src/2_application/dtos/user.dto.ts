@@ -1,469 +1,479 @@
 import {
   IsString,
   IsOptional,
-  IsEmail,
   MinLength,
   MaxLength,
+  IsEmail,
   IsEnum,
-  ValidateNested,
-  IsPhoneNumber,
   IsBoolean,
-  IsUUID,
+  IsArray,
+  ValidateNested,
+  IsNumber,
+  IsPositive,
   IsDateString,
-  IsNumberString,
-  Length,
-  IsInt,
-  Min,
+  IsObject,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UserRole, RelationshipType } from '@shamba/common';
+import { Transform, TransformFnParams, Type } from 'class-transformer';
+import { UserRole } from '@shamba/common';
 import { BaseResponseDto } from '@shamba/common';
-import { Type } from 'class-transformer';
-import { PaginationQueryDto, PaginationMetaDto } from '@shamba/common';
-import { object } from 'joi';
-
-// ============================================================================
-// NESTED DTOs (For Input Validation)
-// ============================================================================
-
-export class AddressDto {
-  @ApiPropertyOptional({ example: '123 Shamba Lane' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  street?: string;
-
-  @ApiPropertyOptional({ example: 'Nairobi' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  city?: string;
-
-  @ApiPropertyOptional({ example: '00100' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(20)
-  postCode?: string;
-
-  @ApiPropertyOptional({ example: 'Kenya' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  country?: string;
-}
-export class NextOfKinDto {
-  @ApiProperty({ example: 'Jane Mwangi' })
-  @IsString()
-  @MinLength(2)
-  @MaxLength(100)
-  fullName!: string;
-
-  @ApiProperty({
-    description: 'Relationship to the user.',
-    enum: RelationshipType,
-    example: RelationshipType.SPOUSE,
-  })
-  @IsEnum(RelationshipType)
-  relationship!: RelationshipType;
-
-  @ApiProperty({ example: '+254712345678' })
-  @IsPhoneNumber('KE')
-  phoneNumber!: string;
-
-  @ApiPropertyOptional({ example: 'jane@example.com' })
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
-  @ApiPropertyOptional({ type: AddressDto })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => AddressDto)
-  address?: AddressDto;
-}
 
 // ============================================================================
 // REQUEST DTOs (For Authenticated Users)
 // ============================================================================
-
-export class UpdateMyUserDto {
-  @ApiPropertyOptional({ description: 'Updated first name.' })
+class BaseUserUpdateRequestDto {
+  @ApiPropertyOptional({
+    description: 'Updated first name.',
+    example: 'John',
+    minLength: 2,
+    maxLength: 50,
+  })
   @IsOptional()
   @IsString()
-  @MinLength(2)
-  @MaxLength(50)
+  @MinLength(2, { message: 'First name must be at least 2 characters long.' })
+  @MaxLength(50, { message: 'First name cannot exceed 50 characters.' })
+  @Transform(({ value }: TransformFnParams): string | undefined => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    }
+    return undefined;
+  })
   firstName?: string;
 
-  @ApiPropertyOptional({ description: 'Updated last name.' })
+  @ApiPropertyOptional({
+    description: 'Updated last name.',
+    example: 'Mwangi',
+    minLength: 2,
+    maxLength: 50,
+  })
   @IsOptional()
   @IsString()
-  @MinLength(2)
-  @MaxLength(50)
+  @MinLength(2, { message: 'Last name must be at least 2 characters long.' })
+  @MaxLength(50, { message: 'Last name cannot exceed 50 characters.' })
+  @Transform(({ value }: TransformFnParams): string | undefined => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    }
+    return undefined;
+  })
   lastName?: string;
-
-  // NOTE: Email changes are a high-security operation and are handled
-  // through a separate, dedicated endpoint and flow, not in this DTO.
 }
 
-export class UpdateMyProfileDto {
-  @ApiPropertyOptional({ description: 'A short user biography.' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  bio?: string;
-
-  @ApiPropertyOptional({ description: "User's primary phone number." })
-  @IsOptional()
-  @IsPhoneNumber('KE')
-  phoneNumber?: string | null;
-
-  @ApiPropertyOptional({ type: object })
-  @IsOptional()
-  address?: AddressDto | null;
-
-  @ApiPropertyOptional({ type: object })
-  @IsOptional()
-  nextOfKin?: NextOfKinDto | null;
+export class UpdateMyUserRequestDto extends BaseUserUpdateRequestDto {}
+export class GetMyUserRequestDto {
+  // Empty - used for type safety in controllers
+  // GET /me doesn't need request body
 }
 
-export class UpdateMarketingPreferencesDto {
-  @ApiProperty()
-  @IsBoolean()
-  marketingOptIn!: boolean;
-}
-
-// ============================================================================
-// REQUEST DTOs (For Admins)
-// ============================================================================
-
-/**
- * Defines the query parameters for filtering a list of users.
- * To be used only in admin-accessible endpoints.
- */
-export class UserQueryDto extends PaginationQueryDto {
-  @ApiPropertyOptional({
-    description: 'Filter users by their role.',
-    enum: UserRole,
+export class DeactivateMyAccountRequestDto {
+  @ApiProperty({
+    description: 'Current password for security verification.',
+    example: 'CurrentPassword123!',
   })
-  @IsOptional()
-  @IsEnum(UserRole)
-  role?: UserRole;
+  @IsString()
+  @MinLength(1, { message: 'Password is required.' })
+  password!: string;
 
   @ApiPropertyOptional({
-    description: 'Search users by email or name.',
-    example: 'john',
+    description: 'Optional reason for deactivation.',
+    example: 'Taking a break from the platform',
+    maxLength: 500,
   })
   @IsOptional()
   @IsString()
-  declare search?: string;
-}
-
-/**
- * Admin DTO for updating any user's basic information.
- */
-export class AdminUpdateUserDto {
-  @ApiPropertyOptional({ description: 'Updated first name' })
-  @IsOptional()
-  @IsString()
-  @MinLength(2)
-  @MaxLength(50)
-  firstName?: string;
-
-  @ApiPropertyOptional({ description: 'Updated last name' })
-  @IsOptional()
-  @IsString()
-  @MinLength(2)
-  @MaxLength(50)
-  lastName?: string;
-
-  @ApiPropertyOptional({ description: 'Updated email address' })
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
-  @ApiPropertyOptional({ description: 'Account active status' })
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
-
-  @ApiPropertyOptional({
-    description: 'User role',
-    enum: UserRole,
+  @MaxLength(500, { message: 'Reason cannot exceed 500 characters.' })
+  @Transform(({ value }: TransformFnParams): string | undefined => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    }
+    return undefined;
   })
-  @IsOptional()
-  @IsEnum(UserRole)
-  role?: UserRole;
-
-  @ApiPropertyOptional({
-    description: 'Lock account until date',
-    example: '2023-12-31T23:59:59.999Z',
-  })
-  @IsOptional()
-  @IsDateString()
-  lockedUntil?: string;
-
-  @ApiPropertyOptional({
-    description: 'Reset the number of failed login attempts.',
-    example: 0,
-  })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  loginAttempts?: number;
-}
-
-/**
- * Query parameters for fetching role change history.
- */
-export class RoleChangeQueryDto extends PaginationQueryDto {
-  @ApiPropertyOptional({
-    description: 'Filter by user ID.',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  @IsOptional()
-  @IsUUID()
-  userId?: string;
-
-  @ApiPropertyOptional({
-    description: 'Filter by admin who made the change.',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  @IsOptional()
-  @IsString()
-  changedBy?: string;
-}
-
-export class UpdateUserRoleDto {
-  @ApiProperty({ enum: UserRole })
-  @IsEnum(UserRole)
-  newRole!: UserRole;
-
-  @ApiPropertyOptional({ description: 'Reason for the role change, for auditing.' })
-  @IsOptional()
-  @IsString()
   reason?: string;
 }
 
-export class LockUserDto {
-  @ApiPropertyOptional({ description: 'Duration of the lock in minutes. 0 for indefinite.' })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  durationMinutes?: number;
+export class ReactivateMyAccountRequestDto {
+  @ApiProperty({
+    description: 'Email address for account reactivation.',
+    example: 'john.mwangi@example.com',
+  })
+  @IsEmail({}, { message: 'Please provide a valid email address.' })
+  @Transform(({ value }: TransformFnParams): string | undefined => {
+    if (typeof value === 'string') {
+      const transformed = value.toLowerCase().trim();
+      return transformed.length > 0 ? transformed : undefined;
+    }
+    return undefined;
+  })
+  email!: string;
 
-  @ApiProperty({ description: 'Reason for locking the account.' })
+  @ApiProperty({
+    description: 'Password for account verification.',
+    example: 'CurrentPassword123!',
+  })
   @IsString()
-  reason!: string;
+  @MinLength(1, { message: 'Password is required.' })
+  password!: string;
 }
+
 // ============================================================================
 // RESPONSE DTOs (API Output)
 // ============================================================================
 
-export class UserProfileResponseDto {
-  @ApiPropertyOptional()
-  bio?: string;
-
-  @ApiPropertyOptional()
-  phoneNumber?: string;
-
-  @ApiProperty({ example: false, description: 'Whether the user has verified their phone number.' })
-  phoneVerified!: boolean;
-
-  @ApiPropertyOptional({ example: false })
-  emailVerified?: boolean;
-
-  @ApiPropertyOptional({ type: AddressDto })
-  address?: AddressDto;
-
-  @ApiPropertyOptional({ type: NextOfKinDto })
-  nextOfKin?: NextOfKinDto;
-}
-
-/**
- * Basic user response (excludes sensitive data like password).
- */
 export class UserResponseDto extends BaseResponseDto {
-  @ApiProperty()
+  @ApiProperty({ example: 'john.mwangi@example.com' })
+  @IsEmail()
   email!: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'John' })
+  @IsString()
   firstName!: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'Mwangi' })
+  @IsString()
   lastName!: string;
 
-  @ApiProperty({ enum: UserRole })
+  @ApiProperty({ enum: UserRole, example: UserRole.USER })
+  @IsEnum(UserRole)
   role: UserRole = UserRole.USER;
 
   @ApiProperty({ example: true })
+  @IsBoolean()
   isActive!: boolean;
 
   @ApiProperty({
     example: false,
     description: 'Whether the user has verified their email address.',
   })
+  @IsBoolean()
   emailVerified!: boolean;
 
-  @ApiPropertyOptional({ type: () => UserProfileResponseDto })
-  profile?: UserProfileResponseDto;
+  @ApiProperty({
+    example: false,
+    description: 'Whether the user has verified their phone number.',
+  })
+  @IsBoolean()
+  phoneVerified!: boolean;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '2024-10-25T10:30:00.000Z' })
+  @IsOptional()
+  @IsDateString()
   lastLoginAt?: Date;
 
-  @ApiProperty()
-  declare createdAt: Date;
-
-  @ApiProperty()
-  declare updatedAt: Date;
-}
-
-/**
- * Detailed user response for admin endpoints.
- * Includes additional metadata.
- */
-export class DetailedUserResponseDto extends UserResponseDto {
-  @ApiProperty({ example: 0 })
-  loginAttempts!: number;
-
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '2024-10-25T09:15:00.000Z' })
+  @IsOptional()
+  @IsDateString()
   lockedUntil?: Date;
 
-  @ApiPropertyOptional()
-  deletedAt?: Date;
-}
+  @ApiProperty({ example: 0 })
+  @IsNumber()
+  loginAttempts!: number;
 
-export class VerifyPhoneRequestDto {
-  @ApiProperty({ description: 'Phone verification code' })
-  @IsString()
-  @IsNumberString()
-  @Length(6, 6, { message: 'Verification code must be 6 digits.' })
-  code!: string;
-}
-
-export class VerifyPhoneResponseDto {
-  @ApiProperty({ example: 'Phone number verified successfully' })
-  message!: string;
-}
-
-export class ResendPhoneVerificationResponseDto {
-  @ApiProperty({ example: 'Verification code sent to your phone' })
-  message!: string;
-}
-
-/**
- * Paginated list of users (for admin).
- */
-export class PaginatedUsersResponseDto {
-  @ApiProperty({ type: [UserResponseDto] })
-  data!: UserResponseDto[];
-
-  @ApiProperty({ type: () => PaginationMetaDto })
-  meta!: PaginationMetaDto;
-}
-
-/**
- * Role change history record.
- */
-export class RoleChangeResponseDto extends BaseResponseDto {
-  @ApiProperty({ description: 'User ID whose role was changed.' })
-  userId!: string;
-
-  @ApiPropertyOptional({
-    description: 'The full name of the user at the time of the change.',
-    example: 'John Mwangi',
-  })
-  userName?: string;
-
-  @ApiPropertyOptional({
-    description: 'The email address of the user at the time of the change.',
-    example: 'john.mwangi@example.com',
-  })
-  userEmail?: string;
-
-  @ApiProperty({ enum: UserRole, description: 'Previous role.' })
-  oldRole!: UserRole;
-
-  @ApiProperty({ enum: UserRole, description: 'New role.' })
-  newRole!: UserRole;
-
-  @ApiPropertyOptional({ description: 'Admin who made the change.' })
-  changedBy?: string;
-
-  @ApiPropertyOptional({ description: 'Reason for the change.' })
-  reason?: string;
-
-  @ApiProperty({ description: 'Timestamp of the change.' })
+  @ApiProperty({ example: '2024-01-15T08:20:00.000Z' })
+  @IsDateString()
   declare createdAt: Date;
+
+  @ApiProperty({ example: '2024-10-25T10:30:00.000Z' })
+  @IsDateString()
+  declare updatedAt: Date;
+
+  @ApiPropertyOptional({ example: '2024-10-25T10:30:00.000Z' })
+  @IsOptional()
+  @IsDateString()
+  deletedAt?: Date;
+
+  @ApiProperty({
+    description: 'Indicates if the user account is currently locked.',
+    example: false,
+  })
+  @IsBoolean()
+  isLocked!: boolean;
+
+  @ApiProperty({
+    description: 'Indicates if the user account has been soft-deleted.',
+    example: false,
+  })
+  @IsBoolean()
+  isDeleted!: boolean;
 }
 
-/**
- * Paginated role change history.
- */
-export class PaginatedRoleChangesResponseDto {
-  @ApiProperty({ type: [RoleChangeResponseDto] })
-  data!: RoleChangeResponseDto[];
+export class UpdateMyUserResponseDto {
+  @ApiProperty({
+    description: 'Success message.',
+    example: 'User information updated successfully.',
+  })
+  @IsString()
+  message!: string;
 
-  @ApiProperty({ type: () => PaginationMetaDto })
-  meta!: PaginationMetaDto;
+  @ApiProperty({ type: () => UserResponseDto })
+  @ValidateNested()
+  @Type(() => UserResponseDto)
+  user!: UserResponseDto;
 }
 
-/**
- * Success response for update operations.
- */
+export class GetMyUserResponseDto extends UserResponseDto {
+  @ApiPropertyOptional({
+    description: 'User profile completion percentage.',
+    example: 75,
+    minimum: 0,
+    maximum: 100,
+  })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  profileCompletion?: number;
+
+  @ApiPropertyOptional({
+    description: 'Number of active sessions.',
+    example: 2,
+  })
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  activeSessions?: number;
+
+  @ApiPropertyOptional({
+    description: 'Security recommendations for the user.',
+    example: ['Enable two-factor authentication', 'Update your recovery email'],
+  })
+  @IsOptional()
+  @IsString({ each: true })
+  securityRecommendations?: string[];
+}
+
+export class DeactivateMyAccountResponseDto {
+  @ApiProperty({
+    example: 'Account deactivated successfully.',
+  })
+  @IsString()
+  message!: string;
+
+  @ApiProperty({
+    description: 'When the account was deactivated.',
+    example: '2024-10-25T10:30:00.000Z',
+  })
+  @IsDateString()
+  deactivatedAt!: Date;
+
+  @ApiProperty({
+    description: 'Number of sessions terminated.',
+    example: 3,
+  })
+  @IsNumber()
+  @IsPositive()
+  sessionsTerminated!: number;
+
+  @ApiProperty({
+    description: 'When the account can be reactivated.',
+    example: '2025-10-25T10:30:00.000Z',
+  })
+  @IsDateString()
+  reactivationAvailableAt!: Date;
+}
+
+export class CreateUserResponseDto {
+  @ApiProperty({
+    description: 'Success message.',
+    example: 'User created successfully.',
+  })
+  @IsString()
+  message!: string;
+
+  @ApiProperty({ type: () => UserResponseDto })
+  @ValidateNested()
+  @Type(() => UserResponseDto)
+  user!: UserResponseDto;
+
+  @ApiPropertyOptional({
+    description: 'Temporary password (only shown once).',
+    example: 'TempPassword123!',
+  })
+  @IsOptional()
+  @IsString()
+  temporaryPassword?: string;
+
+  @ApiProperty({
+    description: 'Whether welcome email was sent.',
+    example: true,
+  })
+  @IsBoolean()
+  welcomeEmailSent!: boolean;
+}
+
 export class UpdateUserResponseDto {
   @ApiProperty({
     description: 'Success message.',
     example: 'User updated successfully.',
   })
+  @IsString()
   message!: string;
 
   @ApiProperty({ type: () => UserResponseDto })
+  @ValidateNested()
+  @Type(() => UserResponseDto)
   user!: UserResponseDto;
 }
 
-/**
- * Success response for profile update operations.
- */
-export class UpdateProfileResponseDto {
+export class ChangeUserRoleResponseDto {
   @ApiProperty({
     description: 'Success message.',
-    example: 'Profile updated successfully.',
+    example: 'User role changed successfully.',
   })
+  @IsString()
   message!: string;
 
-  @ApiProperty({ type: () => UserProfileResponseDto })
-  profile!: UserProfileResponseDto;
+  @ApiProperty({ type: () => UserResponseDto })
+  @ValidateNested()
+  @Type(() => UserResponseDto)
+  user!: UserResponseDto;
+
+  @ApiProperty({
+    description: 'Previous role.',
+    example: UserRole.USER,
+    enum: UserRole,
+  })
+  @IsEnum(UserRole)
+  previousRole!: UserRole;
+
+  @ApiProperty({
+    description: 'New role.',
+    example: UserRole.ADMIN,
+    enum: UserRole,
+  })
+  @IsEnum(UserRole)
+  newRole!: UserRole;
+
+  @ApiProperty({
+    description: 'Admin who performed the change.',
+    example: 'admin-user-id',
+  })
+  @IsString()
+  changedBy!: string;
 }
 
-export class SendPhoneVerificationResponseDto {
-  @ApiProperty({ example: 'Verification code sent to your phone.' })
+export class BulkUpdateUsersResponseDto {
+  @ApiProperty({
+    description: 'Success message.',
+    example: 'Bulk update completed successfully.',
+  })
+  @IsString()
   message!: string;
 
-  @ApiProperty({ description: 'Timestamp when the next code can be sent.' })
-  nextRetryAt!: Date;
+  @ApiProperty({
+    description: 'Number of users successfully updated.',
+    example: 5,
+  })
+  @IsNumber()
+  @IsPositive()
+  updatedCount!: number;
 
-  @ApiProperty({ description: 'Seconds to wait before the next attempt.' })
-  retryAfterSeconds!: number;
+  @ApiProperty({
+    description: 'Number of users that failed to update.',
+    example: 0,
+  })
+  @IsNumber()
+  failedCount!: number;
 
-  @ApiProperty({ description: 'Minutes until the sent code expires.' })
-  expiresInMinutes!: number;
+  @ApiPropertyOptional({
+    description: 'Details of failed updates.',
+    example: [
+      { userId: 'user-id-1', error: 'User not found' },
+      { userId: 'user-id-2', error: 'Database connection failed' },
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  failures?: Array<{ userId: string; error: string }>;
 }
 
-export class UpdateMarketingPreferencesResponseDto {
-  @ApiProperty({ example: 'Marketing preferences updated successfully.' })
-  message!: string;
+export class UserListResponseDto {
+  @ApiProperty({
+    description: 'List of users.',
+    type: () => [UserResponseDto],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UserResponseDto)
+  data!: UserResponseDto[];
 
-  @ApiProperty()
-  marketingOptIn!: boolean;
+  @ApiProperty({
+    description: 'Pagination metadata.',
+    example: {
+      total: 100,
+      page: 1,
+      limit: 20,
+      totalPages: 5,
+      hasNext: true,
+      hasPrevious: false,
+    },
+  })
+  @IsObject()
+  meta!: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrevious: boolean;
+  };
 }
 
-export class UserStatsResponseDto {
-  @ApiProperty() total!: number;
-  @ApiProperty() active!: number;
-  @ApiProperty() inactive!: number;
-  @ApiProperty() deleted!: number;
-  @ApiProperty() locked!: number;
-  @ApiProperty() newLast30Days!: number;
-  @ApiProperty({ type: 'object', additionalProperties: { type: 'number' }})
-  byRole!: Record<UserRole, number>;
+export class UserSessionInfoDto {
+  @ApiProperty({ example: 'session-id-123' })
+  @IsString()
+  sessionId!: string;
+
+  @ApiProperty({ example: '2024-10-25T10:30:00.000Z' })
+  @IsDateString()
+  createdAt!: Date;
+
+  @ApiProperty({ example: '2024-10-25T11:30:00.000Z' })
+  @IsDateString()
+  lastActivity!: Date;
+
+  @ApiProperty({ example: '2024-10-26T10:30:00.000Z' })
+  @IsDateString()
+  expiresAt!: Date;
+
+  @ApiPropertyOptional({ example: '192.168.1.100' })
+  @IsOptional()
+  @IsString()
+  ipAddress?: string;
+
+  @ApiPropertyOptional({ example: 'Chrome on Windows' })
+  @IsOptional()
+  @IsString()
+  userAgent?: string;
+
+  @ApiPropertyOptional({ example: 'device-abc123' })
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
+
+  @ApiProperty({ example: false })
+  @IsBoolean()
+  isCurrent!: boolean;
+}
+
+export class UserSessionsResponseDto {
+  @ApiProperty({
+    description: 'List of user sessions.',
+    type: () => [UserSessionInfoDto],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UserSessionInfoDto)
+  sessions!: UserSessionInfoDto[];
+
+  @ApiProperty({ example: 3 })
+  @IsNumber()
+  @IsPositive()
+  totalSessions!: number;
+
+  @ApiProperty({ example: 2 })
+  @IsNumber()
+  @IsPositive()
+  activeSessions!: number;
 }

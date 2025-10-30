@@ -40,7 +40,9 @@ export interface PaginatedResult<T> {
 // USER REPOSITORY
 // ============================================================================
 
-export type UserUpdateData = Partial<Pick<UserProps, 'role' | 'isActive' | 'lockedUntil'>>;
+export type UserUpdateData = Partial<
+  Pick<UserProps, 'role' | 'isActive' | 'lockedUntil' | 'loginAttempts'>
+>;
 
 export interface UserFilters {
   role?: UserRole;
@@ -69,10 +71,16 @@ export interface IUserRepository {
   save(user: User): Promise<void>;
   findById(id: string): Promise<User | null>;
   findByEmail(email: Email): Promise<User | null>;
+  findByEmailWithProfile(email: Email): Promise<User | null>;
+  findByIdWithProfile(id: string): Promise<User | null>;
   findAll(filters: UserFilters, pagination: PaginationOptions): Promise<PaginatedResult<User>>;
   existsByEmail(email: Email): Promise<boolean>;
+  isPhoneNumberUnique(phoneNumber: PhoneNumber): Promise<boolean>;
   getStats(): Promise<UserStats>;
   bulkUpdate(userIds: string[], data: UserUpdateData): Promise<number>;
+  bulkUpdateProfiles(userIds: string[], data: { emailVerified?: boolean }): Promise<number>;
+  findRoleChangesByUserId(userId: string): Promise<any[]>;
+  findByRole(role: UserRole, limit?: number): Promise<User[]>;
 }
 
 // ============================================================================
@@ -93,7 +101,6 @@ export interface IUserProfileRepository {
   findProfileByUserId(userId: string): Promise<UserProfile | null>;
   findProfileByPhoneNumber(phoneNumber: PhoneNumber): Promise<UserProfile | null>;
 
-  isPhoneNumberUnique(phoneNumber: PhoneNumber): Promise<boolean>;
   deleteProfile(id: string): Promise<void>;
   findAllProfiles(filters: ProfileFilters): Promise<UserProfile[]>;
 }
@@ -142,6 +149,7 @@ export interface IPhoneVerificationTokenRepository {
   deleteExpired(): Promise<number>;
   deleteUsed(): Promise<number>;
   countActiveByUserId(userId: string): Promise<number>;
+  countByUserId(userId: string): Promise<number>;
 }
 
 // ============================================================================

@@ -80,6 +80,8 @@ CREATE TABLE "refresh_tokens" (
     "ipAddress" VARCHAR(45),
     "userAgent" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "revokedAt" TIMESTAMP(3),
+    "lastUsedAt" TIMESTAMP(3),
 
     CONSTRAINT "refresh_tokens_pkey" PRIMARY KEY ("id")
 );

@@ -1,22 +1,24 @@
 import { DomainEvent } from './domain-event.base';
 
+type SeverityLevel = 'low' | 'medium' | 'high' | 'critical';
+
 /**
  * Defines the specific data payload for SuspiciousActivityDetectedEvent.
  */
 export interface SuspiciousActivityDetectedEventData {
   readonly email: string;
-  readonly activityType: 'rapid_login_attempts' | 'unusual_location' | 'multiple_devices' | 'other';
-  readonly description: string;
-  readonly ipAddress?: string;
-  readonly userAgent?: string;
-  readonly metadata?: Record<string, any>;
+  readonly activityType:
+    | 'rapid_login_attempts'
+    | 'unusual_location'
+    | 'multiple_devices'
+    | 'multiple_failed_logins' // This was added based on your usage
+    | 'other';
+  readonly severity: SeverityLevel; // Added this property
+  readonly details: Record<string, any>; // Aligned with your usage
 }
 
 /**
- * SuspiciousActivityDetectedEvent
- *
  * Published when suspicious activity is detected on a user account.
- * Used for security monitoring, alerting, and potential automated responses.
  */
 export class SuspiciousActivityDetectedEvent
   extends DomainEvent
@@ -29,19 +31,16 @@ export class SuspiciousActivityDetectedEvent
     | 'rapid_login_attempts'
     | 'unusual_location'
     | 'multiple_devices'
+    | 'multiple_failed_logins'
     | 'other';
-  public readonly description: string;
-  public readonly ipAddress?: string;
-  public readonly userAgent?: string;
-  public readonly metadata?: Record<string, any>;
+  public readonly severity: SeverityLevel;
+  public readonly details: Record<string, any>;
 
   constructor(props: { aggregateId: string } & SuspiciousActivityDetectedEventData) {
     super(props.aggregateId);
     this.email = props.email;
     this.activityType = props.activityType;
-    this.description = props.description;
-    this.ipAddress = props.ipAddress;
-    this.userAgent = props.userAgent;
-    this.metadata = props.metadata;
+    this.severity = props.severity;
+    this.details = props.details;
   }
 }
