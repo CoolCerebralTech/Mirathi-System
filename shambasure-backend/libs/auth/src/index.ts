@@ -19,3 +19,6 @@ export * from './decorators/public.decorator';
 
 // Interfaces
 export * from './interfaces/auth.interface';
+
+export * from './services/hashing.service';
+export * from './services/token.service';

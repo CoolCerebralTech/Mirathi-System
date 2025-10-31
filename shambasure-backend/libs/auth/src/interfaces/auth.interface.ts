@@ -39,19 +39,3 @@ export interface TokenPair {
   accessToken: string;
   refreshToken: string;
 }
-
-/**
- * The final, rich object returned to the client after a successful
- * login or registration, combining user info and tokens.
- * This is the contract for our `AuthResponseDto`.
- */
-export interface AuthResult {
-  user: {
-    id: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    role: UserRole;
-  };
-  tokens: TokenPair;
-}

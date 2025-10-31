@@ -29,8 +29,8 @@ export interface DatabaseConfig {
 export interface AuthConfig {
   JWT_SECRET: string;
   JWT_EXPIRATION: string;
-  REFRESH_TOKEN_SECRET: string;
-  REFRESH_TOKEN_EXPIRATION: string;
+  REFRESH_TOKEN_SECRET: string | number;
+  REFRESH_TOKEN_EXPIRATION: string | number;
   BCRYPT_ROUNDS: number;
 }
 

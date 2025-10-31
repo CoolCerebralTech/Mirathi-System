@@ -1,10 +1,13 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { UserRole } from '@shamba/common';
 import { JwtPayload } from '../interfaces/auth.interface';
+import { Request } from 'express';
+
+interface AuthenticatedRequest extends Request {
+  user?: JwtPayload;
+}
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -23,8 +26,8 @@ export class RolesGuard implements CanActivate {
     }
 
     // Extract the user payload, which should have been attached by a preceding JwtAuthGuard.
-    const request = context.switchToHttp().getRequest();
-    const user: JwtPayload | undefined = request.user;
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const user = request.user;
 
     // --- Defensive Check ---
     // A user might not be present if the JwtAuthGuard is missing, or the token is invalid.
