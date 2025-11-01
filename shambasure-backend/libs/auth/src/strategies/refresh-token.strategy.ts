@@ -8,7 +8,8 @@ import { RefreshTokenPayload } from '../interfaces/auth.interface';
 @Injectable()
 export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
   constructor(configService: ConfigService) {
-    const secret = configService.get<'REFRESH_TOKEN_SECRET'>('REFRESH_TOKEN_SECRET');
+    const secret = configService.get('REFRESH_TOKEN_SECRET');
+
     if (!secret) {
       throw new Error('REFRESH_TOKEN_SECRET is not defined in configuration');
     }
@@ -16,8 +17,8 @@ export class RefreshTokenStrategy extends PassportStrategy(Strategy, 'jwt-refres
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: secret,
-      passReqToCallback: true, // allows us to access the request in validate()
+      secretOrKey: String(secret),
+      passReqToCallback: true,
     });
   }
 

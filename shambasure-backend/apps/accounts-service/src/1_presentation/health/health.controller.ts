@@ -1,37 +1,37 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import {
-  HealthCheck,
-  HealthCheckService,
-  HealthCheckResult,
-  PrismaHealthIndicator,
-  MemoryHealthIndicator,
-  DiskHealthIndicator,
-} from '@nestjs/terminus';
-import { PrismaService } from '@shamba/database';
+import { HealthCheck, HealthCheckResult } from '@nestjs/terminus';
 import { Public } from '@shamba/auth';
+
+// 👇 Use shared observability abstractions
+import { HealthService } from '@shamba/observability';
+import { PrismaHealthIndicator } from '@shamba/observability';
+import { MemoryHealthIndicator, DiskHealthIndicator } from '@nestjs/terminus';
 
 @ApiTags('Health')
 @Controller('health')
 @Public()
 export class HealthController {
   constructor(
-    private readonly health: HealthCheckService,
+    private readonly healthService: HealthService,
     private readonly prisma: PrismaHealthIndicator,
     private readonly memory: MemoryHealthIndicator,
     private readonly disk: DiskHealthIndicator,
-    private readonly prismaService: PrismaService,
   ) {}
 
+  /**
+   * Comprehensive health check endpoint.
+   * Used for manual or automated health diagnostics.
+   */
   @Get()
   @HealthCheck()
   @ApiOperation({
     summary: 'Comprehensive health check',
-    description: 'Checks database, memory, and disk health',
+    description: 'Checks database, memory, and disk health status.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Service is healthy',
+    description: 'Service is healthy.',
     schema: {
       type: 'object',
       properties: {
@@ -45,35 +45,19 @@ export class HealthController {
             storage: { status: 'up' },
           },
         },
-        error: { type: 'object' },
-        details: {
-          type: 'object',
-          example: {
-            database: { status: 'up' },
-            memory_heap: { status: 'up' },
-            memory_rss: { status: 'up' },
-            storage: { status: 'up' },
-          },
-        },
       },
     },
   })
-  @ApiResponse({
-    status: 503,
-    description: 'Service is unhealthy',
-  })
   async check(): Promise<HealthCheckResult> {
-    return this.health.check([
+    return this.healthService['health'].check([
       // Database connectivity
-      () => this.prisma.pingCheck('database', this.prismaService),
+      () => this.prisma.pingCheck('database'),
 
-      // Memory checks (heap should not exceed 300MB)
+      // Memory checks
       () => this.memory.checkHeap('memory_heap', 300 * 1024 * 1024),
-
-      // Memory RSS should not exceed 500MB
       () => this.memory.checkRSS('memory_rss', 500 * 1024 * 1024),
 
-      // Disk storage should have at least 10% free (90% threshold)
+      // Disk storage availability
       () =>
         this.disk.checkStorage('storage', {
           path: '/',
@@ -82,15 +66,19 @@ export class HealthController {
     ]);
   }
 
+  /**
+   * Lightweight liveness probe.
+   * Used by Kubernetes or orchestrators to verify that the service is responsive.
+   */
   @Get('liveness')
   @HealthCheck()
   @ApiOperation({
     summary: 'Liveness probe',
-    description: 'Simple check to verify service is running (for k8s)',
+    description: 'Simple check to verify service is running.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Service is alive',
+    description: 'Service is alive.',
     schema: {
       type: 'object',
       properties: {
@@ -99,24 +87,22 @@ export class HealthController {
     },
   })
   async liveness(): Promise<HealthCheckResult> {
-    return this.health.check([]);
+    return this.healthService['health'].check([]);
   }
 
+  /**
+   * Readiness probe.
+   * Ensures critical dependencies (like DB) are ready to serve traffic.
+   */
   @Get('readiness')
   @HealthCheck()
   @ApiOperation({
     summary: 'Readiness probe',
-    description: 'Checks if service is ready to accept traffic (database must be up)',
+    description: 'Checks if service is ready to accept traffic (database connectivity).',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Service is ready',
-  })
-  @ApiResponse({
-    status: 503,
-    description: 'Service is not ready',
-  })
+  @ApiResponse({ status: 200, description: 'Service is ready.' })
+  @ApiResponse({ status: 503, description: 'Service is not ready.' })
   async readiness(): Promise<HealthCheckResult> {
-    return this.health.check([() => this.prisma.pingCheck('database', this.prismaService)]);
+    return this.healthService['health'].check([() => this.prisma.pingCheck('database')]);
   }
 }

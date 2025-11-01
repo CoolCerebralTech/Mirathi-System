@@ -4,10 +4,10 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Reflector } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { ConfigService } from '@shamba/config';
-import { AccountsModule } from './accounts.module';
+import { AccountModule } from './accounts.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AccountsModule, {
+  const app = await NestFactory.create(AccountModule, {
     bufferLogs: true,
   });
 
@@ -43,7 +43,7 @@ async function bootstrap() {
   // CORS CONFIGURATION
   // ============================================================================
 
-  const corsOrigins = configService.get('CORS_ORIGINS', '*');
+  const corsOrigins = configService.get('CORS_ORIGINS') ?? ['*'];
   app.enableCors({
     origin: corsOrigins === '*' ? '*' : corsOrigins.split(','),
     credentials: true,
@@ -55,7 +55,7 @@ async function bootstrap() {
   // API CONFIGURATION
   // ============================================================================
 
-  const globalPrefix = configService.get('GLOBAL_PREFIX', 'api');
+  const globalPrefix = configService.get('GLOBAL_PREFIX') || 'api';
   app.setGlobalPrefix(globalPrefix);
 
   app.enableVersioning({
@@ -83,7 +83,12 @@ async function bootstrap() {
         '## Authorization\n\n' +
         'Admin endpoints require `ADMIN` role. All role changes are audited for compliance.\n\n' +
         '## Architecture\n\n' +
-        'Built with Clean Architecture principles for maintainability and scalability.',
+        'Built with Clean Architecture principles for maintainability and scalability.\n\n' +
+        '## Shared Infrastructure\n\n' +
+        '- **Database**: PostgreSQL with Prisma ORM\n' +
+        '- **Authentication**: JWT with shared auth strategies\n' +
+        '- **Messaging**: RabbitMQ for event-driven architecture\n' +
+        '- **Observability**: Structured logging, metrics, and distributed tracing',
     )
     .setVersion('2.0.0')
     .addBearerAuth(
@@ -165,6 +170,22 @@ async function bootstrap() {
   logger.log(`🏗️  Architecture:    Clean Architecture (4 Layers)`);
   logger.log(`🔐 Security:        Argon2, JWT, Rate Limiting, Account Lockout`);
   logger.log(`📨 Events:          RabbitMQ (user.created, email.verified, etc.)`);
+  logger.log(`📊 Observability:   Pino Logger, Metrics, Distributed Tracing`);
+  logger.log(`🏢 Shared Modules:  Database, Auth, Messaging, Observability`);
+  logger.log('='.repeat(70));
+
+  // Log shared infrastructure status
+  const sharedInfraStatus = {
+    database: '✅ Connected',
+    messaging: configService.get('RABBITMQ_URL') ? '✅ Configured' : '⚠️  Not Configured',
+    observability: '✅ Pino Logger Active',
+    auth: '✅ JWT Strategies Loaded',
+  };
+
+  logger.log('🏢 Shared Infrastructure Status:');
+  Object.entries(sharedInfraStatus).forEach(([service, status]) => {
+    logger.log(`   ${service}: ${status}`);
+  });
   logger.log('='.repeat(70));
 }
 

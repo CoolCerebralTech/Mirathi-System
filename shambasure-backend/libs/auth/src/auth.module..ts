@@ -22,31 +22,29 @@ import { RolesGuard } from './guards/roles.guard';
 
 @Global()
 @Module({
-  imports: [
-    ConfigModule,
-    DatabaseModule,
-    PassportModule,
-    // The JwtModule is now just a generic utility, not configured with secrets here.
-    // The TokenService will handle secrets.
-    JwtModule.register({}),
-  ],
-  // 2. --- UPDATE THE PROVIDERS ---
+  imports: [ConfigModule, DatabaseModule, PassportModule, JwtModule.register({})],
   providers: [
-    // Core utility services
     HashingService,
     TokenService,
-
-    // Passport Strategies
     JwtStrategy,
     LocalStrategy,
     RefreshTokenStrategy,
-
-    // Guards
     JwtAuthGuard,
     RolesGuard,
+
+    // Bind interfaces to concrete classes
+    { provide: 'IHashingService', useClass: HashingService },
+    { provide: 'ITokenService', useClass: TokenService },
   ],
-  // 3. --- UPDATE THE EXPORTS ---
-  // We now export the tools, not the business logic.
-  exports: [HashingService, TokenService, JwtAuthGuard, RolesGuard],
+  exports: [
+    HashingService,
+    TokenService,
+    JwtAuthGuard,
+    RolesGuard,
+
+    // Export the tokens too
+    'IHashingService',
+    'ITokenService',
+  ],
 })
 export class AuthModule {}

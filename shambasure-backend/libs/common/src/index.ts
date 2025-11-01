@@ -1,7 +1,6 @@
 // DTOs
 export * from './dto/shared/pagination.dto';
 export * from './dto/shared/base.response.dto';
-export * from './dto/succession/succession.dto';
 export * from './dto/documents/documents.dto';
 export * from './dto/notifications/notification.dto';
 export * from './dto/templates/template.dto';

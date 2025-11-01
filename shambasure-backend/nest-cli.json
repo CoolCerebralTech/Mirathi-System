@@ -5,13 +5,13 @@
   "monorepo": true,
   "root": "apps/api-gateway",
   "projects": {
-    "api-gateway": {
-      "type": "application",
-      "root": "apps/api-gateway",
-      "entryFile": "main",
-      "sourceRoot": "apps/api-gateway/src",
+    "notification": {
+      "type": "library",
+      "root": "libs/notification",
+      "entryFile": "index",
+      "sourceRoot": "libs/notification/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/api-gateway/tsconfig.app.json"
+        "tsConfigPath": "libs/notification/tsconfig.lib.json"
       }
     },
     "accounts-service": {
@@ -23,6 +23,15 @@
         "tsConfigPath": "apps/accounts-service/tsconfig.app.json"
       }
     },
+    "api-gateway": {
+      "type": "application",
+      "root": "apps/api-gateway",
+      "entryFile": "main",
+      "sourceRoot": "apps/api-gateway/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/api-gateway/tsconfig.app.json"
+      }
+    },
     "auditing-service": {
       "type": "application",
       "root": "apps/auditing-service",
@@ -30,33 +39,6 @@
       "sourceRoot": "apps/auditing-service/src",
       "compilerOptions": {
         "tsConfigPath": "apps/auditing-service/tsconfig.app.json"
-      }
-    },
-    "documents-service": {
-      "type": "application",
-      "root": "apps/documents-service",
-      "entryFile": "main",
-      "sourceRoot": "apps/documents-service/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/documents-service/tsconfig.app.json"
-      }
-    },
-    "notifications-service": {
-      "type": "application",
-      "root": "apps/notifications-service",
-      "entryFile": "main",
-      "sourceRoot": "apps/notifications-service/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/notifications-service/tsconfig.app.json"
-      }
-    },
-    "succession-service": {
-      "type": "application",
-      "root": "apps/succession-service",
-      "entryFile": "main",
-      "sourceRoot": "apps/succession-service/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/succession-service/tsconfig.app.json"
       }
     },
     "auth": {
@@ -95,6 +77,15 @@
         "tsConfigPath": "libs/database/tsconfig.lib.json"
       }
     },
+    "documents-service": {
+      "type": "application",
+      "root": "apps/documents-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/documents-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/documents-service/tsconfig.app.json"
+      }
+    },
     "messaging": {
       "type": "library",
       "root": "libs/messaging",
@@ -102,6 +93,15 @@
       "sourceRoot": "libs/messaging/src",
       "compilerOptions": {
         "tsConfigPath": "libs/messaging/tsconfig.lib.json"
+      }
+    },
+    "notifications-service": {
+      "type": "application",
+      "root": "apps/notifications-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/notifications-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/notifications-service/tsconfig.app.json"
       }
     },
     "observability": {
@@ -112,6 +112,18 @@
       "compilerOptions": {
         "tsConfigPath": "libs/observability/tsconfig.lib.json"
       }
+    },
+    "succession-service": {
+      "type": "application",
+      "root": "apps/succession-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/succession-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/succession-service/tsconfig.app.json"
+      }
     }
+  },
+  "compilerOptions": {
+    "webpack": true
   }
 }

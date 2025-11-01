@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   InternalServerErrorException,
   Logger,
+  Inject,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import type {
@@ -83,16 +84,28 @@ export class AdminService {
   private readonly logger = new Logger(AdminService.name);
   private readonly TEMP_PASSWORD_LENGTH = 12;
   private readonly PASSWORD_HISTORY_COUNT: number;
+  private readonly MAX_ADMIN_COUNT = 10;
 
   constructor(
+    @Inject('IUserRepository')
     private readonly userRepo: IUserRepository,
+
+    @Inject('IRefreshTokenRepository')
     private readonly refreshTokenRepo: IRefreshTokenRepository,
+
+    @Inject('ILoginSessionRepository')
     private readonly loginSessionRepo: ILoginSessionRepository,
+
+    @Inject('IPasswordHistoryRepository')
     private readonly passwordHistoryRepo: IPasswordHistoryRepository,
+
+    @Inject('IEventPublisher')
     private readonly eventPublisher: IEventPublisher,
+
+    @Inject('INotificationService')
     private readonly notificationService: INotificationService,
+
     private readonly userMapper: UserMapper,
-    private readonly MAX_ADMIN_COUNT = 10,
   ) {}
 
   // ==========================================================================

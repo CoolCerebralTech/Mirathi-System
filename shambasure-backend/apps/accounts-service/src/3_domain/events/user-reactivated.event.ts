@@ -3,7 +3,7 @@ import { DomainEvent } from './domain-event.base';
 /**
  * Defines the specific data payload for UserReactivatedEvent.
  */
-export interface UserReactivatedEventData {
+export interface UserReactivatedEventData extends Record<string, unknown> {
   readonly email: string;
   readonly reactivatedBy: string; // userId of admin who reactivated
   readonly reason?: string;
@@ -14,17 +14,14 @@ export interface UserReactivatedEventData {
  *
  * Published when a previously deactivated user account is reactivated.
  */
-export class UserReactivatedEvent extends DomainEvent implements UserReactivatedEventData {
+export class UserReactivatedEvent extends DomainEvent<UserReactivatedEventData> {
   public readonly eventName = 'user.reactivated';
 
-  public readonly email: string;
-  public readonly reactivatedBy: string;
-  public readonly reason?: string;
-
   constructor(props: { aggregateId: string } & UserReactivatedEventData) {
-    super(props.aggregateId);
-    this.email = props.email;
-    this.reactivatedBy = props.reactivatedBy;
-    this.reason = props.reason;
+    super(props.aggregateId, {
+      email: props.email,
+      reactivatedBy: props.reactivatedBy,
+      reason: props.reason,
+    });
   }
 }

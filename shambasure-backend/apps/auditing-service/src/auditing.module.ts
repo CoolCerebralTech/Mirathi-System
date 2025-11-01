@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
 // ============================================================================
 // auditing.module.ts - Auditing Service Root Module
 // ============================================================================
@@ -12,7 +10,6 @@ import { AuthModule } from '@shamba/auth';
 import { MessagingModule } from '@shamba/messaging';
 import { ObservabilityModule } from '@shamba/observability';
 
-import { AuditingController } from './controllers/auditing.controller';
 import { AuditingService } from './services/auditing.service';
 import { AuditingRepository } from './repositories/auditing.repository';
 import { EventsHandler } from './events/events.handler';
@@ -24,14 +21,13 @@ import { SchedulerService as AuditSchedulerService } from './events/scheduler.se
     DatabaseModule,
     AuthModule,
     ScheduleModule.forRoot(),
-    MessagingModule.register({ queue: 'auditing.events' }),
+    MessagingModule.register({}),
     ObservabilityModule.register({
       serviceName: 'auditing-service',
       version: '1.0.0',
     }),
   ],
   controllers: [
-    AuditingController,
     EventsHandler, // Event consumer controller
   ],
   providers: [AuditingService, AuditingRepository, AuditSchedulerService],

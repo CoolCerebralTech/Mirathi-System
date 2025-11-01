@@ -4,7 +4,7 @@ import { DomainEvent } from './domain-event.base';
  * Defines the specific data payload for the PasswordResetEvent.
  * Useful for sending a "Your password has been successfully reset" confirmation.
  */
-export interface PasswordResetEventData {
+export interface PasswordResetEventData extends Record<string, unknown> {
   readonly email: string;
   readonly firstName: string;
 }
@@ -15,15 +15,13 @@ export interface PasswordResetEventData {
  * Published when a user's password has been successfully reset via the
  * "forgot password" flow.
  */
-export class PasswordResetEvent extends DomainEvent implements PasswordResetEventData {
+export class PasswordResetEvent extends DomainEvent<PasswordResetEventData> {
   public readonly eventName = 'password.reset';
 
-  public readonly email: string;
-  public readonly firstName: string;
-
   constructor(props: { aggregateId: string } & PasswordResetEventData) {
-    super(props.aggregateId);
-    this.email = props.email;
-    this.firstName = props.firstName;
+    super(props.aggregateId, {
+      email: props.email,
+      firstName: props.firstName,
+    });
   }
 }

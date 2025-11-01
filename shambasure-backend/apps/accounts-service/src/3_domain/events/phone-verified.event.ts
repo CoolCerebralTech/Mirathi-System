@@ -3,7 +3,7 @@ import { DomainEvent } from './domain-event.base';
 /**
  * Defines the specific data payload for the PhoneVerifiedEvent.
  */
-export interface PhoneVerifiedEventData {
+export interface PhoneVerifiedEventData extends Record<string, unknown> {
   /** The phone number in E.164 format. */
   readonly phoneNumber: string;
   readonly provider: 'Safaricom' | 'Airtel' | 'Telkom' | 'Unknown';
@@ -15,18 +15,14 @@ export interface PhoneVerifiedEventData {
  * Published when a user successfully verifies their phone number.
  * This can enable features like SMS notifications.
  */
-export class PhoneVerifiedEvent extends DomainEvent implements PhoneVerifiedEventData {
+export class PhoneVerifiedEvent extends DomainEvent<PhoneVerifiedEventData> {
   public readonly eventName = 'phone.verified';
 
-  public readonly phoneNumber: string;
-  public readonly provider: 'Safaricom' | 'Airtel' | 'Telkom' | 'Unknown';
-
   constructor(props: { aggregateId: string } & PhoneVerifiedEventData) {
-    // Call the base class constructor with the user's ID
-    super(props.aggregateId);
-
-    // Assign the specific payload properties
-    this.phoneNumber = props.phoneNumber;
-    this.provider = props.provider;
+    // Call the base class constructor with the user's ID and payload
+    super(props.aggregateId, {
+      phoneNumber: props.phoneNumber,
+      provider: props.provider,
+    });
   }
 }

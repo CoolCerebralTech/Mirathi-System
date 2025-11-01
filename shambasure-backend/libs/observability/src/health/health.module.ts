@@ -1,19 +1,40 @@
 import { Module } from '@nestjs/common';
-import { TerminusModule } from '@nestjs/terminus';
+import { TerminusModule, DiskHealthIndicator, MemoryHealthIndicator } from '@nestjs/terminus';
+import { ConfigModule } from '@shamba/config';
 import { DatabaseModule } from '@shamba/database';
 import { MessagingModule } from '@shamba/messaging';
+import { NotificationModule } from '@shamba/notification';
 
 import { HealthService } from './health.service';
-import { MessagingHealthIndicator } from './messaging-health.indicator';
+
+// Health indicators
+import {
+  MessagingHealthIndicator,
+  PrismaHealthIndicator,
+  NotificationHealthIndicator,
+} from './indicators';
 
 @Module({
   imports: [
     TerminusModule,
+    ConfigModule,
     DatabaseModule,
-    // CORRECTED: Call the .register() method for the dynamic module
-    MessagingModule.register({ queue: 'health-check-queue' }),
+    NotificationModule,
+    MessagingModule.register({}),
   ],
-  providers: [HealthService, MessagingHealthIndicator],
-  exports: [HealthService],
+  providers: [
+    HealthService,
+    MessagingHealthIndicator,
+    PrismaHealthIndicator,
+    NotificationHealthIndicator,
+    MemoryHealthIndicator,
+    DiskHealthIndicator,
+  ],
+  exports: [
+    HealthService,
+    PrismaHealthIndicator,
+    MessagingHealthIndicator,
+    NotificationHealthIndicator,
+  ],
 })
 export class HealthModule {}

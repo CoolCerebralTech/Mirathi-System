@@ -5,6 +5,7 @@ import {
   ConflictException,
   InternalServerErrorException,
   Logger,
+  Inject,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import type {
@@ -105,17 +106,37 @@ export class AuthService {
   private readonly PASSWORD_HISTORY_COUNT = 5;
 
   constructor(
+    @Inject('IUserRepository')
     private readonly userRepo: IUserRepository,
+
+    @Inject('IPasswordResetTokenRepository')
     private readonly passwordResetTokenRepo: IPasswordResetTokenRepository,
+
+    @Inject('IEmailVerificationTokenRepository')
     private readonly emailVerificationTokenRepo: IEmailVerificationTokenRepository,
+
+    @Inject('IEmailChangeTokenRepository')
     private readonly emailChangeTokenRepo: IEmailChangeTokenRepository,
+
+    @Inject('IRefreshTokenRepository')
     private readonly refreshTokenRepo: IRefreshTokenRepository,
+
+    @Inject('IPasswordHistoryRepository')
     private readonly passwordHistoryRepo: IPasswordHistoryRepository,
+
+    @Inject('IHashingService')
     private readonly hashingService: IHashingService,
+
+    @Inject('ITokenService')
     private readonly tokenService: ITokenService,
+
+    @Inject('IEventPublisher')
     private readonly eventPublisher: IEventPublisher,
+
+    @Inject('INotificationService')
     private readonly notificationService: INotificationService,
-    private readonly authMapper: AuthMapper,
+
+    private readonly authMapper: AuthMapper, // this one is a class, so no @Inject needed
   ) {}
 
   // ==========================================================================

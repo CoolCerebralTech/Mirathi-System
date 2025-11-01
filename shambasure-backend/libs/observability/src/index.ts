@@ -7,7 +7,7 @@ export * from './metrics/metrics.service';
 export * from './metrics/metrics.module';
 export * from './health/health.service';
 export * from './health/health.module';
-export * from './health/messaging-health.indicator';
+export * from './health/indicators/index';
 
 // Interfaces
 export * from './interfaces/observability.interface';

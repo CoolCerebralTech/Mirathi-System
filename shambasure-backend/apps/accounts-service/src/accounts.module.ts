@@ -1,95 +1,75 @@
-// In apps/accounts-service/src/accounts.module.ts
-
-import { Module, Injectable, Logger } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { Module } from '@nestjs/common';
+import { CqrsModule } from '@nestjs/cqrs';
 
 // --- SHARED LIBRARY IMPORTS ---
 import { DatabaseModule } from '@shamba/database';
 import { AuthModule as SharedAuthModule } from '@shamba/auth';
 import { MessagingModule } from '@shamba/messaging';
 import { ObservabilityModule } from '@shamba/observability';
+import { NotificationModule } from '@shamba/notification';
 
-// --- All of your existing imports ---
-import { AuthController } from './1_presentation/controllers/auth.controller';
-import { UserController } from './1_presentation/controllers/user.controller';
-import { AdminController } from './1_presentation/controllers/admin.controller';
-import { HealthController } from './1_presentation/health/health.controller';
+// Infrastructure
+// Note: PrismaService is now provided by DatabaseModule
+
+// Repositories
+import { PrismaUserRepository } from './4_infrastructure/persistence/repositories/user.repository';
+import { PrismaPasswordResetTokenRepository } from './4_infrastructure/persistence/repositories/token.repository';
+import { PrismaEmailVerificationTokenRepository } from './4_infrastructure/persistence/repositories/token.repository';
+import { PrismaPhoneVerificationTokenRepository } from './4_infrastructure/persistence/repositories/token.repository';
+import { PrismaEmailChangeTokenRepository } from './4_infrastructure/persistence/repositories/token.repository';
+import { PrismaRefreshTokenRepository } from './4_infrastructure/persistence/repositories/token.repository';
+import { PrismaLoginSessionRepository } from './4_infrastructure/persistence/repositories/token.repository';
+import { PrismaPasswordHistoryRepository } from './4_infrastructure/persistence/repositories/token.repository';
+
+// Infrastructure Mappers
+import { UserMapper } from './4_infrastructure/persistence/mappers/user.mapper';
+import { PasswordResetTokenMapper } from './4_infrastructure/persistence/mappers/token.mapper';
+import { EmailVerificationTokenMapper } from './4_infrastructure/persistence/mappers/token.mapper';
+import { PhoneVerificationTokenMapper } from './4_infrastructure/persistence/mappers/token.mapper';
+import { EmailChangeTokenMapper } from './4_infrastructure/persistence/mappers/token.mapper';
+import { RefreshTokenMapper } from './4_infrastructure/persistence/mappers/token.mapper';
+import { LoginSessionMapper } from './4_infrastructure/persistence/mappers/token.mapper';
+import { PasswordHistoryMapper } from './4_infrastructure/persistence/mappers/token.mapper';
+import { TokenMapperFactory } from './4_infrastructure/persistence/mappers/token.mapper';
+
+// Application Mappers
+import { AuthMapper } from './2_application/mappers/auth.mapper';
+import { UserMapper as ApplicationUserMapper } from './2_application/mappers/user.mapper';
+import { ProfileMapper } from './2_application/mappers/profile.mapper';
+import { TokenMapper } from './2_application/mappers/token.mapper';
+
+// Services (Application Layer)
 import { AuthService } from './2_application/services/auth.service';
 import { UserService } from './2_application/services/user.service';
 import { AdminService } from './2_application/services/admin.service';
 
-// Mappers
-import { UserMapper } from './2_application/mappers/user.mapper';
-import { AuthMapper } from './2_application/mappers/auth.mapper';
-import { ProfileMapper } from './2_application/mappers/profile.mapper';
-import { TokenMapper } from './2_application/mappers/token.mapper';
+// Controllers (Presentation Layer)
+import { AuthController } from './1_presentation/controllers/auth.controller';
+import { UserController } from './1_presentation/controllers/user.controller';
+import { AdminController } from './1_presentation/controllers/admin.controller';
 
-// Repositories
-import {
-  PrismaUserRepository,
-  PrismaPasswordResetTokenRepository,
-  PrismaEmailVerificationTokenRepository,
-  PrismaPhoneVerificationTokenRepository,
-  PrismaEmailChangeTokenRepository,
-  PrismaRefreshTokenRepository,
-  PrismaLoginSessionRepository,
-  PrismaPasswordHistoryRepository,
-} from './4_infrastructure/repositories';
-
-// Interfaces for DI
-import {
-  IUserRepository,
-  IUserProfileRepository,
-  IPasswordResetTokenRepository,
-  IEmailVerificationTokenRepository,
-  IPhoneVerificationTokenRepository,
-  IEmailChangeTokenRepository,
-  IRefreshTokenRepository,
-  ILoginSessionRepository,
-  IPasswordHistoryRepository,
-  INotificationService,
-} from './3_domain/interfaces';
-
-// MOCK NOTIFICATION SERVICE
-@Injectable()
-class MockNotificationService implements INotificationService {
-  private readonly logger = new Logger(MockNotificationService.name);
-  sendEmail(data: any): Promise<void> {
-    this.logger.log(`[MOCK] Sending Email: ${JSON.stringify(data)}`);
-    return Promise.resolve();
-  }
-  sendSMS(data: any): Promise<void> {
-    this.logger.log(`[MOCK] Sending SMS: ${JSON.stringify(data)}`);
-    return Promise.resolve();
-  }
-}
+// Health
+import { HealthController } from './1_presentation/health/health.controller';
+import { HealthModule } from '@shamba/observability';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
-    DatabaseModule,
-    SharedAuthModule,
-    MessagingModule,
-    ObservabilityModule,
+    // Nest.js Core Modules
+    CqrsModule,
+
+    // Shared Library Modules
+    DatabaseModule, // Provides PrismaService and database connectivity
+    SharedAuthModule, // Shared authentication utilities, guards, strategies
+    MessagingModule.register({}), // Event publishing, email, SMS, notifications
+    ObservabilityModule, // Logging, metrics, tracing, monitoring
+    NotificationModule,
+
+    // Internal Modules
+    HealthModule,
   ],
   controllers: [AuthController, UserController, AdminController, HealthController],
   providers: [
-    // Your Services
-    AuthService,
-    UserService,
-    AdminService,
-
-    // Your Application Mappers
-    UserMapper,
-    AuthMapper,
-    ProfileMapper,
-    TokenMapper,
-
-    // ********************************************************************
-    // THE ONLY CHANGE IS HERE. THIS IS THE SIMPLEST WAY.
-    // ********************************************************************
-
-    // We provide the concrete classes directly.
+    // Repositories
     PrismaUserRepository,
     PrismaPasswordResetTokenRepository,
     PrismaEmailVerificationTokenRepository,
@@ -98,26 +78,66 @@ class MockNotificationService implements INotificationService {
     PrismaRefreshTokenRepository,
     PrismaLoginSessionRepository,
     PrismaPasswordHistoryRepository,
-    MockNotificationService, // Provide the mock service
 
-    // Then we create "aliases" so that when a service asks for an interface,
-    // NestJS knows which concrete class to give it.
-    { provide: IUserRepository, useExisting: PrismaUserRepository },
-    { provide: IUserProfileRepository, useExisting: PrismaUserRepository },
-    { provide: IPasswordResetTokenRepository, useExisting: PrismaPasswordResetTokenRepository },
+    // Infrastructure Mappers (Domain ↔ Persistence)
+    UserMapper, // Infrastructure user mapper
+    PasswordResetTokenMapper,
+    EmailVerificationTokenMapper,
+    PhoneVerificationTokenMapper,
+    EmailChangeTokenMapper,
+    RefreshTokenMapper,
+    LoginSessionMapper,
+    PasswordHistoryMapper,
+    TokenMapperFactory,
+
+    // Application Mappers (Domain ↔ DTOs)
+    AuthMapper,
+    ApplicationUserMapper, // Application user mapper
+    ProfileMapper,
+    TokenMapper,
+
+    // Services
+    AuthService,
+    UserService,
+    AdminService,
+
+    // Domain Interfaces (as providers for dependency injection)
     {
-      provide: IEmailVerificationTokenRepository,
+      provide: 'IUserRepository',
+      useExisting: PrismaUserRepository,
+    },
+    {
+      provide: 'IUserProfileRepository',
+      useExisting: PrismaUserRepository,
+    },
+    {
+      provide: 'IPasswordResetTokenRepository',
+      useExisting: PrismaPasswordResetTokenRepository,
+    },
+    {
+      provide: 'IEmailVerificationTokenRepository',
       useExisting: PrismaEmailVerificationTokenRepository,
     },
     {
-      provide: IPhoneVerificationTokenRepository,
+      provide: 'IPhoneVerificationTokenRepository',
       useExisting: PrismaPhoneVerificationTokenRepository,
     },
-    { provide: IEmailChangeTokenRepository, useExisting: PrismaEmailChangeTokenRepository },
-    { provide: IRefreshTokenRepository, useExisting: PrismaRefreshTokenRepository },
-    { provide: ILoginSessionRepository, useExisting: PrismaLoginSessionRepository },
-    { provide: IPasswordHistoryRepository, useExisting: PrismaPasswordHistoryRepository },
-    { provide: INotificationService, useExisting: MockNotificationService },
+    {
+      provide: 'IEmailChangeTokenRepository',
+      useExisting: PrismaEmailChangeTokenRepository,
+    },
+    {
+      provide: 'IRefreshTokenRepository',
+      useExisting: PrismaRefreshTokenRepository,
+    },
+    {
+      provide: 'ILoginSessionRepository',
+      useExisting: PrismaLoginSessionRepository,
+    },
+    {
+      provide: 'IPasswordHistoryRepository',
+      useExisting: PrismaPasswordHistoryRepository,
+    },
   ],
 })
-export class AccountsModule {}
+export class AccountModule {}

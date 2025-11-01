@@ -12,10 +12,6 @@ import { APP_GUARD } from '@nestjs/core';
 
 import { HealthController } from './controllers/health.controller';
 import { HealthService } from './health/health.service';
-import { AccountsProxyController } from './proxy/accounts.proxy.controller';
-import { DocumentsProxyController } from './proxy/documents.proxy.controller';
-import { SuccessionProxyController } from './proxy/succession.proxy.controller';
-
 /**
  * GatewayModule - Root module for API Gateway
  *
@@ -45,7 +41,7 @@ import { SuccessionProxyController } from './proxy/succession.proxy.controller';
     // ADDED: Register messaging for publishing events to other services if needed.
     // Even if the gateway doesn't publish, this initializes the connection.
     MessagingModule.register({
-      queue: 'gateway.events', // The gateway can have its own queue if needed
+      // The gateway can have its own queue if needed
     }),
 
     // --- HTTP Client for Proxying & Health Checks ---
@@ -67,9 +63,6 @@ import { SuccessionProxyController } from './proxy/succession.proxy.controller';
   // --- Controllers ---
   controllers: [
     HealthController, // /health endpoint
-    AccountsProxyController, // /auth, /profile, /users
-    DocumentsProxyController, // /documents
-    SuccessionProxyController, // /wills, /assets, /families
   ],
 
   // --- Providers ---

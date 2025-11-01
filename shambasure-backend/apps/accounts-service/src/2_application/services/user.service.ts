@@ -6,6 +6,7 @@ import {
   InternalServerErrorException,
   Logger,
   ConflictException,
+  Inject,
 } from '@nestjs/common';
 import type {
   IUserRepository,
@@ -103,13 +104,28 @@ export class UserService {
   private readonly OTP_RETRY_SECONDS = 60;
 
   constructor(
+    @Inject('IUserRepository')
     private readonly userRepo: IUserRepository,
+
+    @Inject('IPhoneVerificationTokenRepository')
     private readonly phoneVerificationTokenRepo: IPhoneVerificationTokenRepository,
+
+    @Inject('IRefreshTokenRepository')
     private readonly refreshTokenRepo: IRefreshTokenRepository,
+
+    @Inject('ILoginSessionRepository')
     private readonly loginSessionRepo: ILoginSessionRepository,
+
+    @Inject('IHashingService')
     private readonly hashingService: IHashingService,
+
+    @Inject('IEventPublisher')
     private readonly eventPublisher: IEventPublisher,
+
+    @Inject('INotificationService')
     private readonly notificationService: INotificationService,
+
+    // These are classes decorated with @Injectable(), so no @Inject needed
     private readonly userMapper: UserMapper,
     private readonly profileMapper: ProfileMapper,
   ) {}

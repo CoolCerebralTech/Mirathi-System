@@ -3,7 +3,7 @@ import { DomainEvent } from './domain-event.base';
 /**
  * Defines the specific data payload for UserLoggedInEvent.
  */
-export interface UserLoggedInEventData {
+export interface UserLoggedInEventData extends Record<string, unknown> {
   readonly email: string;
   readonly ipAddress?: string;
   readonly userAgent?: string;
@@ -15,19 +15,15 @@ export interface UserLoggedInEventData {
  *
  * Published when a user successfully logs into the system.
  */
-export class UserLoggedInEvent extends DomainEvent implements UserLoggedInEventData {
+export class UserLoggedInEvent extends DomainEvent<UserLoggedInEventData> {
   public readonly eventName = 'user.logged_in';
 
-  public readonly email: string;
-  public readonly ipAddress?: string;
-  public readonly userAgent?: string;
-  public readonly deviceId?: string;
-
   constructor(props: { aggregateId: string } & UserLoggedInEventData) {
-    super(props.aggregateId);
-    this.email = props.email;
-    this.ipAddress = props.ipAddress;
-    this.userAgent = props.userAgent;
-    this.deviceId = props.deviceId;
+    super(props.aggregateId, {
+      email: props.email,
+      ipAddress: props.ipAddress,
+      userAgent: props.userAgent,
+      deviceId: props.deviceId,
+    });
   }
 }

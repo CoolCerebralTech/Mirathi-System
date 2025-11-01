@@ -3,7 +3,7 @@ import { DomainEvent } from './domain-event.base';
 /**
  * Defines the specific data payload for EmailChangedEvent.
  */
-export interface EmailChangedEventData {
+export interface EmailChangedEventData extends Record<string, unknown> {
   readonly previousEmail: string;
   readonly newEmail: string;
 }
@@ -14,15 +14,13 @@ export interface EmailChangedEventData {
  * Published when a user's email address has been successfully changed
  * after verification of the new email address.
  */
-export class EmailChangedEvent extends DomainEvent implements EmailChangedEventData {
+export class EmailChangedEvent extends DomainEvent<EmailChangedEventData> {
   public readonly eventName = 'user.email_changed';
 
-  public readonly previousEmail: string;
-  public readonly newEmail: string;
-
   constructor(props: { aggregateId: string } & EmailChangedEventData) {
-    super(props.aggregateId);
-    this.previousEmail = props.previousEmail;
-    this.newEmail = props.newEmail;
+    super(props.aggregateId, {
+      previousEmail: props.previousEmail,
+      newEmail: props.newEmail,
+    });
   }
 }

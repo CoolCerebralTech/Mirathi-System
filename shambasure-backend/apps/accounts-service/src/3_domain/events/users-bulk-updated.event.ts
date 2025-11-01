@@ -1,19 +1,24 @@
-import { DomainEvent } from './domain-event.base'; // Adjust import
+import { DomainEvent } from './domain-event.base';
 
-export class UsersBulkUpdatedEvent extends DomainEvent {
-  public eventName: string;
-  constructor(
-    public readonly payload: {
-      adminId: string;
-      updatedUserIds: string[];
-      changes: any;
-      reason?: string;
-    },
-  ) {
-    super({
-      eventName: 'admin.users_bulk_updated',
-      aggregateId: adminId, // Use adminId as the "actor"
-      payload: payload,
-    });
+/**
+ * Defines the specific data payload for UsersBulkUpdatedEvent.
+ */
+export interface UsersBulkUpdatedEventData extends Record<string, unknown> {
+  readonly adminId: string;
+  readonly updatedUserIds: string[];
+  readonly changes: any;
+  readonly reason?: string;
+}
+
+/**
+ * UsersBulkUpdatedEvent
+ *
+ * Published when multiple users are updated in bulk by an admin.
+ */
+export class UsersBulkUpdatedEvent extends DomainEvent<UsersBulkUpdatedEventData> {
+  public readonly eventName = 'admin.users_bulk_updated';
+
+  constructor(payload: UsersBulkUpdatedEventData) {
+    super(payload.adminId, payload);
   }
 }
