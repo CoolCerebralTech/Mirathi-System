@@ -12,7 +12,7 @@ import {
 } from '@nestjs/terminus';
 
 // Your actual service that handles routing and can check downstream health
-import { GatewayService } from '../2_application/services/gateway.service';
+import { ProxyService } from '../../2_application/services/proxy.service';
 
 // This decorator should come from your shared @shamba/auth library
 import { Public } from '@shamba/auth';
@@ -34,7 +34,7 @@ type ServicesHealthMap = Record<string, ServiceHealth>;
 
 @Injectable()
 export class DownstreamServicesHealthIndicator extends HealthIndicator {
-  constructor(private readonly gatewayService: GatewayService) {
+  constructor(private readonly gatewayService: ProxyService) {
     super();
   }
 
