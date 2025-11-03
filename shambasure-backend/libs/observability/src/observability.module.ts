@@ -70,10 +70,7 @@ export class ObservabilityModule {
           },
         }),
       ],
-      // CORRECTED: Export the entire HealthModule.
-      // This makes all of HealthModule's exported providers (like HealthService)
-      // available to any module that imports ObservabilityModule.
-      exports: [HealthModule],
+      exports: [HealthModule, PinoLoggerModule],
     };
   }
 }

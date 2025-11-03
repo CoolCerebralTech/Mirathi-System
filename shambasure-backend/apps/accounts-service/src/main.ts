@@ -43,9 +43,19 @@ async function bootstrap() {
   // CORS CONFIGURATION
   // ============================================================================
 
-  const corsOrigins = configService.get('CORS_ORIGINS') ?? ['*'];
+  const rawCorsOrigins = configService.get('CORS_ORIGINS');
+
+  const corsOrigins =
+    rawCorsOrigins === '*'
+      ? '*'
+      : Array.isArray(rawCorsOrigins)
+        ? rawCorsOrigins
+        : typeof rawCorsOrigins === 'string'
+          ? rawCorsOrigins.split(',').map((o) => o.trim())
+          : [];
+
   app.enableCors({
-    origin: corsOrigins === '*' ? '*' : corsOrigins.split(','),
+    origin: corsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
@@ -164,7 +174,7 @@ async function bootstrap() {
   logger.log(`✅ Readiness:       http://localhost:${port}/${globalPrefix}/health/readiness`);
   logger.log('─'.repeat(70));
   logger.log(`🌍 Environment:     ${nodeEnv}`);
-  logger.log(`🔒 CORS Origins:    ${corsOrigins}`);
+  logger.log(`🔒 CORS Origins:    ${rawCorsOrigins}`);
   logger.log(`📦 API Version:     v1`);
   logger.log(`🏷️  Global Prefix:   /${globalPrefix}`);
   logger.log(`🏗️  Architecture:    Clean Architecture (4 Layers)`);

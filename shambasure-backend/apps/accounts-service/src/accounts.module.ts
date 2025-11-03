@@ -50,7 +50,6 @@ import { AdminController } from './1_presentation/controllers/admin.controller';
 
 // Health
 import { HealthController } from './1_presentation/health/health.controller';
-import { HealthModule } from '@shamba/observability';
 
 @Module({
   imports: [
@@ -61,11 +60,8 @@ import { HealthModule } from '@shamba/observability';
     DatabaseModule, // Provides PrismaService and database connectivity
     SharedAuthModule, // Shared authentication utilities, guards, strategies
     MessagingModule.register({}), // Event publishing, email, SMS, notifications
-    ObservabilityModule, // Logging, metrics, tracing, monitoring
+    ObservabilityModule.register({ serviceName: 'accounts-service', version: '1.0.0' }), // Logging, metrics, tracing, monitoring
     NotificationModule,
-
-    // Internal Modules
-    HealthModule,
   ],
   controllers: [AuthController, UserController, AdminController, HealthController],
   providers: [

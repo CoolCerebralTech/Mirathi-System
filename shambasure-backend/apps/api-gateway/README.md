@@ -1,23 +1,3 @@
-api-gateway/
-└── src/
-    ├── 1_presentation/
-    │   ├── controllers/
-    │   │   ├── health/ (exists)
-    │   │   └── gateway/ 
-    │   │       └── gateway.controller.ts    # Catch-all router
-    │   └── filters/
-    │       └── gateway-exception.filter.ts  # Gateway-specific errors
-    ├── 2_application/
-    │   ├── services/
-    │   │   └── gateway.service.ts           # Core routing logic
-    │   └── interfaces/
-    │       └── service-router.interface.ts  # Contract for routing
-    └── 4_infrastructure/
-        └── http/
-            └── http-client.service.ts       # Axios wrapper with retries
-
-
-
 
 api-gateway/
 └── src/
@@ -26,17 +6,11 @@ api-gateway/
     ├── 1_presentation/
     │   ├── controllers/
     │   │   ├── health/
-    │   │   │   └── health.controller.ts
+    │   │   │   └── health.controller.ts, health.module.ts
     │   │   └── proxy/
     │   │       └── proxy.controller.ts # A more descriptive name
     │   └── filters/
     │       └── all-exceptions.filter.ts # A more generic name
-    ├── 2_application/
-    │   └── services/
-    │       └── proxy.service.ts
-    └── 4_infrastructure/
-        └── modules/
-            └── service-discovery.module.ts # Dynamic module for routing
 
 api-gateway/
 └── src/

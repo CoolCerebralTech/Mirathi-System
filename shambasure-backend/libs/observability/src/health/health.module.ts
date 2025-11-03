@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { TerminusModule } from '@nestjs/terminus';
+import { TerminusModule, MemoryHealthIndicator, DiskHealthIndicator } from '@nestjs/terminus';
+import * as checkDiskSpace from 'check-disk-space';
 import { ConfigModule } from '@shamba/config';
 import { DatabaseModule } from '@shamba/database';
 import { MessagingModule } from '@shamba/messaging';
@@ -27,12 +28,21 @@ import {
     MessagingHealthIndicator,
     PrismaHealthIndicator,
     NotificationHealthIndicator,
+    MemoryHealthIndicator,
+    DiskHealthIndicator,
+
+    {
+      provide: 'CheckDiskSpaceLib', // This is the token NestJS was looking for
+      useValue: checkDiskSpace, // Provide the library we just imported
+    },
   ],
   exports: [
     HealthService,
     PrismaHealthIndicator,
     MessagingHealthIndicator,
     NotificationHealthIndicator,
+    MemoryHealthIndicator,
+    DiskHealthIndicator,
   ],
 })
 export class HealthModule {}
