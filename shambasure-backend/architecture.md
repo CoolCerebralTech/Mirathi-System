@@ -68,6 +68,8 @@ Dependencies: @shamba/database (for the Prisma health indicator).
 
 Key Principle: Guarantees that all services produce logs and metrics in a consistent format, making centralized monitoring effective.
 
+7. @shamba/notification(new)
+
 II. Applications (apps)
 
 Applications are the deployable microservices that contain the core business logic. Each service is designed around a specific business capability or domain.

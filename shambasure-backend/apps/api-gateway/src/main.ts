@@ -8,7 +8,7 @@ import { ValidationPipe, ClassSerializerInterceptor, VersioningType } from '@nes
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { ConfigService } from '@shamba/config';
-import { GatewayModule } from './gateway.module';
+import { AppModule as GatewayModule } from './app.module';
 
 // Security middlewares
 import helmet from 'helmet';

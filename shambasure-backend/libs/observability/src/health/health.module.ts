@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TerminusModule, DiskHealthIndicator, MemoryHealthIndicator } from '@nestjs/terminus';
+import { TerminusModule } from '@nestjs/terminus';
 import { ConfigModule } from '@shamba/config';
 import { DatabaseModule } from '@shamba/database';
 import { MessagingModule } from '@shamba/messaging';
@@ -27,8 +27,6 @@ import {
     MessagingHealthIndicator,
     PrismaHealthIndicator,
     NotificationHealthIndicator,
-    MemoryHealthIndicator,
-    DiskHealthIndicator,
   ],
   exports: [
     HealthService,
