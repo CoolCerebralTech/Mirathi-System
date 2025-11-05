@@ -1,13 +1,17 @@
-// src/4_infrastructure/index.ts
 // Repository implementations
-export * from './repositories/prisma-document.repository';
 export * from './repositories/prisma-document-version.repository';
-export * from './repositories/prisma-document-verification-attempt.repository';
+export * from './repositories/prisma-document.repository';
+export * from './repositories/prisma-verification-attempt.repsository';
 
 // Storage implementations
 export * from './storage/providers/local-storage.provider';
 export * from './storage/storage.service';
 export * from './storage/file-validator.service';
 
-// Virus scanner will be added when integrated
-// export * from './storage/virus-scanner.service';
+export * from './entities/document-version.entity';
+export * from './entities/document.entity';
+export * from './entities/verification-attempt.entity';
+
+export * from './mappers/document.mapper';
+export * from './mappers/document-version.mapper';
+export * from './mappers/verification-attempt.mapper';

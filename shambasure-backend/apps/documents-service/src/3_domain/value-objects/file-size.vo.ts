@@ -11,15 +11,24 @@ export class FileSize {
       throw new Error(`File size exceeds ${FileSize.MAX_SIZE} bytes limit`);
   }
 
+  /** ✅ Canonical getter used by entities */
   get value(): number {
     return this._value;
   }
+
+  /** ✅ Alias for consistent naming in models (e.g. sizeInBytes) */
+  get sizeInBytes(): number {
+    return this._value;
+  }
+
   get inMB(): number {
     return +(this._value / (1024 * 1024)).toFixed(2);
   }
+
   get inKB(): number {
     return +(this._value / 1024).toFixed(2);
   }
+
   static create(value: number): FileSize {
     return new FileSize(value);
   }

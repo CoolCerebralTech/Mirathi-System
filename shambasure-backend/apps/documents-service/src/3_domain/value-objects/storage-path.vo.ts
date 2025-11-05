@@ -1,11 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ValueObjectError } from '../exceptions/value-object.error';
 
-/**
- * StoragePath Value Object
- * Ensures storage paths are valid and follow a consistent structure.
- * Format: {uploaderId}/{category}/{timestamp}_{uuid}.{ext}
- */
 export class StoragePath {
   private readonly _path: string;
 
@@ -13,9 +8,6 @@ export class StoragePath {
     this._path = path;
   }
 
-  /**
-   * Generate a storage path for a new document.
-   */
   static generate(props: { uploaderId: string; category: string; filename: string }): StoragePath {
     if (!props.uploaderId?.trim()) {
       throw new ValueObjectError('Uploader ID cannot be empty');
@@ -36,15 +28,11 @@ export class StoragePath {
     return new StoragePath(path);
   }
 
-  /**
-   * Re-hydrate from an existing path (from database).
-   */
   static fromExisting(path: string): StoragePath {
     if (!path || path.trim().length === 0) {
       throw new ValueObjectError('Storage path cannot be empty');
     }
 
-    // Validate the structure: uploaderId/category/timestamp_uuid.ext
     const pathRegex = /^[^/]+\/[^/]+\/\d+_[a-f0-9-]+\.[a-z0-9]+$/i;
     if (!pathRegex.test(path.trim())) {
       throw new ValueObjectError('Invalid storage path format');
@@ -53,21 +41,16 @@ export class StoragePath {
     return new StoragePath(path.trim());
   }
 
-  getValue(): string {
+  /** ✅ Canonical getter expected by domain entities */
+  get value(): string {
     return this._path;
   }
 
-  /**
-   * Extract the directory path (everything before the filename).
-   */
   getDirectory(): string {
     const parts = this._path.split('/');
     return parts.slice(0, -1).join('/');
   }
 
-  /**
-   * Extract just the filename.
-   */
   getFilename(): string {
     return this._path.split('/').pop()!;
   }

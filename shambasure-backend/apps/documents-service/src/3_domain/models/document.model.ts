@@ -26,6 +26,9 @@ import {
   DocumentViewedEvent,
   DocumentSharedEvent,
   DocumentRestoredEvent,
+  DocumentMetadataUpdatedEvent,
+  DocumentVisibilityChangedEvent,
+  DocumentExpiredEvent,
 } from '../events';
 
 // ============================================================================
@@ -60,10 +63,31 @@ export class DocumentDeletedError extends DocumentDomainError {
   }
 }
 
+export class DocumentExpiredError extends DocumentDomainError {
+  constructor() {
+    super('Document has expired and cannot be accessed');
+    this.name = 'DocumentExpiredError';
+  }
+}
+
 export class InvalidDocumentStatusTransitionError extends DocumentDomainError {
   constructor(from: DocumentStatus, to: DocumentStatus) {
     super(`Invalid status transition from ${from.value} to ${to.value}`);
     this.name = 'InvalidDocumentStatusTransitionError';
+  }
+}
+
+export class ConcurrentModificationError extends DocumentDomainError {
+  constructor() {
+    super('Document was modified by another process. Please retry.');
+    this.name = 'ConcurrentModificationError';
+  }
+}
+
+export class DocumentAccessDeniedError extends DocumentDomainError {
+  constructor(userId: UserId, documentId: DocumentId) {
+    super(`User ${userId.value} does not have access to document ${documentId.value}`);
+    this.name = 'DocumentAccessDeniedError';
   }
 }
 
@@ -94,12 +118,22 @@ export interface DocumentProps {
 
   // Metadata & extended properties
   metadata: Record<string, any> | null;
+  documentNumber: string | null;
+  issueDate: Date | null;
+  expiryDate: Date | null;
+  issuingAuthority: string | null;
 
   // Security & access control
   isPublic: boolean;
   encrypted: boolean;
   allowedViewers: AllowedViewers;
   storageProvider: StorageProvider;
+
+  // Retention & lifecycle
+  retentionPolicy: string | null;
+
+  // Concurrency control
+  version: number;
 
   // System timestamps
   createdAt: Date;
@@ -115,9 +149,12 @@ export interface DocumentProps {
  * - Verified documents become immutable (cannot be modified or deleted)
  * - Only VERIFIER/ADMIN can change verification status
  * - Deleted documents cannot be modified
+ * - Expired documents cannot be accessed
  * - Status transitions follow strict business rules
  * - All state changes emit domain events for event sourcing
  * - Access control is enforced at domain level
+ * - Optimistic locking prevents concurrent modification conflicts
+ * - Retention policies enforce legal compliance
  */
 export class Document {
   private readonly _id: DocumentId;
@@ -136,17 +173,22 @@ export class Document {
   private readonly _willId: WillId | null;
   private readonly _identityForUserId: UserId | null;
   private _metadata: Record<string, any> | null;
+  private _documentNumber: string | null;
+  private _issueDate: Date | null;
+  private _expiryDate: Date | null;
+  private _issuingAuthority: string | null;
   private _isPublic: boolean;
   private _encrypted: boolean;
   private _allowedViewers: AllowedViewers;
   private readonly _storageProvider: StorageProvider;
+  private _retentionPolicy: string | null;
+  private _version: number;
   private readonly _createdAt: Date;
   private _updatedAt: Date;
   private _deletedAt: Date | null;
 
   private _domainEvents: DomainEvent<DocumentId>[] = [];
 
-  // Private constructor to enforce factory methods
   private constructor(props: DocumentProps) {
     this._id = props.id;
     this._fileName = props.fileName;
@@ -164,10 +206,16 @@ export class Document {
     this._willId = props.willId;
     this._identityForUserId = props.identityForUserId;
     this._metadata = props.metadata;
+    this._documentNumber = props.documentNumber;
+    this._issueDate = props.issueDate;
+    this._expiryDate = props.expiryDate;
+    this._issuingAuthority = props.issuingAuthority;
     this._isPublic = props.isPublic;
     this._encrypted = props.encrypted;
     this._allowedViewers = props.allowedViewers;
     this._storageProvider = props.storageProvider;
+    this._retentionPolicy = props.retentionPolicy;
+    this._version = props.version;
     this._createdAt = props.createdAt;
     this._updatedAt = props.updatedAt;
     this._deletedAt = props.deletedAt;
@@ -177,9 +225,6 @@ export class Document {
   // Factory Methods
   // ============================================================================
 
-  /**
-   * Creates a new Document aggregate for upload
-   */
   static create(props: {
     fileName: FileName;
     fileSize: FileSize;
@@ -193,7 +238,12 @@ export class Document {
     willId?: WillId;
     identityForUserId?: UserId;
     metadata?: Record<string, any>;
+    documentNumber?: string;
+    issueDate?: Date;
+    expiryDate?: Date;
+    issuingAuthority?: string;
     isPublic?: boolean;
+    retentionPolicy?: string;
   }): Document {
     const now = new Date();
     const id = DocumentId.generate<DocumentId>();
@@ -216,15 +266,20 @@ export class Document {
       willId: props.willId ?? null,
       identityForUserId: props.identityForUserId ?? null,
       metadata: props.metadata ?? null,
+      documentNumber: props.documentNumber ?? null,
+      issueDate: props.issueDate ?? null,
+      expiryDate: props.expiryDate ?? null,
+      issuingAuthority: props.issuingAuthority ?? null,
       isPublic: props.isPublic ?? false,
-      encrypted: true, // Encrypt by default at rest
+      encrypted: true,
       allowedViewers: AllowedViewers.createEmpty(),
+      retentionPolicy: props.retentionPolicy ?? null,
+      version: 1,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
     });
 
-    // Emit domain event
     document.addDomainEvent(
       new DocumentUploadedEvent(
         document.id,
@@ -242,9 +297,6 @@ export class Document {
     return document;
   }
 
-  /**
-   * Rehydrates a Document aggregate from persistence
-   */
   static fromPersistence(props: {
     id: string;
     fileName: string;
@@ -252,8 +304,8 @@ export class Document {
     mimeType: string;
     checksum: string;
     storagePath: string;
-    category: string; // e.g., 'LAND_OWNERSHIP'
-    status: string; // e.g., 'VERIFIED'
+    category: string;
+    status: string;
     uploaderId: string;
     verifiedBy: string | null;
     verifiedAt: Date | null;
@@ -262,10 +314,16 @@ export class Document {
     willId: string | null;
     identityForUserId: string | null;
     metadata: Record<string, any> | null;
+    documentNumber: string | null;
+    issueDate: Date | null;
+    expiryDate: Date | null;
+    issuingAuthority: string | null;
     isPublic: boolean;
     encrypted: boolean;
     allowedViewers: string[];
     storageProvider: string;
+    retentionPolicy: string | null;
+    version: number;
     createdAt: Date;
     updatedAt: Date;
     deletedAt: Date | null;
@@ -287,10 +345,16 @@ export class Document {
       willId: props.willId ? new WillId(props.willId) : null,
       identityForUserId: props.identityForUserId ? new UserId(props.identityForUserId) : null,
       metadata: props.metadata,
+      documentNumber: props.documentNumber,
+      issueDate: props.issueDate,
+      expiryDate: props.expiryDate,
+      issuingAuthority: props.issuingAuthority,
       isPublic: props.isPublic,
       encrypted: props.encrypted,
       allowedViewers: AllowedViewers.create(props.allowedViewers.map((id) => new UserId(id))),
       storageProvider: StorageProvider.create(props.storageProvider),
+      retentionPolicy: props.retentionPolicy,
+      version: props.version,
       createdAt: props.createdAt,
       updatedAt: props.updatedAt,
       deletedAt: props.deletedAt,
@@ -301,13 +365,9 @@ export class Document {
   // Public API - Business Operations
   // ============================================================================
 
-  /**
-   * Verify the document (approve it)
-   * @throws {DocumentAlreadyVerifiedError} - If already verified
-   * @throws {DocumentDeletedError} - If document is deleted
-   */
   verify(verifiedBy: UserId): void {
     this.ensureNotDeleted();
+    this.ensureNotExpired();
     this.ensureNotVerified();
 
     const newStatus = DocumentStatus.createVerified();
@@ -319,18 +379,14 @@ export class Document {
     this._verifiedBy = verifiedBy;
     this._verifiedAt = new Date();
     this._rejectionReason = null;
-    this._updatedAt = new Date();
+    this.incrementVersion();
 
     this.addDomainEvent(new DocumentVerifiedEvent(this.id, verifiedBy));
   }
 
-  /**
-   * Reject the document with a reason
-   * @throws {DocumentAlreadyVerifiedError} - If already verified
-   * @throws {DocumentDeletedError} - If document is deleted
-   */
   reject(rejectedBy: UserId, reason: RejectionReason): void {
     this.ensureNotDeleted();
+    this.ensureNotExpired();
     this.ensureNotVerified();
 
     const newStatus = DocumentStatus.createRejected();
@@ -339,31 +395,27 @@ export class Document {
     }
 
     this._status = newStatus;
-    this._verifiedBy = rejectedBy; // The verifier who rejected it
-    this._verifiedAt = new Date(); // The time of rejection
+    this._verifiedBy = rejectedBy;
+    this._verifiedAt = new Date();
     this._rejectionReason = reason;
-    this._updatedAt = new Date();
+    this.incrementVersion();
 
     this.addDomainEvent(new DocumentRejectedEvent(this.id, rejectedBy, reason, true));
   }
 
-  /**
-   * Records that a new version has been uploaded.
-   * Note: This does NOT change the aggregate's own file properties.
-   * It announces the event so the application layer can create the DocumentVersion entity.
-   */
   recordNewVersion(props: {
     uploadedBy: UserId;
     storagePath: StoragePath;
     fileSize: FileSize;
     checksum: DocumentChecksum;
+    mimeType: MimeType;
     versionNumber: number;
     changeNote?: string;
   }): void {
     this.ensureNotDeleted();
     this.ensureNotVerified();
 
-    this._updatedAt = new Date();
+    this.incrementVersion();
 
     this.addDomainEvent(
       new DocumentVersionedEvent(
@@ -378,92 +430,135 @@ export class Document {
     );
   }
 
-  /**
-   * Update document metadata (for non-verified documents only)
-   */
-  updateMetadata(metadata: Record<string, any>): void {
+  updateMetadata(metadata: Record<string, any>, updatedBy: UserId): void {
     this.ensureNotDeleted();
     this.ensureNotVerified();
 
+    const previousMetadata = this._metadata;
     this._metadata = { ...this._metadata, ...metadata };
-    this._updatedAt = new Date();
+    this.incrementVersion();
+
+    this.addDomainEvent(
+      new DocumentMetadataUpdatedEvent(this.id, updatedBy, previousMetadata, this._metadata),
+    );
   }
 
-  /**
-   * Soft delete the document
-   */
+  updateDocumentDetails(props: {
+    documentNumber?: string;
+    issueDate?: Date;
+    expiryDate?: Date;
+    issuingAuthority?: string;
+    updatedBy: UserId;
+  }): void {
+    this.ensureNotDeleted();
+    this.ensureNotVerified();
+
+    if (props.documentNumber !== undefined) this._documentNumber = props.documentNumber;
+    if (props.issueDate !== undefined) this._issueDate = props.issueDate;
+    if (props.expiryDate !== undefined) this._expiryDate = props.expiryDate;
+    if (props.issuingAuthority !== undefined) this._issuingAuthority = props.issuingAuthority;
+
+    this.incrementVersion();
+  }
+
   softDelete(deletedBy: UserId): void {
     if (this.isDeleted()) return;
     this.ensureNotVerified();
 
     this._deletedAt = new Date();
-    this._updatedAt = new Date();
+    this.incrementVersion();
 
     this.addDomainEvent(new DocumentDeletedEvent(this.id, deletedBy, 'SOFT'));
   }
 
-  /**
-   * Restore a soft-deleted document
-   */
+  hardDelete(deletedBy: UserId): void {
+    this._deletedAt = new Date();
+    this.incrementVersion();
+
+    this.addDomainEvent(new DocumentDeletedEvent(this.id, deletedBy, 'HARD'));
+  }
+
   restore(restoredBy: UserId): void {
     if (!this.isDeleted()) return;
+
     const previousStatus = this._status;
     this._deletedAt = null;
-    this._updatedAt = new Date();
+    this.incrementVersion();
+
     this.addDomainEvent(new DocumentRestoredEvent(this.id, restoredBy, previousStatus));
   }
 
-  /**
-   * Record document download for audit trail
-   */
   recordDownload(downloadedBy: UserId, ipAddress: string, userAgent: string): void {
     this.ensureNotDeleted();
+    this.ensureNotExpired();
     this.ensureCanBeAccessedBy(downloadedBy);
+
     this.addDomainEvent(new DocumentDownloadedEvent(this.id, downloadedBy, ipAddress, userAgent));
   }
 
-  /**
-   * Record document view for analytics
-   */
   recordView(viewedBy: UserId, ipAddress: string, userAgent: string): void {
     this.ensureNotDeleted();
+    this.ensureNotExpired();
     this.ensureCanBeAccessedBy(viewedBy);
+
     this.addDomainEvent(new DocumentViewedEvent(this.id, viewedBy, ipAddress, userAgent));
   }
 
-  /**
-   * Share document with other users
-   */
   shareWith(sharedBy: UserId, userIdsToShareWith: UserId[]): void {
     this.ensureNotDeleted();
     this.ensureOwnedBy(sharedBy);
 
-    this._allowedViewers.grantAccess(userIdsToShareWith);
-    this._updatedAt = new Date();
+    this._allowedViewers = this._allowedViewers.grantAccess(userIdsToShareWith);
+    this.incrementVersion();
 
     this.addDomainEvent(new DocumentSharedEvent(this.id, sharedBy, userIdsToShareWith, 'VIEW'));
   }
 
-  /**
-   * Make document public
-   */
+  revokeAccess(revokedBy: UserId, userIdsToRevoke: UserId[]): void {
+    this.ensureNotDeleted();
+    this.ensureOwnedBy(revokedBy);
+
+    this._allowedViewers = this._allowedViewers.revokeAccess(userIdsToRevoke);
+    this.incrementVersion();
+  }
+
   makePublic(changedBy: UserId): void {
     this.ensureNotDeleted();
     this.ensureOwnedBy(changedBy);
 
+    if (this._isPublic) return;
+
     this._isPublic = true;
-    this._updatedAt = new Date();
+    this.incrementVersion();
+
+    this.addDomainEvent(new DocumentVisibilityChangedEvent(this.id, changedBy, false, true));
   }
 
-  /**
-   * Make document private
-   */
   makePrivate(changedBy: UserId): void {
     this.ensureNotDeleted();
     this.ensureOwnedBy(changedBy);
 
+    if (!this._isPublic) return;
+
     this._isPublic = false;
-    this._updatedAt = new Date();
+    this.incrementVersion();
+
+    this.addDomainEvent(new DocumentVisibilityChangedEvent(this.id, changedBy, true, false));
+  }
+
+  setRetentionPolicy(policy: string, setBy: UserId): void {
+    this.ensureNotDeleted();
+    this.ensureOwnedBy(setBy);
+
+    this._retentionPolicy = policy;
+    this.incrementVersion();
+  }
+
+  markAsExpired(): void {
+    if (!this._expiryDate) return;
+    if (this._expiryDate > new Date()) return;
+
+    this.addDomainEvent(new DocumentExpiredEvent(this.id, this._expiryDate));
   }
 
   // ============================================================================
@@ -472,6 +567,7 @@ export class Document {
 
   canBeAccessedBy(userId: UserId): boolean {
     if (this.isDeleted()) return false;
+    if (this.isExpired()) return false;
     if (this.isPublic()) return true;
     if (this.isOwnedBy(userId)) return true;
     return this._allowedViewers.includes(userId);
@@ -499,6 +595,30 @@ export class Document {
 
   isPublic(): boolean {
     return this._isPublic;
+  }
+
+  isExpired(): boolean {
+    if (!this._expiryDate) return false;
+    return this._expiryDate <= new Date();
+  }
+
+  hasRetentionPolicy(): boolean {
+    return this._retentionPolicy !== null;
+  }
+
+  // ============================================================================
+  // Concurrency Control
+  // ============================================================================
+
+  checkVersion(expectedVersion: number): void {
+    if (this._version !== expectedVersion) {
+      throw new ConcurrentModificationError();
+    }
+  }
+
+  private incrementVersion(): void {
+    this._version++;
+    this._updatedAt = new Date();
   }
 
   // ============================================================================
@@ -553,6 +673,18 @@ export class Document {
   get metadata(): Record<string, any> | null {
     return this._metadata;
   }
+  get documentNumber(): string | null {
+    return this._documentNumber;
+  }
+  get issueDate(): Date | null {
+    return this._issueDate;
+  }
+  get expiryDate(): Date | null {
+    return this._expiryDate;
+  }
+  get issuingAuthority(): string | null {
+    return this._issuingAuthority;
+  }
   get encrypted(): boolean {
     return this._encrypted;
   }
@@ -561,6 +693,12 @@ export class Document {
   }
   get storageProvider(): StorageProvider {
     return this._storageProvider;
+  }
+  get retentionPolicy(): string | null {
+    return this._retentionPolicy;
+  }
+  get version(): number {
+    return this._version;
   }
   get createdAt(): Date {
     return this._createdAt;
@@ -595,9 +733,15 @@ export class Document {
     }
   }
 
+  private ensureNotExpired(): void {
+    if (this.isExpired()) {
+      throw new DocumentExpiredError();
+    }
+  }
+
   private ensureCanBeAccessedBy(userId: UserId): void {
     if (!this.canBeAccessedBy(userId)) {
-      throw new DocumentDomainError('User does not have access to this document');
+      throw new DocumentAccessDeniedError(userId, this._id);
     }
   }
 

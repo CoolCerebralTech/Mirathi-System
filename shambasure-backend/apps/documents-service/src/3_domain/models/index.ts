@@ -1,4 +1,3 @@
-// src/3_domain/models/index.ts
 // Domain Models
 export * from './document.model';
 export * from './document-version.model';
