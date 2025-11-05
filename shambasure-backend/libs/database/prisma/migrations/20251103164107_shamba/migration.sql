@@ -17,6 +17,9 @@ CREATE TYPE "DocumentStatus" AS ENUM ('PENDING_VERIFICATION', 'VERIFIED', 'REJEC
 CREATE TYPE "DocumentCategory" AS ENUM ('LAND_OWNERSHIP', 'IDENTITY_PROOF', 'SUCCESSION_DOCUMENT', 'FINANCIAL_PROOF', 'OTHER');
 
 -- CreateEnum
+CREATE TYPE "RetentionPolicy" AS ENUM ('SHORT_TERM', 'MEDIUM_TERM', 'LONG_TERM', 'COMPLIANCE');
+
+-- CreateEnum
 CREATE TYPE "NotificationChannel" AS ENUM ('EMAIL', 'SMS');
 
 -- CreateEnum
@@ -229,15 +232,29 @@ CREATE TABLE "documents" (
     "category" "DocumentCategory" NOT NULL,
     "status" "DocumentStatus" NOT NULL DEFAULT 'PENDING_VERIFICATION',
     "uploaderId" TEXT NOT NULL,
+    "identityForUserId" TEXT,
     "verifiedBy" TEXT,
     "verifiedAt" TIMESTAMP(3),
     "rejectionReason" TEXT,
+    "expiresAt" TIMESTAMP(3),
+    "retentionPolicy" TEXT,
+    "allowedViewers" TEXT[],
+    "isPublic" BOOLEAN NOT NULL DEFAULT false,
+    "encrypted" BOOLEAN NOT NULL DEFAULT false,
     "assetId" TEXT,
     "willId" TEXT,
     "metadata" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),
+    "documentNumber" TEXT,
+    "issueDate" TIMESTAMP(3),
+    "expiryDate" TIMESTAMP(3),
+    "issuingAuthority" TEXT,
+    "storageProvider" TEXT NOT NULL DEFAULT 'local',
+    "checksum" TEXT,
+    "isIndexed" BOOLEAN NOT NULL DEFAULT false,
+    "indexedAt" TIMESTAMP(3),
 
     CONSTRAINT "documents_pkey" PRIMARY KEY ("id")
 );
@@ -250,11 +267,25 @@ CREATE TABLE "document_versions" (
     "changeNote" TEXT,
     "sizeBytes" INTEGER NOT NULL,
     "mimeType" VARCHAR(100) NOT NULL,
+    "checksum" TEXT,
     "documentId" TEXT NOT NULL,
     "uploadedBy" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "document_versions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "document_verification_attempts" (
+    "id" TEXT NOT NULL,
+    "documentId" TEXT NOT NULL,
+    "verifierId" TEXT NOT NULL,
+    "status" "DocumentStatus" NOT NULL,
+    "reason" TEXT,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "document_verification_attempts_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -392,25 +423,37 @@ CREATE INDEX "BeneficiaryAssignment_beneficiaryId_idx" ON "BeneficiaryAssignment
 CREATE UNIQUE INDEX "BeneficiaryAssignment_willId_assetId_beneficiaryId_key" ON "BeneficiaryAssignment"("willId", "assetId", "beneficiaryId");
 
 -- CreateIndex
+CREATE INDEX "documents_uploaderId_status_createdAt_idx" ON "documents"("uploaderId", "status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "documents_category_status_createdAt_idx" ON "documents"("category", "status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "documents_assetId_willId_identityForUserId_idx" ON "documents"("assetId", "willId", "identityForUserId");
+
+-- CreateIndex
+CREATE INDEX "documents_createdAt_deletedAt_idx" ON "documents"("createdAt", "deletedAt");
+
+-- CreateIndex
 CREATE INDEX "documents_uploaderId_idx" ON "documents"("uploaderId");
-
--- CreateIndex
-CREATE INDEX "documents_status_idx" ON "documents"("status");
-
--- CreateIndex
-CREATE INDEX "documents_category_idx" ON "documents"("category");
-
--- CreateIndex
-CREATE INDEX "documents_assetId_idx" ON "documents"("assetId");
-
--- CreateIndex
-CREATE INDEX "documents_willId_idx" ON "documents"("willId");
 
 -- CreateIndex
 CREATE INDEX "documents_createdAt_idx" ON "documents"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "documents_deletedAt_idx" ON "documents"("deletedAt");
+
+-- CreateIndex
+CREATE INDEX "documents_isPublic_idx" ON "documents"("isPublic");
+
+-- CreateIndex
+CREATE INDEX "documents_encrypted_idx" ON "documents"("encrypted");
+
+-- CreateIndex
+CREATE INDEX "documents_documentNumber_idx" ON "documents"("documentNumber");
+
+-- CreateIndex
+CREATE INDEX "documents_expiryDate_idx" ON "documents"("expiryDate");
 
 -- CreateIndex
 CREATE INDEX "document_versions_documentId_idx" ON "document_versions"("documentId");
@@ -420,6 +463,15 @@ CREATE INDEX "document_versions_createdAt_idx" ON "document_versions"("createdAt
 
 -- CreateIndex
 CREATE UNIQUE INDEX "document_versions_documentId_versionNumber_key" ON "document_versions"("documentId", "versionNumber");
+
+-- CreateIndex
+CREATE INDEX "document_verification_attempts_documentId_idx" ON "document_verification_attempts"("documentId");
+
+-- CreateIndex
+CREATE INDEX "document_verification_attempts_verifierId_idx" ON "document_verification_attempts"("verifierId");
+
+-- CreateIndex
+CREATE INDEX "document_verification_attempts_createdAt_idx" ON "document_verification_attempts"("createdAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "NotificationTemplate_name_key" ON "NotificationTemplate"("name");
@@ -488,6 +540,9 @@ ALTER TABLE "BeneficiaryAssignment" ADD CONSTRAINT "BeneficiaryAssignment_benefi
 ALTER TABLE "documents" ADD CONSTRAINT "documents_uploaderId_fkey" FOREIGN KEY ("uploaderId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "documents" ADD CONSTRAINT "documents_identityForUserId_fkey" FOREIGN KEY ("identityForUserId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "documents" ADD CONSTRAINT "documents_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "Asset"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -495,6 +550,12 @@ ALTER TABLE "documents" ADD CONSTRAINT "documents_willId_fkey" FOREIGN KEY ("wil
 
 -- AddForeignKey
 ALTER TABLE "document_versions" ADD CONSTRAINT "document_versions_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "document_verification_attempts" ADD CONSTRAINT "document_verification_attempts_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "document_verification_attempts" ADD CONSTRAINT "document_verification_attempts_verifierId_fkey" FOREIGN KEY ("verifierId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Notification" ADD CONSTRAINT "Notification_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "NotificationTemplate"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -16,6 +16,7 @@ export {
   AssetType,
   DocumentStatus,
   DocumentCategory,
+  RetentionPolicy,
   NotificationChannel,
   NotificationStatus,
 } from '@shamba/database';

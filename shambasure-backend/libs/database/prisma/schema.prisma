@@ -56,6 +56,13 @@ enum DocumentCategory {
   OTHER                // Affidavits, court orders, witness statements
 }
 
+enum RetentionPolicy {
+  SHORT_TERM  // 1 year
+  MEDIUM_TERM // 7 years  
+  LONG_TERM   // Permanent
+  COMPLIANCE  // Based on regulation
+}
+
 enum NotificationChannel {
   EMAIL
   SMS
@@ -113,6 +120,8 @@ model User {
   @@index([createdAt])
   @@index([deletedAt])
   @@map("users")
+  Document Document[] @relation("UserIdentityDocuments")
+  DocumentVerificationAttempt DocumentVerificationAttempt[]
 }
 
 
@@ -339,17 +348,30 @@ model Document {
   // --- Ownership & Upload Info ---
   uploaderId  String
   uploader    User             @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  identityForUserId String?
+  identityForUser   User?   @relation("UserIdentityDocuments", fields: [identityForUserId], references: [id], onDelete: Cascade)
+
 
   // --- Verification Tracking ---
   verifiedBy     String?       // User ID of verifier (ADMIN or VERIFIER role)
   verifiedAt     DateTime?
   rejectionReason String?      @db.Text
 
+  // Retention & Expiry
+  expiresAt   DateTime? // Auto-delete after this date
+  retentionPolicy String? // COMPLIANCE, LEGAL, etc.
+
+  // Access Control List
+  allowedViewers String[] // User IDs who can view this document
+
+  // Security & Access
+  isPublic    Boolean   @default(false)
+  encrypted   Boolean   @default(false)
+
   // --- Cross-Service Links (Direct Foreign Keys) ---
   // A document can be linked to EITHER an Asset OR a Will (or neither for identity docs)
   assetId     String?
   asset       Asset?           @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  
   willId      String?
   will        Will?            @relation(fields: [willId], references: [id], onDelete: Cascade)
 
@@ -361,17 +383,36 @@ model Document {
   updatedAt   DateTime         @updatedAt
   deletedAt   DateTime?        // Soft delete support
 
+  // Enhanced metadata for common document types
+  documentNumber String? // ID number, parcel number, etc.
+  issueDate      DateTime?
+  expiryDate     DateTime?
+  issuingAuthority String?
+
+  // Storage optimization
+  storageProvider String @default("local") // "s3", "gcs", "azure"
+  checksum       String? // File integrity check
+  
+  // Performance fields
+  isIndexed      Boolean @default(false) // For search indexing
+  indexedAt      DateTime?
+
   // --- Relations ---
   versions    DocumentVersion[]
+  verificationAttempts        DocumentVerificationAttempt[] 
 
   // --- Indexes for Performance ---
+  @@index([uploaderId, status, createdAt])
+  @@index([category, status, createdAt])
+  @@index([assetId, willId, identityForUserId])
+  @@index([createdAt, deletedAt])
   @@index([uploaderId])
-  @@index([status])
-  @@index([category])
-  @@index([assetId])
-  @@index([willId])
   @@index([createdAt])
   @@index([deletedAt])
+  @@index([isPublic])
+  @@index([encrypted])
+  @@index([documentNumber])
+  @@index([expiryDate])
   @@map("documents")
 }
 
@@ -382,6 +423,7 @@ model DocumentVersion {
   changeNote    String?  @db.Text
   sizeBytes     Int      // Track size per version
   mimeType      String   @db.VarChar(100)
+  checksum      String? 
   
   documentId    String
   document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
@@ -393,6 +435,24 @@ model DocumentVersion {
   @@index([documentId])
   @@index([createdAt])
   @@map("document_versions")
+}
+
+model DocumentVerificationAttempt {
+  id        String   @id @default(uuid())
+  documentId String
+  document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  verifierId String   // User ID of the verifier
+  verifier    User     @relation(fields: [verifierId], references: [id], onDelete: Cascade)
+  status     DocumentStatus // VERIFIED or REJECTED
+  reason     String?  @db.Text // Corresponds to rejectionReason
+  metadata    Json?    // Additional verification data
+  createdAt  DateTime @default(now())
+
+  @@index([documentId])
+  @@index([verifierId])
+  @@index([createdAt])
+  @@map("document_verification_attempts")
 }
 
 // ============================================================================
