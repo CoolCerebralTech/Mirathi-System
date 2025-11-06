@@ -22,3 +22,5 @@ export { DocumentVisibilityChangedEvent } from './document-visibility-changed.ev
 
 // System & Integration Events
 export { DocumentStorageMigratedEvent } from './document-storage-migrated.event';
+
+export { DocumentIndexedEvent } from './document-indexed.event';

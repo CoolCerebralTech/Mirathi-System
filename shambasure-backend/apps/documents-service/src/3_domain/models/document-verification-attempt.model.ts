@@ -57,7 +57,7 @@ export interface DocumentVerificationAttemptProps {
   verifierId: UserId;
   status: DocumentStatus;
   reason: RejectionReason | null;
-  metadata: Record<string, any> | null;
+  metadata: Record<string, any> | null; // UPDATED: Matches Prisma's Json? type
   createdAt: Date;
 }
 
@@ -174,6 +174,36 @@ export class DocumentVerificationAttempt {
   }
 
   // ============================================================================
+  // NEW: Factory method for creating from document verification
+  // ============================================================================
+
+  /**
+   * Creates a verification attempt from a document's verification state
+   * Useful when a document is verified/rejected and we want to record the attempt
+   */
+  static fromDocumentVerification(props: {
+    documentId: DocumentId;
+    verifierId: UserId;
+    status: DocumentStatus;
+    reason?: RejectionReason;
+    metadata?: Record<string, any>;
+  }): DocumentVerificationAttempt {
+    if (props.status.isRejected() && !props.reason) {
+      throw new MissingRejectionReasonError();
+    }
+
+    return new DocumentVerificationAttempt({
+      id: VerificationAttemptId.generate<VerificationAttemptId>(),
+      documentId: props.documentId,
+      verifierId: props.verifierId,
+      status: props.status,
+      reason: props.reason ?? null,
+      metadata: props.metadata ?? null,
+      createdAt: new Date(),
+    });
+  }
+
+  // ============================================================================
   // Public API & Query Methods
   // ============================================================================
 
@@ -217,6 +247,13 @@ export class DocumentVerificationAttempt {
    */
   getMetadataField(key: string): unknown {
     return this._metadata?.[key];
+  }
+
+  /**
+   * Gets all metadata keys
+   */
+  getMetadataKeys(): string[] {
+    return this._metadata ? Object.keys(this._metadata) : [];
   }
 
   /**
@@ -270,6 +307,33 @@ export class DocumentVerificationAttempt {
    */
   getStatusString(): string {
     return this.isSuccessful() ? 'Verified' : 'Rejected';
+  }
+
+  /**
+   * NEW: Gets verification summary for reporting
+   */
+  getVerificationSummary(): {
+    status: string;
+    verifier: string;
+    timestamp: Date;
+    hasReason: boolean;
+    hasMetadata: boolean;
+  } {
+    return {
+      status: this.getStatusString(),
+      verifier: this._verifierId.value,
+      timestamp: this._createdAt,
+      hasReason: this.hasReason(),
+      hasMetadata: this.hasMetadata(),
+    };
+  }
+
+  /**
+   * NEW: Validates if this attempt can be viewed by a user
+   * Typically, only the verifier, document owner, or admins can view attempts
+   */
+  canBeViewedBy(userId: UserId, documentOwnerId: UserId, isAdmin: boolean = false): boolean {
+    return this._verifierId.equals(userId) || documentOwnerId.equals(userId) || isAdmin;
   }
 
   // ============================================================================
@@ -336,10 +400,35 @@ export class DocumentVerificationAttempt {
   }
 
   /**
+   * NEW: Returns database persistence format
+   * Aligns with Prisma schema field names and types
+   */
+  toPersistenceFormat(): {
+    id: string;
+    documentId: string;
+    verifierId: string;
+    status: string;
+    reason: string | null; // Maps to Prisma's String? @db.Text
+    metadata: Record<string, any> | null; // Maps to Prisma's Json? type
+    createdAt: Date;
+  } {
+    return {
+      id: this._id.value,
+      documentId: this._documentId.value,
+      verifierId: this._verifierId.value,
+      status: this._status.value,
+      reason: this._reason?.value ?? null,
+      metadata: this._metadata, // Prisma expects Json? which can be any serializable type
+      createdAt: this._createdAt,
+    };
+  }
+
+  /**
    * Creates a summary for audit logs
    */
   toAuditSummary(): {
     attemptId: string;
+    documentId: string;
     verifierId: string;
     decision: 'APPROVED' | 'REJECTED';
     reason?: string;
@@ -347,10 +436,44 @@ export class DocumentVerificationAttempt {
   } {
     return {
       attemptId: this._id.value,
+      documentId: this._documentId.value,
       verifierId: this._verifierId.value,
       decision: this.isSuccessful() ? 'APPROVED' : 'REJECTED',
       reason: this._reason?.value,
       timestamp: this._createdAt,
+    };
+  }
+
+  /**
+   * NEW: Creates a detailed report for compliance/audit purposes
+   */
+  toComplianceReport(): {
+    verificationAttemptId: string;
+    documentId: string;
+    verifierUserId: string;
+    outcome: 'VERIFIED' | 'REJECTED';
+    rejectionJustification: string | null;
+    verificationMetadata: Record<string, any> | null;
+    verificationTimestamp: string;
+    auditTrail: {
+      createdAt: string;
+      entity: 'DocumentVerificationAttempt';
+      action: 'VERIFICATION_RECORDED';
+    };
+  } {
+    return {
+      verificationAttemptId: this._id.value,
+      documentId: this._documentId.value,
+      verifierUserId: this._verifierId.value,
+      outcome: this.isSuccessful() ? 'VERIFIED' : 'REJECTED',
+      rejectionJustification: this._reason?.value ?? null,
+      verificationMetadata: this._metadata,
+      verificationTimestamp: this._createdAt.toISOString(),
+      auditTrail: {
+        createdAt: this._createdAt.toISOString(),
+        entity: 'DocumentVerificationAttempt',
+        action: 'VERIFICATION_RECORDED',
+      },
     };
   }
 }

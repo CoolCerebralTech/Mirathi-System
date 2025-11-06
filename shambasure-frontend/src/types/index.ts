@@ -2,6 +2,8 @@
 
 export * from './auth.schemas';
 export * from './user.schemas';
+export * from './profile.schemas';
+export * from './admin.schemas';
 export * from './assets.schemas';
 export * from './auditing.schemas';
 export * from './documents.schemas';

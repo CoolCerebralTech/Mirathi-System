@@ -338,6 +338,7 @@ model BeneficiaryAssignment {
 
 model Document {
   id          String           @id @default(uuid())
+  version     Int
   filename    String
   storagePath String           // Local path or cloud URL
   mimeType    String           @db.VarChar(100)

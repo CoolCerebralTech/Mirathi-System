@@ -1,7 +1,5 @@
 // ============================================================================
-// LoginForm.tsx - Old Money Refined Authentication
-// ============================================================================
-// Elegant, trust-building login experience with sophisticated design
+// LoginForm.tsx - Updated Authentication Form
 // ============================================================================
 
 import { useState } from 'react';
@@ -80,20 +78,29 @@ function PasswordInput({
 }
 
 // ============================================================================
-// MAIN LOGIN FORM - OLD MONEY REFINED
+// DEVICE ID GENERATION
 // ============================================================================
 
 /**
- * Login form with elegant old money aesthetic.
- * 
- * ENHANCEMENTS:
- * - Clean, sophisticated design without card wrapper
- * - Trust-building headline and subtext
- * - Refined input styling with focus states
- * - Elegant error handling
- * - Security badge for confidence
- * - Smooth transitions throughout
+ * Generate a persistent device identifier for session tracking
  */
+const generateDeviceId = (): string => {
+  // Try to get existing device ID from localStorage
+  const existingDeviceId = localStorage.getItem('shamba_device_id');
+  if (existingDeviceId) {
+    return existingDeviceId;
+  }
+
+  // Generate new device ID
+  const newDeviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  localStorage.setItem('shamba_device_id', newDeviceId);
+  return newDeviceId;
+};
+
+// ============================================================================
+// MAIN LOGIN FORM - UPDATED WITH DEVICE TRACKING
+// ============================================================================
+
 export function LoginForm() {
   const { t } = useTranslation(['auth', 'validation', 'common']);
   const navigate = useNavigate();
@@ -114,12 +121,20 @@ export function LoginForm() {
     defaultValues: {
       email: '',
       password: '',
+      deviceId: generateDeviceId(),
+      // ipAddress and userAgent will be set by backend from request headers
     },
   });
 
   const onSubmit = (formData: LoginInput) => {
+    // Ensure deviceId is always set
+    const loginData: LoginInput = {
+      ...formData,
+      deviceId: formData.deviceId || generateDeviceId(),
+    };
+
     login(
-      { data: formData, rememberMe },
+      { data: loginData, rememberMe },
       {
         onSuccess: () => {
           toast.success(t('auth:login_success', 'Welcome back!'), {
@@ -269,6 +284,12 @@ export function LoginForm() {
           </Label>
         </div>
 
+        {/* Hidden Device ID Field */}
+        <input
+          type="hidden"
+          {...register('deviceId')}
+        />
+
         {/* Submit Button */}
         <Button
           type="submit"
@@ -312,13 +333,13 @@ export function LoginForm() {
       </div>
 
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* SECURITY NOTICE - Trust Building */}
+      {/* SECURITY NOTICE - Enhanced with Device Tracking Info */}
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
       <div className="rounded-elegant border border-secondary/20 bg-secondary/5 p-4">
         <p className="flex items-start gap-3 text-xs leading-relaxed text-text-subtle">
           <Shield size={16} className="mt-0.5 flex-shrink-0 text-secondary" />
           <span>
-            {t('auth:security_notice', 'Your connection is encrypted and secure. We never store passwords in plain text and comply with all KDPA requirements.')}
+            {t('auth:security_notice', 'Your connection is encrypted and secure. We use device tracking for enhanced security and comply with all KDPA requirements.')}
           </span>
         </p>
       </div>

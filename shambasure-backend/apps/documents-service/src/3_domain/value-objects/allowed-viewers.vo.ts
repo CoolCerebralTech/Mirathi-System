@@ -30,6 +30,9 @@ export class AllowedViewers {
   get userIds(): string[] {
     return this._userIds.map((id) => id.value);
   }
+  toArray(): UserId[] {
+    return [...this._userIds];
+  }
 
   includes(userId: UserId): boolean {
     return this._userIds.some((id) => id.equals(userId));

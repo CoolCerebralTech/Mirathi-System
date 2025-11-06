@@ -26,3 +26,6 @@ export * from './allowed-viewers.vo';
 
 // Composite
 export * from './file-metadata.vo';
+
+// Retention Policy
+export * from './retention-policy.vo';

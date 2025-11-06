@@ -11,12 +11,10 @@ export class FileSize {
       throw new Error(`File size exceeds ${FileSize.MAX_SIZE} bytes limit`);
   }
 
-  /** ✅ Canonical getter used by entities */
   get value(): number {
     return this._value;
   }
 
-  /** ✅ Alias for consistent naming in models (e.g. sizeInBytes) */
   get sizeInBytes(): number {
     return this._value;
   }
@@ -31,5 +29,11 @@ export class FileSize {
 
   static create(value: number): FileSize {
     return new FileSize(value);
+  }
+
+  /** ✅ Add equals() */
+  public equals(other: FileSize): boolean {
+    if (!other) return false;
+    return this._value === other.value;
   }
 }

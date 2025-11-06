@@ -58,7 +58,7 @@ export interface DocumentVersionProps {
   storagePath: StoragePath;
   fileSize: FileSize;
   mimeType: MimeType;
-  checksum: DocumentChecksum;
+  checksum: DocumentChecksum | null; // UPDATED: Made nullable per Prisma schema
   changeNote: string | null;
   uploadedBy: UserId;
   createdAt: Date;
@@ -86,7 +86,7 @@ export class DocumentVersion {
   private readonly _storagePath: StoragePath;
   private readonly _fileSize: FileSize;
   private readonly _mimeType: MimeType;
-  private readonly _checksum: DocumentChecksum;
+  private readonly _checksum: DocumentChecksum | null; // UPDATED: Made nullable
   private readonly _changeNote: string | null;
   private readonly _uploadedBy: UserId;
   private readonly _createdAt: Date;
@@ -118,7 +118,7 @@ export class DocumentVersion {
     storagePath: StoragePath;
     fileSize: FileSize;
     mimeType: MimeType;
-    checksum: DocumentChecksum;
+    checksum?: DocumentChecksum; // UPDATED: Made optional
     uploadedBy: UserId;
     changeNote?: string;
   }): DocumentVersion {
@@ -136,7 +136,7 @@ export class DocumentVersion {
       storagePath: props.storagePath,
       fileSize: props.fileSize,
       mimeType: props.mimeType,
-      checksum: props.checksum,
+      checksum: props.checksum ?? null, // UPDATED: Handle nullability
       changeNote: props.changeNote ?? null,
       uploadedBy: props.uploadedBy,
       createdAt: new Date(),
@@ -153,7 +153,7 @@ export class DocumentVersion {
     storagePath: string;
     fileSize: number;
     mimeType: string;
-    checksum: string;
+    checksum: string | null; // UPDATED: Made nullable
     changeNote: string | null;
     uploadedBy: string;
     createdAt: Date;
@@ -165,7 +165,7 @@ export class DocumentVersion {
       storagePath: StoragePath.fromExisting(props.storagePath),
       fileSize: FileSize.create(props.fileSize),
       mimeType: MimeType.create(props.mimeType),
-      checksum: DocumentChecksum.create(props.checksum),
+      checksum: props.checksum ? DocumentChecksum.create(props.checksum) : null, // UPDATED: Handle null
       changeNote: props.changeNote,
       uploadedBy: new UserId(props.uploadedBy),
       createdAt: props.createdAt,
@@ -199,9 +199,20 @@ export class DocumentVersion {
 
   /**
    * Validates file integrity by comparing checksums
+   * Returns false if no checksum is available
    */
   validateChecksum(providedChecksum: DocumentChecksum): boolean {
+    if (!this._checksum) {
+      return false; // Cannot validate without checksum
+    }
     return this._checksum.equals(providedChecksum);
+  }
+
+  /**
+   * Checks if checksum is available for this version
+   */
+  hasChecksum(): boolean {
+    return this._checksum !== null;
   }
 
   /**
@@ -262,6 +273,38 @@ export class DocumentVersion {
   }
 
   // ============================================================================
+  // NEW: File Information Methods (for better domain API)
+  // ============================================================================
+
+  /**
+   * Gets file information for display or processing
+   */
+  getFileInfo(): {
+    sizeBytes: number;
+    mimeType: string;
+    hasChecksum: boolean;
+    checksum: string | null;
+    storageProvider: string; // Inherited from document, but useful here
+  } {
+    return {
+      sizeBytes: this._fileSize.sizeInBytes,
+      mimeType: this._mimeType.value,
+      hasChecksum: this.hasChecksum(),
+      checksum: this._checksum?.value ?? null,
+      storageProvider: 'local', // This would typically come from the parent document
+    };
+  }
+
+  /**
+   * Validates if this version can be accessed by a user
+   * Note: Access control is typically handled at the Document aggregate level
+   */
+  canBeAccessedBy(userId: UserId, documentOwnerId: UserId): boolean {
+    // Basic check: user must be the uploader or document owner
+    return this._uploadedBy.equals(userId) || documentOwnerId.equals(userId);
+  }
+
+  // ============================================================================
   // Getters
   // ============================================================================
 
@@ -289,7 +332,8 @@ export class DocumentVersion {
     return this._mimeType;
   }
 
-  get checksum(): DocumentChecksum {
+  get checksum(): DocumentChecksum | null {
+    // UPDATED: Return type reflects nullability
     return this._checksum;
   }
 
@@ -323,7 +367,7 @@ export class DocumentVersion {
     storagePath: string;
     fileSize: number;
     mimeType: string;
-    checksum: string;
+    checksum: string | null; // UPDATED: Made nullable
     changeNote: string | null;
     uploadedBy: string;
     createdAt: Date;
@@ -335,8 +379,38 @@ export class DocumentVersion {
       storagePath: this._storagePath.value,
       fileSize: this._fileSize.sizeInBytes,
       mimeType: this._mimeType.value,
-      checksum: this._checksum.value,
+      checksum: this._checksum?.value ?? null, // UPDATED: Handle null
       changeNote: this._changeNote,
+      uploadedBy: this._uploadedBy.value,
+      createdAt: this._createdAt,
+    };
+  }
+
+  /**
+   * Returns database persistence format
+   * Aligns with Prisma schema field names
+   */
+  toPersistenceFormat(): {
+    id: string;
+    versionNumber: number;
+    storagePath: string;
+    changeNote: string | null;
+    sizeBytes: number; // Prisma field name is sizeBytes, not fileSize
+    mimeType: string;
+    checksum: string | null;
+    documentId: string;
+    uploadedBy: string;
+    createdAt: Date;
+  } {
+    return {
+      id: this._id.value,
+      versionNumber: this._versionNumber,
+      storagePath: this._storagePath.value,
+      changeNote: this._changeNote,
+      sizeBytes: this._fileSize.sizeInBytes, // Map to Prisma field name
+      mimeType: this._mimeType.value,
+      checksum: this._checksum?.value ?? null,
+      documentId: this._documentId.value,
       uploadedBy: this._uploadedBy.value,
       createdAt: this._createdAt,
     };

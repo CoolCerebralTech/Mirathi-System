@@ -24,7 +24,7 @@ export class DocumentUploadedEvent extends DomainEvent<DocumentId> {
     public readonly mimeType: MimeType,
     public readonly size: FileSize,
     public readonly category: DocumentCategory,
-    public readonly checksum: DocumentChecksum,
+    public readonly checksum: DocumentChecksum | null,
     public readonly metadata?: Record<string, any>,
   ) {
     super(aggregateId, DocumentUploadedEvent.eventName, DocumentUploadedEvent.eventVersion);

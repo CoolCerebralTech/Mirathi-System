@@ -225,6 +225,7 @@ CREATE TABLE "BeneficiaryAssignment" (
 -- CreateTable
 CREATE TABLE "documents" (
     "id" TEXT NOT NULL,
+    "version" INTEGER NOT NULL,
     "filename" TEXT NOT NULL,
     "storagePath" TEXT NOT NULL,
     "mimeType" VARCHAR(100) NOT NULL,

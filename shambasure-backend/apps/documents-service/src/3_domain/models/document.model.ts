@@ -14,6 +14,7 @@ import {
   DocumentChecksum,
   StoragePath,
   DocumentStatusEnum,
+  RetentionPolicy,
 } from '../value-objects';
 import {
   DomainEvent,
@@ -29,6 +30,7 @@ import {
   DocumentMetadataUpdatedEvent,
   DocumentVisibilityChangedEvent,
   DocumentExpiredEvent,
+  DocumentIndexedEvent,
 } from '../events';
 
 // ============================================================================
@@ -91,6 +93,13 @@ export class DocumentAccessDeniedError extends DocumentDomainError {
   }
 }
 
+export class InvalidRetentionPolicyError extends DocumentDomainError {
+  constructor(policy: string) {
+    super(`Invalid retention policy: ${policy}`);
+    this.name = 'InvalidRetentionPolicyError';
+  }
+}
+
 // ============================================================================
 // Document Aggregate Root
 // ============================================================================
@@ -100,7 +109,7 @@ export interface DocumentProps {
   fileName: FileName;
   fileSize: FileSize;
   mimeType: MimeType;
-  checksum: DocumentChecksum;
+  checksum: DocumentChecksum | null; // Made nullable per Prisma schema
   storagePath: StoragePath;
   category: DocumentCategory;
   status: DocumentStatus;
@@ -129,8 +138,13 @@ export interface DocumentProps {
   allowedViewers: AllowedViewers;
   storageProvider: StorageProvider;
 
-  // Retention & lifecycle
-  retentionPolicy: string | null;
+  // Retention & lifecycle (UPDATED per Prisma schema)
+  retentionPolicy: RetentionPolicy | null;
+  expiresAt: Date | null; // Auto-delete after this date (separate from document expiry)
+
+  // Search indexing (NEW - from Prisma schema)
+  isIndexed: boolean;
+  indexedAt: Date | null;
 
   // Concurrency control
   version: number;
@@ -155,13 +169,14 @@ export interface DocumentProps {
  * - Access control is enforced at domain level
  * - Optimistic locking prevents concurrent modification conflicts
  * - Retention policies enforce legal compliance
+ * - Search indexing state managed properly
  */
 export class Document {
   private readonly _id: DocumentId;
   private _fileName: FileName;
   private _fileSize: FileSize;
   private _mimeType: MimeType;
-  private _checksum: DocumentChecksum;
+  private _checksum: DocumentChecksum | null;
   private _storagePath: StoragePath;
   private readonly _category: DocumentCategory;
   private _status: DocumentStatus;
@@ -181,7 +196,10 @@ export class Document {
   private _encrypted: boolean;
   private _allowedViewers: AllowedViewers;
   private readonly _storageProvider: StorageProvider;
-  private _retentionPolicy: string | null;
+  private _retentionPolicy: RetentionPolicy | null;
+  private _expiresAt: Date | null;
+  private _isIndexed: boolean;
+  private _indexedAt: Date | null;
   private _version: number;
   private readonly _createdAt: Date;
   private _updatedAt: Date;
@@ -215,6 +233,9 @@ export class Document {
     this._allowedViewers = props.allowedViewers;
     this._storageProvider = props.storageProvider;
     this._retentionPolicy = props.retentionPolicy;
+    this._expiresAt = props.expiresAt;
+    this._isIndexed = props.isIndexed;
+    this._indexedAt = props.indexedAt;
     this._version = props.version;
     this._createdAt = props.createdAt;
     this._updatedAt = props.updatedAt;
@@ -229,7 +250,7 @@ export class Document {
     fileName: FileName;
     fileSize: FileSize;
     mimeType: MimeType;
-    checksum: DocumentChecksum;
+    checksum?: DocumentChecksum; // Made optional per Prisma schema
     storagePath: StoragePath;
     category: DocumentCategory;
     uploaderId: UserId;
@@ -243,7 +264,7 @@ export class Document {
     expiryDate?: Date;
     issuingAuthority?: string;
     isPublic?: boolean;
-    retentionPolicy?: string;
+    retentionPolicy?: RetentionPolicy;
   }): Document {
     const now = new Date();
     const id = DocumentId.generate<DocumentId>();
@@ -253,7 +274,7 @@ export class Document {
       fileName: props.fileName,
       fileSize: props.fileSize,
       mimeType: props.mimeType,
-      checksum: props.checksum,
+      checksum: props.checksum ?? null, // Handle nullability
       storagePath: props.storagePath,
       category: props.category,
       status: DocumentStatus.createPending(),
@@ -274,6 +295,9 @@ export class Document {
       encrypted: true,
       allowedViewers: AllowedViewers.createEmpty(),
       retentionPolicy: props.retentionPolicy ?? null,
+      expiresAt: null, // Initially null, set via retention policy
+      isIndexed: false, // Default per Prisma schema
+      indexedAt: null,
       version: 1,
       createdAt: now,
       updatedAt: now,
@@ -302,7 +326,7 @@ export class Document {
     fileName: string;
     fileSize: number;
     mimeType: string;
-    checksum: string;
+    checksum: string | null;
     storagePath: string;
     category: string;
     status: string;
@@ -323,6 +347,9 @@ export class Document {
     allowedViewers: string[];
     storageProvider: string;
     retentionPolicy: string | null;
+    expiresAt: Date | null;
+    isIndexed: boolean;
+    indexedAt: Date | null;
     version: number;
     createdAt: Date;
     updatedAt: Date;
@@ -333,7 +360,7 @@ export class Document {
       fileName: FileName.create(props.fileName),
       fileSize: FileSize.create(props.fileSize),
       mimeType: MimeType.create(props.mimeType),
-      checksum: DocumentChecksum.create(props.checksum),
+      checksum: props.checksum ? DocumentChecksum.create(props.checksum) : null,
       storagePath: StoragePath.fromExisting(props.storagePath),
       category: DocumentCategory.create(props.category),
       status: DocumentStatus.create(props.status),
@@ -353,7 +380,10 @@ export class Document {
       encrypted: props.encrypted,
       allowedViewers: AllowedViewers.create(props.allowedViewers.map((id) => new UserId(id))),
       storageProvider: StorageProvider.create(props.storageProvider),
-      retentionPolicy: props.retentionPolicy,
+      retentionPolicy: props.retentionPolicy ? RetentionPolicy.create(props.retentionPolicy) : null,
+      expiresAt: props.expiresAt,
+      isIndexed: props.isIndexed,
+      indexedAt: props.indexedAt,
       version: props.version,
       createdAt: props.createdAt,
       updatedAt: props.updatedAt,
@@ -415,6 +445,16 @@ export class Document {
     this.ensureNotDeleted();
     this.ensureNotVerified();
 
+    // Update file properties for new version
+    this._storagePath = props.storagePath;
+    this._fileSize = props.fileSize;
+    this._checksum = props.checksum;
+    this._mimeType = props.mimeType;
+
+    // Reset indexing state for new version
+    this._isIndexed = false;
+    this._indexedAt = null;
+
     this.incrementVersion();
 
     this.addDomainEvent(
@@ -436,6 +476,11 @@ export class Document {
 
     const previousMetadata = this._metadata;
     this._metadata = { ...this._metadata, ...metadata };
+
+    // Invalidate indexing when metadata changes
+    this._isIndexed = false;
+    this._indexedAt = null;
+
     this.incrementVersion();
 
     this.addDomainEvent(
@@ -458,7 +503,70 @@ export class Document {
     if (props.expiryDate !== undefined) this._expiryDate = props.expiryDate;
     if (props.issuingAuthority !== undefined) this._issuingAuthority = props.issuingAuthority;
 
+    // Invalidate indexing when document details change
+    this._isIndexed = false;
+    this._indexedAt = null;
+
     this.incrementVersion();
+  }
+
+  // NEW: Indexing state management
+  markAsIndexed(): void {
+    if (this._isIndexed) return;
+
+    this._isIndexed = true;
+    this._indexedAt = new Date();
+    this.incrementVersion();
+
+    this.addDomainEvent(new DocumentIndexedEvent(this.id, this._indexedAt));
+  }
+
+  markAsUnindexed(): void {
+    if (!this._isIndexed) return;
+
+    this._isIndexed = false;
+    this._indexedAt = null;
+    this.incrementVersion();
+  }
+
+  // NEW: Retention policy management
+  setRetentionPolicy(policy: RetentionPolicy, setBy: UserId): void {
+    this.ensureNotDeleted();
+    this.ensureOwnedBy(setBy);
+
+    this._retentionPolicy = policy;
+    this.incrementVersion();
+  }
+
+  setExpiresAt(expiresAt: Date, setBy: UserId): void {
+    this.ensureNotDeleted();
+    this.ensureOwnedBy(setBy);
+
+    this._expiresAt = expiresAt;
+    this.incrementVersion();
+  }
+
+  // NEW: Checksum validation and update
+  validateChecksum(expectedChecksum: DocumentChecksum): boolean {
+    return this._checksum?.equals(expectedChecksum) ?? false;
+  }
+
+  updateChecksum(newChecksum: DocumentChecksum, updatedBy: UserId): void {
+    this.ensureNotDeleted();
+    this.ensureNotVerified();
+
+    const oldChecksum = this._checksum;
+    this._checksum = newChecksum;
+    this.incrementVersion();
+
+    this.addDomainEvent(
+      new DocumentMetadataUpdatedEvent(
+        this.id,
+        updatedBy,
+        { checksum: oldChecksum },
+        { checksum: newChecksum },
+      ),
+    );
   }
 
   softDelete(deletedBy: UserId): void {
@@ -546,19 +654,11 @@ export class Document {
     this.addDomainEvent(new DocumentVisibilityChangedEvent(this.id, changedBy, true, false));
   }
 
-  setRetentionPolicy(policy: string, setBy: UserId): void {
-    this.ensureNotDeleted();
-    this.ensureOwnedBy(setBy);
-
-    this._retentionPolicy = policy;
-    this.incrementVersion();
-  }
-
   markAsExpired(): void {
-    if (!this._expiryDate) return;
-    if (this._expiryDate > new Date()) return;
+    if (!this._expiresAt) return;
+    if (this._expiresAt > new Date()) return;
 
-    this.addDomainEvent(new DocumentExpiredEvent(this.id, this._expiryDate));
+    this.addDomainEvent(new DocumentExpiredEvent(this.id, this._expiresAt));
   }
 
   // ============================================================================
@@ -598,12 +698,16 @@ export class Document {
   }
 
   isExpired(): boolean {
-    if (!this._expiryDate) return false;
-    return this._expiryDate <= new Date();
+    if (!this._expiresAt) return false;
+    return this._expiresAt <= new Date();
   }
 
   hasRetentionPolicy(): boolean {
     return this._retentionPolicy !== null;
+  }
+
+  hasChecksum(): boolean {
+    return this._checksum !== null;
   }
 
   // ============================================================================
@@ -637,7 +741,7 @@ export class Document {
   get mimeType(): MimeType {
     return this._mimeType;
   }
-  get checksum(): DocumentChecksum {
+  get checksum(): DocumentChecksum | null {
     return this._checksum;
   }
   get storagePath(): StoragePath {
@@ -694,8 +798,17 @@ export class Document {
   get storageProvider(): StorageProvider {
     return this._storageProvider;
   }
-  get retentionPolicy(): string | null {
+  get retentionPolicy(): RetentionPolicy | null {
     return this._retentionPolicy;
+  }
+  get expiresAt(): Date | null {
+    return this._expiresAt;
+  }
+  get isIndexed(): boolean {
+    return this._isIndexed;
+  }
+  get indexedAt(): Date | null {
+    return this._indexedAt;
   }
   get version(): number {
     return this._version;

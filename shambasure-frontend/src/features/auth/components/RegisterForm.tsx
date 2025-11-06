@@ -1,7 +1,5 @@
 // ============================================================================
-// RegisterForm.tsx - Old Money Refined Registration
-// ============================================================================
-// Sophisticated registration experience with trust-building design
+// RegisterForm.tsx - Updated Registration Form
 // ============================================================================
 
 import { useForm, Controller, type SubmitHandler } from 'react-hook-form';
@@ -16,7 +14,8 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Info,
-  UserPlus
+  UserPlus,
+  Check
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
@@ -25,11 +24,7 @@ import {
   RegisterRequestSchema,
   type RegisterFormInput,
   type RegisterInput,
-  getRegisterableRoles,
-  getRoleLabel,
-  getRoleDescription,
   calculatePasswordStrength,
-  type RegisterableRole,
 } from '../../../types';
 import { useRegister } from '../auth.api';
 import { extractErrorMessage } from '../../../api/client';
@@ -37,13 +32,22 @@ import { extractErrorMessage } from '../../../api/client';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Label } from '../../../components/ui/Label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../../components/ui/Select';
+import { Checkbox } from '../../../components/ui/Checkbox';
+
+// ============================================================================
+// DEVICE ID GENERATION
+// ============================================================================
+
+const generateDeviceId = (): string => {
+  const existingDeviceId = localStorage.getItem('shamba_device_id');
+  if (existingDeviceId) {
+    return existingDeviceId;
+  }
+
+  const newDeviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  localStorage.setItem('shamba_device_id', newDeviceId);
+  return newDeviceId;
+};
 
 // ============================================================================
 // PASSWORD STRENGTH INDICATOR
@@ -173,28 +177,7 @@ function PasswordRequirements({ password, show }: PasswordRequirementsProps) {
 }
 
 // ============================================================================
-// ROLE DESCRIPTION COMPONENT
-// ============================================================================
-
-interface RoleDescriptionProps {
-  role: RegisterableRole | undefined;
-}
-
-function RoleDescription({ role }: RoleDescriptionProps) {
-  if (!role) return null;
-
-  const description = getRoleDescription(role);
-
-  return (
-    <div className="mt-2 flex items-start gap-2 rounded-elegant border border-primary/20 bg-primary/5 p-3 text-xs">
-      <Info size={14} className="mt-0.5 flex-shrink-0 text-primary" />
-      <p className="text-text-subtle">{description}</p>
-    </div>
-  );
-}
-
-// ============================================================================
-// MAIN REGISTRATION FORM - OLD MONEY REFINED
+// MAIN REGISTRATION FORM - UPDATED WITH NEW FIELDS
 // ============================================================================
 
 export function RegisterForm() {
@@ -204,11 +187,12 @@ export function RegisterForm() {
 
   const [showPasswordRequirements, setShowPasswordRequirements] = useState(false);
   const [passwordValue, setPasswordValue] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
 
   const {
     register,
     handleSubmit,
-    control,
     watch,
     formState: { errors, isValid },
   } = useForm<RegisterFormInput>({
@@ -219,13 +203,14 @@ export function RegisterForm() {
       lastName: '',
       email: '',
       password: '',
-      confirmPassword: '',
-      role: 'LAND_OWNER',
+      passwordConfirmation: '',
+      acceptedTerms: false,
+      marketingOptIn: false,
+      deviceId: generateDeviceId(),
     },
   });
 
   const watchedPassword = watch('password');
-  const watchedRole = watch('role') as RegisterableRole | undefined;
 
   useEffect(() => {
     setPasswordValue(watchedPassword || '');
@@ -233,10 +218,14 @@ export function RegisterForm() {
 
   const onSubmit: SubmitHandler<RegisterFormInput> = (formData) => {
     try {
-      const payload: RegisterInput = RegisterRequestSchema.parse(formData);
+      // Ensure deviceId is always set
+      const registrationData: RegisterInput = {
+        ...formData,
+        deviceId: formData.deviceId || generateDeviceId(),
+      };
 
       registerUser(
-        { data: payload, rememberMe: true },
+        { data: registrationData, rememberMe: true },
         {
           onSuccess: () => {
             toast.success(t('auth:register_success_title', 'Account Created!'), {
@@ -261,8 +250,6 @@ export function RegisterForm() {
       });
     }
   };
-
-  const availableRoles = getRegisterableRoles();
 
   return (
     <div className="w-full space-y-8">
@@ -441,113 +428,126 @@ export function RegisterForm() {
 
         {/* Confirm Password */}
         <div className="space-y-2">
-          <Label htmlFor="confirmPassword" className="font-serif text-sm font-semibold text-text">
+          <Label htmlFor="passwordConfirmation" className="font-serif text-sm font-semibold text-text">
             {t('auth:confirm_password', 'Confirm Password')}
             <span className="ml-1 text-danger">*</span>
           </Label>
           <div className="relative">
             <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
             <Input
-              id="confirmPassword"
+              id="passwordConfirmation"
               type="password"
               placeholder={t('auth:confirm_password_placeholder', 'Re-enter your password')}
               autoComplete="new-password"
               disabled={isPending}
-              aria-invalid={!!errors.confirmPassword}
-              aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
+              aria-invalid={!!errors.passwordConfirmation}
+              aria-describedby={errors.passwordConfirmation ? 'passwordConfirmation-error' : undefined}
               className={`
                 pl-10
                 border-neutral-300 bg-background 
                 transition-all duration-300 
                 focus:border-primary focus:ring-2 focus:ring-primary/20
-                ${errors.confirmPassword ? 'border-danger focus:border-danger focus:ring-danger/20' : ''}
+                ${errors.passwordConfirmation ? 'border-danger focus:border-danger focus:ring-danger/20' : ''}
               `}
-              {...register('confirmPassword')}
+              {...register('passwordConfirmation')}
             />
           </div>
-          {errors.confirmPassword && (
-            <p id="confirmPassword-error" className="flex items-center gap-1.5 text-sm text-danger" role="alert">
+          {errors.passwordConfirmation && (
+            <p id="passwordConfirmation-error" className="flex items-center gap-1.5 text-sm text-danger" role="alert">
               <AlertCircle size={14} className="flex-shrink-0" />
-              <span>{errors.confirmPassword.message}</span>
+              <span>{errors.passwordConfirmation.message}</span>
             </p>
           )}
         </div>
 
-        {/* Role Selection */}
-        <div className="space-y-2">
-          <Label htmlFor="role" className="font-serif text-sm font-semibold text-text">
-            {t('auth:i_am_a', 'I am a')}
-            <span className="ml-1 text-danger">*</span>
-          </Label>
-          <Controller
-            name="role"
-            control={control}
-            render={({ field }) => (
-              <Select
-                onValueChange={field.onChange}
-                value={field.value}
-                disabled={isPending}
+        {/* Terms and Conditions */}
+        <div className="space-y-3">
+          <div className="flex items-start space-x-2">
+            <Checkbox
+              id="acceptedTerms"
+              checked={acceptedTerms}
+              onCheckedChange={(checked) => {
+                setAcceptedTerms(checked as boolean);
+                // Update form value
+                register('acceptedTerms').onChange({
+                  target: { value: checked, name: 'acceptedTerms' }
+                });
+              }}
+              disabled={isPending}
+              className="mt-0.5 border-neutral-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+              aria-invalid={!!errors.acceptedTerms}
+              aria-describedby={errors.acceptedTerms ? 'acceptedTerms-error' : undefined}
+            />
+            <Label
+              htmlFor="acceptedTerms"
+              className="cursor-pointer select-none text-sm font-normal leading-relaxed text-text peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              {t('auth:accept_terms_prefix', 'I agree to the')}{' '}
+              <Link
+                to="/terms"
+                className="font-medium text-primary transition-colors hover:text-primary-hover hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+                tabIndex={isPending ? -1 : 0}
               >
-                <SelectTrigger
-                  id="role"
-                  aria-invalid={!!errors.role}
-                  aria-describedby={errors.role ? 'role-error' : 'role-description'}
-                  className="border-neutral-300 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                >
-                  <SelectValue placeholder={t('common:select_option', 'Select...')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableRoles.map((role) => (
-                    <SelectItem key={role} value={role}>
-                      {getRoleLabel(role)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          />
-
-          <RoleDescription role={watchedRole} />
-
-          {errors.role && (
-            <p id="role-error" className="flex items-center gap-1.5 text-sm text-danger" role="alert">
+                {t('auth:terms_of_service', 'Terms of Service')}
+              </Link>{' '}
+              {t('common:and', 'and')}{' '}
+              <Link
+                to="/privacy"
+                className="font-medium text-primary transition-colors hover:text-primary-hover hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+                tabIndex={isPending ? -1 : 0}
+              >
+                {t('auth:privacy_policy', 'Privacy Policy')}
+              </Link>
+              <span className="ml-1 text-danger">*</span>
+            </Label>
+          </div>
+          {errors.acceptedTerms && (
+            <p id="acceptedTerms-error" className="flex items-center gap-1.5 text-sm text-danger" role="alert">
               <AlertCircle size={14} className="flex-shrink-0" />
-              <span>{errors.role.message}</span>
+              <span>{errors.acceptedTerms.message}</span>
             </p>
           )}
         </div>
 
-        {/* Terms Notice */}
-        <div className="rounded-elegant border border-neutral-200 bg-background-subtle p-4 text-xs leading-relaxed text-text-subtle">
-          <p>
-            {t('auth:terms_notice_prefix', 'By creating an account, you agree to our')}{' '}
-            <Link
-              to="/terms"
-              className="font-medium text-primary transition-colors hover:text-primary-hover hover:underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {t('auth:terms_of_service', 'Terms of Service')}
-            </Link>{' '}
-            {t('common:and', 'and')}{' '}
-            <Link
-              to="/privacy"
-              className="font-medium text-primary transition-colors hover:text-primary-hover hover:underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {t('auth:privacy_policy', 'Privacy Policy')}
-            </Link>
-            .
-          </p>
+        {/* Marketing Preferences */}
+        <div className="flex items-start space-x-2">
+          <Checkbox
+            id="marketingOptIn"
+            checked={marketingOptIn}
+            onCheckedChange={(checked) => {
+              setMarketingOptIn(checked as boolean);
+              // Update form value
+              register('marketingOptIn').onChange({
+                target: { value: checked, name: 'marketingOptIn' }
+              });
+            }}
+            disabled={isPending}
+            className="mt-0.5 border-neutral-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+          />
+          <Label
+            htmlFor="marketingOptIn"
+            className="cursor-pointer select-none text-sm font-normal leading-relaxed text-text-subtle peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          >
+            {t('auth:marketing_opt_in', 'Yes, I would like to receive marketing communications about new features, updates, and special offers. I can unsubscribe at any time.')}
+          </Label>
         </div>
+
+        {/* Hidden Device ID Field */}
+        <input
+          type="hidden"
+          {...register('deviceId')}
+        />
 
         {/* Submit Button */}
         <Button
           type="submit"
           className="w-full bg-primary font-sans text-base font-semibold text-primary-foreground shadow-soft transition-all duration-300 hover:bg-primary-hover hover:shadow-lifted"
           isLoading={isPending}
-          disabled={isPending || !isValid}
+          disabled={isPending || !isValid || !acceptedTerms}
           size="lg"
         >
           {isPending ? t('auth:creating_account', 'Creating Account...') : t('auth:create_account', 'Create Account')}
@@ -582,6 +582,18 @@ export function RegisterForm() {
         >
           {t('auth:sign_in_now', 'Sign In to Your Account')}
         </Link>
+      </div>
+
+      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      {/* SECURITY NOTICE - Enhanced with GDPR Compliance */}
+      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      <div className="rounded-elegant border border-secondary/20 bg-secondary/5 p-4">
+        <p className="flex items-start gap-3 text-xs leading-relaxed text-text-subtle">
+          <Shield size={16} className="mt-0.5 flex-shrink-0 text-secondary" />
+          <span>
+            {t('auth:security_notice_registration', 'Your data is protected with enterprise-grade security. We use device tracking for enhanced security and comply with GDPR and KDPA requirements. Marketing communications are optional and can be managed in your account settings.')}
+          </span>
+        </p>
       </div>
     </div>
   );

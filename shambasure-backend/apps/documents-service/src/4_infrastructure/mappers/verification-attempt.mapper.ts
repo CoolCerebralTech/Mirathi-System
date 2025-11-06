@@ -1,10 +1,10 @@
+import { Prisma } from '@prisma/client';
 import { DocumentVerificationAttempt } from '../../3_domain/models/document-verification-attempt.model';
 import {
   VerificationAttemptId,
   DocumentId,
   UserId,
   DocumentStatus,
-  RejectionReason,
 } from '../../3_domain/value-objects';
 import {
   DocumentVerificationAttemptEntity,
@@ -32,7 +32,7 @@ export class DocumentVerificationAttemptMapper {
       verifierId: attempt.verifierId.value,
       status: attempt.status.value,
       reason: attempt.reason?.value ?? null,
-      metadata: attempt.metadata,
+      metadata: attempt.metadata === null ? Prisma.JsonNull : attempt.metadata,
     };
   }
 
@@ -40,13 +40,18 @@ export class DocumentVerificationAttemptMapper {
    * Converts Persistence entity to Domain entity (for READ)
    */
   static toDomain(entity: DocumentVerificationAttemptEntity): DocumentVerificationAttempt {
+    const metadata =
+      entity.metadata && typeof entity.metadata === 'object' && !Array.isArray(entity.metadata)
+        ? (entity.metadata as Record<string, any>)
+        : null;
+
     return DocumentVerificationAttempt.fromPersistence({
       id: entity.id,
       documentId: entity.documentId,
       verifierId: entity.verifierId,
       status: entity.status,
       reason: entity.reason,
-      metadata: entity.metadata,
+      metadata,
       createdAt: entity.createdAt,
     });
   }
