@@ -7,7 +7,6 @@ export * from './repositories/prisma-verification-attempt.repsository';
 export * from './storage/providers/local-storage.provider';
 export * from './storage/storage.service';
 export * from './storage/file-validator.service';
-export * from './storage/storage.provider.interface';
 export * from './storage/storage.module';
 
 export * from './entities/document-version.entity';

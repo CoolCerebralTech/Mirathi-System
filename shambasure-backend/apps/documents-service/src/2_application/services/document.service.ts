@@ -1,91 +1,62 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-  ConflictException,
-} from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { v4 as uuidv4 } from 'uuid';
-
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { IDocumentRepository } from '../../3_domain/interfaces/document.repository.interface';
 import { IStorageService } from '../../3_domain/interfaces/storage.service.interface';
-import { FileValidatorService } from '../../4_infrastructure/storage/file-validator.service';
-import { DocumentMapper } from '../mappers/document.mapper';
 import { Document } from '../../3_domain/models/document.model';
 import {
   DocumentId,
   UserId,
-  WillId,
-  AssetId,
-  DocumentCategory,
   StoragePath,
-  FileMetadata,
-  MimeType,
+  FileName,
   FileSize,
+  MimeType,
   DocumentChecksum,
   StorageProvider,
-  AllowedViewers,
 } from '../../3_domain/value-objects';
+import { DocumentMapper } from '../mappers/document.mapper';
+import { BulkOperationsMapper } from '../mappers/bulk-operations.mapper';
+import { FileValidatorService } from '../../4_infrastructure/storage/file-validator.service';
+import { UploadDocumentDto, UploadDocumentResponseDto } from '../dtos/upload-document.dto';
+import { VerifyDocumentDto, VerifyDocumentResponseDto } from '../dtos/verify-document.dto';
 import {
-  UploadDocumentResponseDto,
-  VerifyDocumentResponseDto,
+  UpdateMetadataDto,
+  UpdateAccessControlDto,
   UpdateDocumentResponseDto,
-  PaginatedDocumentsResponseDto,
-  DocumentStatsResponseDto,
-  BulkOperationResponseDto,
-} from '../dtos';
+} from '../dtos/update-metadata.dto';
 import {
-  DocumentUploadedEvent,
-  DocumentVerifiedEvent,
-  DocumentRejectedEvent,
-  DocumentDeletedEvent,
-  DocumentVersionedEvent,
-} from '../../3_domain/events';
+  UpdateDocumentDetailsDto,
+  UpdateDocumentDetailsResponseDto,
+} from '../dtos/update-document-details.dto';
+import {
+  ShareDocumentDto,
+  RevokeAccessDto,
+  ShareDocumentResponseDto,
+} from '../dtos/share-document.dto';
+import { QueryDocumentsDto, PaginatedDocumentsResponseDto } from '../dtos/query-documents.dto';
+import { SearchDocumentsDto } from '../dtos/search-documents.dto';
+import {
+  BulkDeleteDto,
+  BulkUpdateStatusDto,
+  BulkUpdateMetadataDto,
+  BulkShareDto,
+  BulkOperationResponseDto,
+} from '../dtos/bulk-operations.dto';
+import { DocumentResponseDto } from '../dtos/document-response.dto';
 
-export interface UploadDocumentCommand {
-  file: Buffer;
-  filename: string;
-  mimeType: string;
-  category: string;
-  uploaderId: string;
-  uploaderName: string;
-  assetId?: string;
-  willId?: string;
-  identityForUserId?: string;
-  metadata?: Record<string, any>;
-  documentNumber?: string;
-  issueDate?: Date;
-  expiryDate?: Date;
-  issuingAuthority?: string;
-  isPublic?: boolean;
-  allowedViewers?: string[];
-}
-
-export interface VerifyDocumentCommand {
-  documentId: string;
-  verifierId: string;
-  verifierName: string;
-  status: string;
-  reason?: string;
-  documentNumber?: string;
-  extractedData?: Record<string, any>;
-  verificationMetadata?: Record<string, any>;
-}
-
-export interface UpdateMetadataCommand {
-  documentId: string;
-  updaterId: string;
-  metadata?: Record<string, any>;
-  documentNumber?: string;
-  issueDate?: Date;
-  expiryDate?: Date;
-  issuingAuthority?: string;
-  customMetadata?: Record<string, any>;
-  tags?: string[];
-}
-
+/**
+ * DocumentService - Application Service
+ *
+ * RESPONSIBILITIES:
+ * - Orchestrate use cases
+ * - Coordinate between domain and infrastructure
+ * - Handle transactions
+ * - Emit domain events
+ * - Map DTOs to domain and back
+ *
+ * DOES NOT:
+ * - Contain business rules (Domain layer)
+ * - Access database directly (Repository pattern)
+ * - Handle HTTP concerns (Presentation layer)
+ */
 @Injectable()
 export class DocumentService {
   private readonly logger = new Logger(DocumentService.name);
@@ -93,543 +64,573 @@ export class DocumentService {
   constructor(
     private readonly documentRepository: IDocumentRepository,
     private readonly storageService: IStorageService,
-    private readonly fileValidator: FileValidatorService,
     private readonly documentMapper: DocumentMapper,
-    private readonly eventEmitter: EventEmitter2,
+    private readonly bulkMapper: BulkOperationsMapper,
+    private readonly fileValidator: FileValidatorService,
   ) {}
 
   // ============================================================================
-  // DOCUMENT UPLOAD & CREATION
+  // UPLOAD OPERATIONS
   // ============================================================================
 
-  async uploadDocument(command: UploadDocumentCommand): Promise<UploadDocumentResponseDto> {
-    try {
-      this.logger.log(`Uploading document: ${command.filename} for user ${command.uploaderId}`);
+  async uploadDocument(
+    dto: UploadDocumentDto,
+    file: Buffer,
+    uploaderId: UserId,
+  ): Promise<UploadDocumentResponseDto> {
+    this.logger.log(`Uploading document: ${dto.filename} by user ${uploaderId.value}`);
 
-      // Validate file
+    try {
+      // 1. Validate file
       const validationResult = await this.fileValidator.validateFile(
-        command.file,
-        command.filename,
-        command.mimeType,
+        file,
+        dto.filename,
+        this.detectMimeType(file),
       );
 
       if (!validationResult.isValid) {
         throw new BadRequestException(
-          `File validation failed: ${validationResult.errors.join(', ')}`,
+          `File validation failed: ${validationResult.errors.map((e) => e.message).join(', ')}`,
         );
       }
 
-      if (validationResult.warnings.length > 0) {
-        this.logger.warn(`File validation warnings: ${validationResult.warnings.join(', ')}`);
-      }
+      // 2. Extract file metadata from validation
+      const fileName = FileName.create(dto.filename);
+      const fileSize = FileSize.create(file.length);
+      const mimeType = MimeType.create(validationResult.metadata.mimeType);
+      const checksum = DocumentChecksum.create(validationResult.metadata.checksum);
 
-      // Scan for viruses
-      const scanResult = await this.storageService.scanForViruses(command.file);
-      if (!scanResult.clean) {
-        throw new BadRequestException(
-          `File contains potential threats: ${scanResult.threats?.join(', ')}`,
-        );
-      }
+      // 3. Generate storage path
+      const storagePath = this.generateStoragePath(uploaderId, fileName);
 
-      // Generate storage path
-      const storagePath = this.generateStoragePath(
-        command.uploaderId,
-        command.filename,
-        command.category,
-      );
-
-      // Save file to storage
-      const storageResult = await this.storageService.save(command.file, storagePath.value, {
-        contentType: command.mimeType,
-        checksum: this.calculateChecksum(command.file),
+      // 4. Save file to storage
+      const saveResult = await this.storageService.save(file, storagePath, {
+        contentType: mimeType,
+        metadata: {
+          uploaderId: uploaderId.value,
+          originalFilename: dto.filename,
+        },
       });
 
-      // Create file metadata value objects
-      const fileMetadata = FileMetadata.create(
-        command.filename,
-        command.mimeType,
-        command.file.length,
-        storageResult.checksum,
-      );
+      // 5. Map DTO to domain params
+      const domainParams = this.documentMapper.uploadDtoToValueObjects(dto, uploaderId);
 
-      // Create domain entity
+      // 6. Create domain aggregate
       const document = Document.create({
-        id: new DocumentId(uuidv4()),
-        fileMetadata,
-        storagePath,
-        category: DocumentCategory.fromString(command.category),
-        uploaderId: new UserId(command.uploaderId),
-        uploaderName: command.uploaderName,
-        assetId: command.assetId ? new AssetId(command.assetId) : undefined,
-        willId: command.willId ? new WillId(command.willId) : undefined,
-        identityForUserId: command.identityForUserId
-          ? new UserId(command.identityForUserId)
-          : undefined,
-        metadata: command.metadata,
-        documentNumber: command.documentNumber,
-        issueDate: command.issueDate,
-        expiryDate: command.expiryDate,
-        issuingAuthority: command.issuingAuthority,
-        isPublic: command.isPublic || false,
-        allowedViewers: command.allowedViewers || [],
+        fileName,
+        fileSize,
+        mimeType,
+        checksum,
+        storagePath: saveResult.path,
+        category: domainParams.category,
+        uploaderId: domainParams.uploaderId,
+        storageProvider: StorageProvider.create('local'),
+        assetId: domainParams.assetId,
+        willId: domainParams.willId,
+        identityForUserId: domainParams.identityForUserId,
+        metadata: domainParams.metadata,
+        documentNumber: domainParams.documentNumber,
+        issueDate: domainParams.issueDate,
+        expiryDate: domainParams.expiryDate,
+        issuingAuthority: domainParams.issuingAuthority,
+        isPublic: domainParams.isPublic,
+        retentionPolicy: domainParams.retentionPolicy,
       });
 
-      // Save to database
-      const savedDocument = await this.documentRepository.create(document);
+      // 7. Persist document
+      await this.documentRepository.save(document);
 
-      // Publish domain events
-      this.publishDomainEvents(savedDocument);
+      // 8. TODO: Publish domain events (DocumentUploadedEvent)
+      // await this.eventPublisher.publish(document.domainEvents);
+      document.clearDomainEvents();
 
-      // Generate download URL
-      const downloadUrl = await this.storageService.getDownloadUrl(
-        savedDocument.storagePath.value,
-        { filename: savedDocument.fileMetadata.filename },
-      );
+      // 9. Generate download URL
+      const downloadUrl = await this.storageService.getPresignedDownloadUrl(storagePath, {
+        expiresInSeconds: 3600,
+        fileNameToSuggest: fileName,
+      });
 
-      this.logger.log(`Document uploaded successfully: ${savedDocument.id.value}`);
+      this.logger.log(`Document uploaded successfully: ${document.id.value}`);
 
-      return this.documentMapper.toUploadResponseDto(savedDocument, downloadUrl);
+      return this.documentMapper.toUploadResponseDto(document, downloadUrl);
     } catch (error) {
       this.logger.error(`Failed to upload document: ${error.message}`, error.stack);
+
+      // Cleanup on failure
+      if (error.storagePath) {
+        await this.storageService.delete(error.storagePath).catch(() => {});
+      }
+
       throw error;
     }
   }
 
   // ============================================================================
-  // DOCUMENT RETRIEVAL
+  // QUERY OPERATIONS
   // ============================================================================
 
   async getDocumentById(
-    documentId: string,
-    requestingUserId: string,
-    options: { includeDownloadUrl?: boolean } = {},
+    documentId: DocumentId,
+    currentUserId?: UserId,
   ): Promise<DocumentResponseDto> {
-    try {
-      const document = await this.findDocumentById(documentId);
-      await this.ensureDocumentAccess(document, new UserId(requestingUserId));
+    this.logger.debug(`Fetching document: ${documentId.value}`);
 
-      const userPermissions = this.calculateUserPermissions(document, new UserId(requestingUserId));
+    const document = await this.documentRepository.findById(documentId);
 
-      return this.documentMapper.toResponseDto(document, {
-        includeDownloadUrl: options.includeDownloadUrl,
-        userPermissions,
-      });
-    } catch (error) {
-      this.logger.error(`Failed to get document: ${error.message}`, error.stack);
-      throw error;
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId.value}`);
     }
+
+    // Check access
+    if (currentUserId && !document.canBeAccessedBy(currentUserId)) {
+      throw new NotFoundException(`Document not found: ${documentId.value}`);
+    }
+
+    return this.documentMapper.toResponseDto(document, {
+      includeDownloadUrl: true,
+      includePreviewUrl: true,
+      currentUserId,
+      computePermissions: !!currentUserId,
+    });
   }
 
-  async getDocuments(
-    filters: any,
-    pagination: any,
-    requestingUserId: string,
+  async queryDocuments(
+    dto: QueryDocumentsDto,
+    currentUserId?: UserId,
   ): Promise<PaginatedDocumentsResponseDto> {
-    try {
-      // Apply access control filters
-      const enhancedFilters = this.applyAccessControlFilters(filters, new UserId(requestingUserId));
+    this.logger.debug(`Querying documents with filters: ${JSON.stringify(dto)}`);
 
-      const result = await this.documentRepository.findMany(enhancedFilters, pagination);
+    // Convert DTO filters to repository filters
+    const filters = this.buildRepositoryFilters(dto);
 
-      // Calculate permissions for each document
-      const userPermissionsMap = new Map<string, { canEdit: boolean; canDelete: boolean }>();
-      result.data.forEach((document) => {
-        userPermissionsMap.set(
-          document.id.value,
-          this.calculateUserPermissions(document, new UserId(requestingUserId)),
-        );
-      });
+    const result = await this.documentRepository.findMany(filters, {
+      page: dto.page || 1,
+      limit: dto.limit || 20,
+      sortBy: dto.sortBy as any,
+      sortOrder: dto.sortOrder,
+    });
 
-      return this.documentMapper.toPaginatedResponseDto(
-        result.data,
-        result.total,
-        result.page,
-        result.limit,
-        { userPermissionsMap },
-      );
-    } catch (error) {
-      this.logger.error(`Failed to get documents: ${error.message}`, error.stack);
-      throw error;
-    }
+    return this.documentMapper.toPaginatedResponse(
+      result.data,
+      result.total,
+      result.page,
+      result.limit,
+      {
+        includeDownloadUrl: false,
+        currentUserId,
+        computePermissions: !!currentUserId,
+      },
+    );
   }
 
   async searchDocuments(
-    searchOptions: any,
-    pagination: any,
-    requestingUserId: string,
+    dto: SearchDocumentsDto,
+    currentUserId?: UserId,
   ): Promise<PaginatedDocumentsResponseDto> {
-    try {
-      // Apply access control to search
-      const enhancedSearch = { ...searchOptions, uploaderId: requestingUserId };
+    this.logger.debug(`Searching documents: ${dto.query}`);
 
-      const result = await this.documentRepository.search(enhancedSearch, pagination);
+    const result = await this.documentRepository.search(
+      {
+        query: dto.query,
+        category: dto.category,
+        status: dto.status,
+        uploaderId: dto.uploaderId,
+        tags: dto.tags,
+      },
+      {
+        page: dto.page || 1,
+        limit: dto.limit || 20,
+      },
+    );
 
-      const userPermissionsMap = new Map<string, { canEdit: boolean; canDelete: boolean }>();
-      result.data.forEach((document) => {
-        userPermissionsMap.set(
-          document.id.value,
-          this.calculateUserPermissions(document, new UserId(requestingUserId)),
-        );
-      });
+    return this.documentMapper.toPaginatedResponse(
+      result.data,
+      result.total,
+      result.page,
+      result.limit,
+      {
+        currentUserId,
+        computePermissions: !!currentUserId,
+      },
+    );
+  }
 
-      return this.documentMapper.toPaginatedResponseDto(
-        result.data,
-        result.total,
-        result.page,
-        result.limit,
-        { userPermissionsMap },
-      );
-    } catch (error) {
-      this.logger.error(`Failed to search documents: ${error.message}`, error.stack);
-      throw error;
+  async downloadDocument(
+    documentId: DocumentId,
+    currentUserId: UserId,
+  ): Promise<{
+    buffer: Buffer;
+    filename: string;
+    mimeType: string;
+  }> {
+    this.logger.log(`Downloading document: ${documentId.value} by user ${currentUserId.value}`);
+
+    const document = await this.documentRepository.findById(documentId);
+
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId.value}`);
     }
+
+    if (!document.canBeAccessedBy(currentUserId)) {
+      throw new NotFoundException(`Document not found: ${documentId.value}`);
+    }
+
+    // Record download event
+    document.recordDownload(currentUserId, 'unknown-ip', 'unknown-agent');
+    await this.documentRepository.save(document);
+
+    // Retrieve file from storage
+    const fileResult = await this.storageService.retrieve(document.storagePath);
+
+    return {
+      buffer: fileResult.buffer,
+      filename: document.fileName.value,
+      mimeType: document.mimeType.value,
+    };
   }
 
   // ============================================================================
-  // DOCUMENT VERIFICATION
+  // UPDATE OPERATIONS
   // ============================================================================
 
-  async verifyDocument(command: VerifyDocumentCommand): Promise<VerifyDocumentResponseDto> {
-    try {
-      const document = await this.findDocumentById(command.documentId);
-
-      // Business rule: Only verifiers/admins can verify documents
-      await this.ensureUserCanVerify(document, new UserId(command.verifierId));
-
-      if (command.status === 'VERIFIED') {
-        document.verify(
-          new UserId(command.verifierId),
-          command.verifierName,
-          command.documentNumber,
-        );
-      } else if (command.status === 'REJECTED') {
-        if (!command.reason) {
-          throw new BadRequestException('Rejection reason is required');
-        }
-        document.reject(new UserId(command.verifierId), command.verifierName, command.reason);
-      }
-
-      // Update metadata if provided
-      if (command.extractedData) {
-        document.updateMetadata(command.extractedData);
-      }
-
-      const updatedDocument = await this.documentRepository.update(document);
-      this.publishDomainEvents(updatedDocument);
-
-      this.logger.log(`Document ${command.documentId} verified with status: ${command.status}`);
-
-      return this.documentMapper.toVerifyResponseDto(updatedDocument);
-    } catch (error) {
-      this.logger.error(`Failed to verify document: ${error.message}`, error.stack);
-      throw error;
-    }
-  }
-
-  // ============================================================================
-  // DOCUMENT METADATA & ACCESS CONTROL
-  // ============================================================================
-
-  async updateDocumentMetadata(command: UpdateMetadataCommand): Promise<UpdateDocumentResponseDto> {
-    try {
-      const document = await this.findDocumentById(command.documentId);
-
-      // Business rule: Only owner or admin can update metadata
-      await this.ensureUserCanModify(document, new UserId(command.updaterId));
-
-      // Update metadata
-      if (command.metadata) {
-        document.updateMetadata(command.metadata);
-      }
-
-      // Update other fields if provided
-      // Note: In a real implementation, you'd have specific methods for each field
-
-      const updatedDocument = await this.documentRepository.update(document);
-      this.publishDomainEvents(updatedDocument);
-
-      this.logger.log(`Document metadata updated: ${command.documentId}`);
-
-      return this.documentMapper.toUpdateResponseDto(updatedDocument);
-    } catch (error) {
-      this.logger.error(`Failed to update document metadata: ${error.message}`, error.stack);
-      throw error;
-    }
-  }
-
-  async updateDocumentAccessControl(
-    documentId: string,
-    updaterId: string,
-    isPublic?: boolean,
-    allowedViewers?: string[],
+  async updateMetadata(
+    documentId: DocumentId,
+    dto: UpdateMetadataDto,
+    currentUserId: UserId,
   ): Promise<UpdateDocumentResponseDto> {
-    try {
-      const document = await this.findDocumentById(documentId);
-      await this.ensureUserCanModify(document, new UserId(updaterId));
+    this.logger.log(`Updating document metadata: ${documentId.value}`);
 
-      if (isPublic !== undefined) {
-        if (isPublic) {
-          document.makePublic(new UserId(updaterId));
-        } else {
-          document.makePrivate(new UserId(updaterId));
-        }
-      }
+    const document = await this.documentRepository.findById(documentId);
 
-      if (allowedViewers) {
-        // This would be implemented with a proper method in the domain model
-        // For now, we'll update through the repository
-      }
-
-      const updatedDocument = await this.documentRepository.update(document);
-      this.publishDomainEvents(updatedDocument);
-
-      this.logger.log(`Document access control updated: ${documentId}`);
-
-      return this.documentMapper.toUpdateResponseDto(updatedDocument);
-    } catch (error) {
-      this.logger.error(`Failed to update document access control: ${error.message}`, error.stack);
-      throw error;
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId.value}`);
     }
-  }
 
-  // ============================================================================
-  // DOCUMENT DELETION
-  // ============================================================================
-
-  async deleteDocument(documentId: string, deletedBy: string, reason?: string): Promise<void> {
-    try {
-      const document = await this.findDocumentById(documentId);
-      await this.ensureUserCanModify(document, new UserId(deletedBy));
-
-      document.softDelete(new UserId(deletedBy), reason);
-
-      await this.documentRepository.update(document);
-      this.publishDomainEvents(document);
-
-      this.logger.log(`Document soft deleted: ${documentId} by user ${deletedBy}`);
-    } catch (error) {
-      this.logger.error(`Failed to delete document: ${error.message}`, error.stack);
-      throw error;
+    if (!document.isOwnedBy(currentUserId)) {
+      throw new BadRequestException('Only document owner can update metadata');
     }
-  }
 
-  async restoreDocument(documentId: string, restoredBy: string): Promise<DocumentResponseDto> {
-    try {
-      const document = await this.documentRepository.findById(new DocumentId(documentId), {
-        includeDeleted: true,
+    const params = this.documentMapper.updateMetadataDtoToParams(dto);
+
+    if (params.metadata) {
+      document.updateMetadata(params.metadata, currentUserId);
+    }
+
+    if (params.documentNumber || params.issueDate || params.expiryDate || params.issuingAuthority) {
+      document.updateDocumentDetails({
+        documentNumber: params.documentNumber,
+        issueDate: params.issueDate,
+        expiryDate: params.expiryDate,
+        issuingAuthority: params.issuingAuthority,
+        updatedBy: currentUserId,
       });
-
-      if (!document) {
-        throw new NotFoundException(`Document not found: ${documentId}`);
-      }
-
-      if (!document.isDeleted()) {
-        throw new BadRequestException(`Document is not deleted: ${documentId}`);
-      }
-
-      await this.ensureUserCanModify(document, new UserId(restoredBy));
-
-      document.restore(new UserId(restoredBy));
-
-      const updatedDocument = await this.documentRepository.update(document);
-      this.publishDomainEvents(updatedDocument);
-
-      this.logger.log(`Document restored: ${documentId}`);
-
-      return this.documentMapper.toResponseDto(updatedDocument);
-    } catch (error) {
-      this.logger.error(`Failed to restore document: ${error.message}`, error.stack);
-      throw error;
     }
+
+    await this.documentRepository.save(document);
+
+    return this.documentMapper.toUpdateResponseDto(document);
+  }
+
+  async updateDocumentDetails(
+    documentId: DocumentId,
+    dto: UpdateDocumentDetailsDto,
+    currentUserId: UserId,
+  ): Promise<UpdateDocumentDetailsResponseDto> {
+    this.logger.log(`Updating document details: ${documentId.value}`);
+
+    const document = await this.documentRepository.findById(documentId);
+
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId.value}`);
+    }
+
+    if (!document.isOwnedBy(currentUserId)) {
+      throw new BadRequestException('Only document owner can update details');
+    }
+
+    const params = this.documentMapper.updateDetailsDtoToParams(dto);
+
+    document.updateDocumentDetails({
+      ...params,
+      updatedBy: currentUserId,
+    });
+
+    await this.documentRepository.save(document);
+
+    return this.documentMapper.toUpdateDetailsResponseDto(document);
+  }
+
+  async updateAccessControl(
+    documentId: DocumentId,
+    dto: UpdateAccessControlDto,
+    currentUserId: UserId,
+  ): Promise<UpdateDocumentResponseDto> {
+    this.logger.log(`Updating document access control: ${documentId.value}`);
+
+    const document = await this.documentRepository.findById(documentId);
+
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId.value}`);
+    }
+
+    if (!document.isOwnedBy(currentUserId)) {
+      throw new BadRequestException('Only document owner can update access control');
+    }
+
+    const params = this.documentMapper.updateAccessControlDtoToParams(dto);
+
+    if (params.isPublic !== undefined) {
+      if (params.isPublic) {
+        document.makePublic(currentUserId);
+      } else {
+        document.makePrivate(currentUserId);
+      }
+    }
+
+    if (params.allowedViewers && params.allowedViewers.length > 0) {
+      document.shareWith(currentUserId, params.allowedViewers);
+    }
+
+    await this.documentRepository.save(document);
+
+    return this.documentMapper.toUpdateResponseDto(document);
+  }
+
+  // ============================================================================
+  // VERIFICATION OPERATIONS
+  // ============================================================================
+
+  async verifyDocument(
+    documentId: DocumentId,
+    dto: VerifyDocumentDto,
+    verifierId: UserId,
+  ): Promise<VerifyDocumentResponseDto> {
+    this.logger.log(`Verifying document: ${documentId.value} by verifier ${verifierId.value}`);
+
+    const document = await this.documentRepository.findById(documentId);
+
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId.value}`);
+    }
+
+    const params = this.documentMapper.verifyDtoToValueObjects(dto, verifierId);
+
+    if (params.status.isVerified()) {
+      document.verify(params.verifierId);
+    } else if (params.status.isRejected()) {
+      if (!params.reason) {
+        throw new BadRequestException('Rejection reason is required');
+      }
+      document.reject(params.verifierId, params.reason);
+    }
+
+    // Update extracted details if provided
+    if (params.documentNumber) {
+      document.updateDocumentDetails({
+        documentNumber: params.documentNumber,
+        updatedBy: verifierId,
+      });
+    }
+
+    await this.documentRepository.save(document);
+
+    // TODO: Create verification attempt record
+    // const attempt = DocumentVerificationAttempt.create...
+    // await verificationAttemptRepository.save(attempt);
+
+    return this.documentMapper.toVerifyResponseDto(document);
+  }
+
+  // ============================================================================
+  // SHARING OPERATIONS
+  // ============================================================================
+
+  async shareDocument(
+    documentId: DocumentId,
+    dto: ShareDocumentDto,
+    currentUserId: UserId,
+  ): Promise<ShareDocumentResponseDto> {
+    this.logger.log(`Sharing document: ${documentId.value} with ${dto.userIds.length} users`);
+
+    const document = await this.documentRepository.findById(documentId);
+
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId.value}`);
+    }
+
+    if (!document.isOwnedBy(currentUserId)) {
+      throw new BadRequestException('Only document owner can share');
+    }
+
+    const userIds = dto.userIds.map((id) => new UserId(id));
+
+    if (dto.makePublic) {
+      document.makePublic(currentUserId);
+    } else {
+      document.shareWith(currentUserId, userIds);
+    }
+
+    await this.documentRepository.save(document);
+
+    return this.documentMapper.toShareResponseDto(document, userIds);
+  }
+
+  async revokeAccess(
+    documentId: DocumentId,
+    dto: RevokeAccessDto,
+    currentUserId: UserId,
+  ): Promise<ShareDocumentResponseDto> {
+    this.logger.log(`Revoking access for document: ${documentId.value}`);
+
+    const document = await this.documentRepository.findById(documentId);
+
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId.value}`);
+    }
+
+    if (!document.isOwnedBy(currentUserId)) {
+      throw new BadRequestException('Only document owner can revoke access');
+    }
+
+    const userIds = dto.userIds.map((id) => new UserId(id));
+    document.revokeAccess(currentUserId, userIds);
+
+    await this.documentRepository.save(document);
+
+    return this.documentMapper.toShareResponseDto(document, []);
+  }
+
+  // ============================================================================
+  // DELETE OPERATIONS
+  // ============================================================================
+
+  async softDeleteDocument(documentId: DocumentId, currentUserId: UserId): Promise<void> {
+    this.logger.log(`Soft deleting document: ${documentId.value}`);
+
+    const document = await this.documentRepository.findById(documentId);
+
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId.value}`);
+    }
+
+    if (!document.isOwnedBy(currentUserId)) {
+      throw new BadRequestException('Only document owner can delete');
+    }
+
+    document.softDelete(currentUserId);
+    await this.documentRepository.save(document);
+  }
+
+  async restoreDocument(
+    documentId: DocumentId,
+    currentUserId: UserId,
+  ): Promise<DocumentResponseDto> {
+    this.logger.log(`Restoring document: ${documentId.value}`);
+
+    const document = await this.documentRepository.findById(documentId, true);
+
+    if (!document) {
+      throw new NotFoundException(`Document not found: ${documentId.value}`);
+    }
+
+    if (!document.isOwnedBy(currentUserId)) {
+      throw new BadRequestException('Only document owner can restore');
+    }
+
+    document.restore(currentUserId);
+    await this.documentRepository.save(document);
+
+    return this.documentMapper.toResponseDto(document);
   }
 
   // ============================================================================
   // BULK OPERATIONS
   // ============================================================================
 
-  async bulkDeleteDocuments(
-    documentIds: string[],
-    deletedBy: string,
-    reason?: string,
+  async bulkDelete(dto: BulkDeleteDto, currentUserId: UserId): Promise<BulkOperationResponseDto> {
+    this.logger.log(`Bulk deleting ${dto.documentIds.length} documents`);
+
+    const documentIds = dto.documentIds.map((id) => new DocumentId(id));
+    const result = await this.documentRepository.softDeleteMany(documentIds, currentUserId);
+
+    return this.bulkMapper.fromRepositoryBulkResult(result);
+  }
+
+  async bulkUpdateStatus(
+    dto: BulkUpdateStatusDto,
+    currentUserId: UserId,
   ): Promise<BulkOperationResponseDto> {
-    try {
-      const documentIdsVO = documentIds.map((id) => new DocumentId(id));
+    this.logger.log(`Bulk updating status for ${dto.documentIds.length} documents`);
 
-      // Verify all documents exist and user has permission
-      for (const documentId of documentIdsVO) {
-        const document = await this.findDocumentById(documentId.value);
-        await this.ensureUserCanModify(document, new UserId(deletedBy));
-      }
+    const documentIds = dto.documentIds.map((id) => new DocumentId(id));
+    const result = await this.documentRepository.updateStatusMany(
+      documentIds,
+      dto.status as any,
+      currentUserId,
+    );
 
-      const result = await this.documentRepository.softDeleteMany(
-        documentIdsVO,
-        new UserId(deletedBy),
-      );
+    return this.bulkMapper.toBulkOperationResponseDto(result);
+  }
 
-      this.logger.log(`Bulk deleted ${result.success} documents`);
+  async bulkShare(dto: BulkShareDto, currentUserId: UserId): Promise<BulkOperationResponseDto> {
+    this.logger.log(`Bulk sharing ${dto.documentIds.length} documents`);
 
-      // In a real implementation, you'd publish events for each deleted document
+    const documentIds = dto.documentIds.map((id) => new DocumentId(id));
+    const userIds = dto.userIds.map((id) => new UserId(id));
 
-      return {
-        success: result.success,
-        failed: result.failed,
-        errors: result.errors,
-      };
-    } catch (error) {
-      this.logger.error(`Failed to bulk delete documents: ${error.message}`, error.stack);
-      throw error;
-    }
+    const result = await this.documentRepository.shareMany(documentIds, currentUserId, userIds);
+
+    return this.bulkMapper.toBulkOperationResponseDto(result);
   }
 
   // ============================================================================
-  // STATISTICS & ANALYTICS
+  // HELPER METHODS
   // ============================================================================
 
-  async getDocumentStats(userId?: string): Promise<DocumentStatsResponseDto> {
-    try {
-      const filters: any = {};
-      if (userId) {
-        filters.uploaderId = userId;
-      }
-
-      const stats = await this.documentRepository.getStats(filters);
-      return this.documentMapper.toDocumentStatsResponseDto(stats);
-    } catch (error) {
-      this.logger.error(`Failed to get document stats: ${error.message}`, error.stack);
-      throw error;
-    }
-  }
-
-  async getStorageStats(): Promise<any> {
-    try {
-      return await this.documentRepository.getStorageStats();
-    } catch (error) {
-      this.logger.error(`Failed to get storage stats: ${error.message}`, error.stack);
-      throw error;
-    }
-  }
-
-  // ============================================================================
-  // FILE DOWNLOAD
-  // ============================================================================
-
-  async generateDownloadUrl(documentId: string, requestingUserId: string): Promise<string> {
-    try {
-      const document = await this.findDocumentById(documentId);
-      await this.ensureDocumentAccess(document, new UserId(requestingUserId));
-
-      // Record download for audit trail
-      document.recordDownload(new UserId(requestingUserId));
-      await this.documentRepository.update(document);
-
-      return await this.storageService.getDownloadUrl(document.storagePath.value, {
-        filename: document.fileMetadata.filename,
-      });
-    } catch (error) {
-      this.logger.error(`Failed to generate download URL: ${error.message}`, error.stack);
-      throw error;
-    }
-  }
-
-  async getFileContent(documentId: string, requestingUserId: string): Promise<Buffer> {
-    try {
-      const document = await this.findDocumentById(documentId);
-      await this.ensureDocumentAccess(document, new UserId(requestingUserId));
-
-      const fileContent = await this.storageService.retrieve(document.storagePath.value, {
-        validateChecksum: true,
-        expectedChecksum: document.fileMetadata.checksum.value,
-      });
-
-      // Record view for audit trail
-      document.recordView(new UserId(requestingUserId));
-      await this.documentRepository.update(document);
-
-      return fileContent.buffer;
-    } catch (error) {
-      this.logger.error(`Failed to get file content: ${error.message}`, error.stack);
-      throw error;
-    }
-  }
-
-  // ============================================================================
-  // PRIVATE HELPERS
-  // ============================================================================
-
-  private async findDocumentById(documentId: string): Promise<Document> {
-    const document = await this.documentRepository.findById(new DocumentId(documentId));
-    if (!document) {
-      throw new NotFoundException(`Document not found: ${documentId}`);
-    }
-    return document;
-  }
-
-  private async ensureDocumentAccess(document: Document, userId: UserId): Promise<void> {
-    if (!document.canBeAccessedBy(userId)) {
-      throw new ForbiddenException('Access denied to document');
-    }
-  }
-
-  private async ensureUserCanModify(document: Document, userId: UserId): Promise<void> {
-    if (!document.isOwnedBy(userId)) {
-      // In production, you'd also check for admin role
-      throw new ForbiddenException('Only document owner can modify this document');
-    }
-
-    if (document.isVerified()) {
-      throw new ConflictException('Cannot modify verified document');
-    }
-  }
-
-  private async ensureUserCanVerify(document: Document, userId: UserId): Promise<void> {
-    // In production, you'd check if user has VERIFIER or ADMIN role
-    // For now, we'll just allow any user to verify (this should be enhanced)
-    if (document.isOwnedBy(userId)) {
-      throw new ForbiddenException('Document owner cannot verify their own document');
-    }
-  }
-
-  private calculateUserPermissions(
-    document: Document,
-    userId: UserId,
-  ): { canEdit: boolean; canDelete: boolean } {
-    const canEdit = document.isOwnedBy(userId) && !document.isVerified();
-    const canDelete = document.isOwnedBy(userId) && !document.isVerified();
-
-    return { canEdit, canDelete };
-  }
-
-  private applyAccessControlFilters(filters: any, userId: UserId): any {
-    // Only show documents the user has access to
-    return {
-      ...filters,
-      $or: [
-        { uploaderId: userId.value },
-        { isPublic: true },
-        { allowedViewers: { has: userId.value } },
-      ],
-    };
-  }
-
-  private generateStoragePath(uploaderId: string, filename: string, category: string): StoragePath {
+  private generateStoragePath(uploaderId: UserId, fileName: FileName): StoragePath {
     const timestamp = Date.now();
-    const uniqueId = uuidv4().substring(0, 8);
-    const safeFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
-
-    const path = `documents/${uploaderId}/${category}/${timestamp}_${uniqueId}_${safeFilename}`;
-    return new StoragePath(path);
+    const sanitized = fileName.value.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const path = `${uploaderId.value}/${timestamp}_${sanitized}`;
+    return StoragePath.create(path);
   }
 
-  private calculateChecksum(buffer: Buffer): string {
-    // This would use the same method as in storage service
-    const crypto = require('crypto');
-    return crypto.createHash('sha256').update(buffer).digest('hex');
+  private detectMimeType(buffer: Buffer): string {
+    // Simple magic number detection
+    if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
+      return 'application/pdf';
+    }
+    if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+      return 'image/jpeg';
+    }
+    if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+      return 'image/png';
+    }
+    return 'application/octet-stream';
   }
 
-  private publishDomainEvents(document: Document): void {
-    document.domainEvents.forEach((event) => {
-      this.eventEmitter.emit(event.constructor.name, event);
-    });
-    document.clearDomainEvents();
+  private buildRepositoryFilters(dto: QueryDocumentsDto): any {
+    return {
+      uploaderId: dto.uploaderId ? new UserId(dto.uploaderId) : undefined,
+      status: dto.status,
+      category: dto.category,
+      assetId: dto.assetId ? new AssetId(dto.assetId) : undefined,
+      willId: dto.willId ? new WillId(dto.willId) : undefined,
+      identityForUserId: dto.identityForUserId ? new UserId(dto.identityForUserId) : undefined,
+      isPublic: dto.isPublic,
+      encrypted: dto.encrypted,
+      storageProvider: dto.storageProvider
+        ? StorageProvider.create(dto.storageProvider)
+        : undefined,
+      documentNumber: dto.documentNumber,
+      issuingAuthority: dto.issuingAuthority,
+      createdAfter: dto.createdAfter ? new Date(dto.createdAfter) : undefined,
+      createdBefore: dto.createdBefore ? new Date(dto.createdBefore) : undefined,
+      updatedAfter: dto.updatedAfter ? new Date(dto.updatedAfter) : undefined,
+      updatedBefore: dto.updatedBefore ? new Date(dto.updatedBefore) : undefined,
+      includeDeleted: dto.includeDeleted,
+      hasExpired: dto.hasExpired,
+      retentionPolicy: dto.retentionPolicy,
+      verifiedBy: dto.verifiedBy ? new UserId(dto.verifiedBy) : undefined,
+    };
   }
 }

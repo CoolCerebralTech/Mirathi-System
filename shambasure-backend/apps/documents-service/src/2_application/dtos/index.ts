@@ -13,6 +13,9 @@ export * from './document-response.dto';
 // Metadata DTOs
 export * from './update-metadata.dto';
 
+// Document Details DTOs
+export * from './update-document-details.dto';
+
 // Version DTOs
 export * from './document-version.dto';
 
@@ -21,3 +24,12 @@ export * from './bulk-operations.dto';
 
 // Search DTOs
 export * from './search-documents.dto';
+
+// Sharing DTOs
+export * from './share-document.dto';
+
+// Analytics DTOs
+export * from './analytics-response.dto';
+
+// Verification History DTOs
+export * from './verification-history-response.dto';
