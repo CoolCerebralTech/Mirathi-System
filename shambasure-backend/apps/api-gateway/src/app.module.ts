@@ -67,4 +67,3 @@ import { AllExceptionsFilter } from './1_presentation/filters/all-exceptions.fil
 })
 export class AppModule {}
 export { ProxyModule };
-

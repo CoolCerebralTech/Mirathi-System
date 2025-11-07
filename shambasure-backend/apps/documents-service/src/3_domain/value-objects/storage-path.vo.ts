@@ -4,7 +4,7 @@ import { ValueObjectError } from '../exceptions/value-object.error';
 export class StoragePath {
   private readonly _path: string;
 
-  private constructor(path: string) {
+  public constructor(path: string) {
     this._path = path;
   }
 

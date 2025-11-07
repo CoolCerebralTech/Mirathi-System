@@ -19,9 +19,6 @@ import {
   DocumentStatus,
   StoragePath,
   FileMetadata,
-  StorageProvider,
-  AllowedViewers,
-  RejectionReason,
 } from '../../3_domain/value-objects';
 
 @Injectable()

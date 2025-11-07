@@ -7,7 +7,7 @@ import { DatabaseModule } from '@shamba/database';
 import { AuthModule } from '@shamba/auth';
 import { MessagingModule } from '@shamba/messaging';
 import { ObservabilityModule } from '@shamba/observability';
-import { ConfigModule } from '@shamba/config';
+import { ConfigModule, ConfigService } from '@shamba/config';
 
 // Presentation Layer
 import { HealthController } from './1_presentation/health/health.controller';
