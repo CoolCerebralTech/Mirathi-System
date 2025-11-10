@@ -3,121 +3,121 @@ import { DocumentCategoryEnum } from '../../3_domain/value-objects/document-cate
 import { DocumentStatusEnum } from '../../3_domain/value-objects/document-status.vo';
 
 export class DocumentResponseDto {
-  @ApiProperty()
+  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
   id: string;
 
-  @ApiProperty()
-  filename: string;
+  @ApiProperty({ example: 'contract.pdf' })
+  fileName: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '/documents/2024/01/contract-123.pdf' })
   storagePath: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'application/pdf' })
   mimeType: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 1024000 })
   sizeBytes: number;
 
-  @ApiProperty({ enum: DocumentCategoryEnum })
+  @ApiProperty({ enum: DocumentCategoryEnum, example: DocumentCategoryEnum.LAND_OWNERSHIP })
   category: DocumentCategoryEnum;
 
-  @ApiProperty({ enum: DocumentStatusEnum })
+  @ApiProperty({ enum: DocumentStatusEnum, example: DocumentStatusEnum.VERIFIED })
   status: DocumentStatusEnum;
 
-  @ApiProperty()
+  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
   uploaderId: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'John Doe' })
   uploaderName?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '123e4567-e89b-12d3-a456-426614174000' })
   verifiedBy?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'Jane Smith' })
   verifiedByName?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '2024-01-15T11:30:00.000Z' })
   verifiedAt?: Date;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'Document quality is poor' })
   rejectionReason?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '123e4567-e89b-12d3-a456-426614174000' })
   assetId?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '123e4567-e89b-12d3-a456-426614174000' })
   willId?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '123e4567-e89b-12d3-a456-426614174000' })
   identityForUserId?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: { author: 'John Doe', pages: 10 } })
   metadata?: Record<string, any>;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'DOC-2024-001' })
   documentNumber?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '2024-01-15T00:00:00.000Z' })
   issueDate?: Date;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '2025-01-15T00:00:00.000Z' })
   expiryDate?: Date;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'Government Agency' })
   issuingAuthority?: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: false })
   isPublic: boolean;
 
-  @ApiProperty()
+  @ApiProperty({ example: true })
   encrypted: boolean;
 
-  @ApiProperty({ type: [String] })
+  @ApiProperty({ type: [String], example: ['user1-uuid', 'user2-uuid'] })
   allowedViewers: string[];
 
-  @ApiProperty()
+  @ApiProperty({ example: 'local' })
   storageProvider: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'a1b2c3d4e5f6...' })
   checksum: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '7_years' })
   retentionPolicy?: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 2 })
   version: number;
 
-  @ApiProperty()
+  @ApiProperty({ example: '2024-01-15T10:30:00.000Z' })
   createdAt: Date;
 
-  @ApiProperty()
+  @ApiProperty({ example: '2024-01-15T11:30:00.000Z' })
   updatedAt: Date;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: null })
   deletedAt?: Date;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'https://api.example.com/documents/123/download' })
   downloadUrl?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'https://api.example.com/documents/123/preview' })
   previewUrl?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: true })
   canEdit?: boolean;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: true })
   canDelete?: boolean;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: false })
   canVerify?: boolean;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: false })
   isExpired?: boolean;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 2 })
   currentVersion?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 3 })
   totalVersions?: number;
 
   @ApiPropertyOptional()

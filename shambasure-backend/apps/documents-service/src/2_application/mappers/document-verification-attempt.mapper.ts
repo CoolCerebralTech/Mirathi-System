@@ -1,12 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { DocumentVerificationAttempt } from '../../3_domain/models/document-verification-attempt.model';
+import { DocumentVerificationAttempt } from '../../3_domain/models/document-verification.model';
 import { DocumentVerificationAttemptResponseDto } from '../dtos/document-response.dto';
 import {
   VerificationAttemptDto,
   DocumentVerificationHistoryResponseDto,
   VerifierPerformanceResponseDto,
 } from '../dtos/verification-history-response.dto';
-import { VerificationAttemptId, DocumentId, UserId } from '../../3_domain/value-objects';
 
 /**
  * DocumentVerificationAttemptMapper - Application Layer
@@ -15,6 +14,13 @@ import { VerificationAttemptId, DocumentId, UserId } from '../../3_domain/value-
  * - Map verification attempt domain models to Response DTOs
  * - Format verification history data
  * - Calculate verification statistics
+ * - Handle verification timeline analysis
+ *
+ * PRODUCTION CONSIDERATIONS:
+ * - Null safety for optional fields
+ * - Timezone handling for date calculations
+ * - Performance for bulk operations
+ * - Error handling for edge cases
  */
 @Injectable()
 export class DocumentVerificationAttemptMapper {
@@ -24,16 +30,20 @@ export class DocumentVerificationAttemptMapper {
 
   toResponseDto(
     attempt: DocumentVerificationAttempt,
-    verifierName?: string,
+    options: {
+      verifierName?: string;
+      includeDocumentInfo?: boolean;
+      documentFileName?: string;
+    } = {},
   ): DocumentVerificationAttemptResponseDto {
     return new DocumentVerificationAttemptResponseDto({
       id: attempt.id.value,
       documentId: attempt.documentId.value,
       verifierId: attempt.verifierId.value,
-      verifierName,
+      verifierName: options.verifierName ?? undefined,
       status: attempt.status.value,
-      reason: attempt.reason?.value,
-      metadata: attempt.metadata,
+      reason: attempt.reason?.value ?? undefined,
+      metadata: attempt.metadata ?? undefined,
       createdAt: attempt.createdAt,
       isSuccessful: attempt.isSuccessful(),
       isRejection: attempt.isRejection(),
@@ -42,16 +52,20 @@ export class DocumentVerificationAttemptMapper {
 
   toVerificationAttemptDto(
     attempt: DocumentVerificationAttempt,
-    verifierName?: string,
+    options: {
+      verifierName?: string;
+      documentFileName?: string;
+      uploaderName?: string;
+    } = {},
   ): VerificationAttemptDto {
     return new VerificationAttemptDto({
       id: attempt.id.value,
       documentId: attempt.documentId.value,
       verifierId: attempt.verifierId.value,
-      verifierName,
+      verifierName: options.verifierName ?? undefined,
       status: attempt.status.value,
-      reason: attempt.reason?.value,
-      metadata: attempt.metadata,
+      reason: attempt.reason?.value ?? undefined,
+      metadata: attempt.metadata ?? undefined,
       createdAt: attempt.createdAt,
       isSuccessful: attempt.isSuccessful(),
       isRejection: attempt.isRejection(),
@@ -62,25 +76,42 @@ export class DocumentVerificationAttemptMapper {
   // VERIFICATION HISTORY MAPPING
   // ============================================================================
 
-  toHistoryResponseDto(history: {
-    documentId: string;
-    totalAttempts: number;
-    latestAttempt: DocumentVerificationAttempt | null;
-    firstAttempt: DocumentVerificationAttempt | null;
-    attempts: DocumentVerificationAttempt[];
-    currentStatus: 'VERIFIED' | 'REJECTED' | 'PENDING' | 'MULTIPLE_ATTEMPTS';
-    wasReverified: boolean;
-  }): DocumentVerificationHistoryResponseDto {
+  toHistoryResponseDto(
+    history: {
+      documentId: string;
+      totalAttempts: number;
+      latestAttempt: DocumentVerificationAttempt | null;
+      firstAttempt: DocumentVerificationAttempt | null;
+      attempts: DocumentVerificationAttempt[];
+      currentStatus: 'VERIFIED' | 'REJECTED' | 'PENDING' | 'MULTIPLE_ATTEMPTS';
+      wasReverified: boolean;
+    },
+    options: {
+      verifierNamesMap?: Map<string, string>;
+      documentFileName?: string;
+    } = {},
+  ): DocumentVerificationHistoryResponseDto {
     return new DocumentVerificationHistoryResponseDto({
       documentId: history.documentId,
       totalAttempts: history.totalAttempts,
       latestAttempt: history.latestAttempt
-        ? this.toVerificationAttemptDto(history.latestAttempt)
+        ? this.toVerificationAttemptDto(history.latestAttempt, {
+            verifierName: options.verifierNamesMap?.get(history.latestAttempt.verifierId.value),
+            documentFileName: options.documentFileName,
+          })
         : undefined,
       firstAttempt: history.firstAttempt
-        ? this.toVerificationAttemptDto(history.firstAttempt)
+        ? this.toVerificationAttemptDto(history.firstAttempt, {
+            verifierName: options.verifierNamesMap?.get(history.firstAttempt.verifierId.value),
+            documentFileName: options.documentFileName,
+          })
         : undefined,
-      attempts: history.attempts.map((attempt) => this.toVerificationAttemptDto(attempt)),
+      attempts: history.attempts.map((attempt) =>
+        this.toVerificationAttemptDto(attempt, {
+          verifierName: options.verifierNamesMap?.get(attempt.verifierId.value),
+          documentFileName: options.documentFileName,
+        }),
+      ),
       currentStatus: history.currentStatus,
       wasReverified: history.wasReverified,
     });
@@ -100,17 +131,20 @@ export class DocumentVerificationAttemptMapper {
       averageTimeToVerifyHours: number;
       documentsVerifiedPerDay: number;
     },
-    verifierName?: string,
+    options: {
+      verifierName?: string;
+      periodDays?: number;
+    } = {},
   ): VerifierPerformanceResponseDto {
     return new VerifierPerformanceResponseDto({
       verifierId: stats.verifierId,
-      verifierName,
+      verifierName: options.verifierName ?? undefined,
       totalAttempts: stats.totalAttempts,
       totalVerified: stats.totalVerified,
       totalRejected: stats.totalRejected,
-      verificationRate: Math.round(stats.verificationRate * 100) / 100,
-      averageTimeToVerifyHours: Math.round(stats.averageTimeToVerifyHours * 100) / 100,
-      documentsVerifiedPerDay: Math.round(stats.documentsVerifiedPerDay * 100) / 100,
+      verificationRate: this.roundToTwoDecimals(stats.verificationRate),
+      averageTimeToVerifyHours: this.roundToTwoDecimals(stats.averageTimeToVerifyHours),
+      documentsVerifiedPerDay: this.roundToTwoDecimals(stats.documentsVerifiedPerDay),
     });
   }
 
@@ -120,19 +154,33 @@ export class DocumentVerificationAttemptMapper {
 
   toResponseDtoList(
     attempts: DocumentVerificationAttempt[],
-    verifierNamesMap?: Map<string, string>,
+    options: {
+      verifierNamesMap?: Map<string, string>;
+      documentFileNamesMap?: Map<string, string>;
+    } = {},
   ): DocumentVerificationAttemptResponseDto[] {
     return attempts.map((attempt) =>
-      this.toResponseDto(attempt, verifierNamesMap?.get(attempt.verifierId.value)),
+      this.toResponseDto(attempt, {
+        verifierName: options.verifierNamesMap?.get(attempt.verifierId.value),
+        documentFileName: options.documentFileNamesMap?.get(attempt.documentId.value),
+      }),
     );
   }
 
   toVerificationAttemptDtoList(
     attempts: DocumentVerificationAttempt[],
-    verifierNamesMap?: Map<string, string>,
+    options: {
+      verifierNamesMap?: Map<string, string>;
+      documentFileNamesMap?: Map<string, string>;
+      uploaderNamesMap?: Map<string, string>;
+    } = {},
   ): VerificationAttemptDto[] {
     return attempts.map((attempt) =>
-      this.toVerificationAttemptDto(attempt, verifierNamesMap?.get(attempt.verifierId.value)),
+      this.toVerificationAttemptDto(attempt, {
+        verifierName: options.verifierNamesMap?.get(attempt.verifierId.value),
+        documentFileName: options.documentFileNamesMap?.get(attempt.documentId.value),
+        uploaderName: options.uploaderNamesMap?.get(attempt.documentId.value), // This would need document uploader mapping
+      }),
     );
   }
 
@@ -146,10 +194,16 @@ export class DocumentVerificationAttemptMapper {
       averageTimeToVerifyHours: number;
       documentsVerifiedPerDay: number;
     }>,
-    verifierNamesMap?: Map<string, string>,
+    options: {
+      verifierNamesMap?: Map<string, string>;
+      periodDays?: number;
+    } = {},
   ): VerifierPerformanceResponseDto[] {
     return statsList.map((stats) =>
-      this.toPerformanceResponseDto(stats, verifierNamesMap?.get(stats.verifierId)),
+      this.toPerformanceResponseDto(stats, {
+        verifierName: options.verifierNamesMap?.get(stats.verifierId),
+        periodDays: options.periodDays,
+      }),
     );
   }
 
@@ -164,28 +218,56 @@ export class DocumentVerificationAttemptMapper {
     documentCreatedAt: Date,
     verificationAttempt: DocumentVerificationAttempt,
   ): {
-    hours: number;
-    days: number;
+    totalHours: number;
+    totalDays: number;
+    businessHours: number;
     formattedTime: string;
+    isWithinSLA: boolean;
+    slaThresholdHours: number;
   } {
-    const diffMs = verificationAttempt.createdAt.getTime() - documentCreatedAt.getTime();
-    const hours = diffMs / (1000 * 60 * 60);
-    const days = hours / 24;
-
-    let formattedTime: string;
-    if (hours < 1) {
-      const minutes = Math.round(hours * 60);
-      formattedTime = `${minutes} minutes`;
-    } else if (hours < 24) {
-      formattedTime = `${Math.round(hours)} hours`;
-    } else {
-      formattedTime = `${Math.round(days)} days`;
+    // Handle edge case where verification is before document creation
+    if (verificationAttempt.createdAt < documentCreatedAt) {
+      return {
+        totalHours: 0,
+        totalDays: 0,
+        businessHours: 0,
+        formattedTime: 'Invalid timeline',
+        isWithinSLA: false,
+        slaThresholdHours: 24,
+      };
     }
 
+    const diffMs = verificationAttempt.createdAt.getTime() - documentCreatedAt.getTime();
+    const totalHours = diffMs / (1000 * 60 * 60);
+    const totalDays = totalHours / 24;
+
+    // Simple business hours calculation (8 hours per day, 5 days per week)
+    const businessDays = Math.floor(totalDays);
+    const remainingHours = totalHours % 24;
+    const businessHours = businessDays * 8 + Math.min(remainingHours, 8);
+
+    let formattedTime: string;
+    if (totalHours < 1) {
+      const minutes = Math.round(totalHours * 60);
+      formattedTime = `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+    } else if (totalHours < 24) {
+      const hours = Math.round(totalHours);
+      formattedTime = `${hours} hour${hours !== 1 ? 's' : ''}`;
+    } else {
+      const days = Math.round(totalDays);
+      formattedTime = `${days} day${days !== 1 ? 's' : ''}`;
+    }
+
+    const slaThresholdHours = 24; // 24-hour SLA
+    const isWithinSLA = totalHours <= slaThresholdHours;
+
     return {
-      hours: Math.round(hours * 100) / 100,
-      days: Math.round(days * 100) / 100,
+      totalHours: this.roundToTwoDecimals(totalHours),
+      totalDays: this.roundToTwoDecimals(totalDays),
+      businessHours: this.roundToTwoDecimals(businessHours),
       formattedTime,
+      isWithinSLA,
+      slaThresholdHours,
     };
   }
 
@@ -198,23 +280,113 @@ export class DocumentVerificationAttemptMapper {
     rejectedAttempts: number;
     uniqueVerifiers: number;
     averageTimeToDecisionHours: number;
+    successRate: number;
+    rejectionRate: number;
+    mostCommonRejectionReason?: string;
+    timeline: {
+      firstAttempt: Date | null;
+      lastAttempt: Date | null;
+      totalDurationHours: number;
+    };
   } {
+    if (attempts.length === 0) {
+      return {
+        totalAttempts: 0,
+        successfulAttempts: 0,
+        rejectedAttempts: 0,
+        uniqueVerifiers: 0,
+        averageTimeToDecisionHours: 0,
+        successRate: 0,
+        rejectionRate: 0,
+        timeline: {
+          firstAttempt: null,
+          lastAttempt: null,
+          totalDurationHours: 0,
+        },
+      };
+    }
+
     const uniqueVerifierIds = new Set(attempts.map((a) => a.verifierId.value));
 
-    const timeDiffs = attempts.slice(1).map((attempt, index) => {
-      const prevAttempt = attempts[index];
+    // Calculate time between consecutive attempts
+    const sortedAttempts = [...attempts].sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+    );
+
+    const timeDiffs = sortedAttempts.slice(1).map((attempt, index) => {
+      const prevAttempt = sortedAttempts[index];
       return (attempt.createdAt.getTime() - prevAttempt.createdAt.getTime()) / (1000 * 60 * 60);
     });
 
+    const totalDurationHours =
+      sortedAttempts.length > 1
+        ? (sortedAttempts[sortedAttempts.length - 1].createdAt.getTime() -
+            sortedAttempts[0].createdAt.getTime()) /
+          (1000 * 60 * 60)
+        : 0;
+
     const avgTime =
       timeDiffs.length > 0 ? timeDiffs.reduce((a, b) => a + b, 0) / timeDiffs.length : 0;
+
+    // Find most common rejection reason
+    const rejectionReasons = attempts
+      .filter((a) => a.isRejection() && a.reason)
+      .map((a) => a.reason!.value);
+
+    const reasonCounts = rejectionReasons.reduce(
+      (acc, reason) => {
+        acc[reason] = (acc[reason] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+
+    const mostCommonRejectionReason =
+      Object.keys(reasonCounts).length > 0
+        ? Object.keys(reasonCounts).reduce((a, b) => (reasonCounts[a] > reasonCounts[b] ? a : b))
+        : undefined;
+
+    const successRate =
+      attempts.length > 0
+        ? (attempts.filter((a) => a.isSuccessful()).length / attempts.length) * 100
+        : 0;
+
+    const rejectionRate =
+      attempts.length > 0
+        ? (attempts.filter((a) => a.isRejection()).length / attempts.length) * 100
+        : 0;
 
     return {
       totalAttempts: attempts.length,
       successfulAttempts: attempts.filter((a) => a.isSuccessful()).length,
       rejectedAttempts: attempts.filter((a) => a.isRejection()).length,
       uniqueVerifiers: uniqueVerifierIds.size,
-      averageTimeToDecisionHours: Math.round(avgTime * 100) / 100,
+      averageTimeToDecisionHours: this.roundToTwoDecimals(avgTime),
+      successRate: this.roundToTwoDecimals(successRate),
+      rejectionRate: this.roundToTwoDecimals(rejectionRate),
+      mostCommonRejectionReason,
+      timeline: {
+        firstAttempt: sortedAttempts[0].createdAt,
+        lastAttempt: sortedAttempts[sortedAttempts.length - 1].createdAt,
+        totalDurationHours: this.roundToTwoDecimals(totalDurationHours),
+      },
     };
+  }
+
+  /**
+   * Validates if an attempt can be mapped to response DTO
+   */
+  isValidForMapping(attempt: DocumentVerificationAttempt): boolean {
+    return !!(
+      attempt?.id &&
+      attempt.documentId &&
+      attempt.verifierId &&
+      attempt.status &&
+      attempt.createdAt
+    );
+  }
+
+  private roundToTwoDecimals(value: number): number {
+    return Math.round(value * 100) / 100;
   }
 }

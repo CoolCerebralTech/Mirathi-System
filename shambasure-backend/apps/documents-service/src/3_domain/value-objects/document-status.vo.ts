@@ -1,3 +1,17 @@
+// ============================================================================
+// Custom Domain Error
+// ============================================================================
+export class InvalidDocumentStatusError extends Error {
+  constructor(status: string) {
+    super(`Invalid document status provided: ${status}`);
+    this.name = 'InvalidDocumentStatusError';
+  }
+}
+
+// ============================================================================
+// Enum & Value Object
+// ============================================================================
+
 export enum DocumentStatusEnum {
   PENDING_VERIFICATION = 'PENDING_VERIFICATION',
   VERIFIED = 'VERIFIED',
@@ -5,8 +19,8 @@ export enum DocumentStatusEnum {
 }
 
 export class DocumentStatus {
-  constructor(private readonly _value: DocumentStatusEnum) {
-    this.validate();
+  private constructor(private readonly _value: DocumentStatusEnum) {
+    // Validation is now part of the constructor, called once.
   }
 
   // =====================================================
@@ -18,8 +32,10 @@ export class DocumentStatus {
         ? DocumentStatusEnum[value as keyof typeof DocumentStatusEnum]
         : value;
 
-    if (!enumValue) {
-      throw new Error(`Invalid document status: ${value}`);
+    // The validation is now centralized in the constructor via the private validate method.
+    // We just need to check if the conversion from string was successful.
+    if (!enumValue || !Object.values(DocumentStatusEnum).includes(enumValue)) {
+      throw new InvalidDocumentStatusError(String(value));
     }
 
     return new DocumentStatus(enumValue);
@@ -35,15 +51,6 @@ export class DocumentStatus {
 
   static createRejected(): DocumentStatus {
     return new DocumentStatus(DocumentStatusEnum.REJECTED);
-  }
-
-  // =====================================================
-  // ✅ Validation
-  // =====================================================
-  private validate(): void {
-    if (!Object.values(DocumentStatusEnum).includes(this._value)) {
-      throw new Error(`Invalid document status: ${this._value}`);
-    }
   }
 
   // =====================================================
@@ -77,7 +84,9 @@ export class DocumentStatus {
         DocumentStatusEnum.VERIFIED,
         DocumentStatusEnum.REJECTED,
       ],
+      // VERIFIED is a terminal state for this lifecycle
       [DocumentStatusEnum.VERIFIED]: [],
+      // A REJECTED document can be re-submitted for verification
       [DocumentStatusEnum.REJECTED]: [DocumentStatusEnum.PENDING_VERIFICATION],
     };
 

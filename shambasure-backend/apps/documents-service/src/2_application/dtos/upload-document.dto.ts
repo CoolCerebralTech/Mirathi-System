@@ -11,35 +11,50 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DocumentCategoryEnum } from '../../3_domain/value-objects/document-category.vo';
-import { DocumentStatusEnum } from '../../3_domain/value-objects/document-status.vo';
 
 export class UploadDocumentDto {
-  @ApiProperty({ description: 'Original filename', maxLength: 255 })
+  @ApiProperty({ description: 'Original filename', maxLength: 255, example: 'contract.pdf' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  filename: string;
+  fileName: string;
 
-  @ApiProperty({ enum: DocumentCategoryEnum, description: 'Document category' })
+  @ApiProperty({
+    enum: DocumentCategoryEnum,
+    description: 'Document category',
+    example: DocumentCategoryEnum.LAND_OWNERSHIP,
+  })
   @IsEnum(DocumentCategoryEnum)
   category: DocumentCategoryEnum;
 
-  @ApiPropertyOptional({ description: 'Asset ID if document is related to an asset' })
+  @ApiPropertyOptional({
+    description: 'Asset ID if document is related to an asset',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @IsUUID()
   @IsOptional()
   assetId?: string;
 
-  @ApiPropertyOptional({ description: 'Will ID if document is related to a will' })
+  @ApiPropertyOptional({
+    description: 'Will ID if document is related to a will',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @IsUUID()
   @IsOptional()
   willId?: string;
 
-  @ApiPropertyOptional({ description: 'User ID if this is an identity document' })
+  @ApiPropertyOptional({
+    description: 'User ID if this is an identity document',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @IsUUID()
   @IsOptional()
   identityForUserId?: string;
 
-  @ApiPropertyOptional({ description: 'Additional metadata as JSON object' })
+  @ApiPropertyOptional({
+    description: 'Additional metadata as JSON object',
+    example: { author: 'John Doe', pages: 10 },
+  })
   @IsObject()
   @IsOptional()
   metadata?: Record<string, any>;
@@ -47,74 +62,95 @@ export class UploadDocumentDto {
   @ApiPropertyOptional({
     description: 'Document number (ID number, parcel number, etc.)',
     maxLength: 50,
+    example: 'DOC-2024-001',
   })
   @IsString()
   @IsOptional()
   @MaxLength(50)
   documentNumber?: string;
 
-  @ApiPropertyOptional({ description: 'Date document was issued', type: String, format: 'date' })
+  @ApiPropertyOptional({
+    description: 'Date document was issued',
+    type: String,
+    format: 'date',
+    example: '2024-01-15',
+  })
   @IsDateString()
   @IsOptional()
   issueDate?: string;
 
-  @ApiPropertyOptional({ description: 'Date document expires', type: String, format: 'date' })
+  @ApiPropertyOptional({
+    description: 'Date document expires',
+    type: String,
+    format: 'date',
+    example: '2025-01-15',
+  })
   @IsDateString()
   @IsOptional()
   expiryDate?: string;
 
-  @ApiPropertyOptional({ description: 'Authority that issued the document', maxLength: 100 })
+  @ApiPropertyOptional({
+    description: 'Authority that issued the document',
+    maxLength: 100,
+    example: 'Government Agency',
+  })
   @IsString()
   @IsOptional()
   @MaxLength(100)
   issuingAuthority?: string;
 
-  @ApiPropertyOptional({ description: 'Make document publicly accessible' })
+  @ApiPropertyOptional({
+    description: 'Make document publicly accessible',
+    example: false,
+  })
   @IsBoolean()
   @IsOptional()
   isPublic?: boolean;
 
-  @ApiPropertyOptional({ description: 'Retention policy for the document' })
+  @ApiPropertyOptional({
+    description: 'Retention policy for the document',
+    example: '7_years',
+  })
   @IsString()
   @IsOptional()
   retentionPolicy?: string;
 }
 
 export class UploadDocumentResponseDto {
-  @ApiProperty()
+  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
   id: string;
 
-  @ApiProperty()
-  filename: string;
+  @ApiProperty({ example: 'contract.pdf' })
+  fileName: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '/documents/2024/01/contract-123.pdf' })
   storagePath: string;
 
-  @ApiProperty({ enum: DocumentCategoryEnum })
+  @ApiProperty({ enum: DocumentCategoryEnum, example: DocumentCategoryEnum.LAND_OWNERSHIP })
   category: DocumentCategoryEnum;
 
-  @ApiProperty({ enum: DocumentStatusEnum })
-  status: DocumentStatusEnum;
+  @ApiProperty({ example: 'PENDING_VERIFICATION' })
+  status: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 1024000 })
   sizeBytes: number;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'application/pdf' })
   mimeType: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'a1b2c3d4e5f6...' })
   checksum: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
   uploaderId: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: '2024-01-15T10:30:00.000Z' })
   createdAt: Date;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'https://api.example.com/documents/123' })
   documentUrl?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'https://api.example.com/documents/123/download' })
   downloadUrl?: string;
 
   constructor(partial: Partial<UploadDocumentResponseDto>) {

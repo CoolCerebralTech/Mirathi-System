@@ -26,27 +26,6 @@ export class InvalidVersionNumberError extends DocumentVersionError {
   }
 }
 
-export class DuplicateVersionError extends DocumentVersionError {
-  constructor(documentId: DocumentId, versionNumber: number) {
-    super(`Version ${versionNumber} already exists for document ${documentId.value}`);
-    this.name = 'DuplicateVersionError';
-  }
-}
-
-export class VersionSequenceError extends DocumentVersionError {
-  constructor(expected: number, received: number) {
-    super(`Version sequence error: expected ${expected}, received ${received}`);
-    this.name = 'VersionSequenceError';
-  }
-}
-
-export class VersionAccessDeniedError extends DocumentVersionError {
-  constructor(userId: UserId, versionId: DocumentVersionId) {
-    super(`User ${userId.value} does not have access to version ${versionId.value}`);
-    this.name = 'VersionAccessDeniedError';
-  }
-}
-
 // ============================================================================
 // Document Version Entity Properties Interface
 // ============================================================================
@@ -58,7 +37,7 @@ export interface DocumentVersionProps {
   storagePath: StoragePath;
   fileSize: FileSize;
   mimeType: MimeType;
-  checksum: DocumentChecksum | null; // UPDATED: Made nullable per Prisma schema
+  checksum: DocumentChecksum | null;
   changeNote: string | null;
   uploadedBy: UserId;
   createdAt: Date;
@@ -69,15 +48,15 @@ export interface DocumentVersionProps {
 // ============================================================================
 
 /**
- * DocumentVersion Entity - Production Ready
+ * DocumentVersion Entity
+ *
+ * This entity represents an immutable, versioned snapshot of a document's file.
+ * Its consistency and lifecycle are managed by the 'Document' Aggregate Root.
  *
  * BUSINESS RULES:
- * - Version numbers must be sequential positive integers starting from 1
- * - Versions are immutable once created (no updates allowed)
- * - Each version maintains its own file reference (storagePath, checksum)
- * - Versions track who uploaded them and when
- * - Change notes are optional but recommended for audit trail
- * - File integrity is validated via checksum
+ * - Version numbers must be positive integers.
+ * - Versions are immutable once created.
+ * - Each version maintains its own file reference (storagePath, checksum, etc.).
  */
 export class DocumentVersion {
   private readonly _id: DocumentVersionId;
@@ -86,7 +65,7 @@ export class DocumentVersion {
   private readonly _storagePath: StoragePath;
   private readonly _fileSize: FileSize;
   private readonly _mimeType: MimeType;
-  private readonly _checksum: DocumentChecksum | null; // UPDATED: Made nullable
+  private readonly _checksum: DocumentChecksum | null;
   private readonly _changeNote: string | null;
   private readonly _uploadedBy: UserId;
   private readonly _createdAt: Date;
@@ -107,22 +86,16 @@ export class DocumentVersion {
   // ============================================================================
   // Factory Methods
   // ============================================================================
-
-  /**
-   * Creates a new DocumentVersion entity
-   * @throws {InvalidVersionNumberError} if version number is invalid
-   */
   static create(props: {
     documentId: DocumentId;
     versionNumber: number;
     storagePath: StoragePath;
     fileSize: FileSize;
     mimeType: MimeType;
-    checksum?: DocumentChecksum; // UPDATED: Made optional
+    checksum?: DocumentChecksum;
     uploadedBy: UserId;
     changeNote?: string;
   }): DocumentVersion {
-    // Validate version number
     if (props.versionNumber <= 0 || !Number.isInteger(props.versionNumber)) {
       throw new InvalidVersionNumberError(props.versionNumber);
     }
@@ -136,16 +109,13 @@ export class DocumentVersion {
       storagePath: props.storagePath,
       fileSize: props.fileSize,
       mimeType: props.mimeType,
-      checksum: props.checksum ?? null, // UPDATED: Handle nullability
+      checksum: props.checksum ?? null,
       changeNote: props.changeNote ?? null,
       uploadedBy: props.uploadedBy,
       createdAt: new Date(),
     });
   }
 
-  /**
-   * Rehydrates a DocumentVersion from persistence
-   */
   static fromPersistence(props: {
     id: string;
     versionNumber: number;
@@ -153,7 +123,7 @@ export class DocumentVersion {
     storagePath: string;
     fileSize: number;
     mimeType: string;
-    checksum: string | null; // UPDATED: Made nullable
+    checksum: string | null;
     changeNote: string | null;
     uploadedBy: string;
     createdAt: Date;
@@ -165,7 +135,7 @@ export class DocumentVersion {
       storagePath: StoragePath.fromExisting(props.storagePath),
       fileSize: FileSize.create(props.fileSize),
       mimeType: MimeType.create(props.mimeType),
-      checksum: props.checksum ? DocumentChecksum.create(props.checksum) : null, // UPDATED: Handle null
+      checksum: props.checksum ? DocumentChecksum.create(props.checksum) : null,
       changeNote: props.changeNote,
       uploadedBy: new UserId(props.uploadedBy),
       createdAt: props.createdAt,
@@ -174,134 +144,23 @@ export class DocumentVersion {
 
   // ============================================================================
   // Public API & Query Methods
-  // ============================================================================
-
-  /**
-   * Checks if this is the initial version (v1)
-   */
-  isInitialVersion(): boolean {
-    return this._versionNumber === 1;
-  }
-
-  /**
-   * Checks if a specific user uploaded this version
-   */
-  wasUploadedBy(userId: UserId): boolean {
-    return this._uploadedBy.equals(userId);
-  }
-
-  /**
-   * Checks if this version belongs to a specific document
-   */
-  belongsToDocument(documentId: DocumentId): boolean {
-    return this._documentId.equals(documentId);
-  }
-
-  /**
-   * Validates file integrity by comparing checksums
-   * Returns false if no checksum is available
-   */
-  validateChecksum(providedChecksum: DocumentChecksum): boolean {
+  // ============================================================================  return this._uploadedBy.equals(userId);
+  isChecksumMatch(providedChecksum: DocumentChecksum): boolean {
     if (!this._checksum) {
-      return false; // Cannot validate without checksum
+      return false; // Cannot validate without a stored checksum.
     }
     return this._checksum.equals(providedChecksum);
   }
 
   /**
-   * Checks if checksum is available for this version
-   */
-  hasChecksum(): boolean {
-    return this._checksum !== null;
-  }
-
-  /**
-   * Checks if this version is newer than another version
+   * Checks if this version is newer than another version.
+   * @throws {DocumentVersionError} if comparing versions from different documents.
    */
   isNewerThan(otherVersion: DocumentVersion): boolean {
-    if (!this.belongsToDocument(otherVersion.documentId)) {
+    if (!this._documentId.equals(otherVersion.documentId)) {
       throw new DocumentVersionError('Cannot compare versions from different documents');
     }
     return this._versionNumber > otherVersion.versionNumber;
-  }
-
-  /**
-   * Checks if this version is older than another version
-   */
-  isOlderThan(otherVersion: DocumentVersion): boolean {
-    if (!this.belongsToDocument(otherVersion.documentId)) {
-      throw new DocumentVersionError('Cannot compare versions from different documents');
-    }
-    return this._versionNumber < otherVersion.versionNumber;
-  }
-
-  /**
-   * Returns the next version number
-   */
-  getNextVersionNumber(): number {
-    return this._versionNumber + 1;
-  }
-
-  /**
-   * Checks if change note exists
-   */
-  hasChangeNote(): boolean {
-    return this._changeNote !== null && this._changeNote.trim().length > 0;
-  }
-
-  /**
-   * Returns human-readable version string
-   */
-  getVersionString(): string {
-    return `v${this._versionNumber}`;
-  }
-
-  /**
-   * Calculates age of version in days
-   */
-  getAgeInDays(): number {
-    const now = new Date();
-    const diff = now.getTime() - this._createdAt.getTime();
-    return Math.floor(diff / (1000 * 60 * 60 * 24));
-  }
-
-  /**
-   * Checks if version was created within specified days
-   */
-  isCreatedWithinDays(days: number): boolean {
-    return this.getAgeInDays() <= days;
-  }
-
-  // ============================================================================
-  // NEW: File Information Methods (for better domain API)
-  // ============================================================================
-
-  /**
-   * Gets file information for display or processing
-   */
-  getFileInfo(): {
-    sizeBytes: number;
-    mimeType: string;
-    hasChecksum: boolean;
-    checksum: string | null;
-    storageProvider: string; // Inherited from document, but useful here
-  } {
-    return {
-      sizeBytes: this._fileSize.sizeInBytes,
-      mimeType: this._mimeType.value,
-      hasChecksum: this.hasChecksum(),
-      checksum: this._checksum?.value ?? null,
-      storageProvider: 'local', // This would typically come from the parent document
-    };
-  }
-
-  /**
-   * Validates if this version can be accessed by a user
-   * Note: Access control is typically handled at the Document aggregate level
-   */
-  canBeAccessedBy(userId: UserId, documentOwnerId: UserId): boolean {
-    // Basic check: user must be the uploader or document owner
-    return this._uploadedBy.equals(userId) || documentOwnerId.equals(userId);
   }
 
   // ============================================================================
@@ -333,7 +192,6 @@ export class DocumentVersion {
   }
 
   get checksum(): DocumentChecksum | null {
-    // UPDATED: Return type reflects nullability
     return this._checksum;
   }
 
@@ -350,28 +208,23 @@ export class DocumentVersion {
   }
 
   // ============================================================================
-  // Equality & Comparison
+  // Equality & Serialization
   // ============================================================================
 
   equals(other: DocumentVersion): boolean {
+    if (other === null || other === undefined) {
+      return false;
+    }
+    if (!(other instanceof DocumentVersion)) {
+      return false;
+    }
     return this._id.equals(other.id);
   }
-
   /**
-   * Returns a plain object representation (for serialization)
+   * Returns a plain object representation for serialization purposes (e.g., API responses).
+   * This should not be used to reconstitute the entity; use `fromPersistence` for that.
    */
-  toPlainObject(): {
-    id: string;
-    versionNumber: number;
-    documentId: string;
-    storagePath: string;
-    fileSize: number;
-    mimeType: string;
-    checksum: string | null; // UPDATED: Made nullable
-    changeNote: string | null;
-    uploadedBy: string;
-    createdAt: Date;
-  } {
+  toObject() {
     return {
       id: this._id.value,
       versionNumber: this._versionNumber,
@@ -379,38 +232,8 @@ export class DocumentVersion {
       storagePath: this._storagePath.value,
       fileSize: this._fileSize.sizeInBytes,
       mimeType: this._mimeType.value,
-      checksum: this._checksum?.value ?? null, // UPDATED: Handle null
-      changeNote: this._changeNote,
-      uploadedBy: this._uploadedBy.value,
-      createdAt: this._createdAt,
-    };
-  }
-
-  /**
-   * Returns database persistence format
-   * Aligns with Prisma schema field names
-   */
-  toPersistenceFormat(): {
-    id: string;
-    versionNumber: number;
-    storagePath: string;
-    changeNote: string | null;
-    sizeBytes: number; // Prisma field name is sizeBytes, not fileSize
-    mimeType: string;
-    checksum: string | null;
-    documentId: string;
-    uploadedBy: string;
-    createdAt: Date;
-  } {
-    return {
-      id: this._id.value,
-      versionNumber: this._versionNumber,
-      storagePath: this._storagePath.value,
-      changeNote: this._changeNote,
-      sizeBytes: this._fileSize.sizeInBytes, // Map to Prisma field name
-      mimeType: this._mimeType.value,
       checksum: this._checksum?.value ?? null,
-      documentId: this._documentId.value,
+      changeNote: this._changeNote,
       uploadedBy: this._uploadedBy.value,
       createdAt: this._createdAt,
     };

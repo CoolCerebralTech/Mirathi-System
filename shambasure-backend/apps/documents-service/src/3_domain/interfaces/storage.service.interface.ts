@@ -3,7 +3,22 @@ import { StoragePath, DocumentChecksum, MimeType, FileName, FileSize } from '../
 // ============================================================================
 // Data Transfer Objects (DTOs) for method return types
 // ============================================================================
+export class StorageError extends Error {
+  constructor(
+    message: string,
+    public readonly underlyingError?: any,
+  ) {
+    super(message);
+    this.name = 'StorageError';
+  }
+}
 
+export class FileNotFoundError extends StorageError {
+  constructor(path: StoragePath) {
+    super(`File not found at path: ${path.value}`);
+    this.name = 'FileNotFoundError';
+  }
+}
 export interface SaveResult {
   path: StoragePath;
   size: FileSize;

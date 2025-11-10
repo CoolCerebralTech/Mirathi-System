@@ -1,4 +1,5 @@
 import {
+  Actor,
   DocumentId,
   UserId,
   WillId,
@@ -31,8 +32,10 @@ import {
   DocumentVisibilityChangedEvent,
   DocumentExpiredEvent,
   DocumentIndexedEvent,
+  DocumentDetailsUpdatedEvent,
 } from '../events';
-
+import { DocumentVersion } from '../models/document-version.model';
+import { DocumentVerificationAttempt } from './document-verification.model';
 // ============================================================================
 // Custom Domain Errors
 // ============================================================================
@@ -53,7 +56,11 @@ export class DocumentAlreadyVerifiedError extends DocumentDomainError {
 
 export class UnauthorizedVerificationError extends DocumentDomainError {
   constructor() {
-    super('Only VERIFIER or ADMIN roles can verify documents');
+    // The message is now more generic and accurate.
+    // The domain doesn't know about roles, only that the actor lacks the capability.
+    super(
+      'The acting user does not have the required permissions to verify or reject this document',
+    );
     this.name = 'UnauthorizedVerificationError';
   }
 }
@@ -99,17 +106,31 @@ export class InvalidRetentionPolicyError extends DocumentDomainError {
     this.name = 'InvalidRetentionPolicyError';
   }
 }
+export class VersionSequenceError extends DocumentDomainError {
+  constructor(expected: number, received: number) {
+    super(
+      `Version sequence error: expected next version to be ${expected}, but received ${received}`,
+    );
+    this.name = 'VersionSequenceError';
+  }
+}
+export class DocumentOwnershipError extends DocumentDomainError {
+  constructor(action: string) {
+    super(`Only the document owner can perform this action: ${action}`);
+    this.name = 'DocumentOwnershipError';
+  }
+}
 
 // ============================================================================
 // Document Aggregate Root
 // ============================================================================
 
-export interface DocumentProps {
+interface DocumentProps {
   id: DocumentId;
   fileName: FileName;
   fileSize: FileSize;
   mimeType: MimeType;
-  checksum: DocumentChecksum | null; // Made nullable per Prisma schema
+  checksum: DocumentChecksum | null;
   storagePath: StoragePath;
   category: DocumentCategory;
   status: DocumentStatus;
@@ -148,6 +169,8 @@ export interface DocumentProps {
 
   // Concurrency control
   version: number;
+  versions: DocumentVersion[];
+  verificationAttempts: DocumentVerificationAttempt[];
 
   // System timestamps
   createdAt: Date;
@@ -204,6 +227,8 @@ export class Document {
   private readonly _createdAt: Date;
   private _updatedAt: Date;
   private _deletedAt: Date | null;
+  private _versions: DocumentVersion[];
+  private _verificationAttempts: DocumentVerificationAttempt[];
 
   private _domainEvents: DomainEvent<DocumentId>[] = [];
 
@@ -240,6 +265,8 @@ export class Document {
     this._createdAt = props.createdAt;
     this._updatedAt = props.updatedAt;
     this._deletedAt = props.deletedAt;
+    this._versions = props.versions;
+    this._verificationAttempts = props.verificationAttempts;
   }
 
   // ============================================================================
@@ -250,7 +277,7 @@ export class Document {
     fileName: FileName;
     fileSize: FileSize;
     mimeType: MimeType;
-    checksum?: DocumentChecksum; // Made optional per Prisma schema
+    checksum?: DocumentChecksum;
     storagePath: StoragePath;
     category: DocumentCategory;
     uploaderId: UserId;
@@ -269,13 +296,25 @@ export class Document {
     const now = new Date();
     const id = DocumentId.generate<DocumentId>();
 
+    // Create the first version of the document.
+    const initialVersion = DocumentVersion.create({
+      documentId: id,
+      versionNumber: 1,
+      storagePath: props.storagePath,
+      fileSize: props.fileSize,
+      mimeType: props.mimeType,
+      checksum: props.checksum,
+      uploadedBy: props.uploaderId,
+      changeNote: 'Initial upload',
+    });
+
     const document = new Document({
       id,
       fileName: props.fileName,
-      fileSize: props.fileSize,
-      mimeType: props.mimeType,
-      checksum: props.checksum ?? null, // Handle nullability
-      storagePath: props.storagePath,
+      fileSize: initialVersion.fileSize,
+      mimeType: initialVersion.mimeType,
+      checksum: initialVersion.checksum,
+      storagePath: initialVersion.storagePath,
       category: props.category,
       status: DocumentStatus.createPending(),
       uploaderId: props.uploaderId,
@@ -295,13 +334,15 @@ export class Document {
       encrypted: true,
       allowedViewers: AllowedViewers.createEmpty(),
       retentionPolicy: props.retentionPolicy ?? null,
-      expiresAt: null, // Initially null, set via retention policy
-      isIndexed: false, // Default per Prisma schema
+      expiresAt: null,
+      isIndexed: false,
       indexedAt: null,
       version: 1,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
+      versions: [initialVersion],
+      verificationAttempts: [],
     });
 
     document.addDomainEvent(
@@ -354,7 +395,34 @@ export class Document {
     createdAt: Date;
     updatedAt: Date;
     deletedAt: Date | null;
+    // The raw versions data from the database is expected here.
+    versions: {
+      id: string;
+      versionNumber: number;
+      documentId: string;
+      storagePath: string;
+      fileSize: number;
+      mimeType: string;
+      checksum: string | null;
+      changeNote: string | null;
+      uploadedBy: string;
+      createdAt: Date;
+    }[];
+    verificationAttempts: {
+      id: string;
+      documentId: string;
+      verifierId: string;
+      status: string;
+      reason: string | null;
+      metadata: Record<string, any> | null;
+      createdAt: Date;
+    }[];
   }): Document {
+    const versions = (props.versions || []).map((v) => DocumentVersion.fromPersistence(v));
+
+    const verificationAttempts = (props.verificationAttempts || []).map((a) =>
+      DocumentVerificationAttempt.fromPersistence(a),
+    );
     return new Document({
       id: new DocumentId(props.id),
       fileName: FileName.create(props.fileName),
@@ -388,6 +456,8 @@ export class Document {
       createdAt: props.createdAt,
       updatedAt: props.updatedAt,
       deletedAt: props.deletedAt,
+      versions,
+      verificationAttempts,
     });
   }
 
@@ -395,77 +465,117 @@ export class Document {
   // Public API - Business Operations
   // ============================================================================
 
-  verify(verifiedBy: UserId): void {
+  verify(verifier: Actor): void {
     this.ensureNotDeleted();
     this.ensureNotExpired();
     this.ensureNotVerified();
+
+    if (!verifier.isVerifier()) {
+      throw new UnauthorizedVerificationError();
+    }
 
     const newStatus = DocumentStatus.createVerified();
     if (!this._status.canTransitionTo(newStatus)) {
       throw new InvalidDocumentStatusTransitionError(this._status, newStatus);
     }
 
+    // Create the verification attempt record
+    const attempt = DocumentVerificationAttempt.createVerified({
+      documentId: this.id,
+      verifierId: verifier.id,
+    });
+    this._verificationAttempts.push(attempt);
+
     this._status = newStatus;
-    this._verifiedBy = verifiedBy;
+    this._verifiedBy = verifier.id;
     this._verifiedAt = new Date();
     this._rejectionReason = null;
     this.incrementVersion();
 
-    this.addDomainEvent(new DocumentVerifiedEvent(this.id, verifiedBy));
+    this.addDomainEvent(new DocumentVerifiedEvent(this.id, verifier.id));
   }
 
-  reject(rejectedBy: UserId, reason: RejectionReason): void {
+  reject(rejector: Actor, reason: RejectionReason): void {
     this.ensureNotDeleted();
     this.ensureNotExpired();
     this.ensureNotVerified();
+
+    if (!rejector.isVerifier()) {
+      throw new UnauthorizedVerificationError();
+    }
 
     const newStatus = DocumentStatus.createRejected();
     if (!this._status.canTransitionTo(newStatus)) {
       throw new InvalidDocumentStatusTransitionError(this._status, newStatus);
     }
 
+    // Create the verification attempt record
+    const attempt = DocumentVerificationAttempt.createRejected({
+      documentId: this.id,
+      verifierId: rejector.id,
+      reason: reason,
+    });
+    this._verificationAttempts.push(attempt);
+
     this._status = newStatus;
-    this._verifiedBy = rejectedBy;
+    this._verifiedBy = rejector.id;
     this._verifiedAt = new Date();
     this._rejectionReason = reason;
     this.incrementVersion();
 
-    this.addDomainEvent(new DocumentRejectedEvent(this.id, rejectedBy, reason, true));
+    this.addDomainEvent(new DocumentRejectedEvent(this.id, rejector.id, reason, true));
   }
 
   recordNewVersion(props: {
     uploadedBy: UserId;
     storagePath: StoragePath;
     fileSize: FileSize;
-    checksum: DocumentChecksum;
+    checksum?: DocumentChecksum;
     mimeType: MimeType;
-    versionNumber: number;
     changeNote?: string;
   }): void {
     this.ensureNotDeleted();
     this.ensureNotVerified();
 
-    // Update file properties for new version
-    this._storagePath = props.storagePath;
-    this._fileSize = props.fileSize;
-    this._checksum = props.checksum;
-    this._mimeType = props.mimeType;
+    const latestVersion = this.getLatestVersion();
+    const nextVersionNumber = latestVersion ? latestVersion.versionNumber + 1 : 1;
 
-    // Reset indexing state for new version
+    // Create the new version entity.
+    const newVersion = DocumentVersion.create({
+      documentId: this.id,
+      versionNumber: nextVersionNumber,
+      uploadedBy: props.uploadedBy,
+      storagePath: props.storagePath,
+      fileSize: props.fileSize,
+      mimeType: props.mimeType,
+      checksum: props.checksum,
+      changeNote: props.changeNote,
+    });
+
+    // Add it to the aggregate's list.
+    this._versions.push(newVersion);
+
+    // Update the aggregate's own properties to reflect the latest version.
+    this._storagePath = newVersion.storagePath;
+    this._fileSize = newVersion.fileSize;
+    this._checksum = newVersion.checksum;
+    this._mimeType = newVersion.mimeType;
+
+    // Reset indexing state, as the content has changed.
     this._isIndexed = false;
     this._indexedAt = null;
 
-    this.incrementVersion();
+    this.incrementVersion(); // Increment the aggregate's optimistic locking version.
 
     this.addDomainEvent(
       new DocumentVersionedEvent(
         this.id,
-        props.versionNumber,
-        props.uploadedBy,
-        props.storagePath,
-        props.fileSize,
-        props.checksum,
-        props.changeNote,
+        newVersion.versionNumber,
+        newVersion.uploadedBy,
+        newVersion.storagePath,
+        newVersion.fileSize,
+        newVersion.checksum,
+        newVersion.changeNote ?? undefined,
       ),
     );
   }
@@ -498,16 +608,35 @@ export class Document {
     this.ensureNotDeleted();
     this.ensureNotVerified();
 
-    if (props.documentNumber !== undefined) this._documentNumber = props.documentNumber;
-    if (props.issueDate !== undefined) this._issueDate = props.issueDate;
-    if (props.expiryDate !== undefined) this._expiryDate = props.expiryDate;
-    if (props.issuingAuthority !== undefined) this._issuingAuthority = props.issuingAuthority;
+    const updates: Record<string, any> = {};
+
+    if (props.documentNumber !== undefined) {
+      this._documentNumber = props.documentNumber;
+      updates.documentNumber = props.documentNumber;
+    }
+    if (props.issueDate !== undefined) {
+      this._issueDate = props.issueDate;
+      updates.issueDate = props.issueDate;
+    }
+    if (props.expiryDate !== undefined) {
+      this._expiryDate = props.expiryDate;
+      updates.expiryDate = props.expiryDate;
+    }
+    if (props.issuingAuthority !== undefined) {
+      this._issuingAuthority = props.issuingAuthority;
+      updates.issuingAuthority = props.issuingAuthority;
+    }
 
     // Invalidate indexing when document details change
     this._isIndexed = false;
     this._indexedAt = null;
 
     this.incrementVersion();
+
+    // Dispatch the new event if any changes were made
+    if (Object.keys(updates).length > 0) {
+      this.addDomainEvent(new DocumentDetailsUpdatedEvent(this.id, props.updatedBy, updates));
+    }
   }
 
   // NEW: Indexing state management
@@ -532,7 +661,7 @@ export class Document {
   // NEW: Retention policy management
   setRetentionPolicy(policy: RetentionPolicy, setBy: UserId): void {
     this.ensureNotDeleted();
-    this.ensureOwnedBy(setBy);
+    this.ensureOwnedBy(setBy, 'set retention policy');
 
     this._retentionPolicy = policy;
     this.incrementVersion();
@@ -540,7 +669,7 @@ export class Document {
 
   setExpiresAt(expiresAt: Date, setBy: UserId): void {
     this.ensureNotDeleted();
-    this.ensureOwnedBy(setBy);
+    this.ensureOwnedBy(setBy, 'set expiration date');
 
     this._expiresAt = expiresAt;
     this.incrementVersion();
@@ -571,19 +700,14 @@ export class Document {
 
   softDelete(deletedBy: UserId): void {
     if (this.isDeleted()) return;
-    this.ensureNotVerified();
 
     this._deletedAt = new Date();
-    this.incrementVersion();
 
+    this._isPublic = false;
+    this._allowedViewers = AllowedViewers.createEmpty();
+
+    this.incrementVersion();
     this.addDomainEvent(new DocumentDeletedEvent(this.id, deletedBy, 'SOFT'));
-  }
-
-  hardDelete(deletedBy: UserId): void {
-    this._deletedAt = new Date();
-    this.incrementVersion();
-
-    this.addDomainEvent(new DocumentDeletedEvent(this.id, deletedBy, 'HARD'));
   }
 
   restore(restoredBy: UserId): void {
@@ -612,46 +736,46 @@ export class Document {
     this.addDomainEvent(new DocumentViewedEvent(this.id, viewedBy, ipAddress, userAgent));
   }
 
-  shareWith(sharedBy: UserId, userIdsToShareWith: UserId[]): void {
+  shareWith(sharedBy: Actor, userIdsToShareWith: UserId[]): void {
     this.ensureNotDeleted();
-    this.ensureOwnedBy(sharedBy);
+    this.ensureOwnedBy(sharedBy.id, 'shareWith');
 
     this._allowedViewers = this._allowedViewers.grantAccess(userIdsToShareWith);
     this.incrementVersion();
 
-    this.addDomainEvent(new DocumentSharedEvent(this.id, sharedBy, userIdsToShareWith, 'VIEW'));
+    this.addDomainEvent(new DocumentSharedEvent(this.id, sharedBy.id, userIdsToShareWith, 'VIEW'));
   }
 
-  revokeAccess(revokedBy: UserId, userIdsToRevoke: UserId[]): void {
+  revokeAccess(revokedBy: Actor, userIdsToRevoke: UserId[]): void {
     this.ensureNotDeleted();
-    this.ensureOwnedBy(revokedBy);
+    this.ensureOwnedBy(revokedBy.id, 'revokeAccess');
 
     this._allowedViewers = this._allowedViewers.revokeAccess(userIdsToRevoke);
     this.incrementVersion();
   }
 
-  makePublic(changedBy: UserId): void {
+  makePublic(changedBy: Actor): void {
     this.ensureNotDeleted();
-    this.ensureOwnedBy(changedBy);
+    this.ensureOwnedBy(changedBy.id, 'makePublic');
 
     if (this._isPublic) return;
 
     this._isPublic = true;
     this.incrementVersion();
 
-    this.addDomainEvent(new DocumentVisibilityChangedEvent(this.id, changedBy, false, true));
+    this.addDomainEvent(new DocumentVisibilityChangedEvent(this.id, changedBy.id, false, true));
   }
 
-  makePrivate(changedBy: UserId): void {
+  makePrivate(changedBy: Actor): void {
     this.ensureNotDeleted();
-    this.ensureOwnedBy(changedBy);
+    this.ensureOwnedBy(changedBy.id, 'makePrivate');
 
     if (!this._isPublic) return;
 
     this._isPublic = false;
     this.incrementVersion();
 
-    this.addDomainEvent(new DocumentVisibilityChangedEvent(this.id, changedBy, true, false));
+    this.addDomainEvent(new DocumentVisibilityChangedEvent(this.id, changedBy.id, true, false));
   }
 
   markAsExpired(): void {
@@ -822,6 +946,12 @@ export class Document {
   get deletedAt(): Date | null {
     return this._deletedAt;
   }
+  get versions(): Readonly<DocumentVersion>[] {
+    return [...this._versions];
+  }
+  get verificationAttempts(): Readonly<DocumentVerificationAttempt>[] {
+    return [...this._verificationAttempts];
+  }
   get domainEvents(): DomainEvent<DocumentId>[] {
     return [...this._domainEvents];
   }
@@ -833,7 +963,13 @@ export class Document {
   // ============================================================================
   // Private Validation Methods
   // ============================================================================
-
+  private getLatestVersion(): DocumentVersion | null {
+    if (this._versions.length === 0) {
+      return null;
+    }
+    // Sort by version number descending to find the latest.
+    return [...this._versions].sort((a, b) => b.versionNumber - a.versionNumber)[0];
+  }
   private ensureNotDeleted(): void {
     if (this.isDeleted()) {
       throw new DocumentDeletedError();
@@ -858,9 +994,9 @@ export class Document {
     }
   }
 
-  private ensureOwnedBy(userId: UserId): void {
+  private ensureOwnedBy(userId: UserId, action: string): void {
     if (!this.isOwnedBy(userId)) {
-      throw new DocumentDomainError('Only document owner can perform this action');
+      throw new DocumentOwnershipError(action);
     }
   }
 

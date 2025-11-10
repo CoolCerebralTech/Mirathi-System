@@ -1,4 +1,5 @@
 export * from './uuid.vo';
+export * from './actor.vo';
 export * from './file-name.vo';
 
 // IDs

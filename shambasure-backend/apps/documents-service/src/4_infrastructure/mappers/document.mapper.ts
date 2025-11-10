@@ -12,6 +12,29 @@ import {
 } from '../../3_domain/value-objects';
 import { Prisma } from '@prisma/client';
 
+type RawDocumentVersionRow = {
+  id: string;
+  versionNumber: number;
+  documentId: string;
+  storagePath: string;
+  fileSize: number;
+  mimeType: string;
+  checksum: string | null;
+  changeNote: string | null;
+  uploadedBy: string;
+  createdAt: Date;
+};
+
+type RawVerificationAttemptRow = {
+  id: string;
+  documentId: string;
+  verifierId: string;
+  status: string;
+  reason: string | null;
+  metadata: Record<string, any> | null;
+  createdAt: Date;
+};
+
 /**
  * Document Mapper - Handles Domain ↔ Persistence transformation
  *
@@ -32,7 +55,7 @@ export class DocumentMapper {
       storagePath: document.storagePath.value,
       mimeType: document.mimeType.value,
       sizeBytes: document.fileSize.sizeInBytes,
-      checksum: document.checksum?.value ?? null, // FIXED: Handle nullable checksum
+      checksum: document.checksum?.value ?? null,
       category: document.category.value as DocumentCategory,
       status: document.status.value as DocumentStatus,
 
@@ -69,13 +92,17 @@ export class DocumentMapper {
   /**
    * Converts Persistence entity to Domain aggregate (for READ)
    */
-  static toDomain(entity: DocumentEntity): Document {
+  static toDomain(
+    entity: DocumentEntity,
+    versions: RawDocumentVersionRow[] = [],
+    verificationAttempts: RawVerificationAttemptRow[] = [],
+  ): Document {
     return Document.fromPersistence({
       id: entity.id,
       fileName: entity.filename,
       fileSize: entity.sizeBytes,
       mimeType: entity.mimeType,
-      checksum: entity.checksum, // FIXED: Pass nullable value directly
+      checksum: entity.checksum,
       storagePath: entity.storagePath,
       category: entity.category,
       status: entity.status,
@@ -101,13 +128,15 @@ export class DocumentMapper {
       allowedViewers: entity.allowedViewers,
       storageProvider: entity.storageProvider,
       retentionPolicy: entity.retentionPolicy,
-      expiresAt: entity.expiresAt, // NEW: Added missing field
-      isIndexed: entity.isIndexed, // NEW: Added missing field
-      indexedAt: entity.indexedAt, // NEW: Added missing field
+      expiresAt: entity.expiresAt,
+      isIndexed: entity.isIndexed,
+      indexedAt: entity.indexedAt,
       version: entity.version,
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
       deletedAt: entity.deletedAt,
+      versions: versions,
+      verificationAttempts: verificationAttempts,
     });
   }
 
@@ -115,7 +144,7 @@ export class DocumentMapper {
    * Converts multiple entities to domain aggregates (batch operation)
    */
   static toDomainMany(entities: DocumentEntity[]): Document[] {
-    return entities.map((entity) => this.toDomain(entity));
+    return entities.map((entity) => this.toDomain(entity, [], []));
   }
 
   /**
@@ -126,107 +155,28 @@ export class DocumentMapper {
   }
 
   /**
-   * Creates a partial update entity (for PATCH operations)
-   * Enhanced to handle all updatable fields with proper validation
+   * Converts a Document aggregate to data for Prisma update operation.
    */
-  static toPartialUpdate(
-    document: Document,
-    fieldsToUpdate: Partial<Document>,
-  ): UpdateDocumentData {
-    const updates: UpdateDocumentData = {
-      version: document.version, // Always include for optimistic locking
-      updatedAt: new Date(), // Always update the timestamp
-    };
+  static toUpdateData(document: Document): UpdateDocumentData {
+    // Step 1: serialize to persistence format
+    const persistenceData = this.toPersistence(document);
 
-    // Status and verification fields
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'status')) {
-      updates.status = document.status.value;
-      updates.verifiedBy = document.verifiedBy?.value ?? null;
-      updates.verifiedAt = document.verifiedAt;
-      updates.rejectionReason = document.rejectionReason?.value ?? null;
+    // Step 2: Create a shallow clone
+    const updateData = { ...persistenceData } as Record<string, unknown>;
+
+    // Step 3: Omit immutable/unwanted fields
+    for (const key of ['id', 'uploaderId', 'createdAt']) {
+      if (key in updateData) {
+        delete updateData[key];
+      }
     }
 
-    // File metadata fields
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'fileName')) {
-      updates.filename = document.fileName.value;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'fileSize')) {
-      updates.sizeBytes = document.fileSize.sizeInBytes;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'mimeType')) {
-      updates.mimeType = document.mimeType.value;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'checksum')) {
-      updates.checksum = document.checksum?.value ?? null;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'storagePath')) {
-      updates.storagePath = document.storagePath.value;
-    }
-
-    // Document details
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'metadata')) {
-      updates.metadata = document.metadata === null ? Prisma.JsonNull : document.metadata;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'documentNumber')) {
-      updates.documentNumber = document.documentNumber;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'issueDate')) {
-      updates.issueDate = document.issueDate;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'expiryDate')) {
-      updates.expiryDate = document.expiryDate;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'issuingAuthority')) {
-      updates.issuingAuthority = document.issuingAuthority;
-    }
-
-    // Security and access control
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'isPublic')) {
-      updates.isPublic = document.isPublic();
-    }
-
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'encrypted')) {
-      updates.encrypted = document.encrypted;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'allowedViewers')) {
-      updates.allowedViewers = document.allowedViewers.toArray().map((id) => id.value);
-    }
-
-    // Retention and lifecycle
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'retentionPolicy')) {
-      updates.retentionPolicy = document.retentionPolicy?.value ?? null;
-    }
-
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'expiresAt')) {
-      updates.expiresAt = document.expiresAt;
-    }
-
-    // Indexing state
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'isIndexed')) {
-      updates.isIndexed = document.isIndexed;
-      updates.indexedAt = document.indexedAt;
-    }
-
-    // Deletion state
-    if (Object.prototype.hasOwnProperty.call(fieldsToUpdate, 'deletedAt')) {
-      updates.deletedAt = document.deletedAt;
-    }
-
-    return updates;
+    // Step 4: Add system-managed fields
+    return {
+      ...updateData,
+      updatedAt: new Date(),
+    } as UpdateDocumentData;
   }
-
-  /**
-   * NEW: Creates update data for specific business operations
-   */
 
   /**
    * Creates update data for verification operations
@@ -250,15 +200,13 @@ export class DocumentMapper {
   /**
    * Creates update data for soft deletion
    */
-  static toSoftDeleteUpdate(document: Document, _deletedBy: UserId): UpdateDocumentData {
-    void _deletedBy;
-
+  static toSoftDeleteUpdate(document: Document): UpdateDocumentData {
     return {
-      deletedAt: new Date(),
+      deletedAt: document.deletedAt,
+      isPublic: document.isPublic(),
+      allowedViewers: document.allowedViewers.toArray().map((id) => id.value),
       version: document.version,
       updatedAt: new Date(),
-      isPublic: false,
-      allowedViewers: [],
     };
   }
 

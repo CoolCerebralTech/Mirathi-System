@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { IDocumentRepository } from '../../3_domain/interfaces/document.repository.interface';
-import { IDocumentVersionRepository } from '../../3_domain/interfaces/document-version.repository.interface';
+import { IDocumentRepository } from '../../3_domain/interfaces/document-repository.interface';
+import { IDocumentVersionRepository } from '../../3_domain/interfaces/document-version.query.interface';
 import { IStorageService } from '../../3_domain/interfaces/storage.service.interface';
 import { DocumentVersion } from '../../3_domain/models/document-version.model';
 import {

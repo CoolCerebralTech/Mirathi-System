@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { DocumentVerificationAttempt } from '../../3_domain/models/document-verification-attempt.model';
+import { DocumentVerificationAttempt } from '../../3_domain/models/document-verification.model';
 import {
   VerificationAttemptId,
   DocumentId,
@@ -9,7 +9,7 @@ import {
 import {
   DocumentVerificationAttemptEntity,
   CreateDocumentVerificationAttemptEntity,
-} from '../entities/verification-attempt.entity';
+} from '../entities/document-verification.entity';
 
 /**
  * DocumentVerificationAttempt Mapper - Handles Domain ↔ Persistence transformation
@@ -24,7 +24,7 @@ export class DocumentVerificationAttemptMapper {
    * Converts Domain entity to Persistence entity (for CREATE)
    */
   static toPersistence(
-    attempt: DocumentVerificationAttempt,
+    attempt: Readonly<DocumentVerificationAttempt>,
   ): CreateDocumentVerificationAttemptEntity {
     return {
       id: attempt.id.value,
@@ -60,7 +60,7 @@ export class DocumentVerificationAttemptMapper {
    * Converts multiple entities to domain entities (batch operation)
    */
   static toDomainMany(
-    entities: DocumentVerificationAttemptEntity[],
+    entities: readonly DocumentVerificationAttemptEntity[],
   ): DocumentVerificationAttempt[] {
     return entities.map((entity) => this.toDomain(entity));
   }
@@ -69,7 +69,7 @@ export class DocumentVerificationAttemptMapper {
    * Converts multiple domain entities to persistence entities (batch operation)
    */
   static toPersistenceMany(
-    attempts: DocumentVerificationAttempt[],
+    attempts: readonly Readonly<DocumentVerificationAttempt>[],
   ): CreateDocumentVerificationAttemptEntity[] {
     return attempts.map((attempt) => this.toPersistence(attempt));
   }
@@ -81,13 +81,13 @@ export class DocumentVerificationAttemptMapper {
     id: string;
     documentId: string;
     verifierId: string;
-    status: string;
+    status: string; // The input from the database is a raw string
     createdAt: Date;
   }): {
     id: VerificationAttemptId;
     documentId: DocumentId;
     verifierId: UserId;
-    status: DocumentStatus;
+    status: DocumentStatus; // The output should be the domain Value Object
     createdAt: Date;
   } {
     return {

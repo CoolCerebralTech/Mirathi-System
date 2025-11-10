@@ -30,7 +30,7 @@ import { BulkOperationsMapper } from './2_application/mappers/bulk-operations.ma
 
 // Infrastructure Layer - Repositories
 import { PrismaDocumentRepository } from './4_infrastructure/repositories/prisma-document.repository';
-import { PrismaDocumentVersionRepository } from './4_infrastructure/repositories/prisma-document-version.repository';
+import { PrismaDocumentVersionRepository } from './4_infrastructure/repositories/prisma-document-version.query.repository';
 import { PrismaDocumentVerificationAttemptRepository } from './4_infrastructure/repositories/prisma-document-verification-attempt.repository';
 
 // Infrastructure Layer - Storage
@@ -39,9 +39,9 @@ import { LocalStorageProvider } from './4_infrastructure/storage/providers/local
 import { FileValidatorService } from './4_infrastructure/storage/file-validator.service';
 
 // Domain Interfaces (for dependency injection)
-import { IDocumentRepository } from './3_domain/interfaces/document.repository.interface';
-import { IDocumentVersionRepository } from './3_domain/interfaces/document-version.repository.interface';
-import { IDocumentVerificationAttemptRepository } from './3_domain/interfaces/document-verification-attempt.repository.interface';
+import { IDocumentRepository } from './3_domain/interfaces/document-repository.interface';
+import { IDocumentVersionRepository } from './3_domain/interfaces/document-version.query.interface';
+import { IDocumentVerificationAttemptRepository } from './3_domain/interfaces/document-verification.query.interface';
 import { IStorageService } from './3_domain/interfaces/storage.service.interface';
 
 @Module({

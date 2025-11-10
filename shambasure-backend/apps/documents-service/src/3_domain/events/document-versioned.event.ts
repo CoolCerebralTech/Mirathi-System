@@ -18,7 +18,7 @@ export class DocumentVersionedEvent extends DomainEvent<DocumentId> {
     public readonly uploadedBy: UserId,
     public readonly storagePath: StoragePath,
     public readonly size: FileSize,
-    public readonly checksum: DocumentChecksum,
+    public readonly checksum: DocumentChecksum | null,
     public readonly changeNote?: string,
   ) {
     super(aggregateId, DocumentVersionedEvent.eventName, DocumentVersionedEvent.eventVersion);

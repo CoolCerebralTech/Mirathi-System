@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
-import { IDocumentRepository } from '../../3_domain/interfaces/document.repository.interface';
-import { IDocumentVerificationAttemptRepository } from '../../3_domain/interfaces/document-verification-attempt.repository.interface';
-import { DocumentVerificationAttempt } from '../../3_domain/models/document-verification-attempt.model';
+import { IDocumentRepository } from '../../3_domain/interfaces/document-repository.interface';
+import { IDocumentVerificationAttemptRepository } from '../../3_domain/interfaces/document-verification.query.interface';
+import { DocumentVerificationAttempt } from '../../3_domain/models/document-verification.model';
 import { DocumentId, UserId, DocumentStatus, RejectionReason } from '../../3_domain/value-objects';
 import { DocumentVerificationAttemptMapper } from '../mappers/document-verification-attempt.mapper';
 import { DocumentMapper } from '../mappers/document.mapper';

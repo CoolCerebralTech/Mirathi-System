@@ -1,4 +1,3 @@
-// src/1_presentation/controllers/document.controller.ts
 import {
   Controller,
   Get,

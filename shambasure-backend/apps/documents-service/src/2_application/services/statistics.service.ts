@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { IDocumentRepository } from '../../3_domain/interfaces/document.repository.interface';
-import { IDocumentVersionRepository } from '../../3_domain/interfaces/document-version.repository.interface';
-import { IDocumentVerificationAttemptRepository } from '../../3_domain/interfaces/document-verification-attempt.repository.interface';
+import { IDocumentRepository } from '../../3_domain/interfaces/document-repository.interface';
+import { IDocumentVersionRepository } from '../../3_domain/interfaces/document-version.query.interface';
+import { IDocumentVerificationAttemptRepository } from '../../3_domain/interfaces/document-verification.query.interface';
 import { StatisticsMapper } from '../mappers/statistics.mapper';
 import {
   DocumentAnalyticsResponseDto,
@@ -11,7 +11,7 @@ import {
   DashboardAnalyticsResponseDto,
 } from '../dtos/analytics-response.dto';
 import { DocumentStatsResponseDto } from '../dtos/document-response.dto';
-import { FindDocumentsFilters } from '../../3_domain/interfaces/document.repository.interface';
+import { FindDocumentsFilters } from '../../3_domain/interfaces/document-repository.interface';
 
 /**
  * StatisticsService - Application Service

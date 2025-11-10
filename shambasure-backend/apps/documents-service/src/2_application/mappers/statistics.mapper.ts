@@ -14,6 +14,13 @@ import {
  * - Map repository statistics to Response DTOs
  * - Format analytics data for presentation
  * - Calculate derived metrics
+ * - Handle data aggregation and enrichment
+ *
+ * PRODUCTION CONSIDERATIONS:
+ * - Null safety for incomplete data
+ * - Performance for large datasets
+ * - Timezone handling for date groupings
+ * - Edge cases in calculations
  */
 @Injectable()
 export class StatisticsMapper {
@@ -32,14 +39,14 @@ export class StatisticsMapper {
     expired: number;
   }): DocumentAnalyticsResponseDto {
     return new DocumentAnalyticsResponseDto({
-      total: stats.total,
-      byStatus: stats.byStatus,
-      byCategory: stats.byCategory,
-      totalSizeBytes: stats.totalSizeBytes,
-      averageSizeBytes: Math.round(stats.averageSizeBytes),
-      encrypted: stats.encrypted,
-      public: stats.public,
-      expired: stats.expired,
+      total: stats.total || 0,
+      byStatus: stats.byStatus || {},
+      byCategory: stats.byCategory || {},
+      totalSizeBytes: stats.totalSizeBytes || 0,
+      averageSizeBytes: Math.round(stats.averageSizeBytes || 0),
+      encrypted: stats.encrypted || 0,
+      public: stats.public || 0,
+      expired: stats.expired || 0,
     });
   }
 
@@ -53,11 +60,14 @@ export class StatisticsMapper {
     byStorageProvider: Record<string, number>;
     byUser: Array<{ userId: string; totalBytes: number; documentCount: number }>;
   }): StorageAnalyticsResponseDto {
+    // Sort users by storage usage (descending) for better presentation
+    const sortedByUser = [...(stats.byUser || [])].sort((a, b) => b.totalBytes - a.totalBytes);
+
     return new StorageAnalyticsResponseDto({
-      totalSizeBytes: stats.totalSizeBytes,
-      byCategory: stats.byCategory,
-      byStorageProvider: stats.byStorageProvider,
-      byUser: stats.byUser,
+      totalSizeBytes: stats.totalSizeBytes || 0,
+      byCategory: stats.byCategory || {},
+      byStorageProvider: stats.byStorageProvider || {},
+      byUser: sortedByUser,
     });
   }
 
@@ -73,11 +83,13 @@ export class StatisticsMapper {
     byVerifier: Record<string, { verified: number; rejected: number }>;
   }): VerificationMetricsResponseDto {
     return new VerificationMetricsResponseDto({
-      totalVerified: metrics.totalVerified,
-      totalRejected: metrics.totalRejected,
-      totalPending: metrics.totalPending,
-      averageVerificationTimeHours: Math.round(metrics.averageVerificationTimeHours * 100) / 100,
-      byVerifier: metrics.byVerifier,
+      totalVerified: metrics.totalVerified || 0,
+      totalRejected: metrics.totalRejected || 0,
+      totalPending: metrics.totalPending || 0,
+      averageVerificationTimeHours: this.roundToTwoDecimals(
+        metrics.averageVerificationTimeHours || 0,
+      ),
+      byVerifier: metrics.byVerifier || {},
     });
   }
 
@@ -90,10 +102,13 @@ export class StatisticsMapper {
     byCategory: Record<string, number>;
     byDay: Array<{ date: string; count: number; totalBytes: number }>;
   }): UploadAnalyticsResponseDto {
+    // Ensure byDay is sorted by date
+    const sortedByDay = [...(stats.byDay || [])].sort((a, b) => a.date.localeCompare(b.date));
+
     return new UploadAnalyticsResponseDto({
-      totalUploads: stats.totalUploads,
-      byCategory: stats.byCategory,
-      byDay: stats.byDay,
+      totalUploads: stats.totalUploads || 0,
+      byCategory: stats.byCategory || {},
+      byDay: sortedByDay,
     });
   }
 
@@ -116,6 +131,76 @@ export class StatisticsMapper {
   }
 
   // ============================================================================
+  // ENRICHED ANALYTICS (ADVANCED)
+  // ============================================================================
+
+  /**
+   * Creates enriched dashboard with calculated metrics
+   */
+  toEnrichedDashboardDto(data: {
+    documents: DocumentAnalyticsResponseDto;
+    storage: StorageAnalyticsResponseDto;
+    verification: VerificationMetricsResponseDto;
+    uploads: UploadAnalyticsResponseDto;
+    previousPeriod?: {
+      documents?: DocumentAnalyticsResponseDto;
+      storage?: StorageAnalyticsResponseDto;
+      verification?: VerificationMetricsResponseDto;
+      uploads?: UploadAnalyticsResponseDto;
+    };
+  }): DashboardAnalyticsResponseDto & {
+    trends: {
+      documentGrowth: ReturnType<typeof this.calculateGrowthRate>;
+      storageGrowth: ReturnType<typeof this.calculateGrowthRate>;
+      verificationGrowth: ReturnType<typeof this.calculateGrowthRate>;
+      uploadGrowth: ReturnType<typeof this.calculateGrowthRate>;
+    };
+    summary: ReturnType<typeof this.generateSummary>;
+    alerts: Array<{ type: string; message: string; severity: 'low' | 'medium' | 'high' }>;
+  } {
+    const baseDashboard = this.toDashboardAnalyticsDto(data);
+    const previous = data.previousPeriod;
+
+    // Calculate trends
+    const documentGrowth = previous?.documents
+      ? this.calculateGrowthRate(data.documents.total, previous.documents.total)
+      : { absolute: 0, percentage: 0, trend: 'stable' as const };
+
+    const storageGrowth = previous?.storage
+      ? this.calculateGrowthRate(data.storage.totalSizeBytes, previous.storage.totalSizeBytes)
+      : { absolute: 0, percentage: 0, trend: 'stable' as const };
+
+    const verificationGrowth = previous?.verification
+      ? this.calculateGrowthRate(
+          data.verification.totalVerified,
+          previous.verification.totalVerified,
+        )
+      : { absolute: 0, percentage: 0, trend: 'stable' as const };
+
+    const uploadGrowth = previous?.uploads
+      ? this.calculateGrowthRate(data.uploads.totalUploads, previous.uploads.totalUploads)
+      : { absolute: 0, percentage: 0, trend: 'stable' as const };
+
+    // Generate summary
+    const summary = this.generateSummary(data);
+
+    // Generate alerts
+    const alerts = this.generateAlerts(data);
+
+    return {
+      ...baseDashboard,
+      trends: {
+        documentGrowth,
+        storageGrowth,
+        verificationGrowth,
+        uploadGrowth,
+      },
+      summary,
+      alerts,
+    };
+  }
+
+  // ============================================================================
   // HELPER METHODS - DATA FORMATTING
   // ============================================================================
 
@@ -123,24 +208,42 @@ export class StatisticsMapper {
    * Formats bytes to human-readable format
    */
   formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 B';
+
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    let size = bytes;
-    let unitIndex = 0;
+    const exponent = Math.floor(Math.log(bytes) / Math.log(1024));
+    const size = (bytes / Math.pow(1024, exponent)).toFixed(2);
 
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024;
-      unitIndex++;
-    }
-
-    return `${size.toFixed(2)} ${units[unitIndex]}`;
+    return `${size} ${units[exponent]}`;
   }
 
   /**
-   * Calculates percentage with 2 decimal places
+   * Formats bytes with precision control
    */
-  calculatePercentage(part: number, total: number): number {
+  formatBytesPrecise(bytes: number, decimals: number = 2): string {
+    if (bytes === 0) return '0 B';
+
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const exponent = Math.floor(Math.log(bytes) / Math.log(1024));
+    const size = (bytes / Math.pow(1024, exponent)).toFixed(decimals);
+
+    return `${size} ${units[exponent]}`;
+  }
+
+  /**
+   * Calculates percentage with configurable decimal places
+   */
+  calculatePercentage(part: number, total: number, decimals: number = 2): number {
     if (total === 0) return 0;
-    return Math.round((part / total) * 10000) / 100;
+    const factor = Math.pow(10, decimals);
+    return Math.round((part / total) * 100 * factor) / factor;
+  }
+
+  /**
+   * Rounds number to specified decimal places
+   */
+  roundToTwoDecimals(value: number): number {
+    return Math.round(value * 100) / 100;
   }
 
   /**
@@ -152,7 +255,7 @@ export class StatisticsMapper {
   ): Record<string, { count: number; percentage: number }> {
     const enriched: Record<string, { count: number; percentage: number }> = {};
 
-    for (const [status, count] of Object.entries(byStatus)) {
+    for (const [status, count] of Object.entries(byStatus || {})) {
       enriched[status] = {
         count,
         percentage: this.calculatePercentage(count, total),
@@ -178,7 +281,7 @@ export class StatisticsMapper {
       { count: number; percentage: number; totalSize?: string; averageSize?: string }
     > = {};
 
-    for (const [category, count] of Object.entries(byCategory)) {
+    for (const [category, count] of Object.entries(byCategory || {})) {
       const totalSize = byCategorySize?.[category] || 0;
       const averageSize = count > 0 ? totalSize / count : 0;
 
@@ -194,7 +297,7 @@ export class StatisticsMapper {
   }
 
   /**
-   * Groups daily data by week
+   * Groups daily data by week with improved timezone handling
    */
   groupByWeek(dailyData: Array<{ date: string; count: number; totalBytes?: number }>): Array<{
     weekStart: string;
@@ -202,19 +305,33 @@ export class StatisticsMapper {
     count: number;
     totalBytes: number;
     averagePerDay: number;
+    weekNumber: number;
   }> {
+    if (!dailyData || dailyData.length === 0) {
+      return [];
+    }
+
     const weeks = new Map<string, { dates: Date[]; count: number; totalBytes: number }>();
 
     dailyData.forEach((day) => {
-      const date = new Date(day.date);
-      const weekStart = this.getWeekStart(date);
-      const weekKey = weekStart.toISOString().split('T')[0];
+      if (!day.date) return;
 
-      const existing = weeks.get(weekKey) || { dates: [], count: 0, totalBytes: 0 };
-      existing.dates.push(date);
-      existing.count += day.count;
-      existing.totalBytes += day.totalBytes || 0;
-      weeks.set(weekKey, existing);
+      try {
+        const date = new Date(day.date);
+        if (isNaN(date.getTime())) return;
+
+        const weekStart = this.getWeekStart(date);
+        const weekKey = weekStart.toISOString().split('T')[0];
+
+        const existing = weeks.get(weekKey) || { dates: [], count: 0, totalBytes: 0 };
+        existing.dates.push(date);
+        existing.count += day.count || 0;
+        existing.totalBytes += day.totalBytes || 0;
+        weeks.set(weekKey, existing);
+      } catch {
+        // Skip invalid dates
+        console.warn(`Invalid date in analytics data: ${day.date}`);
+      }
     });
 
     return Array.from(weeks.entries()).map(([weekKey, data]) => {
@@ -222,12 +339,82 @@ export class StatisticsMapper {
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
 
+      // Calculate week number
+      const firstDayOfYear = new Date(weekStart.getFullYear(), 0, 1);
+      const pastDaysOfYear = (weekStart.getTime() - firstDayOfYear.getTime()) / 86400000;
+      const weekNumber = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+
       return {
         weekStart: weekStart.toISOString().split('T')[0],
         weekEnd: weekEnd.toISOString().split('T')[0],
         count: data.count,
         totalBytes: data.totalBytes,
-        averagePerDay: Math.round((data.count / data.dates.length) * 100) / 100,
+        averagePerDay: this.roundToTwoDecimals(data.count / Math.max(data.dates.length, 1)),
+        weekNumber,
+      };
+    });
+  }
+
+  /**
+   * Groups data by month
+   */
+  groupByMonth(dailyData: Array<{ date: string; count: number; totalBytes?: number }>): Array<{
+    month: string;
+    year: number;
+    monthName: string;
+    count: number;
+    totalBytes: number;
+    averagePerDay: number;
+  }> {
+    if (!dailyData || dailyData.length === 0) {
+      return [];
+    }
+
+    const months = new Map<string, { days: number; count: number; totalBytes: number }>();
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+
+    dailyData.forEach((day) => {
+      if (!day.date) return;
+
+      try {
+        const date = new Date(day.date);
+        if (isNaN(date.getTime())) return;
+
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+        const existing = months.get(monthKey) || { days: 0, count: 0, totalBytes: 0 };
+        existing.days += 1;
+        existing.count += day.count || 0;
+        existing.totalBytes += day.totalBytes || 0;
+        months.set(monthKey, existing);
+      } catch {
+        console.warn(`Invalid date in analytics data: ${day.date}`);
+      }
+    });
+
+    return Array.from(months.entries()).map(([monthKey, data]) => {
+      const [year, month] = monthKey.split('-').map(Number);
+
+      return {
+        month: monthKey,
+        year,
+        monthName: monthNames[month - 1],
+        count: data.count,
+        totalBytes: data.totalBytes,
+        averagePerDay: this.roundToTwoDecimals(data.count / Math.max(data.days, 1)),
       };
     });
   }
@@ -237,7 +424,7 @@ export class StatisticsMapper {
    */
   private getWeekStart(date: Date): Date {
     const day = date.getDay();
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust when Sunday
     const weekStart = new Date(date);
     weekStart.setDate(diff);
     weekStart.setHours(0, 0, 0, 0);
@@ -254,6 +441,7 @@ export class StatisticsMapper {
     absolute: number;
     percentage: number;
     trend: 'up' | 'down' | 'stable';
+    significance: 'low' | 'medium' | 'high';
   } {
     const absolute = current - previous;
     const percentage = previous > 0 ? (absolute / previous) * 100 : 0;
@@ -262,10 +450,17 @@ export class StatisticsMapper {
     if (absolute > 0) trend = 'up';
     else if (absolute < 0) trend = 'down';
 
+    // Determine significance based on percentage change
+    let significance: 'low' | 'medium' | 'high' = 'low';
+    const absPercentage = Math.abs(percentage);
+    if (absPercentage >= 50) significance = 'high';
+    else if (absPercentage >= 10) significance = 'medium';
+
     return {
       absolute,
-      percentage: Math.round(percentage * 100) / 100,
+      percentage: this.roundToTwoDecimals(percentage),
       trend,
+      significance,
     };
   }
 
@@ -282,16 +477,20 @@ export class StatisticsMapper {
     verificationRate: number;
     documentsNeedingAttention: number;
     storageByCategory: Array<{ category: string; size: string; percentage: number }>;
+    topCategories: Array<{ category: string; count: number; percentage: number }>;
+    verificationEfficiency: number;
   } {
-    const totalStorage = data.storage.totalSizeBytes;
-    const verifiedCount = data.documents.byStatus['VERIFIED'] || 0;
-    const verificationRate = this.calculatePercentage(verifiedCount, data.documents.total);
+    const totalStorage = data.storage.totalSizeBytes || 0;
+    const verifiedCount = data.documents.byStatus?.['VERIFIED'] || 0;
+    const totalDocuments = data.documents.total || 0;
+    const verificationRate = this.calculatePercentage(verifiedCount, totalDocuments);
 
-    const pendingCount = data.documents.byStatus['PENDING_VERIFICATION'] || 0;
-    const rejectedCount = data.documents.byStatus['REJECTED'] || 0;
+    const pendingCount = data.documents.byStatus?.['PENDING_VERIFICATION'] || 0;
+    const rejectedCount = data.documents.byStatus?.['REJECTED'] || 0;
     const expiredCount = data.documents.expired || 0;
 
-    const storageByCategory = Object.entries(data.storage.byCategory)
+    // Storage by category (sorted)
+    const storageByCategory = Object.entries(data.storage.byCategory || {})
       .map(([category, size]) => ({
         category,
         size: this.formatBytes(size),
@@ -299,12 +498,87 @@ export class StatisticsMapper {
       }))
       .sort((a, b) => b.percentage - a.percentage);
 
+    // Top categories by document count
+    const topCategories = Object.entries(data.documents.byCategory || {})
+      .map(([category, count]) => ({
+        category,
+        count,
+        percentage: this.calculatePercentage(count, totalDocuments),
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5); // Top 5
+
+    // Verification efficiency (successful verifications vs total attempts)
+    const totalVerifications =
+      (data.verification.totalVerified || 0) + (data.verification.totalRejected || 0);
+    const verificationEfficiency =
+      totalVerifications > 0
+        ? this.calculatePercentage(data.verification.totalVerified || 0, totalVerifications)
+        : 0;
+
     return {
-      totalDocuments: data.documents.total,
+      totalDocuments,
       totalStorage: this.formatBytes(totalStorage),
       verificationRate,
       documentsNeedingAttention: pendingCount + rejectedCount + expiredCount,
       storageByCategory,
+      topCategories,
+      verificationEfficiency,
     };
+  }
+
+  /**
+   * Generates alerts based on analytics data
+   */
+  private generateAlerts(data: {
+    documents: DocumentAnalyticsResponseDto;
+    storage: StorageAnalyticsResponseDto;
+    verification: VerificationMetricsResponseDto;
+    uploads: UploadAnalyticsResponseDto;
+  }): Array<{ type: string; message: string; severity: 'low' | 'medium' | 'high' }> {
+    const alerts: Array<{ type: string; message: string; severity: 'low' | 'medium' | 'high' }> =
+      [];
+
+    // Storage alerts
+    const storageLimit = 100 * 1024 * 1024 * 1024; // 100GB
+    if (data.storage.totalSizeBytes > storageLimit) {
+      alerts.push({
+        type: 'storage',
+        message: `Storage usage is high: ${this.formatBytes(data.storage.totalSizeBytes)}`,
+        severity: 'high',
+      });
+    }
+
+    // Pending verification alerts
+    const pendingCount = data.documents.byStatus?.['PENDING_VERIFICATION'] || 0;
+    if (pendingCount > 50) {
+      alerts.push({
+        type: 'verification',
+        message: `High number of documents pending verification: ${pendingCount}`,
+        severity: 'medium',
+      });
+    }
+
+    // Low verification rate alert
+    const verifiedCount = data.documents.byStatus?.['VERIFIED'] || 0;
+    const verificationRate = this.calculatePercentage(verifiedCount, data.documents.total);
+    if (verificationRate < 50 && data.documents.total > 10) {
+      alerts.push({
+        type: 'verification',
+        message: `Low verification rate: ${verificationRate}%`,
+        severity: 'medium',
+      });
+    }
+
+    // Expired documents alert
+    if (data.documents.expired > 0) {
+      alerts.push({
+        type: 'compliance',
+        message: `${data.documents.expired} documents have expired`,
+        severity: 'high',
+      });
+    }
+
+    return alerts;
   }
 }

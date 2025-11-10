@@ -7,7 +7,7 @@ import {
   IsArray,
   IsBoolean,
 } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateMetadataDto {
   @ApiPropertyOptional({ description: 'Generic metadata as JSON object' })
@@ -61,8 +61,8 @@ export class UpdateDocumentResponseDto {
   @ApiPropertyOptional()
   id: string;
 
-  @ApiPropertyOptional()
-  filename: string;
+  @ApiProperty({ example: 'contract-v2.pdf' })
+  fileName: string;
 
   @ApiPropertyOptional()
   metadata?: Record<string, any>;

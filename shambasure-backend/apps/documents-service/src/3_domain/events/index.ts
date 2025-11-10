@@ -24,3 +24,4 @@ export { DocumentVisibilityChangedEvent } from './document-visibility-changed.ev
 export { DocumentStorageMigratedEvent } from './document-storage-migrated.event';
 
 export { DocumentIndexedEvent } from './document-indexed.event';
+export { DocumentDetailsUpdatedEvent } from './document-details-updated.event';
