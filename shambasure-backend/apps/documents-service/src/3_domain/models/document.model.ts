@@ -599,6 +599,7 @@ export class Document {
   }
 
   updateDocumentDetails(props: {
+    fileName?: FileName;
     documentNumber?: string;
     issueDate?: Date;
     expiryDate?: Date;
@@ -609,6 +610,11 @@ export class Document {
     this.ensureNotVerified();
 
     const updates: Record<string, any> = {};
+
+    if (props.fileName !== undefined) {
+      this._fileName = props.fileName;
+      updates.fileName = props.fileName;
+    }
 
     if (props.documentNumber !== undefined) {
       this._documentNumber = props.documentNumber;

@@ -1,4 +1,12 @@
-import { IsString, IsEnum, IsOptional, IsNotEmpty, IsObject, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsEnum,
+  IsOptional,
+  IsNotEmpty,
+  IsObject,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DocumentStatusEnum } from '../../3_domain/value-objects/document-status.vo';
 
@@ -8,30 +16,37 @@ export class VerifyDocumentDto {
   status: DocumentStatusEnum;
 
   @ApiPropertyOptional({
-    description: 'Reason for rejection (required if status is REJECTED)',
+    description: "Reason for rejection. Required if status is 'REJECTED'.",
     maxLength: 1000,
   })
+  @ValidateIf((o: VerifyDocumentDto) => o.status === DocumentStatusEnum.REJECTED)
+  @IsNotEmpty({ message: 'Rejection reason must not be empty.' })
   @IsString()
-  @IsNotEmpty()
   @MaxLength(1000)
-  @IsOptional()
   reason?: string;
 
   @ApiPropertyOptional({
-    description: 'Extracted document number during verification',
+    description: 'Document number confirmed or extracted during verification',
     maxLength: 50,
   })
   @IsString()
-  @IsOptional()
+  @IsNotEmpty()
   @MaxLength(50)
+  @IsOptional()
   documentNumber?: string;
 
-  @ApiPropertyOptional({ description: 'Data extracted from document during verification' })
+  @ApiPropertyOptional({
+    description:
+      "Structured data extracted from the document during verification. This will update the document's metadata.",
+  })
   @IsObject()
   @IsOptional()
   extractedData?: Record<string, any>;
 
-  @ApiPropertyOptional({ description: 'Verification metadata (checklist, notes, etc.)' })
+  @ApiPropertyOptional({
+    description:
+      'Additional metadata about the verification process itself (e.g., verifier checklist, notes). This is for the audit trail.',
+  })
   @IsObject()
   @IsOptional()
   verificationMetadata?: Record<string, any>;

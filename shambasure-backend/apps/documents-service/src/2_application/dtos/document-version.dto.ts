@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, Min, MaxLength } from 'class-validator';
+import { IsString, IsOptional, Min, MaxLength, IsEnum, IsInt, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -11,32 +11,39 @@ export class CreateDocumentVersionDto {
 }
 
 export class DocumentVersionQueryDto {
-  @ApiPropertyOptional({ description: 'Page number', minimum: 1, default: 1 })
-  @IsNumber()
+  @ApiPropertyOptional({ description: 'Page number', minimum: 1, default: 1, type: Number })
+  @IsInt()
   @Min(1)
   @Type(() => Number)
   @IsOptional()
-  page?: number = 1;
+  page: number = 1;
 
-  @ApiPropertyOptional({ description: 'Items per page', minimum: 1, default: 10 })
-  @IsNumber()
+  @ApiPropertyOptional({
+    description: 'Items per page',
+    minimum: 1,
+    maximum: 50,
+    default: 10,
+    type: Number,
+  })
+  @IsInt()
   @Min(1)
+  @Max(50)
   @Type(() => Number)
   @IsOptional()
-  limit?: number = 10;
+  limit: number = 10;
 
   @ApiPropertyOptional({
     enum: ['versionNumber', 'createdAt', 'fileSize'],
     default: 'versionNumber',
   })
-  @IsString()
+  @IsEnum(['versionNumber', 'createdAt', 'fileSize'])
   @IsOptional()
-  sortBy?: 'versionNumber' | 'createdAt' | 'fileSize' = 'versionNumber';
+  sortBy: 'versionNumber' | 'createdAt' | 'fileSize' = 'versionNumber';
 
   @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'desc' })
-  @IsString()
+  @IsEnum(['asc', 'desc'])
   @IsOptional()
-  sortOrder?: 'asc' | 'desc' = 'desc';
+  sortOrder: 'asc' | 'desc' = 'desc';
 }
 
 export class CreateDocumentVersionResponseDto {

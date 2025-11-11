@@ -1,53 +1,48 @@
-import { IsArray, IsUUID, IsEnum, IsOptional, IsBoolean } from 'class-validator';
+import { IsArray, IsUUID, IsBoolean, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export enum SharePermissionType {
-  VIEW = 'VIEW',
-  DOWNLOAD = 'DOWNLOAD',
-  EDIT = 'EDIT',
-}
-
-export class ShareDocumentDto {
-  @ApiProperty({ description: 'User IDs to share document with', type: [String] })
+export class UpdateAccessDto {
+  @ApiPropertyOptional({
+    description:
+      'A list of user IDs to grant view access to. This will be merged with existing viewers.',
+    type: [String],
+    format: 'uuid',
+  })
   @IsArray()
-  @IsUUID(undefined, { each: true })
-  userIds: string[];
-
-  @ApiPropertyOptional({ enum: SharePermissionType, default: SharePermissionType.VIEW })
-  @IsEnum(SharePermissionType)
+  @IsUUID('4', { each: true })
   @IsOptional()
-  permission?: SharePermissionType = SharePermissionType.VIEW;
+  shareWith?: string[];
 
-  @ApiPropertyOptional({ description: 'Make document publicly accessible' })
+  @ApiPropertyOptional({
+    description: 'A list of user IDs to revoke view access from.',
+    type: [String],
+    format: 'uuid',
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  revokeFrom?: string[];
+
+  @ApiPropertyOptional({ description: 'Set the document to be publicly accessible or private.' })
   @IsBoolean()
   @IsOptional()
-  makePublic?: boolean;
+  isPublic?: boolean;
 }
 
-export class RevokeAccessDto {
-  @ApiProperty({ description: 'User IDs to revoke access from', type: [String] })
-  @IsArray()
-  @IsUUID(undefined, { each: true })
-  userIds: string[];
-}
-
-export class ShareDocumentResponseDto {
-  @ApiProperty()
+export class AccessControlResponseDto {
+  @ApiProperty({ format: 'uuid' })
   documentId: string;
-
-  @ApiProperty({ type: [String] })
-  sharedWith: string[];
 
   @ApiProperty()
   isPublic: boolean;
 
-  @ApiProperty({ type: [String] })
+  @ApiProperty({ type: [String], format: 'uuid' })
   allowedViewers: string[];
 
   @ApiProperty()
-  sharedAt: Date;
+  updatedAt: Date;
 
-  constructor(partial: Partial<ShareDocumentResponseDto>) {
+  constructor(partial: Partial<AccessControlResponseDto>) {
     Object.assign(this, partial);
   }
 }

@@ -10,26 +10,56 @@ import {
   Max,
   IsArray,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { DocumentCategoryEnum } from '../../3_domain/value-objects/document-category.vo';
 import { DocumentStatusEnum } from '../../3_domain/value-objects/document-status.vo';
 
+const ToArray = () =>
+  Transform(({ value }: { value: unknown }) => {
+    if (Array.isArray(value)) return value.map(String);
+    if (typeof value === 'string') {
+      return value
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+    }
+    return [];
+  });
 export class QueryDocumentsDto {
-  @ApiPropertyOptional({ description: 'Filter by uploader user ID' })
-  @IsUUID()
+  @ApiPropertyOptional({
+    description: 'Filter by one or more uploader user IDs (comma-separated)',
+    type: String,
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @ToArray()
   @IsOptional()
-  uploaderId?: string;
+  uploaderIds?: string[];
 
-  @ApiPropertyOptional({ enum: DocumentStatusEnum, description: 'Filter by document status' })
-  @IsEnum(DocumentStatusEnum)
+  @ApiPropertyOptional({
+    enum: DocumentStatusEnum,
+    description: 'Filter by one or more statuses (comma-separated)',
+    isArray: true,
+    type: String,
+  })
+  @IsArray()
+  @IsEnum(DocumentStatusEnum, { each: true })
+  @ToArray()
   @IsOptional()
-  status?: DocumentStatusEnum;
+  statuses?: DocumentStatusEnum[];
 
-  @ApiPropertyOptional({ enum: DocumentCategoryEnum, description: 'Filter by document category' })
-  @IsEnum(DocumentCategoryEnum)
+  @ApiPropertyOptional({
+    enum: DocumentCategoryEnum,
+    description: 'Filter by one or more categories (comma-separated)',
+    isArray: true,
+    type: String,
+  })
+  @IsArray()
+  @IsEnum(DocumentCategoryEnum, { each: true })
+  @ToArray()
   @IsOptional()
-  category?: DocumentCategoryEnum;
+  categories?: DocumentCategoryEnum[];
 
   @ApiPropertyOptional({ description: 'Filter by asset ID' })
   @IsUUID()

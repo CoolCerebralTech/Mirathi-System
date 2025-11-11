@@ -1,21 +1,22 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DocumentCategoryEnum } from '../../3_domain/value-objects/document-category.vo';
 import { DocumentStatusEnum } from '../../3_domain/value-objects/document-status.vo';
+import { RetentionPolicyType } from '../../3_domain/value-objects/retention-policy.vo';
 
 export class DocumentResponseDto {
-  @ApiProperty({ example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiProperty({
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    description: 'Unique identifier for the document',
+  })
   id: string;
 
   @ApiProperty({ example: 'contract.pdf' })
   fileName: string;
 
-  @ApiProperty({ example: '/documents/2024/01/contract-123.pdf' })
-  storagePath: string;
-
   @ApiProperty({ example: 'application/pdf' })
   mimeType: string;
 
-  @ApiProperty({ example: 1024000 })
+  @ApiProperty({ example: 1024000, description: 'File size in bytes' })
   sizeBytes: number;
 
   @ApiProperty({ enum: DocumentCategoryEnum, example: DocumentCategoryEnum.LAND_OWNERSHIP })
@@ -78,11 +79,9 @@ export class DocumentResponseDto {
   @ApiProperty({ example: 'local' })
   storageProvider: string;
 
-  @ApiProperty({ example: 'a1b2c3d4e5f6...' })
-  checksum: string;
-
-  @ApiPropertyOptional({ example: '7_years' })
-  retentionPolicy?: string;
+  // FIX: Added missing checksum property
+  @ApiPropertyOptional({ example: 'a1b2c3d4e5f6...' })
+  checksum?: string;
 
   @ApiProperty({ example: 2 })
   version: number;
@@ -111,6 +110,9 @@ export class DocumentResponseDto {
   @ApiPropertyOptional({ example: false })
   canVerify?: boolean;
 
+  @ApiPropertyOptional({ example: true })
+  canShare?: boolean;
+
   @ApiPropertyOptional({ example: false })
   isExpired?: boolean;
 
@@ -120,8 +122,36 @@ export class DocumentResponseDto {
   @ApiPropertyOptional({ example: 3 })
   totalVersions?: number;
 
+  @ApiProperty({ example: false })
+  isIndexed: boolean;
+
+  @ApiPropertyOptional({ example: '2024-01-15T11:30:00.000Z' })
+  indexedAt?: Date;
+
+  @ApiPropertyOptional({ example: '2025-01-15T00:00:00.000Z' })
+  expiresAt?: Date;
+
+  @ApiPropertyOptional({ enum: RetentionPolicyType, example: RetentionPolicyType.LONG_TERM })
+  retentionPolicy?: RetentionPolicyType;
+
   @ApiPropertyOptional()
   latestVersion?: DocumentVersionResponseDto;
+
+  // FIX: Added permissions object to match mapper
+  @ApiPropertyOptional({
+    example: {
+      canEdit: true,
+      canDelete: true,
+      canVerify: false,
+      canShare: true,
+    },
+  })
+  permissions?: {
+    canEdit: boolean;
+    canDelete: boolean;
+    canVerify: boolean;
+    canShare: boolean;
+  };
 
   constructor(partial: Partial<DocumentResponseDto>) {
     Object.assign(this, partial);

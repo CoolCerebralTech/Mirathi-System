@@ -16,9 +16,9 @@ import { DocumentVersionController } from './1_presentation/controllers/document
 import { DocumentVerificationController } from './1_presentation/controllers/document-verification.controller';
 
 // Application Layer - Services
-import { DocumentService } from './2_application/services/document.service';
-import { DocumentVersionService } from './2_application/services/document-version.service';
-import { DocumentVerificationService } from './2_application/services/document-verification.service';
+import { DocumentService } from './2_application/services/document.command.service';
+import { DocumentVersionService } from './2_application/services/document-version.command.service';
+import { DocumentVerificationService } from './2_application/services/document-verification.command.service';
 import { StatisticsService } from './2_application/services/statistics.service';
 
 // Application Layer - Mappers

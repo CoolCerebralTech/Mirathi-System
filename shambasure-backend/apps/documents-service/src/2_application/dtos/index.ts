@@ -10,11 +10,8 @@ export * from './query-documents.dto';
 // Response DTOs
 export * from './document-response.dto';
 
-// Metadata DTOs
-export * from './update-metadata.dto';
-
 // Document Details DTOs
-export * from './update-document-details.dto';
+export * from './update-document.dto';
 
 // Version DTOs
 export * from './document-version.dto';

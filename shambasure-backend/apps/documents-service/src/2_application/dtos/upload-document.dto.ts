@@ -8,9 +8,12 @@ import {
   MaxLength,
   IsDateString,
   IsBoolean,
+  ValidateIf,
+  IsArray,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DocumentCategoryEnum } from '../../3_domain/value-objects/document-category.vo';
+import { RetentionPolicyType } from '../../3_domain/value-objects/retention-policy.vo';
 
 export class UploadDocumentDto {
   @ApiProperty({ description: 'Original filename', maxLength: 255, example: 'contract.pdf' })
@@ -29,26 +32,24 @@ export class UploadDocumentDto {
 
   @ApiPropertyOptional({
     description: 'Asset ID if document is related to an asset',
-    example: '123e4567-e89b-12d3-a456-426614174000',
+    format: 'uuid',
   })
   @IsUUID()
   @IsOptional()
   assetId?: string;
 
-  @ApiPropertyOptional({
-    description: 'Will ID if document is related to a will',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
+  @ApiPropertyOptional({ description: 'Will ID if document is related to a will', format: 'uuid' })
   @IsUUID()
   @IsOptional()
   willId?: string;
 
   @ApiPropertyOptional({
-    description: 'User ID if this is an identity document',
-    example: '123e4567-e89b-12d3-a456-426614174000',
+    description: 'User ID this identity document belongs to. Required for IDENTITY_PROOF category.',
+    format: 'uuid',
   })
+  @ValidateIf((o: UploadDocumentDto) => o.category === DocumentCategoryEnum.IDENTITY_PROOF)
   @IsUUID()
-  @IsOptional()
+  @IsNotEmpty()
   identityForUserId?: string;
 
   @ApiPropertyOptional({
@@ -60,30 +61,27 @@ export class UploadDocumentDto {
   metadata?: Record<string, any>;
 
   @ApiPropertyOptional({
-    description: 'Document number (ID number, parcel number, etc.)',
+    description: 'Document number (e.g., ID number, parcel number)',
     maxLength: 50,
-    example: 'DOC-2024-001',
+    example: 'ID12345678',
   })
   @IsString()
-  @IsOptional()
+  @IsNotEmpty()
   @MaxLength(50)
+  @IsOptional()
   documentNumber?: string;
 
   @ApiPropertyOptional({
-    description: 'Date document was issued',
-    type: String,
-    format: 'date',
-    example: '2024-01-15',
+    description: 'Date document was issued (ISO 8601 format)',
+    example: '2024-01-15T00:00:00.000Z',
   })
   @IsDateString()
   @IsOptional()
   issueDate?: string;
 
   @ApiPropertyOptional({
-    description: 'Date document expires',
-    type: String,
-    format: 'date',
-    example: '2025-01-15',
+    description: 'Date document expires (ISO 8601 format)',
+    example: '2025-01-15T00:00:00.000Z',
   })
   @IsDateString()
   @IsOptional()
@@ -92,15 +90,16 @@ export class UploadDocumentDto {
   @ApiPropertyOptional({
     description: 'Authority that issued the document',
     maxLength: 100,
-    example: 'Government Agency',
+    example: 'National Registration Bureau',
   })
   @IsString()
-  @IsOptional()
+  @IsNotEmpty()
   @MaxLength(100)
+  @IsOptional()
   issuingAuthority?: string;
 
   @ApiPropertyOptional({
-    description: 'Make document publicly accessible',
+    description: 'Make document publicly accessible. Defaults to false.',
     example: false,
   })
   @IsBoolean()
@@ -108,12 +107,23 @@ export class UploadDocumentDto {
   isPublic?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Retention policy for the document',
-    example: '7_years',
+    description: 'Initial allowed viewers (user IDs)',
+    type: [String],
+    format: 'uuid',
   })
-  @IsString()
+  @IsArray()
+  @IsUUID('4', { each: true })
   @IsOptional()
-  retentionPolicy?: string;
+  allowedViewers?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Retention policy for the document',
+    enum: RetentionPolicyType,
+    example: RetentionPolicyType.LONG_TERM,
+  })
+  @IsEnum(RetentionPolicyType)
+  @IsOptional()
+  retentionPolicy?: RetentionPolicyType;
 }
 
 export class UploadDocumentResponseDto {
@@ -146,6 +156,9 @@ export class UploadDocumentResponseDto {
 
   @ApiProperty({ example: '2024-01-15T10:30:00.000Z' })
   createdAt: Date;
+
+  @ApiProperty({ example: 1 })
+  version: number;
 
   @ApiPropertyOptional({ example: 'https://api.example.com/documents/123' })
   documentUrl?: string;

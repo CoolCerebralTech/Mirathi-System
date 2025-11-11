@@ -1,236 +1,90 @@
 import { Injectable } from '@nestjs/common';
-import { Document } from '../../3_domain/models/document.model';
-import { DocumentResponseDto, DocumentStatsResponseDto } from '../dtos/document-response.dto';
-import { UploadDocumentDto, UploadDocumentResponseDto } from '../dtos/upload-document.dto';
-import { VerifyDocumentDto, VerifyDocumentResponseDto } from '../dtos/verify-document.dto';
-import {
-  UpdateMetadataDto,
-  UpdateAccessControlDto,
-  UpdateDocumentResponseDto,
-} from '../dtos/update-metadata.dto';
-import {
-  UpdateDocumentDetailsDto,
-  UpdateDocumentDetailsResponseDto,
-} from '../dtos/update-document-details.dto';
-import { ShareDocumentResponseDto } from '../dtos/share-document.dto';
+import { Document } from '../../3_domain/models';
 import { PaginatedDocumentsResponseDto } from '../dtos/query-documents.dto';
+import { UploadDocumentResponseDto, UploadDocumentDto } from '../dtos/upload-document.dto';
+import { VerifyDocumentResponseDto, VerifyDocumentDto } from '../dtos/verify-document.dto';
+import { UpdateDocumentDto, UpdateDocumentResponseDto } from '../dtos/update-document.dto';
+import { AccessControlResponseDto } from '../dtos/share-document.dto';
+import { DocumentResponseDto } from '../dtos/document-response.dto';
 import {
   DocumentId,
   UserId,
   WillId,
   AssetId,
   DocumentCategory,
-  DocumentStatus,
   FileName,
-  MimeType,
   RejectionReason,
   RetentionPolicy,
+  StorageProvider,
+  RetentionPolicyType,
 } from '../../3_domain/value-objects';
 
 /**
- * DocumentMapper - Application Layer
- *
- * RESPONSIBILITIES:
- * - Map Domain models to Response DTOs
- * - Map Request DTOs to Domain value objects
- * - Handle computed/derived fields
- * - Format data for presentation
- *
- * PRODUCTION CONSIDERATIONS:
- * - Null safety for optional fields
- * - Error handling for invalid mappings
- * - Performance for bulk operations
- * - Consistency across all mappings
+ * Maps between Document domain objects and various Data Transfer Objects (DTOs).
+ * This class is responsible for PRESENTATION logic only, such as generating URLs or
+ * shaping data for API clients. It contains NO business logic.
  */
 @Injectable()
 export class DocumentMapper {
   // ============================================================================
-  // DOMAIN TO RESPONSE DTO
+  // DOMAIN TO RESPONSE DTO MAPPERS
   // ============================================================================
 
+  /**
+   * Maps a Document domain object to a detailed DocumentResponseDto.
+   * Business logic (like permissions) should be calculated in the service and passed in.
+   */
   toResponseDto(
     document: Document,
     options: {
-      includeDownloadUrl?: boolean;
-      includePreviewUrl?: boolean;
-      currentUserId?: UserId;
-      computePermissions?: boolean;
-      includeVersionInfo?: boolean;
+      uploaderName?: string;
+      verifierName?: string;
+      totalVersions?: number;
+      permissions?: { canEdit: boolean; canDelete: boolean; canVerify: boolean; canShare: boolean };
     } = {},
   ): DocumentResponseDto {
-    // Null-safe mapping for optional fields
-    const dto = new DocumentResponseDto({
+    return new DocumentResponseDto({
       id: document.id.value,
       fileName: document.fileName.value,
-      storagePath: document.storagePath.value,
       mimeType: document.mimeType.value,
       sizeBytes: document.fileSize.sizeInBytes,
       category: document.category.value,
       status: document.status.value,
-
       uploaderId: document.uploaderId.value,
-      verifiedBy: document.verifiedBy?.value ?? undefined,
+      uploaderName: options.uploaderName,
+      verifiedBy: document.verifiedBy?.value,
+      verifiedByName: options.verifierName,
       verifiedAt: document.verifiedAt ?? undefined,
-      rejectionReason: document.rejectionReason?.value ?? undefined,
-
-      assetId: document.assetId?.value ?? undefined,
-      willId: document.willId?.value ?? undefined,
-      identityForUserId: document.identityForUserId?.value ?? undefined,
-
+      rejectionReason: document.rejectionReason?.value,
+      assetId: document.assetId?.value,
+      willId: document.willId?.value,
+      identityForUserId: document.identityForUserId?.value,
       metadata: document.metadata ?? undefined,
-      documentNumber: document.documentNumber ?? undefined,
+      documentNumber: document.documentNumber ?? undefined, // FIX: Convert null to undefined
       issueDate: document.issueDate ?? undefined,
       expiryDate: document.expiryDate ?? undefined,
       issuingAuthority: document.issuingAuthority ?? undefined,
-
       isPublic: document.isPublic(),
       encrypted: document.encrypted,
       allowedViewers: document.allowedViewers.toArray().map((id) => id.value),
       storageProvider: document.storageProvider.value,
-      checksum: document.checksum?.value ?? '', // Handle nullable checksum
-      retentionPolicy: document.retentionPolicy?.value ?? undefined,
+      checksum: document.checksum?.value,
+      retentionPolicy: document.retentionPolicy?.value as RetentionPolicyType | undefined, // FIX: Cast to enum type
       version: document.version,
-
       createdAt: document.createdAt,
       updatedAt: document.updatedAt,
       deletedAt: document.deletedAt ?? undefined,
+      isIndexed: document.isIndexed,
+      indexedAt: document.indexedAt ?? undefined,
+      expiresAt: document.expiresAt ?? undefined,
+      isExpired: document.isExpired(),
+      downloadUrl: this.generateDownloadUrl(document.id),
+      previewUrl: this.isPreviewable(document.mimeType.value)
+        ? this.generatePreviewUrl(document.id)
+        : undefined,
+      totalVersions: options.totalVersions,
+      permissions: options.permissions,
     });
-
-    // Compute permissions if requested
-    if (options.computePermissions && options.currentUserId) {
-      dto.canEdit = !document.isVerified() && document.isOwnedBy(options.currentUserId);
-      dto.canDelete = !document.isVerified() && document.isOwnedBy(options.currentUserId);
-      dto.canVerify = document.isPending() && !document.isOwnedBy(options.currentUserId);
-    }
-
-    // Compute expiration status
-    dto.isExpired = document.isExpired();
-
-    // Add URLs if requested
-    if (options.includeDownloadUrl) {
-      dto.downloadUrl = this.generateDownloadUrl(document.id);
-    }
-
-    if (options.includePreviewUrl && this.isPreviewable(document.mimeType)) {
-      dto.previewUrl = this.generatePreviewUrl(document.id);
-    }
-
-    // Add version info if requested
-    if (options.includeVersionInfo) {
-      dto.currentVersion = document.version;
-      // Note: totalVersions would need to be fetched from version repository
-    }
-
-    return dto;
-  }
-
-  toUploadResponseDto(
-    document: Document,
-    options: { downloadUrl?: string; documentUrl?: string } = {},
-  ): UploadDocumentResponseDto {
-    return new UploadDocumentResponseDto({
-      id: document.id.value,
-      fileName: document.fileName.value,
-      storagePath: document.storagePath.value,
-      category: document.category.value,
-      status: document.status.value,
-      sizeBytes: document.fileSize.sizeInBytes,
-      mimeType: document.mimeType.value,
-      checksum: document.checksum?.value ?? '', // Handle nullable checksum
-      uploaderId: document.uploaderId.value,
-      createdAt: document.createdAt,
-      documentUrl: options.documentUrl,
-      downloadUrl: options.downloadUrl,
-    });
-  }
-
-  toVerifyResponseDto(
-    document: Document,
-    verificationAttemptId?: string,
-  ): VerifyDocumentResponseDto {
-    return new VerifyDocumentResponseDto({
-      id: document.id.value,
-      status: document.status.value,
-      verifiedBy: document.verifiedBy?.value ?? '',
-      verifiedAt: document.verifiedAt ?? new Date(),
-      documentNumber: document.documentNumber ?? undefined,
-      rejectionReason: document.rejectionReason?.value ?? undefined,
-      verificationAttemptId,
-    });
-  }
-
-  toUpdateResponseDto(document: Document): UpdateDocumentResponseDto {
-    return new UpdateDocumentResponseDto({
-      id: document.id.value,
-      fileName: document.fileName.value,
-      metadata: document.metadata ?? undefined,
-      documentNumber: document.documentNumber ?? undefined,
-      issueDate: document.issueDate ?? undefined,
-      expiryDate: document.expiryDate ?? undefined,
-      issuingAuthority: document.issuingAuthority ?? undefined,
-      isPublic: document.isPublic(),
-      allowedViewers: document.allowedViewers.toArray().map((id) => id.value),
-      updatedAt: document.updatedAt,
-    });
-  }
-
-  toUpdateDetailsResponseDto(document: Document): UpdateDocumentDetailsResponseDto {
-    return new UpdateDocumentDetailsResponseDto({
-      id: document.id.value,
-      documentNumber: document.documentNumber ?? undefined,
-      issueDate: document.issueDate ?? undefined,
-      expiryDate: document.expiryDate ?? undefined,
-      issuingAuthority: document.issuingAuthority ?? undefined,
-      updatedAt: document.updatedAt,
-    });
-  }
-
-  toShareResponseDto(document: Document, sharedWith: UserId[]): ShareDocumentResponseDto {
-    return new ShareDocumentResponseDto({
-      documentId: document.id.value,
-      sharedWith: sharedWith.map((id) => id.value),
-      isPublic: document.isPublic(),
-      allowedViewers: document.allowedViewers.toArray().map((id) => id.value),
-      sharedAt: new Date(),
-    });
-  }
-
-  toStatsResponseDto(stats: {
-    total: number;
-    byStatus: Record<string, number>;
-    byCategory: Record<string, number>;
-    totalSizeBytes: number;
-    averageSizeBytes: number;
-    encrypted: number;
-    public: number;
-    expired: number;
-  }): DocumentStatsResponseDto {
-    return new DocumentStatsResponseDto({
-      total: stats.total,
-      byStatus: stats.byStatus,
-      byCategory: stats.byCategory,
-      totalSizeBytes: stats.totalSizeBytes,
-      averageSizeBytes: stats.averageSizeBytes,
-      encrypted: stats.encrypted,
-      public: stats.public,
-      expired: stats.expired,
-    });
-  }
-
-  // ============================================================================
-  // BULK MAPPING
-  // ============================================================================
-
-  toResponseDtoList(
-    documents: Document[],
-    options: {
-      includeDownloadUrl?: boolean;
-      includePreviewUrl?: boolean;
-      currentUserId?: UserId;
-      computePermissions?: boolean;
-    } = {},
-  ): DocumentResponseDto[] {
-    return documents.map((document) => this.toResponseDto(document, options));
   }
 
   toPaginatedResponse(
@@ -239,15 +93,27 @@ export class DocumentMapper {
     page: number,
     limit: number,
     options: {
-      includeDownloadUrl?: boolean;
-      includePreviewUrl?: boolean;
-      currentUserId?: UserId;
-      computePermissions?: boolean;
+      permissionMap?: Map<
+        string,
+        { canEdit: boolean; canDelete: boolean; canVerify: boolean; canShare: boolean }
+      >;
+      uploaderNamesMap?: Map<string, string>;
+      verifierNamesMap?: Map<string, string>;
+      versionCountsMap?: Map<string, number>;
     } = {},
   ): PaginatedDocumentsResponseDto {
-    const data = this.toResponseDtoList(documents, options);
-    const totalPages = Math.ceil(total / limit);
+    const data = documents.map((doc) =>
+      this.toResponseDto(doc, {
+        uploaderName: options.uploaderNamesMap?.get(doc.uploaderId.value),
+        verifierName: doc.verifiedBy
+          ? options.verifierNamesMap?.get(doc.verifiedBy.value)
+          : undefined,
+        totalVersions: options.versionCountsMap?.get(doc.id.value),
+        permissions: options.permissionMap?.get(doc.id.value),
+      }),
+    );
 
+    const totalPages = Math.ceil(total / limit);
     return new PaginatedDocumentsResponseDto({
       data,
       total,
@@ -259,117 +125,177 @@ export class DocumentMapper {
     });
   }
 
+  toUploadResponseDto(document: Document): UploadDocumentResponseDto {
+    return new UploadDocumentResponseDto({
+      id: document.id.value,
+      fileName: document.fileName.value,
+      storagePath: document.storagePath.value,
+      category: document.category.value,
+      status: document.status.value,
+      sizeBytes: document.fileSize.sizeInBytes,
+      mimeType: document.mimeType.value,
+      checksum: document.checksum?.value,
+      uploaderId: document.uploaderId.value,
+      createdAt: document.createdAt,
+    });
+  }
+
+  toVerifyResponseDto(
+    document: Document,
+    verificationAttemptId: string,
+  ): VerifyDocumentResponseDto {
+    return new VerifyDocumentResponseDto({
+      id: document.id.value,
+      status: document.status.value,
+      verifiedBy: document.verifiedBy?.value,
+      verifiedAt: document.verifiedAt ?? undefined,
+      documentNumber: document.documentNumber ?? undefined, // FIX: Convert null to undefined
+      rejectionReason: document.rejectionReason?.value,
+      verificationAttemptId,
+    });
+  }
+
+  toUpdateResponseDto(document: Document): UpdateDocumentResponseDto {
+    return new UpdateDocumentResponseDto({
+      id: document.id.value,
+      updatedAt: document.updatedAt,
+      version: document.version,
+    });
+  }
+
+  toAccessControlResponseDto(document: Document): AccessControlResponseDto {
+    return new AccessControlResponseDto({
+      documentId: document.id.value,
+      isPublic: document.isPublic(),
+      allowedViewers: document.allowedViewers.toArray().map((id) => id.value),
+      updatedAt: document.updatedAt,
+    });
+  }
+
   // ============================================================================
-  // REQUEST DTO TO DOMAIN VALUE OBJECTS
+  // REQUEST DTO TO DOMAIN PRIMITIVES
   // ============================================================================
 
-  uploadDtoToValueObjects(dto: UploadDocumentDto, uploaderId: UserId) {
-    return {
+  uploadDtoToCreationParams(
+    dto: UploadDocumentDto,
+    uploaderId: UserId,
+    storageProvider: StorageProvider,
+  ): Partial<{
+    uploaderId: UserId;
+    fileName: FileName;
+    category: DocumentCategory;
+    storageProvider: StorageProvider;
+    assetId: AssetId;
+    willId: WillId;
+    identityForUserId: UserId;
+    metadata: Record<string, unknown>;
+    documentNumber: string;
+    issueDate: Date;
+    expiryDate: Date;
+    issuingAuthority: string;
+    isPublic: boolean;
+    retentionPolicy: RetentionPolicy;
+  }> {
+    // FIX: Properly type the return value and use object spread to remove undefined values
+    const params: Record<string, unknown> = {
       uploaderId,
-      fileName: FileName.create(dto.fileName), // Note: DTO uses 'fileName' not 'filename'
+      fileName: FileName.create(dto.fileName),
       category: DocumentCategory.create(dto.category),
-      assetId: dto.assetId ? new AssetId(dto.assetId) : undefined,
-      willId: dto.willId ? new WillId(dto.willId) : undefined,
-      identityForUserId: dto.identityForUserId ? new UserId(dto.identityForUserId) : undefined,
-      metadata: dto.metadata ?? undefined,
-      documentNumber: dto.documentNumber ?? undefined,
-      issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
-      expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : undefined,
-      issuingAuthority: dto.issuingAuthority ?? undefined,
-      isPublic: dto.isPublic ?? false,
-      retentionPolicy: dto.retentionPolicy
-        ? RetentionPolicy.create(dto.retentionPolicy)
-        : undefined,
+      storageProvider,
     };
+
+    // Only add optional fields if they have values
+    if (dto.assetId) params.assetId = new AssetId(dto.assetId);
+    if (dto.willId) params.willId = new WillId(dto.willId);
+    if (dto.identityForUserId) params.identityForUserId = new UserId(dto.identityForUserId);
+    if (dto.metadata) params.metadata = dto.metadata;
+    if (dto.documentNumber) params.documentNumber = dto.documentNumber;
+    if (dto.issueDate) params.issueDate = new Date(dto.issueDate);
+    if (dto.expiryDate) params.expiryDate = new Date(dto.expiryDate);
+    if (dto.issuingAuthority) params.issuingAuthority = dto.issuingAuthority;
+    if (dto.isPublic !== undefined) params.isPublic = dto.isPublic;
+    if (dto.retentionPolicy) params.retentionPolicy = RetentionPolicy.create(dto.retentionPolicy);
+
+    return params as Partial<{
+      uploaderId: UserId;
+      fileName: FileName;
+      category: DocumentCategory;
+      storageProvider: StorageProvider;
+      assetId: AssetId;
+      willId: WillId;
+      identityForUserId: UserId;
+      metadata: Record<string, unknown>;
+      documentNumber: string;
+      issueDate: Date;
+      expiryDate: Date;
+      issuingAuthority: string;
+      isPublic: boolean;
+      retentionPolicy: RetentionPolicy;
+    }>;
   }
 
-  verifyDtoToValueObjects(dto: VerifyDocumentDto, verifierId: UserId) {
-    return {
-      verifierId,
-      status: DocumentStatus.create(dto.status),
-      reason: dto.reason ? RejectionReason.create(dto.reason) : undefined,
-      documentNumber: dto.documentNumber ?? undefined,
-      extractedData: dto.extractedData ?? undefined,
-      verificationMetadata: dto.verificationMetadata ?? undefined,
-    };
+  verifyDtoToCommandPayload(dto: VerifyDocumentDto): {
+    reason?: RejectionReason;
+    documentNumber?: string;
+    extractedData?: Record<string, unknown>;
+    verificationMetadata?: Record<string, unknown>;
+  } {
+    // FIX: Properly type the return value
+    const payload: {
+      reason?: RejectionReason;
+      documentNumber?: string;
+      extractedData?: Record<string, unknown>;
+      verificationMetadata?: Record<string, unknown>;
+    } = {};
+
+    if (dto.reason) payload.reason = RejectionReason.create(dto.reason);
+    if (dto.documentNumber) payload.documentNumber = dto.documentNumber;
+    if (dto.extractedData) payload.extractedData = dto.extractedData;
+    if (dto.verificationMetadata) payload.verificationMetadata = dto.verificationMetadata;
+
+    return payload;
   }
 
-  updateMetadataDtoToParams(dto: UpdateMetadataDto) {
-    return {
-      metadata: dto.metadata ?? undefined,
-      documentNumber: dto.documentNumber ?? undefined,
-      issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
-      expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : undefined,
-      issuingAuthority: dto.issuingAuthority ?? undefined,
-      tags: dto.tags ?? undefined,
-    };
-  }
+  updateDtoToCommandPayload(dto: UpdateDocumentDto): {
+    fileName?: FileName;
+    documentNumber?: string;
+    issueDate?: Date;
+    expiryDate?: Date;
+    issuingAuthority?: string;
+    metadata?: Record<string, unknown>;
+    isPublic?: boolean;
+    allowedViewers?: UserId[];
+  } {
+    // FIX: Properly type the return value
+    const payload: {
+      fileName?: FileName;
+      documentNumber?: string;
+      issueDate?: Date;
+      expiryDate?: Date;
+      issuingAuthority?: string;
+      metadata?: Record<string, unknown>;
+      isPublic?: boolean;
+      allowedViewers?: UserId[];
+    } = {};
 
-  updateDetailsDtoToParams(dto: UpdateDocumentDetailsDto) {
-    return {
-      documentNumber: dto.documentNumber ?? undefined,
-      issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
-      expiryDate: dto.expiryDate ? new Date(dto.expiryDate) : undefined,
-      issuingAuthority: dto.issuingAuthority ?? undefined,
-    };
-  }
+    if (dto.fileName) payload.fileName = FileName.create(dto.fileName);
+    if (dto.documentNumber) payload.documentNumber = dto.documentNumber;
+    if (dto.issueDate) payload.issueDate = new Date(dto.issueDate);
+    if (dto.expiryDate) payload.expiryDate = new Date(dto.expiryDate);
+    if (dto.issuingAuthority) payload.issuingAuthority = dto.issuingAuthority;
+    if (dto.metadata) payload.metadata = dto.metadata;
+    if (dto.isPublic !== undefined) payload.isPublic = dto.isPublic;
+    if (dto.allowedViewers) payload.allowedViewers = dto.allowedViewers.map((id) => new UserId(id));
 
-  updateAccessControlDtoToParams(dto: UpdateAccessControlDto) {
-    return {
-      isPublic: dto.isPublic ?? undefined,
-      allowedViewers: dto.allowedViewers?.map((id) => new UserId(id)) || [],
-    };
+    return payload;
   }
 
   // ============================================================================
-  // HELPER METHODS
+  // PRIVATE HELPERS
   // ============================================================================
 
-  private generateDownloadUrl(documentId: DocumentId): string {
-    return `/api/v1/documents/${documentId.value}/download`;
-  }
-
-  private generatePreviewUrl(documentId: DocumentId): string {
-    return `/api/v1/documents/${documentId.value}/preview`;
-  }
-
-  private isPreviewable(mimeType: MimeType): boolean {
-    const previewableMimeTypes = [
-      'application/pdf',
-      'image/jpeg',
-      'image/jpg',
-      'image/png',
-      'image/webp',
-      'image/gif',
-      'text/plain',
-      'text/markdown',
-    ];
-    return previewableMimeTypes.includes(mimeType.value);
-  }
-
-  /**
-   * Formats file size to human-readable format
-   */
-  formatFileSize(sizeInBytes: number): string {
-    if (sizeInBytes === 0) return '0 B';
-
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const exponent = Math.floor(Math.log(sizeInBytes) / Math.log(1024));
-    const size = (sizeInBytes / Math.pow(1024, exponent)).toFixed(2);
-
-    return `${size} ${units[exponent]}`;
-  }
-
-  /**
-   * Validates if a domain object can be mapped to response DTO
-   */
-  isValidForMapping(document: Document): boolean {
-    return !!(
-      document?.id &&
-      document.fileName &&
-      document.storagePath &&
-      document.category &&
-      document.status
-    );
-  }
+  private generateDownloadUrl = (id: DocumentId) => `/api/v1/documents/${id.value}/download`;
+  private generatePreviewUrl = (id: DocumentId) => `/api/v1/documents/${id.value}/preview`;
+  private isPreviewable = (mimeType: string) =>
+    ['application/pdf', 'image/jpeg', 'image/png'].includes(mimeType);
 }

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Param,
   Query,
   UseInterceptors,
@@ -12,11 +13,11 @@ import {
   HttpStatus,
   UseGuards,
   Req,
-  StreamableFile,
-  Header,
-  Body,
+  Res,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -25,39 +26,44 @@ import {
   ApiBody,
   ApiBearerAuth,
   ApiParam,
-  ApiQuery,
 } from '@nestjs/swagger';
-import { Request } from 'express';
-import { JwtAuthGuard } from '@shamba/auth';
+import { JwtAuthGuard, RolesGuard } from '@shamba/auth';
 
-import { DocumentVersionService } from '../../2_application/services/document-version.service';
-import { DocumentVersionResponseDto } from '../../2_application/dtos';
+import { DocumentVersionCommandService } from '../../2_application/services/document-version.command.service';
+import { DocumentVersionQueryService } from '../../2_application/services/document-version.query.service';
+import { Actor, DocumentId, UserId, DocumentVersionId } from '../../3_domain/value-objects';
+import {
+  CreateDocumentVersionDto,
+  CreateDocumentVersionResponseDto,
+  DocumentVersionQueryDto,
+  DocumentVersionResponseDto,
+} from '../../2_application/dtos';
 
-@ApiTags('Document Versions')
+@ApiTags('document-versions')
 @ApiBearerAuth()
 @Controller('documents/:documentId/versions')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class DocumentVersionController {
-  constructor(private readonly documentVersionService: DocumentVersionService) {}
+  constructor(
+    private readonly versionCommandService: DocumentVersionCommandService,
+    private readonly versionQueryService: DocumentVersionQueryService,
+  ) {}
+
+  private createActor(req: any): Actor {
+    return new Actor(new UserId(req.user.id), req.user.roles || []);
+  }
 
   @Post()
-  @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Create a new version of a document' })
-  @ApiResponse({ status: HttpStatus.CREATED, type: DocumentVersionResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Document not found' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Only owner can create versions' })
-  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid file or validation failed' })
-  @ApiParam({ name: 'documentId', type: String, description: 'Document ID' })
+  @ApiOperation({ summary: 'Create a new document version' })
+  @ApiResponse({ status: HttpStatus.CREATED, type: CreateDocumentVersionResponseDto })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
+        file: { type: 'string', format: 'binary' },
         changeNote: { type: 'string', nullable: true },
       },
     },
@@ -67,82 +73,148 @@ export class DocumentVersionController {
     @UploadedFile(
       new ParseFilePipe({
         validators: [
-          new MaxFileSizeValidator({ maxSize: 50 * 1024 * 1024 }), // 50MB
-          new FileTypeValidator({ fileType: /(pdf|jpg|jpeg|png|doc|docx|txt)$/ }),
+          new MaxFileSizeValidator({ maxSize: 100 * 1024 * 1024 }),
+          new FileTypeValidator({
+            fileType:
+              /^(application\/pdf|image\/(jpeg|png|gif)|text\/plain|application\/(msword|vnd.openxmlformats-officedocument.wordprocessingml.document))$/,
+          }),
         ],
       }),
     )
     file: Express.Multer.File,
-    @Body('changeNote') changeNote?: string,
-    @Req() req: Request,
-  ): Promise<DocumentVersionResponseDto> {
-    const userId = (req.user as any).id;
-    const userName = (req.user as any).name || (req.user as any).email;
+    @Body() dto: CreateDocumentVersionDto,
+    @Req() req: any,
+  ): Promise<CreateDocumentVersionResponseDto> {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
 
-    return this.documentVersionService.createVersion({
-      documentId,
-      file: file.buffer,
-      filename: file.originalname,
-      mimeType: file.mimetype,
-      uploadedBy: userId,
-      uploadedByName: userName,
-      changeNote,
-    });
+    const actor = this.createActor(req);
+    return this.versionCommandService.createNewVersion(
+      new DocumentId(documentId),
+      dto,
+      file.buffer,
+      file.originalname,
+      actor,
+    );
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all versions of a document' })
+  @ApiOperation({ summary: 'Get all versions for a document' })
   @ApiResponse({ status: HttpStatus.OK, type: [DocumentVersionResponseDto] })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Document not found' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied' })
-  @ApiParam({ name: 'documentId', type: String, description: 'Document ID' })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
   async getVersions(
     @Param('documentId') documentId: string,
-    @Req() req: Request,
-  ): Promise<DocumentVersionResponseDto[]> {
-    const userId = (req.user as any).id;
-    return this.documentVersionService.getDocumentVersions(documentId, userId, {
-      includeDownloadUrl: true,
-    });
+    @Query() dto: DocumentVersionQueryDto,
+    @Req() req: any,
+  ): Promise<any> {
+    const actor = this.createActor(req);
+    return this.versionQueryService.getAllVersionsForDocument(
+      new DocumentId(documentId),
+      dto,
+      actor,
+    );
+  }
+
+  @Get('latest')
+  @ApiOperation({ summary: 'Get the latest version of a document' })
+  @ApiResponse({ status: HttpStatus.OK, type: DocumentVersionResponseDto })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  async getLatestVersion(
+    @Param('documentId') documentId: string,
+    @Req() req: any,
+  ): Promise<DocumentVersionResponseDto> {
+    const actor = this.createActor(req);
+    return this.versionQueryService.getLatestVersion(new DocumentId(documentId), actor);
   }
 
   @Get(':versionNumber')
-  @ApiOperation({ summary: 'Get specific version of a document' })
+  @ApiOperation({ summary: 'Get specific version by number' })
   @ApiResponse({ status: HttpStatus.OK, type: DocumentVersionResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Version not found' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied' })
-  @ApiParam({ name: 'documentId', type: String, description: 'Document ID' })
-  @ApiParam({ name: 'versionNumber', type: Number, description: 'Version number' })
-  async getVersion(
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiParam({ name: 'versionNumber', description: 'Version number' })
+  async getVersionByNumber(
     @Param('documentId') documentId: string,
-    @Param('versionNumber') versionNumber: number,
-    @Req() req: Request,
+    @Param('versionNumber') versionNumber: string,
+    @Req() req: any,
   ): Promise<DocumentVersionResponseDto> {
-    const userId = (req.user as any).id;
-    return this.documentVersionService.getVersion(documentId, versionNumber, userId);
+    const actor = this.createActor(req);
+    return this.versionQueryService.getVersionByNumber(
+      new DocumentId(documentId),
+      parseInt(versionNumber),
+      actor,
+    );
   }
 
   @Get(':versionNumber/download')
-  @ApiOperation({ summary: 'Download specific version of a document' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'File download' })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Version not found' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied' })
-  @ApiParam({ name: 'documentId', type: String, description: 'Document ID' })
-  @ApiParam({ name: 'versionNumber', type: Number, description: 'Version number' })
-  @Header('Content-Type', 'application/octet-stream')
-  @Header('Content-Disposition', 'attachment')
+  @ApiOperation({ summary: 'Download specific version' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'File stream' })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiParam({ name: 'versionNumber', description: 'Version number' })
   async downloadVersion(
     @Param('documentId') documentId: string,
-    @Param('versionNumber') versionNumber: number,
-    @Req() req: Request,
-  ): Promise<StreamableFile> {
-    const userId = (req.user as any).id;
-    const fileBuffer = await this.documentVersionService.getVersionFile(
-      documentId,
-      versionNumber,
-      userId,
+    @Param('versionNumber') versionNumber: string,
+    @Req() req: any,
+    @Res() res: Response,
+  ): Promise<void> {
+    const actor = this.createActor(req);
+    const result = await this.versionQueryService.downloadVersion(
+      new DocumentId(documentId),
+      parseInt(versionNumber),
+      actor,
     );
 
-    return new StreamableFile(fileBuffer);
+    res.setHeader('Content-Type', result.mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
+    res.setHeader('Content-Length', result.buffer.length);
+    res.send(result.buffer);
+  }
+
+  @Get(':versionNumber/download-url')
+  @ApiOperation({ summary: 'Get secure download URL for version' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Pre-signed URL' })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiParam({ name: 'versionNumber', description: 'Version number' })
+  async getVersionDownloadUrl(
+    @Param('documentId') documentId: string,
+    @Param('versionNumber') versionNumber: string,
+    @Req() req: any,
+  ): Promise<{ url: string }> {
+    const actor = this.createActor(req);
+    const url = await this.versionQueryService.getVersionDownloadUrl(
+      new DocumentId(documentId),
+      parseInt(versionNumber),
+      actor,
+    );
+    return { url };
+  }
+
+  @Delete(':versionNumber')
+  @ApiOperation({ summary: 'Delete a specific version' })
+  @ApiResponse({ status: HttpStatus.NO_CONTENT })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  @ApiParam({ name: 'versionNumber', description: 'Version number' })
+  async deleteVersion(
+    @Param('documentId') documentId: string,
+    @Param('versionNumber') versionNumber: string,
+    @Req() req: any,
+  ): Promise<void> {
+    const actor = this.createActor(req);
+    await this.versionCommandService.deleteVersion(
+      new DocumentId(documentId),
+      parseInt(versionNumber),
+      actor,
+    );
+  }
+
+  @Get('stats/storage')
+  @ApiOperation({ summary: 'Get version storage statistics' })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  async getVersionStorageStats(
+    @Param('documentId') documentId: string,
+    @Req() req: any,
+  ): Promise<any> {
+    const actor = this.createActor(req);
+    return this.versionQueryService.getVersionStats(new DocumentId(documentId), actor);
   }
 }
