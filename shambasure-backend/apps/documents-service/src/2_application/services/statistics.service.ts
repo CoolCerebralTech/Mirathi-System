@@ -1,11 +1,6 @@
 import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
-import type {
-  IDocumentQueryRepository,
-  IDocumentVersionQueryRepository,
-  IDocumentVerificationAttemptQueryRepository,
-  FindDocumentsFilters,
-} from '../../3_domain/interfaces';
-import { Actor, UserId } from '../../3_domain/value-objects';
+import type { IDocumentQueryRepository, FindDocumentsFilters } from '../../3_domain/interfaces';
+import { Actor, DocumentCategory, DocumentStatus, UserId } from '../../3_domain/value-objects';
 import { StatisticsMapper } from '../mappers';
 import {
   DashboardAnalyticsResponseDto,
@@ -27,6 +22,26 @@ export interface AnalyticsFilters {
   storageProvider?: string;
 }
 
+interface DocumentStats {
+  total: number;
+  byStatus: Record<string, number>;
+  byCategory: Record<string, number>;
+  totalSizeBytes: number;
+  averageSizeBytes: number;
+  encrypted: number;
+  public: number;
+  expired: number;
+}
+
+interface VerificationMetrics {
+  totalAttempts: number;
+  totalVerified: number;
+  totalRejected: number;
+  totalPending: number;
+  averageVerificationTimeHours: number;
+  byVerifier: Record<string, { verified: number; rejected: number }>;
+}
+
 /**
  * StatisticsService - Application Service for Read-Only Analytics
  *
@@ -39,8 +54,6 @@ export class StatisticsService {
 
   constructor(
     private readonly documentQueryRepo: IDocumentQueryRepository,
-    private readonly versionQueryRepo: IDocumentVersionQueryRepository,
-    private readonly attemptQueryRepo: IDocumentVerificationAttemptQueryRepository,
     private readonly statisticsMapper: StatisticsMapper,
   ) {}
 
@@ -59,20 +72,35 @@ export class StatisticsService {
 
     const range = timeRange || this.getDefaultTimeRange();
 
-    // Fetch all data in parallel
-    const [documents, storage, verification, uploads] = await Promise.all([
-      this.getDocumentAnalytics(actor, range),
-      actor.isAdmin() ? this.getStorageAnalytics(actor, range) : Promise.resolve(null),
-      actor.isAdmin() || actor.isVerifier()
-        ? this.getVerificationMetrics(actor, range)
-        : Promise.resolve(null),
-      this.getUploadAnalytics(actor, range),
+    // Get verification data with proper type handling
+    let verificationData: VerificationMetrics;
+
+    if (actor.isAdmin() || actor.isVerifier()) {
+      const repoMetrics = await this.documentQueryRepo.getVerificationMetrics(range);
+
+      // Transform repository data to match our VerificationMetrics interface
+      verificationData = {
+        totalAttempts: repoMetrics.totalVerified + repoMetrics.totalRejected, // Calculate totalAttempts
+        totalVerified: repoMetrics.totalVerified,
+        totalRejected: repoMetrics.totalRejected,
+        totalPending: repoMetrics.totalPending,
+        averageVerificationTimeHours: repoMetrics.averageVerificationTimeHours,
+        byVerifier: repoMetrics.byVerifier,
+      };
+    } else {
+      verificationData = this.getEmptyVerificationMetricsRaw();
+    }
+
+    const [documents, storage, uploads] = await Promise.all([
+      this.getDocumentAnalytics(actor),
+      actor.isAdmin() ? this.getStorageAnalytics(actor) : this.getEmptyStorageAnalytics(),
+      this.getUploadAnalytics(range, actor),
     ]);
 
     return this.statisticsMapper.toDashboardAnalyticsDto({
       documents,
       storage,
-      verification,
+      verification: verificationData,
       uploads,
       timeRange: range,
     });
@@ -96,14 +124,14 @@ export class StatisticsService {
 
     const [documentStats, verificationMetrics, uploadStats] = await Promise.all([
       this.getDocumentAnalytics(actor),
-      actor.isAdmin() || actor.isVerifier() ? this.getVerificationMetrics(actor, range) : null,
-      this.getUploadAnalytics(actor, range),
+      actor.isAdmin() || actor.isVerifier()
+        ? this.getVerificationMetrics(range, actor)
+        : Promise.resolve(this.getEmptyVerificationMetrics()), // Use the empty DTO instead of null
+      this.getUploadAnalytics(range, actor),
     ]);
 
     // Calculate business metrics
-    const totalProcessed = verificationMetrics
-      ? verificationMetrics.totalVerified + verificationMetrics.totalRejected
-      : 0;
+    const totalProcessed = verificationMetrics.totalVerified + verificationMetrics.totalRejected;
 
     const verificationRate =
       totalProcessed > 0 ? (verificationMetrics.totalVerified / totalProcessed) * 100 : 0;
@@ -132,7 +160,7 @@ export class StatisticsService {
 
   async getDocumentAnalytics(
     actor: Actor,
-    filters?: AnalyticsFilters & { timeRange?: TimeRange },
+    filters?: AnalyticsFilters,
   ): Promise<DocumentAnalyticsResponseDto> {
     this.logger.debug(`Fetching document analytics for actor ${actor.id.value}`);
 
@@ -148,14 +176,16 @@ export class StatisticsService {
     }
 
     if (filters?.category) {
-      queryFilters.category = filters.category;
+      // Convert string to DocumentCategory value object
+      queryFilters.category = DocumentCategory.create(filters.category);
     }
 
     if (filters?.status) {
-      queryFilters.status = filters.status;
+      // Convert string to DocumentStatus value object
+      queryFilters.status = DocumentStatus.create(filters.status);
     }
 
-    const stats = await this.documentQueryRepo.getStats(queryFilters);
+    const stats: DocumentStats = await this.documentQueryRepo.getStats(queryFilters);
     return this.statisticsMapper.toDocumentAnalyticsDto(stats);
   }
 
@@ -169,15 +199,22 @@ export class StatisticsService {
   }> {
     this.logger.debug(`Fetching document trends for actor ${actor.id.value}`);
 
-    const [uploadStats, verificationMetrics] = await Promise.all([
+    const [uploadStats] = await Promise.all([
       this.documentQueryRepo.getUploadStats(timeRange),
       this.documentQueryRepo.getVerificationMetrics(timeRange),
     ]);
 
+    // Transform upload stats to use sizeBytes instead of totalBytes
+    const uploadTrend = uploadStats.byDay.map((day) => ({
+      date: day.date,
+      count: day.count,
+      sizeBytes: day.totalBytes, // Map totalBytes to sizeBytes
+    }));
+
     return {
-      uploadTrend: uploadStats.byDay,
-      verificationTrend: this.transformVerificationTrend(verificationMetrics, timeRange),
-      storageTrend: this.calculateStorageTrend(uploadStats.byDay),
+      uploadTrend,
+      verificationTrend: this.transformVerificationTrend(),
+      storageTrend: this.calculateStorageTrend(uploadTrend), // Use the transformed uploadTrend
     };
   }
 
@@ -185,20 +222,29 @@ export class StatisticsService {
   // STORAGE ANALYTICS
   // ============================================================================
 
-  async getStorageAnalytics(
-    actor: Actor,
-    filters?: AnalyticsFilters,
-  ): Promise<StorageAnalyticsResponseDto> {
+  async getStorageAnalytics(actor: Actor): Promise<StorageAnalyticsResponseDto> {
     this.logger.debug(`Fetching storage analytics for actor ${actor.id.value}`);
 
     if (!actor.isAdmin()) {
       throw new ForbiddenException('Only admins can view storage analytics');
     }
 
-    const storageStats = await this.documentQueryRepo.getStorageStats();
-    return this.statisticsMapper.toStorageAnalyticsDto(storageStats);
-  }
+    const repoStats = await this.documentQueryRepo.getStorageStats();
 
+    // Transform the data to match exactly what the mapper expects
+    const mapperCompatibleData = {
+      totalSizeBytes: repoStats.totalSizeBytes,
+      byCategory: repoStats.byCategory,
+      byStorageProvider: repoStats.byStorageProvider,
+      byUser: repoStats.byUser.map((user) => ({
+        userId: user.userId,
+        totalBytes: user.totalBytes,
+        documentCount: user.documentCount,
+      })),
+    };
+
+    return this.statisticsMapper.toStorageAnalyticsDto(mapperCompatibleData);
+  }
   async getStorageUsageByCategory(
     actor: Actor,
   ): Promise<
@@ -224,16 +270,13 @@ export class StatisticsService {
     });
   }
 
-  async getVersionStorageAnalytics(
-    actor: Actor,
-    documentId?: string,
-  ): Promise<{
+  getVersionStorageAnalytics(actor: Actor): {
     totalVersions: number;
     totalVersionSizeBytes: number;
     averageVersionsPerDocument: number;
     largestVersion: number;
     versionSizeTrend: Array<{ versionNumber: number; sizeBytes: number }>;
-  }> {
+  } {
     this.logger.debug(`Fetching version storage analytics for actor ${actor.id.value}`);
 
     // This would typically come from a specialized query
@@ -252,8 +295,8 @@ export class StatisticsService {
   // ============================================================================
 
   async getVerificationMetrics(
-    actor: Actor,
     timeRange: TimeRange,
+    actor: Actor,
   ): Promise<VerificationMetricsResponseDto> {
     this.logger.debug(`Fetching verification metrics for actor ${actor.id.value}`);
 
@@ -261,13 +304,27 @@ export class StatisticsService {
       throw new ForbiddenException('Only admins and verifiers can view verification metrics');
     }
 
-    const metrics = await this.documentQueryRepo.getVerificationMetrics(timeRange);
-    return this.statisticsMapper.toVerificationMetricsDto(metrics);
+    const repoMetrics = await this.documentQueryRepo.getVerificationMetrics(timeRange);
+
+    // Calculate derived metrics
+    const totalAttempts = repoMetrics.totalVerified + repoMetrics.totalRejected;
+    const totalProcessed = totalAttempts;
+    const successRate = totalProcessed > 0 ? (repoMetrics.totalVerified / totalProcessed) * 100 : 0;
+
+    // Create a single object with all metrics for the mapper
+    const metricsData = {
+      ...repoMetrics,
+      totalAttempts,
+      totalProcessed,
+      successRate,
+    };
+
+    return this.statisticsMapper.toVerificationMetricsDto(metricsData);
   }
 
   async getVerificationAnalytics(
-    actor: Actor,
     timeRange: TimeRange,
+    actor: Actor,
   ): Promise<{
     metrics: VerificationMetricsResponseDto;
     topRejectionReasons: Array<{ reason: string; count: number; percentage: number }>;
@@ -294,15 +351,13 @@ export class StatisticsService {
     }
 
     const [metrics, performanceData] = await Promise.all([
-      this.getVerificationMetrics(actor, timeRange),
-      this.getVerifierPerformance(actor, timeRange),
+      this.getVerificationMetrics(timeRange, actor),
+      this.getVerifierPerformance(timeRange, actor),
     ]);
 
-    // Calculate top rejection reasons (this would come from repository in real implementation)
-    const topRejectionReasons = await this.calculateTopRejectionReasons(timeRange);
-
-    // Calculate turnaround time (this would come from repository in real implementation)
-    const turnaroundTime = await this.calculateTurnaroundTime(timeRange);
+    // Remove the timeRange parameter from these calls
+    const topRejectionReasons = this.calculateTopRejectionReasons();
+    const turnaroundTime = this.calculateTurnaroundTime();
 
     return {
       metrics,
@@ -313,8 +368,8 @@ export class StatisticsService {
   }
 
   async getVerifierPerformance(
-    actor: Actor,
     timeRange: TimeRange,
+    actor: Actor,
   ): Promise<
     Array<{
       verifierId: string;
@@ -350,15 +405,12 @@ export class StatisticsService {
     });
   }
 
-  async getComplianceAnalytics(
-    actor: Actor,
-    timeRange: TimeRange,
-  ): Promise<{
+  getComplianceAnalytics(actor: Actor): {
     complianceRate: number;
     auditTrail: Array<{ date: string; activity: string; count: number }>;
     policyAdherence: Record<string, number>;
     riskAreas: Array<{ area: string; riskLevel: 'high' | 'medium' | 'low'; count: number }>;
-  }> {
+  } {
     this.logger.debug(`Fetching compliance analytics for actor ${actor.id.value}`);
 
     if (!actor.isAdmin()) {
@@ -379,24 +431,23 @@ export class StatisticsService {
   // ============================================================================
 
   async getUploadAnalytics(
-    actor: Actor,
     timeRange: TimeRange,
+    actor: Actor,
   ): Promise<UploadAnalyticsResponseDto> {
     this.logger.debug(`Fetching upload analytics for actor ${actor.id.value}`);
 
-    // Apply access control
-    const filters: FindDocumentsFilters = {};
-    if (!actor.isAdmin()) {
-      filters.uploaderId = actor.id;
-    }
-
+    // The repository returns data with 'totalBytes'.
+    // The mapper is responsible for transforming this into the final DTO shape.
     const uploadStats = await this.documentQueryRepo.getUploadStats(timeRange);
+
+    // Pass the raw stats directly to the mapper. The mapper function expects
+    // the 'byDay' array to contain objects with 'totalBytes'.
     return this.statisticsMapper.toUploadAnalyticsDto(uploadStats);
   }
 
   async getUploadTrends(
-    actor: Actor,
     timeRange: TimeRange,
+    actor: Actor,
   ): Promise<{
     dailyUploads: Array<{ date: string; count: number; sizeBytes: number }>;
     byCategory: Record<string, number>;
@@ -405,27 +456,29 @@ export class StatisticsService {
   }> {
     this.logger.debug(`Fetching upload trends for actor ${actor.id.value}`);
 
-    const uploadStats = await this.getUploadAnalytics(actor, timeRange);
+    const uploadStats = await this.getUploadAnalytics(timeRange, actor);
 
-    // Calculate peak hours (this would come from repository in real implementation)
-    const peakHours = this.calculatePeakHours(uploadStats.byDay);
-
-    // Calculate by user (this would come from repository in real implementation)
-    const byUser = await this.calculateUploadsByUser(timeRange, actor);
+    // FIX 1: Call helper functions without arguments as per their definitions
+    const peakHours = this.calculatePeakHours();
+    const byUser = this.calculateUploadsByUser();
 
     return {
-      dailyUploads: uploadStats.byDay,
+      // FIX 2: Map the byDay array to rename 'totalBytes' to 'sizeBytes'
+      dailyUploads: uploadStats.byDay.map((day) => ({
+        date: day.date,
+        count: day.count,
+        sizeBytes: day.totalBytes,
+      })),
       byCategory: uploadStats.byCategory,
       byUser,
       peakHours,
     };
   }
-
   // ============================================================================
   // SYSTEM HEALTH ANALYTICS
   // ============================================================================
 
-  async getSystemHealthMetrics(actor: Actor): Promise<{
+  getSystemHealthMetrics(actor: Actor): {
     uptime: number;
     errorRates: Record<string, number>;
     performance: {
@@ -439,7 +492,7 @@ export class StatisticsService {
       availableCapacity: number;
       usagePercentage: number;
     };
-  }> {
+  } {
     this.logger.debug(`Fetching system health metrics for actor ${actor.id.value}`);
 
     if (!actor.isAdmin()) {
@@ -479,10 +532,11 @@ export class StatisticsService {
     };
   }
 
-  private transformVerificationTrend(
-    metrics: any,
-    timeRange: TimeRange,
-  ): Array<{ date: string; verified: number; rejected: number }> {
+  private transformVerificationTrend(): Array<{
+    date: string;
+    verified: number;
+    rejected: number;
+  }> {
     // This would transform the verification metrics into a daily trend
     // For now, return empty array - in real implementation, you'd process the data
     return [];
@@ -502,9 +556,11 @@ export class StatisticsService {
     });
   }
 
-  private async calculateTopRejectionReasons(
-    timeRange: TimeRange,
-  ): Promise<Array<{ reason: string; count: number; percentage: number }>> {
+  private calculateTopRejectionReasons(): Array<{
+    reason: string;
+    count: number;
+    percentage: number;
+  }> {
     // This would query the attempt repository for top rejection reasons
     // For now, return mock data
     return [
@@ -516,12 +572,12 @@ export class StatisticsService {
     ];
   }
 
-  private async calculateTurnaroundTime(timeRange: TimeRange): Promise<{
+  private calculateTurnaroundTime(): {
     average: number;
     min: number;
     max: number;
     byVerifier: Record<string, number>;
-  }> {
+  } {
     // This would calculate verification turnaround times
     // For now, return mock data
     return {
@@ -536,9 +592,7 @@ export class StatisticsService {
     };
   }
 
-  private calculatePeakHours(
-    dailyUploads: Array<{ date: string; count: number; sizeBytes: number }>,
-  ): Array<{ hour: number; count: number }> {
+  private calculatePeakHours(): Array<{ hour: number; count: number }> {
     // Calculate peak upload hours (simplified)
     // In real implementation, you'd have hourly data
     return [
@@ -550,10 +604,12 @@ export class StatisticsService {
     ];
   }
 
-  private async calculateUploadsByUser(
-    timeRange: TimeRange,
-    actor: Actor,
-  ): Promise<Array<{ userId: string; userName?: string; count: number; sizeBytes: number }>> {
+  private calculateUploadsByUser(): Array<{
+    userId: string;
+    userName?: string;
+    count: number;
+    sizeBytes: number;
+  }> {
     // This would query for uploads by user
     // For now, return mock data
     return [
@@ -570,5 +626,36 @@ export class StatisticsService {
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  }
+
+  private getEmptyStorageAnalytics(): Promise<StorageAnalyticsResponseDto> {
+    return Promise.resolve({
+      totalSizeBytes: 0,
+      byCategory: {},
+      byStorageProvider: {},
+      byUser: [],
+    });
+  }
+
+  private getEmptyVerificationMetrics(): VerificationMetricsResponseDto {
+    return {
+      totalVerified: 0,
+      totalRejected: 0,
+      totalPending: 0,
+      totalProcessed: 0, // Calculated field
+      successRate: 0, // Calculated field
+      averageVerificationTimeHours: 0,
+      byVerifier: {},
+    };
+  }
+  private getEmptyVerificationMetricsRaw(): VerificationMetrics {
+    return {
+      totalAttempts: 0,
+      totalVerified: 0,
+      totalRejected: 0,
+      totalPending: 0,
+      averageVerificationTimeHours: 0,
+      byVerifier: {},
+    };
   }
 }

@@ -9,8 +9,9 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { IDocumentRepository } from '../../3_domain/interfaces';
 import { Document } from '../../3_domain/models';
-import { Actor, DocumentId, RejectionReason } from '../../3_domain/value-objects';
-import { DocumentVerificationAttemptMapper } from '../mappers';
+import { Actor, DocumentId, RejectionReason, UserId } from '../../3_domain/value-objects';
+import { DocumentStatusEnum } from '../../3_domain/value-objects/document-status.vo';
+import { DocumentMapper } from '../mappers';
 import { VerifyDocumentDto, VerifyDocumentResponseDto } from '../dtos/verify-document.dto';
 
 @Injectable()
@@ -19,7 +20,7 @@ export class DocumentVerificationCommandService {
 
   constructor(
     private readonly documentRepository: IDocumentRepository,
-    private readonly verificationMapper: DocumentVerificationAttemptMapper,
+    private readonly documentMapper: DocumentMapper,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -52,10 +53,10 @@ export class DocumentVerificationCommandService {
     let verificationAttemptId: string;
 
     try {
-      // 4. Perform verification or rejection
-      if (dto.status === 'VERIFIED') {
+      // 4. Perform verification or rejection - use DocumentStatusEnum for type-safe comparison
+      if (dto.status === DocumentStatusEnum.VERIFIED) {
         document.verify(actor);
-      } else if (dto.status === 'REJECTED') {
+      } else if (dto.status === DocumentStatusEnum.REJECTED) {
         if (!dto.reason) {
           throw new BadRequestException('Rejection reason is required when status is REJECTED');
         }
@@ -64,15 +65,20 @@ export class DocumentVerificationCommandService {
         throw new BadRequestException(`Invalid verification status: ${dto.status}`);
       }
 
-      // 5. Update document details if provided
+      // 5. Update document details if provided - use proper type
       if (dto.documentNumber || dto.extractedData) {
-        const updates: any = {};
-        if (dto.documentNumber) updates.documentNumber = dto.documentNumber;
-
-        document.updateDocumentDetails({
-          ...updates,
+        const updates: {
+          documentNumber?: string;
+          updatedBy: UserId;
+        } = {
           updatedBy: actor.id,
-        });
+        };
+
+        if (dto.documentNumber) {
+          updates.documentNumber = dto.documentNumber;
+        }
+
+        document.updateDocumentDetails(updates);
 
         if (dto.extractedData) {
           document.updateMetadata(dto.extractedData, actor.id);
@@ -93,18 +99,22 @@ export class DocumentVerificationCommandService {
         `Document ${documentId.value} has been ${dto.status.toLowerCase()} by ${actor.id.value}`,
       );
 
-      return this.verificationMapper.toVerifyResponseDto(document, verificationAttemptId);
-    } catch (error) {
+      // Use DocumentMapper instead of DocumentVerificationAttemptMapper
+      return this.documentMapper.toVerifyResponseDto(document, verificationAttemptId);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      const stackTrace = error instanceof Error ? error.stack : undefined;
+
       this.logger.error(
-        `Failed to verify document ${documentId.value}: ${error.message}`,
-        error.stack,
+        `Failed to verify document ${documentId.value}: ${errorMessage}`,
+        stackTrace,
       );
 
       if (error instanceof BadRequestException || error instanceof ForbiddenException) {
         throw error;
       }
 
-      throw new BadRequestException(`Failed to verify document: ${error.message}`);
+      throw new BadRequestException(`Failed to verify document: ${errorMessage}`);
     }
   }
 
@@ -113,7 +123,7 @@ export class DocumentVerificationCommandService {
    */
   async bulkVerifyDocuments(
     documentIds: DocumentId[],
-    status: 'VERIFIED' | 'REJECTED',
+    status: DocumentStatusEnum.VERIFIED | DocumentStatusEnum.REJECTED,
     actor: Actor,
     reason?: string,
   ): Promise<{
@@ -129,7 +139,7 @@ export class DocumentVerificationCommandService {
       throw new ForbiddenException('Only verifiers and admins can perform bulk verification');
     }
 
-    if (status === 'REJECTED' && !reason) {
+    if (status === DocumentStatusEnum.REJECTED && !reason) {
       throw new BadRequestException('Rejection reason is required for bulk rejection');
     }
 
@@ -147,17 +157,18 @@ export class DocumentVerificationCommandService {
         this.validateDocumentForVerification(document, actor);
 
         // Perform verification or rejection
-        if (status === 'VERIFIED') {
+        if (status === DocumentStatusEnum.VERIFIED) {
           document.verify(actor);
         } else {
           document.reject(actor, RejectionReason.create(reason!));
         }
 
         processed.push(document);
-      } catch (error) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         failed.push({
           documentId: document.id,
-          error: error.message,
+          error: errorMessage,
         });
       }
     }
@@ -227,7 +238,7 @@ export class DocumentVerificationCommandService {
     // Reset status to pending for re-verification
     // Note: This is a simplification - in a real system, you might have a different workflow
     document.updateDocumentDetails({
-      documentNumber: document.documentNumber,
+      documentNumber: document.documentNumber ?? undefined, // Convert null to undefined
       updatedBy: actor.id,
     });
 
@@ -237,7 +248,7 @@ export class DocumentVerificationCommandService {
     this.logger.log(`Document ${documentId.value} marked for re-verification by ${actor.id.value}`);
 
     // Return a response indicating the document is pending verification again
-    return this.verificationMapper.toVerifyResponseDto(document, 're-verification-requested');
+    return this.documentMapper.toVerifyResponseDto(document, 're-verification-requested');
   }
 
   // ============================================================================

@@ -18,7 +18,7 @@ import {
   Body,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Response } from 'express';
+import type { Request, Response } from 'express'; // Fixed: Added Request import
 import {
   ApiTags,
   ApiOperation,
@@ -48,6 +48,17 @@ interface AuthenticatedRequest extends Request {
   };
 }
 
+// Define the paginated response interface to match the service
+interface PaginatedVersionsResponse {
+  data: DocumentVersionResponseDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
 @ApiTags('document-versions')
 @ApiBearerAuth()
 @Controller('documents/:documentId/versions')
@@ -67,6 +78,9 @@ export class DocumentVersionController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create a new document version' })
   @ApiResponse({ status: HttpStatus.CREATED, type: CreateDocumentVersionResponseDto })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid file or validation failed' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Document not found' })
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
   @ApiBody({
     schema: {
@@ -75,6 +89,7 @@ export class DocumentVersionController {
         file: { type: 'string', format: 'binary' },
         changeNote: { type: 'string', nullable: true },
       },
+      required: ['file'],
     },
   })
   async createVersion(
@@ -110,13 +125,16 @@ export class DocumentVersionController {
 
   @Get()
   @ApiOperation({ summary: 'Get all versions for a document' })
-  @ApiResponse({ status: HttpStatus.OK, type: [DocumentVersionResponseDto] })
+  @ApiResponse({ status: HttpStatus.OK, type: Object }) // Fixed: Updated to reflect paginated response
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Document not found' })
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
   async getVersions(
     @Param('documentId') documentId: string,
     @Query() dto: DocumentVersionQueryDto,
     @Req() req: AuthenticatedRequest,
-  ): Promise<any> {
+  ): Promise<PaginatedVersionsResponse> {
+    // Fixed: Added proper return type
     const actor = this.createActor(req);
     return await this.versionQueryService.getAllVersionsForDocument(
       new DocumentId(documentId),
@@ -128,6 +146,8 @@ export class DocumentVersionController {
   @Get('latest')
   @ApiOperation({ summary: 'Get the latest version of a document' })
   @ApiResponse({ status: HttpStatus.OK, type: DocumentVersionResponseDto })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Document or version not found' })
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
   async getLatestVersion(
     @Param('documentId') documentId: string,
@@ -140,17 +160,25 @@ export class DocumentVersionController {
   @Get(':versionNumber')
   @ApiOperation({ summary: 'Get specific version by number' })
   @ApiResponse({ status: HttpStatus.OK, type: DocumentVersionResponseDto })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Document or version not found' })
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
-  @ApiParam({ name: 'versionNumber', description: 'Version number' })
+  @ApiParam({ name: 'versionNumber', description: 'Version number', type: Number })
   async getVersionByNumber(
     @Param('documentId') documentId: string,
     @Param('versionNumber') versionNumber: string,
     @Req() req: AuthenticatedRequest,
   ): Promise<DocumentVersionResponseDto> {
     const actor = this.createActor(req);
+    const versionNum = parseInt(versionNumber, 10);
+
+    if (isNaN(versionNum) || versionNum < 1) {
+      throw new BadRequestException('Version number must be a positive integer');
+    }
+
     return await this.versionQueryService.getVersionByNumber(
       new DocumentId(documentId),
-      parseInt(versionNumber, 10),
+      versionNum,
       actor,
     );
   }
@@ -158,8 +186,10 @@ export class DocumentVersionController {
   @Get(':versionNumber/download')
   @ApiOperation({ summary: 'Download specific version' })
   @ApiResponse({ status: HttpStatus.OK, description: 'File stream' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Document or version not found' })
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
-  @ApiParam({ name: 'versionNumber', description: 'Version number' })
+  @ApiParam({ name: 'versionNumber', description: 'Version number', type: Number })
   async downloadVersion(
     @Param('documentId') documentId: string,
     @Param('versionNumber') versionNumber: string,
@@ -167,32 +197,46 @@ export class DocumentVersionController {
     @Res() res: Response,
   ): Promise<void> {
     const actor = this.createActor(req);
+    const versionNum = parseInt(versionNumber, 10);
+
+    if (isNaN(versionNum) || versionNum < 1) {
+      throw new BadRequestException('Version number must be a positive integer');
+    }
+
     const result = await this.versionQueryService.downloadVersion(
       new DocumentId(documentId),
-      parseInt(versionNumber, 10),
+      versionNum,
       actor,
     );
 
     res.setHeader('Content-Type', result.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
-    res.setHeader('Content-Length', result.buffer.length.toString());
+    res.setHeader('Content-Length', result.size.toString()); // Fixed: Use result.size instead of buffer.length
     res.send(result.buffer);
   }
 
   @Get(':versionNumber/download-url')
   @ApiOperation({ summary: 'Get secure download URL for version' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Pre-signed URL' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Document or version not found' })
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
-  @ApiParam({ name: 'versionNumber', description: 'Version number' })
+  @ApiParam({ name: 'versionNumber', description: 'Version number', type: Number })
   async getVersionDownloadUrl(
     @Param('documentId') documentId: string,
     @Param('versionNumber') versionNumber: string,
     @Req() req: AuthenticatedRequest,
   ): Promise<{ url: string }> {
     const actor = this.createActor(req);
+    const versionNum = parseInt(versionNumber, 10);
+
+    if (isNaN(versionNum) || versionNum < 1) {
+      throw new BadRequestException('Version number must be a positive integer');
+    }
+
     const url = await this.versionQueryService.getVersionDownloadUrl(
       new DocumentId(documentId),
-      parseInt(versionNumber, 10),
+      versionNum,
       actor,
     );
     return { url };
@@ -200,30 +244,57 @@ export class DocumentVersionController {
 
   @Delete(':versionNumber')
   @ApiOperation({ summary: 'Delete a specific version' })
-  @ApiResponse({ status: HttpStatus.NO_CONTENT })
+  @ApiResponse({ status: HttpStatus.NO_CONTENT, description: 'Version deleted successfully' })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid deletion request' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Document or version not found' })
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
-  @ApiParam({ name: 'versionNumber', description: 'Version number' })
+  @ApiParam({ name: 'versionNumber', description: 'Version number', type: Number })
   async deleteVersion(
     @Param('documentId') documentId: string,
     @Param('versionNumber') versionNumber: string,
     @Req() req: AuthenticatedRequest,
   ): Promise<void> {
     const actor = this.createActor(req);
-    await this.versionCommandService.deleteVersion(
-      new DocumentId(documentId),
-      parseInt(versionNumber, 10),
-      actor,
-    );
+    const versionNum = parseInt(versionNumber, 10);
+
+    if (isNaN(versionNum) || versionNum < 1) {
+      throw new BadRequestException('Version number must be a positive integer');
+    }
+
+    await this.versionCommandService.deleteVersion(new DocumentId(documentId), versionNum, actor);
   }
 
-  @Get('stats/storage')
-  @ApiOperation({ summary: 'Get version storage statistics' })
+  @Get('stats/summary')
+  @ApiOperation({ summary: 'Get version statistics' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Version statistics' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Document not found' })
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
-  async getVersionStorageStats(
+  async getVersionStats(
     @Param('documentId') documentId: string,
     @Req() req: AuthenticatedRequest,
   ): Promise<any> {
+    // Fixed: Renamed method to match service
     const actor = this.createActor(req);
     return await this.versionQueryService.getVersionStats(new DocumentId(documentId), actor);
+  }
+
+  @Get('stats/storage')
+  @ApiOperation({ summary: 'Get version storage usage' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Storage usage in bytes' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Document not found' })
+  @ApiParam({ name: 'documentId', description: 'Document UUID' })
+  async getVersionStorageUsage(
+    @Param('documentId') documentId: string, // Fixed: Renamed method for clarity
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ storageUsageBytes: number }> {
+    const actor = this.createActor(req);
+    const storageUsage = await this.versionQueryService.getVersionStorageUsage(
+      new DocumentId(documentId),
+      actor,
+    );
+    return { storageUsageBytes: storageUsage };
   }
 }

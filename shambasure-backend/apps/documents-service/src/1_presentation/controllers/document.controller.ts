@@ -20,7 +20,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -52,7 +52,6 @@ import {
   SearchDocumentsDto,
 } from '../../2_application/dtos';
 
-// Define proper types for the authenticated request
 interface AuthenticatedRequest extends Request {
   user: {
     id: string;
@@ -73,6 +72,10 @@ export class DocumentController {
   private createActor(req: AuthenticatedRequest): Actor {
     return new Actor(new UserId(req.user.id), req.user.roles || []);
   }
+
+  // ============================================================================
+  // DOCUMENT UPLOAD & MANAGEMENT
+  // ============================================================================
 
   @Post('upload')
   @HttpCode(HttpStatus.CREATED)
@@ -131,6 +134,10 @@ export class DocumentController {
     );
   }
 
+  // ============================================================================
+  // DOCUMENT QUERIES & SEARCH
+  // ============================================================================
+
   @Get()
   @ApiOperation({ summary: 'Query documents with filters and pagination' })
   @ApiResponse({ status: HttpStatus.OK, type: PaginatedDocumentsResponseDto })
@@ -152,6 +159,46 @@ export class DocumentController {
     const actor = this.createActor(req);
     return await this.documentQueryService.searchDocuments(dto, actor);
   }
+
+  @Get('accessible')
+  @ApiOperation({ summary: 'Get documents accessible by current user' })
+  @ApiResponse({ status: HttpStatus.OK, type: PaginatedDocumentsResponseDto })
+  async getAccessibleDocuments(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<PaginatedDocumentsResponseDto> {
+    const actor = this.createActor(req);
+    return await this.documentQueryService.getDocumentsAccessibleByUser(actor, page, limit);
+  }
+
+  @Get('pending-verification')
+  @Roles('VERIFIER', 'ADMIN')
+  @ApiOperation({ summary: 'Get pending verification documents' })
+  @ApiResponse({ status: HttpStatus.OK, type: PaginatedDocumentsResponseDto })
+  async getPendingVerification(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<PaginatedDocumentsResponseDto> {
+    const actor = this.createActor(req);
+    return await this.documentQueryService.getPendingVerificationDocuments(actor, page, limit);
+  }
+
+  @Get('expiring-soon')
+  @ApiOperation({ summary: 'Get documents expiring soon' })
+  @ApiResponse({ status: HttpStatus.OK })
+  async getExpiringDocuments(
+    @Query('withinDays') withinDays: number = 30,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<any[]> {
+    const actor = this.createActor(req);
+    return await this.documentQueryService.getExpiringDocuments(withinDays, actor);
+  }
+
+  // ============================================================================
+  // SINGLE DOCUMENT OPERATIONS
+  // ============================================================================
 
   @Get(':id')
   @ApiOperation({ summary: 'Get document by ID' })
@@ -197,6 +244,10 @@ export class DocumentController {
     const url = await this.documentQueryService.getDocumentDownloadUrl(new DocumentId(id), actor);
     return { url };
   }
+
+  // ============================================================================
+  // DOCUMENT ACTIONS & UPDATES
+  // ============================================================================
 
   @Put(':id/verify')
   @Roles('VERIFIER', 'ADMIN')
@@ -259,6 +310,10 @@ export class DocumentController {
     const actor = this.createActor(req);
     await this.documentCommandService.restoreDocument(new DocumentId(id), actor);
   }
+
+  // ============================================================================
+  // BULK OPERATIONS
+  // ============================================================================
 
   @Post('bulk')
   @ApiOperation({ summary: 'Perform bulk operations on documents' })

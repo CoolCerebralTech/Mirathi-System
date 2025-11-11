@@ -1,4 +1,3 @@
-// src/document.module.ts
 import { Module } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 
@@ -9,16 +8,25 @@ import { MessagingModule } from '@shamba/messaging';
 import { ObservabilityModule } from '@shamba/observability';
 import { ConfigModule, ConfigService } from '@shamba/config';
 
-// Presentation Layer
+// Infrastructure Layer - Storage Module
+import { StorageModule } from './4_infrastructure/storage/storage.module';
+
+// Presentation Layer - Controllers
 import { HealthController } from './1_presentation/health/health.controller';
 import { DocumentController } from './1_presentation/controllers/document.controller';
 import { DocumentVersionController } from './1_presentation/controllers/document-version.controller';
 import { DocumentVerificationController } from './1_presentation/controllers/document-verification.controller';
+import { StatisticsController } from './1_presentation/controllers/statistics.controller';
 
-// Application Layer - Services
-import { DocumentService } from './2_application/services/document.command.service';
-import { DocumentVersionService } from './2_application/services/document-version.command.service';
-import { DocumentVerificationService } from './2_application/services/document-verification.command.service';
+// Application Layer - Command Services (Write Operations)
+import { DocumentCommandService } from './2_application/services/document.command.service';
+import { DocumentVersionCommandService } from './2_application/services/document-version.command.service';
+import { DocumentVerificationCommandService } from './2_application/services/document-verification.command.service';
+
+// Application Layer - Query Services (Read Operations)
+import { DocumentQueryService } from './2_application/services/document.query.service';
+import { DocumentVersionQueryService } from './2_application/services/document-version.query.service';
+import { DocumentVerificationQueryService } from './2_application/services/document-verification.query.service';
 import { StatisticsService } from './2_application/services/statistics.service';
 
 // Application Layer - Mappers
@@ -28,21 +36,13 @@ import { DocumentVerificationAttemptMapper } from './2_application/mappers/docum
 import { StatisticsMapper } from './2_application/mappers/statistics.mapper';
 import { BulkOperationsMapper } from './2_application/mappers/bulk-operations.mapper';
 
-// Infrastructure Layer - Repositories
+// Infrastructure Layer - Repositories (Command Side)
 import { PrismaDocumentRepository } from './4_infrastructure/repositories/prisma-document.repository';
-import { PrismaDocumentVersionRepository } from './4_infrastructure/repositories/prisma-document-version.query.repository';
-import { PrismaDocumentVerificationAttemptRepository } from './4_infrastructure/repositories/prisma-document-verification-attempt.repository';
 
-// Infrastructure Layer - Storage
-import { StorageService } from './4_infrastructure/storage/storage.service';
-import { LocalStorageProvider } from './4_infrastructure/storage/providers/local-storage.provider';
-import { FileValidatorService } from './4_infrastructure/storage/file-validator.service';
-
-// Domain Interfaces (for dependency injection)
-import { IDocumentRepository } from './3_domain/interfaces/document-repository.interface';
-import { IDocumentVersionRepository } from './3_domain/interfaces/document-version.query.interface';
-import { IDocumentVerificationAttemptRepository } from './3_domain/interfaces/document-verification.query.interface';
-import { IStorageService } from './3_domain/interfaces/storage.service.interface';
+// Infrastructure Layer - Query Repositories (Read Side)
+import { PrismaDocumentQueryRepository } from './4_infrastructure/repositories/prisma-document-query.repository';
+import { PrismaDocumentVersionQueryRepository } from './4_infrastructure/repositories/prisma-document-version.query.repository';
+import { PrismaDocumentVerificationQueryRepository } from './4_infrastructure/repositories/prisma-document-verification.query.repsository';
 
 @Module({
   imports: [
@@ -55,20 +55,31 @@ import { IStorageService } from './3_domain/interfaces/storage.service.interface
     MessagingModule,
     ObservabilityModule, // This provides the Logger
     ConfigModule,
+
+    // Infrastructure Modules
+    StorageModule, // Added StorageModule - provides StorageService and FileValidatorService
   ],
   controllers: [
     HealthController,
     DocumentController,
     DocumentVersionController,
     DocumentVerificationController,
+    StatisticsController,
   ],
   providers: [
     // ============================================================================
-    // APPLICATION SERVICES
+    // APPLICATION COMMAND SERVICES (Write Operations)
     // ============================================================================
-    DocumentService,
-    DocumentVersionService,
-    DocumentVerificationService,
+    DocumentCommandService,
+    DocumentVersionCommandService,
+    DocumentVerificationCommandService,
+
+    // ============================================================================
+    // APPLICATION QUERY SERVICES (Read Operations)
+    // ============================================================================
+    DocumentQueryService,
+    DocumentVersionQueryService,
+    DocumentVerificationQueryService,
     StatisticsService,
 
     // ============================================================================
@@ -81,57 +92,60 @@ import { IStorageService } from './3_domain/interfaces/storage.service.interface
     BulkOperationsMapper,
 
     // ============================================================================
-    // INFRASTRUCTURE REPOSITORIES (Concrete Implementations)
+    // INFRASTRUCTURE REPOSITORIES (Command Side - Write)
     // ============================================================================
     {
-      provide: IDocumentRepository,
+      provide: PrismaDocumentRepository,
       useClass: PrismaDocumentRepository,
     },
+
+    // ============================================================================
+    // INFRASTRUCTURE QUERY REPOSITORIES (Read Side)
+    // ============================================================================
     {
-      provide: IDocumentVersionRepository,
-      useClass: PrismaDocumentVersionRepository,
+      provide: PrismaDocumentQueryRepository,
+      useClass: PrismaDocumentQueryRepository,
     },
     {
-      provide: IDocumentVerificationAttemptRepository,
-      useClass: PrismaDocumentVerificationAttemptRepository,
+      provide: PrismaDocumentVersionQueryRepository,
+      useClass: PrismaDocumentVersionQueryRepository,
+    },
+    {
+      provide: PrismaDocumentVerificationQueryRepository,
+      useClass: PrismaDocumentVerificationQueryRepository,
     },
 
     // ============================================================================
-    // INFRASTRUCTURE STORAGE SERVICES
+    // PROVIDE ANALYTICS CONFIGURATION
     // ============================================================================
     {
-      provide: IStorageService,
-      useClass: StorageService,
-    },
-    LocalStorageProvider,
-    FileValidatorService,
-
-    // ============================================================================
-    // PROVIDE STORAGE CONFIGURATION
-    // ============================================================================
-    {
-      provide: 'STORAGE_CONFIG',
+      provide: 'ANALYTICS_CONFIG',
       useFactory: (configService: ConfigService) => ({
-        basePath: configService.get('STORAGE_BASE_PATH') || './storage/documents',
-        maxFileSize: configService.get('MAX_FILE_SIZE') || 50 * 1024 * 1024, // 50MB
-        allowedMimeTypes: [
-          'application/pdf',
-          'image/jpeg',
-          'image/jpg',
-          'image/png',
-          'image/webp',
-          'application/msword',
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          'text/plain',
-        ],
+        // Analytics and reporting configuration
+        retentionDays: configService.get('ANALYTICS_RETENTION_DAYS') || 90,
+        enableDetailedMetrics: configService.get('ANALYTICS_DETAILED_METRICS') || false,
+        // Performance tuning
+        cacheTtl: configService.get('ANALYTICS_CACHE_TTL') || 300, // 5 minutes
+        batchSize: configService.get('ANALYTICS_BATCH_SIZE') || 1000,
       }),
       inject: [ConfigService],
     },
   ],
   exports: [
     // Export services that might be used by other modules
-    DocumentService,
-    IStorageService,
+    DocumentCommandService,
+    DocumentQueryService,
+    DocumentVersionCommandService,
+    DocumentVersionQueryService,
+    DocumentVerificationCommandService,
+    DocumentVerificationQueryService,
+    StatisticsService,
+
+    // Export mappers for potential reuse
+    DocumentMapper,
+    DocumentVersionMapper,
+    DocumentVerificationAttemptMapper,
+    StatisticsMapper,
   ],
 })
 export class DocumentModule {}
