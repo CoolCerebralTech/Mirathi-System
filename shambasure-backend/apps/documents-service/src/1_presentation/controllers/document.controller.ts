@@ -20,7 +20,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Response } from 'express';
+import type { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -34,7 +34,6 @@ import { JwtAuthGuard, RolesGuard, Roles } from '@shamba/auth';
 
 import { DocumentCommandService } from '../../2_application/services/document.command.service';
 import { DocumentQueryService } from '../../2_application/services/document.query.service';
-import { StatisticsService } from '../../2_application/services/statistics.service';
 import { Actor, DocumentId, UserId } from '../../3_domain/value-objects';
 import {
   UploadDocumentDto,
@@ -51,10 +50,15 @@ import {
   BulkOperationDto,
   BulkOperationResponseDto,
   SearchDocumentsDto,
-  DocumentAnalyticsResponseDto,
-  StorageAnalyticsResponseDto,
-  DashboardAnalyticsResponseDto,
-} from '../2_application/dtos';
+} from '../../2_application/dtos';
+
+// Define proper types for the authenticated request
+interface AuthenticatedRequest extends Request {
+  user: {
+    id: string;
+    roles: string[];
+  };
+}
 
 @ApiTags('documents')
 @ApiBearerAuth()
@@ -64,10 +68,9 @@ export class DocumentController {
   constructor(
     private readonly documentCommandService: DocumentCommandService,
     private readonly documentQueryService: DocumentQueryService,
-    private readonly statisticsService: StatisticsService,
   ) {}
 
-  private createActor(req: any): Actor {
+  private createActor(req: AuthenticatedRequest): Actor {
     return new Actor(new UserId(req.user.id), req.user.roles || []);
   }
 
@@ -112,14 +115,14 @@ export class DocumentController {
     )
     file: Express.Multer.File,
     @Body() dto: UploadDocumentDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ): Promise<UploadDocumentResponseDto> {
     if (!file) {
       throw new BadRequestException('File is required');
     }
 
     const actor = this.createActor(req);
-    return this.documentCommandService.uploadDocument(
+    return await this.documentCommandService.uploadDocument(
       dto,
       file.buffer,
       file.originalname,
@@ -133,10 +136,10 @@ export class DocumentController {
   @ApiResponse({ status: HttpStatus.OK, type: PaginatedDocumentsResponseDto })
   async queryDocuments(
     @Query() dto: QueryDocumentsDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ): Promise<PaginatedDocumentsResponseDto> {
     const actor = this.createActor(req);
-    return this.documentQueryService.queryDocuments(dto, actor);
+    return await this.documentQueryService.queryDocuments(dto, actor);
   }
 
   @Get('search')
@@ -144,10 +147,10 @@ export class DocumentController {
   @ApiResponse({ status: HttpStatus.OK, type: PaginatedDocumentsResponseDto })
   async searchDocuments(
     @Query() dto: SearchDocumentsDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ): Promise<PaginatedDocumentsResponseDto> {
     const actor = this.createActor(req);
-    return this.documentQueryService.searchDocuments(dto, actor);
+    return await this.documentQueryService.searchDocuments(dto, actor);
   }
 
   @Get(':id')
@@ -155,9 +158,12 @@ export class DocumentController {
   @ApiResponse({ status: HttpStatus.OK, type: DocumentResponseDto })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Document not found' })
   @ApiParam({ name: 'id', description: 'Document UUID' })
-  async getDocumentById(@Param('id') id: string, @Req() req: any): Promise<DocumentResponseDto> {
+  async getDocumentById(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<DocumentResponseDto> {
     const actor = this.createActor(req);
-    return this.documentQueryService.getDocumentById(new DocumentId(id), actor);
+    return await this.documentQueryService.getDocumentById(new DocumentId(id), actor);
   }
 
   @Get(':id/download')
@@ -167,7 +173,7 @@ export class DocumentController {
   @ApiParam({ name: 'id', description: 'Document UUID' })
   async downloadDocument(
     @Param('id') id: string,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Res() res: Response,
   ): Promise<void> {
     const actor = this.createActor(req);
@@ -175,7 +181,7 @@ export class DocumentController {
 
     res.setHeader('Content-Type', result.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
-    res.setHeader('Content-Length', result.buffer.length);
+    res.setHeader('Content-Length', result.buffer.length.toString());
     res.send(result.buffer);
   }
 
@@ -183,7 +189,10 @@ export class DocumentController {
   @ApiOperation({ summary: 'Get secure download URL' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Pre-signed URL' })
   @ApiParam({ name: 'id', description: 'Document UUID' })
-  async getDownloadUrl(@Param('id') id: string, @Req() req: any): Promise<{ url: string }> {
+  async getDownloadUrl(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<{ url: string }> {
     const actor = this.createActor(req);
     const url = await this.documentQueryService.getDocumentDownloadUrl(new DocumentId(id), actor);
     return { url };
@@ -197,10 +206,10 @@ export class DocumentController {
   async verifyDocument(
     @Param('id') id: string,
     @Body() dto: VerifyDocumentDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ): Promise<VerifyDocumentResponseDto> {
     const actor = this.createActor(req);
-    return this.documentCommandService.verifyOrRejectDocument(new DocumentId(id), dto, actor);
+    return await this.documentCommandService.verifyDocument(new DocumentId(id), dto, actor);
   }
 
   @Put(':id')
@@ -210,10 +219,10 @@ export class DocumentController {
   async updateDocument(
     @Param('id') id: string,
     @Body() dto: UpdateDocumentDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ): Promise<UpdateDocumentResponseDto> {
     const actor = this.createActor(req);
-    return this.documentCommandService.updateDocument(new DocumentId(id), dto, actor);
+    return await this.documentCommandService.updateDocument(new DocumentId(id), dto, actor);
   }
 
   @Put(':id/access')
@@ -223,10 +232,10 @@ export class DocumentController {
   async updateAccess(
     @Param('id') id: string,
     @Body() dto: UpdateAccessDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ): Promise<AccessControlResponseDto> {
     const actor = this.createActor(req);
-    return this.documentCommandService.updateDocumentAccess(new DocumentId(id), dto, actor);
+    return await this.documentCommandService.updateDocumentAccess(new DocumentId(id), dto, actor);
   }
 
   @Delete(':id')
@@ -234,7 +243,10 @@ export class DocumentController {
   @ApiOperation({ summary: 'Soft delete document' })
   @ApiResponse({ status: HttpStatus.NO_CONTENT })
   @ApiParam({ name: 'id', description: 'Document UUID' })
-  async softDeleteDocument(@Param('id') id: string, @Req() req: any): Promise<void> {
+  async softDeleteDocument(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ): Promise<void> {
     const actor = this.createActor(req);
     await this.documentCommandService.softDeleteDocument(new DocumentId(id), actor);
   }
@@ -243,7 +255,7 @@ export class DocumentController {
   @ApiOperation({ summary: 'Restore soft-deleted document' })
   @ApiResponse({ status: HttpStatus.OK })
   @ApiParam({ name: 'id', description: 'Document UUID' })
-  async restoreDocument(@Param('id') id: string, @Req() req: any): Promise<void> {
+  async restoreDocument(@Param('id') id: string, @Req() req: AuthenticatedRequest): Promise<void> {
     const actor = this.createActor(req);
     await this.documentCommandService.restoreDocument(new DocumentId(id), actor);
   }
@@ -253,41 +265,9 @@ export class DocumentController {
   @ApiResponse({ status: HttpStatus.OK, type: BulkOperationResponseDto })
   async handleBulkOperation(
     @Body() dto: BulkOperationDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ): Promise<BulkOperationResponseDto> {
     const actor = this.createActor(req);
-    return this.documentCommandService.handleBulkOperation(dto, actor);
-  }
-
-  @Get('stats/overview')
-  @ApiOperation({ summary: 'Get document statistics overview' })
-  @ApiResponse({ status: HttpStatus.OK, type: DocumentAnalyticsResponseDto })
-  async getDocumentStats(@Req() req: any): Promise<DocumentAnalyticsResponseDto> {
-    const actor = this.createActor(req);
-    return this.statisticsService.getDocumentAnalytics(actor);
-  }
-
-  @Get('stats/storage')
-  @Roles('ADMIN')
-  @ApiOperation({ summary: 'Get storage statistics' })
-  @ApiResponse({ status: HttpStatus.OK, type: StorageAnalyticsResponseDto })
-  async getStorageStats(@Req() req: any): Promise<StorageAnalyticsResponseDto> {
-    const actor = this.createActor(req);
-    return this.statisticsService.getStorageAnalytics(actor);
-  }
-
-  @Get('stats/dashboard')
-  @ApiOperation({ summary: 'Get comprehensive dashboard statistics' })
-  @ApiResponse({ status: HttpStatus.OK, type: DashboardAnalyticsResponseDto })
-  async getDashboardStats(@Req() req: any): Promise<DashboardAnalyticsResponseDto> {
-    const actor = this.createActor(req);
-    return this.statisticsService.getDashboardAnalytics(actor);
-  }
-
-  @Get('stats/summary')
-  @ApiOperation({ summary: 'Get quick dashboard summary' })
-  async getDashboardSummary(@Req() req: any): Promise<any> {
-    const actor = this.createActor(req);
-    return this.statisticsService.getDashboardSummary(actor);
+    return await this.documentCommandService.handleBulkOperation(dto, actor);
   }
 }

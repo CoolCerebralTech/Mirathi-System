@@ -10,9 +10,10 @@ import { CreateDocumentVersionResponseDto } from '../dtos/document-version.dto';
 export class DocumentVersionMapper {
   /**
    * Maps a DocumentVersion domain object to a DocumentVersionResponseDto.
+   * Accepts both mutable and readonly DocumentVersion objects.
    */
   toResponseDto(
-    version: DocumentVersion,
+    version: Readonly<DocumentVersion>,
     options: { originalFileName?: string; uploaderName?: string } = {},
   ): DocumentVersionResponseDto {
     const generatedFileName = options.originalFileName
@@ -40,7 +41,7 @@ export class DocumentVersionMapper {
    * Maps a new DocumentVersion to a response DTO used immediately after creation.
    */
   toCreateResponseDto(
-    version: DocumentVersion,
+    version: Readonly<DocumentVersion>,
     originalFileName?: string,
   ): CreateDocumentVersionResponseDto {
     return new CreateDocumentVersionResponseDto({
@@ -63,9 +64,10 @@ export class DocumentVersionMapper {
 
   /**
    * Maps a list of DocumentVersion domain objects to a list of DTOs.
+   * Accepts both mutable and readonly DocumentVersion arrays.
    */
   toResponseDtoList(
-    versions: DocumentVersion[],
+    versions: readonly Readonly<DocumentVersion>[],
     options: { originalFileName?: string; uploaderNamesMap?: Map<string, string> } = {},
   ): DocumentVersionResponseDto[] {
     return versions.map((version) =>
@@ -80,7 +82,7 @@ export class DocumentVersionMapper {
   // PRIVATE HELPERS
   // ============================================================================
 
-  private generateDownloadUrl(version: DocumentVersion): string {
+  private generateDownloadUrl(version: Readonly<DocumentVersion>): string {
     return `/api/v1/documents/${version.documentId.value}/versions/${version.versionNumber}/download`;
   }
 

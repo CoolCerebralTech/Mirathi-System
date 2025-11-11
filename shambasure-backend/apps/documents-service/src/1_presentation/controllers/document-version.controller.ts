@@ -15,9 +15,10 @@ import {
   Req,
   Res,
   BadRequestException,
+  Body,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Response } from 'express';
+import type { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -31,13 +32,21 @@ import { JwtAuthGuard, RolesGuard } from '@shamba/auth';
 
 import { DocumentVersionCommandService } from '../../2_application/services/document-version.command.service';
 import { DocumentVersionQueryService } from '../../2_application/services/document-version.query.service';
-import { Actor, DocumentId, UserId, DocumentVersionId } from '../../3_domain/value-objects';
+import { Actor, DocumentId, UserId } from '../../3_domain/value-objects';
 import {
   CreateDocumentVersionDto,
   CreateDocumentVersionResponseDto,
   DocumentVersionQueryDto,
   DocumentVersionResponseDto,
 } from '../../2_application/dtos';
+
+// Define proper types for the authenticated request
+interface AuthenticatedRequest extends Request {
+  user: {
+    id: string;
+    roles: string[];
+  };
+}
 
 @ApiTags('document-versions')
 @ApiBearerAuth()
@@ -49,7 +58,7 @@ export class DocumentVersionController {
     private readonly versionQueryService: DocumentVersionQueryService,
   ) {}
 
-  private createActor(req: any): Actor {
+  private createActor(req: AuthenticatedRequest): Actor {
     return new Actor(new UserId(req.user.id), req.user.roles || []);
   }
 
@@ -83,14 +92,14 @@ export class DocumentVersionController {
     )
     file: Express.Multer.File,
     @Body() dto: CreateDocumentVersionDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ): Promise<CreateDocumentVersionResponseDto> {
     if (!file) {
       throw new BadRequestException('File is required');
     }
 
     const actor = this.createActor(req);
-    return this.versionCommandService.createNewVersion(
+    return await this.versionCommandService.createNewVersion(
       new DocumentId(documentId),
       dto,
       file.buffer,
@@ -106,10 +115,10 @@ export class DocumentVersionController {
   async getVersions(
     @Param('documentId') documentId: string,
     @Query() dto: DocumentVersionQueryDto,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ): Promise<any> {
     const actor = this.createActor(req);
-    return this.versionQueryService.getAllVersionsForDocument(
+    return await this.versionQueryService.getAllVersionsForDocument(
       new DocumentId(documentId),
       dto,
       actor,
@@ -122,10 +131,10 @@ export class DocumentVersionController {
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
   async getLatestVersion(
     @Param('documentId') documentId: string,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ): Promise<DocumentVersionResponseDto> {
     const actor = this.createActor(req);
-    return this.versionQueryService.getLatestVersion(new DocumentId(documentId), actor);
+    return await this.versionQueryService.getLatestVersion(new DocumentId(documentId), actor);
   }
 
   @Get(':versionNumber')
@@ -136,12 +145,12 @@ export class DocumentVersionController {
   async getVersionByNumber(
     @Param('documentId') documentId: string,
     @Param('versionNumber') versionNumber: string,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ): Promise<DocumentVersionResponseDto> {
     const actor = this.createActor(req);
-    return this.versionQueryService.getVersionByNumber(
+    return await this.versionQueryService.getVersionByNumber(
       new DocumentId(documentId),
-      parseInt(versionNumber),
+      parseInt(versionNumber, 10),
       actor,
     );
   }
@@ -154,19 +163,19 @@ export class DocumentVersionController {
   async downloadVersion(
     @Param('documentId') documentId: string,
     @Param('versionNumber') versionNumber: string,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
     @Res() res: Response,
   ): Promise<void> {
     const actor = this.createActor(req);
     const result = await this.versionQueryService.downloadVersion(
       new DocumentId(documentId),
-      parseInt(versionNumber),
+      parseInt(versionNumber, 10),
       actor,
     );
 
     res.setHeader('Content-Type', result.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
-    res.setHeader('Content-Length', result.buffer.length);
+    res.setHeader('Content-Length', result.buffer.length.toString());
     res.send(result.buffer);
   }
 
@@ -178,12 +187,12 @@ export class DocumentVersionController {
   async getVersionDownloadUrl(
     @Param('documentId') documentId: string,
     @Param('versionNumber') versionNumber: string,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ): Promise<{ url: string }> {
     const actor = this.createActor(req);
     const url = await this.versionQueryService.getVersionDownloadUrl(
       new DocumentId(documentId),
-      parseInt(versionNumber),
+      parseInt(versionNumber, 10),
       actor,
     );
     return { url };
@@ -197,12 +206,12 @@ export class DocumentVersionController {
   async deleteVersion(
     @Param('documentId') documentId: string,
     @Param('versionNumber') versionNumber: string,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ): Promise<void> {
     const actor = this.createActor(req);
     await this.versionCommandService.deleteVersion(
       new DocumentId(documentId),
-      parseInt(versionNumber),
+      parseInt(versionNumber, 10),
       actor,
     );
   }
@@ -212,9 +221,9 @@ export class DocumentVersionController {
   @ApiParam({ name: 'documentId', description: 'Document UUID' })
   async getVersionStorageStats(
     @Param('documentId') documentId: string,
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ): Promise<any> {
     const actor = this.createActor(req);
-    return this.versionQueryService.getVersionStats(new DocumentId(documentId), actor);
+    return await this.versionQueryService.getVersionStats(new DocumentId(documentId), actor);
   }
 }

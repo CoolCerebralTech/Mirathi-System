@@ -7,9 +7,9 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { IDocumentRepository } from '../../3_domain/interfaces';
+import type { IDocumentRepository } from '../../3_domain/interfaces';
 import { Document } from '../../3_domain/models';
-import { Actor, DocumentId, RejectionReason, UserId } from '../../3_domain/value-objects';
+import { Actor, DocumentId, RejectionReason } from '../../3_domain/value-objects';
 import { DocumentVerificationAttemptMapper } from '../mappers';
 import { VerifyDocumentDto, VerifyDocumentResponseDto } from '../dtos/verify-document.dto';
 

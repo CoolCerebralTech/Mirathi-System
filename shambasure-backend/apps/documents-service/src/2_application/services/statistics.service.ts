@@ -1,5 +1,5 @@
 import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
-import {
+import type {
   IDocumentQueryRepository,
   IDocumentVersionQueryRepository,
   IDocumentVerificationAttemptQueryRepository,

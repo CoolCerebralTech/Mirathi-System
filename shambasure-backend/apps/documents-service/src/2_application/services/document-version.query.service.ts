@@ -1,10 +1,11 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
-import {
+import type {
   IDocumentRepository,
   IDocumentVersionQueryRepository,
   IStorageService,
 } from '../../3_domain/interfaces';
-import { Actor, DocumentId, DocumentVersionId, StoragePath } from '../../3_domain/value-objects';
+import { DocumentVersion } from '../../3_domain/models';
+import { Actor, DocumentId, DocumentVersionId, FileName } from '../../3_domain/value-objects';
 import { DocumentVersionMapper } from '../mappers';
 import { DocumentVersionQueryDto } from '../dtos/document-version.dto';
 import { DocumentVersionResponseDto } from '../dtos/document-response.dto';
@@ -45,17 +46,23 @@ export class DocumentVersionQueryService {
       throw new NotFoundException('Version not found');
     }
 
-    // Check access to the parent document
     const document = await this.checkParentDocumentAccess(
       new DocumentId(versionDto.documentId),
       actor,
     );
 
-    // Get uploader name mapping (in real app, this would come from user service)
-    const uploaderNamesMap = new Map<string, string>();
-    // uploaderNamesMap.set(versionDto.uploadedBy, 'User Name'); // Would be populated from user service
+    const version = document.versions.find(
+      (v) => v.id.value === versionDto.id && v.versionNumber === versionDto.versionNumber,
+    );
 
-    return this.versionMapper.toResponseDto(await this.mapVersionDtoToDomain(versionDto), {
+    if (!version) {
+      throw new NotFoundException('Version not found in document');
+    }
+
+    const uploaderNamesMap = new Map<string, string>();
+
+    // No more 'as any' needed!
+    return this.versionMapper.toResponseDto(version, {
       originalFileName: document.fileName.value,
       uploaderName: uploaderNamesMap.get(versionDto.uploadedBy),
     });
@@ -72,21 +79,17 @@ export class DocumentVersionQueryService {
 
     const document = await this.checkParentDocumentAccess(documentId, actor);
 
-    const versionDto = await this.versionQueryRepository.findByDocumentIdAndVersionNumber(
-      documentId,
-      versionNumber,
-    );
-    if (!versionDto) {
+    const version = document.versions.find((v) => v.versionNumber === versionNumber);
+    if (!version) {
       throw new NotFoundException(`Version ${versionNumber} not found`);
     }
 
-    // Get uploader name mapping
     const uploaderNamesMap = new Map<string, string>();
-    // uploaderNamesMap.set(versionDto.uploadedBy, 'User Name');
 
-    return this.versionMapper.toResponseDto(await this.mapVersionDtoToDomain(versionDto), {
+    // No more 'as any' needed!
+    return this.versionMapper.toResponseDto(version, {
       originalFileName: document.fileName.value,
-      uploaderName: uploaderNamesMap.get(versionDto.uploadedBy),
+      uploaderName: uploaderNamesMap.get(version.uploadedBy.value),
     });
   }
 
@@ -105,33 +108,22 @@ export class DocumentVersionQueryService {
 
     const document = await this.checkParentDocumentAccess(documentId, actor);
 
-    // Convert query DTO to repository options
-    const queryOptions = {
-      sortBy: queryDto.sortBy,
-      sortOrder: queryDto.sortOrder,
-      limit: queryDto.limit,
-      offset: (queryDto.page - 1) * queryDto.limit,
-    };
+    let versions = [...document.versions];
 
-    // Get paginated results from repository
-    const versionDtos = await this.versionQueryRepository.findAllByDocumentId(
-      documentId,
-      queryOptions,
-    );
+    if (queryDto.sortBy) {
+      versions = this.sortVersions(versions, queryDto.sortBy, queryDto.sortOrder);
+    }
 
-    // Get total count for pagination
-    const totalCount = await this.versionQueryRepository.countForDocument(documentId);
+    const totalCount = versions.length;
     const totalPages = Math.ceil(totalCount / queryDto.limit);
+    const startIndex = (queryDto.page - 1) * queryDto.limit;
+    const endIndex = startIndex + queryDto.limit;
+    const paginatedVersions = versions.slice(startIndex, endIndex);
 
-    // Map DTOs to domain objects (in real app, this would be more efficient)
-    const versions = await Promise.all(versionDtos.map((dto) => this.mapVersionDtoToDomain(dto)));
-
-    // Get uploader names mapping (in real app, batch fetch from user service)
     const uploaderNamesMap = new Map<string, string>();
-    // This would be populated with actual user data
 
-    // Map to response DTOs
-    const data = this.versionMapper.toResponseDtoList(versions, {
+    // No more 'as any' needed!
+    const data = this.versionMapper.toResponseDtoList(paginatedVersions, {
       originalFileName: document.fileName.value,
       uploaderNamesMap,
     });
@@ -157,18 +149,20 @@ export class DocumentVersionQueryService {
 
     const document = await this.checkParentDocumentAccess(documentId, actor);
 
-    const versionDto = await this.versionQueryRepository.findLatestForDocument(documentId);
-    if (!versionDto) {
+    if (document.versions.length === 0) {
       throw new NotFoundException('No versions found for document');
     }
 
-    // Get uploader name mapping
-    const uploaderNamesMap = new Map<string, string>();
-    // uploaderNamesMap.set(versionDto.uploadedBy, 'User Name');
+    const latestVersion = document.versions.reduce((latest, current) =>
+      current.versionNumber > latest.versionNumber ? current : latest,
+    );
 
-    return this.versionMapper.toResponseDto(await this.mapVersionDtoToDomain(versionDto), {
+    const uploaderNamesMap = new Map<string, string>();
+
+    // No more 'as any' needed!
+    return this.versionMapper.toResponseDto(latestVersion, {
       originalFileName: document.fileName.value,
-      uploaderName: uploaderNamesMap.get(versionDto.uploadedBy),
+      uploaderName: uploaderNamesMap.get(latestVersion.uploadedBy.value),
     });
   }
 
@@ -192,22 +186,20 @@ export class DocumentVersionQueryService {
 
     const document = await this.checkParentDocumentAccess(documentId, actor);
 
-    const versionDto = await this.versionQueryRepository.findByDocumentIdAndVersionNumber(
-      documentId,
-      versionNumber,
-    );
-    if (!versionDto) {
+    // Get the version directly from the document aggregate
+    const version = document.versions.find((v) => v.versionNumber === versionNumber);
+    if (!version) {
       throw new NotFoundException(`Version ${versionNumber} not found`);
     }
 
+    // Prepare storage options
+    const storageOptions = {
+      validateChecksum: version.checksum !== null,
+      expectedChecksum: version.checksum ?? undefined,
+    };
+
     // Retrieve file from storage
-    const fileResult = await this.storageService.retrieve(
-      StoragePath.fromExisting(versionDto.storagePath),
-      {
-        validateChecksum: true,
-        expectedChecksum: versionDto.checksum ? ({ value: versionDto.checksum } as any) : undefined,
-      },
-    );
+    const fileResult = await this.storageService.retrieve(version.storagePath, storageOptions);
 
     // Generate versioned filename
     const versionedFilename = this.generateVersionedFileName(
@@ -218,8 +210,8 @@ export class DocumentVersionQueryService {
     return {
       buffer: fileResult.buffer,
       fileName: versionedFilename,
-      mimeType: versionDto.mimeType,
-      size: versionDto.fileSize,
+      mimeType: version.mimeType.value,
+      size: version.fileSize.value,
     };
   }
 
@@ -234,11 +226,9 @@ export class DocumentVersionQueryService {
 
     const document = await this.checkParentDocumentAccess(documentId, actor);
 
-    const versionDto = await this.versionQueryRepository.findByDocumentIdAndVersionNumber(
-      documentId,
-      versionNumber,
-    );
-    if (!versionDto) {
+    // Get the version directly from the document aggregate
+    const version = document.versions.find((v) => v.versionNumber === versionNumber);
+    if (!version) {
       throw new NotFoundException(`Version ${versionNumber} not found`);
     }
 
@@ -249,14 +239,11 @@ export class DocumentVersionQueryService {
     );
 
     // Generate pre-signed URL (expires in 1 hour)
-    const downloadUrl = await this.storageService.getPresignedDownloadUrl(
-      StoragePath.fromExisting(versionDto.storagePath),
-      {
-        expiresInSeconds: 3600,
-        fileNameToSuggest: { value: versionedFilename } as any,
-        disposition: 'attachment',
-      },
-    );
+    const downloadUrl = await this.storageService.getPresignedDownloadUrl(version.storagePath, {
+      expiresInSeconds: 3600,
+      fileNameToSuggest: FileName.create(versionedFilename),
+      disposition: 'attachment',
+    });
 
     return downloadUrl;
   }
@@ -279,16 +266,25 @@ export class DocumentVersionQueryService {
       `Fetching version stats for document ${documentId.value} for actor ${actor.id.value}`,
     );
 
-    await this.checkParentDocumentAccess(documentId, actor);
+    const document = await this.checkParentDocumentAccess(documentId, actor);
 
-    const stats = await this.versionQueryRepository.getStorageStatsForDocument(documentId);
+    const totalVersions = document.versions.length;
+    const totalSizeBytes = document.versions.reduce(
+      (sum, version) => sum + version.fileSize.value,
+      0,
+    );
+    const averageSizeBytes = totalVersions > 0 ? totalSizeBytes / totalVersions : 0;
+
+    const versionDates = document.versions.map((v) => v.createdAt).sort();
+    const oldestVersionDate = versionDates[0] || new Date();
+    const newestVersionDate = versionDates[versionDates.length - 1] || new Date();
 
     return {
-      totalVersions: stats.totalVersions,
-      totalSizeBytes: stats.totalSizeBytes,
-      averageSizeBytes: stats.averageSizeBytes,
-      oldestVersionDate: stats.oldestVersionDate,
-      newestVersionDate: stats.newestVersionDate,
+      totalVersions,
+      totalSizeBytes,
+      averageSizeBytes,
+      oldestVersionDate,
+      newestVersionDate,
     };
   }
 
@@ -297,9 +293,9 @@ export class DocumentVersionQueryService {
       `Fetching storage usage for document ${documentId.value} for actor ${actor.id.value}`,
     );
 
-    await this.checkParentDocumentAccess(documentId, actor);
+    const document = await this.checkParentDocumentAccess(documentId, actor);
 
-    return this.versionQueryRepository.getTotalStorageUsageForDocument(documentId);
+    return document.versions.reduce((sum, version) => sum + version.fileSize.value, 0);
   }
 
   // ============================================================================
@@ -319,11 +315,30 @@ export class DocumentVersionQueryService {
     return document;
   }
 
-  private async mapVersionDtoToDomain(versionDto: any): Promise<any> {
-    // This is a simplified mapping. In a real application, you would have a proper
-    // method to reconstruct the DocumentVersion entity from its DTO representation.
-    // For now, we return the DTO as the structure is similar enough for the mapper.
-    return versionDto;
+  private sortVersions(
+    versions: Readonly<DocumentVersion>[],
+    sortBy: string,
+    sortOrder: 'asc' | 'desc' = 'desc',
+  ): Readonly<DocumentVersion>[] {
+    return [...versions].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortBy) {
+        case 'versionNumber':
+          comparison = a.versionNumber - b.versionNumber;
+          break;
+        case 'createdAt':
+          comparison = a.createdAt.getTime() - b.createdAt.getTime();
+          break;
+        case 'fileSize':
+          comparison = a.fileSize.value - b.fileSize.value;
+          break;
+        default:
+          comparison = a.versionNumber - b.versionNumber;
+      }
+
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
   }
 
   private generateVersionedFileName(originalFileName: string, versionNumber: number): string {
@@ -334,9 +349,5 @@ export class DocumentVersionQueryService {
     const baseName = originalFileName.substring(0, extensionIndex);
     const extension = originalFileName.substring(extensionIndex);
     return `${baseName}-v${versionNumber}${extension}`;
-  }
-
-  private generateDownloadUrl(documentId: DocumentId, versionNumber: number): string {
-    return `/api/v1/documents/${documentId.value}/versions/${versionNumber}/download`;
   }
 }

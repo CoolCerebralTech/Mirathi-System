@@ -1,21 +1,9 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-} from '@nestjs/common';
-import {
+import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
+import type {
   IDocumentRepository,
   IDocumentVerificationAttemptQueryRepository,
 } from '../../3_domain/interfaces';
-import {
-  Actor,
-  DocumentId,
-  UserId,
-  VerificationAttemptId,
-  DocumentStatus,
-} from '../../3_domain/value-objects';
+import { Actor, DocumentId, UserId, VerificationAttemptId } from '../../3_domain/value-objects';
 import { DocumentVerificationAttemptMapper } from '../mappers';
 import {
   DocumentVerificationHistoryResponseDto,
