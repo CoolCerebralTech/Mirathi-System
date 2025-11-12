@@ -21,25 +21,140 @@ enum UserRole {
 
 enum RelationshipType {
   SPOUSE
+  EX_SPOUSE          // For divorced/separated spouses
   CHILD
+  ADOPTED_CHILD      // Legal distinction for inheritance
+  STEPCHILD          // From current/previous marriage
   PARENT
   SIBLING
+  HALF_SIBLING       // Same parent
+  GRANDCHILD
+  GRANDPARENT
+  NIECE_NEPHEW
+  AUNT_UNCLE
+  COUSIN
+  GUARDIAN           // Legal guardian (non-parent)
   OTHER
 }
 
 enum WillStatus {
-  DRAFT
-  ACTIVE
-  REVOKED
-  EXECUTED
+  DRAFT              // Initial creation, editable
+  PENDING_WITNESS    // Awaiting witness signatures
+  WITNESSED          // Legally witnessed, not yet active
+  ACTIVE             // Current valid will
+  REVOKED            // Invalidated by user
+  SUPERSEDED         // Replaced by newer will
+  EXECUTED           // Testator deceased, distribution complete
+  CONTESTED          // Under legal dispute
+  PROBATE            // In court for grant of probate
 }
 
 enum AssetType {
-  LAND_PARCEL
-  BANK_ACCOUNT
-  VEHICLE
-  PROPERTY
+  LAND_PARCEL        // Title deeds, subdivision plots
+  PROPERTY           // Houses, rentals, buildings
+  FINANCIAL_ASSET    // Bank accounts, SACCO shares, investments
+  DIGITAL_ASSET      // Crypto, NFTs, online portfolios, social media
+  BUSINESS_INTEREST  // Company shares, partnerships, farm ventures
+  VEHICLE            // Cars, motorcycles, tractors
+  INTELLECTUAL_PROPERTY // Patents, copyrights, trademarks
+  LIVESTOCK          // Cattle, goats, poultry
+  PERSONAL_EFFECTS   // Jewelry, art, family heirlooms
   OTHER
+}
+
+enum AssetOwnershipType {
+  SOLE               // Single owner
+  JOINT_TENANCY      // Joint owners with right of survivorship
+  TENANCY_IN_COMMON  // Shared ownership with separate shares
+  COMMUNITY_PROPERTY // Marital property
+}
+
+enum BequestType {
+  SPECIFIC           // Specific asset to specific person
+  RESIDUARY          // Remainder after specific bequests
+  CONDITIONAL        // Only if condition met
+  TRUST              // Held in trust until condition
+  PERCENTAGE         // Percentage of total estate
+}
+
+enum BequestConditionType {
+  AGE_REQUIREMENT    // "When beneficiary turns 25"
+  SURVIVAL           // "If they survive me by 30 days"
+  EDUCATION          // "Upon graduation"
+  MARRIAGE           // "Upon marriage"
+  ALTERNATE          // "If primary dies, give to alternate"
+  NONE
+}
+
+enum GuardianType {
+  LEGAL_GUARDIAN     // Full legal custody
+  FINANCIAL_GUARDIAN // Manages inheritance only
+  PROPERTY_GUARDIAN  // Manages property until age
+  TESTAMENTARY       // Appointed via will
+}
+
+enum ExecutorStatus {
+  NOMINATED          // Named in will, not yet acting
+  ACTIVE             // Currently serving
+  DECLINED           // Refused to serve
+  REMOVED            // Removed by court/testator
+  COMPLETED          // Finished duties
+}
+
+enum WitnessStatus {
+  PENDING            // Awaiting signature
+  SIGNED             // Signature captured
+  VERIFIED           // Identity verified
+  REJECTED           // Declined to witness
+}
+
+enum DisputeStatus {
+  FILED              // Dispute raised
+  UNDER_REVIEW       // Being investigated
+  MEDIATION          // In mediation
+  COURT_PROCEEDING   // In court
+  RESOLVED           // Settled
+  DISMISSED          // Thrown out
+}
+
+enum DisputeType {
+  VALIDITY_CHALLENGE // Will validity questioned
+  UNDUE_INFLUENCE    // Coercion alleged
+  LACK_CAPACITY      // Testator mental capacity
+  FRAUD              // Forgery or misrepresentation
+  OMITTED_HEIR       // Heir left out
+  ASSET_VALUATION    // Dispute over asset worth
+  EXECUTOR_MISCONDUCT // Executor breach of duty
+  OTHER
+}
+
+enum DistributionStatus {
+  PENDING            // Not yet distributed
+  IN_PROGRESS        // Being transferred
+  COMPLETED          // Transfer done
+  DISPUTED           // Under contestation
+  DEFERRED           // Delayed by condition
+}
+
+enum DebtType {
+  MORTGAGE           // Property loan
+  PERSONAL_LOAN      // Bank/SACCO loan
+  CREDIT_CARD        // Outstanding CC debt
+  BUSINESS_DEBT      // Company liabilities
+  TAX_OBLIGATION     // Unpaid taxes
+  FUNERAL_EXPENSE    // Burial costs
+  MEDICAL_BILL       // Healthcare debt
+  OTHER
+}
+
+enum MarriageStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+  SEPARATED
+  CUSTOMARY_MARRIAGE // Traditional African marriage
+  CIVIL_UNION
 }
 
 enum DocumentStatus {
@@ -112,7 +227,14 @@ model User {
   willsAsTestator     Will[]
   assetsOwned         Asset[]
   beneficiaryOf       BeneficiaryAssignment[]
+  willExecutorRoles  WillExecutor[]
+  witnessRoles       WillWitness[]
+  assetCoOwnerships  AssetCoOwner[]
+  debtsOwned         Debt[]
+  disputesFiled      Dispute[]
   documentsUploaded   Document[]
+  Document Document[] @relation("UserIdentityDocuments")
+  DocumentVerificationAttempt DocumentVerificationAttempt[]
   notifications       Notification[]
   auditLogsAsActor    AuditLog[]
 
@@ -120,8 +242,7 @@ model User {
   @@index([createdAt])
   @@index([deletedAt])
   @@map("users")
-  Document Document[] @relation("UserIdentityDocuments")
-  DocumentVerificationAttempt DocumentVerificationAttempt[]
+  
 }
 
 
@@ -261,74 +382,595 @@ model PasswordHistory {
   @@map("password_history")
 }
 // ============================================================================
-// SUCCESSION SERVICE MODELS (Unchanged for now)
+// SUCCESSION SERVICE MODELS
 // Owner: succession-service
 // ============================================================================
+// -----------------------------------------------------------------------------
+// FAMILY & RELATIONSHIPS (HeirLink™)
+// -----------------------------------------------------------------------------
 
 model Family {
-  id        String   @id @default(uuid())
-  name      String
-  creatorId String
-  creator   User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  members   FamilyMember[]
+  id          String   @id @default(uuid())
+  name        String   // "The Kamau Family"
+  description String?  @db.Text
+  creatorId   String
+  creator     User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  
+  // Family tree visualization data
+  treeData    Json?    // For frontend graph rendering
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime? // Soft delete
+
+  // Relations
+  members     FamilyMember[]
+  marriages   Marriage[]
 
   @@index([creatorId])
+  @@index([deletedAt])
+  @@map("families")
 }
 
 model FamilyMember {
-  userId   String
-  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  familyId String
-  family   Family           @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  role     RelationshipType
+  id          String   @id @default(uuid())
+  
+  // Core Identity
+  userId      String?  // Null if non-registered person
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyId    String
+  family      Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  
+  // External/Non-registered members
+  firstName   String?  // For non-users
+  lastName    String?
+  email       String?
+  phone       String?
+  dateOfBirth DateTime?
+  dateOfDeath DateTime? // Track deceased members
+  
+  // Relationship context
+  relationshipTo String? // "Father of John Kamau"
+  role        RelationshipType
+  
+  // Legal status
+  isMinor     Boolean  @default(false)
+  isDeceased  Boolean  @default(false)
+  
+  // Metadata
+  notes       String?  @db.Text
+  addedBy     String   // User who added this member
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
 
-  @@id([userId, familyId])
+  // Relations
+  guardiansAssigned Guardian[] @relation("Ward")
+  guardianOf        Guardian[] @relation("Guardian")
+  beneficiaryOf     BeneficiaryAssignment[]
+  disinheritedFrom  DisinheritanceRecord[]
+  marriagesAsSpouse1 Marriage[] @relation("MarriageSpouse1")
+  marriagesAsSpouse2 Marriage[] @relation("MarriageSpouse2")
+
+  @@unique([userId, familyId])
+  @@index([familyId])
+  @@index([userId])
+  @@index([isMinor, isDeceased])
+  @@index([deletedAt])
+  @@map("family_members")
 }
 
-model Will {
-  id                     String                  @id @default(uuid())
-  title                  String
-  status                 WillStatus              @default(DRAFT)
-  testatorId             String
-  testator               User                    @relation(fields: [testatorId], references: [id], onDelete: Cascade)
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  beneficiaryAssignments BeneficiaryAssignment[]
+model Marriage {
+  id              String   @id @default(uuid())
+  familyId        String
+  family          Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  
+  // Parties
+  spouse1Id       String
+  spouse1         FamilyMember @relation("MarriageSpouse1", fields: [spouse1Id], references: [id], onDelete: Cascade)
+  spouse2Id       String
+  spouse2         FamilyMember @relation("MarriageSpouse2", fields: [spouse2Id], references: [id], onDelete: Cascade)
+  
+  // Marriage details
+  marriageDate    DateTime
+  marriageType    MarriageStatus
+  certificateNumber String?
+  
+  // Dissolution
+  divorceDate     DateTime?
+  divorceCertNumber String?
+  
+  // Status
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  @@index([testatorId])
-  Document Document[]
+  @@index([familyId])
+  @@index([spouse1Id, spouse2Id])
+  @@index([isActive])
+  @@map("marriages")
 }
+
+model Guardian {
+  id          String   @id @default(uuid())
+  
+  // Guardian details
+  guardianId  String   // FamilyMember acting as guardian
+  guardian    FamilyMember @relation("Guardian", fields: [guardianId], references: [id], onDelete: Cascade)
+  
+  // Ward (the minor/dependent)
+  wardId      String
+  ward        FamilyMember @relation("Ward", fields: [wardId], references: [id], onDelete: Cascade)
+  
+  // Guardian type
+  type        GuardianType
+  
+  // Legal appointment
+  appointedBy String?  // Will ID or court order reference
+  appointmentDate DateTime @default(now())
+  validUntil  DateTime? // e.g., "until ward turns 18"
+  
+  // Status
+  isActive    Boolean  @default(true)
+  notes       String?  @db.Text
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([guardianId, wardId, type])
+  @@index([guardianId])
+  @@index([wardId])
+  @@index([isActive])
+  @@map("guardians")
+}
+
+// -----------------------------------------------------------------------------
+// ASSETS & OWNERSHIP
+// -----------------------------------------------------------------------------
 
 model Asset {
-  id                     String                  @id @default(uuid())
-  name                   String
-  description            String?
-  type                   AssetType
-  ownerId                String
-  owner                  User                    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  beneficiaryAssignments BeneficiaryAssignment[]
+  id              String   @id @default(uuid())
+  
+  // Basic info
+  name            String   // "Family Land - Kiambu"
+  description     String?  @db.Text
+  type            AssetType
+  
+  // Ownership
+  ownerId         String
+  owner           User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownershipType   AssetOwnershipType @default(SOLE)
+  ownershipShare  Decimal? @db.Decimal(5,2) // For joint ownership (0-100%)
+  
+  // Valuation
+  estimatedValue  Decimal? @db.Decimal(15,2)
+  currency        String   @default("KES")
+  valuationDate   DateTime?
+  valuationSource String?  // "Bank appraisal", "Market rate"
+  
+  // Location (for physical assets)
+  location        Json?    // {county, subCounty, ward, gps}
+  
+  // Identification
+  registrationNumber String? // Title deed number, vehicle reg, account number
+  identificationDetails Json? // Flexible storage for asset-specific IDs
+  
+  // Legal status
+  hasVerifiedDocument Boolean @default(false)
+  isEncumbered    Boolean @default(false) // Has mortgage/lien?
+  encumbranceDetails String? @db.Text
+  
+  // Asset-specific metadata
+  metadata        Json?    // Flexible for different asset types
+  
+  // Soft delete
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
 
-  @@index([ownerId])
-  Document Document[]
+  // Relations
+  documents       Document[]
+  valuationHistory AssetValuation[]
+  coOwners        AssetCoOwner[]
+  beneficiaryAssignments BeneficiaryAssignment[]
+  debts           Debt[]
+
+  @@index([ownerId, isActive])
+  @@index([type])
+  @@index([hasVerifiedDocument])
+  @@index([deletedAt])
+  @@map("assets")
 }
 
+model AssetCoOwner {
+  id          String   @id @default(uuid())
+  assetId     String
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  // Co-owner (can be User or external)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // External co-owner
+  fullName    String?
+  email       String?
+  phone       String?
+  
+  // Ownership details
+  sharePercent Decimal @db.Decimal(5,2) // 0-100%
+  relationship String? // "Spouse", "Business Partner"
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([assetId, userId])
+  @@index([assetId])
+  @@index([userId])
+  @@map("asset_co_owners")
+}
+
+model AssetValuation {
+  id          String   @id @default(uuid())
+  assetId     String
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  // Valuation details
+  value       Decimal  @db.Decimal(15,2)
+  currency    String   @default("KES")
+  valuationDate DateTime
+  valuedBy    String?  // Valuer name or organization
+  method      String?  // "Market comparison", "Income approach"
+  
+  // Supporting docs
+  reportUrl   String?  // Link to valuation report
+  notes       String?  @db.Text
+  
+  createdAt   DateTime @default(now())
+
+  @@index([assetId, valuationDate])
+  @@map("asset_valuations")
+}
+
+model Debt {
+  id          String   @id @default(uuid())
+  
+  // Debt details
+  assetId     String?  // Linked asset (e.g., mortgaged property)
+  asset       Asset?   @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  type        DebtType
+  description String   @db.Text
+  
+  // Amounts
+  principalAmount Decimal @db.Decimal(15,2)
+  outstandingBalance Decimal @db.Decimal(15,2)
+  currency    String   @default("KES")
+  
+  // Creditor
+  creditorName String
+  creditorContact String?
+  accountNumber String?
+  
+  // Terms
+  dueDate     DateTime?
+  interestRate Decimal? @db.Decimal(5,2) // Annual %
+  
+  // Status
+  isPaid      Boolean  @default(false)
+  paidAt      DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId, isPaid])
+  @@index([assetId])
+  @@map("debts")
+}
+
+// -----------------------------------------------------------------------------
+// WILLS & SUCCESSION
+// -----------------------------------------------------------------------------
+
+model Will {
+  id          String   @id @default(uuid())
+  
+  // Basic info
+  title       String   // "Last Will and Testament of John Kamau"
+  status      WillStatus @default(DRAFT)
+  
+  // Testator
+  testatorId  String
+  testator    User     @relation(fields: [testatorId], references: [id], onDelete: Cascade)
+  
+  // Legal metadata
+  willDate    DateTime @default(now()) // Date will was created/signed
+  lastModified DateTime @updatedAt
+  
+  // Versions & supersession
+  versionNumber Int    @default(1)
+  supersedes  String?  // ID of previous will this replaces
+  
+  // Activation & execution
+  activatedAt DateTime?
+  activatedBy String?  // Admin or notary who activated
+  executedAt  DateTime?
+  executedBy  String?  // Executor who marked as executed
+  
+  // Revocation
+  revokedAt   DateTime?
+  revokedBy   String?
+  revocationReason String? @db.Text
+  
+  // Funeral & burial wishes
+  funeralWishes String? @db.Text
+  burialLocation String?
+  
+  // Residuary clause
+  residuaryClause String? @db.Text // What to do with unallocated assets
+  
+  // Legal compliance
+  requiresWitnesses Boolean @default(true)
+  witnessCount Int @default(0) // Auto-updated
+  hasAllWitnesses Boolean @default(false) // True when >= 2 witnesses signed
+  
+  // Digital assets handling
+  digitalAssetInstructions String? @db.Text
+  
+  // Notes & special instructions
+  specialInstructions String? @db.Text
+  
+  // Soft delete
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  executors   WillExecutor[]
+  witnesses   WillWitness[]
+  beneficiaryAssignments BeneficiaryAssignment[]
+  disinheritances DisinheritanceRecord[]
+  versions    WillVersion[]
+  documents   Document[]
+  disputes    Dispute[]
+
+  @@index([testatorId, status])
+  @@index([status])
+  @@index([activatedAt])
+  @@index([deletedAt])
+  @@map("wills")
+}
+
+model WillVersion {
+  id          String   @id @default(uuid())
+  willId      String
+  will        Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  
+  versionNumber Int
+  
+  // Snapshot of will at this version
+  snapshot    Json     // Full will data at time of save
+  changeLog   String   @db.Text // Human-readable change description
+  
+  // Who made changes
+  changedBy   String
+  ipAddress   String?
+  
+  createdAt   DateTime @default(now())
+
+  @@unique([willId, versionNumber])
+  @@index([willId])
+  @@index([createdAt])
+  @@map("will_versions")
+}
+
+model WillExecutor {
+  id          String   @id @default(uuid())
+  willId      String
+  will        Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  
+  // Executor identity
+  executorId  String?  // Registered user
+  executor    User?    @relation(fields: [executorId], references: [id], onDelete: SetNull)
+  
+  // External executor
+  fullName    String?
+  email       String?
+  phone       String?
+  relationship String? // "Brother", "Lawyer", "Family Friend"
+  
+  // Executor details
+  isPrimary   Boolean  @default(false) // Primary vs alternate
+  orderOfPriority Int  @default(1)     // 1st choice, 2nd choice, etc.
+  status      ExecutorStatus @default(NOMINATED)
+  
+  // Appointment & service
+  appointedAt DateTime?
+  acceptedAt  DateTime?
+  declinedAt  DateTime?
+  declineReason String? @db.Text
+  
+  // Compensation
+  isCompensated Boolean @default(false)
+  compensationAmount Decimal? @db.Decimal(15,2)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([willId])
+  @@index([executorId])
+  @@index([isPrimary, status])
+  @@map("will_executors")
+}
+
+model WillWitness {
+  id          String   @id @default(uuid())
+  willId      String
+  will        Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  
+  // Witness identity
+  witnessId   String?  // Registered user
+  witness     User?    @relation(fields: [witnessId], references: [id], onDelete: SetNull)
+  
+  // External witness
+  fullName    String
+  email       String?
+  phone       String?
+  idNumber    String?  // National ID for verification
+  
+  // Witness details
+  relationship String? // "Neighbor", "Colleague"
+  address     Json?    // Physical address
+  
+  // Witnessing
+  status      WitnessStatus @default(PENDING)
+  signedAt    DateTime?
+  signatureData String? @db.Text // Digital signature or scanned signature
+  verifiedAt  DateTime?
+  verifiedBy  String?  // Admin who verified identity
+  
+  // Legal requirement tracking
+  isEligible  Boolean  @default(true) // Must not be beneficiary
+  ineligibilityReason String? @db.Text
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([willId])
+  @@index([witnessId])
+  @@index([status])
+  @@map("will_witnesses")
+}
+
+// -----------------------------------------------------------------------------
+// BENEFICIARY ASSIGNMENTS & BEQUESTS
+// -----------------------------------------------------------------------------
+
 model BeneficiaryAssignment {
-  id            String   @id @default(uuid())
-  willId        String
-  will          Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
-  assetId       String
-  asset         Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  beneficiaryId String
-  beneficiary   User     @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
-  sharePercent  Decimal?
-  createdAt     DateTime @default(now())
+  id          String   @id @default(uuid())
+  
+  // Will & Asset linkage
+  willId      String
+  will        Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  assetId     String
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  // Beneficiary (can be User or FamilyMember)
+  beneficiaryId String?
+  beneficiary   User?    @relation(fields: [beneficiaryId], references: [id], onDelete: Cascade)
+  
+  familyMemberId String?
+  familyMember   FamilyMember? @relation(fields: [familyMemberId], references: [id], onDelete: Cascade)
+  
+  // External beneficiary (charities, organizations)
+  externalBeneficiaryName String?
+  externalBeneficiaryContact String?
+  
+  // Bequest details
+  bequestType BequestType @default(SPECIFIC)
+  sharePercent Decimal    @db.Decimal(5,2) // 0-100%
+  specificAmount Decimal? @db.Decimal(15,2) // Fixed amount
+  
+  // Conditions
+  hasCondition Boolean    @default(false)
+  conditionType BequestConditionType @default(NONE)
+  conditionDetails String? @db.Text // "Upon turning 25 years old"
+  
+  // Alternate beneficiary (if primary fails condition)
+  alternateBeneficiaryId String?
+  alternateSharePercent Decimal? @db.Decimal(5,2)
+  
+  // Distribution tracking
+  distributionStatus DistributionStatus @default(PENDING)
+  distributedAt DateTime?
+  distributionNotes String? @db.Text
+  
+  // Order of priority
+  priority    Int       @default(1)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@unique([willId, assetId, beneficiaryId])
+  @@unique([willId, assetId, familyMemberId])
+  @@index([willId])
+  @@index([assetId])
   @@index([beneficiaryId])
+  @@index([familyMemberId])
+  @@index([distributionStatus])
+  @@map("beneficiary_assignments")
+}
+
+model DisinheritanceRecord {
+  id          String   @id @default(uuid())
+  willId      String
+  will        Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  
+  // Person being disinherited
+  disinheritedMemberId String
+  disinheritedMember   FamilyMember @relation(fields: [disinheritedMemberId], references: [id], onDelete: Cascade)
+  
+  // Reason (optional but recommended)
+  reason      String?  @db.Text
+  
+  // Legal notice
+  wasNotified Boolean  @default(false)
+  notifiedAt  DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([willId, disinheritedMemberId])
+  @@index([willId])
+  @@index([disinheritedMemberId])
+  @@map("disinheritance_records")
+}
+
+// -----------------------------------------------------------------------------
+// DISPUTES & CONTESTATION
+// -----------------------------------------------------------------------------
+
+model Dispute {
+  id          String   @id @default(uuid())
+  willId      String
+  will        Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  
+  // Disputing party
+  disputantId String
+  disputant   User     @relation(fields: [disputantId], references: [id], onDelete: Cascade)
+  
+  // Dispute details
+  type        DisputeType
+  status      DisputeStatus @default(FILED)
+  description String   @db.Text
+  
+  // Legal representation
+  lawyerName  String?
+  lawyerContact String?
+  caseNumber  String?  // Court case reference
+  
+  // Timeline
+  filedAt     DateTime @default(now())
+  resolvedAt  DateTime?
+  resolution  String?  @db.Text
+  
+  // Supporting evidence
+  evidenceUrls String[] // Links to uploaded documents
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([willId, status])
+  @@index([disputantId])
+  @@map("disputes")
 }
 
 // ============================================================================

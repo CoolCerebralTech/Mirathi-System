@@ -38,19 +38,29 @@ import { Actor, DocumentId, UserId } from '../../3_domain/value-objects';
 import {
   UploadDocumentDto,
   UploadDocumentResponseDto,
+} from '../../2_application/dtos/upload-document.dto';
+import {
+  PaginatedDocumentsResponseDto,
+  QueryDocumentsDto,
+} from '../../2_application/dtos/query-documents.dto';
+import { SearchDocumentsDto } from '../../2_application/dtos/search-documents.dto';
+import { DocumentResponseDto } from '../../2_application/dtos/document-response.dto';
+import {
   VerifyDocumentDto,
   VerifyDocumentResponseDto,
-  QueryDocumentsDto,
-  PaginatedDocumentsResponseDto,
-  DocumentResponseDto,
+} from '../../2_application/dtos/verify-document.dto';
+import {
   UpdateDocumentDto,
   UpdateDocumentResponseDto,
-  UpdateAccessDto,
+} from '../../2_application/dtos/update-document.dto';
+import {
   AccessControlResponseDto,
+  UpdateAccessDto,
+} from '../../2_application/dtos/share-document.dto';
+import {
   BulkOperationDto,
   BulkOperationResponseDto,
-  SearchDocumentsDto,
-} from '../../2_application/dtos';
+} from '../../2_application/dtos/bulk-operations.dto';
 
 interface AuthenticatedRequest extends Request {
   user: {

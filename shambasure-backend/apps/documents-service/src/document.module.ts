@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { CqrsModule } from '@nestjs/cqrs';
 
 // Shared Libraries
 import { DatabaseModule } from '@shamba/database';
@@ -7,6 +8,7 @@ import { AuthModule } from '@shamba/auth';
 import { MessagingModule } from '@shamba/messaging';
 import { ObservabilityModule } from '@shamba/observability';
 import { ConfigModule, ConfigService } from '@shamba/config';
+import { NotificationModule } from '@shamba/notification';
 
 // Infrastructure Layer - Storage Module
 import { StorageModule } from './4_infrastructure/storage/storage.module';
@@ -47,14 +49,16 @@ import { PrismaDocumentVerificationQueryRepository } from './4_infrastructure/re
 @Module({
   imports: [
     // NestJS Modules
+    CqrsModule,
     EventEmitterModule.forRoot(),
 
     // Shared Library Modules
-    DatabaseModule,
-    AuthModule,
-    MessagingModule,
-    ObservabilityModule, // This provides the Logger
     ConfigModule,
+    AuthModule,
+    DatabaseModule, // Provides PrismaService and database connectivity
+    MessagingModule.register({}), // Event publishing, email, SMS, notifications
+    ObservabilityModule.register({ serviceName: 'documents-service', version: '1.0.0' }), // Logging, metrics, tracing, monitoring
+    NotificationModule,
 
     // Infrastructure Modules
     StorageModule, // Added StorageModule - provides StorageService and FileValidatorService

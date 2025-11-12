@@ -17,9 +17,9 @@ import {
   DashboardAnalyticsResponseDto,
   DocumentAnalyticsResponseDto,
   StorageAnalyticsResponseDto,
-  VerificationMetricsResponseDto,
   UploadAnalyticsResponseDto,
-} from '../../2_application/dtos';
+  VerificationMetricsResponseDto,
+} from '../../2_application/dtos/analytics-response.dto';
 
 interface AuthenticatedRequest extends Request {
   user: {

@@ -134,7 +134,7 @@ export class DocumentResponseDto {
   @ApiPropertyOptional({ enum: RetentionPolicyType, example: RetentionPolicyType.LONG_TERM })
   retentionPolicy?: RetentionPolicyType;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: () => DocumentVersionResponseDto })
   latestVersion?: DocumentVersionResponseDto;
 
   // FIX: Added permissions object to match mapper

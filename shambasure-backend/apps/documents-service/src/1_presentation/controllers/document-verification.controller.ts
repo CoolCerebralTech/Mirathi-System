@@ -33,10 +33,12 @@ import {
 import {
   VerifyDocumentDto,
   VerifyDocumentResponseDto,
+} from '../../2_application/dtos/verify-document.dto';
+import {
   DocumentVerificationHistoryResponseDto,
-  VerifierPerformanceResponseDto,
   VerificationAttemptDto,
-} from '../../2_application/dtos';
+  VerifierPerformanceResponseDto,
+} from '../../2_application/dtos/verification-history-response.dto';
 
 // Define proper types for the authenticated request
 interface AuthenticatedRequest extends Request {
