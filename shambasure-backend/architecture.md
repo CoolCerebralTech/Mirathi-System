@@ -22,7 +22,7 @@ Key Principle: This library contains NO business logic. It only defines the shap
 
 Purpose: The sole interface to the PostgreSQL database. It manages the database schema, runs migrations, and provides a type-safe Prisma Client.
 
-Core Packages: @prisma/client, nestjs-prisma (optional)
+Core Packages: @prisma/client, nestjs-prisma
 
 Dependencies: None. This is a foundational library.
 

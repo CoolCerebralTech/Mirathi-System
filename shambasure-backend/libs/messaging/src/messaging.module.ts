@@ -1,19 +1,3 @@
-// ============================================================================
-// Shamba Sure - Shared Messaging Module
-// ============================================================================
-// This is a dynamic, global module responsible for providing a standardized
-// and resilient connection to RabbitMQ for all microservices in the ecosystem.
-//
-// KEY RESPONSIBILITIES:
-// 1. DYNAMIC REGISTRATION: Uses a `register()` method to allow each consuming
-//    service to specify its own unique queue if it's a consumer.
-// 2. PROVIDES IEventPublisher: It provides and exports the `IEventPublisher`
-//    interface, making the `MessagingService` available for dependency injection
-//    throughout the application. THIS IS THE FIX for the dependency error.
-// 3. CENTRALIZED CONFIGURATION: It centralizes the logic for creating the
-//    RabbitMQ `ClientProxy`, ensuring all services connect in a consistent way.
-// ============================================================================
-
 import { DynamicModule, Module, Provider, Global } from '@nestjs/common';
 import { ClientProxyFactory, Transport, RmqOptions } from '@nestjs/microservices';
 import { ConfigModule, ConfigService } from '@shamba/config';

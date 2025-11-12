@@ -10,15 +10,12 @@ import { DomainEvent } from '../events';
  * Defines the contract for publishing domain events to the message broker.
  */
 export interface IEventPublisher {
-  /**
-   * Publishes a single domain event.
-   */
   publish(event: DomainEvent): Promise<void>;
-
-  /**
-   * Publishes multiple domain events in a batch.
-   */
   publishBatch(events: DomainEvent[]): Promise<void>;
+}
+
+export interface IEventHandler<T> {
+  handle(event: T): Promise<void>;
 }
 
 // ============================================================================

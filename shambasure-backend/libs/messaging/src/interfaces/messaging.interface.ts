@@ -1,16 +1,4 @@
-// ============================================================================
-// Shamba Sure - Messaging System Interfaces
-// ============================================================================
-// This file defines the core contracts and data structures for interacting
-// with the event-driven architecture, primarily RabbitMQ. It establishes a
-// "shared language" for all microservices.
-//
-// DESIGN PRINCIPLES:
-// - All communication contracts are centralized here.
-// - Enums are used to prevent typos and enforce consistency.
-// - Interfaces are detailed to support production-ready features like
-//   distributed tracing, dead-lettering, and health monitoring.
-// ============================================================================
+import { ShambaEvents } from '../events/shamba-events.enum';
 
 /**
  * Defines the names for the primary RabbitMQ exchanges.
@@ -18,6 +6,7 @@
  */
 export enum Exchange {
   SHAMBA_EVENTS = 'shamba.events.topic',
+  SHAMBA_EVENTS_DEAD_LETTER = 'shamba.events.dead.letter',
 }
 
 /**
@@ -31,6 +20,18 @@ export enum Queue {
   SUCCESSION_EVENTS = 'succession.events',
   NOTIFICATIONS_EVENTS = 'notifications.events',
   AUDITING_EVENTS = 'auditing.events',
+}
+
+/**
+ * Defines the names of dead letter queues for each service.
+ * Failed messages that cannot be processed are routed here for investigation.
+ */
+export enum DeadLetterQueue {
+  ACCOUNTS_DLQ = 'accounts.events.dlq',
+  DOCUMENTS_DLQ = 'documents.events.dlq',
+  SUCCESSION_DLQ = 'succession.events.dlq',
+  NOTIFICATIONS_DLQ = 'notifications.events.dlq',
+  AUDITING_DLQ = 'auditing.events.dlq',
 }
 
 /**
@@ -55,6 +56,9 @@ export enum RoutingPattern {
   // Succession service events
   SUCCESSION_ALL = 'succession.#',
 
+  // Notifications service events
+  NOTIFICATIONS_ALL = 'notifications.#',
+
   // Catch-all pattern, typically used only by the auditing service
   ALL_EVENTS = '#',
 }
@@ -66,10 +70,9 @@ export enum RoutingPattern {
 export interface BaseEvent<T = any> {
   /**
    * The unique type of the event, which also serves as its routing key.
-   * Convention: `{source-service}.{domain-entity}.{action}`
-   * Example: 'accounts.user.created'
+   * MUST use values from ShambaEvents enum for type safety.
    */
-  eventType: string;
+  eventType: ShambaEvents;
 
   /**
    * The ISO 8601 timestamp indicating when the event was generated.
@@ -85,6 +88,12 @@ export interface BaseEvent<T = any> {
   correlationId: string;
 
   /**
+   * The ID of the user who initiated the action, if applicable.
+   * Used for auditing and authorization context.
+   */
+  userId?: string;
+
+  /**
    * The event-specific data payload. The structure of this object
    * varies based on the `eventType`.
    */
@@ -98,8 +107,12 @@ export interface BaseEvent<T = any> {
     service: string;
     /** The version of the service that published the event. */
     version?: string;
-    /** The ID of the user who initiated the action, if applicable. */
-    userId?: string;
+    /** The ID of the tenant/organization, if multi-tenant. */
+    tenantId?: string;
+    /** The source IP address of the request that triggered the event. */
+    sourceIp?: string;
+    /** User agent or client information. */
+    userAgent?: string;
   };
 }
 
@@ -124,6 +137,24 @@ export interface RabbitMQConfig {
    * events and do not need their own queue.
    */
   queue?: Queue;
+
+  /**
+   * The dead letter queue for this service.
+   * Required if the service consumes events.
+   */
+  deadLetterQueue?: DeadLetterQueue;
+
+  /**
+   * Prefetch count for message processing (quality of service).
+   * Default: 10 messages at a time per consumer.
+   */
+  prefetchCount?: number;
+
+  /**
+   * Maximum retry attempts for failed messages before sending to DLQ.
+   * Default: 3 attempts.
+   */
+  maxRetryAttempts?: number;
 }
 
 /**
@@ -142,4 +173,45 @@ export interface BrokerHealth {
 
   /** Timestamp of the last successful connection. */
   lastConnectedAt?: Date;
+
+  /** Number of messages published since startup. */
+  messagesPublished: number;
+
+  /** Number of messages consumed since startup. */
+  messagesConsumed: number;
+
+  /** Number of failed messages (sent to DLQ). */
+  messagesFailed: number;
+}
+
+/**
+ * Represents a message that has failed processing and is being sent to DLQ.
+ */
+export interface FailedMessage {
+  /** The original event that failed. */
+  event: BaseEvent;
+  /** The error that caused the failure. */
+  error: string;
+  /** The stack trace of the error. */
+  stackTrace?: string;
+  /** Number of times the message was retried. */
+  retryCount: number;
+  /** Timestamp when the failure occurred. */
+  failedAt: string;
+  /** The service that encountered the failure. */
+  failingService: string;
+}
+
+/**
+ * Configuration for message retry behavior.
+ */
+export interface RetryConfig {
+  /** Maximum number of retry attempts. */
+  maxAttempts: number;
+  /** Initial delay in milliseconds for the first retry. */
+  initialDelayMs: number;
+  /** Multiplier for exponential backoff. */
+  backoffMultiplier: number;
+  /** Maximum delay between retries in milliseconds. */
+  maxDelayMs: number;
 }
