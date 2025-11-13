@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DocumentCategoryEnum } from '../../3_domain/value-objects/document-category.vo';
 import { DocumentStatusEnum } from '../../3_domain/value-objects/document-status.vo';
 import { RetentionPolicyType } from '../../3_domain/value-objects/retention-policy.vo';
+import { DocumentVersionResponseDto } from './document-version-response.dto';
 
 export class DocumentResponseDto {
   @ApiProperty({
@@ -154,123 +155,6 @@ export class DocumentResponseDto {
   };
 
   constructor(partial: Partial<DocumentResponseDto>) {
-    Object.assign(this, partial);
-  }
-}
-
-export class DocumentVersionResponseDto {
-  @ApiProperty()
-  id: string;
-
-  @ApiProperty()
-  versionNumber: number;
-
-  @ApiProperty()
-  documentId: string;
-
-  @ApiProperty()
-  storagePath: string;
-
-  @ApiProperty()
-  filename: string;
-
-  @ApiProperty()
-  mimeType: string;
-
-  @ApiProperty()
-  sizeBytes: number;
-
-  @ApiProperty()
-  checksum: string;
-
-  @ApiPropertyOptional()
-  changeNote?: string;
-
-  @ApiProperty()
-  uploadedBy: string;
-
-  @ApiPropertyOptional()
-  uploadedByName?: string;
-
-  @ApiProperty()
-  createdAt: Date;
-
-  @ApiPropertyOptional()
-  downloadUrl?: string;
-
-  @ApiProperty()
-  fileSizeHumanReadable: string;
-
-  constructor(partial: Partial<DocumentVersionResponseDto>) {
-    Object.assign(this, partial);
-  }
-}
-
-export class DocumentVerificationAttemptResponseDto {
-  @ApiProperty()
-  id: string;
-
-  @ApiProperty()
-  documentId: string;
-
-  @ApiProperty()
-  verifierId: string;
-
-  @ApiPropertyOptional()
-  verifierName?: string;
-
-  @ApiProperty({ enum: DocumentStatusEnum })
-  status: DocumentStatusEnum;
-
-  @ApiPropertyOptional()
-  reason?: string;
-
-  @ApiPropertyOptional()
-  metadata?: Record<string, any>;
-
-  @ApiProperty()
-  createdAt: Date;
-
-  @ApiPropertyOptional()
-  isSuccessful?: boolean;
-
-  @ApiPropertyOptional()
-  isRejection?: boolean;
-
-  constructor(partial: Partial<DocumentVerificationAttemptResponseDto>) {
-    Object.assign(this, partial);
-  }
-}
-
-export class DocumentStatsResponseDto {
-  @ApiProperty()
-  total: number;
-
-  @ApiProperty()
-  byStatus: Record<string, number>;
-
-  @ApiProperty()
-  byCategory: Record<string, number>;
-
-  @ApiProperty()
-  totalSizeBytes: number;
-
-  @ApiProperty()
-  averageSizeBytes: number;
-
-  @ApiProperty()
-  encrypted: number;
-
-  @ApiProperty()
-  public: number;
-
-  @ApiProperty()
-  expired: number;
-
-  @ApiPropertyOptional()
-  storageUsageByProvider?: Record<string, number>;
-
-  constructor(partial: Partial<DocumentStatsResponseDto>) {
     Object.assign(this, partial);
   }
 }

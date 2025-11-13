@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { IDocumentRepository, IStorageService } from '../../3_domain/interfaces';
@@ -23,14 +24,15 @@ import {
   CreateDocumentVersionResponseDto,
 } from '../dtos/document-version.dto';
 import * as crypto from 'crypto';
+import { DOCUMENT_REPOSITORY, STORAGE_SERVICE } from '../../injection.tokens';
 
 @Injectable()
 export class DocumentVersionCommandService {
   private readonly logger = new Logger(DocumentVersionCommandService.name);
 
   constructor(
-    private readonly documentRepository: IDocumentRepository,
-    private readonly storageService: IStorageService,
+    @Inject(DOCUMENT_REPOSITORY) private readonly documentRepository: IDocumentRepository,
+    @Inject(STORAGE_SERVICE) private readonly storageService: IStorageService,
     private readonly versionMapper: DocumentVersionMapper,
     private readonly fileValidator: FileValidatorService,
     private readonly eventEmitter: EventEmitter2,

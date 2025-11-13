@@ -1,4 +1,4 @@
-import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException, Inject } from '@nestjs/common';
 import type { IDocumentQueryRepository, FindDocumentsFilters } from '../../3_domain/interfaces';
 import { Actor, DocumentCategory, DocumentStatus, UserId } from '../../3_domain/value-objects';
 import { StatisticsMapper } from '../mappers';
@@ -9,6 +9,7 @@ import {
   VerificationMetricsResponseDto,
   UploadAnalyticsResponseDto,
 } from '../dtos/analytics-response.dto';
+import { DOCUMENT_QUERY_REPOSITORY } from '../../injection.tokens';
 
 export interface TimeRange {
   start: Date;
@@ -53,7 +54,7 @@ export class StatisticsService {
   private readonly logger = new Logger(StatisticsService.name);
 
   constructor(
-    private readonly documentQueryRepo: IDocumentQueryRepository,
+    @Inject(DOCUMENT_QUERY_REPOSITORY) private readonly documentQueryRepo: IDocumentQueryRepository,
     private readonly statisticsMapper: StatisticsMapper,
   ) {}
 

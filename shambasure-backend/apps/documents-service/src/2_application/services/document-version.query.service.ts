@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException, Inject } from '@nestjs/common';
 import type {
   IDocumentRepository,
   IDocumentVersionQueryRepository,
@@ -8,7 +8,12 @@ import { DocumentVersion } from '../../3_domain/models';
 import { Actor, DocumentId, DocumentVersionId, FileName } from '../../3_domain/value-objects';
 import { DocumentVersionMapper } from '../mappers';
 import { DocumentVersionQueryDto } from '../dtos/document-version.dto';
-import { DocumentVersionResponseDto } from '../dtos/document-response.dto';
+import { DocumentVersionResponseDto } from '../dtos/document-version-response.dto';
+import {
+  DOCUMENT_REPOSITORY,
+  DOCUMENT_VERSION_QUERY_REPOSITORY,
+  STORAGE_SERVICE,
+} from '../../injection.tokens';
 
 interface PaginatedResponseDto<T> {
   data: T[];
@@ -25,9 +30,10 @@ export class DocumentVersionQueryService {
   private readonly logger = new Logger(DocumentVersionQueryService.name);
 
   constructor(
-    private readonly documentRepository: IDocumentRepository,
+    @Inject(DOCUMENT_REPOSITORY) private readonly documentRepository: IDocumentRepository,
+    @Inject(DOCUMENT_VERSION_QUERY_REPOSITORY)
     private readonly versionQueryRepository: IDocumentVersionQueryRepository,
-    private readonly storageService: IStorageService,
+    @Inject(STORAGE_SERVICE) private readonly storageService: IStorageService,
     private readonly versionMapper: DocumentVersionMapper,
   ) {}
 

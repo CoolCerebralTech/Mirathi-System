@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException, Inject } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type {
   IDocumentRepository,
@@ -24,15 +24,21 @@ import {
   DashboardAnalyticsResponseDto,
 } from '../dtos/analytics-response.dto';
 import { DocumentResponseDto } from '../dtos/document-response.dto';
+import {
+  DOCUMENT_REPOSITORY,
+  DOCUMENT_QUERY_REPOSITORY,
+  STORAGE_SERVICE,
+} from '../../injection.tokens';
 
 @Injectable()
 export class DocumentQueryService {
   private readonly logger = new Logger(DocumentQueryService.name);
 
   constructor(
+    @Inject(DOCUMENT_QUERY_REPOSITORY)
     private readonly documentQueryRepository: IDocumentQueryRepository,
-    private readonly documentRepository: IDocumentRepository,
-    private readonly storageService: IStorageService,
+    @Inject(DOCUMENT_REPOSITORY) private readonly documentRepository: IDocumentRepository,
+    @Inject(STORAGE_SERVICE) private readonly storageService: IStorageService,
     private readonly documentMapper: DocumentMapper,
     private readonly eventEmitter: EventEmitter2,
   ) {}

@@ -33,7 +33,7 @@ import { JwtAuthGuard, RolesGuard } from '@shamba/auth';
 import { DocumentVersionCommandService } from '../../2_application/services/document-version.command.service';
 import { DocumentVersionQueryService } from '../../2_application/services/document-version.query.service';
 import { Actor, DocumentId, UserId } from '../../3_domain/value-objects';
-import { DocumentVersionResponseDto } from '../../2_application/dtos/document-response.dto';
+import { DocumentVersionResponseDto } from '../../2_application/dtos/document-version-response.dto';
 import {
   CreateDocumentVersionDto,
   CreateDocumentVersionResponseDto,

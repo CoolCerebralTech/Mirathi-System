@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   BadRequestException,
   ConflictException,
+  Inject,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { IDocumentRepository } from '../../3_domain/interfaces';
@@ -13,13 +14,14 @@ import { Actor, DocumentId, RejectionReason, UserId } from '../../3_domain/value
 import { DocumentStatusEnum } from '../../3_domain/value-objects/document-status.vo';
 import { DocumentMapper } from '../mappers';
 import { VerifyDocumentDto, VerifyDocumentResponseDto } from '../dtos/verify-document.dto';
+import { DOCUMENT_REPOSITORY } from '../../injection.tokens';
 
 @Injectable()
 export class DocumentVerificationCommandService {
   private readonly logger = new Logger(DocumentVerificationCommandService.name);
 
   constructor(
-    private readonly documentRepository: IDocumentRepository,
+    @Inject(DOCUMENT_REPOSITORY) private readonly documentRepository: IDocumentRepository,
     private readonly documentMapper: DocumentMapper,
     private readonly eventEmitter: EventEmitter2,
   ) {}

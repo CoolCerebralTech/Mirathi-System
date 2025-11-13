@@ -10,6 +10,13 @@ import { ObservabilityModule } from '@shamba/observability';
 import { ConfigModule, ConfigService } from '@shamba/config';
 import { NotificationModule } from '@shamba/notification';
 
+import {
+  DOCUMENT_REPOSITORY,
+  DOCUMENT_QUERY_REPOSITORY,
+  DOCUMENT_VERSION_QUERY_REPOSITORY,
+  DOCUMENT_VERIFICATION_QUERY_REPOSITORY,
+} from './injection.tokens';
+
 // Infrastructure Layer - Storage Module
 import { StorageModule } from './4_infrastructure/storage/storage.module';
 
@@ -99,23 +106,23 @@ import { PrismaDocumentVerificationQueryRepository } from './4_infrastructure/re
     // INFRASTRUCTURE REPOSITORIES (Command Side - Write)
     // ============================================================================
     {
-      provide: PrismaDocumentRepository,
-      useClass: PrismaDocumentRepository,
+      provide: DOCUMENT_REPOSITORY, // Provide the TOKEN
+      useClass: PrismaDocumentRepository, // Use the CONCRETE CLASS
     },
 
     // ============================================================================
     // INFRASTRUCTURE QUERY REPOSITORIES (Read Side)
     // ============================================================================
     {
-      provide: PrismaDocumentQueryRepository,
+      provide: DOCUMENT_QUERY_REPOSITORY,
       useClass: PrismaDocumentQueryRepository,
     },
     {
-      provide: PrismaDocumentVersionQueryRepository,
+      provide: DOCUMENT_VERSION_QUERY_REPOSITORY,
       useClass: PrismaDocumentVersionQueryRepository,
     },
     {
-      provide: PrismaDocumentVerificationQueryRepository,
+      provide: DOCUMENT_VERIFICATION_QUERY_REPOSITORY,
       useClass: PrismaDocumentVerificationQueryRepository,
     },
 
