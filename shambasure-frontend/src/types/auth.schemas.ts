@@ -1,23 +1,9 @@
-// ============================================================================
-// auth.schemas.ts - Authentication Validation Schemas
-// ============================================================================
-// Updated to match new backend auth.dto with enhanced security and session management
-// ============================================================================
-
 import { z } from 'zod';
 
 // ============================================================================
 // SHARED VALIDATION SCHEMAS
 // ============================================================================
 
-/**
- * Enhanced strong password validation matching backend IsEnhancedPassword
- * - Minimum 8 characters
- * - At least one uppercase letter
- * - At least one lowercase letter  
- * - At least one number
- * - At least one special character
- */
 export const EnhancedPasswordSchema = z
   .string()
   .min(8, 'Password must be at least 8 characters long')
@@ -257,7 +243,7 @@ export const AuthUserResponseSchema = z.object({
   email: z.string().email(),
   firstName: z.string(),
   lastName: z.string(),
-  role: z.enum(['LAND_OWNER', 'HEIR', 'ADMIN']),
+  role: z.enum(['USER', 'ADMIN', 'VERIFIER', 'AUDITOR']),
   isActive: z.boolean(),
   emailVerified: z.boolean(),
   phoneVerified: z.boolean(),

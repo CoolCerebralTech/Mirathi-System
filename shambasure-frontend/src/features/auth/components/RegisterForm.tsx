@@ -2,7 +2,7 @@
 // RegisterForm.tsx - Updated Registration Form
 // ============================================================================
 
-import { useForm, Controller, type SubmitHandler } from 'react-hook-form';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -14,15 +14,12 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Info,
-  UserPlus,
-  Check
-} from 'lucide-react';
+  UserPlus} from 'lucide-react';
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 
 import {
   RegisterRequestSchema,
-  type RegisterFormInput,
   type RegisterInput,
   calculatePasswordStrength,
 } from '../../../types';
@@ -33,6 +30,14 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Label } from '../../../components/ui/Label';
 import { Checkbox } from '../../../components/ui/Checkbox';
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+type RegisterFormInput = RegisterInput & {
+  passwordConfirmation: string;
+};
 
 // ============================================================================
 // DEVICE ID GENERATION
@@ -177,7 +182,7 @@ function PasswordRequirements({ password, show }: PasswordRequirementsProps) {
 }
 
 // ============================================================================
-// MAIN REGISTRATION FORM - UPDATED WITH NEW FIELDS
+// MAIN REGISTRATION FORM - FUNCTIONAL FIXES
 // ============================================================================
 
 export function RegisterForm() {
@@ -187,13 +192,12 @@ export function RegisterForm() {
 
   const [showPasswordRequirements, setShowPasswordRequirements] = useState(false);
   const [passwordValue, setPasswordValue] = useState('');
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [marketingOptIn, setMarketingOptIn] = useState(false);
 
   const {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors, isValid },
   } = useForm<RegisterFormInput>({
     resolver: zodResolver(RegisterRequestSchema),
@@ -211,6 +215,8 @@ export function RegisterForm() {
   });
 
   const watchedPassword = watch('password');
+  const acceptedTerms = watch('acceptedTerms');
+  const marketingOptIn = watch('marketingOptIn');
 
   useEffect(() => {
     setPasswordValue(watchedPassword || '');
@@ -218,14 +224,14 @@ export function RegisterForm() {
 
   const onSubmit: SubmitHandler<RegisterFormInput> = (formData) => {
     try {
-      // Ensure deviceId is always set
-      const registrationData: RegisterInput = {
+      // Convert form data to API payload (remove passwordConfirmation)
+      const { passwordConfirmation, ...apiPayload }: RegisterInput = {
         ...formData,
         deviceId: formData.deviceId || generateDeviceId(),
       };
 
       registerUser(
-        { data: registrationData, rememberMe: true },
+        { data: apiPayload, rememberMe: true },
         {
           onSuccess: () => {
             toast.success(t('auth:register_success_title', 'Account Created!'), {
@@ -467,11 +473,7 @@ export function RegisterForm() {
               id="acceptedTerms"
               checked={acceptedTerms}
               onCheckedChange={(checked) => {
-                setAcceptedTerms(checked as boolean);
-                // Update form value
-                register('acceptedTerms').onChange({
-                  target: { value: checked, name: 'acceptedTerms' }
-                });
+                setValue('acceptedTerms', checked as boolean, { shouldValidate: true });
               }}
               disabled={isPending}
               className="mt-0.5 border-neutral-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
@@ -519,11 +521,7 @@ export function RegisterForm() {
             id="marketingOptIn"
             checked={marketingOptIn}
             onCheckedChange={(checked) => {
-              setMarketingOptIn(checked as boolean);
-              // Update form value
-              register('marketingOptIn').onChange({
-                target: { value: checked, name: 'marketingOptIn' }
-              });
+              setValue('marketingOptIn', checked as boolean, { shouldValidate: true });
             }}
             disabled={isPending}
             className="mt-0.5 border-neutral-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"

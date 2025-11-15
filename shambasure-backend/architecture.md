@@ -130,7 +130,7 @@ Description: A centralized service for sending all emails, SMS messages, and pus
 
 Dependencies: All libs.
 
-Data Owned: NotificationLogs (optional).
+Data Owned: NotificationLogs.
 
 Events Subscribed To: UserCreated, PasswordResetRequested, HeirAssigned, etc.
 

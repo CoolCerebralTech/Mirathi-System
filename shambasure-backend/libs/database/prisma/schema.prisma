@@ -1,4 +1,3 @@
-// Shamba Sure - Production-Ready
 generator client {
   provider = "prisma-client-js"
 }
@@ -243,6 +242,7 @@ model User {
   @@index([deletedAt])
   @@map("users")
   
+  estates Estate[]
 }
 
 
@@ -747,6 +747,7 @@ model Will {
   @@index([activatedAt])
   @@index([deletedAt])
   @@map("wills")
+  estates Estate[] @relation("EstateWills")
 }
 
 model WillVersion {
@@ -972,6 +973,192 @@ model Dispute {
   @@index([disputantId])
   @@map("disputes")
 }
+// ----------------------
+// Estate & Administration
+// ----------------------
+model Estate {
+  id               String    @id @default(uuid())
+  deceasedUserId   String?   // If deceased was a registered user (optional)
+  deceasedName     String
+  dateOfDeath      DateTime?
+  probateCaseNumber String?  // Court reference / Probate case no
+  estateValue      Decimal?  @db.Decimal(18,2)
+  currency         String    @default("KES")
+  status           DistributionStatus @default(PENDING) // reuse enum
+  administrationType String? // "PROBATE", "LETTERS", "LIMITED_GRANT", "INTESTACY"
+  administratorId  String?   // User who is administrator/executor (may be WillExecutor.userId)
+  administrator    User?     @relation(fields: [administratorId], references: [id], onDelete: SetNull)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  closedAt         DateTime?
+
+  // relations
+  wills           Will[]            @relation("EstateWills")
+  inventories     EstateInventory[]
+  grants          GrantOfAdministration[]
+  accounting      EstateAccounting?
+  claims          CreditorClaim[]
+  distributions   DistributionSchedule[]
+  entitlements    BeneficiaryEntitlement[]
+
+  @@index([deceasedUserId])
+  @@index([probateCaseNumber])
+  @@map("estates")
+  intestacyCases IntestacyCase[]
+  testamentaryTrusts TestamentaryTrust[]
+}
+
+model EstateInventory {
+  id          String   @id @default(uuid())
+  estateId    String
+  estate      Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  assetId     String?  // linked Asset if recorded
+  description String   @db.Text
+  estimatedValue Decimal @db.Decimal(18,2)
+  currency    String   @default("KES")
+  ownedByDeceased Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([estateId, assetId])
+  @@map("estate_inventories")
+}
+
+model GrantOfAdministration {
+  id            String   @id @default(uuid())
+  estateId      String
+  estate        Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  applicantId   String?  // User applying
+  applicantName String?
+  grantType     String   // "PROBATE", "LETTERS", "LIMITED"
+  issuedBy      String?  // Court user id or clerk
+  issuedAt      DateTime?
+  expiresAt     DateTime?
+  caseNumber    String?
+  notes         String?  @db.Text
+  status        DistributionStatus @default(PENDING)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([estateId, applicantId])
+  @@map("grants_of_administration")
+}
+
+// ----------------------
+// Creditor Claims & Accounting
+// ----------------------
+model CreditorClaim {
+  id             String   @id @default(uuid())
+  estateId       String
+  estate         Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  creditorName   String
+  amountClaimed  Decimal  @db.Decimal(18,2)
+  currency       String   @default("KES")
+  supportingDocumentId String?
+  status         String   // "PENDING","ACCEPTED","REJECTED","PAID"
+  resolvedAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([estateId, status])
+  @@map("creditor_claims")
+}
+
+model EstateAccounting {
+  id               String   @id @default(uuid())
+  estateId         String   @unique
+  estate           Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  totalAssets      Decimal  @db.Decimal(18,2) @default(0)
+  totalLiabilities Decimal  @db.Decimal(18,2) @default(0)
+  netEstateValue   Decimal  @db.Decimal(18,2) @default(0)
+  preparedById     String?
+  preparedAt       DateTime?
+  auditedAt        DateTime?
+  notes            String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("estate_accountings")
+}
+
+// ----------------------
+// Distribution & Entitlements (intestacy/testate handling)
+// ----------------------
+model BeneficiaryEntitlement {
+  id                String   @id @default(uuid())
+  estateId          String
+  estate            Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  beneficiaryUserId String?
+  beneficiaryFamilyMemberId String?
+  externalName      String?
+  relationship      RelationshipType?
+  entitlementType   BequestType @default(SPECIFIC) // mapping semantics
+  sharePercent      Decimal? @db.Decimal(5,2)
+  fixedAmount       Decimal? @db.Decimal(18,2)
+  lifeInterest      Boolean  @default(false) // e.g., spouse life interest
+  lifeInterestEndsAt DateTime?
+  isMinor           Boolean  @default(false)
+  heldInTrustId     String?  // links to TestamentaryTrust
+  distributionStatus DistributionStatus @default(PENDING)
+  distributedAt     DateTime?
+  priority          Int     @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([estateId, beneficiaryUserId])
+  @@map("beneficiary_entitlements")
+}
+
+model DistributionSchedule {
+  id          String   @id @default(uuid())
+  estateId    String
+  estate      Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  stepOrder   Int
+  stepType    String   // "SETTLE_DEBTS","LIQUIDATE_ASSET","PAY_CLAIMS","DISTRIBUTE_CASH","TRANSFER_ASSET"
+  description String?
+  dueDate     DateTime?
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([estateId, stepOrder])
+  @@map("distribution_schedules")
+}
+
+// ----------------------
+// Intestacy helper (store computed decision path)
+// ----------------------
+model IntestacyCase {
+  id             String   @id @default(uuid())
+  estateId       String
+  estate         Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  computedAt     DateTime @default(now())
+  decisionJson   Json     // store the computed heir order, shares, life interests etc
+  computedBy     String?  // service/process id
+  notes          String?  @db.Text
+
+  @@index([estateId])
+  @@map("intestacy_cases")
+}
+
+// ----------------------
+// Testamentary Trusts (for minors / conditional bequests)
+// ----------------------
+model TestamentaryTrust {
+  id           String   @id @default(uuid())
+  estateId     String
+  estate       Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  trusteeId    String?  // User acting as trustee
+  trusteeName  String?
+  purpose      String?  @db.Text
+  validUntil   DateTime? // e.g., until beneficiary reaches 18/25
+  fundsHeld    Decimal? @db.Decimal(18,2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([estateId, trusteeId])
+  @@map("testamentary_trusts")
+}
+
 
 // ============================================================================
 // DOCUMENTS SERVICE MODELS

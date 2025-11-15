@@ -2,7 +2,7 @@
 // auth.api.ts - Authentication API Layer
 // ============================================================================
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, extractErrorMessage } from '../../api/client';
 import { useAuthStore } from '../../store/auth.store';
 import { userKeys } from '../user/user.api';
@@ -82,6 +82,51 @@ const AUTH_MUTATION_CONFIG = {
 } as const;
 
 // ============================================================================
+// DEVICE INFO COLLECTION
+// ============================================================================
+
+/**
+ * Gets current device information for session tracking
+ */
+const getDeviceInfo = () => {
+  if (typeof window === 'undefined') {
+    return {
+      deviceId: undefined,
+      userAgent: undefined,
+      ipAddress: undefined,
+    };
+  }
+
+  // Generate or retrieve device ID
+  let deviceId = localStorage.getItem('deviceId');
+  if (!deviceId) {
+    deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('deviceId', deviceId);
+  }
+
+  return {
+    deviceId,
+    userAgent: navigator.userAgent,
+    ipAddress: undefined, // Will be set by backend from request headers
+  };
+};
+
+/**
+ * Enhances auth payload with device information
+ */
+const enhanceWithDeviceInfo = <T extends { deviceId?: string; userAgent?: string; ipAddress?: string }>(
+  data: T
+): T => {
+  const deviceInfo = getDeviceInfo();
+  return {
+    ...data,
+    deviceId: data.deviceId || deviceInfo.deviceId,
+    userAgent: data.userAgent || deviceInfo.userAgent,
+    // ipAddress is typically set by backend from request headers
+  };
+};
+
+// ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
 
@@ -104,9 +149,10 @@ interface AuthMutationOptions {
  */
 const registerUser = async (registrationData: RegisterInput): Promise<AuthResponse> => {
   try {
+    const enhancedData = enhanceWithDeviceInfo(registrationData);
     const { data } = await apiClient.post<AuthResponse>(
       API_ENDPOINTS.REGISTER,
-      registrationData,
+      enhancedData,
     );
 
     const validatedData = AuthResponseSchema.parse(data);
@@ -126,9 +172,10 @@ const registerUser = async (registrationData: RegisterInput): Promise<AuthRespon
  */
 const loginUser = async (credentials: LoginInput): Promise<AuthResponse> => {
   try {
+    const enhancedData = enhanceWithDeviceInfo(credentials);
     const { data } = await apiClient.post<AuthResponse>(
       API_ENDPOINTS.LOGIN,
-      credentials,
+      enhancedData,
     );
 
     const validatedData = AuthResponseSchema.parse(data);
@@ -148,9 +195,10 @@ const loginUser = async (credentials: LoginInput): Promise<AuthResponse> => {
  */
 const logoutUser = async (logoutData: LogoutInput): Promise<LogoutResponse> => {
   try {
+    const enhancedData = enhanceWithDeviceInfo(logoutData);
     const { data } = await apiClient.post<LogoutResponse>(
       API_ENDPOINTS.LOGOUT,
-      logoutData,
+      enhancedData,
     );
 
     const validatedData = LogoutResponseSchema.parse(data);
@@ -169,9 +217,10 @@ const logoutUser = async (logoutData: LogoutInput): Promise<LogoutResponse> => {
  */
 const refreshToken = async (refreshData: RefreshTokenInput): Promise<RefreshTokenResponse> => {
   try {
+    const enhancedData = enhanceWithDeviceInfo(refreshData);
     const { data } = await apiClient.post<RefreshTokenResponse>(
       API_ENDPOINTS.REFRESH,
-      refreshData,
+      enhancedData,
     );
 
     const validatedData = RefreshTokenResponseSchema.parse(data);
@@ -190,9 +239,10 @@ const refreshToken = async (refreshData: RefreshTokenInput): Promise<RefreshToke
  */
 const verifyEmail = async (verificationData: VerifyEmailInput): Promise<VerifyEmailResponse> => {
   try {
+    const enhancedData = enhanceWithDeviceInfo(verificationData);
     const { data } = await apiClient.post<VerifyEmailResponse>(
       API_ENDPOINTS.VERIFY_EMAIL,
-      verificationData,
+      enhancedData,
     );
 
     const validatedData = VerifyEmailResponseSchema.parse(data);
@@ -276,9 +326,10 @@ const validateResetToken = async (tokenData: ValidateResetTokenInput): Promise<V
  */
 const resetPassword = async (resetPasswordData: ResetPasswordInput): Promise<ResetPasswordResponse> => {
   try {
+    const enhancedData = enhanceWithDeviceInfo(resetPasswordData);
     const { data } = await apiClient.post<ResetPasswordResponse>(
       API_ENDPOINTS.RESET_PASSWORD,
-      resetPasswordData,
+      enhancedData,
     );
 
     const validatedData = ResetPasswordResponseSchema.parse(data);
@@ -340,9 +391,10 @@ const requestEmailChange = async (emailChangeData: RequestEmailChangeInput): Pro
  */
 const confirmEmailChange = async (confirmData: ConfirmEmailChangeInput): Promise<ConfirmEmailChangeResponse> => {
   try {
+    const enhancedData = enhanceWithDeviceInfo(confirmData);
     const { data } = await apiClient.post<ConfirmEmailChangeResponse>(
       API_ENDPOINTS.CONFIRM_EMAIL_CHANGE,
-      confirmData,
+      enhancedData,
     );
 
     const validatedData = ConfirmEmailChangeResponseSchema.parse(data);
@@ -354,6 +406,38 @@ const confirmEmailChange = async (confirmData: ConfirmEmailChangeInput): Promise
     });
     throw error;
   }
+};
+
+// ============================================================================
+// TOKEN MANAGEMENT
+// ============================================================================
+
+/**
+ * Helper to convert AuthResponse to store-compatible format
+ */
+const convertAuthResponseForStore = (authData: AuthResponse) => {
+  return {
+    user: {
+      id: authData.user.id,
+      email: authData.user.email,
+      firstName: authData.user.firstName,
+      lastName: authData.user.lastName,
+      role: authData.user.role,
+      isActive: authData.user.isActive,
+      emailVerified: authData.user.emailVerified,
+      phoneVerified: authData.user.phoneVerified,
+      lastLoginAt: authData.user.lastLoginAt || null,
+      createdAt: authData.user.createdAt,
+      updatedAt: authData.user.updatedAt,
+      // Fields that might not be in AuthResponse but are in store
+      loginAttempts: 0,
+      lockedUntil: null,
+      deletedAt: null,
+      profile: undefined,
+    },
+    accessToken: authData.accessToken,
+    refreshToken: authData.refreshToken,
+  };
 };
 
 // ============================================================================
@@ -372,7 +456,8 @@ export const useLogin = (options?: AuthMutationOptions) => {
     ...AUTH_MUTATION_CONFIG,
 
     onSuccess: (authData, { rememberMe }) => {
-      loginAction(authData, rememberMe);
+      const storeData = convertAuthResponseForStore(authData);
+      loginAction(storeData, rememberMe);
       queryClient.setQueryData(userKeys.profile(), authData.user);
 
       toast.success('Welcome back! You are now logged in.', {
@@ -419,7 +504,8 @@ export const useRegister = (options?: AuthMutationOptions) => {
     ...AUTH_MUTATION_CONFIG,
 
     onSuccess: (authData, { rememberMe }) => {
-      loginAction(authData, rememberMe);
+      const storeData = convertAuthResponseForStore(authData);
+      loginAction(storeData, rememberMe);
       queryClient.setQueryData(userKeys.profile(), authData.user);
 
       toast.success('Account created successfully!', {
@@ -462,7 +548,11 @@ export const useLogout = (options?: { onSuccess?: () => void }) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (logoutData?: LogoutInput) => logoutUser(logoutData || { refreshToken: '', allDevices: false }),
+    mutationFn: (logoutData?: LogoutInput) => {
+      // Get refresh token from store or localStorage for logout
+      const refreshToken = useAuthStore.getState().refreshToken || '';
+      return logoutUser(logoutData || { refreshToken, allDevices: false });
+    },
     retry: false,
 
     onSuccess: (response) => {
@@ -483,6 +573,7 @@ export const useLogout = (options?: { onSuccess?: () => void }) => {
     },
 
     onError: (error) => {
+      // Always perform local cleanup even if server logout fails
       logoutAction();
       queryClient.clear();
 
@@ -505,7 +596,7 @@ export const useLogout = (options?: { onSuccess?: () => void }) => {
  * Hook for refreshing access token
  */
 export const useRefreshToken = () => {
-  const { updateTokens } = useAuthStore();
+  const { setTokens } = useAuthStore();
 
   return useMutation({
     mutationFn: refreshToken,
@@ -513,7 +604,7 @@ export const useRefreshToken = () => {
     retryDelay: 1000,
 
     onSuccess: (data) => {
-      updateTokens(data.accessToken, data.refreshToken);
+      setTokens(data.accessToken, data.refreshToken);
       
       console.log('[Auth] Token refresh successful:', {
         timestamp: new Date().toISOString(),
@@ -525,6 +616,12 @@ export const useRefreshToken = () => {
         error: extractErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
+      
+      // If refresh fails, logout user
+      if (typeof window !== 'undefined') {
+        const { logout } = useAuthStore.getState();
+        logout();
+      }
     },
   });
 };
@@ -534,6 +631,7 @@ export const useRefreshToken = () => {
  */
 export const useVerifyEmail = (options?: { onSuccess?: (data: VerifyEmailResponse) => void }) => {
   const queryClient = useQueryClient();
+  const { setUser } = useAuthStore();
 
   return useMutation({
     mutationFn: verifyEmail,
@@ -542,6 +640,7 @@ export const useVerifyEmail = (options?: { onSuccess?: (data: VerifyEmailRespons
     onSuccess: (data) => {
       if (data.authData) {
         queryClient.setQueryData(userKeys.profile(), data.authData.user);
+        setUser(data.authData.user);
       }
 
       toast.success('Email verified successfully!', {
@@ -643,13 +742,11 @@ export const useForgotPassword = () => {
 };
 
 /**
- * Hook for validating reset token
+ * Hook for validating reset token (fixed to use mutation)
  */
 export const useValidateResetToken = () => {
-  return useQuery({
-    queryKey: ['auth', 'validate-reset-token'],
-    queryFn: () => validateResetToken({ token: '' }), // Token will be passed when called
-    enabled: false, // Manual query
+  return useMutation({
+    mutationFn: validateResetToken,
     retry: false,
   });
 };
@@ -662,6 +759,7 @@ export const useResetPassword = (options?: {
   onError?: (error: unknown) => void;
 }) => {
   const queryClient = useQueryClient();
+  const { login: loginAction } = useAuthStore();
 
   return useMutation({
     mutationFn: resetPassword,
@@ -670,6 +768,8 @@ export const useResetPassword = (options?: {
 
     onSuccess: (response) => {
       if (response.authData) {
+        const storeData = convertAuthResponseForStore(response.authData);
+        loginAction(storeData, false);
         queryClient.setQueryData(userKeys.profile(), response.authData.user);
       }
 
@@ -798,6 +898,7 @@ export const useConfirmEmailChange = (options?: {
   onError?: (error: unknown) => void;
 }) => {
   const queryClient = useQueryClient();
+  useAuthStore();
 
   return useMutation({
     mutationFn: confirmEmailChange,
@@ -805,6 +906,8 @@ export const useConfirmEmailChange = (options?: {
 
     onSuccess: (response) => {
       if (response.authData) {
+        const storeData = convertAuthResponseForStore(response.authData);
+        useAuthStore.getState().login(storeData, false);
         queryClient.setQueryData(userKeys.profile(), response.authData.user);
       }
 
