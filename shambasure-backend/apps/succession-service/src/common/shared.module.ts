@@ -3,19 +3,21 @@ import { Module, Global } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 // Configuration
-import successionConfig from './config/succession.config';
-import legalRulesConfig from './config/legal-rules.config';
-import courtFeesConfig from './config/court-fees.config';
-import featureFlagsConfig from './config/feature-flags.config';
+import {
+  courtFeesConfig,
+  legalRulesConfig,
+  featureFlagsConfig,
+  type SuccessionConfig,
+} from './config';
 
 // Decorators
 
 // Guards
-import { TestatorOwnershipGuard } from './guards/testator-ownership.guard';
+import { TestatorOwnershipGuard } from './guards/ownership.guard';
 import { WillStatusGuard } from './guards/will-status.guard';
 import { KenyanLawValidationGuard } from './guards/legal-compliance.guard';
 import { FamilyMemberAccessGuard } from './guards/family-member-access.guard';
-import { ProbateCourtRoleGuard } from './guards/probate-court-role.guard';
+import { ProbateCourtRoleGuard } from './guards/roles.guard';
 
 // Pipes
 import { KenyanIdValidationPipe } from './pipes/kenyan-id-validation.pipe';
@@ -23,7 +25,6 @@ import { AssetValuationPipe } from './pipes/asset-valuation.pipe';
 import { SharePercentagePipe } from './pipes/share-percentage.pipe';
 import { FamilyRelationshipPipe } from './pipes/family-relationship.pipe';
 import { KenyanPhonePipe } from './pipes/kenyan-phone.pipe';
-import { LegalDocumentPipe } from './pipes/legal-document.pipe';
 
 // Interceptors
 import { KenyanLawComplianceInterceptor } from './interceptors/kenyan-law-compliance.interceptor';
@@ -43,7 +44,6 @@ import { LegalFormalityChecker } from './utils/legal-formality-checker';
 import { ProbateProcessor } from './utils/probate-processor';
 import { FamilyTreeBuilder } from './utils/family-tree-builder';
 import { AssetValuationHelper } from './utils/asset-valuation-helper';
-
 // Constants
 import {
   LAW_OF_SUCCESSION_SECTIONS,
@@ -55,7 +55,6 @@ import {
 } from './constants/kenyan-law.constants';
 
 import {
-  WILL_STATUS,
   ASSET_OWNERSHIP_RULES,
   BENEFICIARY_RULES,
   EXECUTOR_RULES,
@@ -69,7 +68,7 @@ import {
 @Module({
   imports: [
     ConfigModule.forRoot({
-      load: [successionConfig, legalRulesConfig, courtFeesConfig, featureFlagsConfig],
+      load: [SuccessionConfig, legalRulesConfig, courtFeesConfig, featureFlagsConfig],
       isGlobal: true,
       cache: true,
     }),
@@ -88,7 +87,6 @@ import {
     SharePercentagePipe,
     FamilyRelationshipPipe,
     KenyanPhonePipe,
-    LegalDocumentPipe,
 
     // Interceptors
     KenyanLawComplianceInterceptor,
@@ -124,7 +122,6 @@ import {
     {
       provide: 'SUCCESSION_RULES_CONSTANTS',
       useValue: {
-        WILL_STATUS,
         ASSET_OWNERSHIP_RULES,
         BENEFICIARY_RULES,
         EXECUTOR_RULES,
@@ -149,7 +146,6 @@ import {
     SharePercentagePipe,
     FamilyRelationshipPipe,
     KenyanPhonePipe,
-    LegalDocumentPipe,
 
     // Interceptors
     KenyanLawComplianceInterceptor,
@@ -184,6 +180,5 @@ export * from './interceptors';
 export * from './filters';
 export * from './utils';
 export * from './constants';
-export * from './interfaces';
 export * from './types';
 export * from './config';

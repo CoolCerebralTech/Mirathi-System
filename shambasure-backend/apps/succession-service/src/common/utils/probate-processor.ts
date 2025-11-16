@@ -1,19 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 import { courtFeesConfig } from '../config/court-fees.config';
 import { legalRulesConfig } from '../config/legal-rules.config';
-import featureFlagsConfig from '../config/feature-flags.config';
+import { featureFlagsConfig } from '../config/feature-flags.config'; // ✅ Fixed: Added proper import
+import { DateCalculator } from './date-calculator';
 
+// These interfaces define the data structures this processor works with.
+// They should be aligned with our Prisma models where applicable.
 export interface ProbateCase {
   id: string;
-  deceasedId: string;
   caseType: 'TESTATE' | 'INTESTATE';
   applicationDate: Date;
-  deceasedDate: Date;
   estateValue: number;
-  jurisdiction: 'HIGH_COURT' | 'MAGISTRATE_COURT' | 'KADHIS_COURT';
-  status: 'PENDING' | 'UNDER_REVIEW' | 'HEARING_SCHEDULED' | 'GRANT_ISSUED' | 'CLOSED';
+  isMuslimEstate: boolean;
   complexity?: 'LOW' | 'MEDIUM' | 'HIGH';
-  executorId?: string;
+  status: 'PENDING' | 'UNDER_REVIEW' | 'HEARING_SCHEDULED' | 'GRANT_ISSUED' | 'CLOSED';
 }
 
 export interface CourtFeeCalculation {
@@ -25,172 +26,201 @@ export interface CourtFeeCalculation {
   breakdown: string[];
 }
 
+export interface GrantValidationResult {
+  // ✅ Added: Missing interface
+  canIssue: boolean;
+  reasons: string[];
+  warnings?: string[]; // ✅ Added: Optional warnings array
+}
+
 @Injectable()
 export class ProbateProcessor {
-  private courtFees = courtFeesConfig();
-  private legalRules = legalRulesConfig();
-  private features = featureFlagsConfig();
+  constructor(
+    @Inject(courtFeesConfig.KEY)
+    private readonly courtFees: ConfigType<typeof courtFeesConfig>,
+    @Inject(legalRulesConfig.KEY)
+    private readonly legalRules: ConfigType<typeof legalRulesConfig>,
+    @Inject(featureFlagsConfig.KEY)
+    private readonly features: ConfigType<typeof featureFlagsConfig>,
+    private readonly dateCalculator: DateCalculator,
+  ) {}
 
   /**
-   * Determine court jurisdiction based on estate value and complexity
+   * Determines the correct court jurisdiction based on estate value, complexity, and religious law.
    */
-  determineJurisdiction(
+  public determineJurisdiction(
     estateValue: number,
+    isMuslimEstate: boolean,
     complexity: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM',
   ): 'HIGH_COURT' | 'MAGISTRATE_COURT' | 'KADHIS_COURT' {
-    // Kadhis Court only if deceased is Muslim and applicable
-    // This could be determined by context; here we just show logic
-    // Example: if (isMuslim) return 'KADHIS_COURT';
+    // Check Kadhi's Court jurisdiction first
+    if (
+      isMuslimEstate &&
+      this.legalRules.probateProcess.courtJurisdiction.kadhisCourt.muslimMatters
+    ) {
+      return 'KADHIS_COURT';
+    }
 
-    if (estateValue > 5_000_000 || complexity === 'HIGH') return 'HIGH_COURT';
-    return 'MAGISTRATE_COURT';
+    const highCourtThreshold = this.legalRules.probateProcess.courtJurisdiction.highCourt.threshold;
+    const magistrateThreshold =
+      this.legalRules.probateProcess.courtJurisdiction.magistrateCourt.threshold;
+
+    // ✅ FIXED: Restructured logic to avoid the TypeScript error
+    if (complexity === 'HIGH') {
+      return 'HIGH_COURT';
+    }
+
+    if (estateValue > highCourtThreshold) {
+      return 'HIGH_COURT';
+    }
+
+    if (estateValue <= magistrateThreshold) {
+      return 'MAGISTRATE_COURT';
+    }
+
+    // Default to High Court for medium complexity cases above magistrate threshold
+    return 'HIGH_COURT';
   }
 
   /**
-   * Calculate court fees dynamically using court-fees config
+   * Calculates court fees by consuming the centralized court-fees config.
    */
-  calculateCourtFees(
+  public calculateCourtFees(
     estateValue: number,
-    courtType: 'highCourt' | 'magistrateCourt' | 'kadhisCourt' = 'highCourt',
+    courtType: 'HIGH_COURT' | 'MAGISTRATE_COURT' | 'KADHIS_COURT', // ✅ Fixed: Match return type from determineJurisdiction
   ): CourtFeeCalculation {
-    const probateFees = this.courtFees.probateFees;
+    // Map jurisdiction to config keys
+    const configKeyMap = {
+      HIGH_COURT: 'highCourt' as const,
+      MAGISTRATE_COURT: 'magistrateCourt' as const,
+      KADHIS_COURT: 'kadhisCourt' as const,
+    };
 
-    const filingFee = probateFees.filingFee[courtType] ?? probateFees.filingFee.highCourt;
+    const configKey = configKeyMap[courtType];
+    const config = this.courtFees.probateFees;
+
+    // ✅ Fixed: Safe access with fallbacks
+    const filingFee = config.filingFee[configKey] || 0;
 
     let adValoremFee = 0;
-    for (const tier of probateFees.adValorem.tiers) {
-      if (estateValue >= tier.range.min && estateValue <= (tier.range.max ?? Infinity)) {
-        adValoremFee = estateValue * tier.rate;
-        if (tier.minFee !== null && adValoremFee < tier.minFee) adValoremFee = tier.minFee;
-        if (tier.maxFee !== null && adValoremFee > tier.maxFee) adValoremFee = tier.maxFee;
-        break;
+
+    // ✅ Fixed: Added null checks for adValorem config
+    if (config.adValorem?.tiers) {
+      for (const tier of config.adValorem.tiers) {
+        if (estateValue >= tier.range.min && estateValue <= (tier.range.max ?? Infinity)) {
+          adValoremFee = estateValue * tier.rate;
+          if (tier.minFee !== null && tier.minFee !== undefined && adValoremFee < tier.minFee) {
+            adValoremFee = tier.minFee;
+          }
+          if (tier.maxFee !== null && tier.maxFee !== undefined && adValoremFee > tier.maxFee) {
+            adValoremFee = tier.maxFee;
+          }
+          break;
+        }
       }
     }
 
     const totalFee = filingFee + adValoremFee;
+
+    // ✅ Fixed: Safe access with fallback
+    const currency = this.courtFees.calculationRules?.currency || 'KES';
 
     return {
       estateValue,
       filingFee,
       adValoremFee,
       totalFee,
-      currency: this.courtFees.calculationRules.currency ?? 'KES',
+      currency,
       breakdown: [
-        `Filing fee: ${this.courtFees.calculationRules.currency ?? 'KES'} ${filingFee.toLocaleString()}`,
-        `Ad valorem fee: ${this.courtFees.calculationRules.currency ?? 'KES'} ${adValoremFee.toLocaleString()}`,
-        `Total court fees: ${this.courtFees.calculationRules.currency ?? 'KES'} ${totalFee.toLocaleString()}`,
+        `Filing Fee: ${currency} ${filingFee.toLocaleString()}`,
+        `Ad Valorem Fee: ${currency} ${adValoremFee.toLocaleString()}`,
+        `Total Estimated Court Fees: ${currency} ${totalFee.toLocaleString()}`,
       ],
     };
   }
 
   /**
-   * Generate next hearing date based on status and dispute resolution rules
+   * Calculates executor fees based on configured percentages.
    */
-  calculateNextHearingDate(currentStatus: ProbateCase['status'], lastHearingDate?: Date): Date {
-    const date = new Date(lastHearingDate || new Date());
-    const disputeTiming = this.legalRules.disputeResolution?.timeLimits || { courtHearing: 180 };
+  public calculateExecutorFees(estateValue: number): number {
+    // ✅ Fixed: Use correct property path and handle missing values
+    const compensationRules = this.legalRules.executorRules?.compensation;
 
-    switch (currentStatus) {
-      case 'PENDING':
-        date.setDate(date.getDate() + 30);
-        break;
-      case 'UNDER_REVIEW':
-        date.setDate(date.getDate() + 60);
-        break;
-      case 'HEARING_SCHEDULED':
-        date.setDate(date.getDate() + 14);
-        break;
-      case 'GRANT_ISSUED':
-        date.setDate(date.getDate() + disputeTiming.courtHearing);
-        break;
-      default:
-        date.setDate(date.getDate() + 30);
+    if (!compensationRules) {
+      // Default to 2% if no compensation rules found
+      return estateValue * 0.02;
     }
 
-    return date;
+    // Use average of min and max percentages, or min if only one exists
+    const minPercentage = compensationRules.minPercentage ?? 0;
+    const maxPercentage = compensationRules.maxPercentage ?? minPercentage;
+
+    const feePercentage =
+      maxPercentage > minPercentage ? (minPercentage + maxPercentage) / 2 : minPercentage;
+
+    return estateValue * feePercentage;
   }
 
   /**
-   * Validate if grant can be issued based on legal rules
+   * Validates if a grant of representation can be issued.
    */
-  validateGrantIssuance(probateCase: ProbateCase): { canIssue: boolean; reasons: string[] } {
+  public validateGrantIssuance(probateCase: ProbateCase): GrantValidationResult {
     const reasons: string[] = [];
+    const warnings: string[] = []; // ✅ Fixed: Declare warnings array
+
+    // ✅ Fixed: Safe access with optional chaining
+    const objectionPeriodDays = this.legalRules.probateProcess?.objectionPeriod || 30;
 
     if (!['UNDER_REVIEW', 'HEARING_SCHEDULED'].includes(probateCase.status)) {
-      reasons.push('Case must be under review or have completed hearing');
+      reasons.push(
+        'Case is not in a state where a grant can be issued (must be UNDER_REVIEW or HEARING_SCHEDULED).',
+      );
     }
 
-    if (!probateCase.estateValue || probateCase.estateValue <= 0) {
-      reasons.push('Estate value must be determined and positive');
+    const objectionEndDate = this.dateCalculator.calculateFutureDate(
+      probateCase.applicationDate,
+      objectionPeriodDays,
+    ).endDate;
+
+    if (new Date() < objectionEndDate) {
+      reasons.push(
+        `The legally mandated ${objectionPeriodDays}-day objection period has not yet passed.`,
+      );
     }
 
-    // 30-day objection period
-    const objectionEnd = new Date(probateCase.applicationDate);
-    objectionEnd.setDate(objectionEnd.getDate() + 30);
-
-    if (new Date() < objectionEnd) reasons.push('30-day objection period not yet completed');
-
-    // Optional: check testator capacity if feature enabled
-    if (this.features.analysis?.risk) {
-      if (probateCase.estateValue > 0 && probateCase.complexity === 'HIGH') {
-        // hypothetical AI check
-        // if failed, reasons.push('Risk analysis indicates succession issues');
-      }
+    // ✅ Fixed: Safe feature flag check and proper warning handling
+    if (this.features?.analysis?.risk && probateCase.complexity === 'HIGH') {
+      warnings.push('High-complexity case; recommend final legal review before grant issuance.');
     }
 
-    return { canIssue: reasons.length === 0, reasons };
-  }
-
-  /**
-   * Calculate executor fees using config
-   */
-  calculateExecutorFees(
-    estateValue: number,
-    complexity: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM',
-  ): number {
-    // Use court fees config if available
-    const percentages = {
-      LOW: 0.02,
-      MEDIUM: 0.03,
-      HIGH: 0.05,
+    return {
+      canIssue: reasons.length === 0,
+      reasons,
+      warnings: warnings.length > 0 ? warnings : undefined, // Only include if there are warnings
     };
-
-    const fee = estateValue * (percentages[complexity] ?? 0.03);
-
-    const maxFee = 1_000_000; // configurable in future from feature flags
-    return Math.min(fee, maxFee);
   }
 
   /**
-   * Generate a standardized case number for Probate & Administration
+   * Generates a standardized case number for Probate & Administration.
    */
-  generateCaseNumber(
+  public generateCaseNumber(
     jurisdiction: 'HIGH_COURT' | 'MAGISTRATE_COURT' | 'KADHIS_COURT',
     year: number = new Date().getFullYear(),
   ): string {
     const courtCode =
       jurisdiction === 'HIGH_COURT' ? 'HC' : jurisdiction === 'MAGISTRATE_COURT' ? 'MC' : 'KC';
-    const randomNum = Math.floor(Math.random() * 10_000)
-      .toString()
-      .padStart(4, '0');
-    return `P&A/${courtCode}/${year}/${randomNum}`;
+    const randomNum = Math.floor(1000 + Math.random() * 9000); // 4-digit number
+    return `P&A/${courtCode}/${randomNum}/${year}`;
   }
 
-  /**
-   * Validate will formalities based on legal rules
-   */
-  validateWillFormalities(
-    probateCase: ProbateCase,
-    witnessesCount: number,
-    signed: boolean,
-  ): { valid: boolean; reasons: string[] } {
-    const reasons: string[] = [];
-    const rules = this.legalRules.willFormalities;
-
-    if (rules.requiresWriting && !signed)
-      reasons.push('Will must be signed by the testator in writing');
-    if (witnessesCount < rules.minWitnesses || witnessesCount > rules.maxWitnesses)
-      reasons.push('Incorrect number of witnesses');
-    return { valid: reasons.length === 0, reasons };
+  // ✅ Added: Utility method for better case number generation (optional improvement)
+  public generateSequentialCaseNumber(
+    jurisdiction: 'HIGH_COURT' | 'MAGISTRATE_COURT' | 'KADHIS_COURT',
+    sequenceNumber: number,
+    year: number = new Date().getFullYear(),
+  ): string {
+    const courtCode =
+      jurisdiction === 'HIGH_COURT' ? 'HC' : jurisdiction === 'MAGISTRATE_COURT' ? 'MC' : 'KC';
+    return `P&A/${courtCode}/${sequenceNumber.toString().padStart(4, '0')}/${year}`;
   }
 }

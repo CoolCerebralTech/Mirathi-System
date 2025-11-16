@@ -106,13 +106,6 @@ export const INTESTATE_DISTRIBUTION = {
   // Section 40: Polygamy
   POLYGAMOUS: POLYGAMY_DISTRIBUTION,
 
-  // Section 41: Minor beneficiaries
-  MINORS: {
-    lawSection: '41',
-    rule: 'HELD_IN_TRUST_UNTIL_18',
-    trustee: ['GUARDIAN', 'PUBLIC_TRUSTEE', 'TRUST_CORPORATION'],
-  },
-
   // Section 42: Prior gifts accounted in distribution
   PREVIOUS_GIFTS: {
     lawSection: '42',
@@ -173,7 +166,10 @@ export const DIGITAL_ASSETS = {
 // ----------------------------------------------------
 export const DEBT_PRIORITY = {
   ORDER: [
-    { priority: 1, category: 'FUNERAL_EXPENSES', cap: 500000 },
+    // --- CHANGED ---
+    // The hardcoded cap was removed. The application logic will now
+    // fetch this value from KENYAN_LEGAL_REQUIREMENTS.FUNERAL_EXPENSE_REASONABLE_CAP.
+    { priority: 1, category: 'FUNERAL_EXPENSES' },
     { priority: 2, category: 'TAXES' },
     { priority: 3, category: 'SECURED_CREDITORS' },
     { priority: 4, category: 'PREFERRED_CREDITORS' },
@@ -206,18 +202,6 @@ export const CONDITIONAL_BEQUESTS = {
   VALID: ['AGE_REQUIREMENT', 'EDUCATION_COMPLETION', 'MARRIAGE_CONDITION_NOT_EXCESSIVE'],
   VOID: ['AGAINST_PUBLIC_POLICY', 'PROMOTES_ILLEGALITY', 'UNREASONABLE_RESTRAINT_OF_MARRIAGE'],
 } as const;
-
-// ----------------------------------------------------
-//  SECTION: TIMELINES (Section 83)
-// ----------------------------------------------------
-export const DISTRIBUTION_TIMELINES = {
-  INVENTORY_SUBMISSION: 90,
-  CREDITOR_NOTICE: 30,
-  DEBT_SETTLEMENT: 180,
-  COMPLETE_DISTRIBUTION: 365,
-  FINAL_ACCOUNTS: 180,
-} as const;
-
 // ----------------------------------------------------
 //  SECTION: TAXES
 // ----------------------------------------------------
@@ -243,7 +227,6 @@ export default {
   DEBT_PRIORITY,
   DIGITAL_ASSETS,
   MINOR_PROTECTION,
-  DISTRIBUTION_TIMELINES,
   CONDITIONAL_BEQUESTS,
   TAX_CONSIDERATIONS,
 };

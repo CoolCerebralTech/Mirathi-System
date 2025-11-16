@@ -1,5 +1,29 @@
 import { registerAs } from '@nestjs/config';
 
+import {
+  KENYAN_LEGAL_REQUIREMENTS,
+  SUCCESSION_TIMEFRAMES,
+  KENYAN_COURTS,
+  KENYAN_FAMILY_LAW,
+} from '../constants/kenyan-law.constants';
+import {
+  DEBT_PRIORITY,
+  INTESTATE_DISTRIBUTION,
+  MINOR_PROTECTION,
+  DEPENDANTS,
+  TESTATE_DISTRIBUTION,
+  CONDITIONAL_BEQUESTS,
+  TAX_CONSIDERATIONS,
+  POLYGAMY_DISTRIBUTION,
+} from '../constants/distribution-rules.constants';
+import {
+  DISPUTE_RULES as DisputeSystemRules,
+  WITNESS_RULES,
+  EXECUTOR_RULES as ExecutorSystemRules,
+  BENEFICIARY_RULES,
+  DISTRIBUTION_RULES,
+} from '../constants/succession-rules.constants';
+
 /**
  * Kenyan Legal Rules Configuration
  * Based on Law of Succession Act Cap 160 and related legislation
@@ -7,24 +31,27 @@ import { registerAs } from '@nestjs/config';
 export const legalRulesConfig = registerAs('legalRules', () => ({
   // Will Formalities (Section 11)
   willFormalities: {
-    minWitnesses: 2,
-    maxWitnesses: 5,
-    requiresWriting: true,
-    requiresTestatorSignature: true,
-    requiresWitnessAttestation: true,
+    minWitnesses: KENYAN_LEGAL_REQUIREMENTS.MINIMUM_WITNESSES,
+    maxWitnesses: KENYAN_LEGAL_REQUIREMENTS.MAXIMUM_WITNESSES,
+    requiresWriting: TESTATE_DISTRIBUTION.WILL_VALIDITY.requirements.includes('WRITTEN'),
+    requiresTestatorSignature:
+      TESTATE_DISTRIBUTION.WILL_VALIDITY.requirements.includes('SIGNED_BY_TESTATOR'),
+    requiresWitnessAttestation: TESTATE_DISTRIBUTION.WILL_VALIDITY.requirements.includes(
+      'WITNESSED_BY_TWO_COMPETENT_PERSONS',
+    ),
     requiresDating: true,
     witnessEligibility: {
-      minAge: 18,
-      cannotBeBeneficiary: true,
-      cannotBeSpouseOfBeneficiary: true,
-      mustBeCompetent: true,
-      mustBePresent: true,
+      minAge: WITNESS_RULES.ELIGIBILITY.MIN_AGE,
+      cannotBeBeneficiary: WITNESS_RULES.ELIGIBILITY.NOT_BENEFICIARY,
+      cannotBeSpouseOfBeneficiary: WITNESS_RULES.ELIGIBILITY.NOT_SPOUSE_OF_BENEFICIARY,
+      mustBeCompetent: WITNESS_RULES.ELIGIBILITY.MENTAL_CAPACITY,
+      mustBePresent: WITNESS_RULES.SIGNATURE.PRESENCE_OF_TESTATOR,
     },
   },
 
   // Testator Capacity (Section 7)
   testatorCapacity: {
-    minAge: 18,
+    minAge: KENYAN_LEGAL_REQUIREMENTS.MINIMUM_TESTATOR_AGE,
     requiresSoundMind: true,
     requiresUnderstanding: true,
     requiresFreeWill: true,
@@ -37,45 +64,57 @@ export const legalRulesConfig = registerAs('legalRules', () => ({
   // Intestate Succession Rules (Part V)
   intestateSuccession: {
     oneSpouseWithChildren: {
-      spousePersonalEffects: 0.1,
-      spouseLifeInterest: 0.9,
-      childrenAbsoluteInterest: 0.9,
+      lawSection: INTESTATE_DISTRIBUTION.ONE_SPOUSE_WITH_CHILDREN.lawSection,
+      spousePersonalEffects: 'ENTIRE',
+      spouseLifeInterest: 'REMAINDER',
+      childrenAbsoluteInterest: 'AFTER_SPOUSE_LIFE_INTEREST',
+      extinguishesOn:
+        INTESTATE_DISTRIBUTION.ONE_SPOUSE_WITH_CHILDREN.distribution.spouse.extinguishesOn,
     },
     multipleSpousesWithChildren: {
-      spousePersonalEffects: 0.1,
-      spouseLifeInterest: 0.9,
-      childrenAbsoluteInterest: 0.9,
-      equalDivisionAmongSpouses: true,
+      lawSection: POLYGAMY_DISTRIBUTION.lawSection,
+      calcMethod: POLYGAMY_DISTRIBUTION.rules.CALC_METHOD,
+      distributionMethod: POLYGAMY_DISTRIBUTION.rules.DISTRIBUTION_METHOD,
+      unitPerWifeAndChildren: POLYGAMY_DISTRIBUTION.rules.UNIT_PER_WIFE_PLUS_CHILDREN,
     },
     spouseOnly: {
-      entireEstateToSpouse: true,
+      lawSection: INTESTATE_DISTRIBUTION.SPOUSE_ONLY.lawSection,
+      entireEstateToSpouse:
+        INTESTATE_DISTRIBUTION.SPOUSE_ONLY.distribution.spouse.share === 'ENTIRE_ESTATE',
       conditions: ['NO_CHILDREN', 'NO_PARENTS', 'NO_SIBLINGS'],
     },
     relativesOnly: {
-      orderOfSuccession: [
-        'PARENTS',
-        'SIBLINGS',
-        'HALF_SIBLINGS',
-        'GRANDPARENTS',
-        'AUNTS_UNCLES',
-        'COUSINS',
-      ],
+      lawSection: INTESTATE_DISTRIBUTION.NO_SPOUSE_NO_CHILDREN.lawSection,
+      orderOfSuccession: INTESTATE_DISTRIBUTION.NO_SPOUSE_NO_CHILDREN.orderOfPriority,
       equalDivisionWithinClass: true,
+    },
+    previousGifts: {
+      lawSection: INTESTATE_DISTRIBUTION.PREVIOUS_GIFTS.lawSection,
+      mustBeAccounted:
+        INTESTATE_DISTRIBUTION.PREVIOUS_GIFTS.rule === 'GIFTS_IN_ADVANCEMENT_MUST_BE_ACCOUNTED',
     },
   },
 
   // Dependant Provision (Section 26-29)
   dependantProvision: {
     dependantDefinition: {
-      spouses: true,
-      children: true,
-      adoptedChildren: true,
-      stepChildren: true,
-      parents: true,
-      otherDependants: true,
+      primary: DEPENDANTS.PRIMARY,
+      secondary: DEPENDANTS.SECONDARY,
+      special: DEPENDANTS.SPECIAL_DEPENDANTS,
+      spouses: DEPENDANTS.PRIMARY.includes('SPOUSE'),
+      children: DEPENDANTS.PRIMARY.includes('CHILDREN_BIOLOGICAL'),
+      adoptedChildren: DEPENDANTS.PRIMARY.includes('CHILDREN_ADOPTED'),
+      illegitimateChildren: DEPENDANTS.PRIMARY.includes('CHILDREN_BORN_OUT_OF_WEDLOCK'),
+      posthumousChildren: DEPENDANTS.PRIMARY.includes('POSTHUMOUS_CHILDREN'),
+      stepChildren: DEPENDANTS.SECONDARY.includes('STEPCHILDREN'),
+      parents: DEPENDANTS.SECONDARY.includes('PARENTS'),
+      siblings: DEPENDANTS.SECONDARY.includes('BROTHERS_AND_SISTERS'),
+      otherDependants: DEPENDANTS.SPECIAL_DEPENDANTS.length > 0,
+      proofRequired: DEPENDANTS.RULES.PROOF_OF_DEPENDENCY_REQUIRED,
+      equalTreatment: DEPENDANTS.RULES.EQUAL_TREATMENT_OF_ALL_CHILDREN,
     },
     reasonableProvision: {
-      basePercentage: 0.3,
+      basePercentage: BENEFICIARY_RULES.DEPENDANT_MINIMUM_SHARE,
       additionalPerDependant: 0.05,
       minimumAmount: 100000,
       considerationFactors: [
@@ -96,13 +135,16 @@ export const legalRulesConfig = registerAs('legalRules', () => ({
 
   // Probate Process Rules (Part VI)
   probateProcess: {
-    applicationDeadline: 180,
-    objectionPeriod: 30,
+    applicationDeadline: SUCCESSION_TIMEFRAMES.PROBATE.APPLICATION_DEADLINE,
+    objectionPeriod: SUCCESSION_TIMEFRAMES.PROBATE.OBJECTION_PERIOD,
+    grantIssuance: SUCCESSION_TIMEFRAMES.PROBATE.GRANT_ISSUANCE,
+    confirmationOfGrant: SUCCESSION_TIMEFRAMES.PROBATE.CONFIRMATION_OF_GRANT,
+    distributionDeadline: SUCCESSION_TIMEFRAMES.PROBATE.DISTRIBUTION_DEADLINE,
     grantTypes: {
       probate: {
         requiresWill: true,
         applicant: 'EXECUTOR',
-        timeline: 90,
+        timeline: SUCCESSION_TIMEFRAMES.PROBATE.GRANT_ISSUANCE,
       },
       lettersOfAdministration: {
         requiresWill: false,
@@ -113,49 +155,42 @@ export const legalRulesConfig = registerAs('legalRules', () => ({
     },
     courtJurisdiction: {
       highCourt: {
-        threshold: 5000000,
+        threshold: KENYAN_COURTS.HIGH_COURT.THRESHOLD_MIN,
+        jurisdiction: KENYAN_COURTS.HIGH_COURT.JURISDICTION,
         complexCases: true,
-        allCounties: true,
+        locations: KENYAN_COURTS.HIGH_COURT.LOCATIONS,
       },
       magistrateCourt: {
-        threshold: 5000000,
+        threshold: KENYAN_COURTS.MAGISTRATE_COURT.THRESHOLD_MAX,
+        jurisdiction: KENYAN_COURTS.MAGISTRATE_COURT.JURISDICTION,
+        grades: KENYAN_COURTS.MAGISTRATE_COURT.GRADES,
         straightforwardCases: true,
-        specificCounties: true,
       },
       kadhisCourt: {
+        jurisdiction: KENYAN_COURTS.KADHIS_COURT.JURISDICTION,
+        applicableLaw: KENYAN_COURTS.KADHIS_COURT.APPLICABLE_LAW,
+        limitation: KENYAN_COURTS.KADHIS_COURT.LIMITATION,
         muslimMatters: true,
-        applicableLaw: 'MUSLIM_LAW',
       },
     },
   },
 
   // Executor Rules (Part VII)
   executorRules: {
+    maxExecutors: ExecutorSystemRules.MAX_EXECUTORS,
+    minExecutors: ExecutorSystemRules.MIN_EXECUTORS,
+    alternateRequirement: ExecutorSystemRules.ALTERNATE_REQUIREMENT,
     eligibility: {
-      minAge: 18,
-      mentalCapacity: true,
-      noFelonyConvictions: true,
-      canBeNonResident: true,
-      canBeCorporate: true,
+      minAge: ExecutorSystemRules.ELIGIBILITY.MIN_AGE,
+      mentalCapacity: ExecutorSystemRules.ELIGIBILITY.MENTAL_CAPACITY,
+      noFelonyConvictions: ExecutorSystemRules.ELIGIBILITY.NO_FELONY_CONVICTIONS,
+      kenyanResident: ExecutorSystemRules.ELIGIBILITY.KENYAN_RESIDENT,
     },
-    duties: [
-      'LOCATE_WILL',
-      'NOTIFY_HEIRS',
-      'INVENTORY_ASSETS',
-      'MANAGE_ASSETS',
-      'PAY_DEBTS',
-      'FILE_TAXES',
-      'DISTRIBUTE_ASSETS',
-      'FILE_ACCOUNTS',
-      'CLOSE_ESTATE',
-    ],
+    duties: ExecutorSystemRules.DUTIES,
     compensation: {
-      allowed: true,
-      minPercentage: 0.01,
-      maxPercentage: 0.05,
-      defaultPercentage: 0.03,
-      courtApprovalRequired: true,
-      factors: ['ESTATE_SIZE', 'COMPLEXITY', 'TIME_SPENT', 'RESULTS_ACHIEVED'],
+      minPercentage: ExecutorSystemRules.COMPENSATION.MIN_PERCENTAGE,
+      maxPercentage: ExecutorSystemRules.COMPENSATION.MAX_PERCENTAGE,
+      courtApprovalRequired: ExecutorSystemRules.COMPENSATION.COURT_APPROVAL_REQUIRED,
     },
     removal: {
       grounds: ['MISMANAGEMENT', 'CONFLICT_OF_INTEREST', 'UNAVAILABILITY', 'INCOMPETENCE', 'FRAUD'],
@@ -165,20 +200,16 @@ export const legalRulesConfig = registerAs('legalRules', () => ({
 
   // Debt Settlement Rules
   debtSettlement: {
-    priorityOrder: [
-      'FUNERAL_EXPENSES',
-      'TAX_OBLIGATIONS',
-      'SECURED_DEBTS',
-      'UNADJUDICATED_DEBTS',
-      'UNSECURED_DEBTS',
-    ],
+    priorityOrder: DEBT_PRIORITY.ORDER,
+    allDebtsMustBePaid: DEBT_PRIORITY.rules.ALL_DEBTS_MUST_BE_PAID_BEFORE_DISTRIBUTION,
+    proRataForUnsecured: DEBT_PRIORITY.rules.PRO_RATA_FOR_UNSECURED,
     timeLimits: {
-      creditorNotification: 30,
+      creditorNotification: SUCCESSION_TIMEFRAMES.WILL_EXECUTION.CREDITOR_NOTICE,
       creditorClaims: 90,
-      debtPayment: 180,
+      debtPayment: SUCCESSION_TIMEFRAMES.WILL_EXECUTION.DEBT_SETTLEMENT,
     },
     limits: {
-      reasonableFuneralExpenses: 500000,
+      reasonableFuneralExpenses: KENYAN_LEGAL_REQUIREMENTS.FUNERAL_EXPENSE_REASONABLE_CAP,
       administrativeExpenses: 0.05,
     },
   },
@@ -186,42 +217,76 @@ export const legalRulesConfig = registerAs('legalRules', () => ({
   // Distribution Rules
   assetDistribution: {
     timelines: {
-      notificationToHeirs: 30,
-      inventorySubmission: 90,
-      distributionCompletion: 365,
-      finalAccounts: 180,
+      notificationToHeirs: DISTRIBUTION_RULES.TIMEFRAMES.NOTIFICATION_DAYS,
+      inventorySubmission: DISTRIBUTION_RULES.TIMEFRAMES.INVENTORY_DAYS,
+      distributionCompletion: DISTRIBUTION_RULES.TIMEFRAMES.DISTRIBUTION_DAYS,
+      finalAccounts: DISTRIBUTION_RULES.TIMEFRAMES.FINAL_ACCOUNTS_DAYS,
     },
+    debtPriority: DISTRIBUTION_RULES.DEBT_PRIORITY,
     minorProtection: {
-      trustRequirement: true,
-      guardianAppointment: true,
-      ageOfMajority: 18,
+      trustRequirement: DISTRIBUTION_RULES.MINOR_PROTECTION.TRUST_REQUIREMENT,
+      guardianAppointment: DISTRIBUTION_RULES.MINOR_PROTECTION.GUARDIAN_APPOINTMENT,
+      ageOfMajority: DISTRIBUTION_RULES.MINOR_PROTECTION.AGE_OF_MAJORITY,
       courtSupervision: true,
+      trusteeOptions: MINOR_PROTECTION.MINORS.trustee,
+      incapacitatedManagement: MINOR_PROTECTION.INCAPACITATED.management,
     },
     conditionalBequests: {
-      maxConditions: 5,
-      maxDuration: 25,
-      allowedConditionTypes: ['AGE_REQUIREMENT', 'EDUCATION', 'MARRIAGE', 'SURVIVAL', 'OCCUPATION'],
+      maxConditions: BENEFICIARY_RULES.CONDITIONAL_BEQUESTS.MAX_CONDITIONS,
+      maxDuration: BENEFICIARY_RULES.CONDITIONAL_BEQUESTS.MAX_CONDITION_DURATION_YEARS,
+      allowedConditionTypes: BENEFICIARY_RULES.CONDITIONAL_BEQUESTS.ALLOWED_CONDITION_TYPES,
+      validConditions: CONDITIONAL_BEQUESTS.VALID,
+      voidConditions: CONDITIONAL_BEQUESTS.VOID,
+    },
+    beneficiaryRules: {
+      minSharePercentage: BENEFICIARY_RULES.MIN_SHARE_PERCENTAGE,
+      maxSharePercentage: BENEFICIARY_RULES.MAX_SHARE_PERCENTAGE,
+      residuaryRequirement: BENEFICIARY_RULES.RESIDUARY_REQUIREMENT,
+      dependantMinimumShare: BENEFICIARY_RULES.DEPENDANT_MINIMUM_SHARE,
+      relationshipPriority: BENEFICIARY_RULES.RELATIONSHIP_PRIORITY,
+    },
+  },
+
+  // Testate Succession Rules
+  testateSuccession: {
+    willValidity: {
+      requirements: TESTATE_DISTRIBUTION.WILL_VALIDITY.requirements,
+      allowedForms: TESTATE_DISTRIBUTION.WILL_VALIDITY.allowedForms,
+      oralLimitations: TESTATE_DISTRIBUTION.WILL_VALIDITY.oralLimitations,
+    },
+    willProvisions: {
+      specificBequests: TESTATE_DISTRIBUTION.WILL_PROVISIONS.SPECIFIC_BEQUESTS,
+      generalBequests: TESTATE_DISTRIBUTION.WILL_PROVISIONS.GENERAL_BEQUESTS,
+      residuary: TESTATE_DISTRIBUTION.WILL_PROVISIONS.RESIDUARY,
+      conditional: TESTATE_DISTRIBUTION.WILL_PROVISIONS.CONDITIONAL,
+    },
+    specialRules: {
+      lapse: {
+        description: TESTATE_DISTRIBUTION.SPECIAL_RULES.LAPSE.description,
+        exceptions: TESTATE_DISTRIBUTION.SPECIAL_RULES.LAPSE.exceptions,
+      },
+      ademption: {
+        description: TESTATE_DISTRIBUTION.SPECIAL_RULES.ADEMPTION.description,
+      },
+      revocation: {
+        validMethods: TESTATE_DISTRIBUTION.SPECIAL_RULES.REVOCATION.validMethods,
+      },
     },
   },
 
   // Dispute Resolution Rules
   disputeResolution: {
-    validGrounds: [
-      'UNDUE_INFLUENCE',
-      'LACK_CAPACITY',
-      'FRAUD',
-      'FORGERY',
-      'IMPROPER_EXECUTION',
-      'OMITTED_HEIR',
-      'AMBIGUOUS_TERMS',
-    ],
+    validGrounds: DisputeSystemRules.VALID_GROUNDS,
+    filingDeadline: DisputeSystemRules.FILING_DEADLINE_DAYS,
+    mediationRequired: DisputeSystemRules.MEDIATION_REQUIRED,
+    courtHearingDays: DisputeSystemRules.COURT_HEARING_DAYS,
+    resolutionMethods: DisputeSystemRules.RESOLUTION_METHODS,
     timeLimits: {
-      filingDeadline: 60,
-      mediationPeriod: 90,
-      courtHearing: 180,
+      filingDeadline: SUCCESSION_TIMEFRAMES.DISPUTES.FILING_DEADLINE,
+      mediationPeriod: SUCCESSION_TIMEFRAMES.DISPUTES.MEDIATION_PERIOD,
+      courtHearing: SUCCESSION_TIMEFRAMES.DISPUTES.COURT_HEARING,
       appealDeadline: 30,
     },
-    resolutionMethods: ['MEDIATION', 'ARBITRATION', 'COURT_PROCEEDING', 'SETTLEMENT'],
     costAllocation: {
       followsEvent: true,
       courtDiscretion: true,
@@ -230,29 +295,35 @@ export const legalRulesConfig = registerAs('legalRules', () => ({
 
   // Kenyan Family Law Rules
   familyLaw: {
-    marriageTypes: {
-      civil: {
-        recognition: 'FULL',
-        registration: 'MANDATORY',
-        polygamy: 'NOT_ALLOWED',
-      },
-      customary: {
-        recognition: 'FULL',
-        registration: 'RECOMMENDED',
-        polygamy: 'ALLOWED',
-        requirements: ['FAMILY_CONSENT', 'BRIDE_PRICE', 'COMMUNITY_RECOGNITION'],
-      },
-      religious: {
-        recognition: 'CONDITIONAL',
-        registration: 'MANDATORY',
-        polygamy: 'CONDITIONAL',
-      },
+    marriageTypes: KENYAN_FAMILY_LAW.MARRIAGE_TYPES,
+    polygamousMarriageTypes: KENYAN_FAMILY_LAW.POLYGAMOUS_MARRIAGE_TYPES,
+    civil: {
+      recognition: 'FULL',
+      registration: 'MANDATORY',
+      polygamy: KENYAN_FAMILY_LAW.CIVIL_MARRIAGE.POLYGAMY_ALLOWED,
+      monogamous: KENYAN_FAMILY_LAW.CIVIL_MARRIAGE.MONOGAMOUS_BY_LAW,
     },
-    polygamousMarriages: {
-      maxSpouses: 4,
-      equalTreatment: true,
-      consentRequired: true,
-      financialDisclosure: true,
+    customary: {
+      recognition: 'FULL',
+      registration: 'RECOMMENDED',
+      polygamy: KENYAN_FAMILY_LAW.CUSTOMARY_MARRIAGE.BRIDE_PRICE_OPTIONAL,
+      minAge: KENYAN_FAMILY_LAW.CUSTOMARY_MARRIAGE.MINIMUM_AGE,
+      consentRequired: KENYAN_FAMILY_LAW.CUSTOMARY_MARRIAGE.CONSENT_REQUIRED,
+      bridePriceOptional: KENYAN_FAMILY_LAW.CUSTOMARY_MARRIAGE.BRIDE_PRICE_OPTIONAL,
+      registrationDeadline: KENYAN_FAMILY_LAW.CUSTOMARY_MARRIAGE.REGISTRATION_DEADLINE_DAYS,
+      requirements: ['FAMILY_CONSENT', 'BRIDE_PRICE', 'COMMUNITY_RECOGNITION'],
+    },
+    islamic: {
+      recognition: 'CONDITIONAL',
+      registration: 'MANDATORY',
+      polygamy: KENYAN_FAMILY_LAW.ISLAMIC_MARRIAGE.POLYGAMY_ALLOWED,
+      maxSpouses: KENYAN_FAMILY_LAW.ISLAMIC_MARRIAGE.MAX_SPOUSES,
+      wifeConsentRequired: KENYAN_FAMILY_LAW.ISLAMIC_MARRIAGE.WIFE_CONSENT_REQUIRED,
+    },
+    generalRules: {
+      equalTreatmentOfChildren: KENYAN_FAMILY_LAW.GENERAL_RULES.EQUAL_TREATMENT_OF_CHILDREN,
+      proofOfMarriageRequired: KENYAN_FAMILY_LAW.GENERAL_RULES.PROOF_OF_MARRIAGE_REQUIRED,
+      cohabitationRecognized: KENYAN_FAMILY_LAW.GENERAL_RULES.COHABITATION_RECOGNIZED_AS_MARRIAGE,
     },
     guardianship: {
       testamentary: {
@@ -267,10 +338,27 @@ export const legalRulesConfig = registerAs('legalRules', () => ({
     },
   },
 
+  // Tax Considerations
+  taxation: {
+    inheritanceTax: {
+      applicable: TAX_CONSIDERATIONS.INHERITANCE_TAX.applicable,
+    },
+    capitalGainsTax: {
+      applicable: TAX_CONSIDERATIONS.CAPITAL_GAINS_TAX.applicable,
+      rate: TAX_CONSIDERATIONS.CAPITAL_GAINS_TAX.rate,
+      exemptions: TAX_CONSIDERATIONS.CAPITAL_GAINS_TAX.exemptions,
+    },
+    stampDuty: {
+      applicable: TAX_CONSIDERATIONS.STAMP_DUTY.applicable,
+      rate: TAX_CONSIDERATIONS.STAMP_DUTY.rate,
+      exemptions: TAX_CONSIDERATIONS.STAMP_DUTY.exemptions,
+    },
+  },
+
   // Compliance & Penalties
   compliance: {
     willStorage: {
-      duration: 25,
+      duration: KENYAN_LEGAL_REQUIREMENTS.WILL_STORAGE_DURATION_YEARS,
       security: 'HIGH',
       accessibility: 'RESTRICTED',
     },

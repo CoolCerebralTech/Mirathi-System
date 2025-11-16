@@ -1,59 +1,45 @@
 import { PipeTransform, Injectable, ArgumentMetadata, BadRequestException } from '@nestjs/common';
 
+/**
+ * Validates and sanitizes a numeric field to ensure it is a valid percentage (0-100).
+ * - Handles both string and number inputs.
+ * - Rounds the final value to 2 decimal places.
+ */
 @Injectable()
-export class SharePercentagePipe implements PipeTransform {
-  transform(value: unknown, metadata: ArgumentMetadata): unknown {
-    if (metadata.type === 'body' && this.isSharePercentageField(metadata.data)) {
-      return this.validateSharePercentage(value, metadata.data || 'share');
-    }
-    return value;
-  }
+export class SharePercentagePipe implements PipeTransform<unknown, number> {
+  // --- IMPROVEMENT: Aligned with our professional architecture ---
+  // The pipe is now a proper injectable service with a constructor.
+  constructor() {}
 
-  private isSharePercentageField(fieldName?: string): boolean {
-    if (!fieldName) return false;
-
-    const percentageFields = [
-      'sharePercent',
-      'percentage',
-      'allocation',
-      'distributionShare',
-      'ownershipShare',
-    ];
-    return percentageFields.some((field) => fieldName.toLowerCase().includes(field.toLowerCase()));
+  public transform(value: unknown, metadata: ArgumentMetadata): number {
+    const fieldName = metadata.data || 'The percentage field';
+    return this.validateSharePercentage(value, fieldName);
   }
 
   private validateSharePercentage(value: unknown, fieldName: string): number {
     let numericValue: number;
 
     if (typeof value === 'string') {
+      // Allow empty strings to be handled by DTO validators like @IsNotEmpty()
+      if (value.trim() === '') {
+        throw new BadRequestException(`${fieldName} must be a valid number and cannot be empty.`);
+      }
       numericValue = parseFloat(value);
     } else if (typeof value === 'number') {
       numericValue = value;
     } else {
-      throw new BadRequestException(`${fieldName} must be a valid number`);
+      throw new BadRequestException(`${fieldName} must be a number or a numeric string.`);
     }
 
     if (isNaN(numericValue)) {
-      throw new BadRequestException(`${fieldName} must be a valid number`);
+      throw new BadRequestException(`${fieldName} must be a valid number.`);
     }
 
     if (numericValue < 0 || numericValue > 100) {
-      throw new BadRequestException(`${fieldName} must be between 0 and 100`);
+      throw new BadRequestException(`${fieldName} must be a value between 0 and 100.`);
     }
 
-    // Round to 2 decimal places
+    // Standardize to 2 decimal places for financial precision
     return Math.round(numericValue * 100) / 100;
-  }
-
-  // Static method for manual validation
-  static validateTotalPercentage(values: number[], fieldName: string = 'Shares'): void {
-    const total = values.reduce((sum, value) => sum + value, 0);
-
-    if (Math.abs(total - 100) > 0.01) {
-      // Allow for floating point precision
-      throw new BadRequestException(
-        `${fieldName} must total 100%. Current total: ${total.toFixed(2)}%`,
-      );
-    }
   }
 }

@@ -1,38 +1,37 @@
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler, Logger } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { Reflector } from '@nestjs/core';
 import { SUCCESSION_COMPLIANCE_METADATA } from '../decorators/succession-compliance.decorator';
 
-interface ComplianceOptions {
-  complianceCheck:
-    | 'intestate-distribution'
-    | 'probate-requirements'
-    | 'dependant-provision'
-    | 'will-execution';
+// --- IMPROVEMENT: Import our expert utilities ---
+import { LegalFormalityChecker } from '../utils/legal-formality-checker';
+import { KenyanSuccessionCalculator } from '../utils/kenyan-succession-calculator';
+import { KenyanLawViolationException } from '../exceptions/kenyan-law-violation.exception';
+
+// This defines the options that our @SuccessionCompliance decorator will accept.
+export interface ComplianceOptions {
+  check: 'WILL_FORMALITIES' | 'PROBATE_APPLICATION' | 'DEPENDANT_PROVISION';
 }
 
-interface DistributionData {
-  distribution?: {
-    spouse?: { share: number };
-    children?: Array<{ share: number }>;
-    otherHeirs?: unknown;
-  };
-  probateCase?: {
-    applicationDate: string;
-    deceasedDate: string;
-    applicants?: unknown[];
-  };
-  will?: {
-    witnesses?: unknown[];
-    executors?: Array<{ status: string }>;
-  };
-  beneficiaries?: Array<{ relationship: string }>;
-}
-
+/**
+ * An interceptor that performs post-flight legal compliance checks on data
+ * returned from a controller. It acts as a "conductor", delegating the actual
+ * validation logic to our specialized expert utilities.
+ *
+ * It is activated by the `@SuccessionCompliance()` decorator.
+ */
 @Injectable()
 export class KenyanLawComplianceInterceptor implements NestInterceptor {
-  constructor(private reflector: Reflector) {}
+  private readonly logger = new Logger(KenyanLawComplianceInterceptor.name);
+
+  // --- IMPROVEMENT: Injecting our expert utilities ---
+  // The interceptor now has access to our centralized, testable logic.
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly formalityChecker: LegalFormalityChecker,
+    private readonly successionCalculator: KenyanSuccessionCalculator,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const complianceOptions = this.reflector.get<ComplianceOptions | undefined>(
@@ -40,122 +39,67 @@ export class KenyanLawComplianceInterceptor implements NestInterceptor {
       context.getHandler(),
     );
 
+    // If no decorator is present, do nothing.
+    if (!complianceOptions) {
+      return next.handle();
+    }
+
     return next.handle().pipe(
       tap((data: unknown) => {
-        if (complianceOptions) {
-          this.applyComplianceChecks(data, complianceOptions, context);
-        }
-
-        // Always apply basic Kenyan law compliance
-        this.applyBasicKenyanCompliance(data);
+        // --- REFACTORED: Delegate to a clean, focused method ---
+        this.runComplianceCheck(data, complianceOptions.check);
       }),
     );
   }
 
-  private applyComplianceChecks(
-    data: unknown,
-    options: ComplianceOptions,
-    context: ExecutionContext,
-  ): void {
-    const request = context.switchToHttp().getRequest();
+  /**
+   * The "Conductor" method. It takes the data and the check type,
+   * and routes the data to the appropriate expert utility for validation.
+   */
+  private runComplianceCheck(data: unknown, checkType: ComplianceOptions['check']): void {
+    this.logger.log(`Running post-flight compliance check: ${checkType}`);
 
-    switch (options.complianceCheck) {
-      case 'intestate-distribution':
-        this.validateIntestateDistribution(data, request);
-        break;
-      case 'probate-requirements':
-        this.validateProbateRequirements(data, request);
-        break;
-      case 'dependant-provision':
-        this.validateDependantProvision(data, request);
-        break;
-      case 'will-execution':
-        this.validateWillExecution(data, request);
-        break;
-    }
-  }
+    try {
+      switch (checkType) {
+        case 'WILL_FORMALITIES':
+          // Assuming the `data` is a Will object that matches the checker's input
+          // In a real app, we'd add type guards to ensure `data` is a valid Will object
+          const willResult = this.formalityChecker.validateWillFormalities(data as any);
+          if (!willResult.isValid) {
+            // Throw a proper exception that our filter can catch
+            throw new KenyanLawViolationException(
+              'Will formalities are not met.',
+              willResult.lawSections[0] || '11',
+              'WILL_FORMALITIES',
+              willResult.errors,
+            );
+          }
+          break;
 
-  private validateIntestateDistribution(data: unknown, request: unknown): void {
-    const distributionData = data as DistributionData;
-    // Law of Succession Act Section 35-41
-    if (distributionData.distribution) {
-      const { spouse, children, otherHeirs } = distributionData.distribution;
+        case 'PROBATE_APPLICATION':
+          const probateResult = this.formalityChecker.validateProbateFormalities(data as any);
+          if (!probateResult.isValid) {
+            throw new KenyanLawViolationException(
+              'Probate application formalities are not met.',
+              probateResult.lawSections[0] || '51',
+              'PROBATE_FORMALITIES',
+              probateResult.errors,
+            );
+          }
+          break;
 
-      // Ensure spouse gets personal and household effects
-      if (!spouse || spouse.share < 0.1) {
-        console.warn(
-          'Intestate distribution may not comply with Section 35: Spouse share insufficient',
-        );
+        case 'DEPENDANT_PROVISION':
+          // This would be a more complex check involving the calculator
+          // and the full set of assets, will, and family tree.
+          // This is a placeholder for that more advanced logic.
+          // const analysis = this.successionCalculator.analyzeDependantProvision(...);
+          // if (analysis.shortfall > 0) { ... }
+          break;
       }
-
-      // Ensure children get remainder
-      if (
-        children &&
-        children.length > 0 &&
-        children.reduce((sum, child) => sum + child.share, 0) < 0.9
-      ) {
-        console.warn(
-          'Intestate distribution may not comply with Section 35: Children share insufficient',
-        );
-      }
-    }
-  }
-
-  private validateProbateRequirements(data: unknown, request: unknown): void {
-    const probateData = data as DistributionData;
-    // Law of Succession Act Section 51-66
-    if (probateData.probateCase) {
-      const { applicationDate, deceasedDate, applicants } = probateData.probateCase;
-
-      // Check 6-month timeframe
-      const applicationDeadline = new Date(deceasedDate);
-      applicationDeadline.setMonth(applicationDeadline.getMonth() + 6);
-
-      if (new Date(applicationDate) > applicationDeadline) {
-        console.warn('Probate application filed after 6-month deadline (Section 51)');
-      }
-
-      // Validate applicants
-      if (!applicants || applicants.length === 0) {
-        console.warn('Probate application requires at least one applicant (Section 55)');
-      }
-    }
-  }
-
-  private validateDependantProvision(data: unknown, request: unknown): void {
-    const dependantData = data as DistributionData;
-    // Law of Succession Act Section 26-29
-    if (dependantData.will && dependantData.beneficiaries) {
-      const dependants = dependantData.beneficiaries.filter((b) =>
-        ['SPOUSE', 'CHILD', 'ADOPTED_CHILD'].includes(b.relationship),
-      );
-
-      if (dependants.length === 0) {
-        console.warn('Will may not provide reasonable provision for dependants (Section 26)');
-      }
-    }
-  }
-
-  private validateWillExecution(data: unknown, request: unknown): void {
-    const willData = data as DistributionData;
-    // Law of Succession Act Section 71-84
-    if (willData.will && willData.executors) {
-      const activeExecutors = willData.executors.filter((e) => e.status === 'ACTIVE');
-
-      if (activeExecutors.length === 0) {
-        console.warn('Will execution requires at least one active executor (Section 71)');
-      }
-    }
-  }
-
-  private applyBasicKenyanCompliance(data: unknown): void {
-    const basicData = data as DistributionData;
-    // Always check for basic Kenyan law compliance
-    if (basicData.will) {
-      // Check will formalities
-      if (!basicData.will.witnesses || basicData.will.witnesses.length < 2) {
-        console.warn('Will may not meet Kenyan witness requirements (Section 11)');
-      }
+    } catch (error) {
+      // If the validation check itself throws an error, re-throw it to be caught by our filters.
+      this.logger.error(`Compliance check failed for ${checkType}`, error.stack);
+      throw error;
     }
   }
 }

@@ -164,24 +164,6 @@ export const featureFlagsConfig = registerAs('featureFlags', () => ({
   },
 }));
 
-// Utility: Check if feature is enabled
-export const isFeatureEnabled = (featurePath: string): boolean => {
-  const flags = featureFlagsConfig();
-
-  // Handle "will.templates" -> flags.will.templates
-  const parts = featurePath.split('.');
-  let current: unknown = flags;
-
-  for (const part of parts) {
-    if (typeof current !== 'object' || current === null || !(part in current)) {
-      return false;
-    }
-    current = (current as Record<string, unknown>)[part];
-  }
-
-  return current === true;
-};
-
 // Export the config function as default
 export default featureFlagsConfig;
 

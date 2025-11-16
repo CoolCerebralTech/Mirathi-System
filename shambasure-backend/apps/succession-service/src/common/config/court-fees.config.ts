@@ -1,4 +1,5 @@
 import { registerAs } from '@nestjs/config';
+import { TAX_CONSIDERATIONS } from '../constants/distribution-rules.constants';
 
 /**
  * Kenyan Court Fees Configuration
@@ -168,10 +169,10 @@ export const courtFeesConfig = registerAs('courtFees', () => ({
     stampDuty: {
       probate: 0,
       administration: 0,
-      transfers: 0.04,
+      transfers: TAX_CONSIDERATIONS.STAMP_DUTY.rate,
     },
     capitalGainsTax: {
-      rate: 0.05,
+      rate: TAX_CONSIDERATIONS.CAPITAL_GAINS_TAX.rate,
       exemptions: ['PRINCIPAL_RESIDENCE', 'SMALL_ESTATES'],
     },
     incomeTax: {
@@ -229,53 +230,5 @@ export const courtFeesConfig = registerAs('courtFees', () => ({
     adjustmentFactor: 1.05,
   },
 }));
-
-// --------------------
-// Utility Function
-// --------------------
-
-export const calculateCourtFees = (
-  estateValue: number,
-  courtType: 'highCourt' | 'magistrateCourt' | 'kadhisCourt' = 'highCourt',
-) => {
-  const config = courtFeesConfig();
-  const probateFees = config.probateFees;
-
-  // Filing fee
-  const filingFee = probateFees.filingFee[courtType];
-
-  // Ad valorem
-  let adValoremFee = 0;
-
-  for (const tier of probateFees.adValorem.tiers) {
-    if (estateValue >= tier.range.min && estateValue <= tier.range.max) {
-      adValoremFee = estateValue * tier.rate;
-
-      if (tier.minFee !== null && adValoremFee < tier.minFee) {
-        adValoremFee = tier.minFee;
-      }
-      if (tier.maxFee !== null && adValoremFee > tier.maxFee) {
-        adValoremFee = tier.maxFee;
-      }
-      break;
-    }
-  }
-
-  // Round to nearest 100
-  adValoremFee = Math.round(adValoremFee / 100) * 100;
-
-  const totalFee = filingFee + adValoremFee;
-
-  return {
-    filingFee,
-    adValoremFee,
-    totalFee,
-    breakdown: [
-      `Filing fee: KES ${filingFee.toLocaleString()}`,
-      `Ad valorem: KES ${adValoremFee.toLocaleString()}`,
-      `Total: KES ${totalFee.toLocaleString()}`,
-    ],
-  };
-};
 
 export type CourtFeesConfig = ReturnType<typeof courtFeesConfig>;

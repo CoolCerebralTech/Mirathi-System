@@ -1,90 +1,95 @@
-import { PipeTransform, Injectable, ArgumentMetadata, BadRequestException } from '@nestjs/common';
+import {
+  PipeTransform,
+  Injectable,
+  Inject,
+  ArgumentMetadata,
+  BadRequestException,
+} from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
+import successionConfig from '../config/succession.config';
 
 /**
- * Validates numeric valuation fields across the system.
- * Handles currency formatting, sanitization, and strict constraints for KES.
- *
- * Used for:
- *  - assets
- *  - shares
- *  - compensation
- *  - distribution amounts
+ * Validates and sanitizes numeric valuation fields from incoming DTOs.
+ * - Removes currency symbols, commas, and whitespace.
+ * - Enforces non-negative and non-zero constraints.
+ * - Enforces a configurable maximum valuation limit.
+ * - Rounds the final value to 2 decimal places.
  */
 @Injectable()
 export class AssetValuationPipe implements PipeTransform {
-  transform(value: unknown, metadata: ArgumentMetadata): unknown {
-    const fieldName = metadata.data;
+  constructor(
+    @Inject(successionConfig.KEY)
+    private readonly config: ConfigType<typeof successionConfig>,
+  ) {}
 
-    if (metadata.type === 'body' && this.isValuationField(fieldName)) {
-      return this.validate(value, fieldName);
-    }
-
-    return value;
+  public transform(value: unknown, metadata: ArgumentMetadata): number {
+    const fieldName = metadata.data || 'The provided value';
+    return this.validate(value, fieldName);
   }
 
-  /**
-   * Identifies valuation-related fields anywhere in DTOs.
-   */
-  private isValuationField(fieldName?: string): boolean {
-    if (!fieldName) return false;
-
-    const valuationFields = [
-      'value',
-      'estimatedValue',
-      'valuation',
-      'initialValue',
-      'marketValue',
-      'declaredValue',
-      'amount',
-      'shareValue',
-      'compensationAmount',
-      'payoutAmount',
-      'distributionAmount',
-    ];
-
-    return valuationFields.some((field) => fieldName.toLowerCase().includes(field.toLowerCase()));
-  }
-
-  /**
-   * Core numeric + formatting validations.
-   */
   private validate(rawValue: unknown, fieldName: string): number {
+    // ✅ FIXED: Better null/undefined checking
     if (rawValue === null || rawValue === undefined || rawValue === '') {
-      throw new BadRequestException(`${fieldName} cannot be empty`);
+      throw new BadRequestException(`${fieldName} must be provided and cannot be empty.`);
     }
 
-    // Convert to string safely
-    const stringValue = String(rawValue);
+    // ✅ FIXED: Check if value is already a number
+    if (typeof rawValue === 'number') {
+      return this.validateNumber(rawValue, fieldName);
+    }
 
-    // Remove commas, spaces, and currency prefix (KES, KSh, SH, etc.)
-    const sanitized = stringValue
-      .replace(/,/g, '')
-      .replace(/(KES|KSH|SH|\s)/gi, '')
-      .trim();
+    // ✅ FIXED: Only process string values, reject objects and other types
+    if (typeof rawValue !== 'string') {
+      throw new BadRequestException(
+        `${fieldName} must be a string or number, received ${typeof rawValue}.`,
+      );
+    }
 
-    const numericValue = Number(sanitized);
+    // ✅ FIXED: Safe string processing
+    return this.processStringValue(rawValue, fieldName);
+  }
 
+  private validateNumber(numericValue: number, fieldName: string): number {
     if (isNaN(numericValue)) {
-      throw new BadRequestException(`${fieldName} must be a valid numeric amount`);
+      throw new BadRequestException(`${fieldName} must be a valid numeric amount.`);
     }
 
     if (numericValue < 0) {
-      throw new BadRequestException(`${fieldName} cannot be negative`);
+      throw new BadRequestException(`${fieldName} cannot be a negative value.`);
     }
 
-    if (numericValue === 0) {
-      throw new BadRequestException(`${fieldName} must be greater than zero`);
+    const maxValuation = this.config.validation.maxAssetValuation;
+
+    if (numericValue > maxValuation) {
+      throw new BadRequestException(
+        `${fieldName} exceeds the maximum allowable valuation limit of ${maxValuation.toLocaleString()}.`,
+      );
     }
 
-    // Realistic valuation ceiling for Kenyan estate system
-    // (KES 10 trillion — covers large land portfolios)
-    const MAX_VALUATION = 10_000_000_000_000;
-
-    if (numericValue > MAX_VALUATION) {
-      throw new BadRequestException(`${fieldName} exceeds the allowable valuation limit`);
-    }
-
-    // Round to 2 decimal places
+    // Standardize to 2 decimal places for financial calculations
     return Math.round(numericValue * 100) / 100;
+  }
+
+  private processStringValue(stringValue: string, fieldName: string): number {
+    // ✅ FIXED: More robust sanitization
+    const sanitized = stringValue
+      .replace(/,/g, '') // Remove commas
+      .replace(/(KES|KSH|SH|\s)/gi, '') // Remove currency symbols and whitespace
+      .trim();
+
+    if (sanitized === '') {
+      throw new BadRequestException(`${fieldName} must contain a valid numeric amount.`);
+    }
+
+    // ✅ FIXED: Use parseFloat for better number parsing
+    const numericValue = parseFloat(sanitized);
+
+    if (isNaN(numericValue)) {
+      throw new BadRequestException(
+        `${fieldName} must be a valid numeric amount. Received: "${stringValue}"`,
+      );
+    }
+
+    return this.validateNumber(numericValue, fieldName);
   }
 }

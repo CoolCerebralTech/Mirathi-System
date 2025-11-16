@@ -1,31 +1,39 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 
-export interface Asset {
-  id: string;
-  type: string;
-  estimatedValue?: number;
+// --- IMPROVEMENT 1: Using the Single Source of Truth ---
+// We import the official data models directly from the Prisma Client and our new config.
+// This ensures our logic is always synchronized with our database schema and configuration.
+import { Asset, AssetType } from '@prisma/client';
+import valuationConfig from '../config/valuation.config';
+
+/**
+ * A richer Asset type for valuation purposes.
+ * Our Prisma `Asset` model might store complex data in a `metadata` JSON field.
+ * This type represents the structured data we need for our calculations.
+ */
+type ValuationAsset = Asset & {
+  // These properties would typically be parsed from the Asset's `metadata` field
   location?: string;
   size?: number;
   infrastructure?: string[];
-  propertyType?: string;
-  condition?: string;
+  propertyType?: 'residential' | 'commercial';
+  condition?: 'EXCELLENT' | 'GOOD' | 'POOR';
   age?: number;
   purchasePrice?: number;
-  livestockType?: string;
+  livestockType?: 'cattle' | 'goats';
   quantity?: number;
-  currentValue?: number;
-  initialValue?: number;
-}
+};
 
+// These interfaces define the clear output "shape" of our helper's methods.
 export interface AssetValuation {
   assetId: string;
-  assetType: string;
+  assetType: AssetType;
   estimatedValue: number;
-  currency: string;
+  currency: 'KES';
   valuationDate: Date;
   valuationMethod: string;
   confidence: 'LOW' | 'MEDIUM' | 'HIGH';
-  source?: string;
   notes?: string;
 }
 
@@ -36,88 +44,59 @@ export interface ValuationHistory {
   valueTrend: 'INCREASING' | 'DECREASING' | 'STABLE';
 }
 
-export interface MarketRates {
-  LAND_PARCEL: LandRates;
-  PROPERTY: PropertyRates;
-  VEHICLE: VehicleRates;
-  LIVESTOCK: LivestockRates;
-  FINANCIAL_ASSET: FinancialAssetRates;
-}
-
-export interface LandRates {
-  urban: number;
-  rural: number;
-  factors: string[];
-}
-
-export interface PropertyRates {
-  residential: number;
-  commercial: number;
-  factors: string[];
-}
-
-export interface VehicleRates {
-  depreciationRate: number;
-  factors: string[];
-}
-
-export interface LivestockRates {
-  cattle: number;
-  goats: number;
-  factors: string[];
-}
-
-export interface FinancialAssetRates {
-  factors: string[];
-}
-
 @Injectable()
 export class AssetValuationHelper {
-  private readonly marketRates: MarketRates = {
-    LAND_PARCEL: { urban: 50000, rural: 10000, factors: ['location', 'size', 'infrastructure'] },
-    PROPERTY: {
-      residential: 80000,
-      commercial: 150000,
-      factors: ['location', 'condition', 'size'],
-    },
-    VEHICLE: { depreciationRate: 0.15, factors: ['age', 'condition', 'mileage'] },
-    LIVESTOCK: { cattle: 50000, goats: 8000, factors: ['breed', 'age', 'health'] },
-    FINANCIAL_ASSET: { factors: ['accountValue', 'marketValue'] },
-  };
+  // --- IMPROVEMENT 2: Dependency Injection ---
+  // The helper no longer contains hardcoded data. It receives its configuration
+  // via the constructor, making it flexible and easy to manage.
+  constructor(
+    @Inject(valuationConfig.KEY)
+    private readonly config: ConfigType<typeof valuationConfig>,
+  ) {}
 
-  estimateAssetValue(asset: Asset): AssetValuation {
+  /**
+   * Estimates the market value of a given asset based on configured rates and asset metadata.
+   * @param asset The official Prisma Asset object.
+   * @returns An AssetValuation object with the estimated value and details.
+   */
+  public estimateAssetValue(asset: Asset): AssetValuation {
     let estimatedValue = 0;
     let valuationMethod = 'MARKET_COMPARISON';
     let confidence: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM';
+    const valuationAsset = asset as ValuationAsset;
 
+    // --- IMPROVEMENT 3: Type Safety ---
+    // The switch statement now uses the official `AssetType` enum imported from Prisma.
+    // This prevents typos and ensures we handle every possible asset category.
     switch (asset.type) {
-      case 'LAND_PARCEL':
-        estimatedValue = this.estimateLandValue(asset);
+      case AssetType.LAND_PARCEL:
+        estimatedValue = this.estimateLandValue(valuationAsset);
         valuationMethod = 'LAND_REGISTRY_COMPARISON';
-        confidence = asset.location ? 'HIGH' : 'LOW';
+        confidence = valuationAsset.location ? 'HIGH' : 'LOW';
         break;
-      case 'PROPERTY':
-        estimatedValue = this.estimatePropertyValue(asset);
+      case AssetType.PROPERTY:
+        estimatedValue = this.estimatePropertyValue(valuationAsset);
         valuationMethod = 'PROPERTY_APPRAISAL';
         confidence = 'MEDIUM';
         break;
-      case 'VEHICLE':
-        estimatedValue = this.estimateVehicleValue(asset);
+      case AssetType.VEHICLE:
+        estimatedValue = this.estimateVehicleValue(valuationAsset);
         valuationMethod = 'DEPRECIATION';
         confidence = 'MEDIUM';
         break;
-      case 'LIVESTOCK':
-        estimatedValue = this.estimateLivestockValue(asset);
+      case AssetType.LIVESTOCK:
+        estimatedValue = this.estimateLivestockValue(valuationAsset);
         valuationMethod = 'MARKET_RATE';
         confidence = 'HIGH';
         break;
-      case 'FINANCIAL_ASSET':
-        estimatedValue = this.estimateFinancialAssetValue(asset);
+      case AssetType.FINANCIAL_ASSET:
+        estimatedValue = asset.estimatedValue?.toNumber() || 0;
         valuationMethod = 'ACCOUNT_STATEMENT';
         confidence = 'HIGH';
         break;
       default:
-        estimatedValue = asset.estimatedValue || 0;
+        // Safely convert Prisma's Decimal type to a number for calculations.
+        estimatedValue = asset.estimatedValue?.toNumber() || 0;
         valuationMethod = 'MANUAL_ESTIMATE';
         confidence = 'LOW';
     }
@@ -130,14 +109,15 @@ export class AssetValuationHelper {
       valuationDate: new Date(),
       valuationMethod,
       confidence,
-      notes: this.generateValuationNotes(asset, estimatedValue),
+      notes: this.generateValuationNotes(valuationAsset, estimatedValue),
     };
   }
 
-  private estimateLandValue(asset: Asset): number {
-    const baseRate = asset.location?.includes('Nairobi')
-      ? this.marketRates.LAND_PARCEL.urban
-      : this.marketRates.LAND_PARCEL.rural;
+  private estimateLandValue(asset: ValuationAsset): number {
+    const baseRate = (asset.location || '').toLowerCase().includes('nairobi')
+      ? this.config.marketRates.LAND_PARCEL.urban
+      : this.config.marketRates.LAND_PARCEL.rural;
+
     let value = baseRate * (asset.size || 1);
 
     if (asset.infrastructure) {
@@ -148,12 +128,11 @@ export class AssetValuationHelper {
     return Math.round(value);
   }
 
-  private estimatePropertyValue(asset: Asset): number {
-    const propertyType = asset.propertyType || 'residential';
+  private estimatePropertyValue(asset: ValuationAsset): number {
     const baseRate =
-      propertyType === 'commercial'
-        ? this.marketRates.PROPERTY.commercial
-        : this.marketRates.PROPERTY.residential;
+      asset.propertyType === 'commercial'
+        ? this.config.marketRates.PROPERTY.commercial
+        : this.config.marketRates.PROPERTY.residential;
 
     let value = baseRate * (asset.size || 100);
 
@@ -164,48 +143,50 @@ export class AssetValuationHelper {
     return Math.round(value);
   }
 
-  private estimateVehicleValue(asset: Asset): number {
+  private estimateVehicleValue(asset: ValuationAsset): number {
     const purchasePrice = asset.purchasePrice || 0;
     const age = asset.age || 0;
-    const depreciationRate = this.marketRates.VEHICLE.depreciationRate;
+    const { depreciationRate } = this.config.marketRates.VEHICLE;
     const value = purchasePrice * Math.pow(1 - depreciationRate, age);
+    // A vehicle always has some scrap value.
     return Math.max(value, purchasePrice * 0.1);
   }
 
-  private estimateLivestockValue(asset: Asset): number {
-    const type = asset.livestockType || 'cattle';
+  private estimateLivestockValue(asset: ValuationAsset): number {
     const baseRate =
-      type === 'goats' ? this.marketRates.LIVESTOCK.goats : this.marketRates.LIVESTOCK.cattle;
+      asset.livestockType === 'goats'
+        ? this.config.marketRates.LIVESTOCK.goats
+        : this.config.marketRates.LIVESTOCK.cattle;
     return baseRate * (asset.quantity || 1);
   }
 
-  private estimateFinancialAssetValue(asset: Asset): number {
-    return asset.currentValue || asset.initialValue || 0;
-  }
-
-  private generateValuationNotes(asset: Asset, value: number): string {
+  private generateValuationNotes(asset: ValuationAsset, value: number): string {
     const notes: string[] = [`Estimated value: KES ${value.toLocaleString()}`];
     if (asset.location) notes.push(`Location: ${asset.location}`);
     if (asset.size) {
-      const unit = asset.type === 'LAND_PARCEL' ? 'acres' : 'sqm';
+      const unit = asset.type === AssetType.LAND_PARCEL ? 'acres' : 'sqm';
       notes.push(`Size: ${asset.size} ${unit}`);
     }
     if (asset.condition) notes.push(`Condition: ${asset.condition}`);
     return notes.join(' | ');
   }
 
-  analyzeValuationHistory(valuations: AssetValuation[]): ValuationHistory {
-    if (!valuations.length) throw new Error('No valuation history provided');
+  public analyzeValuationHistory(valuations: AssetValuation[]): ValuationHistory {
+    if (!valuations || valuations.length === 0) {
+      throw new Error('No valuation history provided to analyze.');
+    }
 
-    const sorted = valuations.sort(
-      (a, b) => new Date(a.valuationDate).getTime() - new Date(b.valuationDate).getTime(),
+    const sorted = [...valuations].sort(
+      (a, b) => a.valuationDate.getTime() - b.valuationDate.getTime(),
     );
 
     const averageValue = sorted.reduce((sum, v) => sum + v.estimatedValue, 0) / sorted.length;
-    const change =
-      ((sorted[sorted.length - 1].estimatedValue - sorted[0].estimatedValue) /
-        sorted[0].estimatedValue) *
-      100;
+
+    const firstValue = sorted[0].estimatedValue;
+    const lastValue = sorted[sorted.length - 1].estimatedValue;
+
+    // Avoid division by zero if the initial value was 0
+    const change = firstValue > 0 ? ((lastValue - firstValue) / firstValue) * 100 : 0;
 
     const valueTrend: 'INCREASING' | 'DECREASING' | 'STABLE' =
       change > 5 ? 'INCREASING' : change < -5 ? 'DECREASING' : 'STABLE';
@@ -218,38 +199,31 @@ export class AssetValuationHelper {
     };
   }
 
-  validateValuation(
+  public validateValuation(
     asset: Asset,
     valuation: AssetValuation,
   ): { isValid: boolean; issues: string[] } {
     const issues: string[] = [];
-    const range = this.getExpectedValueRange(asset.type); // Remove the second parameter
+    const range = this.getExpectedValueRange(asset.type);
 
     if (valuation.estimatedValue < range.min) {
-      issues.push(`Value too low, expected >= KES ${range.min.toLocaleString()}`);
+      issues.push(`Value is below the expected minimum of KES ${range.min.toLocaleString()}`);
     }
     if (valuation.estimatedValue > range.max) {
-      issues.push(`Value too high, expected <= KES ${range.max.toLocaleString()}`);
+      issues.push(`Value is above the expected maximum of KES ${range.max.toLocaleString()}`);
     }
-
-    if (new Date(valuation.valuationDate) > new Date()) {
-      issues.push('Valuation date cannot be in the future');
+    if (valuation.valuationDate > new Date()) {
+      issues.push('Valuation date cannot be in the future.');
     }
     if (valuation.confidence === 'LOW' && valuation.estimatedValue > 1_000_000) {
-      issues.push('High-value assets require medium or high confidence');
+      issues.push('High-value assets require at least medium-confidence valuation.');
     }
 
     return { isValid: issues.length === 0, issues };
   }
 
-  private getExpectedValueRange(assetType: string): { min: number; max: number } {
-    const ranges: { [key: string]: { min: number; max: number } } = {
-      LAND_PARCEL: { min: 5000, max: 100_000_000 },
-      PROPERTY: { min: 100_000, max: 500_000_000 },
-      VEHICLE: { min: 100_000, max: 10_000_000 },
-      LIVESTOCK: { min: 5000, max: 1_000_000 },
-      FINANCIAL_ASSET: { min: 0, max: 1_000_000_000 },
-    };
-    return ranges[assetType] || { min: 0, max: 1_000_000_000 };
+  private getExpectedValueRange(assetType: AssetType): { min: number; max: number } {
+    const ranges = this.config.expectedValueRanges;
+    return ranges[assetType] ?? { min: 0, max: 1_000_000_000 };
   }
 }

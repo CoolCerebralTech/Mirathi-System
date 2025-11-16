@@ -1,5 +1,11 @@
 import { registerAs } from '@nestjs/config';
 
+import {
+  KENYAN_LEGAL_REQUIREMENTS,
+  SUCCESSION_TIMEFRAMES,
+} from '../constants/kenyan-law.constants';
+import { MINOR_PROTECTION } from '../constants/distribution-rules.constants';
+
 export default registerAs('succession', () => ({
   // ---------------------------------------------------------------------------
   // Succession Domain Configuration (Kenya Succession Law)
@@ -21,34 +27,35 @@ export default registerAs('succession', () => ({
   will: {
     maxAssets: parseInt(process.env.WILL_MAX_ASSETS || '100', 10),
     maxBeneficiaries: parseInt(process.env.WILL_MAX_BENEFICIARIES || '50', 10),
-    maxWitnesses: parseInt(process.env.WILL_MAX_WITNESSES || '2', 10), // Kenya law requires minimum 2
-    maxExecutors: parseInt(process.env.WILL_MAX_EXECUTORS || '4', 10),
-
+    minWitnesses: parseInt(
+      process.env.WILL_MIN_WITNESSES || `${KENYAN_LEGAL_REQUIREMENTS.MINIMUM_WITNESSES}`,
+      10,
+    ),
+    maxExecutors: parseInt(
+      process.env.WILL_MAX_EXECUTORS ||
+        `${KENYAN_LEGAL_REQUIREMENTS.EXECUTOR_REQUIREMENTS.MAX_EXECUTORS}`,
+      10,
+    ),
+    draftExpiryDays: parseInt(
+      process.env.WILL_DRAFT_EXPIRY_DAYS || '365', // This is a business rule, not a legal one
+      10,
+    ),
     allowDigitalSignatures: process.env.WILL_ALLOW_DIGITAL_SIGNATURES === 'true',
-    requireWitnesses: process.env.WILL_REQUIRE_WITNESSES !== 'false',
     requireAdvocateSeal: process.env.WILL_REQUIRE_ADVOCATE_SEAL === 'true',
-
-    // workflow
     maxVersions: parseInt(process.env.WILL_MAX_VERSIONS || '10', 10),
-    draftExpiryDays: parseInt(process.env.WILL_DRAFT_EXPIRY_DAYS || '365', 10),
   },
 
   // ---------------------------------------------------------------------------
   // Family & Dependency Rules (Law of Succession Act – Sections 29 & 35-42)
   // ---------------------------------------------------------------------------
   family: {
-    dependantAgeLimit: parseInt(process.env.FAMILY_DEPENDANT_AGE_LIMIT || '18', 10),
+    dependantAgeLimit: parseInt(
+      process.env.FAMILY_DEPENDANT_AGE_LIMIT || `${MINOR_PROTECTION.MINORS.ageLimit}`,
+      10,
+    ),
     maxMembers: parseInt(process.env.FAMILY_MAX_MEMBERS || '200', 10),
     maxGenerations: parseInt(process.env.FAMILY_MAX_GENERATIONS || '6', 10),
-    autoRelationshipDetection: process.env.FAMILY_AUTO_RELATIONSHIP_DETECTION === 'true',
-
     requireProofOfDependency: process.env.FAMILY_REQUIRE_PROOF_OF_DEPENDENCY !== 'false',
-
-    // Default statutory distribution ratios (editable to match firm interpretation)
-    spouseShareRatio: parseFloat(process.env.FAMILY_SPOUSE_SHARE_RATIO || '0.5'),
-    childrenShareRatio: parseFloat(process.env.FAMILY_CHILDREN_SHARE_RATIO || '0.5'),
-
-    // polygamous families (Section 40)
     allowPolygamousDistribution: process.env.FAMILY_ALLOW_POLYGAMOUS_DISTRIBUTION !== 'false',
   },
 
@@ -57,21 +64,17 @@ export default registerAs('succession', () => ({
   // ---------------------------------------------------------------------------
   probate: {
     // Time allowed before filing (Section 51)
-    applicationDeadlineDays: parseInt(process.env.PROBATE_APPLICATION_DEADLINE_DAYS || '180', 10),
-
-    // Gazette notice + objection period (minimum 30 days under Kenyan law)
-    objectionPeriodDays: parseInt(process.env.PROBATE_OBJECTION_PERIOD_DAYS || '30', 10),
-
-    // Distribution timeline (commonly 1 year)
-    distributionDeadlineDays: parseInt(process.env.PROBATE_DISTRIBUTION_DEADLINE_DAYS || '365', 10),
-
-    // Jurisdiction thresholds
-    highCourtThreshold: parseInt(process.env.PROBATE_HIGH_COURT_THRESHOLD || '5000000', 10),
-    magistrateCourtThreshold: parseInt(
-      process.env.PROBATE_MAGISTRATE_COURT_THRESHOLD || '2000000',
-      10,
-    ),
-
+    family: {
+      // --- REFACTORED: Using legal constants as fallbacks ---
+      dependantAgeLimit: parseInt(
+        process.env.FAMILY_DEPENDANT_AGE_LIMIT || `${MINOR_PROTECTION.MINORS.ageLimit}`,
+        10,
+      ),
+      maxMembers: parseInt(process.env.FAMILY_MAX_MEMBERS || '200', 10),
+      maxGenerations: parseInt(process.env.FAMILY_MAX_GENERATIONS || '6', 10),
+      requireProofOfDependency: process.env.FAMILY_REQUIRE_PROOF_OF_DEPENDENCY !== 'false',
+      allowPolygamousDistribution: process.env.FAMILY_ALLOW_POLYGAMOUS_DISTRIBUTION !== 'false',
+    },
     // Fees (standard practice: 0.5%)
     courtFeePercentage: parseFloat(process.env.PROBATE_COURT_FEE_PERCENTAGE || '0.005'),
   },
@@ -81,18 +84,28 @@ export default registerAs('succession', () => ({
   // ---------------------------------------------------------------------------
   executor: {
     maxCompensationPercentage: parseFloat(
-      process.env.EXECUTOR_MAX_COMPENSATION_PERCENTAGE || '0.05',
+      process.env.EXECUTOR_MAX_COMPENSATION_PERCENTAGE ||
+        `${KENYAN_LEGAL_REQUIREMENTS.EXECUTOR_REQUIREMENTS.FEE_PERCENTAGE.MAX}`,
     ),
     minCompensationPercentage: parseFloat(
-      process.env.EXECUTOR_MIN_COMPENSATION_PERCENTAGE || '0.01',
+      process.env.EXECUTOR_MIN_COMPENSATION_PERCENTAGE ||
+        `${KENYAN_LEGAL_REQUIREMENTS.EXECUTOR_REQUIREMENTS.FEE_PERCENTAGE.MIN}`,
     ),
-    defaultCompensationPercentage: parseFloat(
-      process.env.EXECUTOR_DEFAULT_COMPENSATION_PERCENTAGE || '0.03',
+    inventorySubmissionDays: parseInt(
+      process.env.EXECUTOR_INVENTORY_SUBMISSION_DAYS ||
+        `${SUCCESSION_TIMEFRAMES.WILL_EXECUTION.INVENTORY_SUBMISSION}`,
+      10,
     ),
-
-    dutyCompletionDays: parseInt(process.env.EXECUTOR_DUTY_COMPLETION_DAYS || '365', 10),
-
-    inventorySubmissionDays: parseInt(process.env.EXECUTOR_INVENTORY_SUBMISSION_DAYS || '180', 10),
+  },
+  // ---------------------------------------------------------------------------
+  // Validation Parameters
+  // ---------------------------------------------------------------------------
+  validation: {
+    maxAssetValuation: parseInt(
+      process.env.VALIDATION_MAX_ASSET_VALUATION || '10000000000000', // 10 Trillion KES
+      10,
+    ),
+    // We can add other validation parameters here in the future
   },
 
   // ---------------------------------------------------------------------------

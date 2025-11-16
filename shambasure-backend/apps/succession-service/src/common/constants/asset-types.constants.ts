@@ -13,7 +13,6 @@ export const ASSET_TYPES = {
     description: 'Plot of land with or without improvements',
     kenyanSpecific: true,
     valuationMethod: 'MARKET_COMPARISON',
-    documentation: ['TITLE_DEED', 'SURVEY_PLAN'],
     registration: 'LAND_REGISTRY',
   },
 
@@ -24,7 +23,6 @@ export const ASSET_TYPES = {
     description: 'Building or structure on land',
     subTypes: ['RESIDENTIAL', 'COMMERCIAL', 'INDUSTRIAL', 'AGRICULTURAL'],
     valuationMethod: 'COST_APPROACH',
-    documentation: ['TITLE_DEED', 'BUILDING_PLANS'],
     registration: 'VARIOUS',
   },
 
@@ -36,7 +34,6 @@ export const ASSET_TYPES = {
     description: 'Bank accounts, investments, and financial instruments',
     subTypes: ['BANK_ACCOUNT', 'SACCO_SHARES', 'INVESTMENTS', 'BONDS'],
     valuationMethod: 'ACCOUNT_STATEMENT',
-    documentation: ['BANK_STATEMENT', 'CERTIFICATE'],
     registration: 'FINANCIAL_INSTITUTION',
   },
 
@@ -48,7 +45,6 @@ export const ASSET_TYPES = {
     description: 'Online accounts, cryptocurrencies, digital content',
     subTypes: ['CRYPTOCURRENCY', 'SOCIAL_MEDIA', 'ONLINE_BUSINESS', 'DOMAIN_NAMES'],
     valuationMethod: 'MARKET_VALUE',
-    documentation: ['ACCOUNT_DETAILS', 'PRIVATE_KEYS'],
     registration: 'DIGITAL_PLATFORM',
   },
 
@@ -60,7 +56,6 @@ export const ASSET_TYPES = {
     description: 'Ownership in business enterprises',
     subTypes: ['SOLE_PROPRIETORSHIP', 'PARTNERSHIP', 'COMPANY_SHARES', 'FRANCHISE'],
     valuationMethod: 'INCOME_APPROACH',
-    documentation: ['CERTIFICATE_OF_INCORPORATION', 'SHARE_CERTIFICATE'],
     registration: 'COMPANIES_REGISTRY',
   },
 
@@ -72,7 +67,6 @@ export const ASSET_TYPES = {
     description: 'Motor vehicles, machinery, and equipment',
     subTypes: ['PERSONAL_CAR', 'COMMERCIAL_VEHICLE', 'MOTORCYCLE', 'AGRICULTURAL_EQUIPMENT'],
     valuationMethod: 'DEPRECIATION',
-    documentation: ['LOG_BOOK', 'INSURANCE'],
     registration: 'NTSA',
   },
 
@@ -84,7 +78,6 @@ export const ASSET_TYPES = {
     description: 'Animals kept for agricultural purposes',
     subTypes: ['CATTLE', 'GOATS', 'SHEEP', 'POULTRY', 'BEE_HIVES'],
     valuationMethod: 'MARKET_RATE',
-    documentation: ['OWNERSHIP_RECORDS', 'VACCINATION_CARDS'],
     registration: 'LOCAL_AUTHORITY',
   },
 
@@ -96,7 +89,6 @@ export const ASSET_TYPES = {
     description: 'Personal belongings and household items',
     subTypes: ['JEWELRY', 'ART', 'FURNITURE', 'ELECTRONICS', 'COLLECTIBLES'],
     valuationMethod: 'APPRAISAL',
-    documentation: ['RECEIPTS', 'APPRAISAL_REPORT'],
     registration: 'NONE',
   },
 
@@ -108,7 +100,6 @@ export const ASSET_TYPES = {
     description: 'Copyrights, patents, trademarks',
     subTypes: ['COPYRIGHT', 'PATENT', 'TRADEMARK', 'DESIGN_RIGHT'],
     valuationMethod: 'ROYALTY_STREAM',
-    documentation: ['REGISTRATION_CERTIFICATE'],
     registration: 'KIPI',
   },
 
@@ -119,7 +110,6 @@ export const ASSET_TYPES = {
     category: 'OTHER',
     description: 'Other types of assets not categorized above',
     valuationMethod: 'MANUAL_ASSESSMENT',
-    documentation: ['OWNERSHIP_PROOF'],
     registration: 'VARIOUS',
   },
 } as const;

@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 import { WillStatus, WitnessStatus } from '@prisma/client';
 import { legalRulesConfig } from '../config/legal-rules.config';
 import featureFlagsConfig from '../config/feature-flags.config'; // Fixed import
@@ -48,39 +49,41 @@ export interface FormalityValidationResult {
 
 @Injectable()
 export class LegalFormalityChecker {
-  private legalRules = legalRulesConfig();
-  private features = featureFlagsConfig();
-
+  // --- IMPROVEMENT: Using professional Dependency Injection ---
+  constructor(
+    @Inject(legalRulesConfig.KEY)
+    private readonly rules: ConfigType<typeof legalRulesConfig>,
+    @Inject(featureFlagsConfig.KEY)
+    private readonly features: ConfigType<typeof featureFlagsConfig>,
+  ) {}
   /**
-   * Validate will formalities based on Law of Succession Act + feature flags
+   * Validates will formalities based on the Law of Succession Act (Cap 160).
    */
-  validateWillFormalities(will: Will): FormalityValidationResult {
+  public validateWillFormalities(will: Will): FormalityValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
-    const lawSections: string[] = ['11']; // Section 11 for will formalities
+    const lawSections: string[] = ['11']; // Section 11 is the primary source for will formalities
 
-    // 1. Writing requirement
-    if (!will.isInWriting) errors.push('Will must be in writing (Section 11)');
+    // 1. Writing Requirement
+    if (this.rules.willFormalities.requiresWriting && !will.isInWriting) {
+      errors.push('Will must be in writing (Section 11)');
+    }
 
-    // 2. Testator signature
-    if (!will.testatorSignature) errors.push('Testator must sign the will (Section 11)');
+    // 2. Testator Signature
+    if (this.rules.willFormalities.requiresTestatorSignature && !will.testatorSignature) {
+      errors.push(
+        'Testator must sign the will, or have someone sign in their presence (Section 11)',
+      );
+    }
 
-    // 3. Witness validation
+    // 3. Witness Validation
     this.validateWitnesses(will, errors, warnings);
 
-    // 4. Testator capacity
-    this.validateTestatorCapacity(will, errors, warnings);
+    // 4. Testator Capacity Validation
+    this.validateTestatorCapacity(will, errors);
 
-    // 5. Date validation
+    // 5. Date Validation
     this.validateDates(will, warnings);
-
-    // 6. Optional AI-powered risk analysis if feature enabled
-    if (this.features.analysis?.risk && (will.estateValue ?? 0) > 0) {
-      // ✅ Fixed: riskAnalysis → risk
-      // Placeholder for AI risk check
-      // If risk detected, push warning
-      // warnings.push('AI analysis detected potential succession risk');
-    }
 
     return {
       isValid: errors.length === 0,
@@ -91,60 +94,55 @@ export class LegalFormalityChecker {
   }
 
   private validateWitnesses(will: Will, errors: string[], warnings: string[]): void {
-    const rules = this.legalRules.willFormalities;
+    const witnessRules = this.rules.willFormalities;
+    const witnesses = will.witnesses || [];
 
-    if (!will.witnesses || will.witnesses.length < rules.minWitnesses) {
-      errors.push(`Minimum ${rules.minWitnesses} witnesses required (Section 11)`);
-      return;
+    if (witnesses.length < witnessRules.minWitnesses) {
+      errors.push(
+        `A minimum of ${witnessRules.minWitnesses} competent witnesses are required (Section 11).`,
+      );
+      return; // Stop further witness validation if there aren't enough.
     }
 
-    if (will.witnesses.length > rules.maxWitnesses) {
-      warnings.push(`Will has more than maximum allowed witnesses (${rules.maxWitnesses})`);
+    if (witnesses.length > witnessRules.maxWitnesses) {
+      warnings.push(
+        `The will has more than the system's configured maximum of ${witnessRules.maxWitnesses} witnesses.`,
+      );
     }
 
-    will.witnesses.forEach((witness: Witness, index: number) => {
-      if (this.isWitnessAlsoBeneficiary(witness, will.beneficiaries)) {
-        errors.push(`Witness ${index + 1} cannot be a beneficiary (${witness.name})`);
+    witnesses.forEach((witness, index) => {
+      const witnessLabel = witness.name ? `Witness '${witness.name}'` : `Witness #${index + 1}`;
+
+      if (
+        witnessRules.witnessEligibility.cannotBeBeneficiary &&
+        this.isWitnessAlsoBeneficiary(witness, will.beneficiaries)
+      ) {
+        errors.push(`${witnessLabel} cannot be a beneficiary.`);
       }
 
-      if ((witness.age ?? 0) < rules.witnessEligibility.minAge) {
+      if ((witness.age ?? 0) < witnessRules.witnessEligibility.minAge) {
         errors.push(
-          `Witness ${index + 1} must be at least ${rules.witnessEligibility.minAge} years old`,
+          `${witnessLabel} must be at least ${witnessRules.witnessEligibility.minAge} years old.`,
         );
       }
 
+      // A warning for unsigned witnesses is relevant only before activation
       if (!witness.signature && will.status !== WillStatus.DRAFT) {
-        warnings.push(`Witness ${index + 1} has not signed the will`);
+        warnings.push(`${witnessLabel} has not signed the will.`);
       }
     });
-
-    // Check minimum signed witnesses
-    const signedWitnesses = will.witnesses.filter(
-      (w: Witness) => w.status === WitnessStatus.SIGNED || w.status === WitnessStatus.VERIFIED,
-    );
-    if (signedWitnesses.length < rules.minWitnesses && will.status === WillStatus.ACTIVE) {
-      errors.push(`At least ${rules.minWitnesses} witnesses must sign before activation`);
-    }
   }
 
-  private validateTestatorCapacity(will: Will, errors: string[], warnings: string[]): void {
-    const rules = this.legalRules.testatorCapacity;
+  private validateTestatorCapacity(will: Will, errors: string[]): void {
+    const capacityRules = this.rules.testatorCapacity;
 
-    if ((will.testatorAge ?? 0) < rules.minAge)
-      errors.push(`Testator must be at least ${rules.minAge} years old (Section 7)`);
-    if (will.testatorMentalCapacity === false)
-      errors.push('Testator must be of sound mind (Section 7)');
-
-    if (will.specialCircumstances?.includes('ASSISTED_DRAFTING')) {
-      warnings.push('Will drafted with assistance - check for undue influence');
+    if ((will.testatorAge ?? 0) < capacityRules.minAge) {
+      errors.push(`Testator must be at least ${capacityRules.minAge} years old (Section 7).`);
     }
-
-    if (
-      rules.capacityAssessment.triggers.some((trigger) =>
-        will.specialCircumstances?.includes(trigger),
-      )
-    ) {
-      warnings.push('Testator capacity assessment recommended due to triggering conditions');
+    if (capacityRules.requiresSoundMind && will.testatorMentalCapacity === false) {
+      errors.push(
+        'Testator must be of sound mind and memory at the time of execution (Section 7).',
+      );
     }
   }
 
@@ -155,13 +153,16 @@ export class LegalFormalityChecker {
   }
 
   private isWitnessAlsoBeneficiary(witness: Witness, beneficiaries?: Beneficiary[]): boolean {
-    return beneficiaries?.some((b) => b.id === witness.id || b.email === witness.email) ?? false;
+    if (!beneficiaries) return false;
+    return beneficiaries.some(
+      (b) => (b.id && b.id === witness.id) || (b.email && b.email === witness.email),
+    );
   }
 
   /**
    * Validate probate application formalities
    */
-  validateProbateFormalities(application: ProbateApplication): FormalityValidationResult {
+  public validateProbateFormalities(application: ProbateApplication): FormalityValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
     const lawSections: string[] = ['51', '55'];

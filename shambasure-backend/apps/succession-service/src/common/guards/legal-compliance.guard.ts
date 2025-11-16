@@ -1,76 +1,69 @@
-import { Injectable, CanActivate, ExecutionContext, BadRequestException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import {
-  KENYAN_LAW_METADATA,
-  KenyanLawValidationOptions,
+  KENYAN_LAW_CHECK_KEY,
+  KenyanLawCheckType,
 } from '../decorators/kenyan-law-validation.decorator';
+import { LegalFormalityChecker } from '../utils/legal-formality-checker';
+import { KenyanLawViolationException } from '../exceptions/kenyan-law-violation.exception';
 
+/**
+ * A guard that performs specific Kenyan legal compliance checks on incoming request data.
+ * It reads metadata set by decorators like `@RequiresWillFormalities` to determine
+ * which validation logic to execute, delegating the actual work to our expert utilities.
+ */
 @Injectable()
 export class KenyanLawValidationGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    // --- PERFECT INTEGRATION: Injects our expert utility ---
+    private readonly formalityChecker: LegalFormalityChecker,
+  ) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const options = this.reflector.get<KenyanLawValidationOptions>(
-      KENYAN_LAW_METADATA,
+  canActivate(context: ExecutionContext): boolean {
+    const checkType = this.reflector.get<KenyanLawCheckType>(
+      KENYAN_LAW_CHECK_KEY,
       context.getHandler(),
     );
 
-    if (!options) {
-      return true; // No Kenyan law validation required
+    // If the decorator is not applied, the guard does nothing.
+    if (!checkType) {
+      return true;
     }
 
     const request = context.switchToHttp().getRequest();
     const body = request.body;
 
-    // Validate Kenyan law requirements
-    const violations = await this.validateKenyanLaw(body, options);
+    let result: { isValid: boolean; errors: string[]; lawSections: string[] };
 
-    if (violations.length > 0) {
-      throw new BadRequestException({
-        message: 'Kenyan law validation failed',
-        section: options.section,
-        requirement: options.requirement,
-        violations,
-      });
+    // The guard acts as a "conductor", calling the correct expert.
+    switch (checkType) {
+      case 'WILL_FORMALITIES':
+        result = this.formalityChecker.validateWillFormalities(body);
+        break;
+
+      // Add other cases here as we build them out
+      // case 'PROBATE_APPLICATION':
+      //   result = this.formalityChecker.validateProbateFormalities(body);
+      //   break;
+
+      default:
+        // If the check type is unknown, we allow the request but log a warning.
+        console.warn(`Unknown KenyanLawCheckType: ${checkType}`);
+        return true;
+    }
+
+    if (!result.isValid) {
+      // --- PERFECT INTEGRATION: Throws our custom exception ---
+      // This will be caught by our KenyanLawViolationFilter for a perfect API response.
+      throw new KenyanLawViolationException(
+        result.errors[0] || 'The request violates Kenyan legal requirements.',
+        result.lawSections[0] || 'Unknown',
+        checkType,
+        result.errors,
+      );
     }
 
     return true;
-  }
-
-  private async validateKenyanLaw(
-    body: any,
-    options: KenyanLawValidationOptions,
-  ): Promise<string[]> {
-    const violations: string[] = [];
-
-    // Validate minimum witnesses (Law of Succession Act Section 11)
-    if (options.minWitnesses && body.witnesses && body.witnesses.length < options.minWitnesses) {
-      violations.push(`Minimum ${options.minWitnesses} witnesses required by Kenyan law`);
-    }
-
-    // Validate dependant provision (Section 26-29)
-    if (options.dependantProvision && body.beneficiaries) {
-      const hasDependantProvision = this.checkDependantProvision(body.beneficiaries);
-      if (!hasDependantProvision) {
-        violations.push('Reasonable provision for dependants (spouse/children) required');
-      }
-    }
-
-    // Validate asset limits
-    if (options.maxAssets && body.assets && body.assets.length > options.maxAssets) {
-      violations.push(`Maximum ${options.maxAssets} assets allowed`);
-    }
-
-    return violations;
-  }
-
-  private checkDependantProvision(beneficiaries: any[]): boolean {
-    // Check if spouse and children are provided for
-    const hasSpouse = beneficiaries.some((b) => b.relationship === 'SPOUSE');
-    const hasChildren = beneficiaries.some((b) =>
-      ['CHILD', 'ADOPTED_CHILD', 'STEPCHILD'].includes(b.relationship),
-    );
-
-    return hasSpouse && hasChildren;
   }
 }

@@ -1,107 +1,46 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpStatus, HttpException } from '@nestjs/common';
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import { Request, Response } from 'express';
 
-@Catch()
-export class GlobalExceptionFilter implements ExceptionFilter {
-  catch(exception: unknown, host: ArgumentsHost) {
+@Catch() // A blank @Catch() decorator catches all exceptions
+export class AllExceptionsFilter implements ExceptionFilter {
+  private readonly logger = new Logger(AllExceptionsFilter.name);
+
+  catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'Internal server error';
-    let code = 'INTERNAL_ERROR';
-    let details: any = undefined;
+    const status =
+      exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    if (exception instanceof HttpException) {
-      status = exception.getStatus();
-      const exceptionResponse = exception.getResponse();
-
-      if (typeof exceptionResponse === 'string') {
-        message = exceptionResponse;
-      } else if (typeof exceptionResponse === 'object') {
-        message = (exceptionResponse as any).message || message;
-        code = (exceptionResponse as any).code || code;
-        details = (exceptionResponse as any).details;
-      }
-    } else if (exception instanceof Error) {
-      message = exception.message;
-
-      // Handle specific error types
-      if (exception.name === 'PrismaClientKnownRequestError') {
-        code = 'DATABASE_ERROR';
-        status = HttpStatus.BAD_REQUEST;
-      } else if (exception.name === 'JsonWebTokenError') {
-        code = 'AUTHENTICATION_ERROR';
-        status = HttpStatus.UNAUTHORIZED;
-      }
-    }
+    const message =
+      exception instanceof HttpException
+        ? exception.getResponse()
+        : {
+            message: 'An unexpected internal server error occurred.',
+            error: 'Internal Server Error',
+          };
 
     const errorResponse = {
-      success: false,
-      error: {
-        code,
-        message,
-        ...(details && { details }),
-        ...(process.env.NODE_ENV !== 'production' && {
-          stack: exception instanceof Error ? exception.stack : undefined,
-          type: exception instanceof Error ? exception.name : typeof exception,
-        }),
-      },
+      statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
-      ...(process.env.NODE_ENV !== 'production' && {
-        debug: {
-          method: request.method,
-          headers: this.sanitizeHeaders(request.headers),
-          body: this.sanitizeBody(request.body),
-        },
-      }),
+      ...(typeof message === 'object' ? message : { message }),
     };
 
-    // Log error for monitoring
-    this.logError(exception, request);
+    // Log the full error for debugging, especially for 500 errors
+    this.logger.error(
+      `HTTP Status: ${status} Error Message: ${JSON.stringify(errorResponse)}`,
+      exception instanceof Error ? exception.stack : '',
+    );
 
     response.status(status).json(errorResponse);
-  }
-
-  private sanitizeHeaders(headers: any): any {
-    const sanitized = { ...headers };
-    delete sanitized.authorization;
-    delete sanitized.cookie;
-    delete sanitized['x-api-key'];
-    return sanitized;
-  }
-
-  private sanitizeBody(body: any): any {
-    if (!body) return body;
-
-    const sanitized = { ...body };
-    delete sanitized.password;
-    delete sanitized.token;
-    delete sanitized.creditCard;
-    return sanitized;
-  }
-
-  private logError(exception: unknown, request: Request): void {
-    const errorLog = {
-      timestamp: new Date().toISOString(),
-      method: request.method,
-      url: request.url,
-      userId: (request as any).user?.id,
-      error:
-        exception instanceof Error
-          ? {
-              name: exception.name,
-              message: exception.message,
-              stack: exception.stack,
-            }
-          : String(exception),
-    };
-
-    console.error('GLOBAL_ERROR:', errorLog);
-
-    // In production, send to error monitoring service
-    // Example: Sentry.captureException(exception);
   }
 }

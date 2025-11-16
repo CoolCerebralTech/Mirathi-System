@@ -1,39 +1,31 @@
-import { createParamDecorator, ExecutionContext, SetMetadata } from '@nestjs/common';
+import { SetMetadata } from '@nestjs/common';
 import { RelationshipType } from '@prisma/client';
 
-export const FamilyRelationship = createParamDecorator((data: unknown, ctx: ExecutionContext) => {
-  const request = ctx.switchToHttp().getRequest();
-  const relationship = request.body.relationshipType;
+/**
+ * The key used to store relationship metadata on a route handler.
+ */
+export const ALLOWED_RELATIONSHIPS_KEY = 'allowedRelationships';
 
-  return {
-    relationship,
-    isValidKenyanRelationship: Object.values(RelationshipType).includes(relationship),
-    isImmediateFamily: ['SPOUSE', 'CHILD', 'PARENT'].includes(relationship),
-  };
-});
+/**
+ * A method decorator to specify which `RelationshipType` values are permitted
+ * for a particular route. This metadata is consumed by the FamilyRelationshipGuard.
+ *
+ * @param allowedRelationships An array of `RelationshipType` enums.
+ *
+ * @example
+ * // In a controller:
+ * @Post(':familyId/members')
+ * @UseGuards(JwtAuthGuard, FamilyRelationshipGuard)
+ * @AllowedRelationships(RelationshipType.SPOUSE, RelationshipType.CHILD)
+ * createFamilyMember(@Body() dto: CreateMemberDto) { ... }
+ */
+export const AllowedRelationships = (...allowedRelationships: RelationshipType[]) =>
+  SetMetadata(ALLOWED_RELATIONSHIPS_KEY, allowedRelationships);
 
-export const VALIDATE_RELATIONSHIP = 'validate-relationship';
-export const ValidateRelationship = (allowedRelationships: RelationshipType[] = []) =>
-  SetMetadata(VALIDATE_RELATIONSHIP, allowedRelationships);
-
-// Specific relationship decorators
-export function SpouseRelationship() {
-  return ValidateRelationship([RelationshipType.SPOUSE]);
-}
-
-export function ChildRelationship() {
-  return ValidateRelationship([
-    RelationshipType.CHILD,
-    RelationshipType.ADOPTED_CHILD,
-    RelationshipType.STEPCHILD,
-  ]);
-}
-
-export function ImmediateFamily() {
-  return ValidateRelationship([
-    RelationshipType.SPOUSE,
-    RelationshipType.CHILD,
-    RelationshipType.ADOPTED_CHILD,
-    RelationshipType.PARENT,
-  ]);
-}
+/**
+ * A composite decorator for convenience that restricts access to immediate family members.
+ * This is a pre-configured version of @AllowedRelationships.
+ * The list of what constitutes "immediate family" is determined inside the guard
+ * by consuming our centralized constants, ensuring a single source of truth.
+ */
+export const ImmediateFamilyOnly = () => SetMetadata(ALLOWED_RELATIONSHIPS_KEY, 'IMMEDIATE_FAMILY');

@@ -2,39 +2,15 @@
  * Kenyan Law – Strongly Typed Definitions
  * Covers: Law of Succession Act, Marriage Act, Probate Rules, Court Process.
  */
-
+import { LAW_OF_SUCCESSION_SECTIONS } from '../constants/kenyan-law.constants';
+import { RELATIONSHIP_TYPES } from '../constants/relationship-types.constants';
+import { KENYAN_COUNTIES_LIST } from '../constants/kenyan-law.constants';
 /* -------------------------------------------------------------------------- */
 /*                        LAW OF SUCCESSION ACT SECTIONS                      */
 /* -------------------------------------------------------------------------- */
 
 export type LawSection =
-  | '3' // Definitions: child, spouse, dependant
-  | '5' // Testamentary freedom & capacity
-  | '7' // Capacity to make a will
-  | '8' // Sound mind
-  | '9' // Special provisions for privileged wills
-  | '11' // Will formalities
-  | '12' // Witness competency
-  | '14' // Alterations & interlineations
-  | '16' // Revocation of will
-  | '26' // Provision for dependants
-  | '27' // Power of court to make orders for dependants
-  | '29' // Definition of dependants
-  | '35' // Intestate: spouse + children
-  | '36' // Intestate: spouse & no children
-  | '37' // Power of spouse to dispose of property
-  | '38' // Intestate: children only
-  | '39' // Intestate: relatives only
-  | '40' // Intestate: polygamous households
-  | '51' // Application for grant
-  | '55' // Restrictions on distribution before confirmation
-  | '66' // Order of priority for grants
-  | '71' // Confirmation of grant
-  | '79' // Executor powers vesting
-  | '82' // Powers of personal representatives
-  | '83' // Duties of personal representatives
-  | '81'; // Executor removal
-
+  (typeof LAW_OF_SUCCESSION_SECTIONS)[keyof typeof LAW_OF_SUCCESSION_SECTIONS];
 /* -------------------------------------------------------------------------- */
 /*                               WILL FORMALITIES                              */
 /* -------------------------------------------------------------------------- */
@@ -89,15 +65,7 @@ export type ShareType =
 /*                                 DEPENDANTS                                  */
 /* -------------------------------------------------------------------------- */
 
-export type DependantType =
-  | 'SPOUSE'
-  | 'CHILD'
-  | 'ADOPTED_CHILD'
-  | 'STEPCHILD'
-  | 'PARENT'
-  | 'SIBLING'
-  | 'OTHER_DEPENDANT';
-
+export type DependantType = keyof typeof RELATIONSHIP_TYPES;
 /* -------------------------------------------------------------------------- */
 /*                                  PROBATE                                    */
 /* -------------------------------------------------------------------------- */
@@ -135,15 +103,6 @@ export type ProbateStatus =
 /*                        EXECUTOR / ADMINISTRATOR TYPES                       */
 /* -------------------------------------------------------------------------- */
 
-export type ExecutorStatus =
-  | 'NOMINATED'
-  | 'APPOINTED'
-  | 'ACTIVE'
-  | 'SUSPENDED'
-  | 'REMOVED'
-  | 'DECLINED'
-  | 'COMPLETED';
-
 export type ExecutorDutyType =
   | 'LOCATE_WILL'
   | 'NOTIFY_HEIRS'
@@ -171,16 +130,6 @@ export type DisputeGrounds =
   | 'AMBIGUOUS_TERMS'
   | 'CONTRADICTORY_CLAUSES'
   | 'REVOCATION_ISSUE';
-
-export type DisputeStatus =
-  | 'FILED'
-  | 'UNDER_REVIEW'
-  | 'MEDIATION'
-  | 'COURT_HEARING'
-  | 'SETTLEMENT'
-  | 'RESOLVED'
-  | 'DISMISSED'
-  | 'APPEALED';
 
 export type ResolutionMethod =
   | 'MEDIATION'
@@ -245,54 +194,7 @@ export type LegalRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
 export type KenyanCurrency = 'KES';
 
-export type KenyanCounty =
-  | 'BARINGO'
-  | 'BOMET'
-  | 'BUNGOMA'
-  | 'BUSIA'
-  | 'ELGEYO_MARAKWET'
-  | 'EMBU'
-  | 'GARISSA'
-  | 'HOMA_BAY'
-  | 'ISIOLO'
-  | 'KAJIADO'
-  | 'KAKAMEGA'
-  | 'KERICHO'
-  | 'KIAMBU'
-  | 'KILIFI'
-  | 'KIRINYAGA'
-  | 'KISII'
-  | 'KISUMU'
-  | 'KITUI'
-  | 'KWALE'
-  | 'LAIKIPIA'
-  | 'LAMU'
-  | 'MACHAKOS'
-  | 'MAKUENI'
-  | 'MANDERA'
-  | 'MARSABIT'
-  | 'MERU'
-  | 'MIGORI'
-  | 'MOMBASA'
-  | 'MURANGA'
-  | 'NAIROBI'
-  | 'NAKURU'
-  | 'NANDI'
-  | 'NAROK'
-  | 'NYAMIRA'
-  | 'NYANDARUA'
-  | 'NYERI'
-  | 'SAMBURU'
-  | 'SIAYA'
-  | 'TAITA_TAVETA'
-  | 'TANA_RIVER'
-  | 'THARAKA_NITHI'
-  | 'TRANS_NZOIA'
-  | 'TURKANA'
-  | 'UASIN_GISHU'
-  | 'VIHIGA'
-  | 'WAJIR'
-  | 'WEST_POKOT';
+export type KenyanCounty = (typeof KENYAN_COUNTIES_LIST)[number];
 
 export type KenyanIDType =
   | 'NATIONAL_ID'
@@ -305,89 +207,14 @@ export type KenyanIDType =
 /*                               TYPE GUARDS                                   */
 /* -------------------------------------------------------------------------- */
 
+const LAW_SECTIONS_ARRAY = Object.values(LAW_OF_SUCCESSION_SECTIONS);
 export const isLawSection = (section: string): section is LawSection => {
-  const valid: LawSection[] = [
-    '3',
-    '5',
-    '7',
-    '8',
-    '9',
-    '11',
-    '14',
-    '16',
-    '26',
-    '27',
-    '29',
-    '35',
-    '36',
-    '37',
-    '38',
-    '39',
-    '40',
-    '51',
-    '55',
-    '66',
-    '71',
-    '79',
-    '82',
-    '83',
-    '81',
-  ];
-  return valid.includes(section as LawSection);
+  return LAW_SECTIONS_ARRAY.includes(section as LawSection);
 };
 
 export const isKenyanCounty = (county: string): county is KenyanCounty => {
-  return (
-    [
-      'BARINGO',
-      'BOMET',
-      'BUNGOMA',
-      'BUSIA',
-      'ELGEYO_MARAKWET',
-      'EMBU',
-      'GARISSA',
-      'HOMA_BAY',
-      'ISIOLO',
-      'KAJIADO',
-      'KAKAMEGA',
-      'KERICHO',
-      'KIAMBU',
-      'KILIFI',
-      'KIRINYAGA',
-      'KISII',
-      'KISUMU',
-      'KITUI',
-      'KWALE',
-      'LAIKIPIA',
-      'LAMU',
-      'MACHAKOS',
-      'MAKUENI',
-      'MANDERA',
-      'MARSABIT',
-      'MERU',
-      'MIGORI',
-      'MOMBASA',
-      'MURANGA',
-      'NAIROBI',
-      'NAKURU',
-      'NANDI',
-      'NAROK',
-      'NYAMIRA',
-      'NYANDARUA',
-      'NYERI',
-      'SAMBURU',
-      'SIAYA',
-      'TAITA_TAVETA',
-      'TANA_RIVER',
-      'THARAKA_NITHI',
-      'TRANS_NZOIA',
-      'TURKANA',
-      'UASIN_GISHU',
-      'VIHIGA',
-      'WAJIR',
-      'WEST_POKOT',
-    ] as KenyanCounty[]
-  ).includes(county.toUpperCase() as KenyanCounty);
+  // The `as readonly string[]` is a trick to help TypeScript's type inference
+  return (KENYAN_COUNTIES_LIST as readonly string[]).includes(county.toUpperCase());
 };
 
 export const isValidGrantType = (grantType: string): grantType is GrantType => {

@@ -1,26 +1,23 @@
-import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { SetMetadata, UseGuards, applyDecorators } from '@nestjs/common';
+import { LegalCapacityGuard } from '../guards/legal-capaacity.guard';
 
-export const LegalCapacity = createParamDecorator((data: unknown, ctx: ExecutionContext) => {
-  const request = ctx.switchToHttp().getRequest();
-  const user = request.user;
+/**
+ * The metadata key used to activate the LegalCapacityGuard.
+ */
+export const REQUIRE_LEGAL_CAPACITY_KEY = 'requireLegalCapacity';
 
-  // Kenyan law: Testator must be 18+ years and of sound mind
-  const isOfAge = user.age >= 18;
-  const isSoundMind = !user.mentalIncapacity;
-
-  return {
-    isOfAge,
-    isSoundMind,
-    isValid: isOfAge && isSoundMind,
-    requirements: {
-      minAge: 18,
-      soundMind: true,
-    },
-  };
-});
-
-// Decorator to validate legal capacity in controllers
-import { SetMetadata } from '@nestjs/common';
-
-export const REQUIRE_LEGAL_CAPACITY = 'require-legal-capacity';
-export const RequireLegalCapacity = () => SetMetadata(REQUIRE_LEGAL_CAPACITY, true);
+/**
+ * A method decorator for routes that require the authenticated user to have
+ * legal capacity to create a will (i.e., be of sound mind and of legal age).
+ *
+ * This decorator applies the `LegalCapacityGuard`, which performs the actual validation.
+ *
+ * @example
+ * // In a controller, to protect the will creation endpoint:
+ * @Post()
+ * @UseGuards(JwtAuthGuard)
+ * @RequiresLegalCapacity()
+ * createWill(@GetUser() user: User, @Body() dto: CreateWillDto) { ... }
+ */
+export const RequiresLegalCapacity = () =>
+  applyDecorators(SetMetadata(REQUIRE_LEGAL_CAPACITY_KEY, true), UseGuards(LegalCapacityGuard));

@@ -1,47 +1,50 @@
-import { SetMetadata, applyDecorators, UseGuards } from '@nestjs/common';
+import { applyDecorators, SetMetadata, UseGuards } from '@nestjs/common';
 import { KenyanLawValidationGuard } from '../guards/legal-compliance.guard';
 
-export const KENYAN_LAW_METADATA = 'kenyan-law-validation';
+/**
+ * The metadata key used to store the type of compliance check to perform.
+ */
+export const KENYAN_LAW_CHECK_KEY = 'kenyanLawCheck';
 
-export interface KenyanLawValidationOptions {
-  section?: string; // Law of Succession Act section
-  requirement?: string;
-  minWitnesses?: number;
-  maxAssets?: number;
-  dependantProvision?: boolean;
-}
+/**
+ * Defines the types of legal checks the KenyanLawValidationGuard can perform.
+ */
+export type KenyanLawCheckType =
+  | 'WILL_FORMALITIES'
+  | 'DEPENDANT_PROVISION'
+  | 'TESTATOR_CAPACITY'
+  | 'PROBATE_APPLICATION';
 
-export function KenyanLawValidation(options: KenyanLawValidationOptions = {}) {
+/**
+ * A master decorator that applies a specific Kenyan legal validation check to a route.
+ * It sets metadata specifying the check type and applies the KenyanLawValidationGuard,
+ * which reads the metadata and executes the corresponding logic.
+ *
+ * @param check The type of legal check to perform.
+ */
+function KenyanLawValidation(check: KenyanLawCheckType) {
   return applyDecorators(
-    SetMetadata(KENYAN_LAW_METADATA, {
-      minWitnesses: 2,
-      dependantProvision: true,
-      ...options,
-    }),
+    SetMetadata(KENYAN_LAW_CHECK_KEY, check),
     UseGuards(KenyanLawValidationGuard),
   );
 }
 
-// Specific decorators for common Kenyan law requirements
-export function WillFormalities() {
-  return KenyanLawValidation({
-    section: '11',
-    requirement: 'Will must be in writing, signed by testator, attested by 2+ witnesses',
-    minWitnesses: 2,
-  });
-}
+// --- Specific, user-friendly decorators that use the master decorator ---
 
-export function DependantProvision() {
-  return KenyanLawValidation({
-    section: '26-29',
-    requirement: 'Reasonable provision for dependants (spouse/children)',
-    dependantProvision: true,
-  });
-}
+/**
+ * Decorator for routes that handle will creation or updates.
+ * Applies validation for Section 11 of the Law of Succession Act (formalities).
+ */
+export const RequiresWillFormalities = () => KenyanLawValidation('WILL_FORMALITIES');
 
-export function TestatorCapacity() {
-  return KenyanLawValidation({
-    section: '7',
-    requirement: 'Testator must be of sound mind and above 18 years',
-  });
-}
+/**
+ * Decorator for routes that need to check for reasonable dependant provision.
+ * Applies validation for Sections 26-29 of the Law of Succession Act.
+ */
+export const RequiresDependantProvision = () => KenyanLawValidation('DEPENDANT_PROVISION');
+
+/**
+ * Decorator for routes that need to validate the testator's legal capacity.
+ * Applies validation for Section 7 of the Law of Succession Act.
+ */
+export const RequiresTestatorCapacity = () => KenyanLawValidation('TESTATOR_CAPACITY');

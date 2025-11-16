@@ -8,7 +8,7 @@ export interface SuccessResponse<T = unknown> {
   timestamp: string;
   path: string;
   message?: string;
-  pagination?: unknown;
+  pagination?: PaginationMeta;
 }
 
 export interface ErrorResponse {
@@ -22,15 +22,44 @@ export interface ErrorResponse {
   path: string;
 }
 
+// ✅ FIXED: Define proper interfaces for response types
 interface PaginatedResponse {
   items: unknown[];
   message?: string;
-  meta?: unknown;
+  meta?: PaginationMeta;
+}
+
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
 }
 
 interface MessageResponse {
   message: string;
   data?: unknown;
+}
+
+// ✅ FIXED: Type guard functions for safe type checking
+function isPaginatedResponse(data: unknown): data is PaginatedResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'items' in data &&
+    Array.isArray((data as PaginatedResponse).items)
+  );
+}
+
+function isMessageResponse(data: unknown): data is MessageResponse {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'message' in data &&
+    typeof (data as MessageResponse).message === 'string'
+  );
 }
 
 @Injectable()
@@ -42,7 +71,9 @@ export class ResponseMappingInterceptor<T = unknown>
     const path = request.url;
     const timestamp = new Date().toISOString();
 
-    return next.handle().pipe(map((data: T) => this.transformResponse(data, path, timestamp)));
+    return next
+      .handle()
+      .pipe(map((data: T) => this.transformResponse(data, path, timestamp) as SuccessResponse<T>));
   }
 
   private transformResponse(
@@ -50,28 +81,36 @@ export class ResponseMappingInterceptor<T = unknown>
     path: string,
     timestamp: string,
   ): SuccessResponse<unknown> {
-    // Handle paginated responses
-    const paginatedData = data as PaginatedResponse;
-    if (paginatedData && typeof paginatedData === 'object' && 'items' in paginatedData) {
+    // ✅ FIXED: Use type guards instead of unsafe type assertions
+    if (isPaginatedResponse(data)) {
       return {
         success: true,
-        data: paginatedData.items,
+        data: data.items,
         timestamp,
         path,
-        ...(paginatedData.message && { message: paginatedData.message }),
-        ...(paginatedData.meta && { pagination: paginatedData.meta }),
+        ...(data.message && { message: data.message }),
+        ...(data.meta && { pagination: data.meta }),
       };
     }
 
-    // Handle success responses with message
-    const messageData = data as MessageResponse;
-    if (messageData && typeof messageData === 'object' && 'message' in messageData) {
+    // ✅ FIXED: Safe message response handling
+    if (isMessageResponse(data)) {
       return {
         success: true,
-        data: messageData.data || messageData,
+        data: data.data !== undefined ? data.data : null,
         timestamp,
         path,
-        message: messageData.message,
+        message: data.message,
+      };
+    }
+
+    // ✅ FIXED: Handle empty responses gracefully
+    if (data === undefined || data === null) {
+      return {
+        success: true,
+        data: null,
+        timestamp,
+        path,
       };
     }
 

@@ -6,6 +6,7 @@
  * Includes: severity levels, workflow control flags, extension rules,
  * and cross-referenced sections from Cap 160 (Law of Succession Act).
  */
+import { SUCCESSION_TIMEFRAMES, KENYAN_LEGAL_REQUIREMENTS } from './kenyan-law.constants';
 
 export type TimeframeMeta = {
   description: string;
@@ -18,7 +19,6 @@ export type TimeframeMeta = {
   autoTriggerNext?: boolean; // triggers next workflow stage
   blocksProcess?: boolean; // cannot proceed until satisfied
   maxExtensionsAllowed?: number;
-  // Add missing properties for urgent timeframes
   priority?: 'URGENT' | 'EXPEDITED' | 'EXTREMELY_URGENT' | 'STANDARD';
   requirements?: string[];
 };
@@ -33,7 +33,7 @@ export const PROBATE_TIMEFRAMES = {
   APPLICATION: {
     PROBATE_APPLICATION: TF({
       description: 'Filing for grant of probate',
-      deadline: 180,
+      deadline: SUCCESSION_TIMEFRAMES.PROBATE.APPLICATION_DEADLINE,
       lawSection: '51',
       mandatory: true,
       severity: 'HIGH',
@@ -45,7 +45,7 @@ export const PROBATE_TIMEFRAMES = {
 
     LETTERS_OF_ADMINISTRATION: TF({
       description: 'Application for letters of administration',
-      deadline: 180,
+      deadline: SUCCESSION_TIMEFRAMES.PROBATE.APPLICATION_DEADLINE,
       lawSection: '55',
       mandatory: true,
       severity: 'HIGH',
@@ -58,7 +58,7 @@ export const PROBATE_TIMEFRAMES = {
   OBJECTION: {
     CAVEAT_PERIOD: TF({
       description: 'Period for filing caveat after gazette notice',
-      deadline: 30,
+      deadline: SUCCESSION_TIMEFRAMES.PROBATE.OBJECTION_PERIOD,
       lawSection: '67',
       mandatory: false,
       severity: 'MEDIUM',
@@ -68,7 +68,7 @@ export const PROBATE_TIMEFRAMES = {
 
     OPPOSITION_PERIOD: TF({
       description: 'Period for opposing a grant application',
-      deadline: 30,
+      deadline: SUCCESSION_TIMEFRAMES.PROBATE.OBJECTION_PERIOD,
       lawSection: '68',
       mandatory: false,
       severity: 'MEDIUM',
@@ -79,7 +79,7 @@ export const PROBATE_TIMEFRAMES = {
   GRANT: {
     GRANT_ISSUANCE: TF({
       description: 'Expected timeframe for issuance of grant',
-      deadline: 90,
+      deadline: SUCCESSION_TIMEFRAMES.PROBATE.GRANT_ISSUANCE,
       lawSection: 'None',
       mandatory: false,
       severity: 'LOW',
@@ -106,7 +106,7 @@ export const ESTATE_ADMINISTRATION = {
   NOTIFICATION: {
     HEIRS_NOTIFICATION: TF({
       description: 'Notify heirs and beneficiaries',
-      deadline: 30,
+      deadline: SUCCESSION_TIMEFRAMES.WILL_EXECUTION.DEATH_NOTIFICATION,
       lawSection: 'None',
       mandatory: true,
       severity: 'HIGH',
@@ -116,7 +116,7 @@ export const ESTATE_ADMINISTRATION = {
 
     CREDITORS_NOTIFICATION: TF({
       description: 'Notify creditors',
-      deadline: 30,
+      deadline: SUCCESSION_TIMEFRAMES.WILL_EXECUTION.CREDITOR_NOTICE,
       lawSection: 'None',
       mandatory: true,
       severity: 'HIGH',
@@ -127,7 +127,7 @@ export const ESTATE_ADMINISTRATION = {
   INVENTORY: {
     ESTATE_INVENTORY: TF({
       description: 'Submission of estate inventory',
-      deadline: 90,
+      deadline: SUCCESSION_TIMEFRAMES.WILL_EXECUTION.INVENTORY_SUBMISSION,
       lawSection: '83',
       mandatory: true,
       severity: 'HIGH',
@@ -138,7 +138,7 @@ export const ESTATE_ADMINISTRATION = {
 
     FINAL_ACCOUNTS: TF({
       description: 'Submission of final administration accounts',
-      deadline: 180,
+      deadline: SUCCESSION_TIMEFRAMES.WILL_EXECUTION.FINAL_ACCOUNTS,
       lawSection: '83',
       mandatory: true,
       severity: 'MEDIUM',
@@ -158,7 +158,7 @@ export const ESTATE_ADMINISTRATION = {
 
     DEBT_PAYMENT: TF({
       description: 'Payment of admitted debts',
-      deadline: 180,
+      deadline: SUCCESSION_TIMEFRAMES.WILL_EXECUTION.DEBT_SETTLEMENT,
       lawSection: 'None',
       mandatory: true,
       severity: 'HIGH',
@@ -175,7 +175,7 @@ export const DISTRIBUTION_TIMEFRAMES = {
   GENERAL: {
     DISTRIBUTION_COMPLETION: TF({
       description: 'Full completion of distribution of estate',
-      deadline: 365,
+      deadline: SUCCESSION_TIMEFRAMES.PROBATE.DISTRIBUTION_DEADLINE,
       lawSection: 'None',
       mandatory: true,
       severity: 'HIGH',
@@ -196,7 +196,7 @@ export const DISTRIBUTION_TIMEFRAMES = {
   SPECIFIC_ASSETS: {
     TRANSFER_OF_LAND: TF({
       description: 'Land title transfer to beneficiaries',
-      deadline: 180,
+      deadline: SUCCESSION_TIMEFRAMES.PROBATE.CONFIRMATION_OF_GRANT,
       lawSection: 'None',
       mandatory: true,
       severity: 'MEDIUM',
@@ -222,7 +222,7 @@ export const DISPUTE_TIMEFRAMES = {
   WILL_CONTESTS: {
     CONTEST_FILING: TF({
       description: 'Filing a will contest',
-      deadline: 60,
+      deadline: SUCCESSION_TIMEFRAMES.DISPUTES.FILING_DEADLINE,
       lawSection: 'None',
       mandatory: false,
       severity: 'HIGH',
@@ -231,7 +231,7 @@ export const DISPUTE_TIMEFRAMES = {
 
     PROOF_IN_SOLEMN_FORM: TF({
       description: 'Application for solemn form proof',
-      deadline: 30,
+      deadline: KENYAN_LEGAL_REQUIREMENTS.OBJECTION_PERIOD_DAYS,
       lawSection: 'None',
       mandatory: false,
       severity: 'MEDIUM',
@@ -242,7 +242,7 @@ export const DISPUTE_TIMEFRAMES = {
   GENERAL_DISPUTES: {
     MEDIATION_PERIOD: TF({
       description: 'Court-ordered mediation period',
-      deadline: 90,
+      deadline: SUCCESSION_TIMEFRAMES.DISPUTES.MEDIATION_PERIOD,
       lawSection: 'None',
       mandatory: false,
       severity: 'LOW',
@@ -251,7 +251,7 @@ export const DISPUTE_TIMEFRAMES = {
 
     COURT_HEARING: TF({
       description: 'Scheduling main hearing',
-      deadline: 180,
+      deadline: SUCCESSION_TIMEFRAMES.DISPUTES.COURT_HEARING,
       lawSection: 'None',
       mandatory: false,
       severity: 'LOW',
@@ -268,7 +268,7 @@ export const EXECUTOR_TIMEFRAMES = {
   APPOINTMENT: {
     EXECUTOR_ACCEPTANCE: TF({
       description: ' Executor must accept appointment',
-      deadline: 30,
+      deadline: SUCCESSION_TIMEFRAMES.WILL_EXECUTION.DEATH_NOTIFICATION,
       lawSection: 'None',
       mandatory: false,
       severity: 'LOW',
@@ -277,7 +277,7 @@ export const EXECUTOR_TIMEFRAMES = {
 
     BOND_FILING: TF({
       description: 'Executor/administrator bond filing',
-      deadline: 30,
+      deadline: SUCCESSION_TIMEFRAMES.WILL_EXECUTION.DEATH_NOTIFICATION,
       lawSection: 'None',
       mandatory: true,
       severity: 'CRITICAL',
@@ -289,7 +289,7 @@ export const EXECUTOR_TIMEFRAMES = {
   DUTIES: {
     ASSET_PROTECTION: TF({
       description: 'Securing all estate assets',
-      deadline: 30,
+      deadline: SUCCESSION_TIMEFRAMES.WILL_EXECUTION.DEATH_NOTIFICATION,
       lawSection: 'None',
       mandatory: true,
       severity: 'CRITICAL',
@@ -299,7 +299,7 @@ export const EXECUTOR_TIMEFRAMES = {
 
     TAX_FILING: TF({
       description: 'Final tax returns filing',
-      deadline: 90,
+      deadline: SUCCESSION_TIMEFRAMES.WILL_EXECUTION.INVENTORY_SUBMISSION,
       lawSection: 'None',
       mandatory: true,
       severity: 'MEDIUM',
@@ -316,7 +316,7 @@ export const COURT_TIMEFRAMES = {
   HEARINGS: {
     MENTION_DATE: TF({
       description: 'First mention date',
-      deadline: 30,
+      deadline: KENYAN_LEGAL_REQUIREMENTS.OBJECTION_PERIOD_DAYS,
       lawSection: 'None',
       mandatory: true,
       severity: 'MEDIUM',
@@ -325,7 +325,7 @@ export const COURT_TIMEFRAMES = {
 
     HEARING_DATE: TF({
       description: 'Main hearing date',
-      deadline: 180,
+      deadline: SUCCESSION_TIMEFRAMES.DISPUTES.COURT_HEARING,
       lawSection: 'None',
       mandatory: false,
       severity: 'LOW',
@@ -336,7 +336,7 @@ export const COURT_TIMEFRAMES = {
   JUDGMENT: {
     JUDGMENT_DELIVERY: TF({
       description: 'Court delivering judgment',
-      deadline: 90,
+      deadline: SUCCESSION_TIMEFRAMES.PROBATE.GRANT_ISSUANCE,
       lawSection: 'None',
       mandatory: false,
       severity: 'LOW',
@@ -345,7 +345,7 @@ export const COURT_TIMEFRAMES = {
 
     ORDER_EXECUTION: TF({
       description: 'Execution of ordered remedies',
-      deadline: 30,
+      deadline: KENYAN_LEGAL_REQUIREMENTS.OBJECTION_PERIOD_DAYS,
       lawSection: 'None',
       mandatory: true,
       severity: 'HIGH',
@@ -363,7 +363,7 @@ export const MISCELLANEOUS_TIMEFRAMES = {
   DOCUMENTATION: {
     WILL_STORAGE: TF({
       description: 'Minimum storage period for wills',
-      deadline: 25 * 365,
+      deadline: KENYAN_LEGAL_REQUIREMENTS.WILL_STORAGE_DURATION_YEARS * 365,
       lawSection: 'None',
       mandatory: false,
       severity: 'LOW',
@@ -383,7 +383,7 @@ export const MISCELLANEOUS_TIMEFRAMES = {
   APPEALS: {
     APPEAL_FILING: TF({
       description: 'Filing notice of appeal',
-      deadline: 30,
+      deadline: KENYAN_LEGAL_REQUIREMENTS.OBJECTION_PERIOD_DAYS,
       lawSection: 'None',
       mandatory: true,
       severity: 'HIGH',
@@ -392,7 +392,7 @@ export const MISCELLANEOUS_TIMEFRAMES = {
 
     RECORD_OF_APPEAL: TF({
       description: 'Filing record of appeal',
-      deadline: 60,
+      deadline: SUCCESSION_TIMEFRAMES.DISPUTES.FILING_DEADLINE,
       lawSection: 'None',
       mandatory: true,
       severity: 'HIGH',

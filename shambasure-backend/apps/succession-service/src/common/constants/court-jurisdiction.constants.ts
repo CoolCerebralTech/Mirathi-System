@@ -7,7 +7,8 @@ export const COURT_JURISDICTION = {
   HIGH_COURT: {
     name: 'High Court of Kenya',
     jurisdiction: 'UNLIMITED',
-    threshold: 5000000, // KES 5M
+    // Let's be explicit: this is the minimum value they handle by default
+    minJurisdiction: 5000001, // Anything OVER 5M
     locations: [
       'Nairobi',
       'Mombasa',
@@ -27,22 +28,22 @@ export const COURT_JURISDICTION = {
 
   MAGISTRATE_COURT: {
     name: 'Magistrate Court',
-    jurisdiction: 'LIMITED',
-    threshold: 5000000, // KES 5M
+    jurisdiction: 'LIMITED_BY_GRADE', // More descriptive
     grades: {
       CHIEF: {
-        jurisdiction: 'UNLIMITED',
-        locations: ['All County Headquarters'],
+        name: 'Chief Magistrate',
+        // Per the Magistrates' Courts Act, they handle matters the High Court can.
+        maxJurisdiction: null, // Representing Unlimited
         probatePowers: true,
       },
       SENIOR: {
-        jurisdiction: 7000000, // KES 7M
-        locations: ['Major Towns'],
+        name: 'Senior Principal Magistrate',
+        maxJurisdiction: 7000000, // KES 7M
         probatePowers: true,
       },
       PRINCIPAL: {
-        jurisdiction: 5000000, // KES 5M
-        locations: ['Sub-County Headquarters'],
+        name: 'Principal Magistrate',
+        maxJurisdiction: 5000000, // KES 5M
         probatePowers: true,
       },
     },
@@ -160,15 +161,28 @@ export const COURT_CONTACTS = {
 export const getProbateCourtForEstate = (
   estateValue: number,
   isComplex: boolean,
-  law: 'KENYAN' | 'MUSLIM' = 'KENYAN',
+  isMuslimSuccession: boolean,
 ) => {
-  if (law === 'MUSLIM') return COURT_JURISDICTION.KADHIS_COURT;
-
-  if (isComplex || estateValue > COURT_JURISDICTION.HIGH_COURT.threshold) {
-    return COURT_JURISDICTION.HIGH_COURT;
+  if (isMuslimSuccession) {
+    return { court: COURT_JURISDICTION.KADHIS_COURT, grade: null };
   }
 
-  return COURT_JURISDICTION.MAGISTRATE_COURT;
+  // Complex cases or those exceeding the highest magistrate limit go to High Court
+  if (isComplex || estateValue >= COURT_JURISDICTION.HIGH_COURT.minJurisdiction) {
+    return { court: COURT_JURISDICTION.HIGH_COURT, grade: null };
+  }
+
+  // Find the appropriate magistrate court grade
+  const grades = COURT_JURISDICTION.MAGISTRATE_COURT.grades;
+  if (estateValue <= grades.PRINCIPAL.maxJurisdiction) {
+    return { court: COURT_JURISDICTION.MAGISTRATE_COURT, grade: grades.PRINCIPAL };
+  }
+  if (estateValue <= grades.SENIOR.maxJurisdiction) {
+    return { court: COURT_JURISDICTION.MAGISTRATE_COURT, grade: grades.SENIOR };
+  }
+  // In theory, Chief Magistrate has unlimited jurisdiction, but for non-complex cases,
+  // it would have been caught by the lower tiers. This can be the fallback.
+  return { court: COURT_JURISDICTION.MAGISTRATE_COURT, grade: grades.CHIEF };
 };
 
 export default {

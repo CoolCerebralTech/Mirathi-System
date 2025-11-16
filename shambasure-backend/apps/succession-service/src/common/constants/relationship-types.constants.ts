@@ -15,6 +15,7 @@ export const RELATIONSHIP_TYPES = {
     immediateFamily: true,
     dependant: true,
     inheritanceRights: true,
+    priority: 0,
     categories: ['CIVIL', 'CUSTOMARY', 'RELIGIOUS'],
   },
 
@@ -36,7 +37,7 @@ export const RELATIONSHIP_TYPES = {
     immediateFamily: true,
     dependant: true,
     inheritanceRights: true,
-    priority: 1,
+    priority: 0,
   },
 
   ADOPTED_CHILD: {
@@ -66,7 +67,7 @@ export const RELATIONSHIP_TYPES = {
     label: 'Parent',
     description: 'Biological or adoptive parent',
     immediateFamily: true,
-    dependant: false,
+    dependant: true,
     inheritanceRights: true,
     priority: 2,
   },
@@ -191,36 +192,25 @@ export const CUSTOMARY_RELATIONSHIPS = {
     mediation: true,
   },
 } as const;
-
 /* -----------------------------------------------------
- * 3. Intestate Succession Priority (Cap 160)
+ * 3. Derived Constants & Helpers (NEW SECTION)
+ * These are generated from the metadata in RELATIONSHIP_TYPES,
+ * ensuring a single source of truth.
  * --------------------------------------------------- */
-export const INTESTATE_PRIORITY = [
-  'SPOUSE',
-  'CHILD',
-  'ADOPTED_CHILD',
-  'PARENT',
-  'SIBLING',
-  'HALF_SIBLING',
-  'GRANDPARENT',
-  'GRANDCHILD',
-  'NIECE_NEPHEW',
-  'AUNT_UNCLE',
-  'Cousin',
-] as const;
 
-/* -----------------------------------------------------
- * 4. Dependants (Section 29 – Cap 160)
- * --------------------------------------------------- */
-export const DEPENDANT_RELATIONSHIPS = [
-  'SPOUSE',
-  'CUSTOMARY_SPOUSE',
-  'CHILD',
-  'ADOPTED_CHILD',
-  'STEPCHILD',
-  'PARENT',
-] as const;
+// Helper to get the code of a relationship type
+type RelationshipCode = keyof typeof RELATIONSHIP_TYPES;
 
+// Dynamically generate the list of dependants
+export const DEPENDANT_RELATIONSHIPS = Object.values(RELATIONSHIP_TYPES)
+  .filter((rel) => rel.dependant === true)
+  .map((rel) => rel.code) as RelationshipCode[];
+
+// Dynamically generate the intestate succession priority list
+export const INTESTATE_PRIORITY = Object.values(RELATIONSHIP_TYPES)
+  .filter((rel) => rel.inheritanceRights === true)
+  .sort((a, b) => a.priority - b.priority)
+  .map((rel) => rel.code) as RelationshipCode[];
 /* -----------------------------------------------------
  * 5. Relationship Validation Rules
  * --------------------------------------------------- */

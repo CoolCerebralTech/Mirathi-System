@@ -59,9 +59,10 @@ export const KENYAN_LEGAL_REQUIREMENTS = {
   MINIMUM_WITNESSES: 2,
   MAXIMUM_WITNESSES: 5,
 
-  PROBATE_APPLICATION_DEADLINE_DAYS: 180,
   OBJECTION_PERIOD_DAYS: 30,
   WILL_STORAGE_DURATION_YEARS: 25,
+
+  FUNERAL_EXPENSE_REASONABLE_CAP: 500000,
 
   EXECUTOR_REQUIREMENTS: {
     MINIMUM_AGE: 18,
@@ -74,8 +75,9 @@ export const KENYAN_LEGAL_REQUIREMENTS = {
   },
 
   COURT_JURISDICTION: {
+    // Note: Pecuniary jurisdiction is subject to change by the Chief Justice.
     MAGISTRATE_LIMIT: 5000000, // 5M
-    HIGH_COURT_MINIMUM: 5000000, // anything above magistrate cap
+    HIGH_COURT_MINIMUM: 5000001, // Anything above magistrate cap
   },
 } as const;
 
@@ -114,6 +116,7 @@ export const KENYAN_FAMILY_LAW = {
     PROOF_OF_MARRIAGE_REQUIRED: true, // Certificates, affidavits, witnesses
     COHABITATION_RECOGNIZED_AS_MARRIAGE: true, // after strong case law trend
   },
+  POLYGAMOUS_MARRIAGE_TYPES: ['CUSTOMARY_MARRIAGE', 'ISLAMIC_MARRIAGE'],
 } as const;
 
 // ------------------------------------------------------------
@@ -174,13 +177,15 @@ export const SUCCESSION_TIMEFRAMES = {
     OBJECTION_PERIOD: 30, // After Gazette Notice
     GRANT_ISSUANCE: 90, // Typical processing period
     CONFIRMATION_OF_GRANT: 180, // After issuance
-    DISTRIBUTION_DEADLINE: 365, // After confirmation
+    DISTRIBUTION_DEADLINE: 365, // After confirmation (formerly COMPLETE_DISTRIBUTION)
   },
 
   WILL_EXECUTION: {
     DEATH_NOTIFICATION: 30,
-    INVENTORY_SUBMISSION: 90,
-    FINAL_ACCOUNTS: 180,
+    INVENTORY_SUBMISSION: 90, // Deadline for executor to submit asset inventory
+    CREDITOR_NOTICE: 30, // Period for creditors to be notified
+    DEBT_SETTLEMENT: 180, // Period to settle verified debts
+    FINAL_ACCOUNTS: 180, // Deadline for executor to present final accounts
   },
 
   DISPUTES: {
@@ -239,3 +244,57 @@ export default {
   SUCCESSION_TIMEFRAMES,
   KENYAN_COURTS,
 };
+
+/* -------------------------------------------------------------------------- */
+/*                           KENYAN SPECIFIC LISTS                            */
+/* -------------------------------------------------------------------------- */
+
+export const KENYAN_COUNTIES_LIST = [
+  'BARINGO',
+  'BOMET',
+  'BUNGOMA',
+  'BUSIA',
+  'ELGEYO_MARAKWET',
+  'EMBU',
+  'GARISSA',
+  'HOMA_BAY',
+  'ISIOLO',
+  'KAJIADO',
+  'KAKAMEGA',
+  'KERICHO',
+  'KIAMBU',
+  'KILIFI',
+  'KIRINYAGA',
+  'KISII',
+  'KISUMU',
+  'KITUI',
+  'KWALE',
+  'LAIKIPIA',
+  'LAMU',
+  'MACHAKOS',
+  'MAKUENI',
+  'MANDERA',
+  'MARSABIT',
+  'MERU',
+  'MIGORI',
+  'MOMBASA',
+  'MURANGA',
+  'NAIROBI',
+  'NAKURU',
+  'NANDI',
+  'NAROK',
+  'NYAMIRA',
+  'NYANDARUA',
+  'NYERI',
+  'SAMBURU',
+  'SIAYA',
+  'TAITA_TAVETA',
+  'TANA_RIVER',
+  'THARAKA_NITHI',
+  'TRANS_NZOIA',
+  'TURKANA',
+  'UASIN_GISHU',
+  'VIHIGA',
+  'WAJIR',
+  'WEST_POKOT',
+] as const;
