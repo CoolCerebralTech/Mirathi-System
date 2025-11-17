@@ -24,6 +24,7 @@ import {
   type SendPhoneVerificationResponse,
   type VerifyPhoneInput,
   type VerifyPhoneResponse,
+  type ResendPhoneVerificationResponse,
   type UpdateMarketingPreferencesInput,
   type UpdateMarketingPreferencesResponse,
   type RemovePhoneNumberResponse,
@@ -33,6 +34,7 @@ import {
   UpdateMyProfileResponseSchema,
   SendPhoneVerificationResponseSchema,
   VerifyPhoneResponseSchema,
+  ResendPhoneVerificationResponseSchema,
   UpdateMarketingPreferencesResponseSchema,
   RemovePhoneNumberResponseSchema,
   RemoveAddressResponseSchema,
@@ -246,13 +248,14 @@ const verifyPhone = async (verificationData: VerifyPhoneInput): Promise<VerifyPh
 
 /**
  * Resend phone verification code
+ * NOTE: This endpoint has NO request body
  */
-const resendPhoneVerification = async (): Promise<SendPhoneVerificationResponse> => {
+const resendPhoneVerification = async (): Promise<ResendPhoneVerificationResponse> => {
   try {
-    const { data } = await apiClient.post<SendPhoneVerificationResponse>(
+    const { data } = await apiClient.post<ResendPhoneVerificationResponse>(
       API_ENDPOINTS.PHONE_RESEND_VERIFICATION,
     );
-    const validatedData = SendPhoneVerificationResponseSchema.parse(data);
+    const validatedData = ResendPhoneVerificationResponseSchema.parse(data);
     return validatedData;
   } catch (error) {
     console.error('[User API] Resend phone verification failed:', {
@@ -442,6 +445,10 @@ export const useDeactivateAccount = (options?: MutationOptions<DeactivateMyAccou
       queryClient.clear();
 
       options?.onSuccess?.(data);
+
+      console.log('[User] Account deactivated:', {
+        timestamp: new Date().toISOString(),
+      });
     },
 
     onError: (error) => {
@@ -452,6 +459,11 @@ export const useDeactivateAccount = (options?: MutationOptions<DeactivateMyAccou
       });
 
       options?.onError?.(error);
+
+      console.error('[User] Account deactivation error:', {
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      });
     },
   });
 };
@@ -512,6 +524,11 @@ export const useUpdateCurrentProfile = (options?: MutationOptions<UpdateMyProfil
       });
 
       options?.onError?.(error);
+
+      console.error('[User] Profile update error:', {
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      });
     },
 
     onSuccess: (data) => {
@@ -523,6 +540,10 @@ export const useUpdateCurrentProfile = (options?: MutationOptions<UpdateMyProfil
       });
 
       options?.onSuccess?.(data);
+
+      console.log('[User] Profile updated:', {
+        timestamp: new Date().toISOString(),
+      });
     },
 
     onSettled: () => {
@@ -546,6 +567,11 @@ export const useSendPhoneVerification = (options?: MutationOptions<SendPhoneVeri
       });
 
       options?.onSuccess?.(data);
+
+      console.log('[User] Phone verification code sent:', {
+        phoneNumber: data.phoneNumber,
+        timestamp: new Date().toISOString(),
+      });
     },
 
     onError: (error) => {
@@ -556,6 +582,11 @@ export const useSendPhoneVerification = (options?: MutationOptions<SendPhoneVeri
       });
 
       options?.onError?.(error);
+
+      console.error('[User] Send phone verification error:', {
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      });
     },
   });
 };
@@ -581,6 +612,11 @@ export const useVerifyPhone = (options?: MutationOptions<VerifyPhoneResponse>) =
       });
 
       options?.onSuccess?.(data);
+
+      console.log('[User] Phone number verified:', {
+        phoneNumber: data.phoneNumber,
+        timestamp: new Date().toISOString(),
+      });
     },
 
     onError: (error) => {
@@ -591,6 +627,11 @@ export const useVerifyPhone = (options?: MutationOptions<VerifyPhoneResponse>) =
       });
 
       options?.onError?.(error);
+
+      console.error('[User] Verify phone error:', {
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      });
     },
   });
 };
@@ -598,7 +639,7 @@ export const useVerifyPhone = (options?: MutationOptions<VerifyPhoneResponse>) =
 /**
  * Hook to resend phone verification code
  */
-export const useResendPhoneVerification = (options?: MutationOptions<SendPhoneVerificationResponse>) => {
+export const useResendPhoneVerification = (options?: MutationOptions<ResendPhoneVerificationResponse>) => {
   return useMutation({
     mutationFn: resendPhoneVerification,
     ...MUTATION_CONFIG,
@@ -610,6 +651,10 @@ export const useResendPhoneVerification = (options?: MutationOptions<SendPhoneVe
       });
 
       options?.onSuccess?.(data);
+
+      console.log('[User] Phone verification code resent:', {
+        timestamp: new Date().toISOString(),
+      });
     },
 
     onError: (error) => {
@@ -620,6 +665,11 @@ export const useResendPhoneVerification = (options?: MutationOptions<SendPhoneVe
       });
 
       options?.onError?.(error);
+
+      console.error('[User] Resend phone verification error:', {
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      });
     },
   });
 };
@@ -643,6 +693,10 @@ export const useRemovePhoneNumber = (options?: MutationOptions<RemovePhoneNumber
       });
 
       options?.onSuccess?.(data);
+
+      console.log('[User] Phone number removed:', {
+        timestamp: new Date().toISOString(),
+      });
     },
 
     onError: (error) => {
@@ -653,6 +707,11 @@ export const useRemovePhoneNumber = (options?: MutationOptions<RemovePhoneNumber
       });
 
       options?.onError?.(error);
+
+      console.error('[User] Remove phone error:', {
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      });
     },
   });
 };
@@ -676,6 +735,10 @@ export const useUpdateMarketingPreferences = (options?: MutationOptions<UpdateMa
       });
 
       options?.onSuccess?.(data);
+
+      console.log('[User] Marketing preferences updated:', {
+        timestamp: new Date().toISOString(),
+      });
     },
 
     onError: (error) => {
@@ -686,6 +749,11 @@ export const useUpdateMarketingPreferences = (options?: MutationOptions<UpdateMa
       });
 
       options?.onError?.(error);
+
+      console.error('[User] Update marketing preferences error:', {
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      });
     },
   });
 };
@@ -709,6 +777,10 @@ export const useRemoveAddress = (options?: MutationOptions<RemoveAddressResponse
       });
 
       options?.onSuccess?.(data);
+
+      console.log('[User] Address removed:', {
+        timestamp: new Date().toISOString(),
+      });
     },
 
     onError: (error) => {
@@ -719,6 +791,11 @@ export const useRemoveAddress = (options?: MutationOptions<RemoveAddressResponse
       });
 
       options?.onError?.(error);
+
+      console.error('[User] Remove address error:', {
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      });
     },
   });
 };
@@ -742,6 +819,10 @@ export const useRemoveNextOfKin = (options?: MutationOptions<RemoveNextOfKinResp
       });
 
       options?.onSuccess?.(data);
+
+      console.log('[User] Next of kin removed:', {
+        timestamp: new Date().toISOString(),
+      });
     },
 
     onError: (error) => {
@@ -752,6 +833,11 @@ export const useRemoveNextOfKin = (options?: MutationOptions<RemoveNextOfKinResp
       });
 
       options?.onError?.(error);
+
+      console.error('[User] Remove next of kin error:', {
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
+      });
     },
   });
 };

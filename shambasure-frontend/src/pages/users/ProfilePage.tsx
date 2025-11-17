@@ -1,47 +1,35 @@
-// FILE: src/pages/users/ProfilePage.tsx
-
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+import { Shield } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { ProfileForm } from '../../features/user/components/ProfileForm';
-import { ChangePasswordForm } from '../../features/user/components/ChangePasswordForm';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '../../components/ui/Tabs';
+import { Alert, AlertDescription, AlertTitle } from '../../components/ui/Alert';
 
 /**
- * The main user profile page, acting as a container for various user management components.
- * It utilizes a tabbed layout to separate profile information from security settings.
+ * The main user profile page, dedicated to managing a user's personal and contact information.
  */
 export function ProfilePage() {
-  const { t } = useTranslation(['user', 'common']);
+  const { t } = useTranslation(['user']);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={t('profile_page_title')}
-        description={t('profile_page_description')}
+        title={t('profile_page_title', 'My Profile')}
+        description={t('profile_page_description', 'View and manage your personal details.')}
       />
 
-      <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:max-w-md">
-          <TabsTrigger value="profile">{t('profile_tab')}</TabsTrigger>
-          <TabsTrigger value="security">{t('security_tab')}</TabsTrigger>
-        </TabsList>
+      <Alert>
+        <Shield className="h-4 w-4" />
+        <AlertTitle>{t('settings_link_title', 'Looking for account settings?')}</AlertTitle>
+        <AlertDescription>
+          {t('settings_link_description', 'To change your name, password, or manage marketing preferences, please visit the')}{' '}
+          <Link to="/settings" className="font-semibold text-primary hover:underline">
+            {t('settings_page_title', 'Account Settings')}
+          </Link>.
+        </AlertDescription>
+      </Alert>
 
-        <TabsContent value="profile" className="mt-6">
-          <ProfileForm />
-        </TabsContent>
-
-        <TabsContent value="security" className="mt-6">
-          {/* Constrain the width for a better form layout on larger screens */}
-          <div className="max-w-2xl">
-            <ChangePasswordForm />
-          </div>
-        </TabsContent>
-      </Tabs>
+      <ProfileForm />
     </div>
   );
 }

@@ -1,25 +1,13 @@
 // ============================================================================
 // profile.schemas.ts - User Profile Validation Schemas
 // ============================================================================
-// Updated to match backend profile.dto with comprehensive profile management
-// ============================================================================
 
 import { z } from 'zod';
+import { RelationshipTypeSchema, AddressSchema } from './shared.schemas';
 
 // ============================================================================
-// ENUMS AND CONSTANTS
+// ENUMS AND CONSTANTS (Profile-specific)
 // ============================================================================
-
-/**
- * Relationship types for next of kin
- */
-export const RelationshipTypeSchema = z.enum([
-  'SPOUSE',
-  'CHILD', 
-  'PARENT',
-  'SIBLING',
-  'OTHER'
-]);
 
 /**
  * Phone verification methods
@@ -47,37 +35,14 @@ export const CommunicationChannelSchema = z.enum(['email', 'sms', 'push']);
  */
 export const PhoneNumberTypeSchema = z.enum(['mobile', 'landline', 'voip', 'unknown']);
 
+/**
+ * Phone network providers
+ */
+export const PhoneProviderSchema = z.enum(['Safaricom', 'Airtel', 'Telkom', 'Unknown']);
+
 // ============================================================================
 // NESTED SCHEMAS (For Complex Objects)
 // ============================================================================
-
-/**
- * Address structure with validation matching AddressDto
- */
-export const AddressSchema = z.object({
-  street: z
-    .string()
-    .max(255, 'Street address cannot exceed 255 characters')
-    .optional(),
-  city: z
-    .string()
-    .max(100, 'City cannot exceed 100 characters')
-    .optional(),
-  county: z
-    .string()
-    .max(100, 'County cannot exceed 100 characters')
-    .optional(),
-  postalCode: z
-    .string()
-    .max(20, 'Postal code cannot exceed 20 characters')
-    .regex(/^\d{5}(-\d{4})?$/, 'Please provide a valid postal code')
-    .optional(),
-  country: z
-    .string()
-    .min(1, 'Country is required')
-    .max(100, 'Country cannot exceed 100 characters')
-    .default('Kenya'),
-});
 
 /**
  * Next of kin structure with validation matching NextOfKinDto
@@ -208,7 +173,7 @@ export const ValidatePhoneNumberRequestSchema = z.object({
 // ============================================================================
 
 /**
- * User profile response schema
+ * User profile response schema - MUST MATCH backend UserProfileResponseDto
  */
 export const UserProfileResponseSchema = z.object({
   id: z.string().uuid(),
@@ -218,19 +183,19 @@ export const UserProfileResponseSchema = z.object({
   phoneVerified: z.boolean(),
   emailVerified: z.boolean(),
   marketingOptIn: z.boolean(),
-  marketingCategories: z.array(MarketingCategorySchema).optional(),
-  communicationChannels: z.array(CommunicationChannelSchema).optional(),
+  marketingCategories: z.array(z.string()).optional(),
+  communicationChannels: z.array(z.string()).optional(),
   address: AddressSchema.optional(),
   nextOfKin: NextOfKinSchema.optional(),
-  preferredLanguage: z.string().default('en'),
-  timezone: z.string().default('Africa/Nairobi'),
+  preferredLanguage: z.string().optional(),
+  timezone: z.string().optional(),
   isComplete: z.boolean(),
   completionPercentage: z.number().min(0).max(100),
   missingFields: z.array(z.string()),
   createdAt: z.string().datetime().transform((val) => new Date(val)),
   updatedAt: z.string().datetime().transform((val) => new Date(val)),
-  phoneVerifiedAt: z.string().datetime().transform((val) => new Date(val)).optional(),
-  emailVerifiedAt: z.string().datetime().transform((val) => new Date(val)).optional(),
+  phoneVerifiedAt: z.string().datetime().transform((val) => new Date(val)).optional().nullable(),
+  emailVerifiedAt: z.string().datetime().transform((val) => new Date(val)).optional().nullable(),
 });
 
 /**
@@ -258,7 +223,7 @@ export const UpdateMyProfileResponseSchema = z.object({
 export const SendPhoneVerificationResponseSchema = z.object({
   message: z.string(),
   phoneNumber: z.string(), // masked
-  provider: z.enum(['Safaricom', 'Airtel', 'Telkom', 'Unknown']),
+  provider: PhoneProviderSchema,
   method: VerificationMethodSchema,
   nextRetryAt: z.string().datetime().transform((val) => new Date(val)),
   retryAfterSeconds: z.number().positive(),
@@ -273,7 +238,7 @@ export const SendPhoneVerificationResponseSchema = z.object({
 export const VerifyPhoneResponseSchema = z.object({
   message: z.string(),
   phoneNumber: z.string(), // masked
-  provider: z.enum(['Safaricom', 'Airtel', 'Telkom', 'Unknown']),
+  provider: PhoneProviderSchema,
   verifiedAt: z.string().datetime().transform((val) => new Date(val)),
   profile: UserProfileResponseSchema.optional(),
 });
@@ -296,8 +261,8 @@ export const ResendPhoneVerificationResponseSchema = z.object({
 export const UpdateMarketingPreferencesResponseSchema = z.object({
   message: z.string(),
   marketingOptIn: z.boolean(),
-  marketingCategories: z.array(MarketingCategorySchema).optional(),
-  communicationChannels: z.array(CommunicationChannelSchema).optional(),
+  marketingCategories: z.array(z.string()).optional(),
+  communicationChannels: z.array(z.string()).optional(),
   updatedAt: z.string().datetime().transform((val) => new Date(val)),
 });
 
@@ -317,7 +282,7 @@ export const RemovePhoneNumberResponseSchema = z.object({
 export const RemoveAddressResponseSchema = z.object({
   message: z.string(),
   reason: z.string().optional(),
-  newCompletionPercentage: z.number().min(0).max(100),
+  newCompletionPercentage: z.number().positive(),
 });
 
 /**
@@ -326,7 +291,7 @@ export const RemoveAddressResponseSchema = z.object({
 export const RemoveNextOfKinResponseSchema = z.object({
   message: z.string(),
   reason: z.string().optional(),
-  newCompletionPercentage: z.number().min(0).max(100),
+  newCompletionPercentage: z.number().positive(),
 });
 
 /**
@@ -335,7 +300,7 @@ export const RemoveNextOfKinResponseSchema = z.object({
 export const ValidatePhoneNumberResponseSchema = z.object({
   valid: z.boolean(),
   normalizedNumber: z.string(),
-  provider: z.enum(['Safaricom', 'Airtel', 'Telkom', 'Unknown']),
+  provider: PhoneProviderSchema,
   type: PhoneNumberTypeSchema,
   countryCode: z.string().optional(),
   error: z.string().optional(),
@@ -345,7 +310,7 @@ export const ValidatePhoneNumberResponseSchema = z.object({
  * Profile completion response schema
  */
 export const ProfileCompletionResponseSchema = z.object({
-  completionPercentage: z.number().min(0).max(100),
+  completionPercentage: z.number().positive(),
   missingFields: z.array(z.string()),
   recommendations: z.array(z.string()),
   meetsMinimumRequirements: z.boolean(),
@@ -356,13 +321,12 @@ export const ProfileCompletionResponseSchema = z.object({
 // INFERRED TYPES
 // ============================================================================
 
-export type RelationshipType = z.infer<typeof RelationshipTypeSchema>;
 export type VerificationMethod = z.infer<typeof VerificationMethodSchema>;
 export type MarketingCategory = z.infer<typeof MarketingCategorySchema>;
 export type CommunicationChannel = z.infer<typeof CommunicationChannelSchema>;
 export type PhoneNumberType = z.infer<typeof PhoneNumberTypeSchema>;
+export type PhoneProvider = z.infer<typeof PhoneProviderSchema>;
 
-export type Address = z.infer<typeof AddressSchema>;
 export type NextOfKin = z.infer<typeof NextOfKinSchema>;
 
 export type UpdateMyProfileInput = z.infer<typeof UpdateMyProfileRequestSchema>;
@@ -392,16 +356,8 @@ export type ProfileCompletionResponse = z.infer<typeof ProfileCompletionResponse
 // UTILITY FUNCTIONS AND CONSTANTS
 // ============================================================================
 
-/**
- * Human-readable labels for relationship types
- */
-export const RELATIONSHIP_TYPE_LABELS: Record<RelationshipType, string> = {
-  SPOUSE: 'Spouse',
-  CHILD: 'Child',
-  PARENT: 'Parent',
-  SIBLING: 'Sibling',
-  OTHER: 'Other',
-} as const;
+// Re-export relationship type labels from shared
+export { RELATIONSHIP_TYPE_LABELS } from './shared.schemas';
 
 /**
  * Human-readable labels for marketing categories
@@ -428,7 +384,8 @@ export const COMMUNICATION_CHANNEL_LABELS: Record<CommunicationChannel, string> 
  */
 export const maskPhoneNumber = (phoneNumber: string): string => {
   if (!phoneNumber) return '';
-  return phoneNumber.replace(/(\+\d{3})(\d{3})(\d{3})/, '$1***$3');
+  if (phoneNumber.length < 8) return phoneNumber;
+  return phoneNumber.replace(/(\+\d{3})(\d+)(\d{4})/, '$1****$3');
 };
 
 /**
@@ -462,7 +419,7 @@ export const calculateProfileCompletion = (profile: Partial<UserProfileResponse>
         missingFields.push('phoneVerified');
       }
     } else if (field === 'address') {
-      if (profile.address && Object.keys(profile.address).length > 0) {
+      if (profile.address && Object.keys(profile.address).length > 1) { // More than just 'country'
         completedCount++;
       } else {
         missingFields.push('address');
@@ -557,7 +514,7 @@ export const isValidKenyanPhoneNumber = (phoneNumber: string): boolean => {
 /**
  * Get phone number provider based on prefix
  */
-export const getPhoneProvider = (phoneNumber: string): string => {
+export const getPhoneProvider = (phoneNumber: string): PhoneProvider => {
   if (!phoneNumber) return 'Unknown';
   
   const safaricomPrefixes = ['+2547', '+25411', '+25410'];

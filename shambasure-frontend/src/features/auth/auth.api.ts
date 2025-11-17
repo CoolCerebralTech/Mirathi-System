@@ -112,17 +112,19 @@ const getDeviceInfo = () => {
 };
 
 /**
- * Enhances auth payload with device information
+ * Enhances auth payload with device information (for requests that support it)
  */
-const enhanceWithDeviceInfo = <T extends { deviceId?: string; userAgent?: string; ipAddress?: string }>(
+const enhanceWithDeviceInfo = <T extends Record<string, unknown>>(
   data: T
-): T => {
+): T & { deviceId?: string; userAgent?: string; ipAddress?: string } => {
   const deviceInfo = getDeviceInfo();
+  
+  // Only add device info if the data object supports these fields
+  // Don't add them to objects that don't expect them (like logout)
   return {
     ...data,
-    deviceId: data.deviceId || deviceInfo.deviceId,
-    userAgent: data.userAgent || deviceInfo.userAgent,
-    // ipAddress is typically set by backend from request headers
+    ...((!('deviceId' in data) || data.deviceId === undefined) && { deviceId: deviceInfo.deviceId }),
+    ...((!('userAgent' in data) || data.userAgent === undefined) && { userAgent: deviceInfo.userAgent }),
   };
 };
 
@@ -192,13 +194,14 @@ const loginUser = async (credentials: LoginInput): Promise<AuthResponse> => {
 
 /**
  * Logout user and invalidate tokens
+ * NOTE: Logout doesn't use enhanceWithDeviceInfo because LogoutInput
+ * doesn't have deviceId/userAgent/ipAddress fields
  */
 const logoutUser = async (logoutData: LogoutInput): Promise<LogoutResponse> => {
   try {
-    const enhancedData = enhanceWithDeviceInfo(logoutData);
     const { data } = await apiClient.post<LogoutResponse>(
       API_ENDPOINTS.LOGOUT,
-      enhancedData,
+      logoutData,
     );
 
     const validatedData = LogoutResponseSchema.parse(data);
@@ -433,6 +436,8 @@ const convertAuthResponseForStore = (authData: AuthResponse) => {
       loginAttempts: 0,
       lockedUntil: null,
       deletedAt: null,
+      isLocked: false,
+      isDeleted: false,
       profile: undefined,
     },
     accessToken: authData.accessToken,
@@ -544,50 +549,46 @@ export const useRegister = (options?: AuthMutationOptions) => {
  * Hook for user logout
  */
 export const useLogout = (options?: { onSuccess?: () => void }) => {
-  const { logout: logoutAction } = useAuthStore();
+  const { logout: logoutAction, refreshToken: storedRefreshToken } = useAuthStore();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (logoutData?: LogoutInput) => {
-      // Get refresh token from store or localStorage for logout
-      const refreshToken = useAuthStore.getState().refreshToken || '';
-      return logoutUser(logoutData || { refreshToken, allDevices: false });
+    mutationFn: (logoutData?: LogoutInput | void) => {
+      const finalRefreshToken = logoutData?.refreshToken || storedRefreshToken;
+      if (!finalRefreshToken) {
+        return Promise.resolve({
+          message: 'Logged out locally.',
+          sessionsTerminated: 0,
+        });
+      }
+      return logoutUser({
+        refreshToken: finalRefreshToken,
+        allDevices: logoutData?.allDevices || false,
+      });
     },
     retry: false,
 
     onSuccess: (response) => {
       logoutAction();
-      queryClient.clear();
+      queryClient.clear(); // This is critical: clears all cached data
 
       toast.success('Logged out successfully', {
         description: response.message || 'You have been securely logged out.',
         duration: 3000,
       });
-
       options?.onSuccess?.();
-
-      console.log('[Auth] Logout successful:', {
-        sessionsTerminated: response.sessionsTerminated,
-        timestamp: new Date().toISOString(),
-      });
     },
 
-    onError: (error) => {
-      // Always perform local cleanup even if server logout fails
+    onError: () => {
+      // Failsafe: if the server call fails, we STILL log out locally.
       logoutAction();
       queryClient.clear();
 
       toast.warning('Logged out locally', {
-        description: 'Server logout failed, but you have been logged out on this device.',
+        description: 'Server logout failed, but you are logged out on this device.',
         duration: 4000,
       });
-
-      options?.onSuccess?.();
-
-      console.warn('[Auth] Logout server error (local cleanup successful):', {
-        error: extractErrorMessage(error),
-        timestamp: new Date().toISOString(),
-      });
+      options?.onSuccess?.(); // Still call success, as the user is logged out.
     },
   });
 };
@@ -597,6 +598,7 @@ export const useLogout = (options?: { onSuccess?: () => void }) => {
  */
 export const useRefreshToken = () => {
   const { setTokens } = useAuthStore();
+  const { mutate: performLogout } = useLogout();
 
   return useMutation({
     mutationFn: refreshToken,
@@ -604,24 +606,22 @@ export const useRefreshToken = () => {
     retryDelay: 1000,
 
     onSuccess: (data) => {
-      setTokens(data.accessToken, data.refreshToken);
-      
+      setTokens({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+      });
+
       console.log('[Auth] Token refresh successful:', {
         timestamp: new Date().toISOString(),
       });
     },
 
     onError: (error) => {
-      console.error('[Auth] Token refresh failed:', {
+      console.error('[Auth] Token refresh failed, initiating full logout:', {
         error: extractErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
-      
-      // If refresh fails, logout user
-      if (typeof window !== 'undefined') {
-        const { logout } = useAuthStore.getState();
-        logout();
-      }
+      performLogout(undefined);
     },
   });
 };
@@ -742,7 +742,7 @@ export const useForgotPassword = () => {
 };
 
 /**
- * Hook for validating reset token (fixed to use mutation)
+ * Hook for validating reset token
  */
 export const useValidateResetToken = () => {
   return useMutation({
@@ -898,7 +898,7 @@ export const useConfirmEmailChange = (options?: {
   onError?: (error: unknown) => void;
 }) => {
   const queryClient = useQueryClient();
-  useAuthStore();
+  const { login: loginAction } = useAuthStore();
 
   return useMutation({
     mutationFn: confirmEmailChange,
@@ -907,7 +907,7 @@ export const useConfirmEmailChange = (options?: {
     onSuccess: (response) => {
       if (response.authData) {
         const storeData = convertAuthResponseForStore(response.authData);
-        useAuthStore.getState().login(storeData, false);
+        loginAction(storeData, false);
         queryClient.setQueryData(userKeys.profile(), response.authData.user);
       }
 
