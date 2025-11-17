@@ -59,7 +59,7 @@ export class AuthServiceError extends Error {
   constructor(
     message: string,
     public readonly code: string,
-    public readonly context?: Record<string, any>,
+    public readonly context?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'AuthServiceError';
@@ -67,21 +67,21 @@ export class AuthServiceError extends Error {
 }
 
 export class TokenValidationError extends AuthServiceError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super(message, 'TOKEN_VALIDATION_ERROR', context);
     this.name = 'TokenValidationError';
   }
 }
 
 export class PasswordPolicyError extends AuthServiceError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super(message, 'PASSWORD_POLICY_ERROR', context);
     this.name = 'PasswordPolicyError';
   }
 }
 
 export class AccountStatusError extends AuthServiceError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super(message, 'ACCOUNT_STATUS_ERROR', context);
     this.name = 'AccountStatusError';
   }
@@ -1233,7 +1233,7 @@ export class AuthService {
     }
   }
 
-  private handleServiceError(error: any): any {
+  private handleServiceError(error: unknown): Error {
     // If it's already an HTTP exception, rethrow it
     if (
       error instanceof UnauthorizedException ||
@@ -1260,10 +1260,8 @@ export class AuthService {
     // Log unexpected errors
     this.logger.error('Unexpected error in AuthService', error);
 
-    // Don't expose internal error details in production
-  }
-  catch(error: unknown) {
-    throw new InternalServerErrorException(
+    // Return a generic internal server error. In development include the original message.
+    return new InternalServerErrorException(
       process.env.NODE_ENV === 'development' && error instanceof Error
         ? error.message
         : 'An unexpected error occurred. Please try again.',

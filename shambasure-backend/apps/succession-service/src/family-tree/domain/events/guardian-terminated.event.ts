@@ -1,11 +1,9 @@
-import { GuardianType } from '@prisma/client';
-
-export class GuardianAssignedEvent {
+export class GuardianTerminatedEvent {
   constructor(
     public readonly guardianshipId: string,
     public readonly guardianId: string,
     public readonly wardId: string,
-    public readonly guardianType: GuardianType,
+    public readonly reason: string,
     public readonly timestamp: Date = new Date(),
   ) {}
 }

@@ -377,7 +377,7 @@ export class PrismaUserRepository implements IUserRepository, IUserProfileReposi
       throw new UserRepositoryError('Failed to bulk update users', error);
     }
   }
-  async findRoleChangesByUserId(userId: string): Promise<any[]> {
+  async findRoleChangesByUserId(userId: string): Promise<unknown[]> {
     try {
       const roleChanges = await this.prisma.roleChange.findMany({
         where: { userId },

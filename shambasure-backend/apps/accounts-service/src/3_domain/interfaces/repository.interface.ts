@@ -79,7 +79,7 @@ export interface IUserRepository {
   getStats(): Promise<UserStats>;
   bulkUpdate(userIds: string[], data: UserUpdateData): Promise<number>;
   bulkUpdateProfiles(userIds: string[], data: { emailVerified?: boolean }): Promise<number>;
-  findRoleChangesByUserId(userId: string): Promise<any[]>;
+  findRoleChangesByUserId(userId: string): Promise<unknown[]>;
   findByRole(role: UserRole, limit?: number): Promise<User[]>;
 }
 

@@ -1,4 +1,4 @@
-export class WillWitnessedEvent {
+export class WillActivatedEvent {
   constructor(
     public readonly willId: string,
     public readonly testatorId: string,

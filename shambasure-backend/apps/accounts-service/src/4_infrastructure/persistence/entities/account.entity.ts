@@ -163,8 +163,8 @@ export interface TokenQueryFilters {
     | Prisma.EmailChangeTokenWhereInput
     | Prisma.RefreshTokenWhereInput
     | Prisma.LoginSessionWhereInput;
-  include?: any;
-  orderBy?: any;
+  include?: unknown;
+  orderBy?: unknown;
 }
 
 // ============================================================================
@@ -191,7 +191,7 @@ export type OrderByClause<T extends keyof Prisma.TypeMap['model']> =
 export interface PaginationParams {
   skip?: number;
   take?: number;
-  cursor?: any;
+  cursor?: unknown;
 }
 
 /**

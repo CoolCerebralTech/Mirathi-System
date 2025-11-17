@@ -60,7 +60,7 @@ export class UserServiceError extends Error {
   constructor(
     message: string,
     public readonly code: string,
-    public readonly context?: Record<string, any>,
+    public readonly context?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'UserServiceError';
@@ -68,21 +68,21 @@ export class UserServiceError extends Error {
 }
 
 export class ProfileValidationError extends UserServiceError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super(message, 'PROFILE_VALIDATION_ERROR', context);
     this.name = 'ProfileValidationError';
   }
 }
 
 export class PhoneVerificationError extends UserServiceError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super(message, 'PHONE_VERIFICATION_ERROR', context);
     this.name = 'PhoneVerificationError';
   }
 }
 
 export class AccountOperationError extends UserServiceError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super(message, 'ACCOUNT_OPERATION_ERROR', context);
     this.name = 'AccountOperationError';
   }
@@ -978,7 +978,7 @@ export class UserService {
     }
   }
 
-  private handleServiceError(error: any): any {
+  private handleServiceError(error: unknown): Error {
     // This method is well-written and handles our custom errors correctly.
     // We will add the domain model errors to it for even better handling.
     if (

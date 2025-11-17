@@ -1,9 +1,8 @@
-export class MarriageRegisteredEvent {
+export class MarriageUpdatedEvent {
   constructor(
     public readonly marriageId: string,
     public readonly familyId: string,
-    public readonly spouse1Id: string,
-    public readonly spouse2Id: string,
+    public readonly updatedBy: string,
     public readonly timestamp: Date = new Date(),
   ) {}
 }

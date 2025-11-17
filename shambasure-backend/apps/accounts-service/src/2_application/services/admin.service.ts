@@ -52,7 +52,7 @@ export class AdminServiceError extends Error {
   constructor(
     message: string,
     public readonly code: string,
-    public readonly context?: Record<string, any>,
+    public readonly context?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'AdminServiceError';
@@ -60,14 +60,14 @@ export class AdminServiceError extends Error {
 }
 
 export class AdminSecurityError extends AdminServiceError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super(message, 'ADMIN_SECURITY_ERROR', context);
     this.name = 'AdminSecurityError';
   }
 }
 
 export class BulkOperationError extends AdminServiceError {
-  constructor(message: string, context?: Record<string, any>) {
+  constructor(message: string, context?: Record<string, unknown>) {
     super(message, 'BULK_OPERATION_ERROR', context);
     this.name = 'BulkOperationError';
   }

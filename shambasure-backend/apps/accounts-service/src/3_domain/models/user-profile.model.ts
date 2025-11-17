@@ -55,7 +55,21 @@ export interface NextOfKin {
 
 export interface ProfileUpdateResult {
   updatedFields: string[];
-  changes: Record<string, { old: any; new: any }>;
+  changes: Record<string, { old: unknown; new: unknown }>;
+}
+
+export interface UserProfilePrimitives {
+  id: string;
+  userId: string;
+  bio: string | null;
+  phoneNumber: string | null;
+  phoneVerified: boolean;
+  emailVerified: boolean;
+  marketingOptIn: boolean;
+  address: Address | null;
+  nextOfKin: NextOfKin | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // ============================================================================
@@ -458,7 +472,7 @@ export class UserProfile {
   // Bulk Update Method (Used by User aggregate root)
   // ============================================================================
 
-  private isDeepEqual(obj1: any, obj2: any): boolean {
+  private isDeepEqual(obj1: unknown, obj2: unknown): boolean {
     // A simple implementation for demonstration
     return JSON.stringify(obj1) === JSON.stringify(obj2);
     // For production, a more robust library like lodash.isEqual or a custom recursive function is better
@@ -468,8 +482,8 @@ export class UserProfile {
     marketingOptIn?: boolean;
     address?: Address | null;
     nextOfKin?: NextOfKin | null;
-  }): Record<string, { old: any; new: any }> {
-    const changes: Record<string, { old: any; new: any }> = {};
+  }): Record<string, { old: unknown; new: unknown }> {
+    const changes: Record<string, { old: unknown; new: unknown }> = {};
     const updatedFields: string[] = [];
 
     // Update bio
@@ -553,7 +567,7 @@ export class UserProfile {
     return this._phoneNumber?.getMasked() ?? null;
   }
 
-  toJSON(): Record<string, any> {
+  toJSON(): Record<string, unknown> {
     return {
       id: this._id,
       userId: this._userId,
@@ -571,7 +585,7 @@ export class UserProfile {
     };
   }
 
-  public toPrimitives() {
+  public toPrimitives(): UserProfilePrimitives {
     return {
       id: this._id,
       userId: this._userId,
