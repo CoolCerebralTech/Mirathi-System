@@ -9,6 +9,7 @@ export * from './storage/providers/local-storage.provider';
 export * from './storage/storage.service';
 export * from './storage/file-validator.service';
 export * from './storage/storage.module';
+export * from './storage/storage.constants';
 
 export * from './entities/document-version.entity';
 export * from './entities/document.entity';

@@ -51,7 +51,7 @@ import { PrismaDocumentRepository } from './4_infrastructure/repositories/prisma
 // Infrastructure Layer - Query Repositories (Read Side)
 import { PrismaDocumentQueryRepository } from './4_infrastructure/repositories/prisma-document-query.repository';
 import { PrismaDocumentVersionQueryRepository } from './4_infrastructure/repositories/prisma-document-version.query.repository';
-import { PrismaDocumentVerificationQueryRepository } from './4_infrastructure/repositories/prisma-document-verification.query.repsository';
+import { PrismaDocumentVerificationQueryRepository } from './4_infrastructure/repositories/prisma-document-verification.query.repository';
 
 @Module({
   imports: [

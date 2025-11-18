@@ -1,9 +1,5 @@
 // ============================================================================
-// Shamba Sure - Core Configuration Interface v2.0
-// ============================================================================
-// This interface defines a flattened structure that maps directly to
-// environment variables (e.g., `jwtSecret` -> `JWT_SECRET`).
-// It simplifies validation and integration with NestJS ConfigModule.
+// Shamba Sure - Core Configuration Interface
 // ============================================================================
 
 import { Environment } from '../types';
@@ -38,16 +34,50 @@ export interface MessagingConfig {
   RABBITMQ_URL: string;
 }
 
+// ============================================================================
+// Enhanced Storage Configuration
+// ============================================================================
+
 export interface StorageConfig {
-  STORAGE_PROVIDER: 'local' | 's3' | 'google-cloud';
+  // Provider Configuration
+  STORAGE_PROVIDER: 'local' | 's3' | 'google-cloud' | 'azure';
   STORAGE_LOCAL_PATH: string;
+
+  // File Size Limits
+  STORAGE_MAX_FILE_SIZE_MB: number;
+  STORAGE_MAX_IMAGE_SIZE_MB: number;
+
+  // File Validation
+  /** Comma-separated list of allowed MIME types (parsed into array) */
+  STORAGE_ALLOWED_MIME_TYPES: string[];
+  /** Comma-separated list of dangerous extensions (parsed into array) */
+  STORAGE_DANGEROUS_EXTENSIONS: string[];
+  STORAGE_STRICT_MIME_VALIDATION: boolean;
+  STORAGE_ENABLE_SIZE_VALIDATION: boolean;
+
+  // Security Features
+  STORAGE_ENABLE_VIRUS_SCAN: boolean;
+  STORAGE_ENABLE_CHECKSUM: boolean;
+  STORAGE_ENABLE_ATOMIC_WRITES: boolean;
+
+  // Storage Management
+  STORAGE_QUOTA_MB: number;
+  STORAGE_TEMP_CLEANUP_HOURS: number;
+  STORAGE_ENABLE_AUTO_CLEANUP: boolean;
+
+  // Performance Settings
+  STORAGE_STREAM_BUFFER_SIZE: number;
+  STORAGE_MAX_CONCURRENT_OPS: number;
+
+  // Cloud Storage (Optional)
   STORAGE_S3_BUCKET?: string;
   STORAGE_S3_REGION?: string;
   STORAGE_S3_ACCESS_KEY_ID?: string;
   STORAGE_S3_SECRET_ACCESS_KEY?: string;
-  STORAGE_MAX_FILE_SIZE_MB: number;
-  /** Comma-separated list of allowed MIME types (parsed into array) */
-  STORAGE_ALLOWED_MIME_TYPES: string[];
+  STORAGE_GOOGLE_CLOUD_BUCKET?: string;
+  STORAGE_GOOGLE_CLOUD_PROJECT_ID?: string;
+  STORAGE_AZURE_CONTAINER_NAME?: string;
+  STORAGE_AZURE_CONNECTION_STRING?: string;
 }
 
 export interface EmailConfig {
@@ -91,6 +121,11 @@ export interface SecurityConfig {
 export interface LoggingConfig {
   LOG_LEVEL: 'error' | 'warn' | 'info' | 'debug' | 'verbose';
   LOG_FORMAT: 'json' | 'simple';
+  METRICS_ENABLED: boolean;
+  METRICS_PATH: string;
+  TRACING_ENABLED: boolean;
+  TRACING_SERVICE_NAME: string;
+  TRACING_EXPORTER: 'console' | 'jaeger' | 'zipkin';
 }
 
 export interface ServiceConfig {
@@ -110,6 +145,8 @@ export interface ServiceUrlsConfig {
   ACCOUNTS_SERVICE_URL: string;
   DOCUMENTS_SERVICE_URL: string;
   SUCCESSION_SERVICE_URL: string;
+  NOTIFICATIONS_SERVICE_URL: string;
+  AUDITING_SERVICE_URL: string;
 }
 
 /**
