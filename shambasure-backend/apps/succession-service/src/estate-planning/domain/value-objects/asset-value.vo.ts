@@ -16,7 +16,7 @@ export class AssetValue {
       throw new Error('Valuation date cannot be in the future');
     }
 
-    this.amount = Math.round(amount * 100) / 100; // Round to 2 decimal places
+    this.amount = Math.round(amount * 100) / 100;
     this.currency = currency.toUpperCase();
     this.valuationDate = new Date(valuationDate);
   }

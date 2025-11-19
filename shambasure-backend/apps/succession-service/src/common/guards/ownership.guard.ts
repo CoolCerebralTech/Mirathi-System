@@ -7,16 +7,18 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PrismaService } from '@shamba/database'; // Assuming this is how we access Prisma
+import { Request } from 'express';
+import { PrismaService } from '@shamba/database';
+import { JwtPayload } from '@shamba/auth';
 import { CHECK_OWNERSHIP_KEY, OwnershipOptions } from '../decorators/ownership.decorator';
-import { User } from '@prisma/client';
+
+// Extended request type with user
+interface AuthenticatedRequest extends Request {
+  user: JwtPayload;
+}
 
 /**
- * A powerful, reusable guard that checks if the authenticated user is the owner
- * of a requested resource (e.g., a Will, an Asset, etc.).
- *
- * It is activated by the `@CheckOwnership()` decorator, which provides the
- * necessary context (what resource to check and where to find its ID).
+ * Ownership Guard - Validates user ownership of resources with contextual role support
  */
 @Injectable()
 export class OwnershipGuard implements CanActivate {
@@ -24,78 +26,261 @@ export class OwnershipGuard implements CanActivate {
 
   constructor(
     private readonly reflector: Reflector,
-    // --- PERFECT INTEGRATION: Injects the PrismaService to talk to the database ---
     private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const options = this.reflector.get<OwnershipOptions>(CHECK_OWNERSHIP_KEY, context.getHandler());
 
-    // If the decorator is not applied, the guard does nothing.
     if (!options) {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest();
-    const user = request.user as User;
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const user = request.user;
 
     if (!user) {
-      // This should be caught by a JwtAuthGuard first, but it's a safe fallback.
-      this.logger.warn('OwnershipGuard was triggered without an authenticated user.');
-      throw new ForbiddenException('Authentication is required to check resource ownership.');
+      this.logger.warn('OwnershipGuard triggered without authenticated user');
+      throw new ForbiddenException('Authentication required to access this resource');
     }
 
-    // Extract the resource ID from the URL parameters (e.g., from '/wills/:willId')
+    // Check if user has global role bypass
+    if (options.allowRoles && this.hasGlobalRoleBypass(user, options.allowRoles)) {
+      this.logger.debug(`Ownership bypass granted for user ${user.sub} with role: ${user.role}`);
+      return true;
+    }
+
+    // Extract resource ID from request parameters
     const resourceId = request.params[options.param];
     if (!resourceId) {
-      this.logger.error(
-        `OwnershipGuard failed: URL parameter '${options.param}' not found in request.`,
+      this.logger.error(`Resource ID parameter '${options.param}' not found in request`);
+      throw new NotFoundException(`Resource ID parameter '${options.param}' is required`);
+    }
+
+    // Perform ownership check based on resource type
+    const isOwner = await this.checkResourceOwnership(
+      options.resource,
+      resourceId,
+      user.sub,
+      options.field,
+    );
+
+    if (!isOwner) {
+      this.logger.warn(
+        `User ${user.sub} attempted to access ${options.resource} ${resourceId} without ownership`,
       );
-      throw new NotFoundException(`Resource ID parameter '${options.param}' is missing.`);
+      throw new ForbiddenException('You do not have permission to access this resource');
     }
 
-    // Determine the ownership field on the Prisma model to check against.
-    // We can have smart defaults based on the resource type.
-    const ownershipField = options.field || this.getDefaultOwnershipField(options.resource);
-
-    // This is the core logic: query the database to check for ownership.
-    const resource = await (this.prisma as any)[options.resource.toLowerCase()].findFirst({
-      where: {
-        id: resourceId,
-        [ownershipField]: user.id,
-      },
-      select: {
-        id: true, // We only need to select the ID to confirm existence.
-      },
-    });
-
-    if (!resource) {
-      // If the query returns null, it means one of two things:
-      // 1. The resource doesn't exist at all.
-      // 2. The resource exists, but the current user is NOT the owner.
-      // For security, we do not differentiate. We simply deny access.
-      throw new ForbiddenException('You do not have permission to access this resource.');
-    }
-
-    // If the resource was found, ownership is confirmed. Allow the request.
+    this.logger.debug(
+      `Ownership confirmed for user ${user.sub} on ${options.resource} ${resourceId}`,
+    );
     return true;
   }
 
   /**
-   * Provides smart defaults for the ownership field based on the resource type.
-   * This makes our @CheckOwnership decorator cleaner to use.
+   * Check if user has global role that bypasses ownership requirements
    */
-  private getDefaultOwnershipField(resource: OwnershipOptions['resource']): string {
+  private hasGlobalRoleBypass(user: JwtPayload, allowedRoles: string[]): boolean {
+    return allowedRoles.includes(user.role);
+  }
+
+  /**
+   * Main ownership check dispatcher - routes to appropriate check method
+   */
+  private async checkResourceOwnership(
+    resource: OwnershipOptions['resource'],
+    resourceId: string,
+    userId: string,
+    customField?: string,
+  ): Promise<boolean> {
+    // Use type assertion to fix the template literal issue
+    const resourceType = resource as string;
+
     switch (resource) {
       case 'Will':
-        return 'testatorId';
+        return await this.checkWillOwnership(resourceId, userId, customField);
+
       case 'Asset':
-        return 'ownerId';
+        return await this.checkAssetOwnership(resourceId, userId, customField);
+
       case 'Family':
-        return 'creatorId';
+        return await this.checkFamilyOwnership(resourceId, userId, customField);
+
+      case 'WillWitness':
+        return await this.checkWitnessOwnership(resourceId, userId);
+
+      case 'WillExecutor':
+        return await this.checkExecutorOwnership(resourceId, userId);
+
+      case 'BeneficiaryAssignment':
+        return await this.checkBeneficiaryOwnership(resourceId, userId);
+
       default:
-        // This ensures that if we add a new resource, we are forced to define its ownership field.
-        throw new Error(`No default ownership field defined for resource type: ${resource}`);
+        this.logger.error(`Unsupported resource type for ownership check: ${resourceType}`);
+        throw new ForbiddenException('Resource type not supported for ownership validation');
+    }
+  }
+
+  /**
+   * Direct Will ownership check
+   */
+  private async checkWillOwnership(
+    willId: string,
+    userId: string,
+    ownershipField?: string,
+  ): Promise<boolean> {
+    try {
+      const field = ownershipField || 'testatorId';
+      const will = await this.prisma.will.findFirst({
+        where: {
+          id: willId,
+          [field]: userId,
+        },
+        select: { id: true },
+      });
+
+      return !!will;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.logger.error(`Error checking Will ownership: ${errorMessage}`);
+      return false;
+    }
+  }
+
+  /**
+   * Direct Asset ownership check
+   */
+  private async checkAssetOwnership(
+    assetId: string,
+    userId: string,
+    ownershipField?: string,
+  ): Promise<boolean> {
+    try {
+      const field = ownershipField || 'ownerId';
+      const asset = await this.prisma.asset.findFirst({
+        where: {
+          id: assetId,
+          [field]: userId,
+        },
+        select: { id: true },
+      });
+
+      return !!asset;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.logger.error(`Error checking Asset ownership: ${errorMessage}`);
+      return false;
+    }
+  }
+
+  /**
+   * Direct Family ownership check
+   */
+  private async checkFamilyOwnership(
+    familyId: string,
+    userId: string,
+    ownershipField?: string,
+  ): Promise<boolean> {
+    try {
+      const field = ownershipField || 'creatorId';
+      const family = await this.prisma.family.findFirst({
+        where: {
+          id: familyId,
+          [field]: userId,
+        },
+        select: { id: true },
+      });
+
+      return !!family;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.logger.error(`Error checking Family ownership: ${errorMessage}`);
+      return false;
+    }
+  }
+
+  /**
+   * Witness ownership check - user must be testator of the will containing the witness
+   */
+  private async checkWitnessOwnership(witnessId: string, userId: string): Promise<boolean> {
+    try {
+      const witness = await this.prisma.willWitness.findFirst({
+        where: {
+          id: witnessId,
+          will: {
+            testatorId: userId,
+          },
+        },
+        include: {
+          will: {
+            select: { testatorId: true },
+          },
+        },
+      });
+
+      return !!witness;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.logger.error(`Error checking witness ownership: ${errorMessage}`);
+      return false;
+    }
+  }
+
+  /**
+   * Executor ownership check - user must be testator of the will containing the executor
+   */
+  private async checkExecutorOwnership(executorId: string, userId: string): Promise<boolean> {
+    try {
+      const executor = await this.prisma.willExecutor.findFirst({
+        where: {
+          id: executorId,
+          will: {
+            testatorId: userId,
+          },
+        },
+        include: {
+          will: {
+            select: { testatorId: true },
+          },
+        },
+      });
+
+      return !!executor;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.logger.error(`Error checking executor ownership: ${errorMessage}`);
+      return false;
+    }
+  }
+
+  /**
+   * Beneficiary ownership check - user must be testator of the will containing the beneficiary assignment
+   */
+  private async checkBeneficiaryOwnership(
+    beneficiaryAssignmentId: string,
+    userId: string,
+  ): Promise<boolean> {
+    try {
+      const assignment = await this.prisma.beneficiaryAssignment.findFirst({
+        where: {
+          id: beneficiaryAssignmentId,
+          will: {
+            testatorId: userId,
+          },
+        },
+        include: {
+          will: {
+            select: { testatorId: true },
+          },
+        },
+      });
+
+      return !!assignment;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      this.logger.error(`Error checking beneficiary ownership: ${errorMessage}`);
+      return false;
     }
   }
 }

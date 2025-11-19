@@ -1,3 +1,5 @@
+import { KENYAN_COUNTIES_LIST } from '../../../common/constants/kenyan-law.constants';
+
 interface Location {
   county: string;
   subCounty?: string;
@@ -22,8 +24,9 @@ export class LandParcel {
       throw new Error('Title number is required');
     }
 
-    if (!location?.county?.trim()) {
-      throw new Error('County is required');
+    // --- REFACTORED: Use the centralized validation method ---
+    if (!LandParcel.isValidCounty(location.county)) {
+      throw new Error(`Invalid Kenyan county: ${location.county}`);
     }
 
     if (size <= 0) {
@@ -36,18 +39,17 @@ export class LandParcel {
     this.landReference = landReference?.trim() || this.generateLandReference();
   }
 
+  // ... (Getters remain unchanged) ...
+
   getTitleNumber(): string {
     return this.titleNumber;
   }
-
   getLocation(): Readonly<Location> {
     return { ...this.location };
   }
-
   getSize(): number {
     return this.size;
   }
-
   getLandReference(): string {
     return this.landReference;
   }
@@ -62,62 +64,17 @@ export class LandParcel {
 
   private generateLandReference(): string {
     const countyCode = this.location.county.toUpperCase().substring(0, 3);
-    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+    // A real land reference has a specific format, but this random generation is fine for a placeholder
+    const random = Math.floor(Math.random() * 100000)
+      .toString()
+      .padStart(6, '0');
     return `LR/${countyCode}/${this.titleNumber.substring(0, 6)}/${random}`;
   }
 
-  // Kenyan county validation
+  // --- REFACTORED: Consume Single Source of Truth ---
   static isValidCounty(county: string): boolean {
-    const kenyanCounties = [
-      'Mombasa',
-      'Kwale',
-      'Kilifi',
-      'Tana River',
-      'Lamu',
-      'Taita Taveta',
-      'Garissa',
-      'Wajir',
-      'Mandera',
-      'Marsabit',
-      'Isiolo',
-      'Meru',
-      'Tharaka Nithi',
-      'Embu',
-      'Kitui',
-      'Machakos',
-      'Makueni',
-      'Nyandarua',
-      'Nyeri',
-      'Kirinyaga',
-      'Muranga',
-      'Kiambu',
-      'Turkana',
-      'West Pokot',
-      'Samburu',
-      'Trans Nzoia',
-      'Uasin Gishu',
-      'Elgeyo Marakwet',
-      'Nandi',
-      'Baringo',
-      'Laikipia',
-      'Nakuru',
-      'Narok',
-      'Kajiado',
-      'Kericho',
-      'Bomet',
-      'Kakamega',
-      'Vihiga',
-      'Bungoma',
-      'Busia',
-      'Siaya',
-      'Kisumu',
-      'Homa Bay',
-      'Migori',
-      'Kisii',
-      'Nyamira',
-      'Nairobi',
-    ];
-    return kenyanCounties.includes(county);
+    // Use the constant list from our common module
+    return (KENYAN_COUNTIES_LIST as readonly string[]).includes(county.toUpperCase());
   }
 
   getCounty(): string {

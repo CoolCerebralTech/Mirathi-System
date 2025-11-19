@@ -6,16 +6,21 @@ succession-service/
 
 common/
 ├── decorators/                          # Custom decorators
+|   |   family-access.decoartor.ts
+|   |   roles.decorator.ts
+|   |   will-status.decorator.ts
 │   ├── kenyan-law-validation.decorator.ts
 │   ├── legal-capacity.decorator.ts
-│   ├── testator-ownership.decorator.ts
+│   ├── ownership.decorator.ts
 │   ├── family-relationship.decorator.ts
 │   └── succession-compliance.decorator.ts
 │
 ├── guards/                              # Authentication & authorization
-│   ├── testator-ownership.guard.ts      # Users can only access their own data
+|   |   roles.guard.ts
+|   |   family-relationship.guard.ts
+│   ├── ownership.guard.ts      # Users can only access their own data
 │   ├── will-status.guard.ts             # Prevent edits on active wills
-│   ├── legal-compliance.guard.ts        # Kenyan law validation
+│   ├── kenyan-law-validation.guard.ts        # Kenyan law validation
 │   ├── family-member-access.guard.ts    # Family data access control
 │   └── probate-court-role.guard.ts      # Court role-based access
 │
@@ -25,13 +30,6 @@ common/
 │   ├── share-percentage.pipe.ts         # 0-100% validation
 │   ├── family-relationship.pipe.ts      # Valid relationship types
 │   ├── kenyan-phone.pipe.ts             # Phone number validation
-│   └── legal-document.pipe.ts           # Document validation
-│
-├── interceptors/                        # Request/response transformation
-│   ├── kenyan-law-compliance.interceptor.ts
-│   ├── audit-logging.interceptor.ts
-│   ├── response-mapping.interceptor.ts
-│   └── error-handling.interceptor.ts
 │
 ├── filters/                             # Exception filters
 │   ├── kenyan-law-violation.filter.ts   # Legal compliance errors
@@ -40,6 +38,9 @@ common/
 │   └── global-exception.filter.ts
 │
 ├── utils/                               # Utility functions
+|   |   feature-flag.ts
+|   |   kenayan-court-fee-calculator
+|   |   validation.ts
 │   ├── kenyan-succession-calculator.ts  # Intestate calculations
 │   ├── legal-formality-checker.ts       # Will formalities validation
 │   ├── probate-processor.ts             # Court process utilities
@@ -58,14 +59,6 @@ common/
 │   ├── distribution-rules.constants.ts  # Intestate succession
 │   └── legal-timeframes.constants.ts    # Court deadlines
 │
-├── interfaces/                          # Shared interfaces
-│   ├── kenyan-law.interface.ts          # Legal compliance contracts
-│   ├── succession.interface.ts          # Core domain contracts
-│   ├── family.interface.ts              # Family relationships
-│   ├── asset.interface.ts               # Asset management
-│   ├── will.interface.ts                # Will management
-│   └── probate.interface.ts             # Court process contracts
-│
 ├── types/                               # TypeScript types
 │   ├── kenyan-law.types.ts              # Legal types
 │   ├── succession.types.ts              # Domain types
@@ -75,9 +68,9 @@ common/
 │   ├── succession.config.ts             # Succession service config
 │   ├── legal-rules.config.ts            # Kenyan law rules
 │   ├── court-fees.config.ts             # Probate court fees
+|   |   valuation.config.ts
 │   └── feature-flags.config.ts          # Feature toggles
-│
-└── shared.module.ts                     # Common module exports
+|
 
 
 estate-planning/

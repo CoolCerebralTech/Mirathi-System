@@ -1,8 +1,10 @@
+import { AggregateRoot } from '@nestjs/cqrs';
 import { BequestType, BequestConditionType, DistributionStatus } from '@prisma/client';
 import { SharePercentage } from '../value-objects/share-percentage.vo';
 import { AssetValue } from '../value-objects/asset-value.vo';
+import { BeneficiaryAssignedEvent } from '../events/beneficiary-assigned.event';
 
-export interface BeneficiaryInfo {
+export interface BeneficiaryIdentity {
   userId?: string;
   familyMemberId?: string;
   externalName?: string;
@@ -10,43 +12,48 @@ export interface BeneficiaryInfo {
   relationship?: string;
 }
 
-export class Beneficiary {
+export class BeneficiaryAssignment extends AggregateRoot {
   private id: string;
   private willId: string;
   private assetId: string;
-  private beneficiaryInfo: BeneficiaryInfo;
+
+  private beneficiaryIdentity: BeneficiaryIdentity;
+
   private bequestType: BequestType;
   private sharePercentage: SharePercentage | null;
   private specificAmount: AssetValue | null;
+
   private conditionType: BequestConditionType;
   private conditionDetails: string | null;
   private alternateBeneficiaryId: string | null;
   private alternateShare: SharePercentage | null;
+
   private distributionStatus: DistributionStatus;
   private distributedAt: Date | null;
   private distributionNotes: string | null;
+
   private priority: number;
   private createdAt: Date;
   private updatedAt: Date;
 
-  constructor(
+  private constructor(
     id: string,
     willId: string,
     assetId: string,
-    beneficiaryInfo: BeneficiaryInfo,
+    identity: BeneficiaryIdentity,
     bequestType: BequestType,
     priority: number = 1,
   ) {
-    this.validateBeneficiaryInfo(beneficiaryInfo);
+    super();
+    this.validateIdentity(identity);
 
     this.id = id;
     this.willId = willId;
     this.assetId = assetId;
-    this.beneficiaryInfo = { ...beneficiaryInfo };
+    this.beneficiaryIdentity = { ...identity };
     this.bequestType = bequestType;
     this.priority = priority;
 
-    // Default values
     this.sharePercentage = null;
     this.specificAmount = null;
     this.conditionType = BequestConditionType.NONE;
@@ -60,74 +67,77 @@ export class Beneficiary {
     this.updatedAt = new Date();
   }
 
-  // Getters
-  getId(): string {
-    return this.id;
-  }
-  getWillId(): string {
-    return this.willId;
-  }
-  getAssetId(): string {
-    return this.assetId;
-  }
-  getBeneficiaryInfo(): BeneficiaryInfo {
-    return { ...this.beneficiaryInfo };
-  }
-  getBequestType(): BequestType {
-    return this.bequestType;
-  }
-  getSharePercentage(): SharePercentage | null {
-    return this.sharePercentage;
-  }
-  getSpecificAmount(): AssetValue | null {
-    return this.specificAmount;
-  }
-  getConditionType(): BequestConditionType {
-    return this.conditionType;
-  }
-  getConditionDetails(): string | null {
-    return this.conditionDetails;
-  }
-  getAlternateBeneficiaryId(): string | null {
-    return this.alternateBeneficiaryId;
-  }
-  getAlternateShare(): SharePercentage | null {
-    return this.alternateShare;
-  }
-  getDistributionStatus(): DistributionStatus {
-    return this.distributionStatus;
-  }
-  getDistributedAt(): Date | null {
-    return this.distributedAt ? new Date(this.distributedAt) : null;
-  }
-  getDistributionNotes(): string | null {
-    return this.distributionNotes;
-  }
-  getPriority(): number {
-    return this.priority;
-  }
-  getCreatedAt(): Date {
-    return new Date(this.createdAt);
-  }
-  getUpdatedAt(): Date {
-    return new Date(this.updatedAt);
+  // --------------------------------------------------------------------------
+  // FACTORY METHODS (Fixed TS2554 Error)
+  // --------------------------------------------------------------------------
+
+  static createForUser(
+    id: string,
+    willId: string,
+    assetId: string,
+    userId: string,
+    bequestType: BequestType,
+    relationship?: string,
+  ): BeneficiaryAssignment {
+    const identity: BeneficiaryIdentity = { userId, relationship };
+    const assignment = new BeneficiaryAssignment(id, willId, assetId, identity, bequestType);
+
+    // FIXED: Added bequestType as the 5th argument
+    assignment.apply(new BeneficiaryAssignedEvent(id, willId, assetId, identity, bequestType));
+
+    return assignment;
   }
 
-  // Business methods
+  static createForFamilyMember(
+    id: string,
+    willId: string,
+    assetId: string,
+    familyMemberId: string,
+    bequestType: BequestType,
+  ): BeneficiaryAssignment {
+    const identity: BeneficiaryIdentity = { familyMemberId };
+    const assignment = new BeneficiaryAssignment(id, willId, assetId, identity, bequestType);
+
+    // FIXED: Added bequestType as the 5th argument
+    assignment.apply(new BeneficiaryAssignedEvent(id, willId, assetId, identity, bequestType));
+
+    return assignment;
+  }
+
+  static createForExternal(
+    id: string,
+    willId: string,
+    assetId: string,
+    externalName: string,
+    externalContact?: string,
+    bequestType: BequestType = BequestType.SPECIFIC,
+  ): BeneficiaryAssignment {
+    const identity: BeneficiaryIdentity = { externalName, externalContact };
+    const assignment = new BeneficiaryAssignment(id, willId, assetId, identity, bequestType);
+
+    // FIXED: Added bequestType as the 5th argument
+    assignment.apply(new BeneficiaryAssignedEvent(id, willId, assetId, identity, bequestType));
+
+    return assignment;
+  }
+
+  // --------------------------------------------------------------------------
+  // BUSINESS LOGIC & MUTATORS
+  // --------------------------------------------------------------------------
+
   updateShare(share: SharePercentage): void {
     if (this.bequestType !== BequestType.PERCENTAGE && this.bequestType !== BequestType.RESIDUARY) {
-      throw new Error('Share percentage can only be set for percentage or residuary bequests');
+      throw new Error('Share percentage can only be set for PERCENTAGE or RESIDUARY bequests.');
     }
-
     this.sharePercentage = share;
     this.updatedAt = new Date();
+    // Note: You should likely add `assignment.apply(new BeneficiaryShareUpdatedEvent(...))` here in the future
   }
 
   updateSpecificAmount(amount: AssetValue): void {
     if (this.bequestType !== BequestType.SPECIFIC) {
-      throw new Error('Specific amount can only be set for specific bequests');
+      throw new Error('Specific amount can only be set for SPECIFIC bequests.');
     }
-
     this.specificAmount = amount;
     this.updatedAt = new Date();
   }
@@ -138,7 +148,7 @@ export class Beneficiary {
       this.conditionDetails = null;
     } else {
       if (!details?.trim()) {
-        throw new Error('Condition details are required for conditional bequests');
+        throw new Error('Condition details are required for conditional bequests.');
       }
       this.conditionType = conditionType;
       this.conditionDetails = details.trim();
@@ -154,13 +164,15 @@ export class Beneficiary {
 
   updatePriority(priority: number): void {
     if (priority < 1) {
-      throw new Error('Priority must be at least 1');
+      throw new Error('Priority must be at least 1.');
     }
     this.priority = priority;
     this.updatedAt = new Date();
   }
 
   markAsDistributed(notes?: string): void {
+    if (this.distributionStatus === DistributionStatus.COMPLETED) return;
+
     this.distributionStatus = DistributionStatus.COMPLETED;
     this.distributedAt = new Date();
     this.distributionNotes = notes || null;
@@ -182,22 +194,24 @@ export class Beneficiary {
     this.updatedAt = new Date();
   }
 
-  // Validation methods
-  private validateBeneficiaryInfo(info: BeneficiaryInfo): void {
+  // --------------------------------------------------------------------------
+  // VALIDATION & UTILS
+  // --------------------------------------------------------------------------
+
+  private validateIdentity(info: BeneficiaryIdentity): void {
     const hasUserId = !!info.userId;
     const hasFamilyMemberId = !!info.familyMemberId;
     const hasExternalName = !!info.externalName;
 
-    if (!hasUserId && !hasFamilyMemberId && !hasExternalName) {
-      throw new Error('Beneficiary must have either user ID, family member ID, or external name');
-    }
+    const count = (hasUserId ? 1 : 0) + (hasFamilyMemberId ? 1 : 0) + (hasExternalName ? 1 : 0);
 
-    if (
-      (hasUserId && hasFamilyMemberId) ||
-      (hasUserId && hasExternalName) ||
-      (hasFamilyMemberId && hasExternalName)
-    ) {
-      throw new Error('Beneficiary can only have one type of identification');
+    if (count === 0) {
+      throw new Error(
+        'Beneficiary must have exactly one form of identification (User ID, Family Member ID, or External Name).',
+      );
+    }
+    if (count > 1) {
+      throw new Error('Beneficiary cannot have multiple forms of identification simultaneously.');
     }
   }
 
@@ -213,58 +227,64 @@ export class Beneficiary {
     return this.distributionStatus === DistributionStatus.COMPLETED;
   }
 
-  getBeneficiaryName(): string {
-    if (this.beneficiaryInfo.externalName) {
-      return this.beneficiaryInfo.externalName;
-    }
-    // In real implementation, we'd fetch the name from user or family member
-    return `Beneficiary ${this.id.substring(0, 8)}`;
+  // --------------------------------------------------------------------------
+  // GETTERS
+  // --------------------------------------------------------------------------
+
+  getId(): string {
+    return this.id;
+  }
+  getWillId(): string {
+    return this.willId;
+  }
+  getAssetId(): string {
+    return this.assetId;
+  }
+  getIdentity(): BeneficiaryIdentity {
+    return { ...this.beneficiaryIdentity };
   }
 
-  // Static factory method
-  static createForUser(
-    id: string,
-    willId: string,
-    assetId: string,
-    userId: string,
-    bequestType: BequestType,
-    relationship?: string,
-  ): Beneficiary {
-    const beneficiaryInfo: BeneficiaryInfo = {
-      userId,
-      relationship,
-    };
-
-    return new Beneficiary(id, willId, assetId, beneficiaryInfo, bequestType);
+  getBequestType(): BequestType {
+    return this.bequestType;
+  }
+  getSharePercentage(): SharePercentage | null {
+    return this.sharePercentage;
+  }
+  getSpecificAmount(): AssetValue | null {
+    return this.specificAmount;
   }
 
-  static createForFamilyMember(
-    id: string,
-    willId: string,
-    assetId: string,
-    familyMemberId: string,
-    bequestType: BequestType,
-  ): Beneficiary {
-    const beneficiaryInfo: BeneficiaryInfo = {
-      familyMemberId,
-    };
-
-    return new Beneficiary(id, willId, assetId, beneficiaryInfo, bequestType);
+  getConditionType(): BequestConditionType {
+    return this.conditionType;
+  }
+  getConditionDetails(): string | null {
+    return this.conditionDetails;
   }
 
-  static createForExternal(
-    id: string,
-    willId: string,
-    assetId: string,
-    externalName: string,
-    externalContact?: string,
-    bequestType: BequestType = BequestType.SPECIFIC,
-  ): Beneficiary {
-    const beneficiaryInfo: BeneficiaryInfo = {
-      externalName,
-      externalContact,
-    };
+  getAlternateBeneficiaryId(): string | null {
+    return this.alternateBeneficiaryId;
+  }
+  getAlternateShare(): SharePercentage | null {
+    return this.alternateShare;
+  }
 
-    return new Beneficiary(id, willId, assetId, beneficiaryInfo, bequestType);
+  getDistributionStatus(): DistributionStatus {
+    return this.distributionStatus;
+  }
+  getDistributedAt(): Date | null {
+    return this.distributedAt ? new Date(this.distributedAt) : null;
+  }
+  getDistributionNotes(): string | null {
+    return this.distributionNotes;
+  }
+
+  getPriority(): number {
+    return this.priority;
+  }
+  getCreatedAt(): Date {
+    return new Date(this.createdAt);
+  }
+  getUpdatedAt(): Date {
+    return new Date(this.updatedAt);
   }
 }

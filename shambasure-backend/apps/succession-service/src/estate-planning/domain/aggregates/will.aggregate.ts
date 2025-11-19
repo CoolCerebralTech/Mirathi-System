@@ -1,37 +1,71 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { WillStatus, BequestType } from '@prisma/client';
-import { Will } from '../entities/will.entity';
+import { Will, FuneralWishes, DigitalAssetInstructions } from '../entities/will.entity';
 import { Asset } from '../entities/asset.entity';
-import { Beneficiary } from '../entities/beneficiary.entity';
+// Corrected Import: BeneficiaryAssignment
+import { BeneficiaryAssignment } from '../entities/beneficiary.entity';
 import { Executor } from '../entities/executor.entity';
 import { Witness } from '../entities/witness.entity';
 import { LegalCapacity } from '../value-objects/legal-capacity.vo';
 import { SharePercentage } from '../value-objects/share-percentage.vo';
-import { AssetValue } from '../value-objects/asset-value.vo';
+import { KENYAN_LEGAL_REQUIREMENTS } from '../../../common/constants/kenyan-law.constants';
 
 export class WillAggregate extends AggregateRoot {
   private will: Will;
+  // Maps for efficient O(1) lookup
   private assets: Map<string, Asset> = new Map();
-  private beneficiaries: Map<string, Beneficiary> = new Map();
+  private beneficiaries: Map<string, BeneficiaryAssignment> = new Map();
   private executors: Map<string, Executor> = new Map();
   private witnesses: Map<string, Witness> = new Map();
 
-  constructor(will: Will) {
+  private constructor(will: Will) {
     super();
     this.will = will;
   }
 
-  // Will methods
+  // --------------------------------------------------------------------------
+  // FACTORY
+  // --------------------------------------------------------------------------
+  static create(
+    willId: string,
+    title: string,
+    testatorId: string,
+    legalCapacity: LegalCapacity,
+  ): WillAggregate {
+    const will = Will.create(willId, title, testatorId, legalCapacity);
+    // In a full event sourced system, we'd capture the event from 'will' and merge it
+    return new WillAggregate(will);
+  }
+
+  // Used to rehydrate from persistence
+  static reconstitute(
+    will: Will,
+    assets: Asset[],
+    beneficiaries: BeneficiaryAssignment[],
+    executors: Executor[],
+    witnesses: Witness[],
+  ): WillAggregate {
+    const aggregate = new WillAggregate(will);
+    assets.forEach((a) => aggregate.assets.set(a.getId(), a));
+    beneficiaries.forEach((b) => aggregate.beneficiaries.set(b.getId(), b));
+    executors.forEach((e) => aggregate.executors.set(e.getId(), e));
+    witnesses.forEach((w) => aggregate.witnesses.set(w.getId(), w));
+    return aggregate;
+  }
+
+  // --------------------------------------------------------------------------
+  // WILL ROOT METHODS
+  // --------------------------------------------------------------------------
   getWill(): Will {
     return this.will;
   }
 
   updateWillDetails(
     title: string,
-    funeralWishes?: any,
+    funeralWishes?: FuneralWishes,
     burialLocation?: string,
     residuaryClause?: string,
-    digitalAssetInstructions?: any,
+    digitalAssetInstructions?: DigitalAssetInstructions,
     specialInstructions?: string,
   ): void {
     this.will.updateTitle(title);
@@ -44,14 +78,16 @@ export class WillAggregate extends AggregateRoot {
     );
   }
 
-  setLegalCapacity(legalCapacity: LegalCapacity): void {
-    this.will.setLegalCapacity(legalCapacity);
-  }
-
-  // Asset management
+  // --------------------------------------------------------------------------
+  // ASSET MANAGEMENT
+  // --------------------------------------------------------------------------
   addAsset(asset: Asset): void {
     if (this.assets.has(asset.getId())) {
-      throw new Error(`Asset ${asset.getId()} already exists in this will`);
+      throw new Error(`Asset ${asset.getId()} already exists in this will.`);
+    }
+    // Ownership check
+    if (asset.getOwnerId() !== this.will.getTestatorId()) {
+      throw new Error('Asset owner does not match testator.');
     }
 
     this.assets.set(asset.getId(), asset);
@@ -59,256 +95,195 @@ export class WillAggregate extends AggregateRoot {
 
   removeAsset(assetId: string): void {
     if (!this.assets.has(assetId)) {
-      throw new Error(`Asset ${assetId} not found in this will`);
+      throw new Error(`Asset ${assetId} not found in this will.`);
     }
 
-    // Check if asset has beneficiaries assigned
+    // Consistency check: Cannot remove asset if it has assigned beneficiaries
     const assetBeneficiaries = Array.from(this.beneficiaries.values()).filter(
-      (beneficiary) => beneficiary.getAssetId() === assetId,
+      (b) => b.getAssetId() === assetId,
     );
 
     if (assetBeneficiaries.length > 0) {
-      throw new Error(`Cannot remove asset with assigned beneficiaries`);
+      throw new Error(
+        `Cannot remove asset ${assetId} because it has assigned beneficiaries. Remove assignments first.`,
+      );
     }
 
     this.assets.delete(assetId);
   }
 
-  getAsset(assetId: string): Asset | undefined {
-    return this.assets.get(assetId);
-  }
-
-  getAllAssets(): Asset[] {
-    return Array.from(this.assets.values());
-  }
-
-  // Beneficiary management
-  assignBeneficiary(beneficiary: Beneficiary): void {
-    const assetId = beneficiary.getAssetId();
+  // --------------------------------------------------------------------------
+  // BENEFICIARY MANAGEMENT
+  // --------------------------------------------------------------------------
+  assignBeneficiary(assignment: BeneficiaryAssignment): void {
+    const assetId = assignment.getAssetId();
 
     if (!this.assets.has(assetId)) {
-      throw new Error(`Asset ${assetId} not found in this will`);
+      throw new Error(`Asset ${assetId} not found in this will. Cannot assign beneficiary.`);
     }
 
-    if (this.beneficiaries.has(beneficiary.getId())) {
-      throw new Error(`Beneficiary ${beneficiary.getId()} already exists`);
+    if (this.beneficiaries.has(assignment.getId())) {
+      throw new Error(`Beneficiary Assignment ${assignment.getId()} already exists.`);
     }
 
-    // Validate beneficiary assignment doesn't exceed 100%
-    if (beneficiary.getBequestType() === BequestType.PERCENTAGE) {
-      this.validateTotalPercentage(assetId, beneficiary.getSharePercentage());
+    // Percentage Validation
+    if (assignment.getBequestType() === BequestType.PERCENTAGE && assignment.getSharePercentage()) {
+      this.validateTotalPercentage(assetId, assignment.getSharePercentage()!);
     }
 
-    this.beneficiaries.set(beneficiary.getId(), beneficiary);
+    this.beneficiaries.set(assignment.getId(), assignment);
   }
 
-  updateBeneficiaryAssignment(beneficiaryId: string, updates: Partial<Beneficiary>): void {
-    const beneficiary = this.beneficiaries.get(beneficiaryId);
-    if (!beneficiary) {
-      throw new Error(`Beneficiary ${beneficiaryId} not found`);
+  removeBeneficiary(assignmentId: string): void {
+    if (!this.beneficiaries.has(assignmentId)) {
+      throw new Error(`Beneficiary assignment ${assignmentId} not found.`);
+    }
+    this.beneficiaries.delete(assignmentId);
+  }
+
+  // --------------------------------------------------------------------------
+  // EXECUTOR MANAGEMENT
+  // --------------------------------------------------------------------------
+  nominateExecutor(executor: Executor): void {
+    if (this.executors.has(executor.getId())) {
+      throw new Error(`Executor ${executor.getId()} already nominated.`);
     }
 
-    // Apply updates (simplified - in reality, we'd use proper methods)
-    if (updates.getSharePercentage && beneficiary.getBequestType() === BequestType.PERCENTAGE) {
-      this.validateTotalPercentage(
-        beneficiary.getAssetId(),
-        updates.getSharePercentage,
-        beneficiaryId,
+    // Business Rule: Max Executors
+    if (this.executors.size >= KENYAN_LEGAL_REQUIREMENTS.EXECUTOR_REQUIREMENTS.MAX_EXECUTORS) {
+      throw new Error(
+        `Cannot nominate more than ${KENYAN_LEGAL_REQUIREMENTS.EXECUTOR_REQUIREMENTS.MAX_EXECUTORS} executors.`,
       );
     }
 
-    // Note: In a real implementation, we'd have proper update methods on Beneficiary
-    // For now, we'll just replace the beneficiary
-    this.beneficiaries.set(beneficiaryId, { ...beneficiary, ...updates } as Beneficiary);
-  }
-
-  removeBeneficiary(beneficiaryId: string): void {
-    if (!this.beneficiaries.has(beneficiaryId)) {
-      throw new Error(`Beneficiary ${beneficiaryId} not found`);
-    }
-
-    this.beneficiaries.delete(beneficiaryId);
-  }
-
-  getBeneficiary(beneficiaryId: string): Beneficiary | undefined {
-    return this.beneficiaries.get(beneficiaryId);
-  }
-
-  getBeneficiariesForAsset(assetId: string): Beneficiary[] {
-    return Array.from(this.beneficiaries.values()).filter(
-      (beneficiary) => beneficiary.getAssetId() === assetId,
-    );
-  }
-
-  getAllBeneficiaries(): Beneficiary[] {
-    return Array.from(this.beneficiaries.values());
-  }
-
-  // Executor management
-  nominateExecutor(executor: Executor): void {
-    if (this.executors.has(executor.getId())) {
-      throw new Error(`Executor ${executor.getId()} already nominated`);
-    }
-
-    // Validate only one primary executor
+    // Business Rule: Single Primary
     if (executor.getIsPrimary()) {
       const existingPrimary = Array.from(this.executors.values()).find((exec) =>
         exec.getIsPrimary(),
       );
       if (existingPrimary) {
-        throw new Error('There can only be one primary executor');
+        throw new Error('There can only be one primary executor.');
       }
     }
 
     this.executors.set(executor.getId(), executor);
   }
 
-  updateExecutorPriority(executorId: string, priority: number): void {
-    const executor = this.executors.get(executorId);
-    if (!executor) {
-      throw new Error(`Executor ${executorId} not found`);
-    }
-
-    executor.updatePriority(priority);
-  }
-
-  removeExecutor(executorId: string): void {
-    if (!this.executors.has(executorId)) {
-      throw new Error(`Executor ${executorId} not found`);
-    }
-
-    this.executors.delete(executorId);
-  }
-
-  getExecutor(executorId: string): Executor | undefined {
-    return this.executors.get(executorId);
-  }
-
-  getAllExecutors(): Executor[] {
-    return Array.from(this.executors.values());
-  }
-
-  getPrimaryExecutor(): Executor | undefined {
-    return Array.from(this.executors.values()).find((executor) => executor.getIsPrimary());
-  }
-
-  // Witness management
+  // --------------------------------------------------------------------------
+  // WITNESS MANAGEMENT
+  // --------------------------------------------------------------------------
   addWitness(witness: Witness): void {
     if (this.witnesses.has(witness.getId())) {
-      throw new Error(`Witness ${witness.getId()} already added`);
+      throw new Error(`Witness ${witness.getId()} already added.`);
     }
 
-    // Validate witness eligibility under Kenyan law
+    // Internal consistency check
     const validation = witness.validateForKenyanLaw();
     if (!validation.isValid) {
       throw new Error(`Witness is not eligible: ${validation.issues.join(', ')}`);
     }
 
     this.witnesses.set(witness.getId(), witness);
-    this.will.addWitness();
+    // Update root entity state
+    this.will.addWitness(witness.getId());
   }
 
   removeWitness(witnessId: string): void {
     if (!this.witnesses.has(witnessId)) {
-      throw new Error(`Witness ${witnessId} not found`);
+      throw new Error(`Witness ${witnessId} not found.`);
     }
 
     const witness = this.witnesses.get(witnessId);
     if (witness?.hasSigned()) {
-      throw new Error('Cannot remove a witness who has already signed');
+      throw new Error('Cannot remove a witness who has already signed.');
     }
 
     this.witnesses.delete(witnessId);
-    this.will.removeWitness();
+    this.will.removeWitness(witnessId);
   }
 
-  getWitness(witnessId: string): Witness | undefined {
-    return this.witnesses.get(witnessId);
-  }
+  // --------------------------------------------------------------------------
+  // DOMAIN VALIDATION LOGIC
+  // --------------------------------------------------------------------------
 
-  getAllWitnesses(): Witness[] {
-    return Array.from(this.witnesses.values());
-  }
-
-  getSignedWitnesses(): Witness[] {
-    return Array.from(this.witnesses.values()).filter((witness) => witness.hasSigned());
-  }
-
-  // Business logic and validations
   private validateTotalPercentage(
     assetId: string,
     newShare: SharePercentage,
-    excludeBeneficiaryId?: string,
+    excludeAssignmentId?: string,
   ): void {
-    const assetBeneficiaries = this.getBeneficiariesForAsset(assetId).filter(
-      (beneficiary) => beneficiary.getId() !== excludeBeneficiaryId,
+    const assetAssignments = Array.from(this.beneficiaries.values()).filter(
+      (b) => b.getAssetId() === assetId && b.getId() !== excludeAssignmentId,
     );
 
-    const percentageShares = assetBeneficiaries
-      .filter((beneficiary) => beneficiary.getBequestType() === BequestType.PERCENTAGE)
-      .map((beneficiary) => beneficiary.getSharePercentage());
+    const existingShares = assetAssignments
+      .filter((b) => b.getBequestType() === BequestType.PERCENTAGE && b.getSharePercentage())
+      .map((b) => b.getSharePercentage()!);
 
-    percentageShares.push(newShare);
+    const allShares = [...existingShares, newShare];
 
-    if (!SharePercentage.totalIsValid(percentageShares)) {
-      throw new Error('Total percentage allocation for asset exceeds 100%');
+    // Using our Value Object's static method
+    if (!SharePercentage.totalIsValid(allShares)) {
+      // We check if it EXCEEDS 100. Being less than 100 is fine during drafting.
+      const total = allShares.reduce((sum, s) => sum + s.getValue(), 0);
+      if (total > 100) {
+        throw new Error(
+          `Total percentage allocation for asset ${assetId} exceeds 100% (Current: ${total}%).`,
+        );
+      }
     }
   }
 
+  /**
+   * Comprehensive validation before activation
+   */
   validateWillCompleteness(): { isValid: boolean; issues: string[] } {
     const issues: string[] = [];
 
-    // Check legal capacity
+    // 1. Testator Capacity
     if (!this.will.getLegalCapacity()?.hasLegalCapacity()) {
-      issues.push('Testator does not have legal capacity');
+      issues.push('Testator does not have verified legal capacity.');
     }
 
-    // Check assets
-    if (this.assets.size === 0) {
-      issues.push('Will has no assets assigned');
-    }
+    // 2. Core Content
+    if (this.assets.size === 0) issues.push('Will has no assets assigned.');
+    if (this.beneficiaries.size === 0) issues.push('Will has no beneficiaries assigned.');
+    if (this.executors.size === 0) issues.push('Will has no executors nominated.');
+    if (!this.will.getResiduaryClause()) issues.push('Residuary clause is required.');
 
-    // Check beneficiaries
-    if (this.beneficiaries.size === 0) {
-      issues.push('Will has no beneficiaries assigned');
-    }
-
-    // Check executors
-    if (this.executors.size === 0) {
-      issues.push('Will has no executors nominated');
-    }
-
-    // Check witnesses for Kenyan law
-    if (this.will.getRequiresWitnesses() && this.getSignedWitnesses().length < 2) {
-      issues.push('Kenyan law requires at least 2 signed witnesses');
-    }
-
-    // Check residuary clause
-    if (!this.will.getResiduaryClause()) {
-      issues.push('Residuary clause is required');
-    }
-
-    // Validate asset-beneficiary assignments
-    for (const asset of this.assets.values()) {
-      const assetBeneficiaries = this.getBeneficiariesForAsset(asset.getId());
-      if (assetBeneficiaries.length === 0) {
-        issues.push(`Asset ${asset.getId()} has no beneficiaries assigned`);
+    // 3. Witness Requirements
+    if (this.will.getStatus() === WillStatus.WITNESSED) {
+      // Only check signed witnesses if we are trying to activate
+      const signedCount = Array.from(this.witnesses.values()).filter((w) => w.hasSigned()).length;
+      if (signedCount < KENYAN_LEGAL_REQUIREMENTS.MINIMUM_WITNESSES) {
+        issues.push(
+          `Kenyan law requires at least ${KENYAN_LEGAL_REQUIREMENTS.MINIMUM_WITNESSES} signed witnesses.`,
+        );
       }
+    }
 
-      // Check percentage allocation
-      const percentageBeneficiaries = assetBeneficiaries.filter(
-        (b) => b.getBequestType() === BequestType.PERCENTAGE,
+    // 4. Asset Allocation Integrity
+    for (const asset of this.assets.values()) {
+      const assignments = Array.from(this.beneficiaries.values()).filter(
+        (b) => b.getAssetId() === asset.getId(),
       );
 
-      if (percentageBeneficiaries.length > 0) {
-        const totalPercentage = percentageBeneficiaries.reduce(
-          (sum, beneficiary) => sum + (beneficiary.getSharePercentage()?.getValue() || 0),
+      if (assignments.length === 0) {
+        issues.push(`Asset '${asset.getName()}' has no beneficiaries assigned.`);
+      }
+
+      // Check percentages match 100% exactly for finalized wills
+      const percentageAssignments = assignments.filter(
+        (b) => b.getBequestType() === BequestType.PERCENTAGE,
+      );
+      if (percentageAssignments.length > 0) {
+        const total = percentageAssignments.reduce(
+          (sum, b) => sum + (b.getSharePercentage()?.getValue() || 0),
           0,
         );
-
-        if (Math.abs(totalPercentage - 100) > 0.01) {
+        // Allow small floating point error
+        if (Math.abs(total - 100) > 0.01) {
           issues.push(
-            `Asset ${asset.getId()} has invalid percentage allocation: ${totalPercentage}%`,
+            `Asset '${asset.getName()}' percentage allocation is ${total}%, expected 100%.`,
           );
         }
       }
@@ -320,40 +295,15 @@ export class WillAggregate extends AggregateRoot {
     };
   }
 
-  getTotalEstateValue(): AssetValue {
-    const totalAmount = Array.from(this.assets.values()).reduce((sum, asset) => {
-      return sum + (asset.getCurrentValue()?.getAmount() || 0);
-    }, 0);
-
-    // Use the currency from the first asset, or default to KES
-    const firstAsset = Array.from(this.assets.values())[0];
-    const currency = firstAsset?.getCurrentValue()?.getCurrency() || 'KES';
-
-    return new AssetValue(totalAmount, currency);
-  }
-
-  canActivate(): boolean {
-    const completenessCheck = this.validateWillCompleteness();
-    return completenessCheck.isValid && this.will.getStatus() === WillStatus.WITNESSED;
-  }
+  // --------------------------------------------------------------------------
+  // AGGREGATE STATE TRANSITIONS
+  // --------------------------------------------------------------------------
 
   activate(activatedBy: string): void {
-    if (!this.canActivate()) {
-      const completenessCheck = this.validateWillCompleteness();
-      throw new Error(`Cannot activate will: ${completenessCheck.issues.join(', ')}`);
+    const check = this.validateWillCompleteness();
+    if (!check.isValid) {
+      throw new Error(`Cannot activate will. Issues: ${check.issues.join('; ')}`);
     }
-
     this.will.activate(activatedBy);
-  }
-
-  // Static factory method
-  static create(
-    willId: string,
-    title: string,
-    testatorId: string,
-    legalCapacity: LegalCapacity,
-  ): WillAggregate {
-    const will = Will.create(willId, title, testatorId, legalCapacity);
-    return new WillAggregate(will);
   }
 }
