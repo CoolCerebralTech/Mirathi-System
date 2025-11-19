@@ -1,8 +1,8 @@
 // estate-planning/application/services/asset.service.ts
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { AssetType, AssetOwnershipType } from '@prisma/client';
-import { AssetRepositoryInterface } from '../../domain/repositories/asset.repository.interface';
-import { WillRepositoryInterface } from '../../domain/repositories/will.repository.interface';
+import { AssetRepositoryInterface } from '../../domain/interfaces/asset.repository.interface';
+import { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
 import { AssetValue } from '../../domain/value-objects/asset-value.vo';
 import { AddAssetCommand } from '../commands/add-asset.command';
 import { RemoveAssetCommand } from '../commands/remove-asset.command';

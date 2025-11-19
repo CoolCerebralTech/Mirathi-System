@@ -1,8 +1,8 @@
 // estate-planning/application/services/witness.service.ts
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { WitnessStatus } from '@prisma/client';
-import { WitnessRepositoryInterface } from '../../domain/repositories/witness.repository.interface';
-import { WillRepositoryInterface } from '../../domain/repositories/will.repository.interface';
+import { WitnessRepositoryInterface } from '../../domain/interfaces/witness.repository.interface';
+import { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
 import { KenyanId } from '../../domain/value-objects/kenyan-id.vo';
 import { AddWitnessCommand } from '../commands/add-witness.command';
 import { SignWillCommand } from '../commands/sign-will.command';

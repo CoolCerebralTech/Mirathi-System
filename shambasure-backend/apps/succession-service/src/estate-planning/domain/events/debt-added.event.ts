@@ -8,6 +8,7 @@ export class DebtAddedEvent {
     public readonly type: DebtType,
     public readonly principalAmount: AssetValue,
     public readonly creditorName: string,
+    public readonly assetId?: string, // Added: Critical for secured debts
     public readonly timestamp: Date = new Date(),
   ) {}
 }

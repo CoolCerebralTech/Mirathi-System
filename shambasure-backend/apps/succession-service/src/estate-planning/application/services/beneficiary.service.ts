@@ -1,9 +1,9 @@
 // estate-planning/application/services/beneficiary.service.ts
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { BequestType, BequestConditionType, DistributionStatus } from '@prisma/client';
-import { BeneficiaryRepositoryInterface } from '../../domain/repositories/beneficiary.repository.interface';
-import { WillRepositoryInterface } from '../../domain/repositories/will.repository.interface';
-import { AssetRepositoryInterface } from '../../domain/repositories/asset.repository.interface';
+import { BeneficiaryRepositoryInterface } from '../../domain/interfaces/beneficiary.repository.interface';
+import { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
+import { AssetRepositoryInterface } from '../../domain/interfaces/asset.repository.interface';
 import { SharePercentage } from '../../domain/value-objects/share-percentage.vo';
 import { AssetValue } from '../../domain/value-objects/asset-value.vo';
 import { AssignBeneficiaryCommand } from '../commands/assign-beneficiary.command';

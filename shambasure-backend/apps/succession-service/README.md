@@ -158,7 +158,7 @@ estate-planning/
 │   │   ├── executor-eligibility.policy.ts
 │   │   └── asset-verification.policy.ts
 │   │
-│   ├── repositories/
+│   ├── interfaces/
 │   │   ├── will.repository.interface.ts
 │   │   ├── asset.repository.interface.ts
 │   │   ├── beneficiary.repository.interface.ts

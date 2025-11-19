@@ -1,8 +1,8 @@
 // estate-planning/application/services/executor.service.ts
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ExecutorStatus } from '@prisma/client';
-import { ExecutorRepositoryInterface } from '../../domain/repositories/executor.repository.interface';
-import { WillRepositoryInterface } from '../../domain/repositories/will.repository.interface';
+import { ExecutorRepositoryInterface } from '../../domain/interfaces/executor.repository.interface';
+import { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
 import { AssetValue } from '../../domain/value-objects/asset-value.vo';
 import { NominateExecutorCommand } from '../commands/nominate-executor.command';
 import { GetExecutorsQuery } from '../queries/get-executors.query';

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@shamba/database';
 import { BequestType, BequestConditionType, DistributionStatus } from '@prisma/client';
-import { BeneficiaryRepositoryInterface } from '../../../domain/repositories/beneficiary.repository.interface';
+import { BeneficiaryRepositoryInterface } from '../../../domain/interfaces/beneficiary.repository.interface';
 import { Beneficiary } from '../../../domain/entities/beneficiary.entity';
 import { BeneficiaryMapper } from '../mappers/beneficiary.mapper';
 

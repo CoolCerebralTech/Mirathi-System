@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@shamba/database';
 import { ExecutorStatus } from '@prisma/client';
-import { ExecutorRepositoryInterface } from '../../../domain/repositories/executor.repository.interface';
+import { ExecutorRepositoryInterface } from '../../../domain/interfaces/executor.repository.interface';
 import { Executor } from '../../../domain/entities/executor.entity';
 import { ExecutorMapper } from '../mappers/executor.mapper';
 

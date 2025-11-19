@@ -7,6 +7,8 @@ import { WillCreatedEvent } from '../events/will-created.event';
 import { WillWitnessedEvent } from '../events/will-witnessed.event';
 import { WillActivatedEvent } from '../events/will-activated.event';
 import { WillRevokedEvent } from '../events/will-revoked.event';
+import { WillSupersededEvent } from '../events/will-superseded.event';
+import { WillContestedEvent } from '../events/will-contested.event';
 
 export interface FuneralWishes {
   burialLocation?: string;
@@ -22,7 +24,58 @@ export interface DigitalAssetInstructions {
   onlineAccountClosure?: string;
 }
 
+// Interface for reconstitute method to fix TypeScript errors
+export interface WillReconstituteProps {
+  id: string;
+  title: string;
+  testatorId: string;
+  status: WillStatus;
+  willDate: Date | string;
+  lastModified: Date | string;
+  versionNumber: number;
+  supersedes: string | null;
+  activatedAt: Date | string | null;
+  activatedBy: string | null;
+  executedAt: Date | string | null;
+  executedBy: string | null;
+  revokedAt: Date | string | null;
+  revokedBy: string | null;
+  revocationReason: string | null;
+  funeralWishes: FuneralWishes | null;
+  burialLocation: string | null;
+  residuaryClause: string | null;
+  digitalAssetInstructions: DigitalAssetInstructions | null;
+  specialInstructions: string | null;
+  requiresWitnesses: boolean;
+  witnessCount: number;
+  hasAllWitnesses: boolean;
+  isActiveRecord: boolean;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  deletedAt: Date | string | null;
+  _assetIds: string[];
+  _beneficiaryIds: string[];
+  _witnessIds: string[];
+  legalCapacity?: LegalCapacityData | null;
+}
+
+// Interface for LegalCapacity data structure
+export interface LegalCapacityData {
+  assessment: {
+    isOfAge: boolean;
+    isSoundMind: boolean;
+    understandsWillNature: boolean;
+    understandsAssetExtent: boolean;
+    understandsBeneficiaryClaims: boolean;
+    freeFromUndueInfluence: boolean;
+    assessmentDate: Date | string;
+    assessedBy?: string;
+  };
+  notes?: string;
+}
+
 export class Will extends AggregateRoot {
+  // Domain Properties
   private id: string;
   private title: string;
   private status: WillStatus;
@@ -56,29 +109,33 @@ export class Will extends AggregateRoot {
   private hasAllWitnesses: boolean;
 
   // Metadata
-  private isActiveRecord: boolean; // Renamed from isActive to avoid conflict
+  private isActiveRecord: boolean;
   private createdAt: Date;
   private updatedAt: Date;
   private deletedAt: Date | null;
 
-  // Domain relationships (Managed via Aggregate roots or services, not direct refs)
-  // In DDD, we typically store IDs, but keeping these arrays for logic is acceptable
-  // if they are loaded by the repository.
+  // Relationships (IDs only for DDD)
   private _assetIds: string[] = [];
   private _beneficiaryIds: string[] = [];
   private _witnessIds: string[] = [];
 
-  // Value Object
+  // Value Objects
   private legalCapacity: LegalCapacity | null = null;
 
-  private constructor(id: string, title: string, testatorId: string, legalCapacity: LegalCapacity) {
+  // Private constructor for internal use
+  private constructor(
+    id: string,
+    title: string,
+    testatorId: string,
+    legalCapacity: LegalCapacity | null,
+  ) {
     super();
     this.id = id;
     this.title = title.trim();
     this.testatorId = testatorId;
     this.legalCapacity = legalCapacity;
 
-    // Default State
+    // Defaults
     this.status = WillStatus.DRAFT;
     this.willDate = new Date();
     this.lastModified = new Date();
@@ -99,20 +156,30 @@ export class Will extends AggregateRoot {
     this.digitalAssetInstructions = null;
     this.specialInstructions = null;
 
-    this.requiresWitnesses = true; // Default for Kenyan wills
+    this.requiresWitnesses = true;
     this.witnessCount = 0;
     this.hasAllWitnesses = false;
 
-    this.isActiveRecord = true; // Renamed
+    this.isActiveRecord = true;
     this.createdAt = new Date();
     this.updatedAt = new Date();
     this.deletedAt = null;
   }
 
   // --------------------------------------------------------------------------
-  // FACTORY METHOD
+  // 1. FACTORY METHODS
   // --------------------------------------------------------------------------
-  static create(id: string, title: string, testatorId: string, legalCapacity: LegalCapacity): Will {
+
+  /**
+   * Create a NEW Will (Starts lifecycle)
+   */
+  static create(
+    id: string,
+    title: string,
+    testatorId: string,
+    legalCapacity: LegalCapacity,
+    version: number = 1,
+  ): Will {
     if (!title?.trim()) throw new Error('Will title is required');
     if (!testatorId) throw new Error('Testator ID is required');
 
@@ -121,12 +188,79 @@ export class Will extends AggregateRoot {
     }
 
     const will = new Will(id, title, testatorId, legalCapacity);
-    will.apply(new WillCreatedEvent(id, testatorId, title));
+    will.versionNumber = version;
+    will.apply(new WillCreatedEvent(id, testatorId, title, version));
     return will;
   }
 
+  /**
+   * Reconstitute a Will from Database (Does NOT trigger events)
+   * Usage: Repository.findOne()
+   */
+  static reconstitute(props: WillReconstituteProps): Will {
+    const will = new Will(props.id, props.title, props.testatorId, null);
+
+    // Hydrate properties safely with proper typing
+    will.status = props.status;
+    will.versionNumber = props.versionNumber;
+    will.supersedes = props.supersedes;
+    will.activatedAt = props.activatedAt ? new Date(props.activatedAt) : null;
+    will.activatedBy = props.activatedBy;
+    will.executedAt = props.executedAt ? new Date(props.executedAt) : null;
+    will.executedBy = props.executedBy;
+    will.revokedAt = props.revokedAt ? new Date(props.revokedAt) : null;
+    will.revokedBy = props.revokedBy;
+    will.revocationReason = props.revocationReason;
+    will.funeralWishes = props.funeralWishes;
+    will.burialLocation = props.burialLocation;
+    will.residuaryClause = props.residuaryClause;
+    will.digitalAssetInstructions = props.digitalAssetInstructions;
+    will.specialInstructions = props.specialInstructions;
+    will.requiresWitnesses = props.requiresWitnesses;
+    will.witnessCount = props.witnessCount;
+    will.hasAllWitnesses = props.hasAllWitnesses;
+    will.isActiveRecord = props.isActiveRecord;
+    will._assetIds = [...props._assetIds];
+    will._beneficiaryIds = [...props._beneficiaryIds];
+    will._witnessIds = [...props._witnessIds];
+
+    // Handle date conversions safely
+    will.willDate = new Date(props.willDate);
+    will.lastModified = new Date(props.lastModified);
+    will.createdAt = new Date(props.createdAt);
+    will.updatedAt = new Date(props.updatedAt);
+    will.deletedAt = props.deletedAt ? new Date(props.deletedAt) : null;
+
+    // Handle LegalCapacity reconstruction if provided
+    if (props.legalCapacity) {
+      will.legalCapacity = Will.reconstructLegalCapacity(props.legalCapacity);
+    }
+
+    return will;
+  }
+
+  /**
+   * Helper method to reconstruct LegalCapacity from raw data
+   */
+  private static reconstructLegalCapacity(data: LegalCapacityData): LegalCapacity {
+    // Convert assessmentDate to Date object if it's a string
+    const assessmentDate =
+      typeof data.assessment.assessmentDate === 'string'
+        ? new Date(data.assessment.assessmentDate)
+        : data.assessment.assessmentDate;
+
+    const assessment = {
+      ...data.assessment,
+      assessmentDate,
+    };
+
+    return new LegalCapacity(assessment, data.notes);
+  }
+
+  // ... rest of the methods remain the same (updateTitle, updateDetails, witness methods, lifecycle transitions, etc.)
+
   // --------------------------------------------------------------------------
-  // BUSINESS LOGIC & STATE TRANSITIONS
+  // 2. BUSINESS LOGIC & STATE TRANSITIONS
   // --------------------------------------------------------------------------
 
   updateTitle(title: string): void {
@@ -154,7 +288,7 @@ export class Will extends AggregateRoot {
     this.markAsModified();
   }
 
-  // Witness Management
+  // --- Witness Management ---
   addWitness(witnessId: string): void {
     this.validateModificationAllowed();
     if (!this._witnessIds.includes(witnessId)) {
@@ -174,11 +308,12 @@ export class Will extends AggregateRoot {
   }
 
   private checkWitnessCompletion(): void {
-    // Consume Single Source of Truth
     this.hasAllWitnesses = this.witnessCount >= KENYAN_LEGAL_REQUIREMENTS.MINIMUM_WITNESSES;
   }
 
-  // Lifecycle Transitions
+  // --------------------------------------------------------------------------
+  // 3. LIFECYCLE TRANSITIONS
+  // --------------------------------------------------------------------------
 
   markAsPendingWitness(): void {
     this.validateTransition(WillStatus.PENDING_WITNESS);
@@ -203,8 +338,8 @@ export class Will extends AggregateRoot {
   activate(activatedBy: string): void {
     this.validateTransition(WillStatus.ACTIVE);
 
-    // Re-verify capacity at activation time is a good practice
-    if (!this.legalCapacity?.hasLegalCapacity()) {
+    // Verify capacity one last time (optional but recommended)
+    if (this.legalCapacity && !this.legalCapacity.hasLegalCapacity()) {
       throw new Error('Cannot activate will: Testator lacks legal capacity.');
     }
 
@@ -215,15 +350,47 @@ export class Will extends AggregateRoot {
     this.apply(new WillActivatedEvent(this.id, this.testatorId));
   }
 
-  revoke(revokedBy: string, reason?: string): void {
+  /**
+   * Revoke the will (Section 16 Law of Succession)
+   */
+  revoke(
+    revokedBy: string,
+    reason: string,
+    method: 'NEW_WILL' | 'CODICIL' | 'DESTRUCTION' | 'COURT_ORDER',
+  ): void {
     this.validateTransition(WillStatus.REVOKED);
 
     this.status = WillStatus.REVOKED;
     this.revokedAt = new Date();
     this.revokedBy = revokedBy;
-    this.revocationReason = reason || null;
+    this.revocationReason = reason;
     this.markAsModified();
-    this.apply(new WillRevokedEvent(this.id, this.testatorId, reason || null)); // Fixed: convert undefined to null
+
+    this.apply(new WillRevokedEvent(this.id, this.testatorId, reason, revokedBy, method));
+  }
+
+  /**
+   * Supersede this will with a newer version
+   */
+  supersede(newWillId: string): void {
+    this.validateTransition(WillStatus.SUPERSEDED);
+
+    this.status = WillStatus.SUPERSEDED;
+    this.markAsModified();
+
+    this.apply(new WillSupersededEvent(this.id, newWillId, this.testatorId));
+  }
+
+  /**
+   * Mark as Contested (Court Dispute Filed)
+   */
+  contest(disputeId: string, reason: string): void {
+    this.validateTransition(WillStatus.CONTESTED);
+
+    this.status = WillStatus.CONTESTED;
+    this.markAsModified();
+
+    this.apply(new WillContestedEvent(this.id, disputeId, reason));
   }
 
   markAsExecuted(executedBy: string): void {
@@ -236,22 +403,25 @@ export class Will extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // HELPERS & VALIDATION
+  // 4. HELPERS & VALIDATION
   // --------------------------------------------------------------------------
 
   private validateModificationAllowed(): void {
     const definition = WILL_STATUS[this.status];
-    if (!definition.editable) {
+    if (!definition || !definition.editable) {
       throw new Error(`Cannot modify will in status ${this.status}.`);
     }
   }
 
   private validateTransition(targetStatus: WillStatus): void {
     const definition = WILL_STATUS[this.status];
-    // Use a safe cast or check because Prisma enum might be slightly different string type
-    // In a real app, ensure types align perfectly.
-    const allowedNext = definition.nextStatus as readonly string[];
+    if (!definition) {
+      throw new Error(`Invalid current status: ${this.status}`);
+    }
 
+    const allowedNext = definition.nextStatus as readonly WillStatus[];
+
+    // Check if targetStatus is in the allowed next statuses
     if (!allowedNext.includes(targetStatus)) {
       throw new Error(`Invalid status transition from ${this.status} to ${targetStatus}.`);
     }
@@ -263,9 +433,10 @@ export class Will extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // GETTERS
+  // 5. GETTERS & HELPER METHODS
   // --------------------------------------------------------------------------
 
+  // Core Properties
   getId(): string {
     return this.id;
   }
@@ -298,6 +469,7 @@ export class Will extends AggregateRoot {
     return this.supersedes;
   }
 
+  // Activation & Execution
   getActivatedAt(): Date | null {
     return this.activatedAt;
   }
@@ -314,6 +486,7 @@ export class Will extends AggregateRoot {
     return this.executedBy;
   }
 
+  // Revocation
   getRevokedAt(): Date | null {
     return this.revokedAt;
   }
@@ -326,6 +499,7 @@ export class Will extends AggregateRoot {
     return this.revocationReason;
   }
 
+  // Content
   getFuneralWishes(): FuneralWishes | null {
     return this.funeralWishes ? { ...this.funeralWishes } : null;
   }
@@ -346,6 +520,7 @@ export class Will extends AggregateRoot {
     return this.specialInstructions;
   }
 
+  // Witnesses
   getRequiresWitnesses(): boolean {
     return this.requiresWitnesses;
   }
@@ -358,8 +533,8 @@ export class Will extends AggregateRoot {
     return this.hasAllWitnesses;
   }
 
+  // Metadata
   getIsActiveRecord(): boolean {
-    // Renamed getter
     return this.isActiveRecord;
   }
 
@@ -375,11 +550,12 @@ export class Will extends AggregateRoot {
     return this.deletedAt;
   }
 
+  // Value Objects
   getLegalCapacity(): LegalCapacity | null {
     return this.legalCapacity;
   }
 
-  // Domain relationships getters (return copies to maintain encapsulation)
+  // Domain Relationships
   getAssetIds(): string[] {
     return [...this._assetIds];
   }
@@ -392,19 +568,20 @@ export class Will extends AggregateRoot {
     return [...this._witnessIds];
   }
 
-  // Derived properties / computed getters
+  // Derived Properties & Business Logic Helpers
   isEditable(): boolean {
-    return WILL_STATUS[this.status].editable;
+    const definition = WILL_STATUS[this.status];
+    return definition?.editable || false;
   }
 
   canBeActivated(): boolean {
     const definition = WILL_STATUS[this.status];
-    return definition.nextStatus.includes(WillStatus.ACTIVE);
+    return definition?.nextStatus.includes(WillStatus.ACTIVE) || false;
   }
 
   isRevocable(): boolean {
     const definition = WILL_STATUS[this.status];
-    return definition.nextStatus.includes(WillStatus.REVOKED);
+    return definition?.nextStatus.includes(WillStatus.REVOKED) || false;
   }
 
   hasMinimumWitnesses(): boolean {
@@ -416,7 +593,6 @@ export class Will extends AggregateRoot {
   }
 
   isActiveStatus(): boolean {
-    // Renamed from isActive()
     return this.status === WillStatus.ACTIVE;
   }
 
@@ -444,7 +620,28 @@ export class Will extends AggregateRoot {
     return (
       this.status === WillStatus.WITNESSED &&
       this.hasMinimumWitnesses() &&
-      this.legalCapacity?.hasLegalCapacity() === true
+      (this.legalCapacity?.hasLegalCapacity() ?? false)
     );
+  }
+
+  isSuperseded(): boolean {
+    return this.status === WillStatus.SUPERSEDED;
+  }
+
+  isContested(): boolean {
+    return this.status === WillStatus.CONTESTED;
+  }
+
+  // Validation helpers
+  isValidForExecution(): boolean {
+    return (
+      this.status === WillStatus.ACTIVE &&
+      this.hasMinimumWitnesses() &&
+      (this.legalCapacity?.hasLegalCapacity() ?? false)
+    );
+  }
+
+  canBeSuperseded(): boolean {
+    return this.status === WillStatus.ACTIVE || this.status === WillStatus.WITNESSED;
   }
 }

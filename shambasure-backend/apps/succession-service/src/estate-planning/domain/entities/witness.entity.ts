@@ -1,7 +1,6 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { WitnessStatus } from '@prisma/client';
 import { KenyanId } from '../value-objects/kenyan-id.vo';
-// We assume these events exist or will be created based on this entity's actions
 import { WitnessAddedEvent } from '../events/witness-added.event';
 import { WitnessSignedEvent } from '../events/witness-signed.event';
 import { WitnessVerifiedEvent } from '../events/witness-verified.event';
@@ -19,9 +18,35 @@ export interface WitnessInfo {
   fullName: string;
   email?: string;
   phone?: string;
-  idNumber?: string; // We keep as string here, but validate via VO
+  idNumber?: string;
   relationship?: string;
   address?: WitnessAddress;
+}
+
+// Interface for WitnessAddedEvent witnessInfo parameter
+export interface WitnessEventInfo {
+  userId?: string;
+  fullName: string;
+  email?: string;
+  phone?: string;
+  idNumber?: string;
+  relationship?: string;
+}
+
+// Interface for reconstitute method
+export interface WitnessReconstituteProps {
+  id: string;
+  willId: string;
+  witnessInfo: WitnessInfo;
+  status: WitnessStatus;
+  signedAt: Date | string | null;
+  signatureData: string | null;
+  verifiedAt: Date | string | null;
+  verifiedBy: string | null;
+  isEligible: boolean;
+  ineligibilityReason: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
 
 export class Witness extends AggregateRoot {
@@ -34,7 +59,7 @@ export class Witness extends AggregateRoot {
   private signedAt: Date | null;
   private signatureData: string | null;
   private verifiedAt: Date | null;
-  private verifiedBy: string | null; // User ID of the admin/verifier
+  private verifiedBy: string | null;
 
   // Eligibility State
   private isEligible: boolean;
@@ -65,7 +90,7 @@ export class Witness extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // FACTORY METHODS
+  // 1. FACTORY METHODS
   // --------------------------------------------------------------------------
 
   static createForUser(
@@ -83,15 +108,14 @@ export class Witness extends AggregateRoot {
 
     const witness = new Witness(id, willId, witnessInfo);
 
-    // Fixed: Pass witnessInfo object instead of individual strings
-    witness.apply(
-      new WitnessAddedEvent(
-        id,
-        willId,
-        { userId, fullName }, // witnessInfo object
-        'USER',
-      ),
-    );
+    // Create event info with only the properties that WitnessAddedEvent expects
+    const eventInfo: WitnessEventInfo = {
+      userId,
+      fullName,
+      relationship,
+    };
+
+    witness.apply(new WitnessAddedEvent(id, willId, eventInfo, 'USER'));
     return witness;
   }
 
@@ -99,44 +123,71 @@ export class Witness extends AggregateRoot {
     id: string,
     willId: string,
     fullName: string,
-    idNumber: string,
     email: string,
     phone: string,
+    idNumber?: string,
     relationship?: string,
     address?: WitnessAddress,
   ): Witness {
-    // Pre-validate ID format using our Value Object logic
-    if (!KenyanId.isValid(idNumber)) {
+    // Pre-validate ID format using our Value Object logic if provided
+    if (idNumber && !KenyanId.isValid(idNumber)) {
       throw new Error(`Invalid Kenyan ID number: ${idNumber}`);
     }
 
     const witnessInfo: WitnessInfo = {
       fullName,
-      idNumber,
       email,
       phone,
+      idNumber,
       relationship,
       address,
     };
 
     const witness = new Witness(id, willId, witnessInfo);
 
-    // Fixed: Pass witnessInfo object instead of individual strings
-    witness.apply(
-      new WitnessAddedEvent(
-        id,
-        willId,
-        { fullName, email, phone }, // witnessInfo object
-        'EXTERNAL',
-      ),
-    );
+    // Create event info with only the properties that WitnessAddedEvent expects
+    const eventInfo: WitnessEventInfo = {
+      fullName,
+      email,
+      phone,
+      idNumber,
+      relationship,
+    };
+
+    witness.apply(new WitnessAddedEvent(id, willId, eventInfo, 'EXTERNAL'));
+    return witness;
+  }
+
+  /**
+   * Rehydrate from Database (No Events)
+   */
+  static reconstitute(props: WitnessReconstituteProps): Witness {
+    const witness = new Witness(props.id, props.willId, props.witnessInfo);
+
+    // Hydrate properties safely with proper typing
+    witness.status = props.status;
+    witness.signatureData = props.signatureData;
+    witness.verifiedBy = props.verifiedBy;
+    witness.isEligible = props.isEligible;
+    witness.ineligibilityReason = props.ineligibilityReason;
+
+    // Handle date conversions safely
+    witness.signedAt = props.signedAt ? new Date(props.signedAt) : null;
+    witness.verifiedAt = props.verifiedAt ? new Date(props.verifiedAt) : null;
+    witness.createdAt = new Date(props.createdAt);
+    witness.updatedAt = new Date(props.updatedAt);
+
     return witness;
   }
 
   // --------------------------------------------------------------------------
-  // BUSINESS LOGIC & MUTATORS
+  // 2. BUSINESS LOGIC & MUTATORS
   // --------------------------------------------------------------------------
 
+  /**
+   * Witness signs the will.
+   * In digital context, this receives the signature hash/data.
+   */
   sign(signatureData: string): void {
     if (this.status !== WitnessStatus.PENDING) {
       throw new Error('Only pending witnesses can sign the will.');
@@ -158,6 +209,9 @@ export class Witness extends AggregateRoot {
     this.apply(new WitnessSignedEvent(this.id, this.willId, this.signedAt));
   }
 
+  /**
+   * Verifier (Admin/Lawyer) confirms witness identity matches the signature.
+   */
   verify(verifiedBy: string): void {
     if (this.status !== WitnessStatus.SIGNED) {
       throw new Error('Only signed witnesses can be verified.');
@@ -177,9 +231,12 @@ export class Witness extends AggregateRoot {
     this.verifiedBy = verifiedBy;
     this.updatedAt = new Date();
 
-    this.apply(new WitnessVerifiedEvent(this.id, this.willId, verifiedBy));
+    this.apply(new WitnessVerifiedEvent(this.id, this.willId, verifiedBy, this.verifiedAt));
   }
 
+  /**
+   * Reject a witness (e.g. conflict of interest found, or refused to sign).
+   */
   reject(reason: string): void {
     // Rejection is final
     this.status = WitnessStatus.REJECTED;
@@ -198,6 +255,11 @@ export class Witness extends AggregateRoot {
   }
 
   updateContactInfo(email?: string, phone?: string, address?: WitnessAddress): void {
+    if (this.status === WitnessStatus.VERIFIED) {
+      // Policy: Maybe allow updates, maybe not.
+      // For now, allow but log it (implicitly via updatedAt).
+    }
+
     if (email) this.witnessInfo.email = email;
     if (phone) this.witnessInfo.phone = phone;
     if (address) this.witnessInfo.address = { ...address };
@@ -205,7 +267,7 @@ export class Witness extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // VALIDATION & RULES
+  // 3. VALIDATION & RULES
   // --------------------------------------------------------------------------
 
   private validateWitnessInfo(info: WitnessInfo): void {
@@ -245,9 +307,10 @@ export class Witness extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // GETTERS
+  // 4. GETTERS & HELPER METHODS
   // --------------------------------------------------------------------------
 
+  // Core Properties
   getId(): string {
     return this.id;
   }
@@ -289,13 +352,14 @@ export class Witness extends AggregateRoot {
   }
 
   getCreatedAt(): Date {
-    return this.createdAt;
+    return new Date(this.createdAt);
   }
 
   getUpdatedAt(): Date {
-    return this.updatedAt;
+    return new Date(this.updatedAt);
   }
 
+  // Status Checkers
   isRegisteredUser(): boolean {
     return !!this.witnessInfo.userId;
   }
@@ -308,20 +372,6 @@ export class Witness extends AggregateRoot {
     return this.status === WitnessStatus.VERIFIED;
   }
 
-  // Additional computed getters for business logic
-  canSign(): boolean {
-    return this.status === WitnessStatus.PENDING && this.isEligible;
-  }
-
-  canBeVerified(): boolean {
-    return (
-      this.status === WitnessStatus.SIGNED &&
-      this.isEligible &&
-      !!this.witnessInfo.idNumber &&
-      KenyanId.isValid(this.witnessInfo.idNumber)
-    );
-  }
-
   isPending(): boolean {
     return this.status === WitnessStatus.PENDING;
   }
@@ -330,6 +380,7 @@ export class Witness extends AggregateRoot {
     return this.status === WitnessStatus.REJECTED;
   }
 
+  // Detailed Info Getters
   getFullName(): string {
     return this.witnessInfo.fullName;
   }
@@ -356,5 +407,74 @@ export class Witness extends AggregateRoot {
 
   getUserId(): string | undefined {
     return this.witnessInfo.userId;
+  }
+
+  // Business Logic Helpers
+  canSign(): boolean {
+    return this.status === WitnessStatus.PENDING && this.isEligible;
+  }
+
+  canBeVerified(): boolean {
+    return (
+      this.status === WitnessStatus.SIGNED &&
+      this.isEligible &&
+      !!this.witnessInfo.idNumber &&
+      KenyanId.isValid(this.witnessInfo.idNumber)
+    );
+  }
+
+  // Validation Helpers
+  hasRequiredContactInfo(): boolean {
+    return !!(this.witnessInfo.email || this.witnessInfo.phone);
+  }
+
+  hasValidIdNumber(): boolean {
+    return !!(this.witnessInfo.idNumber && KenyanId.isValid(this.witnessInfo.idNumber));
+  }
+
+  isCompliantWithKenyanLaw(): boolean {
+    const validation = this.validateForKenyanLaw();
+    return validation.isValid;
+  }
+
+  getComplianceIssues(): string[] {
+    const validation = this.validateForKenyanLaw();
+    return validation.issues;
+  }
+
+  // Utility Methods
+  getContactInfo(): string {
+    if (this.witnessInfo.email && this.witnessInfo.phone) {
+      return `${this.witnessInfo.email} / ${this.witnessInfo.phone}`;
+    }
+    return this.witnessInfo.email || this.witnessInfo.phone || 'No contact info';
+  }
+
+  getFormattedAddress(): string {
+    if (!this.witnessInfo.address) return 'No address provided';
+
+    const { street, city, county, postalCode } = this.witnessInfo.address;
+    const parts = [street, city, county, postalCode].filter(Boolean);
+    return parts.join(', ');
+  }
+
+  // Eligibility Management
+  canBeReinstated(): boolean {
+    return this.status === WitnessStatus.REJECTED || !this.isEligible;
+  }
+
+  reinstate(): void {
+    if (!this.canBeReinstated()) {
+      throw new Error('Witness cannot be reinstated in current state');
+    }
+
+    this.isEligible = true;
+    this.ineligibilityReason = null;
+
+    if (this.status === WitnessStatus.REJECTED) {
+      this.status = WitnessStatus.PENDING;
+    }
+
+    this.updatedAt = new Date();
   }
 }

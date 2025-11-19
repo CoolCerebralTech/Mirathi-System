@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '@shamba/database';
 import { WitnessStatus } from '@prisma/client';
-import { WitnessRepositoryInterface } from '../../../domain/repositories/witness.repository.interface';
+import { WitnessRepositoryInterface } from '../../../domain/interfaces/witness.repository.interface';
 import { Witness } from '../../../domain/entities/witness.entity';
 import { WitnessMapper } from '../mappers/witness.mapper';
 

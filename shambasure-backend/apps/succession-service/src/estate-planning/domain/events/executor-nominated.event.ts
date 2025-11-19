@@ -5,11 +5,13 @@ export class ExecutorNominatedEvent {
     public readonly executorInfo: {
       userId?: string;
       fullName?: string;
-      email?: string; // Critical for sending invitations
-      phone?: string; // Critical for sending invitations
+      email?: string;
+      phone?: string;
+      relationship?: string; // e.g., "Brother"
     },
     public readonly type: 'USER' | 'EXTERNAL',
     public readonly isPrimary: boolean,
+    public readonly priorityOrder: number, // 1 = First Choice, 2 = Alternate
     public readonly timestamp: Date = new Date(),
   ) {}
 }

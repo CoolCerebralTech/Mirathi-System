@@ -1,437 +1,139 @@
 import { Injectable } from '@nestjs/common';
-import { WillStatus, BequestType } from '@prisma/client';
 import { WillAggregate } from '../aggregates/will.aggregate';
-import { LegalCapacity } from '../value-objects/legal-capacity.vo';
-import { DependantsProvisionPolicy } from '../policies/dependants-provision.policy';
+import { WillStructurePolicy } from '../policies/will-structure.policy';
+import {
+  DependantsProvisionPolicy,
+  PotentialDependant,
+} from '../policies/dependants-provision.policy';
+import { ExecutorEligibilityPolicy } from '../policies/executor-eligibility.policy';
 import { WitnessEligibilityPolicy } from '../policies/witness-eligibility.policy';
+import { AssetVerificationPolicy } from '../policies/asset-verification.policy';
 
-export interface WillValidationResult {
+export interface ValidationResult {
   isValid: boolean;
-  errors: string[];
+  isLegallyCompliant: boolean; // Distinct from valid structure (e.g., structure ok, but illegal witness)
+  criticalErrors: string[];
   warnings: string[];
-  recommendations: string[];
-  complianceLevel: 'FULL' | 'PARTIAL' | 'MINIMAL' | 'NON_COMPLIANT';
+  suggestions: string[];
+  complianceScore: number; // 0-100
 }
 
 @Injectable()
 export class WillValidationService {
   constructor(
+    private readonly structurePolicy: WillStructurePolicy,
     private readonly dependantsPolicy: DependantsProvisionPolicy,
+    private readonly executorPolicy: ExecutorEligibilityPolicy,
     private readonly witnessPolicy: WitnessEligibilityPolicy,
+    private readonly assetPolicy: AssetVerificationPolicy,
   ) {}
 
   /**
-   * Comprehensive will validation against Kenyan legal requirements
+   * Performs a comprehensive legal and structural audit of the Will.
+   * @param aggregate The Will Aggregate containing all entities
+   * @param familyMembers List of potential dependants (fetched from Family Service)
    */
-  async validateWill(
-    will: WillAggregate,
-    context: {
-      testatorAge: number;
-      familyMembers: any[];
-      legalCapacity: LegalCapacity;
-    },
-  ): Promise<WillValidationResult> {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-    const recommendations: string[] = [];
-
-    // 1. Basic validation
-    this.validateBasicRequirements(will, errors, warnings);
-
-    // 2. Legal capacity validation
-    this.validateLegalCapacity(will, context.legalCapacity, errors);
-
-    // 3. Witness validation
-    await this.validateWitnesses(will, errors, warnings);
-
-    // 4. Executor validation
-    this.validateExecutors(will, errors, warnings);
-
-    // 5. Beneficiary and asset validation
-    this.validateBeneficiaryAssignments(will, errors, warnings);
-
-    // 6. Dependants provision validation (Kenyan law)
-    await this.validateDependantsProvision(will, context, errors, warnings, recommendations);
-
-    // 7. Special Kenyan law requirements
-    this.validateKenyanSpecificRequirements(will, errors, warnings, recommendations);
-
-    // Determine compliance level
-    const complianceLevel = this.determineComplianceLevel(errors, warnings);
-
-    return {
-      isValid: errors.length === 0,
-      errors,
-      warnings,
-      recommendations,
-      complianceLevel,
+  public validateWill(
+    aggregate: WillAggregate,
+    familyMembers: PotentialDependant[] = [], // Optional, but required for Sec 26 check
+  ): ValidationResult {
+    const result: ValidationResult = {
+      isValid: true,
+      isLegallyCompliant: true,
+      criticalErrors: [],
+      warnings: [],
+      suggestions: [],
+      complianceScore: 100,
     };
-  }
 
-  /**
-   * Validate basic will requirements
-   */
-  private validateBasicRequirements(
-    will: WillAggregate,
-    errors: string[],
-    warnings: string[],
-  ): void {
-    const willEntity = will.getWill();
-
-    // Title validation
-    if (!willEntity.getTitle()?.trim()) {
-      errors.push('Will must have a title');
-    }
-
-    // Testator validation
-    if (!willEntity.getTestatorId()) {
-      errors.push('Will must have a testator');
-    }
-
-    // Residuary clause validation
-    if (!willEntity.getResiduaryClause()) {
-      warnings.push('Residuary clause is recommended to handle unforeseen assets');
-    }
-
-    // Funeral wishes (optional but recommended)
-    if (!willEntity.getFuneralWishes()) {
-      recommendations.push('Consider adding funeral and burial wishes');
-    }
-  }
-
-  /**
-   * Validate testator's legal capacity
-   */
-  private validateLegalCapacity(
-    will: WillAggregate,
-    legalCapacity: LegalCapacity,
-    errors: string[],
-  ): void {
-    if (!legalCapacity.hasLegalCapacity()) {
-      errors.push('Testator does not have legal capacity to create a will');
-      return;
-    }
-
-    // Check if capacity assessment is current
-    if (!legalCapacity.isAssessmentCurrent()) {
-      warnings.push('Legal capacity assessment may be outdated');
-    }
-
-    // Check for risk factors
-    const riskFactors = legalCapacity.getRiskFactors();
-    if (riskFactors.length > 0) {
-      warnings.push(`Potential capacity concerns: ${riskFactors.join(', ')}`);
-    }
-  }
-
-  /**
-   * Validate witnesses according to Kenyan law
-   */
-  private async validateWitnesses(
-    will: WillAggregate,
-    errors: string[],
-    warnings: string[],
-  ): Promise<void> {
-    const witnesses = will.getAllWitnesses();
-    const signedWitnesses = will.getSignedWitnesses();
-
-    // Minimum witness requirement
-    if (will.getWill().getRequiresWitnesses() && signedWitnesses.length < 2) {
-      errors.push('Kenyan law requires at least 2 signed witnesses');
-    }
-
-    // Witness eligibility
-    for (const witness of witnesses) {
-      const eligibility = this.witnessPolicy.validateEligibility({
-        id: witness.getId(),
-        userId: witness.getWitnessInfo().userId,
-        fullName: witness.getWitnessInfo().fullName,
-        idNumber: witness.getWitnessInfo().idNumber,
-        relationship: witness.getWitnessInfo().relationship,
-        age: 25, // In reality, we'd get this from user profile
-        isBeneficiary: false, // In reality, we'd check beneficiary assignments
-        isSpouse: witness.getWitnessInfo().relationship?.toLowerCase().includes('spouse') || false,
-        isExecutor: false, // In reality, we'd check executor nominations
-        hasMentalCapacity: true, // Assume yes unless known otherwise
-        canReadWrite: true, // Assume yes for registered users
-      });
-
-      if (!eligibility.isEligible) {
-        errors.push(
-          `Witness ${witness.getWitnessName()} is ineligible: ${eligibility.issues.join(', ')}`,
-        );
-      }
-
-      eligibility.recommendations.forEach((rec) => recommendations.push(rec));
-    }
-
-    // Witness signing process
-    if (signedWitnesses.length > 0) {
-      const signingValidation = this.witnessPolicy.validateWitnessingProcess({
-        witnesses: signedWitnesses.map((w) => ({
-          id: w.getId(),
-          fullName: w.getWitnessInfo().fullName,
-          // ... other properties
-        })),
-        testatorPresent: true, // Assume yes for digital signing
-        allWitnessesPresentTogether: signedWitnesses.length >= 2,
-        signedInPresenceOfTestator: true,
-        dateOfSigning: will.getWill().getWillDate(),
-      });
-
-      if (!signingValidation.isValid) {
-        errors.push(...signingValidation.issues);
-      }
-    }
-  }
-
-  /**
-   * Validate executor nominations
-   */
-  private validateExecutors(will: WillAggregate, errors: string[], warnings: string[]): void {
-    const executors = will.getAllExecutors();
-
-    if (executors.length === 0) {
-      errors.push('At least one executor must be nominated');
-      return;
-    }
-
-    // Check for primary executor
-    const primaryExecutor = will.getPrimaryExecutor();
-    if (!primaryExecutor) {
-      warnings.push('Consider nominating a primary executor for clarity');
-    }
-
-    // Validate executor order of priority
-    const priorities = executors.map((e) => e.getOrderOfPriority());
-    const uniquePriorities = new Set(priorities);
-    if (uniquePriorities.size !== priorities.length) {
-      warnings.push('Multiple executors have the same priority level');
-    }
-
-    // Check for accepted executors
-    const acceptedExecutors = executors.filter((e) => e.hasAccepted());
-    if (acceptedExecutors.length === 0 && will.getWill().isActiveWill()) {
-      warnings.push('No executors have accepted their nomination for the active will');
-    }
-  }
-
-  /**
-   * Validate beneficiary assignments and asset distribution
-   */
-  private validateBeneficiaryAssignments(
-    will: WillAggregate,
-    errors: string[],
-    warnings: string[],
-  ): void {
-    const assets = will.getAllAssets();
-    const beneficiaries = will.getAllBeneficiaries();
-
-    if (assets.length === 0) {
-      errors.push('No assets assigned to the will');
-    }
-
-    if (beneficiaries.length === 0) {
-      errors.push('No beneficiaries assigned to the will');
-    }
-
-    // Check each asset has beneficiaries
-    for (const asset of assets) {
-      const assetBeneficiaries = will.getBeneficiariesForAsset(asset.getId());
-      if (assetBeneficiaries.length === 0) {
-        errors.push(`Asset "${asset.getName()}" has no beneficiaries assigned`);
-      }
-
-      // Check percentage allocation
-      const percentageBeneficiaries = assetBeneficiaries.filter(
-        (b) => b.getBequestType() === BequestType.PERCENTAGE,
-      );
-
-      if (percentageBeneficiaries.length > 0) {
-        const totalPercentage = percentageBeneficiaries.reduce(
-          (sum, b) => sum + (b.getSharePercentage()?.getValue() || 0),
-          0,
-        );
-
-        if (Math.abs(totalPercentage - 100) > 0.01) {
-          errors.push(
-            `Asset "${asset.getName()}" has invalid percentage allocation: ${totalPercentage}% (must total 100%)`,
-          );
-        }
-      }
-    }
-
-    // Check for conditional bequests without alternates
-    const conditionalBequests = beneficiaries.filter((b) => b.isConditional());
-    for (const bequest of conditionalBequests) {
-      if (!bequest.hasAlternate()) {
-        warnings.push(
-          `Conditional bequest for ${bequest.getBeneficiaryName()} has no alternate beneficiary specified`,
-        );
-      }
-    }
-  }
-
-  /**
-   * Validate provision for dependants as required by Kenyan law
-   */
-  private async validateDependantsProvision(
-    will: WillAggregate,
-    context: { testatorAge: number; familyMembers: any[] },
-    errors: string[],
-    warnings: string[],
-    recommendations: string[],
-  ): Promise<void> {
-    // Identify dependants
-    const dependants = DependantsProvisionPolicy.identifyDependants(
-      context.familyMembers,
-      context.testatorAge,
+    // 1. Structure & Distribution Logic
+    const structureCheck = this.structurePolicy.validateDistributionStructure(
+      aggregate.getWill(),
+      aggregate.getBeneficiaries(),
     );
+    this.mergeResult(result, structureCheck.errors, structureCheck.warnings, [], true);
 
-    if (dependants.length === 0) {
-      return; // No dependants to provide for
+    // 2. Asset Verification (Testamentary Capacity)
+    for (const asset of aggregate.getAssets()) {
+      const assetCheck = this.assetPolicy.checkTestamentaryCapacity(asset);
+      if (!assetCheck.isCompliant) {
+        this.mergeResult(
+          result,
+          assetCheck.errors.map((e) => `Asset '${asset.getName()}': ${e}`),
+          assetCheck.warnings.map((w) => `Asset '${asset.getName()}': ${w}`),
+          [],
+          true,
+        );
+      }
     }
 
-    // Create estate context for validation
-    const estateContext = {
-      totalEstateValue: will.getTotalEstateValue(),
-      testatorAge: context.testatorAge,
-      hasValidWill: true,
-      dependants,
-      provisionsMade: [], // In reality, we'd map from beneficiary assignments
-    };
+    // 3. Executor Eligibility
+    const executorCheck = this.executorPolicy.checkExecutorComposition(aggregate.getExecutors());
+    this.mergeResult(result, executorCheck.errors, executorCheck.warnings, [], true);
 
-    // Validate adequate provision
-    const provisionValidation = this.dependantsPolicy.validateAdequateProvision(estateContext);
+    // 4. Witness Eligibility (Section 11 & 13)
+    // Only relevant if witnesses are added/signed
+    const witnesses = aggregate.getWitnesses();
+    if (witnesses.length > 0) {
+      const witnessCompCheck = this.witnessPolicy.validateWitnessComposition(witnesses);
+      this.mergeResult(result, witnessCompCheck.errors, witnessCompCheck.warnings, [], true);
 
-    if (!provisionValidation.isAdequate) {
-      provisionValidation.shortfalls.forEach((shortfall) => {
-        warnings.push(`Inadequate provision for dependant: ${shortfall.reason}`);
-      });
+      for (const witness of witnesses) {
+        // Check Conflict of Interest (Witness cannot be beneficiary)
+        const conflictCheck = this.witnessPolicy.checkConflictOfInterest(
+          witness,
+          aggregate.getBeneficiaries(),
+        );
+        this.mergeResult(result, conflictCheck.errors, conflictCheck.warnings, [], true);
+      }
     }
 
-    provisionValidation.recommendations.forEach((rec) => recommendations.push(rec));
+    // 5. Dependant Provision (Section 26) - "The Moral Duty"
+    // This usually produces Warnings/Risk, not Hard Errors (you CAN disinherit, but it's risky)
+    if (familyMembers.length > 0) {
+      // We need an estimated value to calculate percentages. Passing 0 triggers fallback logic.
+      const provisionCheck = this.dependantsPolicy.validateProvision(
+        familyMembers,
+        aggregate.getBeneficiaries(),
+        0,
+      );
+
+      if (provisionCheck.riskLevel === 'HIGH' || provisionCheck.riskLevel === 'CRITICAL') {
+        // We treat High Risk as a warning that lowers score significantly
+        this.mergeResult(result, [], provisionCheck.issues, provisionCheck.suggestions, false);
+        result.complianceScore -= 20;
+      } else if (provisionCheck.riskLevel === 'MEDIUM') {
+        this.mergeResult(result, [], provisionCheck.issues, provisionCheck.suggestions, false);
+        result.complianceScore -= 10;
+      }
+    }
+
+    // Final Score Calculation
+    if (result.criticalErrors.length > 0) {
+      result.isValid = false;
+      result.isLegallyCompliant = false;
+      result.complianceScore = 0;
+    }
+
+    return result;
   }
 
-  /**
-   * Validate Kenyan-specific legal requirements
-   */
-  private validateKenyanSpecificRequirements(
-    will: WillAggregate,
+  // Helper to merge policy results into main result
+  private mergeResult(
+    target: ValidationResult,
     errors: string[],
     warnings: string[],
-    recommendations: string[],
-  ): void {
-    const willEntity = will.getWill();
-
-    // Agricultural land considerations
-    const hasAgriculturalLand = will
-      .getAllAssets()
-      .some(
-        (asset) =>
-          asset.getType() === 'LAND_PARCEL' &&
-          asset.getLocation()?.county &&
-          this.isAgriculturalCounty(asset.getLocation().county),
-      );
-
-    if (hasAgriculturalLand) {
-      recommendations.push(
-        'Consider spouse life interest provisions for agricultural land as per Kenyan customary law',
-      );
+    suggestions: string[] = [],
+    isCritical: boolean,
+  ) {
+    if (errors.length > 0) {
+      target.criticalErrors.push(...errors);
+      if (isCritical) {
+        target.isValid = false;
+        target.isLegallyCompliant = false;
+      }
     }
-
-    // Digital assets in Kenyan context
-    if (willEntity.getDigitalAssetInstructions()) {
-      recommendations.push(
-        'Ensure digital asset instructions comply with Kenyan data protection laws',
-      );
-    }
-
-    // Funeral and burial customs
-    if (willEntity.getFuneralWishes()) {
-      recommendations.push(
-        'Consider including traditional funeral rites if culturally appropriate',
-      );
-    }
-
-    // Tax considerations
-    const estateValue = will.getTotalEstateValue().getAmount();
-    if (estateValue > 10000000) {
-      // 10M KES
-      recommendations.push(
-        'Estate may be subject to inheritance tax - consider tax planning strategies',
-      );
-    }
-  }
-
-  /**
-   * Determine overall compliance level
-   */
-  private determineComplianceLevel(
-    errors: string[],
-    warnings: string[],
-  ): 'FULL' | 'PARTIAL' | 'MINIMAL' | 'NON_COMPLIANT' {
-    if (errors.length === 0 && warnings.length === 0) {
-      return 'FULL';
-    } else if (errors.length === 0 && warnings.length <= 2) {
-      return 'PARTIAL';
-    } else if (errors.length === 0) {
-      return 'MINIMAL';
-    } else {
-      return 'NON_COMPLIANT';
-    }
-  }
-
-  private isAgriculturalCounty(county: string): boolean {
-    const agriculturalCounties = [
-      'Nakuru',
-      'Uasin Gishu',
-      'Trans Nzoia',
-      'Laikipia',
-      'Nyandarua',
-      'Meru',
-      'Embu',
-      'Kirinyaga',
-      'Nyeri',
-      'Muranga',
-      'Kiambu',
-    ];
-    return agriculturalCounties.includes(county);
-  }
-
-  /**
-   * Quick validation for will status transitions
-   */
-  validateStatusTransition(
-    currentStatus: WillStatus,
-    newStatus: WillStatus,
-  ): { isValid: boolean; reason?: string } {
-    const validTransitions: Record<WillStatus, WillStatus[]> = {
-      [WillStatus.DRAFT]: [WillStatus.PENDING_WITNESS, WillStatus.REVOKED],
-      [WillStatus.PENDING_WITNESS]: [WillStatus.WITNESSED, WillStatus.DRAFT, WillStatus.REVOKED],
-      [WillStatus.WITNESSED]: [WillStatus.ACTIVE, WillStatus.REVOKED],
-      [WillStatus.ACTIVE]: [
-        WillStatus.REVOKED,
-        WillStatus.CONTESTED,
-        WillStatus.PROBATE,
-        WillStatus.EXECUTED,
-      ],
-      [WillStatus.REVOKED]: [],
-      [WillStatus.SUPERSEDED]: [],
-      [WillStatus.EXECUTED]: [],
-      [WillStatus.CONTESTED]: [WillStatus.ACTIVE, WillStatus.REVOKED],
-      [WillStatus.PROBATE]: [WillStatus.EXECUTED, WillStatus.CONTESTED],
-    };
-
-    const allowedTransitions = validTransitions[currentStatus] || [];
-
-    if (!allowedTransitions.includes(newStatus)) {
-      return {
-        isValid: false,
-        reason: `Cannot transition from ${currentStatus} to ${newStatus}`,
-      };
-    }
-
-    return { isValid: true };
+    target.warnings.push(...warnings);
+    target.suggestions.push(...suggestions);
   }
 }

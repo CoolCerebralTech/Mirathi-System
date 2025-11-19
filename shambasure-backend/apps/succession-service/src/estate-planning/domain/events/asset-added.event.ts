@@ -1,4 +1,4 @@
-import { AssetType } from '@prisma/client';
+import { AssetType, AssetOwnershipType } from '@prisma/client';
 import { AssetValue } from '../value-objects/asset-value.vo';
 
 export class AssetAddedEvent {
@@ -6,7 +6,8 @@ export class AssetAddedEvent {
     public readonly assetId: string,
     public readonly ownerId: string,
     public readonly assetType: AssetType,
-    public readonly value: AssetValue,
+    public readonly ownershipType: AssetOwnershipType,
+    public readonly initialValue: AssetValue,
     public readonly timestamp: Date = new Date(),
   ) {}
 }

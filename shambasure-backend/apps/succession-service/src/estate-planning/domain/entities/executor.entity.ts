@@ -8,7 +8,7 @@ import { ExecutorRemovedEvent } from '../events/executor-removed.event';
 
 export interface ExecutorInfo {
   userId?: string;
-  fullName?: string; // Required if userId is missing
+  fullName?: string;
   email?: string;
   phone?: string;
   relationship?: string;
@@ -18,6 +18,31 @@ export interface ExecutorInfo {
     county?: string;
     postalCode?: string;
   };
+}
+
+// Interface for AssetValue data structure
+export interface AssetValueData {
+  amount: number;
+  currency: string;
+  valuationDate: Date | string;
+}
+
+// Interface for reconstitute method
+export interface ExecutorReconstituteProps {
+  id: string;
+  willId: string;
+  executorInfo: ExecutorInfo;
+  isPrimary: boolean;
+  orderOfPriority: number;
+  status: ExecutorStatus;
+  appointedAt: Date | string | null;
+  acceptedAt: Date | string | null;
+  declinedAt: Date | string | null;
+  declineReason: string | null;
+  isCompensated: boolean;
+  compensationAmount: AssetValueData | AssetValue | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
 
 export class Executor extends AggregateRoot {
@@ -73,7 +98,7 @@ export class Executor extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // FACTORY METHODS
+  // 1. FACTORY METHODS
   // --------------------------------------------------------------------------
 
   static createForUser(
@@ -87,15 +112,8 @@ export class Executor extends AggregateRoot {
     const info: ExecutorInfo = { userId, relationship };
     const executor = new Executor(id, willId, info, isPrimary, priority);
 
-    // Fixed: Pass executorInfo object instead of userId string
     executor.apply(
-      new ExecutorNominatedEvent(
-        id,
-        willId,
-        { userId }, // executorInfo object
-        'USER',
-        isPrimary,
-      ),
+      new ExecutorNominatedEvent(id, willId, { userId, relationship }, 'USER', isPrimary, priority),
     );
 
     return executor;
@@ -115,22 +133,71 @@ export class Executor extends AggregateRoot {
     const info: ExecutorInfo = { fullName, email, phone, relationship, address };
     const executor = new Executor(id, willId, info, isPrimary, priority);
 
-    // Fixed: Pass executorInfo object instead of email string
     executor.apply(
       new ExecutorNominatedEvent(
         id,
         willId,
-        { fullName, email, phone }, // executorInfo object
+        { fullName, email, phone, relationship },
         'EXTERNAL',
         isPrimary,
+        priority,
       ),
     );
 
     return executor;
   }
 
+  /**
+   * Rehydrate from Database (No Events)
+   */
+  static reconstitute(props: ExecutorReconstituteProps): Executor {
+    const executor = new Executor(
+      props.id,
+      props.willId,
+      props.executorInfo,
+      props.isPrimary,
+      props.orderOfPriority,
+    );
+
+    // Hydrate properties safely with proper typing
+    executor.status = props.status;
+    executor.isCompensated = props.isCompensated;
+    executor.declineReason = props.declineReason;
+
+    // Handle date conversions safely
+    executor.appointedAt = props.appointedAt ? new Date(props.appointedAt) : null;
+    executor.acceptedAt = props.acceptedAt ? new Date(props.acceptedAt) : null;
+    executor.declinedAt = props.declinedAt ? new Date(props.declinedAt) : null;
+    executor.createdAt = new Date(props.createdAt);
+    executor.updatedAt = new Date(props.updatedAt);
+
+    // Handle AssetValue reconstruction if provided
+    if (props.compensationAmount) {
+      executor.compensationAmount = Executor.reconstructAssetValue(props.compensationAmount);
+    }
+
+    return executor;
+  }
+
+  /**
+   * Helper method to reconstruct AssetValue from raw data or existing instance
+   */
+  private static reconstructAssetValue(valueData: AssetValueData | AssetValue): AssetValue {
+    if (valueData instanceof AssetValue) {
+      return valueData;
+    }
+
+    // Handle raw data object with proper typing
+    const valuationDate =
+      typeof valueData.valuationDate === 'string'
+        ? new Date(valueData.valuationDate)
+        : valueData.valuationDate;
+
+    return new AssetValue(valueData.amount, valueData.currency, valuationDate);
+  }
+
   // --------------------------------------------------------------------------
-  // BUSINESS LOGIC & STATE TRANSITIONS
+  // 2. BUSINESS LOGIC & STATE TRANSITIONS
   // --------------------------------------------------------------------------
 
   appoint(): void {
@@ -141,8 +208,6 @@ export class Executor extends AggregateRoot {
     this.status = ExecutorStatus.ACTIVE;
     this.appointedAt = new Date();
     this.updatedAt = new Date();
-    // We don't necessarily emit an event here if "appoint" implies just setting the flag,
-    // but if it's a legal court appointment, we would.
   }
 
   accept(): void {
@@ -153,7 +218,6 @@ export class Executor extends AggregateRoot {
     this.status = ExecutorStatus.ACTIVE;
     this.acceptedAt = new Date();
 
-    // If they accepted, they are implicitly appointed if not already
     if (!this.appointedAt) {
       this.appointedAt = new Date();
     }
@@ -190,7 +254,7 @@ export class Executor extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // CONFIGURATION & COMPENSATION
+  // 3. CONFIGURATION & COMPENSATION
   // --------------------------------------------------------------------------
 
   markAsPrimary(): void {
@@ -210,7 +274,6 @@ export class Executor extends AggregateRoot {
   }
 
   setCompensation(amount: AssetValue): void {
-    // Typically court approved, but modelled here
     this.isCompensated = true;
     this.compensationAmount = amount;
     this.updatedAt = new Date();
@@ -223,7 +286,7 @@ export class Executor extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // VALIDATION & HELPERS
+  // 4. VALIDATION & HELPERS
   // --------------------------------------------------------------------------
 
   private validateExecutorInfo(info: ExecutorInfo): void {
@@ -236,32 +299,17 @@ export class Executor extends AggregateRoot {
       );
     }
 
-    // External executors need contact info
-    if (!hasUserId && (!info.email || !info.phone)) {
-      throw new Error('External executors must have valid contact information (email or phone).');
+    // External executors need contact info - updated logic to require at least one contact method
+    if (!hasUserId && !info.email && !info.phone) {
+      throw new Error('External executors must have at least one contact method (email or phone).');
     }
   }
 
-  isActive(): boolean {
-    return this.status === ExecutorStatus.ACTIVE;
-  }
-
-  hasAccepted(): boolean {
-    return !!this.acceptedAt;
-  }
-
-  canAccept(): boolean {
-    return this.status === ExecutorStatus.NOMINATED || this.status === ExecutorStatus.ACTIVE;
-  }
-
-  canDecline(): boolean {
-    return this.status !== ExecutorStatus.DECLINED && this.status !== ExecutorStatus.COMPLETED;
-  }
-
   // --------------------------------------------------------------------------
-  // GETTERS
+  // 5. GETTERS & HELPER METHODS
   // --------------------------------------------------------------------------
 
+  // Core Properties
   getId(): string {
     return this.id;
   }
@@ -319,6 +367,10 @@ export class Executor extends AggregateRoot {
   }
 
   // Additional computed getters for business logic
+  isActive(): boolean {
+    return this.status === ExecutorStatus.ACTIVE;
+  }
+
   isNominated(): boolean {
     return this.status === ExecutorStatus.NOMINATED;
   }
@@ -331,6 +383,19 @@ export class Executor extends AggregateRoot {
     return this.status === ExecutorStatus.REMOVED;
   }
 
+  hasAccepted(): boolean {
+    return !!this.acceptedAt;
+  }
+
+  canAccept(): boolean {
+    return this.status === ExecutorStatus.NOMINATED || this.status === ExecutorStatus.ACTIVE;
+  }
+
+  canDecline(): boolean {
+    return this.status !== ExecutorStatus.DECLINED && this.status !== ExecutorStatus.COMPLETED;
+  }
+
+  // Detailed info getters
   getFullName(): string | undefined {
     return this.executorInfo.fullName;
   }
@@ -353,5 +418,56 @@ export class Executor extends AggregateRoot {
 
   getUserId(): string | undefined {
     return this.executorInfo.userId;
+  }
+
+  // Business logic helpers
+  requiresCourtAppointment(): boolean {
+    // In some jurisdictions, primary executors might require court appointment
+    return this.isPrimary && !this.appointedAt;
+  }
+
+  canBeCompensated(): boolean {
+    // Only active or completed executors can be compensated
+    return this.isActive() || this.isCompleted();
+  }
+
+  isFullyConfigured(): boolean {
+    // Check if executor has all required information with proper boolean conversion
+    const hasRequiredInfo =
+      Boolean(this.executorInfo.userId) ||
+      (Boolean(this.executorInfo.fullName) &&
+        (Boolean(this.executorInfo.email) || Boolean(this.executorInfo.phone)));
+
+    return hasRequiredInfo && this.orderOfPriority >= 1;
+  }
+
+  getContactInfo(): string {
+    if (this.executorInfo.email && this.executorInfo.phone) {
+      return `${this.executorInfo.email} / ${this.executorInfo.phone}`;
+    }
+    return this.executorInfo.email || this.executorInfo.phone || 'No contact info';
+  }
+
+  // Validation methods
+  isValidForAppointment(): boolean {
+    return this.isNominated() && this.isFullyConfigured();
+  }
+
+  canAssumeDuties(): boolean {
+    return this.isActive() && this.hasAccepted() && !!this.appointedAt;
+  }
+
+  // Compensation validation
+  hasValidCompensation(): boolean {
+    if (!this.isCompensated || !this.compensationAmount) {
+      return true; // No compensation is valid
+    }
+
+    try {
+      // Validate that compensation amount is positive
+      return this.compensationAmount.getAmount() > 0;
+    } catch {
+      return false;
+    }
   }
 }

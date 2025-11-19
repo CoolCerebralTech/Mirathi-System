@@ -2,7 +2,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CommandBus, QueryBus, EventBus } from '@nestjs/cqrs';
 import { WillStatus } from '@prisma/client';
-import { WillRepositoryInterface } from '../../domain/repositories/will.repository.interface';
+import { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
 import { WillValidationService } from '../../domain/services/will-validation.service';
 import { LegalCapacity } from '../../domain/value-objects/legal-capacity.vo';
 import { CreateWillCommand } from '../commands/create-will.command';
