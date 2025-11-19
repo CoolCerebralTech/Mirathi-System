@@ -1,25 +1,16 @@
-// FILE: src/features/documents/components/DocumentsTable.tsx
-
 import type { ColumnDef } from '@tanstack/react-table';
 import type { TFunction } from 'i18next';
 import { formatDistanceToNow } from 'date-fns';
 
-import type { Document, DocumentStatus } from '../../../types';
+import type { Document, DocumentStatus } from '../../../types/document.types';
 import { Badge } from '../../../components/ui/Badge';
 import { DataTableColumnHeader } from '../../../components/ui/DataTable';
-import { ActionsCell } from './ActionsCell'; // 👈 we moved this to its own file
+import { ActionsCell } from './ActionsCell';
 
-// -----------------------------------------------------------------------------
-// TYPE DEFINITIONS
-// -----------------------------------------------------------------------------
+// ============================================================================
+// TYPES
+// ============================================================================
 
-/**
- * Defines the callbacks that can be triggered from the documents table.
- * - onDelete: required, deletes a document by ID
- * - onEdit: optional, opens edit form for a document
- * - onViewVersions: optional, shows version history
- * - onPreview: optional, previews the document
- */
 export interface DocumentsTableActions {
   onDelete: (documentId: string) => void;
   onEdit?: (document: Document) => void;
@@ -27,13 +18,10 @@ export interface DocumentsTableActions {
   onPreview?: (document: Document) => void;
 }
 
-// -----------------------------------------------------------------------------
-// HELPER FUNCTIONS
-// -----------------------------------------------------------------------------
+// ============================================================================
+// HELPERS
+// ============================================================================
 
-/**
- * Maps a document status to a badge variant for consistent styling.
- */
 const getStatusBadgeVariant = (status: DocumentStatus) => {
   switch (status) {
     case 'VERIFIED':
@@ -42,66 +30,65 @@ const getStatusBadgeVariant = (status: DocumentStatus) => {
       return 'secondary';
     case 'REJECTED':
       return 'destructive';
-    case 'ARCHIVED':
-      return 'outline';
     default:
       return 'default';
   }
 };
 
-/**
- * Formats a file size in bytes into a human-readable string.
- */
 const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 B';
+  if (!bytes || bytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  return `${parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;
 };
 
-/**
- * Returns a simple emoji icon based on MIME type.
- */
 const getFileIcon = (mimeType: string) => {
+  if (!mimeType) return '📎';
   if (mimeType.startsWith('image/')) return '🖼️';
   if (mimeType.includes('pdf')) return '📄';
-  if (mimeType.includes('word')) return '📝';
+  if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
+  if (mimeType.includes('sheet') || mimeType.includes('excel')) return '📊';
   return '📎';
 };
 
-// -----------------------------------------------------------------------------
-// COLUMNS FACTORY
-// -----------------------------------------------------------------------------
+const getCategoryLabel = (category: string, t: TFunction): string => {
+  const labels: Record<string, string> = {
+    LAND_OWNERSHIP: t('documents:categories.land_ownership'),
+    IDENTITY_PROOF: t('documents:categories.identity_proof'),
+    SUCCESSION_DOCUMENT: t('documents:categories.succession_document'),
+    FINANCIAL_PROOF: t('documents:categories.financial_proof'),
+    OTHER: t('documents:categories.other'),
+  };
+  return labels[category] || category;
+};
 
-/**
- * Factory function that returns the column definitions for the documents table.
- * It uses the i18n translation function `t` for labels and the provided
- * `actions` callbacks for row-level actions.
- */
+// ============================================================================
+// COLUMNS FACTORY
+// ============================================================================
+
 export const getDocumentColumns = (
   t: TFunction,
   actions: DocumentsTableActions,
 ): ColumnDef<Document>[] => [
   {
-    accessorKey: 'documentType',
+    accessorKey: 'fileName',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={t('documents:columns.document')} />
     ),
     cell: ({ row }) => {
       const doc = row.original;
-      const latestVersion = doc.versions[0];
-      if (!latestVersion) return null;
-
       return (
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-muted">
-            <span className="text-xl">{getFileIcon(latestVersion.mimeType)}</span>
+            <span className="text-xl">{getFileIcon(doc.mimeType)}</span>
           </div>
-          <div className="flex flex-col">
-            <span className="font-medium line-clamp-1">{latestVersion.filename}</span>
+          <div className="flex flex-col min-w-0">
+            <span className="font-medium truncate" title={doc.fileName}>
+              {doc.fileName}
+            </span>
             <span className="text-xs text-muted-foreground">
-              {t(`documents:document_type_options.${doc.documentType}`)}
+              {getCategoryLabel(doc.category, t)}
             </span>
           </div>
         </div>
@@ -117,26 +104,41 @@ export const getDocumentColumns = (
       const status = row.getValue('status') as DocumentStatus;
       return (
         <Badge variant={getStatusBadgeVariant(status)}>
-          {t(`documents:status_options.${status}`)}
+          {t(`documents:status.${status.toLowerCase()}`)}
         </Badge>
       );
     },
-    filterFn: (row, id, value) => value.includes(row.getValue(id)),
+    filterFn: (row, id, value) => {
+      return Array.isArray(value) ? value.includes(row.getValue(id)) : true;
+    },
   },
   {
-    accessorKey: 'versions',
+    accessorKey: 'sizeBytes',
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={t('documents:columns.size')} />
     ),
     cell: ({ row }) => {
-      const latestVersion = row.original.versions[0];
+      const size = row.getValue('sizeBytes') as number;
       return (
         <span className="text-sm text-muted-foreground">
-          {latestVersion ? formatFileSize(latestVersion.sizeBytes) : 'N/A'}
+          {formatFileSize(size)}
         </span>
       );
     },
-    enableSorting: false,
+  },
+  {
+    accessorKey: 'uploaderName',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={t('documents:columns.uploaded_by')} />
+    ),
+    cell: ({ row }) => {
+      const uploaderName = row.getValue('uploaderName') as string | undefined;
+      return (
+        <span className="text-sm">
+          {uploaderName || t('common:unknown')}
+        </span>
+      );
+    },
   },
   {
     accessorKey: 'updatedAt',
@@ -144,11 +146,42 @@ export const getDocumentColumns = (
       <DataTableColumnHeader column={column} title={t('documents:columns.last_updated')} />
     ),
     cell: ({ row }) => {
-      const date = new Date(row.getValue('updatedAt') as string);
+      const dateValue = row.getValue('updatedAt');
+      const date = dateValue instanceof Date ? dateValue : new Date(dateValue as string);
+      
       return (
         <div className="flex flex-col">
-          <span className="text-sm">{formatDistanceToNow(date, { addSuffix: true })}</span>
-          <span className="text-xs text-muted-foreground">{date.toLocaleDateString()}</span>
+          <span className="text-sm">
+            {formatDistanceToNow(date, { addSuffix: true })}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {date.toLocaleDateString()}
+          </span>
+        </div>
+      );
+    },
+    sortingFn: (rowA, rowB) => {
+      const dateA = new Date(rowA.getValue('updatedAt') as string).getTime();
+      const dateB = new Date(rowB.getValue('updatedAt') as string).getTime();
+      return dateA - dateB;
+    },
+  },
+  {
+    accessorKey: 'version',
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={t('documents:columns.version')} />
+    ),
+    cell: ({ row }) => {
+      const version = row.getValue('version') as number;
+      const totalVersions = row.original.totalVersions;
+      return (
+        <div className="flex items-center gap-1">
+          <span className="text-sm font-mono">v{version}</span>
+          {totalVersions && totalVersions > 1 && (
+            <span className="text-xs text-muted-foreground">
+              ({totalVersions})
+            </span>
+          )}
         </div>
       );
     },

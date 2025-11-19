@@ -194,8 +194,6 @@ const loginUser = async (credentials: LoginInput): Promise<AuthResponse> => {
 
 /**
  * Logout user and invalidate tokens
- * NOTE: Logout doesn't use enhanceWithDeviceInfo because LogoutInput
- * doesn't have deviceId/userAgent/ipAddress fields
  */
 const logoutUser = async (logoutData: LogoutInput): Promise<LogoutResponse> => {
   try {

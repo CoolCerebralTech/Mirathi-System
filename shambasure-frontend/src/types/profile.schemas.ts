@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { z } from 'zod';
-import { RelationshipTypeSchema, AddressSchema } from './shared.schemas';
+import { RelationshipTypeSchema, AddressSchema } from './shared.types';
 
 // ============================================================================
 // ENUMS AND CONSTANTS (Profile-specific)
@@ -357,7 +357,7 @@ export type ProfileCompletionResponse = z.infer<typeof ProfileCompletionResponse
 // ============================================================================
 
 // Re-export relationship type labels from shared
-export { RELATIONSHIP_TYPE_LABELS } from './shared.schemas';
+export { RELATIONSHIP_TYPE_LABELS } from './shared.types';
 
 /**
  * Human-readable labels for marketing categories

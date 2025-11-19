@@ -1,7 +1,7 @@
 // FILE: src/types/families.schemas.ts
 
 import { z } from 'zod';
-import { UserSchema } from './user.schemas';
+import { UserSchema } from './user.types';
 
 // ============================================================================
 // SHARED ENUMS AND REUSABLE SCHEMAS

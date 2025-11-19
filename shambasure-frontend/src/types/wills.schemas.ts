@@ -1,7 +1,7 @@
 // FILE: src/types/wills.schemas.ts
 
 import { z } from 'zod';
-import { UserSchema } from './user.schemas';
+import { UserSchema } from './user.types';
 import { AssetSchema } from './assets.schemas';
 
 // ============================================================================

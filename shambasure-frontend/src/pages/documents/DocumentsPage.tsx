@@ -1,10 +1,10 @@
 // FILE: src/pages/DocumentsPage.tsx
 
-import { useMemo, useState } from 'react';
+import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Upload, FileText, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
+import type { PaginationState } from '@tanstack/react-table';
 
 import { PageHeader } from '../../components/common/PageHeader';
 import { Button } from '../../components/ui/Button';
@@ -30,53 +30,52 @@ import {
 
 import { getDocumentColumns } from '../../features/documents/components/DocumentsTable';
 import { DocumentUploader } from '../../features/documents/components/DocumentUploader';
-import { useDocuments, useDeleteDocument } from '../../features/documents/documents.api';
-import type { Document } from '../../types';
+import { useDocuments, useDeleteDocument } from '../../features/documents/document.api';
+import type { Document } from '../../types/document.types';
 
-/**
- * The main dashboard page for users to view, upload, and manage their documents.
- */
 export function DocumentsPage() {
   const { t } = useTranslation(['documents', 'common']);
   const navigate = useNavigate();
 
-  const [isUploaderOpen, setIsUploaderOpen] = useState(false);
-  const [docToDelete, setDocToDelete] = useState<Document | null>(null);
+  const [isUploaderOpen, setIsUploaderOpen] = React.useState(false);
+  const [docToDelete, setDocToDelete] = React.useState<Document | null>(null);
 
-  const documentsQuery = useDocuments();
+  const [pagination, setPagination] = React.useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+
+  const documentsQuery = useDocuments({
+    page: pagination.pageIndex + 1,
+    limit: pagination.pageSize,
+  });
+
   const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
 
-  const columns = useMemo(
+  const columns = React.useMemo(
     () =>
       getDocumentColumns(t, {
         onDelete: (docId: string) => {
           const doc = documentsQuery.data?.data.find((d) => d.id === docId);
           if (doc) setDocToDelete(doc);
         },
-        onEdit: (doc: Document) => navigate(`/dashboard/documents/${doc.id}/edit`),
+        onEdit: (doc: Document) => navigate(`/dashboard/documents/${doc.id}`),
         onViewVersions: (doc: Document) => navigate(`/dashboard/documents/${doc.id}`),
       }),
-    [documentsQuery.data?.data, navigate, t],
+    [navigate, t, documentsQuery.data?.data]
   );
 
   const handleDeleteConfirm = () => {
     if (!docToDelete) return;
 
     deleteDocument(docToDelete.id, {
-      onSuccess: () => {
-        toast.success(
-          t('delete_success', {
-            filename: docToDelete.versions[0]?.filename ?? 'document',
-          }),
-        );
-        setDocToDelete(null);
-      },
-      onError: (error) => {
-        toast.error(t('delete_failed'), { description: error.message });
-        setDocToDelete(null);
-      },
+      onSuccess: () => setDocToDelete(null),
+      onError: () => setDocToDelete(null),
     });
   };
+
+  const documents = documentsQuery.data?.data ?? [];
+  const pageCount = documentsQuery.data?.totalPages ?? 0;
 
   const renderContent = () => {
     if (documentsQuery.isLoading) {
@@ -89,14 +88,13 @@ export function DocumentsPage() {
 
     if (documentsQuery.isError) {
       return (
-        <div className="text-center text-destructive">
+        <div className="flex flex-col items-center justify-center text-center text-destructive">
           <AlertTriangle className="mx-auto h-12 w-12" />
           <p className="mt-4 font-semibold">{t('common:error_loading_data')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('common:please_try_again')}</p>
         </div>
       );
     }
-
-    const documents = documentsQuery.data?.data ?? [];
 
     if (documents.length === 0) {
       return (
@@ -112,7 +110,15 @@ export function DocumentsPage() {
       );
     }
 
-    return <DataTable columns={columns} data={documents} />;
+    return (
+      <DataTable
+        columns={columns}
+        data={documents}
+        pageCount={pageCount}
+        pagination={pagination}
+        onPaginationChange={setPagination}
+      />
+    );
   };
 
   return (
@@ -136,7 +142,10 @@ export function DocumentsPage() {
             <DialogTitle>{t('upload_new_document')}</DialogTitle>
             <DialogDescription>{t('upload_prompt')}</DialogDescription>
           </DialogHeader>
-          <DocumentUploader onSuccess={() => setIsUploaderOpen(false)} onCancel={() => setIsUploaderOpen(false)}/>
+          <DocumentUploader
+            onSuccess={() => setIsUploaderOpen(false)}
+            onCancel={() => setIsUploaderOpen(false)}
+          />
         </DialogContent>
       </Dialog>
 
@@ -146,7 +155,7 @@ export function DocumentsPage() {
             <AlertDialogTitle>{t('common:are_you_sure')}</AlertDialogTitle>
             <AlertDialogDescription>
               {t('delete_confirm_message', {
-                filename: docToDelete?.versions[0]?.filename ?? 'this document',
+                filename: docToDelete?.fileName ?? 'this document',
               })}
             </AlertDialogDescription>
           </AlertDialogHeader>

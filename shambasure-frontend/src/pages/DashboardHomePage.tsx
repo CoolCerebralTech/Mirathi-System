@@ -17,7 +17,7 @@ import { useCurrentUser } from '../store/auth.store';
 import { useAssets } from '../features/assets/assets.api';
 import { useWills } from '../features/wills/wills.api';
 import { useFamilyTree } from '../features/families/families.api';
-import { useDocuments } from '../features/documents/documents.api';
+import { useDocuments } from '../features/documents/document.api';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';

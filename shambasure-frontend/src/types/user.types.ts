@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UserRoleSchema, type UserRole } from './shared.schemas'; // <-- Import from shared file
+import { UserRoleSchema, type UserRole } from './shared.types'; // <-- Import from shared file
 
 // ============================================================================
 // CORE USER RESPONSE SCHEMAS (Matching Backend DTOs)

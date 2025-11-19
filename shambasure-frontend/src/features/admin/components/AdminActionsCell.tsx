@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../../components/ui/DropdownMenu';
-import { useDownloadDocumentVersion } from '../../documents/documents.api';
+import { useDownloadDocumentVersion } from '../../documents/document.api';
 
 interface AdminActionsCellProps {
   doc: Document;
