@@ -237,6 +237,22 @@ CREATE TABLE "family_members" (
 );
 
 -- CreateTable
+CREATE TABLE "family_relationships" (
+    "id" TEXT NOT NULL,
+    "familyId" TEXT NOT NULL,
+    "fromMemberId" TEXT NOT NULL,
+    "toMemberId" TEXT NOT NULL,
+    "type" "RelationshipType" NOT NULL,
+    "metadata" JSONB,
+    "isVerified" BOOLEAN NOT NULL DEFAULT false,
+    "verificationMethod" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "family_relationships_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "marriages" (
     "id" TEXT NOT NULL,
     "familyId" TEXT NOT NULL,
@@ -368,6 +384,7 @@ CREATE TABLE "wills" (
     "activatedBy" TEXT,
     "executedAt" TIMESTAMP(3),
     "executedBy" TEXT,
+    "isRevoked" BOOLEAN NOT NULL DEFAULT false,
     "revokedAt" TIMESTAMP(3),
     "revokedBy" TEXT,
     "revocationReason" TEXT,
@@ -877,6 +894,12 @@ CREATE INDEX "family_members_deletedAt_idx" ON "family_members"("deletedAt");
 CREATE UNIQUE INDEX "family_members_userId_familyId_key" ON "family_members"("userId", "familyId");
 
 -- CreateIndex
+CREATE INDEX "family_relationships_familyId_idx" ON "family_relationships"("familyId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "family_relationships_fromMemberId_toMemberId_type_key" ON "family_relationships"("fromMemberId", "toMemberId", "type");
+
+-- CreateIndex
 CREATE INDEX "marriages_familyId_idx" ON "marriages"("familyId");
 
 -- CreateIndex
@@ -1133,6 +1156,15 @@ ALTER TABLE "family_members" ADD CONSTRAINT "family_members_userId_fkey" FOREIGN
 
 -- AddForeignKey
 ALTER TABLE "family_members" ADD CONSTRAINT "family_members_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "family_relationships" ADD CONSTRAINT "family_relationships_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "family_relationships" ADD CONSTRAINT "family_relationships_fromMemberId_fkey" FOREIGN KEY ("fromMemberId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "family_relationships" ADD CONSTRAINT "family_relationships_toMemberId_fkey" FOREIGN KEY ("toMemberId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "marriages" ADD CONSTRAINT "marriages_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;

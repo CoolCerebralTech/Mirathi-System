@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // -----------------------------------------------------------------------------
@@ -406,6 +405,7 @@ model Family {
   // Relations
   members     FamilyMember[]
   marriages   Marriage[]
+  relationships FamilyRelationship[]
 
   @@index([creatorId])
   @@index([deletedAt])
@@ -450,8 +450,14 @@ model FamilyMember {
   guardianOf        Guardian[] @relation("Guardian")
   beneficiaryOf     BeneficiaryAssignment[]
   disinheritedFrom  DisinheritanceRecord[]
+  
+  // Spousal Relations
   marriagesAsSpouse1 Marriage[] @relation("MarriageSpouse1")
   marriagesAsSpouse2 Marriage[] @relation("MarriageSpouse2")
+
+  // Graph Relations (The "Edges" for the Tree)
+  relationshipsFrom FamilyRelationship[] @relation("RelationshipFrom")
+  relationshipsTo   FamilyRelationship[] @relation("RelationshipTo")
 
   @@unique([userId, familyId])
   @@index([familyId])
@@ -459,6 +465,35 @@ model FamilyMember {
   @@index([isMinor, isDeceased])
   @@index([deletedAt])
   @@map("family_members")
+}
+
+model FamilyRelationship {
+  id            String           @id @default(uuid())
+  familyId      String
+  family        Family           @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  // The Directional Edge: From A -> To B (e.g., John -> IS_PARENT_OF -> Mary)
+  fromMemberId  String
+  fromMember    FamilyMember     @relation("RelationshipFrom", fields: [fromMemberId], references: [id], onDelete: Cascade)
+
+  toMemberId    String
+  toMember      FamilyMember     @relation("RelationshipTo", fields: [toMemberId], references: [id], onDelete: Cascade)
+
+  type          RelationshipType // PARENT, CHILD, SIBLING, etc.
+
+  // Metadata for Logic (Adoption, Biology)
+  metadata      Json?            // Stores: { isAdopted: boolean, adoptionOrder: string, etc. }
+  
+  // Trust Layer
+  isVerified    Boolean          @default(false)
+  verificationMethod String?     // "BIRTH_CERTIFICATE", "AFFIDAVIT"
+
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([fromMemberId, toMemberId, type]) // Prevent duplicate links
+  @@index([familyId])
+  @@map("family_relationships")
 }
 
 model Marriage {
@@ -704,6 +739,7 @@ model Will {
   executedBy  String?  // Executor who marked as executed
   
   // Revocation
+  isRevoked Boolean @default(false)
   revokedAt   DateTime?
   revokedBy   String?
   revocationReason String? @db.Text

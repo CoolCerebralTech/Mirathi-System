@@ -282,7 +282,7 @@ family-tree/
 │   │   ├── relationship-validation.policy.ts       # Family relationship rules
 │   │   └── family-tree-integrity.policy.ts         # Prevent circular relationships
 │   │
-│   ├── repositories/
+│   ├── interfaces/
 │   │   ├── family.repository.interface.ts
 │   │   ├── family-member.repository.interface.ts
 │   │   ├── relationship.repository.interface.ts
@@ -427,7 +427,7 @@ succession-process/
 │   │   ├── distribution-timing.policy.ts  # Legal timeframes
 │   │   └── court-jurisdiction.policy.ts   # Which court handles the case
 │   │
-│   ├── repositories/
+│   ├── interfaces/
 │   │   ├── probate-case.repository.interface.ts
 │   │   ├── distribution.repository.interface.ts
 │   │   ├── dispute.repository.interface.ts
