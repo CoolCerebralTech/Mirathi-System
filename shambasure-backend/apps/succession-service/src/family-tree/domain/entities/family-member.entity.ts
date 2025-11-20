@@ -1,353 +1,269 @@
-import { KenyanRelationship } from '../value-objects/kenyan-relationship.vo';
+import { AggregateRoot } from '@nestjs/cqrs';
+import { RelationshipType } from '@prisma/client'; // Using Prisma Enum directly
+import { MINOR_PROTECTION } from '../../../common/constants/distribution-rules.constants';
+import { FamilyMemberAddedEvent } from '../events/family-member-added.event';
+import { FamilyMemberUpdatedEvent } from '../events/family-member-updated.event';
+import { FamilyMemberMarkedDeceasedEvent } from '../events/family-member-marked-deceased.event';
+import { FamilyMemberRemovedEvent } from '../events/family-member-removed.event';
 
-export interface PersonalDetails {
-  firstName: string;
-  lastName: string;
-  middleName?: string;
-  dateOfBirth?: Date;
-  dateOfDeath?: Date;
-  placeOfBirth?: string;
-  nationalId?: string;
-  passportNumber?: string;
-}
-
-export interface ContactInfo {
+export interface MemberContactInfo {
   email?: string;
-  phone?: string;
-  address?: {
-    street?: string;
-    city?: string;
-    county?: string;
-    postalCode?: string;
-  };
+  phone?: string; // Should be validated as KenyanPhoneNumber VO in command handler
+  address?: string;
 }
 
-export class FamilyMember {
+export class FamilyMember extends AggregateRoot {
   private id: string;
-  private userId: string | null;
   private familyId: string;
-  private personalDetails: PersonalDetails;
-  private contactInfo: ContactInfo;
-  private relationshipTo: string | null; // "Father of John Kamau"
-  private relationshipType: KenyanRelationship;
-  private isMinor: boolean;
+
+  // Identity
+  private userId: string | null;
+  private firstName: string;
+  private lastName: string;
+
+  // Vital Statistics
+  private dateOfBirth: Date | null;
+  private dateOfDeath: Date | null;
   private isDeceased: boolean;
+  private isMinor: boolean;
+
+  // Role & Context
+  private role: RelationshipType;
+  private relationshipTo: string | null; // Contextual description (e.g., "Father of John")
+
+  // Contact
+  private contactInfo: MemberContactInfo;
   private notes: string | null;
+
   private addedBy: string;
   private createdAt: Date;
   private updatedAt: Date;
   private deletedAt: Date | null;
 
-  constructor(
+  // Private constructor
+  private constructor(
     id: string,
     familyId: string,
-    personalDetails: PersonalDetails,
-    relationshipType: KenyanRelationship,
+    firstName: string,
+    lastName: string,
+    role: RelationshipType,
     addedBy: string,
-    createdAt: Date = new Date(),
-    updatedAt: Date = new Date(),
   ) {
-    this.validatePersonalDetails(personalDetails);
-
+    super();
     this.id = id;
     this.familyId = familyId;
-    this.personalDetails = { ...personalDetails };
-    this.relationshipType = relationshipType;
+    this.firstName = firstName;
+    this.lastName = lastName;
+    this.role = role;
     this.addedBy = addedBy;
-    this.createdAt = createdAt;
-    this.updatedAt = updatedAt;
 
-    // Default values
+    // Defaults
     this.userId = null;
-    this.contactInfo = {};
+    this.dateOfBirth = null;
+    this.dateOfDeath = null;
+    this.isDeceased = false;
+    this.isMinor = false;
     this.relationshipTo = null;
-    this.isMinor = this.calculateIsMinor(personalDetails.dateOfBirth);
-    this.isDeceased = !!personalDetails.dateOfDeath;
+    this.contactInfo = {};
     this.notes = null;
+    this.createdAt = new Date();
+    this.updatedAt = new Date();
     this.deletedAt = null;
   }
 
-  // Getters
-  getId(): string {
-    return this.id;
-  }
-  getUserId(): string | null {
-    return this.userId;
-  }
-  getFamilyId(): string {
-    return this.familyId;
-  }
-  getPersonalDetails(): Readonly<PersonalDetails> {
-    return { ...this.personalDetails };
-  }
-  getContactInfo(): Readonly<ContactInfo> {
-    return { ...this.contactInfo };
-  }
-  getRelationshipTo(): string | null {
-    return this.relationshipTo;
-  }
-  getRelationshipType(): KenyanRelationship {
-    return this.relationshipType;
-  }
-  getIsMinor(): boolean {
-    return this.isMinor;
-  }
-  getIsDeceased(): boolean {
-    return this.isDeceased;
-  }
-  getNotes(): string | null {
-    return this.notes;
-  }
-  getAddedBy(): string {
-    return this.addedBy;
-  }
-  getCreatedAt(): Date {
-    return new Date(this.createdAt);
-  }
-  getUpdatedAt(): Date {
-    return new Date(this.updatedAt);
-  }
-  getDeletedAt(): Date | null {
-    return this.deletedAt ? new Date(this.deletedAt) : null;
+  // --------------------------------------------------------------------------
+  // FACTORY METHODS
+  // --------------------------------------------------------------------------
+
+  static create(
+    id: string,
+    familyId: string,
+    firstName: string,
+    lastName: string,
+    role: RelationshipType,
+    addedBy: string,
+    details?: {
+      userId?: string;
+      dateOfBirth?: Date;
+      isDeceased?: boolean;
+      contactInfo?: MemberContactInfo;
+    },
+  ): FamilyMember {
+    if (!firstName || !lastName) {
+      throw new Error('First and Last Name are required.');
+    }
+
+    const member = new FamilyMember(id, familyId, firstName, lastName, role, addedBy);
+
+    if (details?.userId) member.userId = details.userId;
+    if (details?.contactInfo) member.contactInfo = details.contactInfo;
+
+    if (details?.dateOfBirth) {
+      member.setDateOfBirth(details.dateOfBirth);
+    }
+
+    if (details?.isDeceased) {
+      member.isDeceased = true;
+      // Note: If creating as deceased, we usually want a date, but boolean is mandatory
+    }
+
+    member.apply(
+      new FamilyMemberAddedEvent(id, familyId, `${firstName} ${lastName}`, role, details?.userId),
+    );
+
+    return member;
   }
 
-  // Business methods
+  static reconstitute(props: any): FamilyMember {
+    const member = new FamilyMember(
+      props.id,
+      props.familyId,
+      props.firstName,
+      props.lastName,
+      props.role,
+      props.addedBy,
+    );
+
+    member.userId = props.userId || null;
+    member.dateOfBirth = props.dateOfBirth ? new Date(props.dateOfBirth) : null;
+    member.dateOfDeath = props.dateOfDeath ? new Date(props.dateOfDeath) : null;
+    member.isDeceased = props.isDeceased;
+    member.isMinor = props.isMinor;
+    member.relationshipTo = props.relationshipTo || null;
+
+    member.contactInfo = {
+      email: props.email,
+      phone: props.phone,
+      address: props.address, // Assuming flattened storage or passed as object
+    };
+
+    member.notes = props.notes || null;
+    member.createdAt = new Date(props.createdAt);
+    member.updatedAt = new Date(props.updatedAt);
+    member.deletedAt = props.deletedAt ? new Date(props.deletedAt) : null;
+
+    return member;
+  }
+
+  // --------------------------------------------------------------------------
+  // BUSINESS LOGIC
+  // --------------------------------------------------------------------------
+
+  updateDetails(
+    firstName?: string,
+    lastName?: string,
+    contactInfo?: MemberContactInfo,
+    notes?: string,
+  ): void {
+    if (firstName) this.firstName = firstName;
+    if (lastName) this.lastName = lastName;
+    if (contactInfo) {
+      this.contactInfo = { ...this.contactInfo, ...contactInfo };
+    }
+    if (notes !== undefined) this.notes = notes;
+
+    this.updatedAt = new Date();
+    this.apply(
+      new FamilyMemberUpdatedEvent(this.id, this.familyId, { firstName, lastName, contactInfo }),
+    );
+  }
+
+  setDateOfBirth(dob: Date): void {
+    if (dob > new Date()) {
+      throw new Error('Date of Birth cannot be in the future.');
+    }
+    this.dateOfBirth = dob;
+    this.recalculateMinorStatus();
+    this.updatedAt = new Date();
+  }
+
+  /**
+   * Marks the family member as deceased.
+   * This is a critical action that affects inheritance logic.
+   */
+  markAsDeceased(dateOfDeath: Date, markedBy: string): void {
+    if (dateOfDeath > new Date()) {
+      throw new Error('Date of Death cannot be in the future.');
+    }
+
+    this.isDeceased = true;
+    this.dateOfDeath = dateOfDeath;
+    this.updatedAt = new Date();
+
+    this.apply(new FamilyMemberMarkedDeceasedEvent(this.id, this.familyId, dateOfDeath, markedBy));
+  }
+
+  /**
+   * Links this node to a real system User ID.
+   * E.g., "Inviting Uncle Bob to join" -> Uncle Bob accepts -> Link User ID.
+   */
   linkToUser(userId: string): void {
     if (this.userId) {
-      throw new Error('Family member is already linked to a user');
+      throw new Error('Family Member is already linked to a User.');
     }
     this.userId = userId;
     this.updatedAt = new Date();
+    this.apply(new FamilyMemberUpdatedEvent(this.id, this.familyId, { linkedUserId: userId }));
   }
 
-  unlinkFromUser(): void {
-    this.userId = null;
+  remove(reason?: string): void {
+    this.deletedAt = new Date();
     this.updatedAt = new Date();
+    this.apply(new FamilyMemberRemovedEvent(this.id, this.familyId, reason));
   }
 
-  updatePersonalDetails(details: Partial<PersonalDetails>): void {
-    if (details.firstName !== undefined) {
-      if (!details.firstName.trim()) {
-        throw new Error('First name cannot be empty');
-      }
-      this.personalDetails.firstName = details.firstName.trim();
+  // --------------------------------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------------------------------
+
+  private recalculateMinorStatus(): void {
+    if (!this.dateOfBirth) {
+      this.isMinor = false; // Default assumption if unknown
+      return;
     }
 
-    if (details.lastName !== undefined) {
-      if (!details.lastName.trim()) {
-        throw new Error('Last name cannot be empty');
-      }
-      this.personalDetails.lastName = details.lastName.trim();
-    }
-
-    if (details.middleName !== undefined) {
-      this.personalDetails.middleName = details.middleName?.trim() || undefined;
-    }
-
-    if (details.dateOfBirth !== undefined) {
-      this.personalDetails.dateOfBirth = details.dateOfBirth;
-      this.isMinor = this.calculateIsMinor(details.dateOfBirth);
-    }
-
-    if (details.dateOfDeath !== undefined) {
-      this.personalDetails.dateOfDeath = details.dateOfDeath;
-      this.isDeceased = !!details.dateOfDeath;
-    }
-
-    if (details.placeOfBirth !== undefined) {
-      this.personalDetails.placeOfBirth = details.placeOfBirth?.trim() || undefined;
-    }
-
-    if (details.nationalId !== undefined) {
-      this.validateKenyanId(details.nationalId);
-      this.personalDetails.nationalId = details.nationalId;
-    }
-
-    if (details.passportNumber !== undefined) {
-      this.personalDetails.passportNumber = details.passportNumber?.trim() || undefined;
-    }
-
-    this.updatedAt = new Date();
+    const age = this.calculateAge(this.dateOfBirth);
+    this.isMinor = age < MINOR_PROTECTION.MINORS.ageLimit;
   }
 
-  updateContactInfo(contactInfo: ContactInfo): void {
-    this.contactInfo = { ...this.contactInfo, ...contactInfo };
-    this.updatedAt = new Date();
+  private calculateAge(dob: Date): number {
+    const diffMs = Date.now() - dob.getTime();
+    const ageDt = new Date(diffMs);
+    return Math.abs(ageDt.getUTCFullYear() - 1970);
   }
 
-  updateRelationship(relationshipType: KenyanRelationship, relationshipTo?: string): void {
-    this.relationshipType = relationshipType;
-    if (relationshipTo) {
-      this.relationshipTo = relationshipTo;
-    }
-    this.updatedAt = new Date();
+  // --------------------------------------------------------------------------
+  // GETTERS
+  // --------------------------------------------------------------------------
+
+  getId() {
+    return this.id;
   }
-
-  setRelationshipDescription(description: string): void {
-    this.relationshipTo = description;
-    this.updatedAt = new Date();
+  getFamilyId() {
+    return this.familyId;
   }
-
-  addNotes(notes: string): void {
-    if (!this.notes) {
-      this.notes = notes;
-    } else {
-      this.notes += `\n\n${notes}`;
-    }
-    this.updatedAt = new Date();
+  getFullName() {
+    return `${this.firstName} ${this.lastName}`;
   }
-
-  markAsDeceased(dateOfDeath: Date, notes?: string): void {
-    if (this.isDeceased) {
-      throw new Error('Family member is already marked as deceased');
-    }
-
-    if (dateOfDeath > new Date()) {
-      throw new Error('Date of death cannot be in the future');
-    }
-
-    this.personalDetails.dateOfDeath = dateOfDeath;
-    this.isDeceased = true;
-
-    if (notes) {
-      this.addNotes(`Marked as deceased on ${dateOfDeath.toISOString().split('T')[0]}. ${notes}`);
-    }
-
-    this.updatedAt = new Date();
+  getUserId() {
+    return this.userId;
   }
-
-  // Kenyan-specific methods
-  getAge(): number | null {
-    if (!this.personalDetails.dateOfBirth) {
-      return null;
-    }
-
-    const today = new Date();
-    const birthDate = new Date(this.personalDetails.dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-
-    return age;
+  getRole() {
+    return this.role;
   }
-
-  isElder(): boolean {
-    const age = this.getAge();
-    return age !== null && age >= 60 && !this.isDeceased;
+  getIsDeceased() {
+    return this.isDeceased;
   }
-
-  hasInheritanceRights(): boolean {
-    return this.relationshipType.hasInheritanceRightsUnderIntestacy();
+  getIsMinor() {
+    return this.isMinor;
   }
-
-  isDependant(): boolean {
-    return this.relationshipType.isDependantUnderKenyanLaw() || this.isMinor;
+  getDateOfBirth() {
+    return this.dateOfBirth;
   }
-
-  requiresLegalGuardian(): boolean {
-    return this.isMinor && !this.isDeceased;
+  getContactInfo() {
+    return { ...this.contactInfo };
   }
-
-  getFullName(): string {
-    const names = [this.personalDetails.firstName];
-    if (this.personalDetails.middleName) {
-      names.push(this.personalDetails.middleName);
-    }
-    names.push(this.personalDetails.lastName);
-    return names.join(' ');
-  }
-
-  getFormattedName(): string {
-    return `${this.personalDetails.lastName}, ${this.personalDetails.firstName}${
-      this.personalDetails.middleName ? ` ${this.personalDetails.middleName.charAt(0)}.` : ''
-    }`;
-  }
-
-  // Validation methods
-  private validatePersonalDetails(details: PersonalDetails): void {
-    if (!details.firstName?.trim()) {
-      throw new Error('First name is required');
-    }
-
-    if (!details.lastName?.trim()) {
-      throw new Error('Last name is required');
-    }
-
-    if (details.dateOfBirth && details.dateOfBirth > new Date()) {
-      throw new Error('Date of birth cannot be in the future');
-    }
-
-    if (details.dateOfDeath && details.dateOfDeath > new Date()) {
-      throw new Error('Date of death cannot be in the future');
-    }
-
-    if (details.dateOfBirth && details.dateOfDeath && details.dateOfDeath < details.dateOfBirth) {
-      throw new Error('Date of death cannot be before date of birth');
-    }
-
-    if (details.nationalId) {
-      this.validateKenyanId(details.nationalId);
-    }
-  }
-
-  private validateKenyanId(id: string): void {
-    // Basic Kenyan ID validation (8-9 digits)
-    const idPattern = /^\d{8,9}$/;
-    if (!idPattern.test(id.trim())) {
-      throw new Error('Invalid Kenyan ID format. Must be 8 or 9 digits');
-    }
-  }
-
-  private calculateIsMinor(dateOfBirth?: Date): boolean {
-    if (!dateOfBirth) return false;
-
-    const age = this.getAge();
-    return age !== null && age < 18;
-  }
-
-  // Static factory methods
-  static createForUser(
-    id: string,
-    familyId: string,
-    userId: string,
-    personalDetails: PersonalDetails,
-    relationshipType: KenyanRelationship,
-    addedBy: string,
-  ): FamilyMember {
-    const member = new FamilyMember(id, familyId, personalDetails, relationshipType, addedBy);
-    member.userId = userId;
-    return member;
-  }
-
-  static createForNonUser(
-    id: string,
-    familyId: string,
-    personalDetails: PersonalDetails,
-    relationshipType: KenyanRelationship,
-    contactInfo: ContactInfo,
-    addedBy: string,
-  ): FamilyMember {
-    const member = new FamilyMember(id, familyId, personalDetails, relationshipType, addedBy);
-    member.contactInfo = { ...contactInfo };
-    return member;
-  }
-
-  static createMinor(
-    id: string,
-    familyId: string,
-    personalDetails: PersonalDetails,
-    relationshipType: KenyanRelationship,
-    addedBy: string,
-    contactInfo?: ContactInfo,
-  ): FamilyMember {
-    const member = new FamilyMember(id, familyId, personalDetails, relationshipType, addedBy);
-    if (contactInfo) {
-      member.contactInfo = { ...contactInfo };
-    }
-    member.isMinor = true;
-    return member;
+  getDeletedAt() {
+    return this.deletedAt;
   }
 }

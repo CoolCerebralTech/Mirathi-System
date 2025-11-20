@@ -1,40 +1,37 @@
-// estate-planning/application/dto/response/witness.response.dto.ts
+import { Exclude, Expose, Type } from 'class-transformer';
 import { WitnessStatus } from '@prisma/client';
 
-export class WitnessResponseDto {
-  id: string;
-  willId: string;
-  witnessInfo: {
-    userId?: string;
-    fullName: string;
-    email?: string;
-    phone?: string;
-    idNumber?: string;
-    relationship?: string;
-    address?: {
-      street?: string;
-      city?: string;
-      county?: string;
-    };
-  };
-  status: WitnessStatus;
-  signedAt?: Date;
-  signatureData?: string;
-  verifiedAt?: Date;
-  verifiedBy?: string;
-  isEligible: boolean;
-  ineligibilityReason?: string;
-  createdAt: Date;
-  updatedAt: Date;
+@Exclude()
+export class WitnessInfoResponse {
+  @Expose() userId?: string;
+  @Expose() fullName: string;
+  @Expose() email?: string;
+  @Expose() phone?: string;
+  // Note: We intentionally do NOT expose 'idNumber' here for general privacy.
+  // It should only be visible in specific Admin/Verification endpoints.
+}
 
-  // Computed properties
-  witnessName: string;
-  isRegisteredUser: boolean;
-  hasSigned: boolean;
-  isVerified: boolean;
-  canSign: boolean;
-  legalValidation: {
-    isValid: boolean;
-    issues: string[];
-  };
+@Exclude()
+export class WitnessResponseDto {
+  @Expose()
+  id: string;
+
+  @Expose()
+  @Type(() => WitnessInfoResponse)
+  info: WitnessInfoResponse;
+
+  @Expose()
+  status: WitnessStatus;
+
+  @Expose()
+  signedAt?: Date;
+
+  @Expose()
+  verifiedAt?: Date;
+
+  @Expose()
+  verifiedBy?: string;
+
+  @Expose()
+  rejectionReason?: string;
 }

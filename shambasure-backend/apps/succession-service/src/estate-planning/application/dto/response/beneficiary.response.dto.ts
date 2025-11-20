@@ -1,34 +1,62 @@
-// estate-planning/application/dto/response/beneficiary.response.dto.ts
+import { Exclude, Expose, Type } from 'class-transformer';
 import { BequestType, BequestConditionType, DistributionStatus } from '@prisma/client';
+import { AssetValueResponse } from './asset.response.dto';
 
+@Exclude()
+export class BeneficiaryIdentityResponse {
+  @Expose() userId?: string;
+  @Expose() familyMemberId?: string;
+  @Expose() externalName?: string;
+  @Expose() relationship?: string;
+
+  @Expose()
+  get displayName(): string {
+    return this.externalName || 'Unknown Beneficiary';
+  }
+}
+
+@Exclude()
 export class BeneficiaryResponseDto {
+  @Expose()
   id: string;
-  willId: string;
-  assetId: string;
-  beneficiaryInfo: {
-    userId?: string;
-    familyMemberId?: string;
-    externalName?: string;
-    externalContact?: string;
-    relationship?: string;
-  };
-  bequestType: BequestType;
-  sharePercentage?: number;
-  specificAmount?: number;
-  conditionType: BequestConditionType;
-  conditionDetails?: string;
-  alternateBeneficiaryId?: string;
-  alternateSharePercentage?: number;
-  distributionStatus: DistributionStatus;
-  distributedAt?: Date;
-  distributionNotes?: string;
-  priority: number;
-  createdAt: Date;
-  updatedAt: Date;
 
-  // Computed properties
-  beneficiaryName: string;
-  isConditional: boolean;
-  hasAlternate: boolean;
-  isDistributed: boolean;
+  @Expose()
+  willId: string;
+
+  @Expose()
+  assetId: string;
+
+  @Expose()
+  @Type(() => BeneficiaryIdentityResponse)
+  identity: BeneficiaryIdentityResponse;
+
+  @Expose()
+  bequestType: BequestType;
+
+  @Expose()
+  sharePercentage?: number; // Flattened from SharePercentage VO
+
+  @Expose()
+  @Type(() => AssetValueResponse)
+  specificAmount?: AssetValueResponse;
+
+  // Conditions
+  @Expose()
+  hasCondition: boolean;
+
+  @Expose()
+  conditionType: BequestConditionType;
+
+  @Expose()
+  conditionDetails?: string;
+
+  // Status
+  @Expose()
+  distributionStatus: DistributionStatus;
+
+  @Expose()
+  distributedAt?: Date;
+
+  @Expose()
+  priority: number;
 }

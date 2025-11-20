@@ -1,105 +1,100 @@
-import { BequestType, BequestConditionType, DistributionStatus } from '@prisma/client';
-import { Beneficiary } from '../../../domain/entities/beneficiary.entity';
+import { BeneficiaryAssignment as PrismaBeneficiary } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
+import {
+  BeneficiaryAssignment,
+  BeneficiaryIdentity,
+} from '../../../domain/entities/beneficiary.entity';
 import { SharePercentage } from '../../../domain/value-objects/share-percentage.vo';
 import { AssetValue } from '../../../domain/value-objects/asset-value.vo';
 
 export class BeneficiaryMapper {
-  static toDomain(prismaBeneficiary: any): Beneficiary {
-    if (!prismaBeneficiary) return null;
+  static toPersistence(domain: BeneficiaryAssignment): PrismaBeneficiary {
+    const identity = domain.getIdentity();
+    const share = domain.getSharePercent();
+    const amount = domain.getSpecificAmount();
 
-    const beneficiaryInfo: any = {};
+    return {
+      id: domain.getId(),
+      willId: domain.getWillId(),
+      assetId: domain.getAssetId(),
 
-    if (prismaBeneficiary.beneficiaryId) {
-      beneficiaryInfo.userId = prismaBeneficiary.beneficiaryId;
-    } else if (prismaBeneficiary.familyMemberId) {
-      beneficiaryInfo.familyMemberId = prismaBeneficiary.familyMemberId;
-    } else {
-      beneficiaryInfo.externalName = prismaBeneficiary.externalBeneficiaryName;
-      beneficiaryInfo.externalContact = prismaBeneficiary.externalBeneficiaryContact;
-    }
+      // Identity Flattening
+      beneficiaryId: identity.userId || null,
+      familyMemberId: identity.familyMemberId || null,
+      externalBeneficiaryName: identity.externalName || null,
+      externalBeneficiaryContact: null, // Not strictly in VO, defaults to null
 
-    beneficiaryInfo.relationship = prismaBeneficiary.relationship;
+      // Bequest Details
+      bequestType: domain.getBequestType(),
+      sharePercent: share ? new Decimal(share.getValue()) : new Decimal(0),
+      specificAmount: amount ? new Decimal(amount.getAmount()) : null,
 
-    const beneficiary = new Beneficiary(
-      prismaBeneficiary.id,
-      prismaBeneficiary.willId,
-      prismaBeneficiary.assetId,
-      beneficiaryInfo,
-      prismaBeneficiary.bequestType as BequestType,
-      prismaBeneficiary.priority,
-    );
+      // Conditions
+      hasCondition: domain.getHasCondition(),
+      conditionType: domain.getConditionType(),
+      conditionDetails: domain.getConditionDetails(),
 
-    // Set additional properties
-    if (prismaBeneficiary.sharePercent) {
-      beneficiary.updateShare(new SharePercentage(prismaBeneficiary.sharePercent.toNumber()));
-    }
+      // Alternate (Logic handled in aggregate, placeholder here)
+      alternateBeneficiaryId: null,
+      alternateSharePercent: null,
 
-    if (prismaBeneficiary.specificAmount) {
-      beneficiary.updateSpecificAmount(
-        new AssetValue(
-          prismaBeneficiary.specificAmount.toNumber(),
-          'KES', // Default currency
-        ),
-      );
-    }
+      // Status
+      distributionStatus: domain.getDistributionStatus(),
+      distributedAt: domain.getDistributedAt(),
+      distributionNotes: null,
+      priority: domain.getPriority(),
 
-    if (prismaBeneficiary.conditionType !== BequestConditionType.NONE) {
-      beneficiary.addCondition(
-        prismaBeneficiary.conditionType as BequestConditionType,
-        prismaBeneficiary.conditionDetails,
-      );
-    }
-
-    Object.assign(beneficiary, {
-      alternateBeneficiaryId: prismaBeneficiary.alternateBeneficiaryId,
-      alternateSharePercent: prismaBeneficiary.alternateSharePercent?.toNumber(),
-      distributionStatus: prismaBeneficiary.distributionStatus as DistributionStatus,
-      distributedAt: prismaBeneficiary.distributedAt,
-      distributionNotes: prismaBeneficiary.distributionNotes,
-      createdAt: prismaBeneficiary.createdAt,
-      updatedAt: prismaBeneficiary.updatedAt,
-    });
-
-    return beneficiary;
+      createdAt: new Date(), // Usually handled by DB default
+      updatedAt: new Date(),
+    } as unknown as PrismaBeneficiary; // Cast needed for Decimal compatibility
   }
 
-  static toPersistence(beneficiary: Beneficiary): any {
-    const persistenceObj: any = {
-      id: beneficiary.getId(),
-      willId: beneficiary.getWillId(),
-      assetId: beneficiary.getAssetId(),
-      bequestType: beneficiary.getBequestType(),
-      sharePercent: beneficiary.getSharePercentage()?.getValue(),
-      specificAmount: beneficiary.getSpecificAmount()?.getAmount(),
-      conditionType: beneficiary.getConditionType(),
-      conditionDetails: beneficiary.getConditionDetails(),
-      alternateBeneficiaryId: beneficiary.getAlternateBeneficiaryId(),
-      alternateSharePercent: beneficiary.getAlternateShare()?.getValue(),
-      distributionStatus: beneficiary.getDistributionStatus(),
-      distributedAt: beneficiary.getDistributedAt(),
-      distributionNotes: beneficiary.getDistributionNotes(),
-      priority: beneficiary.getPriority(),
-      createdAt: beneficiary.getCreatedAt(),
-      updatedAt: beneficiary.getUpdatedAt(),
+  static toDomain(raw: PrismaBeneficiary): BeneficiaryAssignment {
+    // Reconstruct Identity
+    // Note: We infer relationship from external data context if needed,
+    // or it might be loaded via a join (not available in raw mapper).
+    const identity: BeneficiaryIdentity = {
+      userId: raw.beneficiaryId || undefined,
+      familyMemberId: raw.familyMemberId || undefined,
+      externalName: raw.externalBeneficiaryName || undefined,
+      // relationship: fetched separately or stored in future schema update
     };
 
-    // Set beneficiary identification
-    const beneficiaryInfo = beneficiary.getBeneficiaryInfo();
-    if (beneficiaryInfo.userId) {
-      persistenceObj.beneficiaryId = beneficiaryInfo.userId;
-    } else if (beneficiaryInfo.familyMemberId) {
-      persistenceObj.familyMemberId = beneficiaryInfo.familyMemberId;
-    } else {
-      persistenceObj.externalBeneficiaryName = beneficiaryInfo.externalName;
-      persistenceObj.externalBeneficiaryContact = beneficiaryInfo.externalContact;
-    }
+    // Reconstruct Value Objects
+    const sharePercent =
+      raw.sharePercent && Number(raw.sharePercent) > 0
+        ? new SharePercentage(Number(raw.sharePercent))
+        : null;
 
-    persistenceObj.relationship = beneficiaryInfo.relationship;
+    // Note: Prisma Schema for BeneficiaryAssignment specificAmount is just a Decimal.
+    // We assume default currency (KES) or fetching from Asset context.
+    // ideally schema should have specificAmountCurrency.
+    const specificAmount = raw.specificAmount
+      ? new AssetValue(Number(raw.specificAmount), 'KES')
+      : null;
 
-    return persistenceObj;
-  }
+    const assignment = BeneficiaryAssignment.reconstitute({
+      id: raw.id,
+      willId: raw.willId,
+      assetId: raw.assetId,
+      identity: identity, // Pass the constructed identity object
+      bequestType: raw.bequestType,
+      priority: raw.priority,
 
-  static toDomainList(prismaBeneficiaries: any[]): Beneficiary[] {
-    return prismaBeneficiaries.map((beneficiary) => this.toDomain(beneficiary)).filter(Boolean);
+      sharePercent: sharePercent ? sharePercent.getValue() : null, // Pass raw value to reconstitute
+      specificAmount: specificAmount,
+
+      hasCondition: raw.hasCondition,
+      conditionType: raw.conditionType,
+      conditionDetails: raw.conditionDetails,
+
+      distributionStatus: raw.distributionStatus,
+      distributedAt: raw.distributedAt,
+
+      createdAt: raw.createdAt,
+      updatedAt: raw.updatedAt,
+    });
+
+    return assignment;
   }
 }

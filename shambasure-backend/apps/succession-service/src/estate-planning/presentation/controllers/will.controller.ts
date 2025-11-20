@@ -1,206 +1,200 @@
-// estate-planning/presentation/controllers/will.controller.ts
 import {
   Controller,
   Get,
   Post,
-  Put,
-  Delete,
   Body,
+  Patch,
   Param,
-  Query,
   UseGuards,
-  Request,
+  Req,
+  Query,
   HttpStatus,
   HttpCode,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { JwtAuthGuard } from '@shamba/auth';
-import { TestatorOwnershipGuard } from '../../../common/guards/testator-ownership.guard';
-import { WillStatusGuard } from '../../../common/guards/will-status.guard';
-import { KenyanLawValidationPipe } from '../../../common/pipes/kenyan-law-validation.pipe';
-import { WillService } from '../../application/services/will.service';
-import { CreateWillRequestDto } from '../../application/dto/request/create-will.dto';
-import { UpdateWillRequestDto } from '../../application/dto/request/update-will.dto';
-import { WillResponseDto } from '../../application/dto/response/will.response.dto';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
+import { WillStatus } from '@prisma/client';
+import { JwtAuthGuard } from '@shamba/auth'; // Shared auth library
 
-@ApiTags('Wills')
+import { WillService } from '../../application/services/will.service';
+import { CreateWillDto } from '../../application/dto/request/create-will.dto';
+import { UpdateWillDto } from '../../application/dto/request/update-will.dto';
+import { SignWillDto } from '../../application/dto/request/sign-will.dto';
+import { RevokeWillDto } from '../../application/dto/request/revoke-will.dto';
+import { WillResponseDto } from '../../application/dto/response/will.response.dto';
+import { WillCompletenessResponse } from '../../application/queries/get-will-completeness.query';
+import { WillVersionSummary } from '../../application/queries/get-will-versions.query';
+
+interface RequestWithUser extends Request {
+  user: { userId: string; email: string; role: string };
+}
+
+@ApiTags('Estate Planning - Wills (Core)')
 @ApiBearerAuth()
-@Controller('wills')
 @UseGuards(JwtAuthGuard)
+@Controller('wills')
 export class WillController {
   constructor(private readonly willService: WillService) {}
 
+  // --------------------------------------------------------------------------
+  // WRITE OPERATIONS
+  // --------------------------------------------------------------------------
+
   @Post()
-  @ApiOperation({
-    summary: 'Create a new will',
-    description: 'Create a new will for the authenticated user',
+  @ApiOperation({ summary: 'Start drafting a new Will' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Will draft created successfully.',
+    type: String, // Returns Will ID
   })
-  @ApiResponse({ status: HttpStatus.CREATED, type: WillResponseDto })
-  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data' })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Validation failed (e.g. Testator lacks legal capacity).',
+  })
   async createWill(
-    @Body(KenyanLawValidationPipe) createWillDto: CreateWillRequestDto,
-    @Request() req,
-  ): Promise<WillResponseDto> {
-    const testatorId = req.user.id;
-    return this.willService.createWill(createWillDto, testatorId);
+    @Req() req: RequestWithUser,
+    @Body() dto: CreateWillDto,
+  ): Promise<{ id: string }> {
+    const id = await this.willService.createWill(req.user.userId, dto);
+    return { id };
   }
 
-  @Get()
-  @ApiOperation({
-    summary: 'Get all wills for user',
-    description: 'Get paginated list of wills for the authenticated user',
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update Will content (Draft Mode)' })
+  @ApiParam({ name: 'id', description: 'The Will ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Will updated successfully.',
   })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Cannot edit a finalized/active Will.',
+  })
+  async updateWill(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateWillDto,
+  ): Promise<void> {
+    return this.willService.updateWill(id, req.user.userId, dto);
+  }
+
+  @Post(':id/sign')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Record a digital signature (Testator or Witness)' })
+  @ApiParam({ name: 'id', description: 'The Will ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Signature recorded successfully.',
+  })
+  async signWill(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Body() dto: SignWillDto,
+  ): Promise<void> {
+    // Force Will ID match for safety
+    if (dto.willId && dto.willId !== id) {
+      // Ideally throw BadRequest, or just override
+      dto.willId = id;
+    }
+    return this.willService.signWill(req.user.userId, dto);
+  }
+
+  @Post(':id/activate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Finalize and Activate the Will' })
+  @ApiParam({ name: 'id', description: 'The Will ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Will transitioned to ACTIVE state.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Activation failed due to validation errors (e.g. missing witnesses).',
+  })
+  async activateWill(@Req() req: RequestWithUser, @Param('id') id: string): Promise<void> {
+    return this.willService.activateWill(id, req.user.userId);
+  }
+
+  @Post(':id/revoke')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Legally revoke an Active Will' })
+  @ApiParam({ name: 'id', description: 'The Will ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Will marked as REVOKED.',
+  })
+  async revokeWill(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Body() dto: RevokeWillDto,
+  ): Promise<void> {
+    return this.willService.revokeWill(id, req.user.userId, dto);
+  }
+
+  // --------------------------------------------------------------------------
+  // READ OPERATIONS
+  // --------------------------------------------------------------------------
+
+  @Get()
+  @ApiOperation({ summary: 'List all Wills belonging to the user' })
   @ApiQuery({
     name: 'status',
     required: false,
     enum: ['DRAFT', 'PENDING_WITNESS', 'WITNESSED', 'ACTIVE', 'REVOKED', 'EXECUTED'],
   })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiResponse({ status: HttpStatus.OK, type: [WillResponseDto] })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  async getWills(
-    @Query('status') status: string,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Request() req,
-  ): Promise<{ wills: WillResponseDto[]; total: number; page: number; totalPages: number }> {
-    const testatorId = req.user.id;
-    return this.willService.listWills(testatorId, status as any, page, limit);
-  }
-
-  @Get(':willId')
-  @ApiOperation({
-    summary: 'Get will by ID',
-    description: 'Get a specific will by ID for the authenticated user',
-  })
-  @ApiResponse({ status: HttpStatus.OK, type: WillResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will not found' })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  async getWill(@Param('willId') willId: string, @Request() req): Promise<WillResponseDto> {
-    const testatorId = req.user.id;
-    return this.willService.getWill(willId, testatorId);
-  }
-
-  @Put(':willId')
-  @ApiOperation({
-    summary: 'Update will',
-    description: 'Update a specific will (only allowed for DRAFT status)',
-  })
-  @ApiResponse({ status: HttpStatus.OK, type: WillResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will not found' })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Cannot modify will in current status',
-  })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard, WillStatusGuard)
-  async updateWill(
-    @Param('willId') willId: string,
-    @Body(KenyanLawValidationPipe) updateWillDto: UpdateWillRequestDto,
-    @Request() req,
-  ): Promise<WillResponseDto> {
-    const testatorId = req.user.id;
-    return this.willService.updateWill(willId, updateWillDto, testatorId);
-  }
-
-  @Post(':willId/activate')
-  @ApiOperation({
-    summary: 'Activate will',
-    description: 'Activate a witnessed will (requires legal capacity assessment)',
-  })
-  @ApiResponse({ status: HttpStatus.OK, type: WillResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will not found' })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Cannot activate will in current status',
-  })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  async activateWill(
-    @Param('willId') willId: string,
-    @Body() activateWillDto: any,
-    @Request() req,
-  ): Promise<WillResponseDto> {
-    const activatedBy = req.user.id;
-    return this.willService.activateWill(willId, activateWillDto, activatedBy);
-  }
-
-  @Post(':willId/revoke')
-  @ApiOperation({ summary: 'Revoke will', description: 'Revoke an active will' })
-  @ApiResponse({ status: HttpStatus.OK, type: WillResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will not found' })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Cannot revoke will in current status',
-  })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  async revokeWill(
-    @Param('willId') willId: string,
-    @Body() revokeWillDto: any,
-    @Request() req,
-  ): Promise<WillResponseDto> {
-    const revokedBy = req.user.id;
-    return this.willService.revokeWill(willId, revokeWillDto, revokedBy);
-  }
-
-  @Get(':willId/validate')
-  @ApiOperation({
-    summary: 'Validate will',
-    description: 'Validate will against Kenyan legal requirements',
-  })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Will validation result',
-    schema: {
-      type: 'object',
-      properties: {
-        isValid: { type: 'boolean' },
-        errors: { type: 'array', items: { type: 'string' } },
-        warnings: { type: 'array', items: { type: 'string' } },
-        recommendations: { type: 'array', items: { type: 'string' } },
-        complianceLevel: { type: 'string', enum: ['FULL', 'PARTIAL', 'MINIMAL', 'NON_COMPLIANT'] },
-      },
-    },
+    type: [WillResponseDto],
   })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will not found' })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  async validateWill(
-    @Param('willId') willId: string,
-    @Request() req,
-  ): Promise<{
-    isValid: boolean;
-    errors: string[];
-    warnings: string[];
-    recommendations: string[];
-    complianceLevel: string;
-  }> {
-    const testatorId = req.user.id;
-    return this.willService.validateWill(willId, testatorId);
+  async listWills(
+    @Req() req: RequestWithUser,
+    @Query('status') status?: WillStatus,
+  ): Promise<WillResponseDto[]> {
+    return this.willService.listWills(req.user.userId, status);
   }
 
-  @Delete(':willId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({
-    summary: 'Delete will',
-    description: 'Soft delete a will (only allowed for DRAFT status)',
-  })
-  @ApiResponse({ status: HttpStatus.NO_CONTENT })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will not found' })
+  @Get(':id')
+  @ApiOperation({ summary: 'Get full Will document (Aggregate view)' })
+  @ApiParam({ name: 'id', description: 'The Will ID' })
   @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Cannot delete will in current status',
+    status: HttpStatus.OK,
+    type: WillResponseDto,
   })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard, WillStatusGuard)
-  async deleteWill(@Param('willId') willId: string, @Request() req): Promise<void> {
-    const testatorId = req.user.id;
-    // Implementation would call willService.softDeleteWill(willId, testatorId)
-    // For now, we'll just return 204
-    return;
+  async getWill(@Req() req: RequestWithUser, @Param('id') id: string): Promise<WillResponseDto> {
+    return this.willService.getWill(id, req.user.userId);
+  }
+
+  @Get(':id/completeness')
+  @ApiOperation({ summary: 'Check legal readiness/validation status' })
+  @ApiParam({ name: 'id', description: 'The Will ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Returns a checklist of missing items.',
+  })
+  async checkCompleteness(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+  ): Promise<WillCompletenessResponse> {
+    return this.willService.checkCompleteness(id, req.user.userId);
+  }
+
+  @Get(':id/versions')
+  @ApiOperation({ summary: 'Get audit trail of previous versions' })
+  @ApiParam({ name: 'id', description: 'The Will ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'List of historical snapshots.',
+  })
+  async getVersions(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+  ): Promise<WillVersionSummary[]> {
+    return this.willService.getVersions(id, req.user.userId);
   }
 }

@@ -1,146 +1,126 @@
-// estate-planning/presentation/controllers/asset.controller.ts
 import {
   Controller,
   Get,
   Post,
-  Delete,
   Body,
+  Patch,
   Param,
-  Query,
+  Delete,
   UseGuards,
-  Request,
+  Req,
   HttpStatus,
-  HttpCode,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@shamba/auth';
-import { TestatorOwnershipGuard } from '../../../common/guards/testator-ownership.guard';
-import { WillStatusGuard } from '../../../common/guards/will-status.guard';
-import { KenyanLawValidationPipe } from '../../../common/pipes/kenyan-law-validation.pipe';
 import { AssetService } from '../../application/services/asset.service';
-import { AddAssetRequestDto } from '../../application/dto/request/add-asset.dto';
+import { AddAssetDto } from '../../application/dto/request/add-asset.dto';
+import { UpdateAssetDto } from '../../application/dto/request/update-asset.dto';
 import { AssetResponseDto } from '../../application/dto/response/asset.response.dto';
 
-@ApiTags('Assets')
+// Helper type for authenticated requests
+interface RequestWithUser extends Request {
+  user: { userId: string; email: string; role: string };
+}
+
+@ApiTags('Estate Planning - Assets')
 @ApiBearerAuth()
-@Controller('wills/:willId/assets')
 @UseGuards(JwtAuthGuard)
+@Controller('assets')
 export class AssetController {
   constructor(private readonly assetService: AssetService) {}
 
+  // --------------------------------------------------------------------------
+  // CREATE
+  // --------------------------------------------------------------------------
+
   @Post()
-  @ApiOperation({ summary: 'Add asset to will', description: 'Add a new asset to a specific will' })
-  @ApiResponse({ status: HttpStatus.CREATED, type: AssetResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will not found' })
+  @ApiOperation({ summary: 'Register a new asset to the estate' })
   @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid input data or cannot modify will',
+    status: HttpStatus.CREATED,
+    description: 'The asset has been successfully registered.',
+    type: String, // Returns ID
   })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard, WillStatusGuard)
-  async addAsset(
-    @Param('willId') willId: string,
-    @Body(KenyanLawValidationPipe) addAssetDto: AddAssetRequestDto,
-    @Request() req,
-  ): Promise<AssetResponseDto> {
-    const testatorId = req.user.id;
-    return this.assetService.addAssetToWill(addAssetDto, willId, testatorId);
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid data provided.' })
+  async addAsset(@Req() req: RequestWithUser, @Body() dto: AddAssetDto): Promise<{ id: string }> {
+    const id = await this.assetService.addAsset(req.user.userId, dto);
+    return { id };
   }
+
+  // --------------------------------------------------------------------------
+  // READ
+  // --------------------------------------------------------------------------
 
   @Get()
-  @ApiOperation({ summary: 'Get will assets', description: 'Get all assets for a specific will' })
-  @ApiResponse({ status: HttpStatus.OK, type: [AssetResponseDto] })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will not found' })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard)
-  async getWillAssets(
-    @Param('willId') willId: string,
-    @Request() req,
-  ): Promise<{
-    willAssets: AssetResponseDto[];
-    standaloneAssets: AssetResponseDto[];
-    totalValue: number;
-  }> {
-    const testatorId = req.user.id;
-    return this.assetService.getEstateAssets(testatorId, willId, false);
+  @ApiOperation({ summary: 'List all assets belonging to the user' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'List of assets.',
+    type: [AssetResponseDto],
+  })
+  async getEstateAssets(@Req() req: RequestWithUser): Promise<AssetResponseDto[]> {
+    return this.assetService.getEstateAssets(req.user.userId);
   }
 
-  @Get('estate')
-  @ApiOperation({
-    summary: 'Get estate assets',
-    description: "Get all assets for user's estate (including standalone assets)",
+  @Get('portfolio-value')
+  @ApiOperation({ summary: 'Get total portfolio value grouped by currency' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Financial summary of assets.',
   })
-  @ApiResponse({ status: HttpStatus.OK, type: [AssetResponseDto] })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  async getEstateAssets(@Request() req): Promise<{
-    willAssets: AssetResponseDto[];
-    standaloneAssets: AssetResponseDto[];
-    totalValue: number;
-  }> {
-    const testatorId = req.user.id;
-    return this.assetService.getEstateAssets(testatorId);
+  async getPortfolioValue(@Req() req: RequestWithUser) {
+    return this.assetService.getPortfolioValue(req.user.userId);
   }
 
-  @Delete(':assetId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({
-    summary: 'Remove asset from will',
-    description: 'Remove an asset from a will (only allowed for DRAFT status)',
+  @Get(':id')
+  @ApiOperation({ summary: 'Get details of a specific asset' })
+  @ApiParam({ name: 'id', description: 'The ID of the asset' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Asset details.',
+    type: AssetResponseDto,
   })
-  @ApiResponse({ status: HttpStatus.NO_CONTENT })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will or asset not found' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Asset not found.' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied.' })
+  async getAsset(@Req() req: RequestWithUser, @Param('id') id: string): Promise<AssetResponseDto> {
+    return this.assetService.getAsset(id, req.user.userId);
+  }
+
+  // --------------------------------------------------------------------------
+  // UPDATE
+  // --------------------------------------------------------------------------
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update asset details or valuation' })
+  @ApiParam({ name: 'id', description: 'The ID of the asset to update' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Asset updated successfully.',
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Asset not found.' })
+  async updateAsset(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateAssetDto,
+  ): Promise<void> {
+    return this.assetService.updateAsset(id, req.user.userId, dto);
+  }
+
+  // --------------------------------------------------------------------------
+  // DELETE
+  // --------------------------------------------------------------------------
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Remove (soft delete) an asset from the estate' })
+  @ApiParam({ name: 'id', description: 'The ID of the asset to remove' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Asset removed successfully.',
+  })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: 'Cannot remove asset from will in current status',
+    description: 'Cannot delete asset (e.g. locked by active will).',
   })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard, WillStatusGuard)
-  async removeAsset(
-    @Param('willId') willId: string,
-    @Param('assetId') assetId: string,
-    @Request() req,
-  ): Promise<void> {
-    const testatorId = req.user.id;
-    return this.assetService.removeAssetFromWill(assetId, willId, testatorId);
-  }
-
-  @Post(':assetId/verify')
-  @ApiOperation({
-    summary: 'Verify asset document',
-    description: 'Mark asset document as verified (admin/verifier only)',
-  })
-  @ApiResponse({ status: HttpStatus.OK, type: AssetResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Asset not found' })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Insufficient permissions' })
-  async verifyAsset(
-    @Param('assetId') assetId: string,
-    @Body() verifyDto: { verified: boolean },
-    @Request() req,
-  ): Promise<AssetResponseDto> {
-    const verifiedBy = req.user.id;
-    // Check user role for verification permissions
-    if (!['ADMIN', 'VERIFIER'].includes(req.user.role)) {
-      throw new Error('Insufficient permissions to verify assets');
-    }
-    return this.assetService.updateAssetVerification(assetId, verifyDto.verified, verifiedBy);
-  }
-
-  @Get('types/:assetType')
-  @ApiOperation({
-    summary: 'Get assets by type',
-    description: 'Get all assets of a specific type for the user',
-  })
-  @ApiResponse({ status: HttpStatus.OK, type: [AssetResponseDto] })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  async getAssetsByType(
-    @Param('assetType') assetType: string,
-    @Request() req,
-  ): Promise<AssetResponseDto[]> {
-    const testatorId = req.user.id;
-    return this.assetService.getAssetsByType(testatorId, assetType as any);
+  async removeAsset(@Req() req: RequestWithUser, @Param('id') id: string): Promise<void> {
+    return this.assetService.removeAsset(id, req.user.userId);
   }
 }

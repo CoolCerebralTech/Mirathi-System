@@ -1,16 +1,29 @@
-// estate-planning/application/dto/request/create-will.dto.ts
-export class CreateWillRequestDto {
+import { IsString, IsNotEmpty, IsBoolean, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class CapacityDeclarationDto {
+  @IsBoolean()
+  isOfAge: boolean;
+
+  @IsBoolean()
+  isSoundMind: boolean;
+
+  @IsBoolean()
+  understandsNature: boolean; // Understands what a will is
+
+  @IsBoolean()
+  understandsAssets: boolean; // Knows what they own
+
+  @IsBoolean()
+  freeFromUndueInfluence: boolean;
+}
+
+export class CreateWillDto {
+  @IsString()
+  @IsNotEmpty()
   title: string;
-  funeralWishes?: {
-    burialLocation?: string;
-    funeralType?: string;
-    specificInstructions?: string;
-  };
-  residuaryClause?: string;
-  digitalAssetInstructions?: {
-    socialMediaHandling?: string;
-    emailAccountHandling?: string;
-  };
-  specialInstructions?: string;
-  requiresWitnesses?: boolean;
+
+  @ValidateNested()
+  @Type(() => CapacityDeclarationDto)
+  legalCapacity: CapacityDeclarationDto;
 }

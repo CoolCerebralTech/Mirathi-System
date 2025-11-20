@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@shamba/database';
 import { WillStatus } from '@prisma/client';
 import { WillRepositoryInterface } from '../../../domain/interfaces/will.repository.interface';
@@ -11,416 +11,250 @@ import { WitnessMapper } from '../mappers/witness.mapper';
 
 @Injectable()
 export class WillPrismaRepository implements WillRepositoryInterface {
-  private readonly logger = new Logger(WillPrismaRepository.name);
-
   constructor(private readonly prisma: PrismaService) {}
 
+  // --------------------------------------------------------------------------
+  // BASIC PERSISTENCE
+  // --------------------------------------------------------------------------
+
+  /**
+   * Saves the Will Root Entity.
+   * NOTE: In a strict DDD approach with Prisma, saving the Aggregate Root
+   * typically implies saving the root properties. Child entities (Assets, etc.)
+   * are usually saved via their own repositories within the same Transaction scope,
+   * or using nested Prisma writes if strict consistency is required.
+   *
+   * For this implementation, we persist the Will Entity fields.
+   */
+  async save(aggregate: WillAggregate): Promise<void> {
+    const will = aggregate.getWill();
+    const persistenceModel = WillMapper.toPersistence(will);
+
+    await this.prisma.will.upsert({
+      where: { id: persistenceModel.id },
+      update: persistenceModel,
+      create: persistenceModel,
+    });
+  }
+
   async findById(id: string): Promise<WillAggregate | null> {
-    try {
-      const prismaWill = await this.prisma.will.findUnique({
-        where: { id, isActive: true },
-        include: {
-          assets: {
-            where: { isActive: true },
-          },
-          beneficiaryAssignments: true,
-          executors: true,
-          witnesses: true,
-          versions: {
-            orderBy: { versionNumber: 'desc' },
-          },
-        },
-      });
+    const raw = await this.prisma.will.findUnique({
+      where: { id },
+      include: {
+        assets: true, // Fetch linked assets
+        beneficiaryAssignments: true, // Fetch beneficiaries
+        executors: true, // Fetch executors
+        witnesses: true, // Fetch witnesses
+      },
+    });
 
-      if (!prismaWill) {
-        return null;
-      }
+    if (!raw) return null;
 
-      return this.mapToAggregate(prismaWill);
-    } catch (error) {
-      this.logger.error(`Failed to find will by ID ${id}:`, error);
-      throw new Error(`Could not retrieve will: ${error.message}`);
-    }
+    // Map Children
+    const willEntity = WillMapper.toDomain(raw);
+
+    const assets = raw.assets.map((a) => AssetMapper.toDomain(a));
+
+    const beneficiaries = raw.beneficiaryAssignments.map((b) => BeneficiaryMapper.toDomain(b));
+
+    const executors = raw.executors.map((e) => ExecutorMapper.toDomain(e));
+
+    const witnesses = raw.witnesses.map((w) => WitnessMapper.toDomain(w));
+
+    // Reconstitute Aggregate
+    return WillAggregate.reconstitute(willEntity, assets, beneficiaries, executors, witnesses);
   }
 
-  async findByTestatorId(testatorId: string): Promise<WillAggregate[]> {
-    try {
-      const prismaWills = await this.prisma.will.findMany({
-        where: {
-          testatorId,
-          isActive: true,
-        },
-        include: {
-          assets: {
-            where: { isActive: true },
-          },
-          beneficiaryAssignments: true,
-          executors: true,
-          witnesses: true,
-          versions: {
-            orderBy: { versionNumber: 'desc' },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      return prismaWills.map((will) => this.mapToAggregate(will)).filter(Boolean);
-    } catch (error) {
-      this.logger.error(`Failed to find wills for testator ${testatorId}:`, error);
-      throw new Error(`Could not retrieve wills: ${error.message}`);
-    }
-  }
-
-  async findByStatus(status: WillStatus): Promise<WillAggregate[]> {
-    try {
-      const prismaWills = await this.prisma.will.findMany({
-        where: {
-          status,
-          isActive: true,
-        },
-        include: {
-          assets: {
-            where: { isActive: true },
-          },
-          beneficiaryAssignments: true,
-          executors: true,
-          witnesses: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      return prismaWills.map((will) => this.mapToAggregate(will)).filter(Boolean);
-    } catch (error) {
-      this.logger.error(`Failed to find wills by status ${status}:`, error);
-      throw new Error(`Could not retrieve wills: ${error.message}`);
-    }
-  }
-
-  async save(willAggregate: WillAggregate): Promise<void> {
-    const will = willAggregate.getWill();
-
-    try {
-      await this.prisma.$transaction(async (tx) => {
-        // Save will
-        const willData = WillMapper.toPersistence(will);
-        await tx.will.upsert({
-          where: { id: will.getId() },
-          create: willData,
-          update: willData,
-        });
-
-        // Save assets
-        const assets = willAggregate.getAllAssets();
-        for (const asset of assets) {
-          const assetData = AssetMapper.toPersistence(asset);
-          await tx.asset.upsert({
-            where: { id: asset.getId() },
-            create: assetData,
-            update: assetData,
-          });
-        }
-
-        // Save beneficiaries
-        const beneficiaries = willAggregate.getAllBeneficiaries();
-        for (const beneficiary of beneficiaries) {
-          const beneficiaryData = BeneficiaryMapper.toPersistence(beneficiary);
-          await tx.beneficiaryAssignment.upsert({
-            where: { id: beneficiary.getId() },
-            create: beneficiaryData,
-            update: beneficiaryData,
-          });
-        }
-
-        // Save executors
-        const executors = willAggregate.getAllExecutors();
-        for (const executor of executors) {
-          const executorData = ExecutorMapper.toPersistence(executor);
-          await tx.willExecutor.upsert({
-            where: { id: executor.getId() },
-            create: executorData,
-            update: executorData,
-          });
-        }
-
-        // Save witnesses
-        const witnesses = willAggregate.getAllWitnesses();
-        for (const witness of witnesses) {
-          const witnessData = WitnessMapper.toPersistence(witness);
-          await tx.willWitness.upsert({
-            where: { id: witness.getId() },
-            create: witnessData,
-            update: witnessData,
-          });
-        }
-
-        // Save version if version number changed
-        const currentVersion = await tx.willVersion.findFirst({
-          where: { willId: will.getId() },
-          orderBy: { versionNumber: 'desc' },
-        });
-
-        if (!currentVersion || currentVersion.versionNumber < will.getVersionNumber()) {
-          await tx.willVersion.create({
-            data: {
-              id: `${will.getId()}_v${will.getVersionNumber()}`,
-              willId: will.getId(),
-              versionNumber: will.getVersionNumber(),
-              snapshot: willData, // Store current will state
-              changeLog: `Version ${will.getVersionNumber()} saved`,
-              changedBy: will.getTestatorId(), // In reality, get from context
-              ipAddress: '127.0.0.1', // In reality, get from request
-            },
-          });
-        }
-      });
-
-      this.logger.log(`Successfully saved will ${will.getId()}`);
-    } catch (error) {
-      this.logger.error(`Failed to save will ${will.getId()}:`, error);
-      throw new Error(`Could not save will: ${error.message}`);
-    }
+  async exists(id: string): Promise<boolean> {
+    const count = await this.prisma.will.count({ where: { id } });
+    return count > 0;
   }
 
   async delete(id: string): Promise<void> {
-    try {
-      await this.prisma.will.delete({
-        where: { id },
-      });
-      this.logger.log(`Successfully deleted will ${id}`);
-    } catch (error) {
-      this.logger.error(`Failed to delete will ${id}:`, error);
-      throw new Error(`Could not delete will: ${error.message}`);
-    }
+    await this.prisma.will.delete({ where: { id } });
   }
 
   async softDelete(id: string): Promise<void> {
-    try {
-      await this.prisma.will.update({
-        where: { id },
-        data: {
-          isActive: false,
-          deletedAt: new Date(),
-        },
-      });
-      this.logger.log(`Successfully soft-deleted will ${id}`);
-    } catch (error) {
-      this.logger.error(`Failed to soft-delete will ${id}:`, error);
-      throw new Error(`Could not soft-delete will: ${error.message}`);
-    }
+    await this.prisma.will.update({
+      where: { id },
+      data: {
+        isActive: false,
+        deletedAt: new Date(),
+      },
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // DOMAIN LOOKUPS
+  // --------------------------------------------------------------------------
+
+  async findByTestatorId(testatorId: string): Promise<WillAggregate[]> {
+    const wills = await this.prisma.will.findMany({
+      where: { testatorId, deletedAt: null },
+      include: {
+        assets: true,
+        beneficiaryAssignments: true,
+        executors: true,
+        witnesses: true,
+      },
+    });
+
+    return wills.map((raw) => {
+      return WillAggregate.reconstitute(
+        WillMapper.toDomain(raw),
+        raw.assets.map(AssetMapper.toDomain),
+        raw.beneficiaryAssignments.map(BeneficiaryMapper.toDomain),
+        raw.executors.map(ExecutorMapper.toDomain),
+        raw.witnesses.map(WitnessMapper.toDomain),
+      );
+    });
+  }
+
+  async findByStatus(status: WillStatus): Promise<WillAggregate[]> {
+    const wills = await this.prisma.will.findMany({
+      where: { status },
+      include: { assets: true, beneficiaryAssignments: true, executors: true, witnesses: true },
+    });
+
+    // Simplified mapping for bulk queries (reusing logic)
+    return wills.map(this.mapToAggregate);
   }
 
   async findActiveWillByTestatorId(testatorId: string): Promise<WillAggregate | null> {
-    try {
-      const prismaWill = await this.prisma.will.findFirst({
-        where: {
-          testatorId,
-          status: WillStatus.ACTIVE,
-          isActive: true,
-        },
-        include: {
-          assets: {
-            where: { isActive: true },
-          },
-          beneficiaryAssignments: true,
-          executors: true,
-          witnesses: true,
-        },
-      });
+    const raw = await this.prisma.will.findFirst({
+      where: {
+        testatorId,
+        status: WillStatus.ACTIVE,
+        deletedAt: null,
+      },
+      include: {
+        assets: true,
+        beneficiaryAssignments: true,
+        executors: true,
+        witnesses: true,
+      },
+    });
 
-      return prismaWill ? this.mapToAggregate(prismaWill) : null;
-    } catch (error) {
-      this.logger.error(`Failed to find active will for testator ${testatorId}:`, error);
-      throw new Error(`Could not retrieve active will: ${error.message}`);
-    }
-  }
-
-  async findWillsRequiringWitnesses(): Promise<WillAggregate[]> {
-    try {
-      const prismaWills = await this.prisma.will.findMany({
-        where: {
-          status: WillStatus.PENDING_WITNESS,
-          requiresWitnesses: true,
-          witnessCount: { lt: 2 },
-          isActive: true,
-        },
-        include: {
-          assets: {
-            where: { isActive: true },
-          },
-          beneficiaryAssignments: true,
-          executors: true,
-          witnesses: true,
-        },
-      });
-
-      return prismaWills.map((will) => this.mapToAggregate(will)).filter(Boolean);
-    } catch (error) {
-      this.logger.error('Failed to find wills requiring witnesses:', error);
-      throw new Error(`Could not retrieve wills requiring witnesses: ${error.message}`);
-    }
-  }
-
-  async findWillsPendingActivation(): Promise<WillAggregate[]> {
-    try {
-      const prismaWills = await this.prisma.will.findMany({
-        where: {
-          status: WillStatus.WITNESSED,
-          isActive: true,
-        },
-        include: {
-          assets: {
-            where: { isActive: true },
-          },
-          beneficiaryAssignments: true,
-          executors: true,
-          witnesses: true,
-        },
-      });
-
-      return prismaWills.map((will) => this.mapToAggregate(will)).filter(Boolean);
-    } catch (error) {
-      this.logger.error('Failed to find wills pending activation:', error);
-      throw new Error(`Could not retrieve wills pending activation: ${error.message}`);
-    }
+    return raw ? this.mapToAggregate(raw) : null;
   }
 
   async findSupersededWills(originalWillId: string): Promise<WillAggregate[]> {
-    try {
-      const prismaWills = await this.prisma.will.findMany({
-        where: {
-          supersedes: originalWillId,
-          isActive: true,
-        },
-        include: {
-          assets: {
-            where: { isActive: true },
-          },
-          beneficiaryAssignments: true,
-          executors: true,
-          witnesses: true,
-        },
-      });
-
-      return prismaWills.map((will) => this.mapToAggregate(will)).filter(Boolean);
-    } catch (error) {
-      this.logger.error(`Failed to find superseded wills for ${originalWillId}:`, error);
-      throw new Error(`Could not retrieve superseded wills: ${error.message}`);
-    }
+    const wills = await this.prisma.will.findMany({
+      where: { supersedes: originalWillId },
+      include: { assets: true, beneficiaryAssignments: true, executors: true, witnesses: true },
+    });
+    return wills.map(this.mapToAggregate);
   }
 
-  async saveVersion(willId: string, versionData: any): Promise<void> {
-    try {
-      const latestVersion = await this.prisma.willVersion.findFirst({
-        where: { willId },
-        orderBy: { versionNumber: 'desc' },
-      });
+  // --------------------------------------------------------------------------
+  // WORKFLOW QUERIES
+  // --------------------------------------------------------------------------
 
-      const newVersionNumber = (latestVersion?.versionNumber || 0) + 1;
-
-      await this.prisma.willVersion.create({
-        data: {
-          id: `${willId}_v${newVersionNumber}`,
-          willId,
-          versionNumber: newVersionNumber,
-          snapshot: versionData.snapshot,
-          changeLog: versionData.changeLog,
-          changedBy: versionData.changedBy,
-          ipAddress: versionData.ipAddress,
-        },
-      });
-    } catch (error) {
-      this.logger.error(`Failed to save version for will ${willId}:`, error);
-      throw new Error(`Could not save will version: ${error.message}`);
-    }
+  async findWillsRequiringWitnesses(): Promise<WillAggregate[]> {
+    const wills = await this.prisma.will.findMany({
+      where: {
+        status: WillStatus.PENDING_WITNESS,
+        isActive: true,
+      },
+      include: { assets: true, beneficiaryAssignments: true, executors: true, witnesses: true },
+    });
+    return wills.map(this.mapToAggregate);
   }
 
-  async findVersions(willId: string): Promise<any[]> {
-    try {
-      return await this.prisma.willVersion.findMany({
-        where: { willId },
-        orderBy: { versionNumber: 'desc' },
-      });
-    } catch (error) {
-      this.logger.error(`Failed to find versions for will ${willId}:`, error);
-      throw new Error(`Could not retrieve will versions: ${error.message}`);
-    }
+  async findWillsPendingActivation(): Promise<WillAggregate[]> {
+    // "Witnessed" status implies ready for activation but not yet Active
+    const wills = await this.prisma.will.findMany({
+      where: {
+        status: WillStatus.WITNESSED,
+        isActive: true,
+      },
+      include: { assets: true, beneficiaryAssignments: true, executors: true, witnesses: true },
+    });
+    return wills.map(this.mapToAggregate);
   }
+
+  // --------------------------------------------------------------------------
+  // VERSIONING
+  // --------------------------------------------------------------------------
+
+  async saveVersion(
+    willId: string,
+    versionNumber: number,
+    versionData: Record<string, any>,
+  ): Promise<void> {
+    await this.prisma.willVersion.create({
+      data: {
+        willId,
+        versionNumber,
+        snapshot: versionData,
+        changeLog: `Version ${versionNumber} auto-saved`,
+        changedBy: 'SYSTEM', // Or pass user context if available
+      },
+    });
+  }
+
+  async findVersions(willId: string): Promise<{ version: number; data: any; createdAt: Date }[]> {
+    const versions = await this.prisma.willVersion.findMany({
+      where: { willId },
+      orderBy: { versionNumber: 'desc' },
+    });
+
+    return versions.map((v) => ({
+      version: v.versionNumber,
+      data: v.snapshot,
+      createdAt: v.createdAt,
+    }));
+  }
+
+  // --------------------------------------------------------------------------
+  // ANALYTICS / BULK
+  // --------------------------------------------------------------------------
 
   async countByTestatorId(testatorId: string): Promise<number> {
-    try {
-      return await this.prisma.will.count({
-        where: {
-          testatorId,
-          isActive: true,
-        },
-      });
-    } catch (error) {
-      this.logger.error(`Failed to count wills for testator ${testatorId}:`, error);
-      throw new Error(`Could not count wills: ${error.message}`);
-    }
+    return this.prisma.will.count({
+      where: { testatorId, isActive: true },
+    });
   }
 
   async findRecentWills(days: number): Promise<WillAggregate[]> {
-    try {
-      const sinceDate = new Date();
-      sinceDate.setDate(sinceDate.getDate() - days);
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - days);
 
-      const prismaWills = await this.prisma.will.findMany({
-        where: {
-          createdAt: { gte: sinceDate },
-          isActive: true,
-        },
-        include: {
-          assets: {
-            where: { isActive: true },
-          },
-          beneficiaryAssignments: true,
-          executors: true,
-          witnesses: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      return prismaWills.map((will) => this.mapToAggregate(will)).filter(Boolean);
-    } catch (error) {
-      this.logger.error(`Failed to find recent wills (last ${days} days):`, error);
-      throw new Error(`Could not retrieve recent wills: ${error.message}`);
-    }
+    const wills = await this.prisma.will.findMany({
+      where: {
+        updatedAt: { gte: sinceDate },
+      },
+      include: { assets: true, beneficiaryAssignments: true, executors: true, witnesses: true },
+    });
+    return wills.map(this.mapToAggregate);
   }
 
+  // --------------------------------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------------------------------
+
+  /**
+   * Helper to map a fully loaded Prisma result to an Aggregate
+   * Note: Bind this if passing as callback
+   */
+  private mapToAggregate = (raw: any): WillAggregate => {
+    return WillAggregate.reconstitute(
+      WillMapper.toDomain(raw),
+      raw.assets?.map(AssetMapper.toDomain) || [],
+      raw.beneficiaryAssignments?.map(BeneficiaryMapper.toDomain) || [],
+      raw.executors?.map(ExecutorMapper.toDomain) || [],
+      raw.witnesses?.map(WitnessMapper.toDomain) || [],
+    );
+  };
+
+  /**
+   * Transaction support required by Interface.
+   * This allows the Application Service to wrap multiple repository calls (Will + Assets)
+   * into one atomic DB transaction.
+   */
   async transaction<T>(work: () => Promise<T>): Promise<T> {
-    return await this.prisma.$transaction(work);
-  }
-
-  private mapToAggregate(prismaWill: any): WillAggregate {
-    try {
-      const will = WillMapper.toDomain(prismaWill);
-      if (!will) {
-        throw new Error('Failed to map will entity');
-      }
-
-      const aggregate = new WillAggregate(will);
-
-      // Map assets
-      const assets = AssetMapper.toDomainList(prismaWill.assets || []);
-      assets.forEach((asset) => aggregate.addAsset(asset));
-
-      // Map beneficiaries
-      const beneficiaries = BeneficiaryMapper.toDomainList(prismaWill.beneficiaryAssignments || []);
-      beneficiaries.forEach((beneficiary) => aggregate.assignBeneficiary(beneficiary));
-
-      // Map executors
-      const executors = ExecutorMapper.toDomainList(prismaWill.executors || []);
-      executors.forEach((executor) => aggregate.nominateExecutor(executor));
-
-      // Map witnesses
-      const witnesses = WitnessMapper.toDomainList(prismaWill.witnesses || []);
-      witnesses.forEach((witness) => aggregate.addWitness(witness));
-
-      return aggregate;
-    } catch (error) {
-      this.logger.error('Failed to map will to aggregate:', error);
-      throw new Error(`Could not map will aggregate: ${error.message}`);
-    }
+    return this.prisma.$transaction(async () => {
+      return await work();
+    });
   }
 }

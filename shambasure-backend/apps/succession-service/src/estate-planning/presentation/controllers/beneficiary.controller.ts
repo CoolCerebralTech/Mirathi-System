@@ -1,223 +1,144 @@
-// estate-planning/presentation/controllers/beneficiary.controller.ts
 import {
   Controller,
   Get,
   Post,
-  Put,
-  Delete,
   Body,
+  Patch,
   Param,
-  Query,
+  Delete,
   UseGuards,
-  Request,
+  Req,
   HttpStatus,
-  HttpCode,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@shamba/auth';
-import { TestatorOwnershipGuard } from '../../../common/guards/testator-ownership.guard';
-import { WillStatusGuard } from '../../../common/guards/will-status.guard';
-import { KenyanLawValidationPipe } from '../../../common/pipes/kenyan-law-validation.pipe';
 import { BeneficiaryService } from '../../application/services/beneficiary.service';
-import { AssignBeneficiaryRequestDto } from '../../application/dto/request/assign-beneficiary.dto';
-import { UpdateBeneficiaryRequestDto } from '../../application/dto/request/update-beneficiary.dto';
+import { AssignBeneficiaryDto } from '../../application/dto/request/assign-beneficiary.dto';
 import { BeneficiaryResponseDto } from '../../application/dto/response/beneficiary.response.dto';
+import { AssetDistributionSummaryResponse } from '../../application/queries/get-asset-distribution.query';
 
-@ApiTags('Beneficiaries')
+interface RequestWithUser extends Request {
+  user: { userId: string; email: string; role: string };
+}
+
+@ApiTags('Estate Planning - Beneficiaries')
 @ApiBearerAuth()
-@Controller('wills/:willId/beneficiaries')
 @UseGuards(JwtAuthGuard)
+@Controller('beneficiaries')
 export class BeneficiaryController {
   constructor(private readonly beneficiaryService: BeneficiaryService) {}
 
-  @Post()
-  @ApiOperation({
-    summary: 'Assign beneficiary to asset',
-    description: 'Assign a beneficiary to an asset in a will',
+  // --------------------------------------------------------------------------
+  // CREATE / ASSIGN
+  // --------------------------------------------------------------------------
+
+  @Post(':willId')
+  @ApiOperation({ summary: 'Assign a beneficiary to an asset within a specific Will' })
+  @ApiParam({ name: 'willId', description: 'The ID of the Will' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Beneficiary successfully assigned.',
+    type: String, // Returns ID
   })
-  @ApiResponse({ status: HttpStatus.CREATED, type: BeneficiaryResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will or asset not found' })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid input data or cannot modify will',
+    description: 'Validation failed (e.g. Total shares exceed 100%).',
   })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard, WillStatusGuard)
   async assignBeneficiary(
+    @Req() req: RequestWithUser,
     @Param('willId') willId: string,
-    @Body(KenyanLawValidationPipe) assignBeneficiaryDto: AssignBeneficiaryRequestDto,
-    @Request() req,
-  ): Promise<BeneficiaryResponseDto> {
-    const testatorId = req.user.id;
-    return this.beneficiaryService.assignBeneficiary(assignBeneficiaryDto, willId, testatorId);
+    @Body() dto: AssignBeneficiaryDto,
+  ): Promise<{ id: string }> {
+    const id = await this.beneficiaryService.assignBeneficiary(willId, req.user.userId, dto);
+    return { id };
   }
 
-  @Get()
-  @ApiOperation({
-    summary: 'Get will beneficiaries',
-    description: 'Get all beneficiaries for a specific will',
-  })
-  @ApiQuery({ name: 'assetId', required: false, description: 'Filter by asset ID' })
-  @ApiQuery({
-    name: 'distributionStatus',
-    required: false,
-    enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'DISPUTED', 'DEFERRED'],
-  })
-  @ApiResponse({ status: HttpStatus.OK, type: [BeneficiaryResponseDto] })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will not found' })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard)
-  async getBeneficiaries(
-    @Param('willId') willId: string,
-    @Query('assetId') assetId: string,
-    @Query('distributionStatus') distributionStatus: string,
-    @Request() req,
-  ): Promise<{ beneficiaries: BeneficiaryResponseDto[]; summary: any }> {
-    const testatorId = req.user.id;
-    return this.beneficiaryService.getBeneficiaries(
-      willId,
-      testatorId,
-      assetId,
-      distributionStatus as any,
-    );
-  }
+  // --------------------------------------------------------------------------
+  // READ
+  // --------------------------------------------------------------------------
 
-  @Put(':beneficiaryId')
-  @ApiOperation({
-    summary: 'Update beneficiary assignment',
-    description: 'Update a beneficiary assignment in a will',
-  })
-  @ApiResponse({ status: HttpStatus.OK, type: BeneficiaryResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will or beneficiary not found' })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Cannot modify will in current status',
-  })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard, WillStatusGuard)
-  async updateBeneficiary(
-    @Param('willId') willId: string,
-    @Param('beneficiaryId') beneficiaryId: string,
-    @Body(KenyanLawValidationPipe) updateBeneficiaryDto: UpdateBeneficiaryRequestDto,
-    @Request() req,
-  ): Promise<BeneficiaryResponseDto> {
-    const testatorId = req.user.id;
-    return this.beneficiaryService.updateBeneficiaryAssignment(
-      beneficiaryId,
-      updateBeneficiaryDto,
-      willId,
-      testatorId,
-    );
-  }
-
-  @Delete(':beneficiaryId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({
-    summary: 'Remove beneficiary',
-    description: 'Remove a beneficiary assignment from a will',
-  })
-  @ApiResponse({ status: HttpStatus.NO_CONTENT })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will or beneficiary not found' })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Cannot modify will in current status',
-  })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard, WillStatusGuard)
-  async removeBeneficiary(
-    @Param('willId') willId: string,
-    @Param('beneficiaryId') beneficiaryId: string,
-    @Request() req,
-  ): Promise<void> {
-    const testatorId = req.user.id;
-    return this.beneficiaryService.removeBeneficiary(beneficiaryId, willId, testatorId);
-  }
-
-  @Get('distribution/summary')
-  @ApiOperation({
-    summary: 'Get distribution summary',
-    description: 'Get comprehensive distribution summary for the will',
-  })
+  @Get(':willId')
+  @ApiOperation({ summary: 'List all beneficiaries assigned in a Will' })
+  @ApiParam({ name: 'willId', description: 'The ID of the Will' })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Distribution summary',
-    schema: {
-      type: 'object',
-      properties: {
-        assetSummaries: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              assetId: { type: 'string' },
-              assetName: { type: 'string' },
-              totalAllocated: { type: 'number' },
-              beneficiaryCount: { type: 'number' },
-              conditionalCount: { type: 'number' },
-            },
-          },
-        },
-        overallSummary: {
-          type: 'object',
-          properties: {
-            totalAssets: { type: 'number' },
-            totalBeneficiaries: { type: 'number' },
-            totalConditionalBequests: { type: 'number' },
-            totalValueAllocated: { type: 'number' },
-          },
-        },
-      },
-    },
+    description: 'List of beneficiary assignments.',
+    type: [BeneficiaryResponseDto],
   })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will not found' })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard)
-  async getDistributionSummary(
+  async getBeneficiaries(
+    @Req() req: RequestWithUser,
     @Param('willId') willId: string,
-    @Request() req,
-  ): Promise<{
-    assetSummaries: Array<{
-      assetId: string;
-      assetName: string;
-      totalAllocated: number;
-      beneficiaryCount: number;
-      conditionalCount: number;
-    }>;
-    overallSummary: {
-      totalAssets: number;
-      totalBeneficiaries: number;
-      totalConditionalBequests: number;
-      totalValueAllocated: number;
-    };
-  }> {
-    const testatorId = req.user.id;
-    return this.beneficiaryService.getBeneficiaryDistributionSummary(willId);
+  ): Promise<BeneficiaryResponseDto[]> {
+    return this.beneficiaryService.getBeneficiaries(willId, req.user.userId);
   }
 
-  @Post('distribution/status')
-  @ApiOperation({
-    summary: 'Update distribution status',
-    description: 'Update distribution status for multiple beneficiaries (executor only)',
+  @Get('assignment/:assignmentId')
+  @ApiOperation({ summary: 'Get details of a specific assignment' })
+  @ApiParam({ name: 'assignmentId', description: 'The specific assignment ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: BeneficiaryResponseDto,
   })
-  @ApiResponse({ status: HttpStatus.OK })
-  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data' })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Insufficient permissions' })
-  async updateDistributionStatus(
-    @Body() updateStatusDto: { beneficiaryIds: string[]; status: string; notes?: string },
-    @Request() req,
+  async getBeneficiary(
+    @Req() req: RequestWithUser,
+    @Param('assignmentId') assignmentId: string,
+  ): Promise<BeneficiaryResponseDto> {
+    return this.beneficiaryService.getBeneficiary(assignmentId, req.user.userId);
+  }
+
+  @Get('distribution-stats/:assetId')
+  @ApiOperation({ summary: 'Get statistical distribution data for an asset (for charts)' })
+  @ApiParam({ name: 'assetId', description: 'The Asset ID to analyze' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Summary of how much of the asset has been allocated.',
+    type: Object, // Returns AssetDistributionSummaryResponse
+  })
+  async getAssetDistribution(
+    @Req() req: RequestWithUser,
+    @Param('assetId') assetId: string,
+  ): Promise<AssetDistributionSummaryResponse> {
+    return this.beneficiaryService.getAssetDistribution(assetId, req.user.userId);
+  }
+
+  // --------------------------------------------------------------------------
+  // UPDATE
+  // --------------------------------------------------------------------------
+
+  @Patch(':willId/:assignmentId')
+  @ApiOperation({ summary: 'Update a beneficiary assignment (e.g. change percentage)' })
+  @ApiParam({ name: 'willId', description: 'The ID of the Will' })
+  @ApiParam({ name: 'assignmentId', description: 'The Assignment ID to update' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Assignment updated successfully.',
+  })
+  async updateBeneficiary(
+    @Req() req: RequestWithUser,
+    @Param('willId') willId: string,
+    @Param('assignmentId') assignmentId: string,
+    @Body() dto: Partial<AssignBeneficiaryDto>,
   ): Promise<void> {
-    // Check if user is executor for these beneficiaries
-    // This would require additional validation
-    return this.beneficiaryService.updateDistributionStatus(
-      updateStatusDto.beneficiaryIds,
-      updateStatusDto.status as any,
-      updateStatusDto.notes,
-    );
+    return this.beneficiaryService.updateBeneficiary(willId, req.user.userId, assignmentId, dto);
+  }
+
+  // --------------------------------------------------------------------------
+  // DELETE
+  // --------------------------------------------------------------------------
+
+  @Delete(':willId/:assignmentId')
+  @ApiOperation({ summary: 'Remove a beneficiary from the Will' })
+  @ApiParam({ name: 'willId', description: 'The ID of the Will' })
+  @ApiParam({ name: 'assignmentId', description: 'The Assignment ID to remove' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Beneficiary removed successfully.',
+  })
+  async removeBeneficiary(
+    @Req() req: RequestWithUser,
+    @Param('willId') willId: string,
+    @Param('assignmentId') assignmentId: string,
+  ): Promise<void> {
+    return this.beneficiaryService.removeBeneficiary(willId, req.user.userId, assignmentId);
   }
 }

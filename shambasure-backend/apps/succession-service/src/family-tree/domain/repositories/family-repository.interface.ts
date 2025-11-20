@@ -1,33 +1,24 @@
-// family-tree/domain/repositories/family.repository.interface.ts
-import { Family } from '../../entities/family.entity';
-import { FamilyAggregate } from '../aggregates/family.aggregate';
+import { Family } from '../entities/family.entity';
 
 export interface FamilyRepositoryInterface {
-  // Basic CRUD operations
-  findById(id: string): Promise<FamilyAggregate | null>;
-  findByCreatorId(creatorId: string): Promise<FamilyAggregate[]>;
-  save(family: FamilyAggregate): Promise<void>;
+  // ---------------------------------------------------------
+  // Basic Persistence
+  // ---------------------------------------------------------
+  save(family: Family): Promise<void>;
+  findById(id: string): Promise<Family | null>;
   delete(id: string): Promise<void>;
-  softDelete(id: string): Promise<void>;
 
-  // Complex queries
-  findFamiliesWithMembers(memberId: string): Promise<FamilyAggregate[]>;
-  findFamiliesByCulturalBackground(background: string): Promise<FamilyAggregate[]>;
-  findActiveFamilies(): Promise<FamilyAggregate[]>;
+  // ---------------------------------------------------------
+  // Domain Lookups
+  // ---------------------------------------------------------
+  /**
+   * Find the family tree created/owned by a specific user.
+   * Note: Currently assumes 1 Tree per User, but returns array for flexibility.
+   */
+  findByOwnerId(ownerId: string): Promise<Family[]>;
 
-  // Search operations
-  searchFamilies(query: string): Promise<FamilyAggregate[]>;
-  findFamiliesByLocation(county: string): Promise<FamilyAggregate[]>;
-
-  // Analytics
-  countFamiliesByCreator(creatorId: string): Promise<number>;
-  getFamilyStatistics(familyId: string): Promise<{
-    memberCount: number;
-    marriageCount: number;
-    minorCount: number;
-    elderCount: number;
-  }>;
-
-  // Transaction support
-  transaction<T>(work: () => Promise<T>): Promise<T>;
+  /**
+   * Find family by name (Search/Validation).
+   */
+  findByName(ownerId: string, name: string): Promise<Family | null>;
 }

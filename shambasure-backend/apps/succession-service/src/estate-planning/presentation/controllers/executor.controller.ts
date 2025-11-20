@@ -1,169 +1,116 @@
-// estate-planning/presentation/controllers/executor.controller.ts
 import {
   Controller,
   Get,
   Post,
-  Put,
-  Delete,
   Body,
   Param,
+  Delete,
   UseGuards,
-  Request,
+  Req,
   HttpStatus,
-  HttpCode,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@shamba/auth';
-import { TestatorOwnershipGuard } from '../../../common/guards/testator-ownership.guard';
-import { WillStatusGuard } from '../../../common/guards/will-status.guard';
-import { KenyanLawValidationPipe } from '../../../common/pipes/kenyan-law-validation.pipe';
 import { ExecutorService } from '../../application/services/executor.service';
-import { NominateExecutorRequestDto } from '../../application/dto/request/nominate-executor.dto';
+import { NominateExecutorDto } from '../../application/dto/request/nominate-executor.dto';
 import { ExecutorResponseDto } from '../../application/dto/response/executor.response.dto';
 
-@ApiTags('Executors')
+interface RequestWithUser extends Request {
+  user: { userId: string; email: string; role: string };
+}
+
+@ApiTags('Estate Planning - Executors')
 @ApiBearerAuth()
-@Controller('wills/:willId/executors')
 @UseGuards(JwtAuthGuard)
+@Controller('executors')
 export class ExecutorController {
   constructor(private readonly executorService: ExecutorService) {}
 
-  @Post()
-  @ApiOperation({ summary: 'Nominate executor', description: 'Nominate an executor for a will' })
-  @ApiResponse({ status: HttpStatus.CREATED, type: ExecutorResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will not found' })
+  // --------------------------------------------------------------------------
+  // INBOX / MY DUTIES (Appointee View)
+  // --------------------------------------------------------------------------
+
+  @Get('my-nominations')
+  @ApiOperation({
+    summary: 'Get list of Wills where I am nominated as an Executor',
+    description: 'Used for the "Inbox" or "Pending Requests" dashboard for the appointee.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: [ExecutorResponseDto],
+  })
+  async getMyNominations(@Req() req: RequestWithUser): Promise<ExecutorResponseDto[]> {
+    return this.executorService.getMyNominations(req.user.userId);
+  }
+
+  // --------------------------------------------------------------------------
+  // MANAGEMENT (Testator View)
+  // --------------------------------------------------------------------------
+
+  @Post(':willId')
+  @ApiOperation({ summary: 'Nominate an Executor for a Will' })
+  @ApiParam({ name: 'willId', description: 'The ID of the Will' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Executor nominated successfully.',
+    type: String, // Returns ID
+  })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid input data or cannot modify will',
+    description: 'Validation failed (e.g. Underage executor, Max limit reached).',
   })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard, WillStatusGuard)
   async nominateExecutor(
+    @Req() req: RequestWithUser,
     @Param('willId') willId: string,
-    @Body(KenyanLawValidationPipe) nominateExecutorDto: NominateExecutorRequestDto,
-    @Request() req,
-  ): Promise<ExecutorResponseDto> {
-    const testatorId = req.user.id;
-    return this.executorService.nominateExecutor(nominateExecutorDto, willId, testatorId);
+    @Body() dto: NominateExecutorDto,
+  ): Promise<{ id: string }> {
+    const id = await this.executorService.nominateExecutor(willId, req.user.userId, dto);
+    return { id };
   }
 
-  @Get()
-  @ApiOperation({
-    summary: 'Get will executors',
-    description: 'Get all executors for a specific will',
+  @Get(':willId')
+  @ApiOperation({ summary: 'List all executors for a specific Will' })
+  @ApiParam({ name: 'willId', description: 'The ID of the Will' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: [ExecutorResponseDto],
   })
-  @ApiResponse({ status: HttpStatus.OK, type: [ExecutorResponseDto] })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will not found' })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard)
   async getExecutors(
+    @Req() req: RequestWithUser,
     @Param('willId') willId: string,
-    @Request() req,
-  ): Promise<{
-    executors: ExecutorResponseDto[];
-    primaryExecutor?: ExecutorResponseDto;
-    summary: any;
-  }> {
-    const testatorId = req.user.id;
-    return this.executorService.getExecutors(willId, testatorId);
+  ): Promise<ExecutorResponseDto[]> {
+    return this.executorService.getExecutors(willId, req.user.userId);
   }
 
-  @Put(':executorId/priority')
-  @ApiOperation({
-    summary: 'Update executor priority',
-    description: 'Update the priority order of an executor',
-  })
-  @ApiResponse({ status: HttpStatus.OK, type: ExecutorResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will or executor not found' })
+  @Get(':willId/:executorId')
+  @ApiOperation({ summary: 'Get details of a specific executor appointment' })
+  @ApiParam({ name: 'willId', description: 'The Will ID' })
+  @ApiParam({ name: 'executorId', description: 'The Executor Record ID' })
   @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Cannot modify will in current status',
+    status: HttpStatus.OK,
+    type: ExecutorResponseDto,
   })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard, WillStatusGuard)
-  async updateExecutorPriority(
+  async getExecutor(
+    @Req() req: RequestWithUser,
     @Param('willId') willId: string,
     @Param('executorId') executorId: string,
-    @Body() updatePriorityDto: { priority: number },
-    @Request() req,
   ): Promise<ExecutorResponseDto> {
-    const testatorId = req.user.id;
-    return this.executorService.updateExecutorPriority(
-      executorId,
-      updatePriorityDto.priority,
-      willId,
-      testatorId,
-    );
+    return this.executorService.getExecutor(willId, executorId, req.user.userId);
   }
 
-  @Delete(':executorId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove executor', description: 'Remove an executor from a will' })
-  @ApiResponse({ status: HttpStatus.NO_CONTENT })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will or executor not found' })
+  @Delete(':willId/:executorId')
+  @ApiOperation({ summary: 'Remove an executor nomination' })
+  @ApiParam({ name: 'willId', description: 'The Will ID' })
+  @ApiParam({ name: 'executorId', description: 'The Executor Record ID' })
   @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Cannot modify will in current status',
+    status: HttpStatus.OK,
+    description: 'Executor removed successfully.',
   })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard, WillStatusGuard)
   async removeExecutor(
+    @Req() req: RequestWithUser,
     @Param('willId') willId: string,
     @Param('executorId') executorId: string,
-    @Request() req,
   ): Promise<void> {
-    const testatorId = req.user.id;
-    return this.executorService.removeExecutor(executorId, willId, testatorId);
-  }
-
-  @Post('my-duties')
-  @ApiOperation({
-    summary: 'Get my executor duties',
-    description: 'Get all executor duties for the authenticated user',
-  })
-  @ApiResponse({ status: HttpStatus.OK, type: [ExecutorResponseDto] })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  async getMyExecutorDuties(@Request() req): Promise<ExecutorResponseDto[]> {
-    const userId = req.user.id;
-    return this.executorService.getExecutorDuties(userId);
-  }
-
-  @Post(':executorId/accept')
-  @ApiOperation({
-    summary: 'Accept executor role',
-    description: 'Accept nomination as an executor',
-  })
-  @ApiResponse({ status: HttpStatus.OK, type: ExecutorResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Executor not found' })
-  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Cannot accept executor role' })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  async acceptExecutorRole(
-    @Param('executorId') executorId: string,
-    @Request() req,
-  ): Promise<ExecutorResponseDto> {
-    const userId = req.user.id;
-    return this.executorService.acceptExecutorRole(executorId, userId);
-  }
-
-  @Post(':executorId/decline')
-  @ApiOperation({
-    summary: 'Decline executor role',
-    description: 'Decline nomination as an executor',
-  })
-  @ApiResponse({ status: HttpStatus.OK, type: ExecutorResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Executor not found' })
-  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Cannot decline executor role' })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  async declineExecutorRole(
-    @Param('executorId') executorId: string,
-    @Body() declineDto: { reason: string },
-    @Request() req,
-  ): Promise<ExecutorResponseDto> {
-    const userId = req.user.id;
-    return this.executorService.declineExecutorRole(executorId, userId, declineDto.reason);
+    return this.executorService.removeExecutor(willId, req.user.userId, executorId);
   }
 }

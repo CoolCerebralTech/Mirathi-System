@@ -1,260 +1,116 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { FamilyTree } from '../value-objects/family-tree.vo';
 import { FamilyCreatedEvent } from '../events/family-created.event';
-import { FamilyUpdatedEvent } from '../events/family-updated.event';
+import { FamilyMetadataUpdatedEvent } from '../events/family-metadata-updated.event';
+import { FamilyArchivedEvent } from '../events/family-archived.event';
+import { FamilyTreeVisualizationUpdatedEvent } from '../events/family-tree-visualization-updated.event';
 
-export interface FamilyMetadata {
-  culturalBackground?: string;
-  ancestralHome?: string;
-  clanName?: string;
-  totem?: string; // For some Kenyan communities
-  familyValues?: string[];
-  specialTraditions?: string[];
+export interface TreeVisualizationData {
+  nodes: any[];
+  edges: any[];
+  metadata: {
+    generationCount: number;
+    memberCount: number;
+    lastCalculated: string;
+  };
 }
 
 export class Family extends AggregateRoot {
   private id: string;
   private name: string;
-  private description: string;
-  private creatorId: string;
-  private treeData: FamilyTree | null;
-  private metadata: FamilyMetadata;
+  private description: string | null;
+  private ownerId: string; // The User who manages this tree
+
+  // Performance Optimization:
+  // We store the calculated graph structure for the frontend here.
+  // This prevents re-calculating recursion on every read.
+  private treeData: TreeVisualizationData | null;
+
   private isActive: boolean;
   private createdAt: Date;
   private updatedAt: Date;
   private deletedAt: Date | null;
 
-  constructor(
-    id: string,
-    name: string,
-    creatorId: string,
-    createdAt: Date = new Date(),
-    updatedAt: Date = new Date(),
-  ) {
+  // Private constructor
+  private constructor(id: string, ownerId: string, name: string, description?: string) {
     super();
-
-    if (!name?.trim()) {
-      throw new Error('Family name is required');
-    }
-
-    if (!creatorId) {
-      throw new Error('Family creator is required');
-    }
-
     this.id = id;
-    this.name = name.trim();
-    this.creatorId = creatorId;
-    this.createdAt = createdAt;
-    this.updatedAt = updatedAt;
-
-    // Default values
-    this.description = '';
+    this.ownerId = ownerId;
+    this.name = name;
+    this.description = description || null;
     this.treeData = null;
-    this.metadata = {};
     this.isActive = true;
+    this.createdAt = new Date();
+    this.updatedAt = new Date();
     this.deletedAt = null;
   }
 
-  // Getters
-  getId(): string {
-    return this.id;
-  }
-  getName(): string {
-    return this.name;
-  }
-  getDescription(): string {
-    return this.description;
-  }
-  getCreatorId(): string {
-    return this.creatorId;
-  }
-  getTreeData(): FamilyTree | null {
-    return this.treeData;
-  }
-  getMetadata(): Readonly<FamilyMetadata> {
-    return { ...this.metadata };
-  }
-  getIsActive(): boolean {
-    return this.isActive;
-  }
-  getCreatedAt(): Date {
-    return new Date(this.createdAt);
-  }
-  getUpdatedAt(): Date {
-    return new Date(this.updatedAt);
-  }
-  getDeletedAt(): Date | null {
-    return this.deletedAt ? new Date(this.deletedAt) : null;
+  // --------------------------------------------------------------------------
+  // FACTORY METHODS
+  // --------------------------------------------------------------------------
+
+  static create(id: string, ownerId: string, name: string, description?: string): Family {
+    if (!name.trim()) throw new Error('Family name is required.');
+    if (!ownerId) throw new Error('Family must have an owner.');
+
+    const family = new Family(id, ownerId, name, description);
+
+    family.apply(new FamilyCreatedEvent(id, ownerId, name));
+
+    return family;
   }
 
-  // Business methods
-  updateDetails(name: string, description: string): void {
-    if (!name?.trim()) {
-      throw new Error('Family name cannot be empty');
-    }
+  static reconstitute(props: any): Family {
+    const family = new Family(props.id, props.ownerId, props.name, props.description);
+
+    family.treeData = props.treeData
+      ? typeof props.treeData === 'string'
+        ? JSON.parse(props.treeData)
+        : props.treeData
+      : null;
+
+    family.isActive = props.isActive !== undefined ? props.isActive : true;
+    family.createdAt = new Date(props.createdAt);
+    family.updatedAt = new Date(props.updatedAt);
+    family.deletedAt = props.deletedAt ? new Date(props.deletedAt) : null;
+
+    return family;
+  }
+
+  // --------------------------------------------------------------------------
+  // BUSINESS LOGIC
+  // --------------------------------------------------------------------------
+
+  updateMetadata(name: string, description?: string): void {
+    if (!name.trim()) throw new Error('Family name cannot be empty.');
 
     this.name = name.trim();
-    this.description = description.trim();
-    this.updatedAt = new Date();
-
-    this.apply(new FamilyUpdatedEvent(this.id, this.creatorId));
-  }
-
-  setTreeData(treeData: FamilyTree): void {
-    // Validate tree integrity before setting
-    const validation = treeData.validateTreeIntegrity();
-    if (!validation.isValid) {
-      throw new Error(`Invalid family tree data: ${validation.issues.join(', ')}`);
-    }
-
-    this.treeData = treeData;
-    this.updatedAt = new Date();
-
-    this.apply(new FamilyUpdatedEvent(this.id, this.creatorId));
-  }
-
-  updateMetadata(metadata: FamilyMetadata): void {
-    this.metadata = { ...this.metadata, ...metadata };
-    this.updatedAt = new Date();
-  }
-
-  addCulturalBackground(background: string): void {
-    if (!this.metadata.culturalBackground) {
-      this.metadata.culturalBackground = background;
-    } else {
-      this.metadata.culturalBackground += `; ${background}`;
+    if (description !== undefined) {
+      this.description = description;
     }
     this.updatedAt = new Date();
+
+    this.apply(new FamilyMetadataUpdatedEvent(this.id, this.name, this.description || undefined));
   }
 
-  setAncestralHome(location: string): void {
-    this.metadata.ancestralHome = location;
+  /**
+   * Updates the cached visualization data.
+   * Usually called by a Domain Service after adding/removing members.
+   */
+  updateTreeVisualization(data: TreeVisualizationData): void {
+    this.treeData = data;
     this.updatedAt = new Date();
+    // We emit this so the frontend can invalidate queries
+    this.apply(new FamilyTreeVisualizationUpdatedEvent(this.id));
   }
 
-  setClanInfo(clanName: string, totem?: string): void {
-    this.metadata.clanName = clanName;
-    if (totem) {
-      this.metadata.totem = totem;
-    }
-    this.updatedAt = new Date();
-  }
+  archive(archivedBy: string): void {
+    if (!this.isActive) return; // Idempotent
 
-  addFamilyValue(value: string): void {
-    if (!this.metadata.familyValues) {
-      this.metadata.familyValues = [];
-    }
-    this.metadata.familyValues.push(value);
-    this.updatedAt = new Date();
-  }
-
-  addTradition(tradition: string): void {
-    if (!this.metadata.specialTraditions) {
-      this.metadata.specialTraditions = [];
-    }
-    this.metadata.specialTraditions.push(tradition);
-    this.updatedAt = new Date();
-  }
-
-  // Family tree operations (delegated to the FamilyTree value object)
-  addFamilyMemberToTree(memberData: any): void {
-    if (!this.treeData) {
-      throw new Error('Family tree not initialized');
-    }
-
-    this.treeData.addNode(memberData);
-    this.updatedAt = new Date();
-
-    this.apply(new FamilyUpdatedEvent(this.id, this.creatorId));
-  }
-
-  addRelationshipToTree(fromPersonId: string, toPersonId: string, relationshipType: any): void {
-    if (!this.treeData) {
-      throw new Error('Family tree not initialized');
-    }
-
-    this.treeData.addRelationship(
-      fromPersonId,
-      toPersonId,
-      relationshipType,
-      this.getReciprocalType(relationshipType),
-    );
-    this.updatedAt = new Date();
-
-    this.apply(new FamilyUpdatedEvent(this.id, this.creatorId));
-  }
-
-  // Kenyan family specific methods
-  getFamilyElders(): any[] {
-    if (!this.treeData) return [];
-
-    const nodes = this.treeData.getAllNodes();
-    return nodes.filter((node) => {
-      if (!node.dateOfBirth) return false;
-      const age = this.calculateAge(node.dateOfBirth);
-      return age >= 60 && !node.isDeceased; // Elders are 60+ and alive
-    });
-  }
-
-  getMinors(): any[] {
-    if (!this.treeData) return [];
-
-    const nodes = this.treeData.getAllNodes();
-    return nodes.filter((node) => node.isMinor && !node.isDeceased);
-  }
-
-  getPotentialSuccessors(personId: string): any[] {
-    if (!this.treeData) return [];
-
-    // Kenyan succession typically looks at spouse, children, parents, siblings
-    const person = this.treeData.getNode(personId);
-    if (!person) return [];
-
-    const successors: any[] = [];
-
-    // Spouse
-    const spouse = person.relationships.find((rel) => rel.relationshipType === 'SPOUSE');
-    if (spouse) {
-      const spouseNode = this.treeData.getNode(spouse.targetPersonId);
-      if (spouseNode && !spouseNode.isDeceased) {
-        successors.push(spouseNode);
-      }
-    }
-
-    // Children
-    const children = person.relationships
-      .filter((rel) => rel.relationshipType === 'CHILD' || rel.relationshipType === 'ADOPTED_CHILD')
-      .map((rel) => this.treeData.getNode(rel.targetPersonId))
-      .filter(Boolean)
-      .filter((node) => !node.isDeceased) as any[];
-
-    successors.push(...children);
-
-    // If no spouse or children, look for parents
-    if (successors.length === 0) {
-      const parents = person.relationships
-        .filter((rel) => rel.relationshipType === 'PARENT')
-        .map((rel) => this.treeData.getNode(rel.targetPersonId))
-        .filter(Boolean)
-        .filter((node) => !node.isDeceased) as any[];
-
-      successors.push(...parents);
-    }
-
-    // If no parents, look for siblings
-    if (successors.length === 0) {
-      const siblings = this.treeData.findSiblings(personId).filter((node) => !node.isDeceased);
-      successors.push(...siblings);
-    }
-
-    return successors;
-  }
-
-  // Soft delete
-  softDelete(): void {
     this.isActive = false;
     this.deletedAt = new Date();
     this.updatedAt = new Date();
+
+    this.apply(new FamilyArchivedEvent(this.id, archivedBy));
   }
 
   restore(): void {
@@ -263,69 +119,35 @@ export class Family extends AggregateRoot {
     this.updatedAt = new Date();
   }
 
-  // Validation
-  validateFamilyCompleteness(): { isValid: boolean; issues: string[] } {
-    const issues: string[] = [];
+  // --------------------------------------------------------------------------
+  // GETTERS
+  // --------------------------------------------------------------------------
 
-    if (!this.treeData) {
-      issues.push('Family tree not initialized');
-      return { isValid: false, issues };
-    }
-
-    // Check for at least one member
-    const nodes = this.treeData.getAllNodes();
-    if (nodes.length === 0) {
-      issues.push('Family has no members');
-    }
-
-    // Check for root person (usually the creator)
-    const rootNode = this.treeData.getRootNode();
-    if (!rootNode) {
-      issues.push('Family tree has no root person');
-    }
-
-    // Validate tree integrity
-    const treeValidation = this.treeData.validateTreeIntegrity();
-    if (!treeValidation.isValid) {
-      issues.push(...treeValidation.issues);
-    }
-
-    return {
-      isValid: issues.length === 0,
-      issues,
-    };
+  getId(): string {
+    return this.id;
   }
-
-  // Utility methods
-  private getReciprocalType(relationshipType: any): any {
-    const reciprocalMap: Record<string, string> = {
-      PARENT: 'CHILD',
-      CHILD: 'PARENT',
-      SPOUSE: 'SPOUSE',
-      SIBLING: 'SIBLING',
-      GRANDPARENT: 'GRANDCHILD',
-      GRANDCHILD: 'GRANDPARENT',
-    };
-
-    return reciprocalMap[relationshipType] || 'OTHER';
+  getOwnerId(): string {
+    return this.ownerId;
   }
-
-  private calculateAge(birthDate: Date): number {
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-
-    return age;
+  getName(): string {
+    return this.name;
   }
-
-  // Static factory method
-  static create(id: string, name: string, creatorId: string): Family {
-    const family = new Family(id, name, creatorId);
-    family.apply(new FamilyCreatedEvent(id, name, creatorId));
-    return family;
+  getDescription(): string | null {
+    return this.description;
+  }
+  getTreeData(): TreeVisualizationData | null {
+    return this.treeData;
+  }
+  getIsActive(): boolean {
+    return this.isActive;
+  }
+  getCreatedAt(): Date {
+    return this.createdAt;
+  }
+  getUpdatedAt(): Date {
+    return this.updatedAt;
+  }
+  getDeletedAt(): Date | null {
+    return this.deletedAt;
   }
 }

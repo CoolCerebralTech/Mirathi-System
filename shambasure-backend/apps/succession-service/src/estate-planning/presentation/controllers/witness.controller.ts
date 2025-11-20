@@ -1,174 +1,121 @@
-// estate-planning/presentation/controllers/witness.controller.ts
 import {
   Controller,
   Get,
   Post,
-  Delete,
   Body,
   Param,
+  Delete,
   UseGuards,
-  Request,
+  Req,
   HttpStatus,
   HttpCode,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '@shamba/auth';
-import { TestatorOwnershipGuard } from '../../../common/guards/testator-ownership.guard';
-import { WillStatusGuard } from '../../../common/guards/will-status.guard';
-import { KenyanLawValidationPipe } from '../../../common/pipes/kenyan-law-validation.pipe';
 import { WitnessService } from '../../application/services/witness.service';
-import { AddWitnessRequestDto } from '../../application/dto/request/add-witness.dto';
+import { AddWitnessDto } from '../../application/dto/request/add-witness.dto';
 import { WitnessResponseDto } from '../../application/dto/response/witness.response.dto';
 
-@ApiTags('Witnesses')
+interface RequestWithUser extends Request {
+  user: { userId: string; email: string; role: string };
+}
+
+@ApiTags('Estate Planning - Witnesses')
 @ApiBearerAuth()
-@Controller('wills/:willId/witnesses')
 @UseGuards(JwtAuthGuard)
+@Controller('witnesses')
 export class WitnessController {
   constructor(private readonly witnessService: WitnessService) {}
 
-  @Post()
-  @ApiOperation({
-    summary: 'Add witness to will',
-    description: 'Add a witness to a will for signing',
+  // --------------------------------------------------------------------------
+  // WRITE OPERATIONS
+  // --------------------------------------------------------------------------
+
+  @Post(':willId')
+  @ApiOperation({ summary: 'Nominate a Witness for a Will' })
+  @ApiParam({ name: 'willId', description: 'The ID of the Will' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Witness nominated successfully.',
+    type: String, // Returns ID
   })
-  @ApiResponse({ status: HttpStatus.CREATED, type: WitnessResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will not found' })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid input data or cannot modify will',
+    description: 'Validation failed (e.g. Witness is also a Beneficiary).',
   })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard, WillStatusGuard)
   async addWitness(
+    @Req() req: RequestWithUser,
     @Param('willId') willId: string,
-    @Body(KenyanLawValidationPipe) addWitnessDto: AddWitnessRequestDto,
-    @Request() req,
-  ): Promise<WitnessResponseDto> {
-    const testatorId = req.user.id;
-    return this.witnessService.addWitness(addWitnessDto, willId, testatorId);
+    @Body() dto: AddWitnessDto,
+  ): Promise<{ id: string }> {
+    const id = await this.witnessService.addWitness(willId, req.user.userId, dto);
+    return { id };
   }
 
-  @Get()
-  @ApiOperation({
-    summary: 'Get will witnesses',
-    description: 'Get all witnesses for a specific will',
-  })
-  @ApiResponse({ status: HttpStatus.OK, type: [WitnessResponseDto] })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will not found' })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard)
-  async getWitnesses(
-    @Param('willId') willId: string,
-    @Request() req,
-  ): Promise<{
-    witnesses: WitnessResponseDto[];
-    signedWitnesses: WitnessResponseDto[];
-    summary: any;
-  }> {
-    const testatorId = req.user.id;
-    return this.witnessService.getWitnesses(willId, testatorId);
-  }
-
-  @Post(':witnessId/sign')
-  @ApiOperation({ summary: 'Sign will as witness', description: 'Sign the will as a witness' })
-  @ApiResponse({ status: HttpStatus.OK, type: WitnessResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will or witness not found' })
+  @Post(':willId/:witnessId/invite')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send/Resend invitation email/SMS to the witness' })
+  @ApiParam({ name: 'willId', description: 'The Will ID' })
+  @ApiParam({ name: 'witnessId', description: 'The Witness Record ID' })
   @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Cannot sign will or witness not eligible',
+    status: HttpStatus.OK,
+    description: 'Invitation queued successfully.',
   })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  async signWill(
+  async inviteWitness(
+    @Req() req: RequestWithUser,
     @Param('willId') willId: string,
     @Param('witnessId') witnessId: string,
-    @Body() signDto: { signatureData: string },
-    @Request() req,
-  ): Promise<WitnessResponseDto> {
-    // Verify the authenticated user is the witness
-    const witness = await this.witnessService.getWitnesses(willId, req.user.id);
-    // This would require additional validation to ensure the user is the witness
-    return this.witnessService.signWill(willId, witnessId, signDto.signatureData);
-  }
-
-  @Post(':witnessId/verify')
-  @ApiOperation({
-    summary: 'Verify witness',
-    description: 'Verify witness identity (admin/verifier only)',
-  })
-  @ApiResponse({ status: HttpStatus.OK, type: WitnessResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Witness not found' })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Insufficient permissions' })
-  async verifyWitness(
-    @Param('witnessId') witnessId: string,
-    @Request() req,
-  ): Promise<WitnessResponseDto> {
-    const verifiedBy = req.user.id;
-    // Check user role for verification permissions
-    if (!['ADMIN', 'VERIFIER'].includes(req.user.role)) {
-      throw new Error('Insufficient permissions to verify witnesses');
-    }
-    return this.witnessService.verifyWitness(witnessId, verifiedBy);
-  }
-
-  @Delete(':witnessId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove witness', description: 'Remove a witness from a will' })
-  @ApiResponse({ status: HttpStatus.NO_CONTENT })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Will or witness not found' })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Cannot modify will in current status',
-  })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Access denied to this will' })
-  @UseGuards(TestatorOwnershipGuard, WillStatusGuard)
-  async removeWitness(
-    @Param('willId') willId: string,
-    @Param('witnessId') witnessId: string,
-    @Request() req,
   ): Promise<void> {
-    const testatorId = req.user.id;
-    return this.witnessService.removeWitness(witnessId, willId, testatorId);
+    return this.witnessService.inviteWitness(willId, req.user.userId, witnessId);
   }
 
-  @Post(':witnessId/ineligible')
-  @ApiOperation({
-    summary: 'Mark witness as ineligible',
-    description: 'Mark a witness as ineligible (admin only)',
+  @Delete(':willId/:witnessId')
+  @ApiOperation({ summary: 'Remove a witness nomination' })
+  @ApiParam({ name: 'willId', description: 'The Will ID' })
+  @ApiParam({ name: 'witnessId', description: 'The Witness Record ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Witness removed successfully.',
   })
-  @ApiResponse({ status: HttpStatus.OK, type: WitnessResponseDto })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Witness not found' })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Insufficient permissions' })
-  async markWitnessAsIneligible(
+  async removeWitness(
+    @Req() req: RequestWithUser,
+    @Param('willId') willId: string,
     @Param('witnessId') witnessId: string,
-    @Body() ineligibleDto: { reason: string },
-    @Request() req,
-  ): Promise<WitnessResponseDto> {
-    // Check user role for admin permissions
-    if (req.user.role !== 'ADMIN') {
-      throw new Error('Insufficient permissions to mark witnesses as ineligible');
-    }
-    return this.witnessService.markWitnessAsIneligible(witnessId, ineligibleDto.reason);
+  ): Promise<void> {
+    return this.witnessService.removeWitness(willId, req.user.userId, witnessId);
   }
 
-  @Get('pending-verification')
-  @ApiOperation({
-    summary: 'Get witnesses pending verification',
-    description: 'Get all witnesses pending verification (admin/verifier only)',
+  // --------------------------------------------------------------------------
+  // READ OPERATIONS
+  // --------------------------------------------------------------------------
+
+  @Get(':willId')
+  @ApiOperation({ summary: 'List all witnesses for a specific Will' })
+  @ApiParam({ name: 'willId', description: 'The ID of the Will' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: [WitnessResponseDto],
   })
-  @ApiResponse({ status: HttpStatus.OK, type: [WitnessResponseDto] })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Insufficient permissions' })
-  async getWitnessesPendingVerification(@Request() req): Promise<WitnessResponseDto[]> {
-    // Check user role for verification permissions
-    if (!['ADMIN', 'VERIFIER'].includes(req.user.role)) {
-      throw new Error('Insufficient permissions to view witnesses pending verification');
-    }
-    return this.witnessService.getWitnessesRequiringVerification();
+  async getWitnesses(
+    @Req() req: RequestWithUser,
+    @Param('willId') willId: string,
+  ): Promise<WitnessResponseDto[]> {
+    return this.witnessService.getWitnesses(willId, req.user.userId);
+  }
+
+  @Get(':willId/:witnessId')
+  @ApiOperation({ summary: 'Get details/status of a specific witness' })
+  @ApiParam({ name: 'willId', description: 'The Will ID' })
+  @ApiParam({ name: 'witnessId', description: 'The Witness Record ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: WitnessResponseDto,
+  })
+  async getWitness(
+    @Req() req: RequestWithUser,
+    @Param('willId') willId: string,
+    @Param('witnessId') witnessId: string,
+  ): Promise<WitnessResponseDto> {
+    return this.witnessService.getWitness(willId, witnessId, req.user.userId);
   }
 }

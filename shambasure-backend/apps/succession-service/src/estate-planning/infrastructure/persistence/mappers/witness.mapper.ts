@@ -1,74 +1,80 @@
-import { WitnessStatus } from '@prisma/client';
-import { Witness } from '../../../domain/entities/witness.entity';
+import { WillWitness as PrismaWitness } from '@prisma/client';
+import { Witness, WitnessInfo } from '../../../domain/entities/witness.entity';
 
 export class WitnessMapper {
-  static toDomain(prismaWitness: any): Witness {
-    if (!prismaWitness) return null;
+  static toPersistence(domain: Witness): PrismaWitness {
+    const info = domain.getWitnessInfo();
 
-    const witnessInfo: any = {
-      fullName: prismaWitness.fullName,
-    };
+    return {
+      id: domain.getId(),
+      willId: domain.getWillId(),
 
-    if (prismaWitness.witnessId) {
-      witnessInfo.userId = prismaWitness.witnessId;
-    } else {
-      witnessInfo.email = prismaWitness.email;
-      witnessInfo.phone = prismaWitness.phone;
-      witnessInfo.idNumber = prismaWitness.idNumber;
-      witnessInfo.relationship = prismaWitness.relationship;
-      witnessInfo.address = prismaWitness.address;
+      // Info Flattening
+      witnessId: info.userId || null,
+      fullName: info.fullName,
+      email: info.email || null,
+      phone: info.phone || null,
+      idNumber: info.idNumber || null,
+      relationship: info.relationship || null,
+
+      // JSON Address
+      address: info.address ? JSON.stringify({ street: info.address }) : null, // Simple string wrapper for JSON field
+
+      // Status
+      status: domain.getStatus(),
+      signedAt: domain.getSignedAt(),
+      signatureData: domain.getSignatureData(),
+
+      verifiedAt: domain.getVerifiedAt(),
+      verifiedBy: domain.getVerifiedBy(),
+
+      // Logic Fields
+      isEligible: true, // Calculated by policy, stored as true/false
+      ineligibilityReason: domain.getRejectionReason(),
+
+      createdAt: domain.getCreatedAt(),
+      updatedAt: domain.getUpdatedAt(),
+    } as unknown as PrismaWitness;
+  }
+
+  static toDomain(raw: PrismaWitness): Witness {
+    // Parse Address
+    let addressStr: string | undefined;
+    if (raw.address) {
+      try {
+        // Handle if stored as JSON object or simple string
+        const parsed = typeof raw.address === 'string' ? JSON.parse(raw.address) : raw.address;
+        addressStr = parsed?.street || parsed?.toString();
+      } catch {
+        addressStr = String(raw.address);
+      }
     }
 
-    const witness = new Witness(prismaWitness.id, prismaWitness.willId, witnessInfo);
+    const info: WitnessInfo = {
+      userId: raw.witnessId || undefined,
+      fullName: raw.fullName,
+      email: raw.email || undefined,
+      phone: raw.phone || undefined,
+      idNumber: raw.idNumber || undefined,
+      relationship: raw.relationship || undefined,
+      address: addressStr,
+    };
 
-    // Set additional properties
-    Object.assign(witness, {
-      status: prismaWitness.status as WitnessStatus,
-      signedAt: prismaWitness.signedAt,
-      signatureData: prismaWitness.signatureData,
-      verifiedAt: prismaWitness.verifiedAt,
-      verifiedBy: prismaWitness.verifiedBy,
-      isEligible: prismaWitness.isEligible,
-      ineligibilityReason: prismaWitness.ineligibilityReason,
-      createdAt: prismaWitness.createdAt,
-      updatedAt: prismaWitness.updatedAt,
+    return Witness.reconstitute({
+      id: raw.id,
+      willId: raw.willId,
+      witnessInfo: info,
+      status: raw.status,
+
+      signedAt: raw.signedAt,
+      signatureData: raw.signatureData,
+
+      verifiedAt: raw.verifiedAt,
+      verifiedBy: raw.verifiedBy,
+      rejectionReason: raw.ineligibilityReason,
+
+      createdAt: raw.createdAt,
+      updatedAt: raw.updatedAt,
     });
-
-    return witness;
-  }
-
-  static toPersistence(witness: Witness): any {
-    const persistenceObj: any = {
-      id: witness.getId(),
-      willId: witness.getWillId(),
-      status: witness.getStatus(),
-      signedAt: witness.getSignedAt(),
-      signatureData: witness.getSignatureData(),
-      verifiedAt: witness.getVerifiedAt(),
-      verifiedBy: witness.getVerifiedBy(),
-      isEligible: witness.getIsEligible(),
-      ineligibilityReason: witness.getIneligibilityReason(),
-      createdAt: witness.getCreatedAt(),
-      updatedAt: witness.getUpdatedAt(),
-    };
-
-    // Set witness identification
-    const witnessInfo = witness.getWitnessInfo();
-    if (witnessInfo.userId) {
-      persistenceObj.witnessId = witnessInfo.userId;
-    } else {
-      persistenceObj.fullName = witnessInfo.fullName;
-      persistenceObj.email = witnessInfo.email;
-      persistenceObj.phone = witnessInfo.phone;
-      persistenceObj.idNumber = witnessInfo.idNumber;
-      persistenceObj.relationship = witnessInfo.relationship;
-      persistenceObj.address = witnessInfo.address;
-    }
-
-    return persistenceObj;
-  }
-
-  static toDomainList(prismaWitnesses: any[]): Witness[] {
-    return prismaWitnesses.map((witness) => this.toDomain(witness)).filter(Boolean);
   }
 }

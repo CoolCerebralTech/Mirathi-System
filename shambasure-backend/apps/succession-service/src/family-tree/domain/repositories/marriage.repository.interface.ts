@@ -1,40 +1,34 @@
-// family-tree/domain/repositories/marriage.repository.interface.ts
-import { MarriageStatus } from '@prisma/client';
 import { Marriage } from '../entities/marriage.entity';
-import { KenyanMarriage } from '../value-objects/kenyan-marriage.vo';
 
 export interface MarriageRepositoryInterface {
-  // Basic CRUD operations
-  findById(id: string): Promise<Marriage | null>;
-  findByFamilyId(familyId: string): Promise<Marriage[]>;
-  findBySpouseId(spouseId: string): Promise<Marriage[]>;
+  // ---------------------------------------------------------
+  // Basic Persistence
+  // ---------------------------------------------------------
   save(marriage: Marriage): Promise<void>;
+  findById(id: string): Promise<Marriage | null>;
   delete(id: string): Promise<void>;
 
-  // Status-based queries
-  findByStatus(familyId: string, status: MarriageStatus): Promise<Marriage[]>;
-  findActiveMarriages(familyId: string): Promise<Marriage[]>;
-  findDissolvedMarriages(familyId: string): Promise<Marriage[]>;
+  // ---------------------------------------------------------
+  // Domain Lookups
+  // ---------------------------------------------------------
+  /**
+   * Find all marriages associated with a specific family tree.
+   */
+  findByFamilyId(familyId: string): Promise<Marriage[]>;
 
-  // Type-based queries
-  findCustomaryMarriages(familyId: string): Promise<Marriage[]>;
-  findCivilMarriages(familyId: string): Promise<Marriage[]>;
-  findPolygamousMarriages(familyId: string): Promise<Marriage[]>;
+  /**
+   * Find any marriage involving a specific person.
+   * Includes active and dissolved.
+   */
+  findByMemberId(memberId: string): Promise<Marriage[]>;
 
-  // Complex queries
-  findMarriagesByDuration(familyId: string, minYears: number): Promise<Marriage[]>;
-  findMarriagesProducingChildren(familyId: string): Promise<Marriage[]>;
+  /**
+   * Find specific active marriage between two people.
+   */
+  findActiveBetween(spouse1Id: string, spouse2Id: string): Promise<Marriage | null>;
 
-  // Validation queries
-  validateNoOverlappingMarriages(spouseId: string, marriageDate: Date): Promise<boolean>;
-  validatePolygamousMarriage(spouseId: string, community: string): Promise<boolean>;
-
-  // Analytics
-  getMarriageStatistics(familyId: string): Promise<{
-    totalMarriages: number;
-    activeMarriages: number;
-    averageDuration: number;
-    customaryMarriages: number;
-    polygamousMarriages: number;
-  }>;
+  /**
+   * Find active marriages for validation (Polygamy checks).
+   */
+  findActiveMarriages(memberId: string): Promise<Marriage[]>;
 }

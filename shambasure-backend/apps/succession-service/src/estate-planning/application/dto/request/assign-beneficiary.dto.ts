@@ -1,19 +1,72 @@
-// estate-planning/application/dto/request/assign-beneficiary.dto.ts
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsNumber,
+  Min,
+  Max,
+  IsOptional,
+  ValidateNested,
+  ValidateIf,
+} from 'class-validator';
 import { BequestType, BequestConditionType } from '@prisma/client';
+import { Type } from 'class-transformer';
 
-export class AssignBeneficiaryRequestDto {
+class SpecificAmountDto {
+  @IsNumber()
+  @Min(0)
+  amount: number;
+
+  @IsString()
+  currency: string;
+}
+
+export class AssignBeneficiaryDto {
+  @IsString()
+  @IsNotEmpty()
   assetId: string;
-  beneficiaryType: 'USER' | 'FAMILY_MEMBER' | 'EXTERNAL';
-  beneficiaryId?: string;
-  externalBeneficiary?: {
-    name: string;
-    contact?: string;
-  };
-  bequestType: BequestType;
-  sharePercentage?: number;
-  specificAmount?: number;
-  conditionType?: BequestConditionType;
-  conditionDetails?: string;
-  priority?: number;
+
+  // --- Identity (One is required) ---
+  @IsString()
+  @IsOptional()
+  userId?: string;
+
+  @IsString()
+  @IsOptional()
+  familyMemberId?: string;
+
+  @IsString()
+  @IsOptional()
+  externalName?: string;
+
+  @IsString()
+  @IsOptional()
   relationship?: string;
+
+  // --- Bequest Logic ---
+  @IsEnum(BequestType)
+  bequestType: BequestType;
+
+  // Validate share if type is PERCENTAGE
+  @ValidateIf((o) => o.bequestType === BequestType.PERCENTAGE)
+  @IsNumber()
+  @Min(0.01)
+  @Max(100)
+  sharePercentage?: number;
+
+  // Validate amount if type is SPECIFIC
+  @ValidateIf((o) => o.bequestType === BequestType.SPECIFIC)
+  @ValidateNested()
+  @Type(() => SpecificAmountDto)
+  specificAmount?: SpecificAmountDto;
+
+  // --- Conditions ---
+  @IsEnum(BequestConditionType)
+  @IsOptional()
+  conditionType?: BequestConditionType;
+
+  @ValidateIf((o) => o.conditionType && o.conditionType !== 'NONE')
+  @IsString()
+  @IsNotEmpty()
+  conditionDetails?: string;
 }

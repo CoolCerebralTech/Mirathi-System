@@ -1,271 +1,204 @@
+import { AggregateRoot } from '@nestjs/cqrs';
 import { MarriageStatus } from '@prisma/client';
-import { KenyanMarriage } from '../value-objects/kenyan-marriage.vo';
 import { MarriageRegisteredEvent } from '../events/marriage-registered.event';
 import { MarriageDissolvedEvent } from '../events/marriage-dissolved.event';
+import { KENYAN_FAMILY_LAW } from '../../../common/constants/kenyan-law.constants';
 
-export class Marriage {
+export class Marriage extends AggregateRoot {
   private id: string;
   private familyId: string;
+
   private spouse1Id: string;
   private spouse2Id: string;
-  private marriageDetails: KenyanMarriage;
+
+  // Legal details
+  private marriageDate: Date;
+  private marriageType: MarriageStatus; // Mapped to Prisma Enum (CUSTOMARY, CIVIL, etc.)
+  private certificateNumber: string | null;
+
+  // Dissolution details
   private divorceDate: Date | null;
   private divorceCertNumber: string | null;
+
+  // Status
   private isActive: boolean;
+
   private createdAt: Date;
   private updatedAt: Date;
 
-  constructor(
+  // Private constructor
+  private constructor(
     id: string,
     familyId: string,
     spouse1Id: string,
     spouse2Id: string,
-    marriageDetails: KenyanMarriage,
-    createdAt: Date = new Date(),
-    updatedAt: Date = new Date()
+    marriageType: MarriageStatus,
+    marriageDate: Date,
   ) {
+    super();
     if (spouse1Id === spouse2Id) {
-      throw new Error('A person cannot marry themselves');
+      throw new Error('Cannot marry oneself.');
     }
 
     this.id = id;
     this.familyId = familyId;
     this.spouse1Id = spouse1Id;
     this.spouse2Id = spouse2Id;
-    this.marriageDetails = marriageDetails;
-    this.createdAt = createdAt;
-    this.updatedAt = updatedAt;
+    this.marriageType = marriageType;
+    this.marriageDate = marriageDate;
 
-    // Default values
+    // Defaults
+    this.certificateNumber = null;
     this.divorceDate = null;
     this.divorceCertNumber = null;
     this.isActive = true;
-  }
-
-  // Getters
-  getId(): string { return this.id; }
-  getFamilyId(): string { return this.familyId; }
-  getSpouse1Id(): string { return this.spouse1Id; }
-  getSpouse2Id(): string { return this.spouse2Id; }
-  getMarriageDetails(): KenyanMarriage { return this.marriageDetails; }
-  getDivorceDate(): Date | null { return this.divorceDate ? new Date(this.divorceDate) : null; }
-  getDivorceCertNumber(): string | null { return this.divorceCertNumber; }
-  getIsActive(): boolean { return this.isActive; }
-  getCreatedAt(): Date { return new Date(this.createdAt); }
-  getUpdatedAt(): Date { return new Date(this.updatedAt); }
-
-  // Business methods
-  updateMarriageDetails(marriageDetails: KenyanMarriage): void {
-    if (!this.isActive) {
-      throw new Error('Cannot update details of a dissolved marriage');
-    }
-
-    this.marriageDetails = marriageDetails;
+    this.createdAt = new Date();
     this.updatedAt = new Date();
   }
 
-  dissolve(divorceDate: Date, divorceCertNumber?: string): void {
+  // --------------------------------------------------------------------------
+  // FACTORY METHODS
+  // --------------------------------------------------------------------------
+
+  static create(
+    id: string,
+    familyId: string,
+    spouse1Id: string,
+    spouse2Id: string,
+    type: MarriageStatus,
+    date: Date,
+    certificateNumber?: string,
+  ): Marriage {
+    const marriage = new Marriage(id, familyId, spouse1Id, spouse2Id, type, date);
+
+    if (certificateNumber) {
+      marriage.certificateNumber = certificateNumber;
+    }
+
+    marriage.apply(new MarriageRegisteredEvent(id, familyId, spouse1Id, spouse2Id, type, date));
+
+    return marriage;
+  }
+
+  static reconstitute(props: any): Marriage {
+    const marriage = new Marriage(
+      props.id,
+      props.familyId,
+      props.spouse1Id,
+      props.spouse2Id,
+      props.marriageType,
+      new Date(props.marriageDate),
+    );
+
+    marriage.certificateNumber = props.certificateNumber || null;
+    marriage.divorceDate = props.divorceDate ? new Date(props.divorceDate) : null;
+    marriage.divorceCertNumber = props.divorceCertNumber || null;
+    marriage.isActive = props.isActive;
+    marriage.createdAt = new Date(props.createdAt);
+    marriage.updatedAt = new Date(props.updatedAt);
+
+    return marriage;
+  }
+
+  // --------------------------------------------------------------------------
+  // BUSINESS LOGIC
+  // --------------------------------------------------------------------------
+
+  /**
+   * Dissolves the marriage (Divorce).
+   * In Kenya, this requires a Court Order (Decree Absolute).
+   */
+  dissolve(date: Date, certificateNumber: string): void {
     if (!this.isActive) {
-      throw new Error('Marriage is already dissolved');
+      throw new Error('Marriage is already inactive/dissolved.');
     }
 
-    if (divorceDate > new Date()) {
-      throw new Error('Divorce date cannot be in the future');
+    if (date < this.marriageDate) {
+      throw new Error('Divorce date cannot be before marriage date.');
     }
 
-    const marriageDate = this.marriageDetails.getMarriageDate();
-    if (divorceDate < marriageDate) {
-      throw new Error('Divorce date cannot be before marriage date');
-    }
-
-    this.divorceDate = divorceDate;
-    this.divorceCertNumber = divorceCertNumber || null;
     this.isActive = false;
+    this.divorceDate = date;
+    this.divorceCertNumber = certificateNumber;
     this.updatedAt = new Date();
 
-    // Apply domain event
-    // Note: We need to import the event and use apply method if extending AggregateRoot
-    // For now, we'll assume events are handled elsewhere
+    this.apply(
+      new MarriageDissolvedEvent(
+        this.id,
+        this.familyId,
+        this.spouse1Id,
+        this.spouse2Id,
+        date,
+        'Legal Dissolution',
+      ),
+    );
   }
 
-  restore(): void {
-    if (this.isActive) {
-      throw new Error('Marriage is already active');
-    }
-
-    this.divorceDate = null;
-    this.divorceCertNumber = null;
-    this.isActive = true;
+  /**
+   * Updates the certificate number (e.g., after registering a Customary Marriage).
+   */
+  registerCertificate(certNumber: string): void {
+    this.certificateNumber = certNumber;
     this.updatedAt = new Date();
   }
 
-  // Kenyan marriage specific methods
-  isCustomaryMarriage(): boolean {
-    return this.marriageDetails.isCustomaryMarriage();
+  // --------------------------------------------------------------------------
+  // DOMAIN RULES / HELPERS
+  // --------------------------------------------------------------------------
+
+  /**
+   * Checks if this marriage regime theoretically allows polygamy.
+   * Used by Policies to validate if a user can add a second spouse.
+   */
+  allowsPolygamy(): boolean {
+    // Logic derived from Constants -> Mapped to Schema Enum
+    // CUSTOMARY_MARRIAGE and ISLAMIC (if added to enum) allow polygamy.
+    // CIVIL_UNION and CHRISTIAN (if added) do not.
+
+    const polygamousTypes = [
+      'CUSTOMARY_MARRIAGE',
+      // 'ISLAMIC_MARRIAGE' - if supported in schema enum
+    ];
+
+    // Check if the current type string is in the allowed list
+    return polygamousTypes.includes(this.marriageType.toString());
   }
 
-  isCivilMarriage(): boolean {
-    return this.marriageDetails.isCivilMarriage();
+  /**
+   * Returns the ID of the spouse of the given member ID in this marriage.
+   */
+  getPartnerId(memberId: string): string | null {
+    if (memberId === this.spouse1Id) return this.spouse2Id;
+    if (memberId === this.spouse2Id) return this.spouse1Id;
+    return null; // Member not part of this marriage
   }
 
-  isPolygamous(): boolean {
-    return this.marriageDetails.isPolygamous();
+  // --------------------------------------------------------------------------
+  // GETTERS
+  // --------------------------------------------------------------------------
+
+  getId() {
+    return this.id;
   }
-
-  isLegallyRecognized(): boolean {
-    return this.marriageDetails.isLegallyRecognized();
+  getFamilyId() {
+    return this.familyId;
   }
-
-  getMarriageDuration(): { years: number; months: number; days: number } | null {
-    if (!this.isActive && this.divorceDate) {
-      // Calculate duration until divorce
-      const endDate = new Date(this.divorceDate);
-      const startDate = this.marriageDetails.getMarriageDate();
-      return this.calculateDuration(startDate, endDate);
-    } else if (this.isActive) {
-      // Calculate current duration
-      const endDate = new Date();
-      const startDate = this.marriageDetails.getMarriageDate();
-      return this.calculateDuration(startDate, endDate);
-    }
-    return null;
+  getSpouse1Id() {
+    return this.spouse1Id;
   }
-
-  isLongTermMarriage(): boolean {
-    const duration = this.getMarriageDuration();
-    return duration ? duration.years >= 10 : false;
+  getSpouse2Id() {
+    return this.spouse2Id;
   }
-
-  hasProducedChildren(): boolean {
-    // This would be determined by checking for children in the family tree
-    // For now, return false as a placeholder
-    return false;
+  getType() {
+    return this.marriageType;
   }
-
-  getSuccessionRights(): string[] {
-    const rights: string[] = [];
-
-    if (this.isActive && this.isLegallyRecognized()) {
-      rights.push('Right to inherit from spouse under Law of Succession Act');
-      rights.push('Right to matrimonial property');
-      rights.push('Right to spousal maintenance if dependent');
-    }
-
-    if (this.isLongTermMarriage()) {
-      rights.push('Enhanced property rights in case of separation');
-    }
-
-    if (this.isCustomaryMarriage() && this.isLegallyRecognized()) {
-      rights.push('Recognition under both customary and statutory law');
-    }
-
-    if (this.isPolygamous()) {
-      rights.push('Equal succession rights with other spouses');
-    }
-
-    return rights;
+  getDate() {
+    return this.marriageDate;
   }
-
-  validateForSuccession(): { isValid: boolean; issues: string[] } {
-    const issues: string[] = [];
-
-    if (!this.isLegallyRecognized()) {
-      issues.push('Marriage is not legally recognized - may affect succession rights');
-    }
-
-    if (!this.isActive) {
-      issues.push('Marriage is dissolved - succession rights may be limited');
-    }
-
-    if (this.isCustomaryMarriage() && !this.marriageDetails.getDetails().certificateNumber) {
-      issues.push('Customary marriage not registered - may require proof of marriage');
-    }
-
-    return {
-      isValid: issues.length === 0,
-      issues
-    };
+  getCertificateNumber() {
+    return this.certificateNumber;
   }
-
-  // Utility methods
-  private calculateDuration(startDate: Date, endDate: Date): { years: number; months: number; days: number } {
-    let years = endDate.getFullYear() - startDate.getFullYear();
-    let months = endDate.getMonth() - startDate.getMonth();
-    let days = endDate.getDate() - startDate.getDate();
-
-    if (days < 0) {
-      months--;
-      days += new Date(endDate.getFullYear(), endDate.getMonth(), 0).getDate();
-    }
-
-    if (months < 0) {
-      years--;
-      months += 12;
-    }
-
-    return { years, months, days };
-  }
-
-  // Static factory methods
-  static createCivilMarriage(
-    id: string,
-    familyId: string,
-    spouse1Id: string,
-    spouse2Id: string,
-    marriageDate: Date,
-    certificateNumber: string,
-    registrationOffice: string
-  ): Marriage {
-    const marriageDetails = KenyanMarriage.createCivilMarriage(
-      marriageDate,
-      certificateNumber,
-      registrationOffice
-    );
-
-    const marriage = new Marriage(id, familyId, spouse1Id, spouse2Id, marriageDetails);
-    
-    // Apply domain event
-    // marriage.apply(new MarriageRegisteredEvent(id, familyId, spouse1Id, spouse2Id));
-    
-    return marriage;
-  }
-
-  static createCustomaryMarriage(
-    id: string,
-    familyId: string,
-    spouse1Id: string,
-    spouse2Id: string,
-    marriageDate: Date,
-    community: string,
-    eldersInvolved: string[]
-  ): Marriage {
-    const marriageDetails = KenyanMarriage.createCustomaryMarriage(
-      marriageDate,
-      community,
-      eldersInvolved
-    );
-
-    const marriage = new Marriage(id, familyId, spouse1Id, spouse2Id, marriageDetails);
-    
-    // Apply domain event
-    // marriage.apply(new MarriageRegisteredEvent(id, familyId, spouse1Id, spouse2Id));
-    
-    return marriage;
-  }
-
-  static createPolygamousMarriage(
-    id: string,
-    familyId: string,
-    spouse1Id: string,
-    spouse2Id: string,
-    marriageDate: Date,
-    marriageType: MarriageStatus
-  ): Marriage {
-    const marriageDetails = KenyanMarriage.createPolygamousMarriage(
-      marriageDate,
-      marriageType
-    );
-
-    return new Marriage(id, familyId, spouse1Id, spouse2Id, marriageDetails);
+  getIsActive() {
+    return this.isActive;
   }
 }

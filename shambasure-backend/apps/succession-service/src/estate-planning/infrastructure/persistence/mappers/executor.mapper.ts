@@ -1,82 +1,76 @@
-import { ExecutorStatus } from '@prisma/client';
-import { Executor } from '../../../domain/entities/executor.entity';
+import { WillExecutor as PrismaExecutor } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
+import { Executor, ExecutorInfo } from '../../../domain/entities/executor.entity';
 import { AssetValue } from '../../../domain/value-objects/asset-value.vo';
 
 export class ExecutorMapper {
-  static toDomain(prismaExecutor: any): Executor {
-    if (!prismaExecutor) return null;
+  static toPersistence(domain: Executor): PrismaExecutor {
+    const info = domain.getExecutorInfo();
+    const comp = domain.getCompensationAmount();
 
-    const executorInfo: any = {};
+    return {
+      id: domain.getId(),
+      willId: domain.getWillId(),
 
-    if (prismaExecutor.executorId) {
-      executorInfo.userId = prismaExecutor.executorId;
-    } else {
-      executorInfo.fullName = prismaExecutor.fullName;
-      executorInfo.email = prismaExecutor.email;
-      executorInfo.phone = prismaExecutor.phone;
-      executorInfo.relationship = prismaExecutor.relationship;
-      executorInfo.address = prismaExecutor.address;
-    }
+      // Info Flattening
+      executorId: info.userId || null,
+      fullName: info.fullName || null,
+      email: info.email || null,
+      phone: info.phone || null,
+      relationship: info.relationship || null,
 
-    const executor = new Executor(
-      prismaExecutor.id,
-      prismaExecutor.willId,
-      executorInfo,
-      prismaExecutor.isPrimary,
-      prismaExecutor.orderOfPriority,
-    );
+      // Configuration
+      isPrimary: domain.getIsPrimary(),
+      orderOfPriority: domain.getOrderOfPriority(),
+      status: domain.getStatus(),
 
-    // Set additional properties
-    Object.assign(executor, {
-      status: prismaExecutor.status as ExecutorStatus,
-      appointedAt: prismaExecutor.appointedAt,
-      acceptedAt: prismaExecutor.acceptedAt,
-      declinedAt: prismaExecutor.declinedAt,
-      declineReason: prismaExecutor.declineReason,
-      isCompensated: prismaExecutor.isCompensated,
-      compensationAmount: prismaExecutor.compensationAmount
-        ? new AssetValue(prismaExecutor.compensationAmount.toNumber(), 'KES')
-        : null,
-      createdAt: prismaExecutor.createdAt,
-      updatedAt: prismaExecutor.updatedAt,
-    });
+      // Dates
+      appointedAt: domain.getAppointedAt(),
+      acceptedAt: domain.getAcceptedAt(),
+      declinedAt: domain.getDeclinedAt(),
+      declineReason: domain.getDeclineReason(),
 
-    return executor;
+      // Compensation
+      isCompensated: domain.getIsCompensated(),
+      compensationAmount: comp ? new Decimal(comp.getAmount()) : null,
+
+      createdAt: domain.getCreatedAt(),
+      updatedAt: domain.getUpdatedAt(),
+    } as unknown as PrismaExecutor;
   }
 
-  static toPersistence(executor: Executor): any {
-    const persistenceObj: any = {
-      id: executor.getId(),
-      willId: executor.getWillId(),
-      isPrimary: executor.getIsPrimary(),
-      orderOfPriority: executor.getOrderOfPriority(),
-      status: executor.getStatus(),
-      appointedAt: executor.getAppointedAt(),
-      acceptedAt: executor.getAcceptedAt(),
-      declinedAt: executor.getDeclinedAt(),
-      declineReason: executor.getDeclineReason(),
-      isCompensated: executor.getIsCompensated(),
-      compensationAmount: executor.getCompensationAmount()?.getAmount(),
-      createdAt: executor.getCreatedAt(),
-      updatedAt: executor.getUpdatedAt(),
+  static toDomain(raw: PrismaExecutor): Executor {
+    const info: ExecutorInfo = {
+      userId: raw.executorId || undefined,
+      fullName: raw.fullName || undefined,
+      email: raw.email || undefined,
+      phone: raw.phone || undefined,
+      relationship: raw.relationship || undefined,
     };
 
-    // Set executor identification
-    const executorInfo = executor.getExecutorInfo();
-    if (executorInfo.userId) {
-      persistenceObj.executorId = executorInfo.userId;
-    } else {
-      persistenceObj.fullName = executorInfo.fullName;
-      persistenceObj.email = executorInfo.email;
-      persistenceObj.phone = executorInfo.phone;
-      persistenceObj.relationship = executorInfo.relationship;
-      persistenceObj.address = executorInfo.address;
-    }
+    // Handle Compensation VO
+    const compAmount = raw.compensationAmount
+      ? new AssetValue(Number(raw.compensationAmount), 'KES')
+      : null;
 
-    return persistenceObj;
-  }
+    return Executor.reconstitute({
+      id: raw.id,
+      willId: raw.willId,
+      executorInfo: info,
+      isPrimary: raw.isPrimary,
+      orderOfPriority: raw.orderOfPriority,
 
-  static toDomainList(prismaExecutors: any[]): Executor[] {
-    return prismaExecutors.map((executor) => this.toDomain(executor)).filter(Boolean);
+      status: raw.status,
+      appointedAt: raw.appointedAt,
+      acceptedAt: raw.acceptedAt,
+      declinedAt: raw.declinedAt,
+      declineReason: raw.declineReason,
+
+      isCompensated: raw.isCompensated,
+      compensationAmount: compAmount,
+
+      createdAt: raw.createdAt,
+      updatedAt: raw.updatedAt,
+    });
   }
 }

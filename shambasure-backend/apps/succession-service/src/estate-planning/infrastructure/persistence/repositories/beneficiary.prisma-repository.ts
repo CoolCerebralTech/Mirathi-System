@@ -1,324 +1,248 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@shamba/database';
-import { BequestType, BequestConditionType, DistributionStatus } from '@prisma/client';
+import { BequestType, DistributionStatus } from '@prisma/client';
 import { BeneficiaryRepositoryInterface } from '../../../domain/interfaces/beneficiary.repository.interface';
-import { Beneficiary } from '../../../domain/entities/beneficiary.entity';
+import { BeneficiaryAssignment } from '../../../domain/entities/beneficiary.entity';
 import { BeneficiaryMapper } from '../mappers/beneficiary.mapper';
 
 @Injectable()
 export class BeneficiaryPrismaRepository implements BeneficiaryRepositoryInterface {
-  private readonly logger = new Logger(BeneficiaryPrismaRepository.name);
-
   constructor(private readonly prisma: PrismaService) {}
 
-  async findById(id: string): Promise<Beneficiary | null> {
-    try {
-      const prismaBeneficiary = await this.prisma.beneficiaryAssignment.findUnique({
-        where: { id },
-      });
+  // --------------------------------------------------------------------------
+  // BASIC PERSISTENCE
+  // --------------------------------------------------------------------------
 
-      return prismaBeneficiary ? BeneficiaryMapper.toDomain(prismaBeneficiary) : null;
-    } catch (error) {
-      this.logger.error(`Failed to find beneficiary by ID ${id}:`, error);
-      throw new Error(`Could not retrieve beneficiary: ${error.message}`);
-    }
+  async save(assignment: BeneficiaryAssignment): Promise<void> {
+    const persistenceModel = BeneficiaryMapper.toPersistence(assignment);
+
+    await this.prisma.beneficiaryAssignment.upsert({
+      where: { id: persistenceModel.id },
+      create: persistenceModel,
+      update: persistenceModel,
+    });
   }
 
-  async findByWillId(willId: string): Promise<Beneficiary[]> {
-    try {
-      const prismaBeneficiaries = await this.prisma.beneficiaryAssignment.findMany({
-        where: { willId },
-        orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
-      });
-
-      return BeneficiaryMapper.toDomainList(prismaBeneficiaries);
-    } catch (error) {
-      this.logger.error(`Failed to find beneficiaries for will ${willId}:`, error);
-      throw new Error(`Could not retrieve beneficiaries: ${error.message}`);
-    }
-  }
-
-  async findByAssetId(assetId: string): Promise<Beneficiary[]> {
-    try {
-      const prismaBeneficiaries = await this.prisma.beneficiaryAssignment.findMany({
-        where: { assetId },
-        orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
-      });
-
-      return BeneficiaryMapper.toDomainList(prismaBeneficiaries);
-    } catch (error) {
-      this.logger.error(`Failed to find beneficiaries for asset ${assetId}:`, error);
-      throw new Error(`Could not retrieve beneficiaries: ${error.message}`);
-    }
-  }
-
-  async save(beneficiary: Beneficiary): Promise<void> {
-    try {
-      const beneficiaryData = BeneficiaryMapper.toPersistence(beneficiary);
-
-      await this.prisma.beneficiaryAssignment.upsert({
-        where: { id: beneficiary.getId() },
-        create: beneficiaryData,
-        update: beneficiaryData,
-      });
-
-      this.logger.log(`Successfully saved beneficiary ${beneficiary.getId()}`);
-    } catch (error) {
-      this.logger.error(`Failed to save beneficiary ${beneficiary.getId()}:`, error);
-      throw new Error(`Could not save beneficiary: ${error.message}`);
-    }
+  async findById(id: string): Promise<BeneficiaryAssignment | null> {
+    const raw = await this.prisma.beneficiaryAssignment.findUnique({
+      where: { id },
+    });
+    return raw ? BeneficiaryMapper.toDomain(raw) : null;
   }
 
   async delete(id: string): Promise<void> {
-    try {
-      await this.prisma.beneficiaryAssignment.delete({
-        where: { id },
-      });
-      this.logger.log(`Successfully deleted beneficiary ${id}`);
-    } catch (error) {
-      this.logger.error(`Failed to delete beneficiary ${id}:`, error);
-      throw new Error(`Could not delete beneficiary: ${error.message}`);
-    }
+    await this.prisma.beneficiaryAssignment.delete({
+      where: { id },
+    });
   }
 
-  async findByBeneficiaryUserId(userId: string): Promise<Beneficiary[]> {
-    try {
-      const prismaBeneficiaries = await this.prisma.beneficiaryAssignment.findMany({
-        where: { beneficiaryId: userId },
-        orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
-      });
+  // --------------------------------------------------------------------------
+  // STANDARD LOOKUPS
+  // --------------------------------------------------------------------------
 
-      return BeneficiaryMapper.toDomainList(prismaBeneficiaries);
-    } catch (error) {
-      this.logger.error(`Failed to find beneficiaries for user ${userId}:`, error);
-      throw new Error(`Could not retrieve beneficiaries: ${error.message}`);
-    }
+  async findByWillId(willId: string): Promise<BeneficiaryAssignment[]> {
+    const raw = await this.prisma.beneficiaryAssignment.findMany({
+      where: { willId },
+      orderBy: { priority: 'asc' }, // Load primary beneficiaries first
+    });
+    return raw.map(BeneficiaryMapper.toDomain);
   }
 
-  async findByBeneficiaryFamilyMemberId(familyMemberId: string): Promise<Beneficiary[]> {
-    try {
-      const prismaBeneficiaries = await this.prisma.beneficiaryAssignment.findMany({
-        where: { familyMemberId },
-        orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
-      });
-
-      return BeneficiaryMapper.toDomainList(prismaBeneficiaries);
-    } catch (error) {
-      this.logger.error(`Failed to find beneficiaries for family member ${familyMemberId}:`, error);
-      throw new Error(`Could not retrieve beneficiaries: ${error.message}`);
-    }
+  async findByAssetId(assetId: string): Promise<BeneficiaryAssignment[]> {
+    const raw = await this.prisma.beneficiaryAssignment.findMany({
+      where: { assetId },
+    });
+    return raw.map(BeneficiaryMapper.toDomain);
   }
 
-  async findConditionalBequests(willId: string): Promise<Beneficiary[]> {
-    try {
-      const prismaBeneficiaries = await this.prisma.beneficiaryAssignment.findMany({
-        where: {
-          willId,
-          conditionType: { not: BequestConditionType.NONE },
-        },
-        orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
-      });
-
-      return BeneficiaryMapper.toDomainList(prismaBeneficiaries);
-    } catch (error) {
-      this.logger.error(`Failed to find conditional bequests for will ${willId}:`, error);
-      throw new Error(`Could not retrieve conditional bequests: ${error.message}`);
-    }
+  async findByBeneficiaryUserId(userId: string): Promise<BeneficiaryAssignment[]> {
+    const raw = await this.prisma.beneficiaryAssignment.findMany({
+      where: { beneficiaryId: userId },
+    });
+    return raw.map(BeneficiaryMapper.toDomain);
   }
 
-  async findDistributedBequests(willId: string): Promise<Beneficiary[]> {
-    try {
-      const prismaBeneficiaries = await this.prisma.beneficiaryAssignment.findMany({
-        where: {
-          willId,
-          distributionStatus: DistributionStatus.COMPLETED,
-        },
-        orderBy: { distributedAt: 'desc' },
-      });
+  async findByBeneficiaryFamilyMemberId(familyMemberId: string): Promise<BeneficiaryAssignment[]> {
+    const raw = await this.prisma.beneficiaryAssignment.findMany({
+      where: { familyMemberId },
+    });
+    return raw.map(BeneficiaryMapper.toDomain);
+  }
 
-      return BeneficiaryMapper.toDomainList(prismaBeneficiaries);
-    } catch (error) {
-      this.logger.error(`Failed to find distributed bequests for will ${willId}:`, error);
-      throw new Error(`Could not retrieve distributed bequests: ${error.message}`);
-    }
+  // --------------------------------------------------------------------------
+  // STATUS & LOGIC QUERIES
+  // --------------------------------------------------------------------------
+
+  async findConditionalBequests(willId: string): Promise<BeneficiaryAssignment[]> {
+    const raw = await this.prisma.beneficiaryAssignment.findMany({
+      where: {
+        willId,
+        hasCondition: true,
+      },
+    });
+    return raw.map(BeneficiaryMapper.toDomain);
+  }
+
+  async findDistributedBequests(willId: string): Promise<BeneficiaryAssignment[]> {
+    const raw = await this.prisma.beneficiaryAssignment.findMany({
+      where: {
+        willId,
+        distributionStatus: DistributionStatus.COMPLETED,
+      },
+    });
+    return raw.map(BeneficiaryMapper.toDomain);
+  }
+
+  async findPendingDistributions(willId: string): Promise<BeneficiaryAssignment[]> {
+    const raw = await this.prisma.beneficiaryAssignment.findMany({
+      where: {
+        willId,
+        distributionStatus: DistributionStatus.PENDING,
+      },
+    });
+    return raw.map(BeneficiaryMapper.toDomain);
   }
 
   async findByDistributionStatus(
     willId: string,
     status: DistributionStatus,
-  ): Promise<Beneficiary[]> {
-    try {
-      const prismaBeneficiaries = await this.prisma.beneficiaryAssignment.findMany({
-        where: {
-          willId,
-          distributionStatus: status,
-        },
-        orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
-      });
-
-      return BeneficiaryMapper.toDomainList(prismaBeneficiaries);
-    } catch (error) {
-      this.logger.error(
-        `Failed to find beneficiaries with status ${status} for will ${willId}:`,
-        error,
-      );
-      throw new Error(`Could not retrieve beneficiaries: ${error.message}`);
-    }
+  ): Promise<BeneficiaryAssignment[]> {
+    const raw = await this.prisma.beneficiaryAssignment.findMany({
+      where: { willId, distributionStatus: status },
+    });
+    return raw.map(BeneficiaryMapper.toDomain);
   }
 
-  async findPendingDistributions(willId: string): Promise<Beneficiary[]> {
-    try {
-      const prismaBeneficiaries = await this.prisma.beneficiaryAssignment.findMany({
-        where: {
-          willId,
-          distributionStatus: DistributionStatus.PENDING,
-        },
-        orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }],
-      });
-
-      return BeneficiaryMapper.toDomainList(prismaBeneficiaries);
-    } catch (error) {
-      this.logger.error(`Failed to find pending distributions for will ${willId}:`, error);
-      throw new Error(`Could not retrieve pending distributions: ${error.message}`);
-    }
-  }
+  // --------------------------------------------------------------------------
+  // ANALYTICAL SUMMARIES (Aggregation)
+  // --------------------------------------------------------------------------
 
   async getAssetDistributionSummary(assetId: string): Promise<{
-    totalAllocated: number;
+    totalAllocatedPercent: number;
     beneficiaryCount: number;
+    hasResiduary: boolean;
     conditionalCount: number;
   }> {
-    try {
-      const beneficiaries = await this.prisma.beneficiaryAssignment.findMany({
-        where: { assetId },
-      });
+    // 1. Aggregate Stats
+    const stats = await this.prisma.beneficiaryAssignment.aggregate({
+      where: { assetId },
+      _sum: {
+        sharePercent: true,
+      },
+      _count: {
+        id: true,
+      },
+    });
 
-      const totalAllocated = beneficiaries.reduce((sum, beneficiary) => {
-        if (beneficiary.bequestType === BequestType.PERCENTAGE && beneficiary.sharePercent) {
-          return sum + beneficiary.sharePercent.toNumber();
-        }
-        return sum;
-      }, 0);
+    // 2. Check for specific types (Residuary / Conditional) efficiently
+    // We use count instead of findMany to be faster
+    const residuaryCount = await this.prisma.beneficiaryAssignment.count({
+      where: { assetId, bequestType: BequestType.RESIDUARY },
+    });
 
-      const beneficiaryCount = beneficiaries.length;
-      const conditionalCount = beneficiaries.filter(
-        (b) => b.conditionType !== BequestConditionType.NONE,
-      ).length;
+    const conditionalCount = await this.prisma.beneficiaryAssignment.count({
+      where: { assetId, hasCondition: true },
+    });
 
-      return {
-        totalAllocated,
-        beneficiaryCount,
-        conditionalCount,
-      };
-    } catch (error) {
-      this.logger.error(`Failed to get distribution summary for asset ${assetId}:`, error);
-      throw new Error(`Could not retrieve distribution summary: ${error.message}`);
-    }
+    return {
+      totalAllocatedPercent: Number(stats._sum.sharePercent || 0),
+      beneficiaryCount: stats._count.id,
+      hasResiduary: residuaryCount > 0,
+      conditionalCount,
+    };
   }
 
   async getWillBeneficiarySummary(willId: string): Promise<{
     totalBeneficiaries: number;
     byBequestType: Record<BequestType, number>;
-    byRelationship: Record<string, number>;
+    byRelationship: Record<string, number>; // Note: Relationship is not directly on the table in current schema, skipping or needs join
+    totalConditional: number;
   }> {
-    try {
-      const beneficiaries = await this.prisma.beneficiaryAssignment.findMany({
-        where: { willId },
-      });
+    // Group by Bequest Type
+    const typeGroups = await this.prisma.beneficiaryAssignment.groupBy({
+      by: ['bequestType'],
+      where: { willId },
+      _count: { id: true },
+    });
 
-      const byBequestType: Record<BequestType, number> = {} as Record<BequestType, number>;
-      const byRelationship: Record<string, number> = {};
+    // Get Total Count
+    const totalCount = await this.prisma.beneficiaryAssignment.count({
+      where: { willId },
+    });
 
-      for (const beneficiary of beneficiaries) {
-        // Count by bequest type
-        const bequestType = beneficiary.bequestType;
-        byBequestType[bequestType] = (byBequestType[bequestType] || 0) + 1;
+    const conditionalCount = await this.prisma.beneficiaryAssignment.count({
+      where: { willId, hasCondition: true },
+    });
 
-        // Count by relationship
-        const relationship = beneficiary.relationship || 'Unknown';
-        byRelationship[relationship] = (byRelationship[relationship] || 0) + 1;
-      }
+    // Map DB result to clean object
+    const byBequestType = {} as Record<BequestType, number>;
+    typeGroups.forEach((g) => {
+      byBequestType[g.bequestType] = g._count.id;
+    });
 
-      return {
-        totalBeneficiaries: beneficiaries.length,
-        byBequestType,
-        byRelationship,
-      };
-    } catch (error) {
-      this.logger.error(`Failed to get beneficiary summary for will ${willId}:`, error);
-      throw new Error(`Could not retrieve beneficiary summary: ${error.message}`);
-    }
+    return {
+      totalBeneficiaries: totalCount,
+      byBequestType,
+      byRelationship: {}, // Placeholder until relationship column is denormalized or joined
+      totalConditional: conditionalCount,
+    };
   }
+
+  // --------------------------------------------------------------------------
+  // BULK OPERATIONS
+  // --------------------------------------------------------------------------
 
   async bulkUpdateDistributionStatus(
     beneficiaryIds: string[],
     status: DistributionStatus,
     notes?: string,
   ): Promise<void> {
-    try {
-      await this.prisma.beneficiaryAssignment.updateMany({
-        where: {
-          id: { in: beneficiaryIds },
-        },
-        data: {
-          distributionStatus: status,
-          distributionNotes: notes,
-          ...(status === DistributionStatus.COMPLETED && {
-            distributedAt: new Date(),
-          }),
-          updatedAt: new Date(),
-        },
-      });
-
-      this.logger.log(
-        `Successfully updated distribution status for ${beneficiaryIds.length} beneficiaries`,
-      );
-    } catch (error) {
-      this.logger.error(`Failed to update distribution status for beneficiaries:`, error);
-      throw new Error(`Could not update distribution status: ${error.message}`);
-    }
+    await this.prisma.beneficiaryAssignment.updateMany({
+      where: {
+        id: { in: beneficiaryIds },
+      },
+      data: {
+        distributionStatus: status,
+        distributionNotes: notes,
+        distributedAt: status === DistributionStatus.COMPLETED ? new Date() : null,
+        updatedAt: new Date(),
+      },
+    });
   }
+
+  // --------------------------------------------------------------------------
+  // VALIDATION HELPERS
+  // --------------------------------------------------------------------------
 
   async validateNoDuplicateAssignments(
     willId: string,
     assetId: string,
     beneficiaryId: string,
   ): Promise<boolean> {
-    try {
-      const existing = await this.prisma.beneficiaryAssignment.findFirst({
-        where: {
-          willId,
-          assetId,
-          OR: [{ beneficiaryId }, { familyMemberId: beneficiaryId }],
-        },
-      });
-
-      return !existing;
-    } catch (error) {
-      this.logger.error(`Failed to validate duplicate assignments:`, error);
-      throw new Error(`Could not validate assignments: ${error.message}`);
-    }
+    // We check if a record exists with this combo.
+    // Note: 'beneficiaryId' in this context implies the USER ID column.
+    // If checking family member, we'd need a separate check or logic.
+    const count = await this.prisma.beneficiaryAssignment.count({
+      where: {
+        willId,
+        assetId,
+        beneficiaryId,
+      },
+    });
+    return count === 0;
   }
 
   async getTotalPercentageAllocation(assetId: string): Promise<number> {
-    try {
-      const result = await this.prisma.beneficiaryAssignment.aggregate({
-        where: {
-          assetId,
-          bequestType: BequestType.PERCENTAGE,
-        },
-        _sum: {
-          sharePercent: true,
-        },
-      });
+    const result = await this.prisma.beneficiaryAssignment.aggregate({
+      where: {
+        assetId,
+        bequestType: BequestType.PERCENTAGE,
+      },
+      _sum: {
+        sharePercent: true,
+      },
+    });
 
-      return result._sum.sharePercent?.toNumber() || 0;
-    } catch (error) {
-      this.logger.error(
-        `Failed to calculate total percentage allocation for asset ${assetId}:`,
-        error,
-      );
-      throw new Error(`Could not calculate percentage allocation: ${error.message}`);
-    }
+    return Number(result._sum.sharePercent || 0);
   }
 }

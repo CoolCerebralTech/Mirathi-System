@@ -12,44 +12,44 @@ import { NotificationModule } from '@shamba/notification';
 // Note: PrismaService is now provided by DatabaseModule
 
 // Repositories
-import { PrismaUserRepository } from './4_infrastructure/persistence/repositories/user.repository';
-import { PrismaPasswordResetTokenRepository } from './4_infrastructure/persistence/repositories/token.repository';
-import { PrismaEmailVerificationTokenRepository } from './4_infrastructure/persistence/repositories/token.repository';
-import { PrismaPhoneVerificationTokenRepository } from './4_infrastructure/persistence/repositories/token.repository';
-import { PrismaEmailChangeTokenRepository } from './4_infrastructure/persistence/repositories/token.repository';
-import { PrismaRefreshTokenRepository } from './4_infrastructure/persistence/repositories/token.repository';
-import { PrismaLoginSessionRepository } from './4_infrastructure/persistence/repositories/token.repository';
-import { PrismaPasswordHistoryRepository } from './4_infrastructure/persistence/repositories/token.repository';
+import { PrismaUserRepository } from './infrastructure/persistence/repositories/user.repository';
+import { PrismaPasswordResetTokenRepository } from './infrastructure/persistence/repositories/token.repository';
+import { PrismaEmailVerificationTokenRepository } from './infrastructure/persistence/repositories/token.repository';
+import { PrismaPhoneVerificationTokenRepository } from './infrastructure/persistence/repositories/token.repository';
+import { PrismaEmailChangeTokenRepository } from './infrastructure/persistence/repositories/token.repository';
+import { PrismaRefreshTokenRepository } from './infrastructure/persistence/repositories/token.repository';
+import { PrismaLoginSessionRepository } from './infrastructure/persistence/repositories/token.repository';
+import { PrismaPasswordHistoryRepository } from './infrastructure/persistence/repositories/token.repository';
 
 // Infrastructure Mappers
-import { UserMapper } from './4_infrastructure/persistence/mappers/user.mapper';
-import { PasswordResetTokenMapper } from './4_infrastructure/persistence/mappers/token.mapper';
-import { EmailVerificationTokenMapper } from './4_infrastructure/persistence/mappers/token.mapper';
-import { PhoneVerificationTokenMapper } from './4_infrastructure/persistence/mappers/token.mapper';
-import { EmailChangeTokenMapper } from './4_infrastructure/persistence/mappers/token.mapper';
-import { RefreshTokenMapper } from './4_infrastructure/persistence/mappers/token.mapper';
-import { LoginSessionMapper } from './4_infrastructure/persistence/mappers/token.mapper';
-import { PasswordHistoryMapper } from './4_infrastructure/persistence/mappers/token.mapper';
-import { TokenMapperFactory } from './4_infrastructure/persistence/mappers/token.mapper';
+import { UserMapper } from './infrastructure/persistence/mappers/user.mapper';
+import { PasswordResetTokenMapper } from './infrastructure/persistence/mappers/token.mapper';
+import { EmailVerificationTokenMapper } from './infrastructure/persistence/mappers/token.mapper';
+import { PhoneVerificationTokenMapper } from './infrastructure/persistence/mappers/token.mapper';
+import { EmailChangeTokenMapper } from './infrastructure/persistence/mappers/token.mapper';
+import { RefreshTokenMapper } from './infrastructure/persistence/mappers/token.mapper';
+import { LoginSessionMapper } from './infrastructure/persistence/mappers/token.mapper';
+import { PasswordHistoryMapper } from './infrastructure/persistence/mappers/token.mapper';
+import { TokenMapperFactory } from './infrastructure/persistence/mappers/token.mapper';
 
 // Application Mappers
-import { AuthMapper } from './2_application/mappers/auth.mapper';
-import { UserMapper as ApplicationUserMapper } from './2_application/mappers/user.mapper';
-import { ProfileMapper } from './2_application/mappers/profile.mapper';
-import { TokenMapper } from './2_application/mappers/token.mapper';
+import { AuthMapper } from './application/mappers/auth.mapper';
+import { UserMapper as ApplicationUserMapper } from './application/mappers/user.mapper';
+import { ProfileMapper } from './application/mappers/profile.mapper';
+import { TokenMapper } from './application/mappers/token.mapper';
 
 // Services (Application Layer)
-import { AuthService } from './2_application/services/auth.service';
-import { UserService } from './2_application/services/user.service';
-import { AdminService } from './2_application/services/admin.service';
+import { AuthService } from './application/services/auth.service';
+import { UserService } from './application/services/user.service';
+import { AdminService } from './application/services/admin.service';
 
 // Controllers (Presentation Layer)
-import { AuthController } from './1_presentation/controllers/auth.controller';
-import { UserController } from './1_presentation/controllers/user.controller';
-import { AdminController } from './1_presentation/controllers/admin.controller';
+import { AuthController } from './presentation/controllers/auth.controller';
+import { UserController } from './presentation/controllers/user.controller';
+import { AdminController } from './presentation/controllers/admin.controller';
 
 // Health
-import { HealthController } from './1_presentation/health/health.controller';
+import { HealthController } from './presentation/health/health.controller';
 
 @Module({
   imports: [

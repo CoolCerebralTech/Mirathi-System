@@ -1,470 +1,178 @@
+import { AggregateRoot } from '@nestjs/cqrs';
 import { GuardianType } from '@prisma/client';
-import { KenyanRelationship } from '../value-objects/kenyan-relationship.vo';
 import { GuardianAssignedEvent } from '../events/guardian-assigned.event';
-import { GuardianUpdatedEvent } from '../events/guardian-updated.event';
+import { GuardianRemovedEvent } from '../events/guardian-removed.event';
+import { GuardianshipAuthority } from '../value-objects/guardianship-authority.vo';
 
-export interface GuardianAppointment {
-  appointedBy: string; // Will ID, court order reference, or family decision
-  appointmentDate: Date;
-  validUntil: Date | null;
-  authority: 'PARENTAL' | 'COURT' | 'FAMILY' | 'TESTAMENTARY';
-  referenceNumber?: string; // Court case number or will reference
-}
-
-export interface GuardianResponsibilities {
-  financialManagement: boolean;
-  healthcareDecisions: boolean;
-  educationDecisions: boolean;
-  propertyManagement: boolean;
-  dailyCare: boolean;
-  religiousUpbringing: boolean;
-}
-
-export class Guardianship {
+export class Guardianship extends AggregateRoot {
   private id: string;
-  private guardianId: string; // FamilyMember ID acting as guardian
-  private wardId: string; // FamilyMember ID of the minor/dependent
-  private relationship: KenyanRelationship;
-  private guardianType: GuardianType;
-  private appointment: GuardianAppointment;
-  private responsibilities: GuardianResponsibilities;
-  private isActive: boolean;
+
+  // Links
+  private guardianId: string; // The Adult FamilyMember
+  private wardId: string; // The Minor FamilyMember
+
+  // Legal Configuration
+  private type: GuardianType;
+  private appointedBy: string | null; // Will ID or Court Order Ref
+
+  // Timeline
+  private appointmentDate: Date;
+  private validUntil: Date | null;
+
+  // Status
+  private isActiveRecord: boolean; // Manual override (e.g. removal)
   private notes: string | null;
+
   private createdAt: Date;
   private updatedAt: Date;
 
-  constructor(
+  // Private constructor
+  private constructor(
     id: string,
     guardianId: string,
     wardId: string,
-    relationship: KenyanRelationship,
-    guardianType: GuardianType,
-    appointment: GuardianAppointment,
-    createdAt: Date = new Date(),
-    updatedAt: Date = new Date()
+    type: GuardianType,
+    appointmentDate: Date,
   ) {
+    super();
     if (guardianId === wardId) {
-      throw new Error('Guardian cannot be the same person as the ward');
+      throw new Error('A member cannot be their own guardian.');
     }
-
-    this.validateAppointment(appointment);
 
     this.id = id;
     this.guardianId = guardianId;
     this.wardId = wardId;
-    this.relationship = relationship;
-    this.guardianType = guardianType;
-    this.appointment = { ...appointment };
-    this.createdAt = createdAt;
-    this.updatedAt = updatedAt;
+    this.type = type;
+    this.appointmentDate = appointmentDate;
 
-    // Default values
-    this.responsibilities = this.getDefaultResponsibilities(guardianType);
-    this.isActive = true;
+    // Defaults
+    this.appointedBy = null;
+    this.validUntil = null;
+    this.isActiveRecord = true;
     this.notes = null;
-  }
-
-  // Getters
-  getId(): string { return this.id; }
-  getGuardianId(): string { return this.guardianId; }
-  getWardId(): string { return this.wardId; }
-  getRelationship(): KenyanRelationship { return this.relationship; }
-  getGuardianType(): GuardianType { return this.guardianType; }
-  getAppointment(): Readonly<GuardianAppointment> { return { ...this.appointment }; }
-  getResponsibilities(): Readonly<GuardianResponsibilities> { return { ...this.responsibilities }; }
-  getIsActive(): boolean { return this.isActive; }
-  getNotes(): string | null { return this.notes; }
-  getCreatedAt(): Date { return new Date(this.createdAt); }
-  getUpdatedAt(): Date { return new Date(this.updatedAt); }
-
-  // Business methods
-  updateGuardianType(guardianType: GuardianType): void {
-    this.guardianType = guardianType;
-    this.responsibilities = this.getDefaultResponsibilities(guardianType);
-    this.updatedAt = new Date();
-
-    // Apply domain event
-    // this.apply(new GuardianUpdatedEvent(this.id, this.guardianId, this.wardId));
-  }
-
-  updateResponsibilities(responsibilities: Partial<GuardianResponsibilities>): void {
-    this.responsibilities = { ...this.responsibilities, ...responsibilities };
-    this.updatedAt = new Date();
-
-    // Apply domain event
-    // this.apply(new GuardianUpdatedEvent(this.id, this.guardianId, this.wardId));
-  }
-
-  extendAppointment(newValidUntil: Date): void {
-    if (!this.isActive) {
-      throw new Error('Cannot extend appointment of an inactive guardianship');
-    }
-
-    if (newValidUntil <= new Date()) {
-      throw new Error('New validity date must be in the future');
-    }
-
-    this.appointment.validUntil = newValidUntil;
+    this.createdAt = new Date();
     this.updatedAt = new Date();
   }
 
-  updateAppointmentDetails(appointment: Partial<GuardianAppointment>): void {
-    if (appointment.appointedBy !== undefined) {
-      this.appointment.appointedBy = appointment.appointedBy;
-    }
+  // --------------------------------------------------------------------------
+  // FACTORY METHODS
+  // --------------------------------------------------------------------------
 
-    if (appointment.authority !== undefined) {
-      this.appointment.authority = appointment.authority;
-    }
+  static create(
+    id: string,
+    familyId: string, // Passed for Event context
+    guardianId: string,
+    wardId: string,
+    type: GuardianType,
+    wardDob: Date, // Required to calculate expiry
+    appointedBy?: string,
+  ): Guardianship {
+    const guardianship = new Guardianship(id, guardianId, wardId, type, new Date());
 
-    if (appointment.referenceNumber !== undefined) {
-      this.appointment.referenceNumber = appointment.referenceNumber;
-    }
+    // Use Value Object to calculate legal limits (Age 18)
+    // Mapping Prisma Enum to VO Source type if necessary, or logic here
+    // Here we assume direct logic or usage of VO helper
+    const authority = new GuardianshipAuthority(
+      type === 'TESTAMENTARY' ? 'TESTAMENTARY' : 'COURT_ORDER', // Simplified mapping
+      wardDob,
+    );
 
+    guardianship.validUntil = authority.getExpiryDate();
+    if (appointedBy) guardianship.appointedBy = appointedBy;
+
+    guardianship.apply(
+      new GuardianAssignedEvent(
+        id,
+        familyId,
+        guardianId,
+        wardId,
+        type,
+        guardianship.appointmentDate,
+        guardianship.validUntil,
+      ),
+    );
+
+    return guardianship;
+  }
+
+  static reconstitute(props: any): Guardianship {
+    const guardianship = new Guardianship(
+      props.id,
+      props.guardianId,
+      props.wardId,
+      props.type,
+      new Date(props.appointmentDate),
+    );
+
+    guardianship.appointedBy = props.appointedBy || null;
+    guardianship.validUntil = props.validUntil ? new Date(props.validUntil) : null;
+    guardianship.isActiveRecord = props.isActive;
+    guardianship.notes = props.notes || null;
+    guardianship.createdAt = new Date(props.createdAt);
+    guardianship.updatedAt = new Date(props.updatedAt);
+
+    return guardianship;
+  }
+
+  // --------------------------------------------------------------------------
+  // BUSINESS LOGIC
+  // --------------------------------------------------------------------------
+
+  /**
+   * Terminate the guardianship manually (e.g. Guardian dies, or Court revocation).
+   */
+  revoke(familyId: string, reason: string): void {
+    if (!this.isActiveRecord) return;
+
+    this.isActiveRecord = false;
     this.updatedAt = new Date();
+
+    this.apply(new GuardianRemovedEvent(this.id, familyId, this.guardianId, this.wardId, reason));
   }
 
-  addNotes(notes: string): void {
-    if (!this.notes) {
-      this.notes = notes;
-    } else {
-      this.notes += `\n\n${notes}`;
-    }
-    this.updatedAt = new Date();
-  }
+  /**
+   * Checks if the guardianship is currently legally valid.
+   * returns False if manually removed OR if the child has turned 18.
+   */
+  isValid(): boolean {
+    if (!this.isActiveRecord) return false;
 
-  terminate(terminationDate: Date, reason: string): void {
-    if (!this.isActive) {
-      throw new Error('Guardianship is already terminated');
-    }
-
-    if (terminationDate > new Date()) {
-      throw new Error('Termination date cannot be in the future');
-    }
-
-    if (terminationDate < this.appointment.appointmentDate) {
-      throw new Error('Termination date cannot be before appointment date');
-    }
-
-    this.isActive = false;
-    this.appointment.validUntil = terminationDate;
-    this.addNotes(`Guardianship terminated on ${terminationDate.toISOString().split('T')[0]}. Reason: ${reason}`);
-    this.updatedAt = new Date();
-  }
-
-  reactivate(reactivationDate: Date, reason: string): void {
-    if (this.isActive) {
-      throw new Error('Guardianship is already active');
-    }
-
-    if (reactivationDate > new Date()) {
-      throw new Error('Reactivation date cannot be in the future');
-    }
-
-    this.isActive = true;
-    this.appointment.validUntil = null; // Reset validity
-    this.addNotes(`Guardianship reactivated on ${reactivationDate.toISOString().split('T')[0]}. Reason: ${reason}`);
-    this.updatedAt = new Date();
-  }
-
-  // Kenyan guardianship specific methods
-  isCourtAppointed(): boolean {
-    return this.appointment.authority === 'COURT';
-  }
-
-  isTestamentary(): boolean {
-    return this.appointment.authority === 'TESTAMENTARY';
-  }
-
-  isFamilyAppointed(): boolean {
-    return this.appointment.authority === 'FAMILY';
-  }
-
-  isExpired(): boolean {
-    if (!this.appointment.validUntil) {
+    // Check Expiry (Age of Majority)
+    if (this.validUntil && new Date() > this.validUntil) {
       return false;
     }
-    return new Date() > this.appointment.validUntil;
+
+    return true;
   }
 
-  requiresCourtSupervision(): boolean {
-    return this.isCourtAppointed() || 
-           this.guardianType === GuardianType.LEGAL_GUARDIAN ||
-           this.responsibilities.propertyManagement;
+  updateNotes(notes: string): void {
+    this.notes = notes;
+    this.updatedAt = new Date();
   }
 
-  getRemainingTerm(): { years: number; months: number; days: number } | null {
-    if (!this.appointment.validUntil || !this.isActive) {
-      return null;
-    }
+  // --------------------------------------------------------------------------
+  // GETTERS
+  // --------------------------------------------------------------------------
 
-    const now = new Date();
-    const validUntil = new Date(this.appointment.validUntil);
-    
-    if (validUntil <= now) {
-      return { years: 0, months: 0, days: 0 };
-    }
-
-    let years = validUntil.getFullYear() - now.getFullYear();
-    let months = validUntil.getMonth() - now.getMonth();
-    let days = validUntil.getDate() - now.getDate();
-
-    if (days < 0) {
-      months--;
-      days += new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    }
-
-    if (months < 0) {
-      years--;
-      months += 12;
-    }
-
-    return { years, months, days };
+  getId() {
+    return this.id;
   }
-
-  validateForKenyanLaw(): { isValid: boolean; issues: string[]; recommendations: string[] } {
-    const issues: string[] = [];
-    const recommendations: string[] = [];
-
-    // Check if guardian is of legal age (18+)
-    // This would require checking the guardian's age from their profile
-    // For now, we assume validation happens elsewhere
-
-    // Check if ward is actually a minor or dependent
-    // This would require checking the ward's status
-    // For now, we assume validation happens elsewhere
-
-    // Court-appointed guardianships require proper documentation
-    if (this.isCourtAppointed() && !this.appointment.referenceNumber) {
-      issues.push('Court-appointed guardianship missing case reference number');
-      recommendations.push('Provide court case number for legal validation');
-    }
-
-    // Testamentary guardianships require will reference
-    if (this.isTestamentary() && !this.appointment.referenceNumber) {
-      issues.push('Testamentary guardianship missing will reference');
-      recommendations.push('Reference the will that appoints this guardian');
-    }
-
-    // Check if guardianship duration is reasonable
-    if (this.appointment.validUntil) {
-      const appointmentDate = new Date(this.appointment.appointmentDate);
-      const validUntil = new Date(this.appointment.validUntil);
-      const maxDuration = 18; // Maximum years for minor guardianship
-
-      const durationYears = validUntil.getFullYear() - appointmentDate.getFullYear();
-      if (durationYears > maxDuration) {
-        issues.push(`Guardianship duration (${durationYears} years) exceeds reasonable maximum`);
-        recommendations.push('Consider periodic court review for long-term guardianships');
-      }
-    }
-
-    // Financial guardianships require additional safeguards
-    if (this.responsibilities.financialManagement || this.responsibilities.propertyManagement) {
-      recommendations.push('Consider requiring financial bonds or regular accounting for financial guardianships');
-    }
-
-    return {
-      isValid: issues.length === 0,
-      issues,
-      recommendations
-    };
+  getGuardianId() {
+    return this.guardianId;
   }
-
-  getLegalRequirements(): string[] {
-    const requirements: string[] = [];
-
-    if (this.isCourtAppointed()) {
-      requirements.push('Court order must be presented when acting on behalf of ward');
-      requirements.push('Annual reporting to the court may be required');
-    }
-
-    if (this.isTestamentary()) {
-      requirements.push('Will must be probated for guardianship to take effect');
-      requirements.push('Guardian must accept appointment in writing');
-    }
-
-    if (this.responsibilities.financialManagement) {
-      requirements.push('Separate bank account required for ward\'s funds');
-      requirements.push('Annual financial accounting may be required');
-    }
-
-    if (this.responsibilities.healthcareDecisions) {
-      requirements.push('Medical consent forms should be available');
-      requirements.push('Emergency contact information must be up to date');
-    }
-
-    if (this.responsibilities.propertyManagement) {
-      requirements.push('Court approval may be required for major property transactions');
-      requirements.push('Property must be maintained for ward\'s benefit');
-    }
-
-    return requirements;
+  getWardId() {
+    return this.wardId;
   }
-
-  // Validation methods
-  private validateAppointment(appointment: GuardianAppointment): void {
-    if (appointment.appointmentDate > new Date()) {
-      throw new Error('Appointment date cannot be in the future');
-    }
-
-    if (appointment.validUntil && appointment.validUntil <= appointment.appointmentDate) {
-      throw new Error('Valid until date must be after appointment date');
-    }
-
-    // Court appointments require reference numbers
-    if (appointment.authority === 'COURT' && !appointment.referenceNumber) {
-      throw new Error('Court-appointed guardianships require a reference number');
-    }
-
-    // Testamentary appointments require reference to will
-    if (appointment.authority === 'TESTAMENTARY' && !appointment.referenceNumber) {
-      throw new Error('Testamentary guardianships require a will reference');
-    }
+  getType() {
+    return this.type;
   }
-
-  private getDefaultResponsibilities(guardianType: GuardianType): GuardianResponsibilities {
-    const defaultResponsibilities: Record<GuardianType, GuardianResponsibilities> = {
-      [GuardianType.LEGAL_GUARDIAN]: {
-        financialManagement: true,
-        healthcareDecisions: true,
-        educationDecisions: true,
-        propertyManagement: true,
-        dailyCare: true,
-        religiousUpbringing: true
-      },
-      [GuardianType.FINANCIAL_GUARDIAN]: {
-        financialManagement: true,
-        healthcareDecisions: false,
-        educationDecisions: false,
-        propertyManagement: true,
-        dailyCare: false,
-        religiousUpbringing: false
-      },
-      [GuardianType.PROPERTY_GUARDIAN]: {
-        financialManagement: false,
-        healthcareDecisions: false,
-        educationDecisions: false,
-        propertyManagement: true,
-        dailyCare: false,
-        religiousUpbringing: false
-      },
-      [GuardianType.TESTAMENTARY]: {
-        financialManagement: true,
-        healthcareDecisions: true,
-        educationDecisions: true,
-        propertyManagement: true,
-        dailyCare: true,
-        religiousUpbringing: true
-      }
-    };
-
-    return { ...defaultResponsibilities[guardianType] };
+  getValidUntil() {
+    return this.validUntil;
   }
-
-  // Static factory methods
-  static createCourtAppointed(
-    id: string,
-    guardianId: string,
-    wardId: string,
-    relationship: KenyanRelationship,
-    guardianType: GuardianType,
-    courtCaseNumber: string,
-    appointmentDate: Date = new Date(),
-    validUntil?: Date
-  ): Guardianship {
-    const appointment: GuardianAppointment = {
-      appointedBy: `Court Case ${courtCaseNumber}`,
-      appointmentDate,
-      validUntil: validUntil || null,
-      authority: 'COURT',
-      referenceNumber: courtCaseNumber
-    };
-
-    const guardianship = new Guardianship(id, guardianId, wardId, relationship, guardianType, appointment);
-    
-    // Apply domain event
-    // guardianship.apply(new GuardianAssignedEvent(id, guardianId, wardId, guardianType));
-    
-    return guardianship;
+  getIsActiveRecord() {
+    return this.isActiveRecord;
   }
-
-  static createTestamentary(
-    id: string,
-    guardianId: string,
-    wardId: string,
-    relationship: KenyanRelationship,
-    guardianType: GuardianType,
-    willReference: string,
-    appointmentDate: Date = new Date()
-  ): Guardianship {
-    const appointment: GuardianAppointment = {
-      appointedBy: `Will ${willReference}`,
-      appointmentDate,
-      validUntil: null, // Typically until ward reaches majority age
-      authority: 'TESTAMENTARY',
-      referenceNumber: willReference
-    };
-
-    const guardianship = new Guardianship(id, guardianId, wardId, relationship, guardianType, appointment);
-    
-    // Apply domain event
-    // guardianship.apply(new GuardianAssignedEvent(id, guardianId, wardId, guardianType));
-    
-    return guardianship;
-  }
-
-  static createFamilyAppointed(
-    id: string,
-    guardianId: string,
-    wardId: string,
-    relationship: KenyanRelationship,
-    guardianType: GuardianType,
-    appointedBy: string, // Family head or committee
-    appointmentDate: Date = new Date(),
-    validUntil?: Date
-  ): Guardianship {
-    const appointment: GuardianAppointment = {
-      appointedBy,
-      appointmentDate,
-      validUntil: validUntil || null,
-      authority: 'FAMILY'
-    };
-
-    const guardianship = new Guardianship(id, guardianId, wardId, relationship, guardianType, appointment);
-    
-    // Apply domain event
-    // guardianship.apply(new GuardianAssignedEvent(id, guardianId, wardId, guardianType));
-    
-    return guardianship;
-  }
-
-  static createParental(
-    id: string,
-    guardianId: string,
-    wardId: string,
-    relationship: KenyanRelationship,
-    appointmentDate: Date = new Date()
-  ): Guardianship {
-    const appointment: GuardianAppointment = {
-      appointedBy: 'Natural Parent',
-      appointmentDate,
-      validUntil: null, // Until child reaches majority
-      authority: 'PARENTAL'
-    };
-
-    const guardianship = new Guardianship(
-      id, 
-      guardianId, 
-      wardId, 
-      relationship, 
-      GuardianType.LEGAL_GUARDIAN, 
-      appointment
-    );
-    
-    // Apply domain event
-    // guardianship.apply(new GuardianAssignedEvent(id, guardianId, wardId, GuardianType.LEGAL_GUARDIAN));
-    
-    return guardianship;
+  getAppointedBy() {
+    return this.appointedBy;
   }
 }

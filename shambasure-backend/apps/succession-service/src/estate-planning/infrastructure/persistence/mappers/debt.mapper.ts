@@ -1,60 +1,67 @@
-import { DebtType } from '@prisma/client';
+import { Debt as PrismaDebt } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import { Debt } from '../../../domain/entities/debt.entity';
+import { AssetValue } from '../../../domain/value-objects/asset-value.vo';
 
 export class DebtMapper {
-  static toDomain(prismaDebt: any): Debt {
-    if (!prismaDebt) return null;
-
-    const debt = new Debt(
-      prismaDebt.id,
-      prismaDebt.ownerId,
-      prismaDebt.type as DebtType,
-      prismaDebt.description,
-      prismaDebt.principalAmount.toNumber(),
-      prismaDebt.creditorName,
-      prismaDebt.currency,
-    );
-
-    // Set additional properties
-    Object.assign(debt, {
-      assetId: prismaDebt.assetId,
-      outstandingBalance: prismaDebt.outstandingBalance.toNumber(),
-      creditorContact: prismaDebt.creditorContact,
-      accountNumber: prismaDebt.accountNumber,
-      dueDate: prismaDebt.dueDate,
-      interestRate: prismaDebt.interestRate?.toNumber(),
-      isPaid: prismaDebt.isPaid,
-      paidAt: prismaDebt.paidAt,
-      createdAt: prismaDebt.createdAt,
-      updatedAt: prismaDebt.updatedAt,
-    });
-
-    return debt;
-  }
-
-  static toPersistence(debt: Debt): any {
+  static toPersistence(domain: Debt): PrismaDebt {
     return {
-      id: debt.getId(),
-      assetId: debt.getAssetId(),
-      ownerId: debt.getOwnerId(),
-      type: debt.getType(),
-      description: debt.getDescription(),
-      principalAmount: debt.getPrincipalAmount(),
-      outstandingBalance: debt.getOutstandingBalance(),
-      currency: debt.getCurrency(),
-      creditorName: debt.getCreditorName(),
-      creditorContact: debt.getCreditorContact(),
-      accountNumber: debt.getAccountNumber(),
-      dueDate: debt.getDueDate(),
-      interestRate: debt.getInterestRate(),
-      isPaid: debt.getIsPaid(),
-      paidAt: debt.getPaidAt(),
-      createdAt: debt.getCreatedAt(),
-      updatedAt: debt.getUpdatedAt(),
-    };
+      id: domain.getId(),
+      ownerId: domain.getOwnerId(),
+      assetId: domain.getAssetId(),
+      type: domain.getType(),
+      description: domain.getDescription(),
+
+      // Financials
+      principalAmount: new Decimal(domain.getPrincipalAmount().getAmount()),
+      outstandingBalance: new Decimal(domain.getOutstandingBalance().getAmount()),
+      currency: domain.getPrincipalAmount().getCurrency(),
+
+      // Creditor
+      creditorName: domain.getCreditorName(),
+      creditorContact: domain.getCreditorContact(),
+      accountNumber: domain.getAccountNumber(),
+
+      // Terms
+      dueDate: domain.getDueDate(),
+      interestRate: domain.getInterestRate() ? new Decimal(domain.getInterestRate()!) : null,
+
+      // Status
+      isPaid: domain.getIsPaid(),
+      paidAt: domain.getPaidAt(),
+
+      createdAt: new Date(), // Ignored on update
+      updatedAt: new Date(),
+    } as unknown as PrismaDebt;
   }
 
-  static toDomainList(prismaDebts: any[]): Debt[] {
-    return prismaDebts.map((debt) => this.toDomain(debt)).filter(Boolean);
+  static toDomain(raw: PrismaDebt): Debt {
+    const principal = new AssetValue(Number(raw.principalAmount), raw.currency);
+    const balance = new AssetValue(Number(raw.outstandingBalance), raw.currency);
+
+    return Debt.reconstitute({
+      id: raw.id,
+      ownerId: raw.ownerId,
+      assetId: raw.assetId,
+      type: raw.type,
+      description: raw.description,
+
+      principalAmount: principal,
+      outstandingBalance: balance,
+      currency: raw.currency,
+
+      creditorName: raw.creditorName,
+      creditorContact: raw.creditorContact,
+      accountNumber: raw.accountNumber,
+
+      dueDate: raw.dueDate,
+      interestRate: raw.interestRate ? Number(raw.interestRate) : null,
+
+      isPaid: raw.isPaid,
+      paidAt: raw.paidAt,
+
+      createdAt: raw.createdAt,
+      updatedAt: raw.updatedAt,
+    });
   }
 }

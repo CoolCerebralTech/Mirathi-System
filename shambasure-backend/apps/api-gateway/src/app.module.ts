@@ -10,11 +10,11 @@ import { MessagingModule } from '@shamba/messaging';
 
 // --- Local Feature & Layer Modules ---
 // These are the encapsulated layers of our API Gateway.
-import { InfrastructureModule } from './4_infrastructure/infrastructure.module';
-import { ProxyModule } from './2_application/proxy.module';
-import { GatewayHealthModule } from './1_presentation/health/gateway-health.module'; // Corrected Path
-import { ProxyController } from './1_presentation/controller/proxy.controller';
-import { AllExceptionsFilter } from './1_presentation/filters/all-exceptions.filter';
+import { InfrastructureModule } from './infrastructure/infrastructure.module';
+import { ProxyModule } from './application/proxy.module';
+import { GatewayHealthModule } from './presentation/health/gateway-health.module'; // Corrected Path
+import { ProxyController } from './presentation/controller/proxy.controller';
+import { AllExceptionsFilter } from './presentation/filters/all-exceptions.filter';
 
 /**
  * AppModule - The root module for the API Gateway.

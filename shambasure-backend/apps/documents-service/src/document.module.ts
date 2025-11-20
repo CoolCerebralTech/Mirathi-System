@@ -18,40 +18,40 @@ import {
 } from './injection.tokens';
 
 // Infrastructure Layer - Storage Module
-import { StorageModule } from './4_infrastructure/storage/storage.module';
+import { StorageModule } from './infrastructure/storage/storage.module';
 
 // Presentation Layer - Controllers
-import { HealthController } from './1_presentation/health/health.controller';
-import { DocumentController } from './1_presentation/controllers/document.controller';
-import { DocumentVersionController } from './1_presentation/controllers/document-version.controller';
-import { DocumentVerificationController } from './1_presentation/controllers/document-verification.controller';
-import { StatisticsController } from './1_presentation/controllers/statistics.controller';
+import { HealthController } from './presentation/health/health.controller';
+import { DocumentController } from './presentation/controllers/document.controller';
+import { DocumentVersionController } from './presentation/controllers/document-version.controller';
+import { DocumentVerificationController } from './presentation/controllers/document-verification.controller';
+import { StatisticsController } from './presentation/controllers/statistics.controller';
 
 // Application Layer - Command Services (Write Operations)
-import { DocumentCommandService } from './2_application/services/document.command.service';
-import { DocumentVersionCommandService } from './2_application/services/document-version.command.service';
-import { DocumentVerificationCommandService } from './2_application/services/document-verification.command.service';
+import { DocumentCommandService } from './application/services/document.command.service';
+import { DocumentVersionCommandService } from './application/services/document-version.command.service';
+import { DocumentVerificationCommandService } from './application/services/document-verification.command.service';
 
 // Application Layer - Query Services (Read Operations)
-import { DocumentQueryService } from './2_application/services/document.query.service';
-import { DocumentVersionQueryService } from './2_application/services/document-version.query.service';
-import { DocumentVerificationQueryService } from './2_application/services/document-verification.query.service';
-import { StatisticsService } from './2_application/services/statistics.service';
+import { DocumentQueryService } from './application/services/document.query.service';
+import { DocumentVersionQueryService } from './application/services/document-version.query.service';
+import { DocumentVerificationQueryService } from './application/services/document-verification.query.service';
+import { StatisticsService } from './application/services/statistics.service';
 
 // Application Layer - Mappers
-import { DocumentMapper } from './2_application/mappers/document.mapper';
-import { DocumentVersionMapper } from './2_application/mappers/document-version.mapper';
-import { DocumentVerificationAttemptMapper } from './2_application/mappers/document-verification-attempt.mapper';
-import { StatisticsMapper } from './2_application/mappers/statistics.mapper';
-import { BulkOperationsMapper } from './2_application/mappers/bulk-operations.mapper';
+import { DocumentMapper } from './application/mappers/document.mapper';
+import { DocumentVersionMapper } from './application/mappers/document-version.mapper';
+import { DocumentVerificationAttemptMapper } from './application/mappers/document-verification-attempt.mapper';
+import { StatisticsMapper } from './application/mappers/statistics.mapper';
+import { BulkOperationsMapper } from './application/mappers/bulk-operations.mapper';
 
 // Infrastructure Layer - Repositories (Command Side)
-import { PrismaDocumentRepository } from './4_infrastructure/repositories/prisma-document.repository';
+import { PrismaDocumentRepository } from './infrastructure/repositories/prisma-document.repository';
 
 // Infrastructure Layer - Query Repositories (Read Side)
-import { PrismaDocumentQueryRepository } from './4_infrastructure/repositories/prisma-document-query.repository';
-import { PrismaDocumentVersionQueryRepository } from './4_infrastructure/repositories/prisma-document-version.query.repository';
-import { PrismaDocumentVerificationQueryRepository } from './4_infrastructure/repositories/prisma-document-verification.query.repository';
+import { PrismaDocumentQueryRepository } from './infrastructure/repositories/prisma-document-query.repository';
+import { PrismaDocumentVersionQueryRepository } from './infrastructure/repositories/prisma-document-version.query.repository';
+import { PrismaDocumentVerificationQueryRepository } from './infrastructure/repositories/prisma-document-verification.query.repository';
 
 @Module({
   imports: [
