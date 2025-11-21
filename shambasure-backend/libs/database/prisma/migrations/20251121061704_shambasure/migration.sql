@@ -41,6 +41,9 @@ CREATE TYPE "DistributionStatus" AS ENUM ('PENDING', 'IN_PROGRESS', 'COMPLETED',
 CREATE TYPE "DebtType" AS ENUM ('MORTGAGE', 'PERSONAL_LOAN', 'CREDIT_CARD', 'BUSINESS_DEBT', 'TAX_OBLIGATION', 'FUNERAL_EXPENSE', 'MEDICAL_BILL', 'OTHER');
 
 -- CreateEnum
+CREATE TYPE "GrantType" AS ENUM ('PROBATE', 'LETTERS_OF_ADMINISTRATION', 'LETTERS_OF_ADMINISTRATION_WITH_WILL', 'LIMITED_GRANT', 'SPECIAL_GRANT');
+
+-- CreateEnum
 CREATE TYPE "MarriageStatus" AS ENUM ('SINGLE', 'MARRIED', 'DIVORCED', 'WIDOWED', 'SEPARATED', 'CUSTOMARY_MARRIAGE', 'CIVIL_UNION');
 
 -- CreateEnum
@@ -538,7 +541,7 @@ CREATE TABLE "estates" (
     "estateValue" DECIMAL(18,2),
     "currency" TEXT NOT NULL DEFAULT 'KES',
     "status" "DistributionStatus" NOT NULL DEFAULT 'PENDING',
-    "administrationType" TEXT,
+    "administrationType" "GrantType",
     "administratorId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -567,11 +570,12 @@ CREATE TABLE "grants_of_administration" (
     "estateId" TEXT NOT NULL,
     "applicantId" TEXT,
     "applicantName" TEXT,
-    "grantType" TEXT NOT NULL,
+    "grantType" "GrantType" NOT NULL,
     "issuedBy" TEXT,
     "issuedAt" TIMESTAMP(3),
     "expiresAt" TIMESTAMP(3),
     "caseNumber" TEXT,
+    "fileReference" TEXT,
     "notes" TEXT,
     "status" "DistributionStatus" NOT NULL DEFAULT 'PENDING',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

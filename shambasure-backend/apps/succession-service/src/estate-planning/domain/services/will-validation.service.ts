@@ -57,10 +57,12 @@ export class WillValidationService {
     for (const asset of aggregate.getAssets()) {
       const assetCheck = this.assetPolicy.checkTestamentaryCapacity(asset);
       if (!assetCheck.isCompliant) {
+        // Use the 'name' property instead of getName()
+        const assetName = 'name' in asset && asset.name ? asset.name : 'Unnamed Asset';
         this.mergeResult(
           result,
-          assetCheck.errors.map((e) => `Asset '${asset.getName()}': ${e}`),
-          assetCheck.warnings.map((w) => `Asset '${asset.getName()}': ${w}`),
+          assetCheck.errors.map((e) => `Asset '${assetName}': ${e}`),
+          assetCheck.warnings.map((w) => `Asset '${assetName}': ${w}`),
           [],
           true,
         );
@@ -72,14 +74,12 @@ export class WillValidationService {
     this.mergeResult(result, executorCheck.errors, executorCheck.warnings, [], true);
 
     // 4. Witness Eligibility (Section 11 & 13)
-    // Only relevant if witnesses are added/signed
     const witnesses = aggregate.getWitnesses();
     if (witnesses.length > 0) {
       const witnessCompCheck = this.witnessPolicy.validateWitnessComposition(witnesses);
       this.mergeResult(result, witnessCompCheck.errors, witnessCompCheck.warnings, [], true);
 
       for (const witness of witnesses) {
-        // Check Conflict of Interest (Witness cannot be beneficiary)
         const conflictCheck = this.witnessPolicy.checkConflictOfInterest(
           witness,
           aggregate.getBeneficiaries(),
@@ -88,10 +88,8 @@ export class WillValidationService {
       }
     }
 
-    // 5. Dependant Provision (Section 26) - "The Moral Duty"
-    // This usually produces Warnings/Risk, not Hard Errors (you CAN disinherit, but it's risky)
+    // 5. Dependant Provision (Section 26)
     if (familyMembers.length > 0) {
-      // We need an estimated value to calculate percentages. Passing 0 triggers fallback logic.
       const provisionCheck = this.dependantsPolicy.validateProvision(
         familyMembers,
         aggregate.getBeneficiaries(),
@@ -99,7 +97,6 @@ export class WillValidationService {
       );
 
       if (provisionCheck.riskLevel === 'HIGH' || provisionCheck.riskLevel === 'CRITICAL') {
-        // We treat High Risk as a warning that lowers score significantly
         this.mergeResult(result, [], provisionCheck.issues, provisionCheck.suggestions, false);
         result.complianceScore -= 20;
       } else if (provisionCheck.riskLevel === 'MEDIUM') {

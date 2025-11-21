@@ -22,22 +22,13 @@ export class ExecutorEligibilityPolicy {
    * Validates a single individual's eligibility to serve as Executor.
    */
   checkCandidateEligibility(candidate: ExecutorCandidate): ExecutorPolicyResult {
-    const result: ExecutorPolicyResult = {
-      isEligible: true,
-      errors: [],
-      warnings: [],
-    };
+    const result: ExecutorPolicyResult = { isEligible: true, errors: [], warnings: [] };
 
     // 1. Age Check (Section 6)
-    // Even though User entity might verify age, we enforce it here for external nominees.
-    if (
-      candidate.age !== undefined &&
-      candidate.age < KENYAN_LEGAL_REQUIREMENTS.EXECUTOR_REQUIREMENTS.MINIMUM_AGE
-    ) {
+    const minAge = KENYAN_LEGAL_REQUIREMENTS.EXECUTOR_REQUIREMENTS.MINIMUM_AGE;
+    if (candidate.age !== undefined && candidate.age < minAge) {
       result.isEligible = false;
-      result.errors.push(
-        `Executor must be at least ${KENYAN_LEGAL_REQUIREMENTS.EXECUTOR_REQUIREMENTS.MINIMUM_AGE} years old.`,
-      );
+      result.errors.push(`Executor must be at least ${minAge} years old.`);
     }
 
     // 2. Mental Capacity
@@ -46,17 +37,17 @@ export class ExecutorEligibilityPolicy {
       result.errors.push('Executor must be of sound mind.');
     }
 
-    // 3. Suitability (System Rule)
+    // 3. Criminal Record Check
     if (candidate.hasCriminalRecord && EXECUTOR_RULES.ELIGIBILITY.NO_FELONY_CONVICTIONS) {
       result.warnings.push(
-        'Candidate has a criminal record. The court may refuse to grant probate (Rule 25 Probate & Administration Rules).',
+        'Candidate has a criminal record. Court may refuse probate under Rule 25 of the Probate & Administration Rules.',
       );
     }
 
     // 4. Residency Warning
     if (candidate.residency === 'FOREIGN') {
       result.warnings.push(
-        'Executor resides outside Kenya. This may complicate court processes and they may be required to provide a surety/bond.',
+        'Executor resides outside Kenya. May need a surety/bond and court approval could be delayed.',
       );
     }
 
@@ -64,41 +55,37 @@ export class ExecutorEligibilityPolicy {
   }
 
   /**
-   * Validates the composition of the entire Executor list for a Will.
+   * Validates the composition of the Executor list for a Will.
    */
   checkExecutorComposition(executors: Executor[]): ExecutorPolicyResult {
-    const result: ExecutorPolicyResult = {
-      isEligible: true,
-      errors: [],
-      warnings: [],
-    };
+    const result: ExecutorPolicyResult = { isEligible: true, errors: [], warnings: [] };
 
     const activeExecutors = executors.filter((e) => !e.isRemoved());
     const primaryExecutors = activeExecutors.filter((e) => e.getIsPrimary());
 
-    // 1. Max Count (Section 56 - Max 4 administrators/executors)
+    // 1. Maximum primary executors
     if (primaryExecutors.length > EXECUTOR_RULES.MAX_EXECUTORS) {
       result.isEligible = false;
       result.errors.push(
-        `You cannot appoint more than ${EXECUTOR_RULES.MAX_EXECUTORS} primary executors.`,
+        `Cannot appoint more than ${EXECUTOR_RULES.MAX_EXECUTORS} primary executors.`,
       );
     }
 
-    // 2. Min Count
+    // 2. Minimum primary executor
     if (primaryExecutors.length < 1) {
       result.warnings.push(
-        'No primary executor appointed. The court will appoint an administrator (Intestacy rules may apply).',
+        'No primary executor appointed. Court may appoint an administrator under intestacy rules.',
       );
     }
 
-    // 3. Alternate Logic
+    // 3. Recommend alternate executor if only one active executor
     if (
       EXECUTOR_RULES.ALTERNATE_REQUIREMENT &&
       primaryExecutors.length === 1 &&
       activeExecutors.length === 1
     ) {
       result.warnings.push(
-        'It is highly recommended to appoint at least one Alternate Executor in case the primary is unable to act.',
+        'Recommended to appoint at least one alternate executor in case the primary is unable to act.',
       );
     }
 

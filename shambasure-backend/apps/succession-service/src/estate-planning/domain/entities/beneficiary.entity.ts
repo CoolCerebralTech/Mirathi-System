@@ -8,6 +8,11 @@ import { BeneficiaryShareUpdatedEvent } from '../events/beneficiary-share-update
 import { BeneficiaryDistributedEvent } from '../events/beneficiary-distributed.event';
 import { BeneficiaryRemovedEvent } from '../events/beneficiary-removed.event';
 
+/**
+ * Represents the identity of a beneficiary in Kenyan succession law
+ * A beneficiary can be a registered user, family member, or external entity
+ * @interface BeneficiaryIdentity
+ */
 export interface BeneficiaryIdentity {
   userId?: string;
   familyMemberId?: string;
@@ -16,26 +21,32 @@ export interface BeneficiaryIdentity {
   relationship?: string;
 }
 
-// Interface for AssetValue data structure
+/**
+ * Data structure for asset valuation information
+ * @interface AssetValueData
+ */
 export interface AssetValueData {
   amount: number;
   currency: string;
   valuationDate: Date | string;
 }
 
-// Interface for reconstitute method
+/**
+ * Properties required for entity reconstitution from persistence
+ * @interface BeneficiaryReconstituteProps
+ */
 export interface BeneficiaryReconstituteProps {
   id: string;
   willId: string;
   assetId: string;
   beneficiaryIdentity: BeneficiaryIdentity;
   bequestType: BequestType;
-  sharePercentage: any;
+  sharePercentage: number | null;
   specificAmount: AssetValueData | AssetValue | null;
   conditionType: BequestConditionType;
   conditionDetails: string | null;
   alternateBeneficiaryId: string | null;
-  alternateShare: any;
+  alternateShare: number | null;
   distributionStatus: DistributionStatus;
   distributedAt: Date | string | null;
   distributionNotes: string | null;
@@ -44,26 +55,43 @@ export interface BeneficiaryReconstituteProps {
   updatedAt: Date | string;
 }
 
+/**
+ * Beneficiary Assignment Entity representing inheritance rights under Kenyan succession law
+ *
+ * Core Domain Entity for managing:
+ * - User beneficiaries (registered platform users)
+ * - Family member beneficiaries (non-registered family members)
+ * - External beneficiaries (charities, organizations, non-family)
+ * - Conditional bequests with Kenyan legal compliance
+ *
+ * @class BeneficiaryAssignment
+ * @extends {AggregateRoot}
+ */
 export class BeneficiaryAssignment extends AggregateRoot {
-  private id: string;
-  private willId: string;
-  private assetId: string;
-  private beneficiaryIdentity: BeneficiaryIdentity;
-  private bequestType: BequestType;
-  private sharePercentage: SharePercentage | null;
-  private specificAmount: AssetValue | null;
-  private conditionType: BequestConditionType;
-  private conditionDetails: string | null;
-  private alternateBeneficiaryId: string | null;
-  private alternateShare: SharePercentage | null;
-  private distributionStatus: DistributionStatus;
-  private distributedAt: Date | null;
-  private distributionNotes: string | null;
-  private priority: number;
-  private createdAt: Date;
-  private updatedAt: Date;
+  // Core Assignment Properties
+  private readonly _id: string;
+  private readonly _willId: string;
+  private readonly _assetId: string;
+  private readonly _beneficiaryIdentity: BeneficiaryIdentity;
+  private _bequestType: BequestType;
+  private _sharePercentage: SharePercentage | null;
+  private _specificAmount: AssetValue | null;
+  private _conditionType: BequestConditionType;
+  private _conditionDetails: string | null;
+  private _alternateBeneficiaryId: string | null;
+  private _alternateShare: SharePercentage | null;
+  private _distributionStatus: DistributionStatus;
+  private _distributedAt: Date | null;
+  private _distributionNotes: string | null;
+  private _priority: number;
 
-  // Private Constructor
+  // Audit Trail
+  private _createdAt: Date;
+  private _updatedAt: Date;
+
+  // --------------------------------------------------------------------------
+  // PRIVATE CONSTRUCTOR - Enforces use of factory methods
+  // --------------------------------------------------------------------------
   private constructor(
     id: string,
     willId: string,
@@ -73,33 +101,51 @@ export class BeneficiaryAssignment extends AggregateRoot {
     priority: number = 1,
   ) {
     super();
-    this.validateIdentity(identity);
 
-    this.id = id;
-    this.willId = willId;
-    this.assetId = assetId;
-    this.beneficiaryIdentity = { ...identity };
-    this.bequestType = bequestType;
-    this.priority = priority;
+    // Validate required parameters
+    if (!id?.trim()) throw new Error('Beneficiary assignment ID is required');
+    if (!willId?.trim()) throw new Error('Will ID is required');
+    if (!assetId?.trim()) throw new Error('Asset ID is required');
 
-    // Defaults
-    this.sharePercentage = null;
-    this.specificAmount = null;
-    this.conditionType = BequestConditionType.NONE;
-    this.conditionDetails = null;
-    this.alternateBeneficiaryId = null;
-    this.alternateShare = null;
-    this.distributionStatus = DistributionStatus.PENDING;
-    this.distributedAt = null;
-    this.distributionNotes = null;
-    this.createdAt = new Date();
-    this.updatedAt = new Date();
+    BeneficiaryAssignment.validateIdentity(identity);
+
+    this._id = id;
+    this._willId = willId;
+    this._assetId = assetId;
+    this._beneficiaryIdentity = { ...identity };
+    this._bequestType = bequestType;
+    this._priority = priority;
+
+    // Initialize default values
+    this._sharePercentage = null;
+    this._specificAmount = null;
+    this._conditionType = BequestConditionType.NONE;
+    this._conditionDetails = null;
+    this._alternateBeneficiaryId = null;
+    this._alternateShare = null;
+    this._distributionStatus = DistributionStatus.PENDING;
+    this._distributedAt = null;
+    this._distributionNotes = null;
+    this._createdAt = new Date();
+    this._updatedAt = new Date();
   }
 
   // --------------------------------------------------------------------------
-  // 1. FACTORY METHODS
+  // FACTORY METHODS - Domain Lifecycle Management
   // --------------------------------------------------------------------------
 
+  /**
+   * Creates a beneficiary assignment for a registered platform user
+   *
+   * @static
+   * @param {string} id - Unique assignment identifier
+   * @param {string} willId - Will containing the bequest
+   * @param {string} assetId - Asset being bequeathed
+   * @param {string} userId - Registered user ID of beneficiary
+   * @param {BequestType} bequestType - Type of bequest under Kenyan law
+   * @param {string} [relationship] - Relationship to testator
+   * @returns {BeneficiaryAssignment} New beneficiary assignment
+   */
   static createForUser(
     id: string,
     willId: string,
@@ -108,14 +154,37 @@ export class BeneficiaryAssignment extends AggregateRoot {
     bequestType: BequestType,
     relationship?: string,
   ): BeneficiaryAssignment {
-    const identity: BeneficiaryIdentity = { userId, relationship };
+    const identity: BeneficiaryIdentity = {
+      userId: userId.trim(),
+      relationship: relationship?.trim(),
+    };
+
     const assignment = new BeneficiaryAssignment(id, willId, assetId, identity, bequestType);
 
-    assignment.apply(new BeneficiaryAssignedEvent(id, willId, assetId, identity, bequestType));
+    assignment.apply(
+      new BeneficiaryAssignedEvent(
+        assignment._id,
+        assignment._willId,
+        assignment._assetId,
+        assignment._beneficiaryIdentity,
+        assignment._bequestType,
+      ),
+    );
 
     return assignment;
   }
 
+  /**
+   * Creates a beneficiary assignment for a family member
+   *
+   * @static
+   * @param {string} id - Unique assignment identifier
+   * @param {string} willId - Will containing the bequest
+   * @param {string} assetId - Asset being bequeathed
+   * @param {string} familyMemberId - Family member ID of beneficiary
+   * @param {BequestType} bequestType - Type of bequest under Kenyan law
+   * @returns {BeneficiaryAssignment} New beneficiary assignment
+   */
   static createForFamilyMember(
     id: string,
     willId: string,
@@ -123,14 +192,37 @@ export class BeneficiaryAssignment extends AggregateRoot {
     familyMemberId: string,
     bequestType: BequestType,
   ): BeneficiaryAssignment {
-    const identity: BeneficiaryIdentity = { familyMemberId };
+    const identity: BeneficiaryIdentity = {
+      familyMemberId: familyMemberId.trim(),
+    };
+
     const assignment = new BeneficiaryAssignment(id, willId, assetId, identity, bequestType);
 
-    assignment.apply(new BeneficiaryAssignedEvent(id, willId, assetId, identity, bequestType));
+    assignment.apply(
+      new BeneficiaryAssignedEvent(
+        assignment._id,
+        assignment._willId,
+        assignment._assetId,
+        assignment._beneficiaryIdentity,
+        assignment._bequestType,
+      ),
+    );
 
     return assignment;
   }
 
+  /**
+   * Creates a beneficiary assignment for external entities (charities, organizations)
+   *
+   * @static
+   * @param {string} id - Unique assignment identifier
+   * @param {string} willId - Will containing the bequest
+   * @param {string} assetId - Asset being bequeathed
+   * @param {string} externalName - Name of external beneficiary
+   * @param {string} [externalContact] - Contact information
+   * @param {BequestType} [bequestType=BequestType.SPECIFIC] - Type of bequest
+   * @returns {BeneficiaryAssignment} New beneficiary assignment
+   */
   static createForExternal(
     id: string,
     willId: string,
@@ -139,18 +231,42 @@ export class BeneficiaryAssignment extends AggregateRoot {
     externalContact?: string,
     bequestType: BequestType = BequestType.SPECIFIC,
   ): BeneficiaryAssignment {
-    const identity: BeneficiaryIdentity = { externalName, externalContact };
+    const identity: BeneficiaryIdentity = {
+      externalName: externalName.trim(),
+      externalContact: externalContact?.trim(),
+    };
+
     const assignment = new BeneficiaryAssignment(id, willId, assetId, identity, bequestType);
 
-    assignment.apply(new BeneficiaryAssignedEvent(id, willId, assetId, identity, bequestType));
+    assignment.apply(
+      new BeneficiaryAssignedEvent(
+        assignment._id,
+        assignment._willId,
+        assignment._assetId,
+        assignment._beneficiaryIdentity,
+        assignment._bequestType,
+      ),
+    );
 
     return assignment;
   }
 
   /**
-   * Rehydrate from Database (No Events)
+   * Reconstructs BeneficiaryAssignment entity from persistence layer data
+   *
+   * @static
+   * @param {BeneficiaryReconstituteProps} props - Data from database
+   * @returns {BeneficiaryAssignment} Rehydrated beneficiary assignment
+   * @throws {Error} When data validation fails during reconstruction
    */
   static reconstitute(props: BeneficiaryReconstituteProps): BeneficiaryAssignment {
+    // Validate required reconstruction data
+    if (!props.id || !props.willId || !props.assetId) {
+      throw new Error('Invalid reconstruction data: missing required fields');
+    }
+
+    BeneficiaryAssignment.validateIdentity(props.beneficiaryIdentity);
+
     const assignment = new BeneficiaryAssignment(
       props.id,
       props.willId,
@@ -160,125 +276,221 @@ export class BeneficiaryAssignment extends AggregateRoot {
       props.priority,
     );
 
-    // Hydrate properties safely with proper typing
-    assignment.conditionType = props.conditionType;
-    assignment.conditionDetails = props.conditionDetails;
-    assignment.alternateBeneficiaryId = props.alternateBeneficiaryId;
-    assignment.distributionStatus = props.distributionStatus;
-    assignment.distributionNotes = props.distributionNotes;
+    // Hydrate additional properties with type safety
+    assignment._conditionType = props.conditionType;
+    assignment._conditionDetails = props.conditionDetails || null;
+    assignment._alternateBeneficiaryId = props.alternateBeneficiaryId || null;
+    assignment._distributionStatus = props.distributionStatus;
+    assignment._distributionNotes = props.distributionNotes || null;
 
-    // Reconstruct Value Objects
-    if (props.sharePercentage) {
-      assignment.sharePercentage = BeneficiaryAssignment.reconstructSharePercentage(
+    // Reconstruct Value Objects with proper typing
+    if (props.sharePercentage !== null && props.sharePercentage !== undefined) {
+      assignment._sharePercentage = BeneficiaryAssignment.reconstructSharePercentage(
         props.sharePercentage,
       );
     }
 
     if (props.specificAmount) {
-      assignment.specificAmount = BeneficiaryAssignment.reconstructAssetValue(props.specificAmount);
+      assignment._specificAmount = BeneficiaryAssignment.reconstructAssetValue(
+        props.specificAmount,
+      );
     }
 
-    if (props.alternateShare) {
-      assignment.alternateShare = BeneficiaryAssignment.reconstructSharePercentage(
+    if (props.alternateShare !== null && props.alternateShare !== undefined) {
+      assignment._alternateShare = BeneficiaryAssignment.reconstructSharePercentage(
         props.alternateShare,
       );
     }
 
     // Handle date conversions safely
-    assignment.distributedAt = props.distributedAt ? new Date(props.distributedAt) : null;
-    assignment.createdAt = new Date(props.createdAt);
-    assignment.updatedAt = new Date(props.updatedAt);
+    assignment._distributedAt = props.distributedAt
+      ? BeneficiaryAssignment.safeDateConversion(props.distributedAt, 'distributedAt')
+      : null;
+    assignment._createdAt = BeneficiaryAssignment.safeDateConversion(props.createdAt, 'createdAt');
+    assignment._updatedAt = BeneficiaryAssignment.safeDateConversion(props.updatedAt, 'updatedAt');
 
     return assignment;
   }
 
   /**
-   * Helper method to reconstruct SharePercentage from raw data or existing instance
+   * Safely converts date strings to Date objects with validation
+   *
+   * @private
+   * @static
+   * @param {Date | string} dateInput - Date to convert
+   * @param {string} fieldName - Field name for error reporting
+   * @returns {Date} Valid Date object
+   * @throws {Error} When date conversion fails
    */
-  private static reconstructSharePercentage(shareData: any): SharePercentage {
+  private static safeDateConversion(dateInput: Date | string, fieldName: string): Date {
+    try {
+      const date = new Date(dateInput);
+      if (isNaN(date.getTime())) {
+        throw new Error(`Invalid date value for ${fieldName}`);
+      }
+      return date;
+    } catch (error) {
+      throw new Error(
+        `Failed to convert ${fieldName} to valid Date: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
+    }
+  }
+
+  /**
+   * Reconstructs SharePercentage from raw number or existing instance
+   *
+   * @private
+   * @static
+   * @param {number | SharePercentage} shareData - Share data to reconstruct
+   * @returns {SharePercentage} Reconstructed SharePercentage instance
+   * @throws {Error} When share data is invalid
+   */
+  private static reconstructSharePercentage(shareData: number | SharePercentage): SharePercentage {
     if (shareData instanceof SharePercentage) {
       return shareData;
     }
 
-    // Handle raw data
-    return new SharePercentage(Number(shareData));
+    if (typeof shareData !== 'number' || isNaN(shareData)) {
+      throw new Error('Invalid share percentage data: must be number or SharePercentage instance');
+    }
+
+    return new SharePercentage(shareData);
   }
 
   /**
-   * Helper method to reconstruct AssetValue from raw data or existing instance
+   * Reconstructs AssetValue from raw data or existing instance
+   *
+   * @private
+   * @static
+   * @param {AssetValueData | AssetValue} valueData - Value data to reconstruct
+   * @returns {AssetValue} Reconstructed AssetValue instance
+   * @throws {Error} When value data is invalid
    */
   private static reconstructAssetValue(valueData: AssetValueData | AssetValue): AssetValue {
     if (valueData instanceof AssetValue) {
       return valueData;
     }
 
-    // Handle raw data object with proper typing
-    const valuationDate =
-      typeof valueData.valuationDate === 'string'
-        ? new Date(valueData.valuationDate)
-        : valueData.valuationDate;
+    if (typeof valueData !== 'object' || valueData === null) {
+      throw new Error('Invalid asset value data: must be object or AssetValue instance');
+    }
 
-    return new AssetValue(valueData.amount, valueData.currency, valuationDate);
+    if (typeof valueData.amount !== 'number' || valueData.amount < 0) {
+      throw new Error('Invalid asset value: amount must be non-negative number');
+    }
+
+    if (typeof valueData.currency !== 'string' || !valueData.currency.trim()) {
+      throw new Error('Invalid asset value: currency is required');
+    }
+
+    const valuationDate = BeneficiaryAssignment.safeDateConversion(
+      valueData.valuationDate,
+      'valuationDate',
+    );
+
+    return new AssetValue(valueData.amount, valueData.currency.trim(), valuationDate);
+  }
+
+  /**
+   * Validates beneficiary identity structure
+   *
+   * @private
+   * @static
+   * @param {BeneficiaryIdentity} identity - Identity to validate
+   * @throws {Error} When identity structure is invalid
+   */
+  private static validateIdentity(identity: BeneficiaryIdentity): void {
+    const hasUserId = Boolean(identity.userId?.trim());
+    const hasFamilyMemberId = Boolean(identity.familyMemberId?.trim());
+    const hasExternalName = Boolean(identity.externalName?.trim());
+
+    const identityCount =
+      (hasUserId ? 1 : 0) + (hasFamilyMemberId ? 1 : 0) + (hasExternalName ? 1 : 0);
+
+    if (identityCount === 0) {
+      throw new Error(
+        'Beneficiary must have exactly one form of identification (User ID, Family Member ID, or External Name)',
+      );
+    }
+
+    if (identityCount > 1) {
+      throw new Error('Beneficiary cannot have multiple forms of identification simultaneously');
+    }
   }
 
   // --------------------------------------------------------------------------
-  // 2. BUSINESS LOGIC & MUTATORS
+  // BUSINESS LOGIC & DOMAIN OPERATIONS
   // --------------------------------------------------------------------------
 
   /**
-   * Assign a Percentage Share (0-100%)
+   * Updates percentage share allocation for percentage/residuary bequests
+   *
+   * @param {SharePercentage} share - Percentage share (0-100%)
+   * @param {string} [updatedBy] - User ID of person making update
+   * @throws {Error} When bequest type doesn't support shares or share is invalid
    */
   updateShare(share: SharePercentage, updatedBy?: string): void {
-    if (this.bequestType !== BequestType.PERCENTAGE && this.bequestType !== BequestType.RESIDUARY) {
-      throw new Error('Share percentage can only be set for PERCENTAGE or RESIDUARY bequests.');
+    if (
+      this._bequestType !== BequestType.PERCENTAGE &&
+      this._bequestType !== BequestType.RESIDUARY
+    ) {
+      throw new Error('Share percentage can only be set for PERCENTAGE or RESIDUARY bequests');
     }
 
-    this.sharePercentage = share;
-    this.specificAmount = null; // Mutual exclusion
-    this.updatedAt = new Date();
+    this._sharePercentage = share;
+    this._specificAmount = null; // Mutual exclusion
+    this._updatedAt = new Date();
 
-    if (updatedBy) {
+    if (updatedBy?.trim()) {
       this.apply(
         new BeneficiaryShareUpdatedEvent(
-          this.id,
-          this.willId,
-          this.bequestType,
+          this._id,
+          this._willId,
+          this._bequestType,
           share,
           null,
-          updatedBy,
+          updatedBy.trim(),
         ),
       );
     }
   }
 
   /**
-   * Assign a Fixed Amount (e.g. 100,000 KES from a bank account)
+   * Updates specific amount allocation for specific bequests
+   *
+   * @param {AssetValue} amount - Specific monetary amount
+   * @param {string} [updatedBy] - User ID of person making update
+   * @throws {Error} When bequest type doesn't support specific amounts
    */
   updateSpecificAmount(amount: AssetValue, updatedBy?: string): void {
-    if (this.bequestType !== BequestType.SPECIFIC) {
-      throw new Error('Specific amount can only be set for SPECIFIC bequests.');
+    if (this._bequestType !== BequestType.SPECIFIC) {
+      throw new Error('Specific amount can only be set for SPECIFIC bequests');
     }
 
-    this.specificAmount = amount;
-    this.sharePercentage = null; // Mutual exclusion
-    this.updatedAt = new Date();
+    this._specificAmount = amount;
+    this._sharePercentage = null; // Mutual exclusion
+    this._updatedAt = new Date();
 
-    if (updatedBy) {
+    if (updatedBy?.trim()) {
       this.apply(
         new BeneficiaryShareUpdatedEvent(
-          this.id,
-          this.willId,
-          this.bequestType,
+          this._id,
+          this._willId,
+          this._bequestType,
           null,
           amount,
-          updatedBy,
+          updatedBy.trim(),
         ),
       );
     }
   }
 
   /**
-   * Add a condition (e.g., "Must be 25 years old")
+   * Adds conditional requirement to bequest under Kenyan law
+   *
+   * @param {BequestConditionType} type - Type of condition
+   * @param {string} details - Condition details description
+   * @throws {Error} When condition details are empty
    */
   addCondition(type: BequestConditionType, details: string): void {
     if (type === BequestConditionType.NONE) {
@@ -286,273 +498,304 @@ export class BeneficiaryAssignment extends AggregateRoot {
       return;
     }
 
-    if (!details.trim()) throw new Error('Condition details are required.');
-
-    this.conditionType = type;
-    this.conditionDetails = details.trim();
-    this.updatedAt = new Date();
-
-    this.apply(new BeneficiaryConditionAddedEvent(this.id, this.willId, type, details));
-  }
-
-  removeCondition(): void {
-    this.conditionType = BequestConditionType.NONE;
-    this.conditionDetails = null;
-    this.updatedAt = new Date();
-  }
-
-  setAlternateBeneficiary(alternateBeneficiaryId: string, share: SharePercentage): void {
-    this.alternateBeneficiaryId = alternateBeneficiaryId;
-    this.alternateShare = share;
-    this.updatedAt = new Date();
-  }
-
-  updatePriority(priority: number): void {
-    if (priority < 1) {
-      throw new Error('Priority must be at least 1.');
+    if (!details?.trim()) {
+      throw new Error('Condition details are required');
     }
-    this.priority = priority;
-    this.updatedAt = new Date();
+
+    this._conditionType = type;
+    this._conditionDetails = details.trim();
+    this._updatedAt = new Date();
+
+    this.apply(
+      new BeneficiaryConditionAddedEvent(this._id, this._willId, type, this._conditionDetails),
+    );
   }
 
   /**
-   * Mark as Distributed (Succession Execution Phase)
+   * Removes all conditions from bequest
+   */
+  removeCondition(): void {
+    this._conditionType = BequestConditionType.NONE;
+    this._conditionDetails = null;
+    this._updatedAt = new Date();
+  }
+
+  /**
+   * Sets alternate beneficiary for conditional bequests
+   *
+   * @param {string} alternateBeneficiaryId - ID of alternate beneficiary
+   * @param {SharePercentage} share - Share percentage for alternate
+   * @throws {Error} When parameters are invalid
+   */
+  setAlternateBeneficiary(alternateBeneficiaryId: string, share: SharePercentage): void {
+    if (!alternateBeneficiaryId?.trim()) {
+      throw new Error('Alternate beneficiary ID is required');
+    }
+
+    this._alternateBeneficiaryId = alternateBeneficiaryId.trim();
+    this._alternateShare = share;
+    this._updatedAt = new Date();
+  }
+
+  /**
+   * Updates distribution priority order
+   *
+   * @param {number} priority - Priority level (1 = highest)
+   * @throws {Error} When priority is less than 1
+   */
+  updatePriority(priority: number): void {
+    if (priority < 1) {
+      throw new Error('Priority must be at least 1');
+    }
+
+    this._priority = priority;
+    this._updatedAt = new Date();
+  }
+
+  /**
+   * Marks bequest as distributed (succession execution phase)
+   *
+   * @param {string} [notes] - Distribution notes or comments
    */
   markAsDistributed(notes?: string): void {
-    if (this.distributionStatus === DistributionStatus.COMPLETED) return;
+    if (this._distributionStatus === DistributionStatus.COMPLETED) return;
 
-    this.distributionStatus = DistributionStatus.COMPLETED;
-    this.distributedAt = new Date();
-    this.distributionNotes = notes || null;
-    this.updatedAt = new Date();
+    this._distributionStatus = DistributionStatus.COMPLETED;
+    this._distributedAt = new Date();
+    this._distributionNotes = notes?.trim() || null;
+    this._updatedAt = new Date();
 
     this.apply(
       new BeneficiaryDistributedEvent(
-        this.id,
-        this.willId,
-        this.assetId,
-        this.distributedAt,
-        notes,
+        this._id,
+        this._willId,
+        this._assetId,
+        this._distributedAt,
+        this._distributionNotes ?? undefined,
       ),
     );
   }
 
+  /**
+   * Marks bequest as in progress during distribution
+   */
   markAsInProgress(): void {
-    this.distributionStatus = DistributionStatus.IN_PROGRESS;
-    this.updatedAt = new Date();
-  }
-
-  markAsDisputed(): void {
-    this.distributionStatus = DistributionStatus.DISPUTED;
-    this.updatedAt = new Date();
-  }
-
-  markAsDeferred(): void {
-    this.distributionStatus = DistributionStatus.DEFERRED;
-    this.updatedAt = new Date();
+    this._distributionStatus = DistributionStatus.IN_PROGRESS;
+    this._updatedAt = new Date();
   }
 
   /**
-   * Soft remove/delete the assignment
+   * Marks bequest as disputed under Kenyan succession law
+   */
+  markAsDisputed(): void {
+    this._distributionStatus = DistributionStatus.DISPUTED;
+    this._updatedAt = new Date();
+  }
+
+  /**
+   * Marks bequest as deferred (conditions not yet met)
+   */
+  markAsDeferred(): void {
+    this._distributionStatus = DistributionStatus.DEFERRED;
+    this._updatedAt = new Date();
+  }
+
+  /**
+   * Initiates removal of beneficiary assignment with reason
+   *
+   * @param {string} [reason] - Reason for removal
    */
   remove(reason?: string): void {
-    this.apply(new BeneficiaryRemovedEvent(this.id, this.willId, reason));
-    // The actual deletion handling is usually done in the Command Handler
-    // via the repository, but the event notifies the system.
+    this.apply(new BeneficiaryRemovedEvent(this._id, this._willId, reason?.trim() || undefined));
   }
 
   // --------------------------------------------------------------------------
-  // 3. VALIDATION & HELPERS
+  // DOMAIN CALCULATIONS & BUSINESS RULES
   // --------------------------------------------------------------------------
 
-  private validateIdentity(info: BeneficiaryIdentity): void {
-    const hasUserId = !!info.userId;
-    const hasFamilyMemberId = !!info.familyMemberId;
-    const hasExternalName = !!info.externalName;
-
-    const count = (hasUserId ? 1 : 0) + (hasFamilyMemberId ? 1 : 0) + (hasExternalName ? 1 : 0);
-
-    if (count === 0) {
-      throw new Error(
-        'Beneficiary must have exactly one form of identification (User ID, Family Member ID, or External Name).',
-      );
-    }
-    if (count > 1) {
-      throw new Error('Beneficiary cannot have multiple forms of identification simultaneously.');
-    }
-  }
-
+  /**
+   * Determines if bequest has conditional requirements
+   *
+   * @returns {boolean} True if conditional bequest
+   */
   isConditional(): boolean {
-    return this.conditionType !== BequestConditionType.NONE;
+    return this._conditionType !== BequestConditionType.NONE;
   }
 
+  /**
+   * Determines if bequest has alternate beneficiary configured
+   *
+   * @returns {boolean} True if alternate beneficiary exists
+   */
   hasAlternate(): boolean {
-    return !!this.alternateBeneficiaryId && !!this.alternateShare;
+    return Boolean(this._alternateBeneficiaryId && this._alternateShare);
   }
 
+  /**
+   * Determines if bequest has been fully distributed
+   *
+   * @returns {boolean} True if distribution completed
+   */
   isDistributed(): boolean {
-    return this.distributionStatus === DistributionStatus.COMPLETED;
+    return this._distributionStatus === DistributionStatus.COMPLETED;
   }
 
-  // --------------------------------------------------------------------------
-  // 4. GETTERS & HELPER METHODS
-  // --------------------------------------------------------------------------
-
-  // Core Properties
-  getId(): string {
-    return this.id;
-  }
-
-  getWillId(): string {
-    return this.willId;
-  }
-
-  getAssetId(): string {
-    return this.assetId;
-  }
-
-  getIdentity(): BeneficiaryIdentity {
-    return { ...this.beneficiaryIdentity };
-  }
-
-  getBequestType(): BequestType {
-    return this.bequestType;
-  }
-
-  getSharePercentage(): SharePercentage | null {
-    return this.sharePercentage;
-  }
-
-  getSpecificAmount(): AssetValue | null {
-    return this.specificAmount;
-  }
-
-  getConditionType(): BequestConditionType {
-    return this.conditionType;
-  }
-
-  getConditionDetails(): string | null {
-    return this.conditionDetails;
-  }
-
-  getAlternateBeneficiaryId(): string | null {
-    return this.alternateBeneficiaryId;
-  }
-
-  getAlternateShare(): SharePercentage | null {
-    return this.alternateShare;
-  }
-
-  getDistributionStatus(): DistributionStatus {
-    return this.distributionStatus;
-  }
-
-  getDistributedAt(): Date | null {
-    return this.distributedAt ? new Date(this.distributedAt) : null;
-  }
-
-  getDistributionNotes(): string | null {
-    return this.distributionNotes;
-  }
-
-  getPriority(): number {
-    return this.priority;
-  }
-
-  getCreatedAt(): Date {
-    return new Date(this.createdAt);
-  }
-
-  getUpdatedAt(): Date {
-    return new Date(this.updatedAt);
-  }
-
-  // Business Logic Helpers
-  getBeneficiaryName(): string {
-    if (this.beneficiaryIdentity.userId) {
-      return `User ${this.beneficiaryIdentity.userId}`;
-    } else if (this.beneficiaryIdentity.familyMemberId) {
-      return `Family Member ${this.beneficiaryIdentity.familyMemberId}`;
-    } else if (this.beneficiaryIdentity.externalName) {
-      return this.beneficiaryIdentity.externalName;
-    }
-    return 'Unknown Beneficiary';
-  }
-
-  getBeneficiaryType(): 'USER' | 'FAMILY_MEMBER' | 'EXTERNAL' {
-    if (this.beneficiaryIdentity.userId) return 'USER';
-    if (this.beneficiaryIdentity.familyMemberId) return 'FAMILY_MEMBER';
-    if (this.beneficiaryIdentity.externalName) return 'EXTERNAL';
-    throw new Error('Invalid beneficiary identity');
-  }
-
-  getExpectedValue(assetTotalValue?: number): AssetValue | null {
-    if (this.sharePercentage && assetTotalValue) {
-      const amount = assetTotalValue * (this.sharePercentage.getValue() / 100);
-      return new AssetValue(amount, 'KES'); // Assuming KES as default
-    }
-    return this.specificAmount;
-  }
-
+  /**
+   * Determines if bequest can be distributed
+   *
+   * @returns {boolean} True if distribution can proceed
+   */
   canBeDistributed(): boolean {
     return (
-      this.distributionStatus === DistributionStatus.PENDING ||
-      this.distributionStatus === DistributionStatus.IN_PROGRESS
+      this._distributionStatus === DistributionStatus.PENDING ||
+      this._distributionStatus === DistributionStatus.IN_PROGRESS
     );
   }
 
+  /**
+   * Determines if bequest is pending distribution
+   *
+   * @returns {boolean} True if pending distribution
+   */
   isPending(): boolean {
-    return this.distributionStatus === DistributionStatus.PENDING;
+    return this._distributionStatus === DistributionStatus.PENDING;
   }
 
+  /**
+   * Determines if bequest distribution is in progress
+   *
+   * @returns {boolean} True if distribution in progress
+   */
   isInProgress(): boolean {
-    return this.distributionStatus === DistributionStatus.IN_PROGRESS;
+    return this._distributionStatus === DistributionStatus.IN_PROGRESS;
   }
 
+  /**
+   * Determines if bequest is disputed
+   *
+   * @returns {boolean} True if disputed
+   */
   isDisputed(): boolean {
-    return this.distributionStatus === DistributionStatus.DISPUTED;
+    return this._distributionStatus === DistributionStatus.DISPUTED;
   }
 
+  /**
+   * Determines if bequest is deferred
+   *
+   * @returns {boolean} True if deferred
+   */
   isDeferred(): boolean {
-    return this.distributionStatus === DistributionStatus.DEFERRED;
+    return this._distributionStatus === DistributionStatus.DEFERRED;
   }
 
-  // Validation methods
+  /**
+   * Calculates expected value based on asset total and allocation type
+   *
+   * @param {number} [assetTotalValue] - Total value of the asset
+   * @returns {AssetValue | null} Expected value or null if cannot calculate
+   */
+  getExpectedValue(assetTotalValue?: number): AssetValue | null {
+    if (this._sharePercentage && assetTotalValue !== undefined && assetTotalValue > 0) {
+      const amount = assetTotalValue * (this._sharePercentage.getValue() / 100);
+      // Use KES as default currency for Kenyan succession
+      return new AssetValue(amount, 'KES', new Date());
+    }
+
+    return this._specificAmount;
+  }
+
+  /**
+   * Validates if assignment is properly configured for execution
+   *
+   * @returns {boolean} True if valid for execution
+   */
   isValidForExecution(): boolean {
-    // Check if beneficiary assignment has valid configuration
     const hasValidAllocation = Boolean(
-      (this.sharePercentage && this.sharePercentage.getValue() > 0) ||
-        (this.specificAmount && this.specificAmount.getAmount() > 0),
+      (this._sharePercentage && this._sharePercentage.getValue() > 0) ||
+        (this._specificAmount && this._specificAmount.getAmount() > 0),
     );
 
     const hasValidIdentity = Boolean(
-      this.beneficiaryIdentity.userId ||
-        this.beneficiaryIdentity.familyMemberId ||
-        this.beneficiaryIdentity.externalName,
+      this._beneficiaryIdentity.userId ||
+        this._beneficiaryIdentity.familyMemberId ||
+        this._beneficiaryIdentity.externalName,
     );
 
     return hasValidAllocation && hasValidIdentity && !this.isDistributed();
   }
 
+  /**
+   * Determines if alternate beneficiary should be activated
+   *
+   * @returns {boolean} True if conditions met for alternate activation
+   */
   requiresAlternateActivation(): boolean {
-    // Check if conditions are met that would require activating alternate beneficiary
     return this.isConditional() && this.hasAlternate();
   }
 
-  // Additional validation helpers
+  /**
+   * Validates allocation configuration based on bequest type
+   *
+   * @returns {boolean} True if allocation is valid
+   */
   hasValidAllocation(): boolean {
-    if (this.bequestType === BequestType.PERCENTAGE || this.bequestType === BequestType.RESIDUARY) {
-      return Boolean(this.sharePercentage && this.sharePercentage.getValue() > 0);
-    } else if (this.bequestType === BequestType.SPECIFIC) {
-      return Boolean(this.specificAmount && this.specificAmount.getAmount() > 0);
+    if (
+      this._bequestType === BequestType.PERCENTAGE ||
+      this._bequestType === BequestType.RESIDUARY
+    ) {
+      return Boolean(this._sharePercentage && this._sharePercentage.getValue() > 0);
+    } else if (this._bequestType === BequestType.SPECIFIC) {
+      return Boolean(this._specificAmount && this._specificAmount.getAmount() > 0);
     }
+
     return false;
   }
 
+  /**
+   * Determines if assignment is fully configured
+   *
+   * @returns {boolean} True if fully configured
+   */
   isFullyConfigured(): boolean {
     return this.hasValidAllocation() && this.isValidForExecution();
   }
 
+  /**
+   * Gets human-readable beneficiary name
+   *
+   * @returns {string} Beneficiary display name
+   */
+  getBeneficiaryName(): string {
+    if (this._beneficiaryIdentity.userId) {
+      return `User ${this._beneficiaryIdentity.userId}`;
+    } else if (this._beneficiaryIdentity.familyMemberId) {
+      return `Family Member ${this._beneficiaryIdentity.familyMemberId}`;
+    } else if (this._beneficiaryIdentity.externalName) {
+      return this._beneficiaryIdentity.externalName;
+    }
+
+    return 'Unknown Beneficiary';
+  }
+
+  /**
+   * Gets beneficiary type category
+   *
+   * @returns {'USER' | 'FAMILY_MEMBER' | 'EXTERNAL'} Beneficiary type
+   * @throws {Error} When identity is invalid
+   */
+  getBeneficiaryType(): 'USER' | 'FAMILY_MEMBER' | 'EXTERNAL' {
+    if (this._beneficiaryIdentity.userId) return 'USER';
+    if (this._beneficiaryIdentity.familyMemberId) return 'FAMILY_MEMBER';
+    if (this._beneficiaryIdentity.externalName) return 'EXTERNAL';
+
+    throw new Error('Invalid beneficiary identity configuration');
+  }
+
+  /**
+   * Gets validation errors for assignment configuration
+   *
+   * @returns {string[]} Array of validation error messages
+   */
   getValidationErrors(): string[] {
     const errors: string[] = [];
 
@@ -561,9 +804,9 @@ export class BeneficiaryAssignment extends AggregateRoot {
     }
 
     const hasValidIdentity = Boolean(
-      this.beneficiaryIdentity.userId ||
-        this.beneficiaryIdentity.familyMemberId ||
-        this.beneficiaryIdentity.externalName,
+      this._beneficiaryIdentity.userId ||
+        this._beneficiaryIdentity.familyMemberId ||
+        this._beneficiaryIdentity.externalName,
     );
 
     if (!hasValidIdentity) {
@@ -575,5 +818,61 @@ export class BeneficiaryAssignment extends AggregateRoot {
     }
 
     return errors;
+  }
+
+  // --------------------------------------------------------------------------
+  // IMMUTABLE GETTERS - Provide read-only access to entity state
+  // --------------------------------------------------------------------------
+
+  get id(): string {
+    return this._id;
+  }
+  get willId(): string {
+    return this._willId;
+  }
+  get assetId(): string {
+    return this._assetId;
+  }
+  get beneficiaryIdentity(): BeneficiaryIdentity {
+    return { ...this._beneficiaryIdentity };
+  }
+  get bequestType(): BequestType {
+    return this._bequestType;
+  }
+  get sharePercentage(): SharePercentage | null {
+    return this._sharePercentage;
+  }
+  get specificAmount(): AssetValue | null {
+    return this._specificAmount;
+  }
+  get conditionType(): BequestConditionType {
+    return this._conditionType;
+  }
+  get conditionDetails(): string | null {
+    return this._conditionDetails;
+  }
+  get alternateBeneficiaryId(): string | null {
+    return this._alternateBeneficiaryId;
+  }
+  get alternateShare(): SharePercentage | null {
+    return this._alternateShare;
+  }
+  get distributionStatus(): DistributionStatus {
+    return this._distributionStatus;
+  }
+  get distributedAt(): Date | null {
+    return this._distributedAt ? new Date(this._distributedAt) : null;
+  }
+  get distributionNotes(): string | null {
+    return this._distributionNotes;
+  }
+  get priority(): number {
+    return this._priority;
+  }
+  get createdAt(): Date {
+    return new Date(this._createdAt);
+  }
+  get updatedAt(): Date {
+    return new Date(this._updatedAt);
   }
 }

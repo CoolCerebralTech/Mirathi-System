@@ -13,7 +13,17 @@ export class LegalCapacity {
   private readonly assessment: CapacityAssessment;
   private readonly notes?: string;
 
-  constructor(assessment: CapacityAssessment, notes?: string) {
+  public constructor(assessment: CapacityAssessment, notes?: string) {
+    this.assessment = { ...assessment }; // Immutable copy
+    this.notes = notes;
+
+    Object.freeze(this); // Ensure immutability
+  }
+
+  // -----------------------------------------------------
+  // Factory method
+  // -----------------------------------------------------
+  static create(assessment: CapacityAssessment, notes?: string): LegalCapacity {
     if (!assessment.assessmentDate) {
       throw new Error('Assessment date is required');
     }
@@ -22,10 +32,12 @@ export class LegalCapacity {
       throw new Error('Assessment date cannot be in the future');
     }
 
-    this.assessment = { ...assessment };
-    this.notes = notes;
+    return new LegalCapacity(assessment, notes);
   }
 
+  // -----------------------------------------------------
+  // Getters
+  // -----------------------------------------------------
   getAssessment(): Readonly<CapacityAssessment> {
     return { ...this.assessment };
   }
@@ -34,6 +46,9 @@ export class LegalCapacity {
     return this.notes;
   }
 
+  // -----------------------------------------------------
+  // Business logic
+  // -----------------------------------------------------
   hasLegalCapacity(): boolean {
     return (
       this.assessment.isOfAge &&
@@ -47,14 +62,13 @@ export class LegalCapacity {
 
   isAssessmentCurrent(maxAgeInDays: number = 30): boolean {
     const now = new Date();
-    const diffTime = Math.abs(now.getTime() - this.assessment.assessmentDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffTime = now.getTime() - this.assessment.assessmentDate.getTime();
+    const diffDays = diffTime / (1000 * 60 * 60 * 24);
     return diffDays <= maxAgeInDays;
   }
 
   getRiskFactors(): string[] {
     const risks: string[] = [];
-
     if (!this.assessment.isOfAge) risks.push('Testator is underage');
     if (!this.assessment.isSoundMind) risks.push('Testator not of sound mind');
     if (!this.assessment.understandsWillNature)
@@ -69,9 +83,10 @@ export class LegalCapacity {
   }
 
   equals(other: LegalCapacity): boolean {
+    const otherAssessment = other.getAssessment();
     return (
-      this.assessment.assessmentDate.getTime() === other.getAssessment().assessmentDate.getTime() &&
-      this.assessment.assessedBy === other.getAssessment().assessedBy
+      this.assessment.assessmentDate.getTime() === otherAssessment.assessmentDate.getTime() &&
+      this.assessment.assessedBy === otherAssessment.assessedBy
     );
   }
 
@@ -79,6 +94,9 @@ export class LegalCapacity {
     return `Legal Capacity Assessment: ${this.hasLegalCapacity() ? 'VALID' : 'INVALID'} (${this.assessment.assessmentDate.toISOString().split('T')[0]})`;
   }
 
+  // -----------------------------------------------------
+  // Convenience factory for always-valid assessment
+  // -----------------------------------------------------
   static createValidAssessment(assessedBy?: string): LegalCapacity {
     const assessment: CapacityAssessment = {
       isOfAge: true,

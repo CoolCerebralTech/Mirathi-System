@@ -1,7 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
-import type { FamilyMemberRepositoryInterface } from '../repositories/family-member.repository.interface';
-import type { RelationshipRepositoryInterface } from '../repositories/relationship.repository.interface';
-import type { MarriageRepositoryInterface } from '../repositories/marriage.repository.interface';
+import type { FamilyMemberRepositoryInterface } from '../interfaces/family-member.repository.interface';
+import type { RelationshipRepositoryInterface } from '../interfaces/relationship.repository.interface';
+import type { MarriageRepositoryInterface } from '../interfaces/marriage.repository.interface';
 
 export interface TreeGraph {
   nodes: {

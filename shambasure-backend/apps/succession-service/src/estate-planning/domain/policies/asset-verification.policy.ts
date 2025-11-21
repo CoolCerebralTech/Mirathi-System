@@ -7,6 +7,7 @@ export interface PolicyResult {
   isCompliant: boolean;
   errors: string[];
   warnings: string[];
+  highRisk?: boolean; // Flag for assets that could cause legal disputes
 }
 
 @Injectable()
@@ -20,10 +21,10 @@ export class AssetVerificationPolicy {
       isCompliant: true,
       errors: [],
       warnings: [],
+      highRisk: false,
     };
 
     // 1. Joint Tenancy Rule (Right of Survivorship)
-    // Assets held in Joint Tenancy pass automatically to the survivor, NOT via the Will.
     if (asset.getOwnershipType() === AssetOwnershipType.JOINT_TENANCY) {
       result.isCompliant = false;
       result.errors.push(
@@ -37,13 +38,14 @@ export class AssetVerificationPolicy {
       result.errors.push('Asset is marked as inactive or deleted.');
     }
 
-    // 3. Encumbrance Check (Insolvency)
+    // 3. Encumbrance Check (Debt/Liability)
     if (asset.getIsEncumbered()) {
       const netValue = asset.getTransferableValue();
       if (netValue.getAmount() <= 0) {
         result.warnings.push(
           `Asset is heavily encumbered. Liability (${asset.getEncumbranceAmount()}) exceeds or matches share value.`,
         );
+        result.highRisk = true;
       } else {
         result.warnings.push(
           `Asset is encumbered. Beneficiary will inherit the asset subject to the debt of ${asset.getEncumbranceAmount()}.`,
@@ -56,6 +58,17 @@ export class AssetVerificationPolicy {
       result.warnings.push(
         'Asset documentation has not been verified. This increases the risk of disputes.',
       );
+      result.highRisk = true;
+    }
+
+    // 5. Additional checks: Land/Property specific
+    if (['LAND_PARCEL', 'PROPERTY'].includes(asset.getType())) {
+      if (!this.checkLandSearchReadiness(asset)) {
+        result.warnings.push(
+          'Asset lacks sufficient location or registration details for a land/property search. Risk of legal disputes.',
+        );
+        result.highRisk = true;
+      }
     }
 
     return result;
@@ -69,27 +82,23 @@ export class AssetVerificationPolicy {
       isCompliant: true,
       errors: [],
       warnings: [],
+      highRisk: false,
     };
 
     const assetType = asset.getType();
-    // Type assertion to map Prisma AssetType string to our Constant keys
     const requiredDocs =
       DOCUMENTATION_REQUIREMENTS[assetType as keyof typeof DOCUMENTATION_REQUIREMENTS];
 
-    if (!requiredDocs) {
-      // If no specific requirements defined for this type (e.g. PERSONAL_EFFECTS)
-      return result;
-    }
+    if (!requiredDocs) return result;
 
     const missingDocs = requiredDocs.filter((req) => !uploadedDocumentTypes.includes(req));
 
     if (missingDocs.length > 0) {
-      result.isCompliant = false;
+      result.isCompliant = false; // Consider marking as non-compliant if critical docs are missing
       result.warnings.push(
         `Missing recommended documentation for ${assetType}: ${missingDocs.join(', ')}`,
       );
-      // We make this a warning, not an error, because a user might still legally own land
-      // even if they haven't uploaded the PDF to our app yet.
+      result.highRisk = true;
     }
 
     return result;
@@ -104,7 +113,6 @@ export class AssetVerificationPolicy {
     }
 
     const id = asset.getIdentification();
-    // Minimal requirement for an official search at Ministry of Lands
     return !!(id?.parcelNumber || id?.registrationNumber);
   }
 }

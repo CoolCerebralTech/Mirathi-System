@@ -2,7 +2,15 @@ export class KenyanId {
   private readonly value: string;
   private static readonly ID_PATTERN = /^\d{8,9}$/;
 
-  constructor(value: string) {
+  private constructor(value: string) {
+    this.value = value;
+    Object.freeze(this);
+  }
+
+  // -----------------------------------------------------
+  // Factory Method (DDD-friendly)
+  // -----------------------------------------------------
+  static create(value: string): KenyanId {
     const cleanedValue = value.trim().replace(/\s+/g, '');
 
     if (!KenyanId.ID_PATTERN.test(cleanedValue)) {
@@ -13,40 +21,51 @@ export class KenyanId {
       throw new Error('Invalid Kenyan ID check digit');
     }
 
-    this.value = cleanedValue;
+    return new KenyanId(cleanedValue);
   }
 
+  // -----------------------------------------------------
+  // Getters
+  // -----------------------------------------------------
   getValue(): string {
     return this.value;
-  }
-
-  equals(other: KenyanId): boolean {
-    return this.value === other.getValue();
   }
 
   toString(): string {
     return this.value;
   }
 
-  private static validateCheckDigit(id: string): boolean {
-    // Kenyan ID validation algorithm
-    if (id.length !== 8 && id.length !== 9) return false;
+  getFormatted(): string {
+    // Formats as XXX XXX XXX or XXX XXX XX depending on length
+    return this.value.length === 8
+      ? this.value.replace(/(\d{3})(\d{3})(\d{2})/, '$1 $2 $3')
+      : this.value.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3');
+  }
 
-    // Basic validation - in production, implement proper check digit validation
-    // This is a simplified version - actual Kenyan ID has more complex validation
+  // -----------------------------------------------------
+  // Comparison
+  // -----------------------------------------------------
+  equals(other: KenyanId): boolean {
+    return this.value === other.getValue();
+  }
+
+  // -----------------------------------------------------
+  // Validation Helpers
+  // -----------------------------------------------------
+  private static validateCheckDigit(id: string): boolean {
+    // Placeholder for proper Kenyan ID check digit algorithm
+    // Currently using Luhn-like basic sum check (can replace with official if available)
+    if (!id || id.length < 8 || id.length > 9) return false;
+
     const digits = id.split('').map(Number);
     const sum = digits.reduce((acc, digit) => acc + digit, 0);
 
-    return sum > 0; // Basic sanity check
-  }
-
-  getFormatted(): string {
-    return this.value.replace(/(\d{3})(\d{3})(\d{2,3})/, '$1 $2 $3');
+    return sum > 0; // Simple sanity check
   }
 
   static isValid(id: string): boolean {
     try {
-      new KenyanId(id);
+      KenyanId.create(id);
       return true;
     } catch {
       return false;

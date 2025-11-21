@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // -----------------------------------------------------------------------------
@@ -143,6 +144,14 @@ enum DebtType {
   FUNERAL_EXPENSE    // Burial costs
   MEDICAL_BILL       // Healthcare debt
   OTHER
+}
+
+enum GrantType {
+  PROBATE                               // Form P&A 1: Valid Will + Executor willing to act
+  LETTERS_OF_ADMINISTRATION             // Form P&A 80: Intestacy (No Will)
+  LETTERS_OF_ADMINISTRATION_WITH_WILL   // Will exists, but no Executor (Admon. Cum Testamento Annexo)
+  LIMITED_GRANT                         // Form P&A 80A: Specific purpose (e.g., filing suit, collection only)
+  SPECIAL_GRANT                         // For preservation or temporary administration
 }
 
 enum MarriageStatus {
@@ -1021,7 +1030,7 @@ model Estate {
   estateValue      Decimal?  @db.Decimal(18,2)
   currency         String    @default("KES")
   status           DistributionStatus @default(PENDING) // reuse enum
-  administrationType String? // "PROBATE", "LETTERS", "LIMITED_GRANT", "INTESTACY"
+  administrationType GrantType?
   administratorId  String?   // User who is administrator/executor (may be WillExecutor.userId)
   administrator    User?     @relation(fields: [administratorId], references: [id], onDelete: SetNull)
   createdAt        DateTime  @default(now())
@@ -1065,11 +1074,12 @@ model GrantOfAdministration {
   estate        Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
   applicantId   String?  // User applying
   applicantName String?
-  grantType     String   // "PROBATE", "LETTERS", "LIMITED"
+  grantType     GrantType 
   issuedBy      String?  // Court user id or clerk
   issuedAt      DateTime?
   expiresAt     DateTime?
-  caseNumber    String?
+  caseNumber    String?  // The "E123 of 2024" number
+  fileReference String?  // Physical file tracking
   notes         String?  @db.Text
   status        DistributionStatus @default(PENDING)
 
