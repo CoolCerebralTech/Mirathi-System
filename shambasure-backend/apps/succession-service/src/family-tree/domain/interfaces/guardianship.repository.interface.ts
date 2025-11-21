@@ -11,18 +11,59 @@ export interface GuardianshipRepositoryInterface {
   // ---------------------------------------------------------
   // Domain Lookups
   // ---------------------------------------------------------
-  /**
-   * Find who is guarding a specific child.
-   */
   findByWardId(wardId: string): Promise<Guardianship[]>;
-
-  /**
-   * Find all children guarded by a specific adult.
-   */
   findByGuardianId(guardianId: string): Promise<Guardianship[]>;
+  findActiveByFamilyId(familyId: string): Promise<Guardianship[]>;
+
+  // ---------------------------------------------------------
+  // Kenyan Legal Guardianship Specific Queries
+  // ---------------------------------------------------------
+  /**
+   * Find expiring guardianships (for court review notifications)
+   */
+  findExpiringGuardianships(daysThreshold: number): Promise<Guardianship[]>;
 
   /**
-   * Find active guardianships in a family (e.g. for dashboard alerts).
+   * Find guardianships by court order number
    */
-  findActiveByFamilyId(familyId: string): Promise<Guardianship[]>;
+  findByCourtOrder(courtOrderNumber: string): Promise<Guardianship | null>;
+
+  /**
+   * Find testamentary guardianships (appointed by will)
+   */
+  findTestamentaryGuardianships(familyId: string): Promise<Guardianship[]>;
+
+  /**
+   * Find temporary guardianships requiring review
+   */
+  findTemporaryGuardianshipsRequiringReview(): Promise<Guardianship[]>;
+
+  // ---------------------------------------------------------
+  // Validation & Compliance
+  // ---------------------------------------------------------
+  /**
+   * Check if member is already a guardian (for capacity validation)
+   */
+  isMemberGuardian(memberId: string): Promise<boolean>;
+
+  /**
+   * Count active guardianships for a guardian (for capacity limits)
+   */
+  countActiveByGuardian(guardianId: string): Promise<number>;
+
+  /**
+   * Find guardianships that need compliance reporting
+   */
+  findGuardianshipsRequiringReporting(): Promise<Guardianship[]>;
+
+  // ---------------------------------------------------------
+  // Analytics
+  // ---------------------------------------------------------
+  getGuardianshipStatistics(familyId: string): Promise<{
+    total: number;
+    active: number;
+    testamentary: number;
+    courtOrdered: number;
+    expiringSoon: number;
+  }>;
 }

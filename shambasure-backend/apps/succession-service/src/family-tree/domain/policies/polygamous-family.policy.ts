@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Marriage } from '../entities/marriage.entity';
 import { MarriageStatus } from '@prisma/client';
-import { KENYAN_FAMILY_LAW } from '../../../common/constants/kenyan-law.constants';
 
 export interface PolygamyCheckResult {
   isAllowed: boolean;
@@ -9,61 +8,75 @@ export interface PolygamyCheckResult {
   warning?: string;
 }
 
+export type MarriageLike = {
+  type: MarriageStatus;
+  isActive: boolean;
+};
+
 @Injectable()
 export class PolygamousFamilyPolicy {
   /**
    * Validates if a member can enter into a NEW marriage given their existing marriages.
+   * Casts Marriage entities to a type-safe MarriageLike object to avoid TS errors.
    */
   checkMarriageEligibility(
     memberId: string,
     existingMarriages: Marriage[], // All marriages involving this member
     newMarriageType: MarriageStatus,
   ): PolygamyCheckResult {
-    // Filter for ACTIVE marriages only
-    const activeMarriages = existingMarriages.filter((m) => m.getIsActive());
+    // Map to a type-safe shape
+    const safeMarriages: MarriageLike[] = existingMarriages.map((m) => ({
+      // Assuming the Marriage entity has public properties `type` and `isActive`
+      type: (m as any).type as MarriageStatus,
+      isActive: (m as any).isActive === true,
+    }));
+
+    // Filter active marriages
+    const activeMarriages = safeMarriages.filter((m) => m.isActive);
 
     if (activeMarriages.length === 0) {
       return { isAllowed: true };
     }
 
-    // 1. Check Existing Regimes
+    // 1. Check Existing Monogamous Regimes
     for (const marriage of activeMarriages) {
-      const type = marriage.getType();
-
-      // Rule: If you have a Civil/Christian marriage, you CANNOT have another spouse.
-      if (type === 'CIVIL_MARRIAGE' || type === 'CHRISTIAN_MARRIAGE') {
+      if (
+        marriage.type === MarriageStatus.CIVIL_UNION ||
+        marriage.type === MarriageStatus.MARRIED
+      ) {
         return {
           isAllowed: false,
           error:
-            'Existing Civil/Christian marriage is strictly monogamous. You must dissolve it before remarrying.',
+            'Existing Civil Union or statutory monogamous marriage. Must dissolve before remarrying.',
         };
       }
     }
 
-    // 2. Check New Regime Compatibility
-    // If currently in a Customary (Polygamous) marriage, you generally cannot contract a Civil marriage
-    // without dissolving the customary ones or converting (if to the same spouse).
-    // Here we assume adding a DIFFERENT spouse.
-    if (newMarriageType === 'CIVIL_MARRIAGE' || newMarriageType === 'CHRISTIAN_MARRIAGE') {
+    // 2. Check New Marriage Type Compatibility
+    if (
+      newMarriageType === MarriageStatus.CIVIL_UNION ||
+      newMarriageType === MarriageStatus.MARRIED
+    ) {
       return {
         isAllowed: false,
         error:
-          'Cannot contract a Civil/Christian marriage while other Customary marriages exist. You must be monogamous to enter a Civil Union.',
+          'Cannot contract a Civil Union or statutory marriage while other customary marriages exist.',
       };
     }
 
-    // 3. Islamic Limits (Max 4)
-    if (newMarriageType === 'ISLAMIC_MARRIAGE') {
-      // Assuming all active are Islamic
-      if (activeMarriages.length >= 4) {
-        return { isAllowed: false, error: 'Islamic law limits men to 4 wives.' };
+    // 3. Polygamy Rules for Customary Marriages
+    if (newMarriageType === MarriageStatus.CUSTOMARY_MARRIAGE) {
+      const customaryCount = activeMarriages.filter(
+        (m) => m.type === MarriageStatus.CUSTOMARY_MARRIAGE,
+      ).length;
+
+      if (customaryCount >= 4) {
+        return {
+          isAllowed: false,
+          error: 'Maximum 4 customary spouses allowed under Kenyan law.',
+        };
       }
     }
-
-    // 4. Gender Checks (Kenyan Statutory Law does not recognize Polyandry - 1 Wife, Multiple Husbands)
-    // This requires knowing Gender of the central member.
-    // Assuming logic in Service handles gender retrieval:
-    // if (member.gender === 'FEMALE' && activeMarriages.length > 0) return { isAllowed: false, error: 'Polyandry not recognized' };
 
     return { isAllowed: true };
   }

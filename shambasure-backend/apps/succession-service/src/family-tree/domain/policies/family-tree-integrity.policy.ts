@@ -5,12 +5,11 @@ import { RelationshipType } from '@prisma/client';
 @Injectable()
 export class FamilyTreeIntegrityPolicy {
   /**
-   * Checks if adding a new relationship would create a cycle in the graph.
-   * (e.g. Preventing: You -> Father -> Grandfather -> You)
+   * Checks if adding a new relationship would create a cycle in the family tree graph.
+   * Prevents invalid loops like: You -> Father -> Grandfather -> You.
    *
-   * Note: This is a simplified Depth-First Search (DFS).
-   * In a production system with millions of nodes, this logic belongs in the DB (Recursive CTE)
-   * or a graph database (Neo4j). For application layer, we check immediate depth.
+   * Only hierarchical relationships are considered for cycles.
+   * Sibling/Spouse relationships are horizontal and ignored for cycles.
    */
   checkCycle(
     fromId: string,
@@ -18,16 +17,14 @@ export class FamilyTreeIntegrityPolicy {
     type: RelationshipType,
     existingRelationships: Relationship[],
   ): boolean {
-    // Only hierarchical relationships cause cycles (Parent/Child)
-    // Sibling/Spouse relationships are bi-directional or horizontal, so cycles are expected/irrelevant.
+    // Only hierarchical relationships (ancestry) can form cycles
     const hierarchyTypes: RelationshipType[] = ['PARENT', 'CHILD', 'GRANDPARENT', 'GRANDCHILD'];
 
     if (!hierarchyTypes.includes(type)) {
       return false;
     }
 
-    // Normalize direction to "Is Ancestor Of"
-    // If we are adding "A is Child of B", we check if "A is already an Ancestor of B"
+    // Normalize direction to "ancestor -> descendant"
     let ancestorId: string;
     let descendantId: string;
 
@@ -39,10 +36,13 @@ export class FamilyTreeIntegrityPolicy {
       descendantId = toId;
     }
 
-    // Search: Can we go from Descendant -> Ancestor using existing links?
     return this.pathExists(descendantId, ancestorId, existingRelationships);
   }
 
+  /**
+   * Depth-First Search (DFS) to detect if a path exists from startId -> targetId.
+   * Prevents cycles by checking all hierarchical connections.
+   */
   private pathExists(
     startId: string,
     targetId: string,
@@ -54,31 +54,45 @@ export class FamilyTreeIntegrityPolicy {
 
     visited.add(startId);
 
-    // Find all people 'startId' is a PARENT or GRANDPARENT of
-    // (Traversing down the tree)
+    // Outgoing hierarchical edges (startId is parent/grandparent)
     const outgoing = allRelationships.filter(
       (r) =>
         r.getFromMemberId() === startId &&
         (r.getType() === 'PARENT' || r.getType() === 'GRANDPARENT'),
     );
 
-    // Also check inverse: Relationships where 'startId' is the target of CHILD/GRANDCHILD
+    // Incoming hierarchical edges (startId is child/grandchild)
     const incoming = allRelationships.filter(
       (r) =>
         r.getToMemberId() === startId && (r.getType() === 'CHILD' || r.getType() === 'GRANDCHILD'),
     );
 
-    const nextSteps = [
+    const nextNodes = [
       ...outgoing.map((r) => r.getToMemberId()),
       ...incoming.map((r) => r.getFromMemberId()),
     ];
 
-    for (const nextId of nextSteps) {
+    for (const nextId of nextNodes) {
       if (this.pathExists(nextId, targetId, allRelationships, visited)) {
         return true;
       }
     }
 
     return false;
+  }
+  detectCircularRelationships(relationships: Relationship[]): { hasCircular: boolean } {
+    const ids = Array.from(
+      new Set(relationships.flatMap((r) => [r.getFromMemberId(), r.getToMemberId()])),
+    );
+    for (const fromId of ids) {
+      for (const toId of ids) {
+        // Skip same member
+        if (fromId === toId) continue;
+        if (this.checkCycle(fromId, toId, 'PARENT', relationships)) {
+          return { hasCircular: true };
+        }
+      }
+    }
+    return { hasCircular: false };
   }
 }

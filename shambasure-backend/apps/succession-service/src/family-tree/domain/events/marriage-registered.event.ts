@@ -1,5 +1,3 @@
-// succession-service/src/family-tree/domain/events/marriage-registered.event.ts
-
 import { MarriageStatus } from '@prisma/client';
 
 export class MarriageRegisteredEvent {

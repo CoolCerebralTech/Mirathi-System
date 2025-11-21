@@ -1,5 +1,3 @@
-// succession-service/src/family-tree/domain/events/marriage-dissolved.event.ts
-
 export class MarriageDissolvedEvent {
   constructor(
     public readonly marriageId: string,

@@ -2,55 +2,127 @@ import { KENYAN_FAMILY_LAW } from '../../../common/constants/kenyan-law.constant
 
 export type MarriageTypeCode = (typeof KENYAN_FAMILY_LAW.MARRIAGE_TYPES)[number];
 
+export type MarriageMonogamyMode = 'MONOGAMOUS' | 'POLYGAMOUS' | 'POTENTIALLY_POLYGAMOUS';
+
+export interface MarriageRegistrationInfo {
+  certificateNumber?: string;
+  registrationDate?: Date;
+  isPresumed?: boolean; // Customary but unregistered → presumed marriage
+}
+
 export class MarriageRegime {
   private readonly type: MarriageTypeCode;
-  private readonly isPolygamyAllowed: boolean;
+  private readonly monogamyMode: MarriageMonogamyMode;
+
   private readonly certificateNumber?: string;
   private readonly registrationDate?: Date;
+  private readonly isPresumed: boolean;
 
-  constructor(type: MarriageTypeCode, certificateNumber?: string, registrationDate?: Date) {
+  private readonly maxPolygamySlots: number | null;
+
+  constructor(type: MarriageTypeCode, info: MarriageRegistrationInfo = {}) {
+    if (!KENYAN_FAMILY_LAW.MARRIAGE_TYPES.includes(type)) {
+      throw new Error(`Invalid marriage type: ${type}`);
+    }
+
     this.type = type;
-    this.certificateNumber = certificateNumber;
-    this.registrationDate = registrationDate;
+    this.certificateNumber = info.certificateNumber;
+    this.registrationDate = info.registrationDate ?? undefined;
+    this.isPresumed = info.isPresumed ?? false;
 
-    // Logic derived from Kenyan Marriage Act 2014
-    this.isPolygamyAllowed = this.determinePolygamyStatus(type);
+    this.monogamyMode = this.determineMonogamyMode();
+    this.maxPolygamySlots = this.determinePolygamyCapacity();
   }
 
+  private determineMonogamyMode(): MarriageMonogamyMode {
+    if ((KENYAN_FAMILY_LAW.POLYGAMOUS_MARRIAGE_TYPES as readonly string[]).includes(this.type)) {
+      return this.type === 'CUSTOMARY_MARRIAGE' ? 'POTENTIALLY_POLYGAMOUS' : 'POLYGAMOUS';
+    }
+    return 'MONOGAMOUS';
+  }
+
+  private determinePolygamyCapacity(): number | null {
+    switch (this.type) {
+      case 'ISLAMIC_MARRIAGE':
+        return KENYAN_FAMILY_LAW.ISLAMIC_MARRIAGE.MAX_SPOUSES;
+      case 'CUSTOMARY_MARRIAGE':
+        return Infinity;
+      default:
+        return null; // Civil, Christian, Hindu
+    }
+  }
+
+  // -----------------------------
+  // GETTERS
+  // -----------------------------
   getType(): MarriageTypeCode {
     return this.type;
   }
 
+  getMonogamyMode(): MarriageMonogamyMode {
+    return this.monogamyMode;
+  }
+
+  getCertificate(): string | undefined {
+    return this.certificateNumber;
+  }
+
+  getRegistrationDate(): Date | null {
+    return this.registrationDate ? new Date(this.registrationDate) : null;
+  }
+
+  isRegistered(): boolean {
+    return !!this.certificateNumber && !!this.registrationDate;
+  }
+
+  isCustomaryPresumed(): boolean {
+    return this.type === 'CUSTOMARY_MARRIAGE' && this.isPresumed && !this.isRegistered();
+  }
+
+  // -----------------------------
+  // LEGAL BEHAVIOR
+  // -----------------------------
   allowsPolygamy(): boolean {
-    return this.isPolygamyAllowed;
+    return this.monogamyMode !== 'MONOGAMOUS';
   }
 
-  hasCertificate(): boolean {
-    return !!this.certificateNumber;
+  canAddSpouse(currentWivesCount: number): boolean {
+    if (!this.allowsPolygamy()) return false;
+    if (this.maxPolygamySlots === Infinity) return true;
+    return currentWivesCount < (this.maxPolygamySlots ?? 1);
   }
 
-  /**
-   * Validates if a new marriage can be contracted given this existing regime.
-   * e.g., A Civil Marriage blocks ALL future marriages.
-   */
   blocksNewMarriage(): boolean {
-    // If monogamous, no new spouse allowed.
-    // Even in polygamous, limits apply (e.g. 4 wives in Islamic law).
-    return !this.isPolygamyAllowed;
+    return this.monogamyMode === 'MONOGAMOUS';
   }
 
-  private determinePolygamyStatus(type: MarriageTypeCode): boolean {
-    // Islamic and Customary allow polygamy. Civil, Christian, Hindu do not.
-    return (KENYAN_FAMILY_LAW.POLYGAMOUS_MARRIAGE_TYPES as readonly string[]).includes(type);
+  isRecognizedForSuccession(): boolean {
+    if (this.type === 'CUSTOMARY_MARRIAGE') return true;
+    if (this.isPresumed) return true;
+    return this.isRegistered();
   }
 
-  static createCivil(certificate: string, date: Date): MarriageRegime {
-    return new MarriageRegime('CIVIL_MARRIAGE', certificate, date);
+  invalidatesSecondaryMarriage(): boolean {
+    return this.monogamyMode === 'MONOGAMOUS';
   }
 
-  static createCustomary(isRegistered: boolean = false, cert?: string): MarriageRegime {
-    // Customary marriages are valid even if unregistered (presumed),
-    // but registration is mandatory within 6 months under 2014 Act.
-    return new MarriageRegime('CUSTOMARY_MARRIAGE', cert);
+  getSuccessionRisk(): 'LOW' | 'MEDIUM' | 'HIGH' {
+    if (this.isRegistered() && this.monogamyMode === 'MONOGAMOUS') return 'LOW';
+    if (this.isCustomaryPresumed()) return 'MEDIUM';
+    if (!this.isRegistered()) return 'HIGH';
+    return 'MEDIUM';
+  }
+
+  // -----------------------------
+  // REPRESENTATION
+  // -----------------------------
+  toString(): string {
+    const label = `${this.type} (${this.monogamyMode})`;
+    const reg = this.isRegistered()
+      ? `Certificate: ${this.certificateNumber}, Date: ${this.registrationDate?.toISOString().split('T')[0]}`
+      : this.isCustomaryPresumed()
+        ? 'UNREGISTERED – PRESUMED CUSTOMARY UNION'
+        : 'UNREGISTERED';
+    return `${label} — ${reg}`;
   }
 }

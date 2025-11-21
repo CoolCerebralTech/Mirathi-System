@@ -1,19 +1,18 @@
-export class GuardianAssignedEvent {
+export class FamilyMemberGuardianAssignedEvent {
   constructor(
+    public readonly familyMemberId: string,
     public readonly familyId: string,
     public readonly guardianDetails: {
-      guardianId: string;
-      wardId: string;
       guardianType: string;
-      appointedBy: 'court' | 'family' | 'will';
+      appointedBy: string;
       validUntil?: Date;
+      courtOrderNumber?: string;
       appointmentDate: Date;
-      notes?: string;
     },
   ) {}
 
   getEventType(): string {
-    return 'GuardianAssignedEvent';
+    return 'FamilyMemberGuardianAssignedEvent';
   }
 
   getEventVersion(): number {

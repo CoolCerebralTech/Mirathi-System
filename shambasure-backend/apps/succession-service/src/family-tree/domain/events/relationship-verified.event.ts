@@ -1,5 +1,3 @@
-// succession-service/src/family-tree/domain/events/relationship-verified.event.ts
-
 export class RelationshipVerifiedEvent {
   constructor(
     public readonly relationshipId: string,
@@ -8,7 +6,9 @@ export class RelationshipVerifiedEvent {
       | 'BIRTH_CERTIFICATE'
       | 'AFFIDAVIT'
       | 'DNA_TEST'
-      | 'COMMUNITY_RECOGNITION',
+      | 'COMMUNITY_RECOGNITION'
+      | 'COURT_ORDER',
+    public readonly verificationNotes?: string,
     public readonly timestamp: Date = new Date(),
   ) {}
 }

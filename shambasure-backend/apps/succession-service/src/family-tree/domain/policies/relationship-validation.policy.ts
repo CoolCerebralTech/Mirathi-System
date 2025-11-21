@@ -20,16 +20,17 @@ export class RelationshipValidationPolicy {
     }
 
     // 2. Chronological Validation (Parent/Child)
-    if (type === 'PARENT' || type === 'CHILD') {
+    if (type === RelationshipType.PARENT || type === RelationshipType.CHILD) {
       return this.validateParentChildAge(fromMember, toMember, type);
     }
 
-    // 3. Chronological Validation (Grandparent)
-    if (type === 'GRANDPARENT' || type === 'GRANDCHILD') {
-      // Basic sanity check (e.g. 30 year gap min)
+    // 3. Chronological Validation (Grandparent/Grandchild)
+    if (type === RelationshipType.GRANDPARENT || type === RelationshipType.GRANDCHILD) {
+      // Basic generational gap sanity check (e.g., 30 years minimum)
       return this.validateGenerationalGap(fromMember, toMember, type, 30);
     }
 
+    // 4. Default: relationship allowed
     return { isValid: true };
   }
 
@@ -38,20 +39,15 @@ export class RelationshipValidationPolicy {
     memberB: FamilyMember,
     type: RelationshipType,
   ): ValidationResult {
-    const parent = type === 'PARENT' ? memberA : memberB;
-    const child = type === 'PARENT' ? memberB : memberA;
+    const parent = type === RelationshipType.PARENT ? memberA : memberB;
+    const child = type === RelationshipType.PARENT ? memberB : memberA;
 
     const parentDob = parent.getDateOfBirth();
     const childDob = child.getDateOfBirth();
 
-    // If dates are unknown, we cannot validate. Assume valid.
     if (!parentDob || !childDob) return { isValid: true };
 
-    // Standard Biological Constraints
-    // Parent must be older than child.
-    // We allow a small margin (e.g. 10 years) for extreme edge cases,
-    // but technically puberty limits this.
-    // Let's be strict: Parent must be born BEFORE child.
+    // Parent must be born before child
     if (parentDob >= childDob) {
       return {
         isValid: false,
@@ -59,12 +55,14 @@ export class RelationshipValidationPolicy {
       };
     }
 
-    // "Impossible" biology warning (e.g. Parent is 5 years older)
+    // Biological Improbability (e.g., parent only 10 years older)
     const ageDiffYears = (childDob.getTime() - parentDob.getTime()) / (1000 * 60 * 60 * 24 * 365);
     if (ageDiffYears < 10) {
       return {
         isValid: false,
-        error: `Biological Improbability: Parent is only ${Math.floor(ageDiffYears)} years older than child.`,
+        error: `Biological Improbability: Parent is only ${Math.floor(
+          ageDiffYears,
+        )} years older than child.`,
       };
     }
 
@@ -77,17 +75,34 @@ export class RelationshipValidationPolicy {
     type: RelationshipType,
     minYears: number,
   ): ValidationResult {
-    const older = ['GRANDPARENT', 'AUNT_UNCLE'].includes(type) ? memberA : memberB;
+    const older =
+      type === RelationshipType.GRANDPARENT || type === RelationshipType.AUNT_UNCLE
+        ? memberA
+        : memberB;
     const younger = older === memberA ? memberB : memberA;
 
-    if (older.getDateOfBirth() && younger.getDateOfBirth()) {
-      if (older.getDateOfBirth()! >= younger.getDateOfBirth()!) {
+    const olderDob = older.getDateOfBirth();
+    const youngerDob = younger.getDateOfBirth();
+
+    if (olderDob && youngerDob) {
+      if (olderDob >= youngerDob) {
         return {
           isValid: false,
           error: `Chronology Error: Ancestor must be older than descendant.`,
         };
       }
+
+      const gapYears = (youngerDob.getTime() - olderDob.getTime()) / (1000 * 60 * 60 * 24 * 365);
+      if (gapYears < minYears) {
+        return {
+          isValid: false,
+          error: `Generational Gap Warning: Ancestor is only ${Math.floor(
+            gapYears,
+          )} years older than descendant (minimum recommended ${minYears} years).`,
+        };
+      }
     }
+
     return { isValid: true };
   }
 }

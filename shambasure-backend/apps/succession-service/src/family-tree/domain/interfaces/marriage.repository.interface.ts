@@ -1,4 +1,5 @@
 import { Marriage } from '../entities/marriage.entity';
+import { MarriageStatus } from '@prisma/client';
 
 export interface MarriageRepositoryInterface {
   // ---------------------------------------------------------
@@ -11,24 +12,76 @@ export interface MarriageRepositoryInterface {
   // ---------------------------------------------------------
   // Domain Lookups
   // ---------------------------------------------------------
-  /**
-   * Find all marriages associated with a specific family tree.
-   */
   findByFamilyId(familyId: string): Promise<Marriage[]>;
-
-  /**
-   * Find any marriage involving a specific person.
-   * Includes active and dissolved.
-   */
   findByMemberId(memberId: string): Promise<Marriage[]>;
-
-  /**
-   * Find specific active marriage between two people.
-   */
   findActiveBetween(spouse1Id: string, spouse2Id: string): Promise<Marriage | null>;
+  findActiveMarriages(memberId: string): Promise<Marriage[]>;
+
+  // ---------------------------------------------------------
+  // Kenyan Marriage Law Specific Queries
+  // ---------------------------------------------------------
+  /**
+   * Find customary marriages for traditional succession rules
+   */
+  findCustomaryMarriages(familyId: string): Promise<Marriage[]>;
 
   /**
-   * Find active marriages for validation (Polygamy checks).
+   * Find polygamous marriages for complex succession calculations
    */
-  findActiveMarriages(memberId: string): Promise<Marriage[]>;
+  findPolygamousMarriages(familyId: string): Promise<Marriage[]>;
+
+  /**
+   * Find marriages by certificate number for legal verification
+   */
+  findByCertificateNumber(certificateNumber: string): Promise<Marriage | null>;
+
+  /**
+   * Find dissolved marriages that may affect inheritance
+   */
+  findDissolvedMarriages(familyId: string): Promise<Marriage[]>;
+
+  /**
+   * Find marriages within date range for legal reporting
+   */
+  findByMarriageDateRange(startDate: Date, endDate: Date, familyId?: string): Promise<Marriage[]>;
+
+  // ---------------------------------------------------------
+  // Validation & Business Rules
+  // ---------------------------------------------------------
+  /**
+   * Check if member can enter another marriage (polygamy rules)
+   */
+  canMemberMarry(
+    memberId: string,
+    proposedMarriageType: MarriageStatus,
+  ): Promise<{
+    canMarry: boolean;
+    reason?: string;
+    existingMarriages: Marriage[];
+  }>;
+
+  /**
+   * Validate marriage eligibility under Kenyan law
+   */
+  validateMarriageEligibility(
+    spouse1Id: string,
+    spouse2Id: string,
+    marriageType: MarriageStatus,
+  ): Promise<{
+    isValid: boolean;
+    errors: string[];
+    warnings: string[];
+  }>;
+
+  // ---------------------------------------------------------
+  // Analytics
+  // ---------------------------------------------------------
+  getMarriageStatistics(familyId: string): Promise<{
+    total: number;
+    active: number;
+    dissolved: number;
+    customary: number;
+    civil: number;
+    averageDuration: number;
+  }>;
 }

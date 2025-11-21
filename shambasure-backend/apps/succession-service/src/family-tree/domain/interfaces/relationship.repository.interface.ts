@@ -12,28 +12,97 @@ export interface RelationshipRepositoryInterface {
   // ---------------------------------------------------------
   // Graph Traversal (Lineage Logic)
   // ---------------------------------------------------------
-  /**
-   * Find all outgoing relationships (e.g. "John is Parent of...")
-   */
   findByFromMemberId(memberId: string): Promise<Relationship[]>;
-
-  /**
-   * Find all incoming relationships (e.g. "...is Parent of John")
-   */
   findByToMemberId(memberId: string): Promise<Relationship[]>;
-
-  /**
-   * Find edges for the whole tree (for building the visualization graph).
-   */
   findByFamilyId(familyId: string): Promise<Relationship[]>;
-
-  /**
-   * Specific lookup (e.g., "Find Children of X").
-   */
   findByType(memberId: string, type: RelationshipType): Promise<Relationship[]>;
+  exists(fromId: string, toId: string, type: RelationshipType): Promise<boolean>;
+
+  // ---------------------------------------------------------
+  // Kenyan Succession Law Specific Queries
+  // ---------------------------------------------------------
+  /**
+   * Find verified relationships for strong inheritance claims
+   */
+  findVerifiedRelationships(familyId: string): Promise<Relationship[]>;
 
   /**
-   * Check if a relationship already exists between two nodes.
+   * Find adoption relationships for legal inheritance rights
    */
-  exists(fromId: string, toId: string, type: RelationshipType): Promise<boolean>;
+  findAdoptionRelationships(familyId: string): Promise<Relationship[]>;
+
+  /**
+   * Find relationships that need verification for succession
+   */
+  findUnverifiedRelationships(familyId: string): Promise<Relationship[]>;
+
+  /**
+   * Find biological relationships for primary inheritance
+   */
+  findBiologicalRelationships(familyId: string): Promise<Relationship[]>;
+
+  /**
+   * Find relationships born out of wedlock (Section 29 analysis)
+   */
+  findRelationshipsBornOutOfWedlock(familyId: string): Promise<Relationship[]>;
+
+  // ---------------------------------------------------------
+  // Family Tree Analysis
+  // ---------------------------------------------------------
+  /**
+   * Find ancestral lineage for traditional inheritance patterns
+   */
+  findAncestralLineage(memberId: string, generations: number): Promise<Relationship[]>;
+
+  /**
+   * Find descendants for succession distribution
+   */
+  findDescendants(memberId: string, includeAdopted?: boolean): Promise<Relationship[]>;
+
+  /**
+   * Find siblings (full, half, step) for inheritance calculations
+   */
+  findSiblings(memberId: string): Promise<Relationship[]>;
+
+  /**
+   * Find spouse relationships for spousal inheritance rights
+   */
+  findSpouseRelationships(memberId: string): Promise<Relationship[]>;
+
+  // ---------------------------------------------------------
+  // Validation & Integrity
+  // ---------------------------------------------------------
+  /**
+   * Check for circular relationships that would break the tree
+   */
+  detectCircularRelationships(
+    familyId: string,
+  ): Promise<{ hasCircular: boolean; details?: string }>;
+
+  /**
+   * Validate family tree integrity for succession
+   */
+  validateTreeIntegrity(familyId: string): Promise<{
+    isValid: boolean;
+    issues: string[];
+    orphanedMembers: string[];
+  }>;
+
+  // ---------------------------------------------------------
+  // Bulk Operations
+  // ---------------------------------------------------------
+  /**
+   * Save multiple relationships for tree building
+   */
+  saveMany(relationships: Relationship[]): Promise<void>;
+
+  /**
+   * Delete relationships by member (when member is removed)
+   */
+  deleteByMember(memberId: string): Promise<void>;
+
+  /**
+   * Update verification status in bulk
+   */
+  bulkVerify(relationshipIds: string[], method: string, verifiedBy: string): Promise<void>;
 }
