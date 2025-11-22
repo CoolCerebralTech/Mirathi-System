@@ -6,6 +6,8 @@ export interface CustomaryMarriageValidationResult {
   strength: 'STRONG' | 'MODERATE' | 'WEAK';
   score: number;
   missingRequirements: string[];
+  errors: string[];
+  requirements: string[];
   legalRisk: string;
   recommendation: string;
 }
@@ -25,6 +27,11 @@ export class CustomaryMarriagePolicy {
         strength: 'STRONG',
         score,
         missingRequirements,
+        errors: [],
+        requirements: [
+          'Registration with Registrar of Marriages recommended',
+          'Maintain documentation of customary ceremony',
+        ],
         legalRisk:
           'Low legal risk. Union has strong supporting evidence under Customary Marriage law and jurisprudence.',
         recommendation:
@@ -38,6 +45,12 @@ export class CustomaryMarriagePolicy {
         strength: 'MODERATE',
         score,
         missingRequirements,
+        errors: [],
+        requirements: [
+          'Obtain affidavits from elder witnesses',
+          'Document bride price payment receipts',
+          'Registration with Registrar of Marriages strongly recommended',
+        ],
         legalRisk:
           'Moderate legal risk. Court may require corroborating witnesses, documentary proof, or elder testimonies.',
         recommendation:
@@ -50,10 +63,69 @@ export class CustomaryMarriagePolicy {
       strength: 'WEAK',
       score,
       missingRequirements,
+      errors: ['Insufficient evidence of customary marriage under Kenyan law'],
+      requirements: [
+        'Complete bride price negotiations and payment',
+        'Conduct ceremony with elder witnesses',
+        'Obtain witness affidavits',
+        'Register marriage officially',
+      ],
       legalRisk:
         'High legal risk. Union does not meet customary requirements. Courts often reject such claims in succession matters.',
       recommendation:
         'Evidence insufficient. Consider civil marriage, affidavit of cohabitation, or gathering community witness statements.',
+    };
+  }
+
+  /**
+   * Validates customary marriage details for relationship integrity service
+   */
+  validateCustomaryMarriage(customaryDetails?: {
+    bridePricePaid: boolean;
+    elderWitnesses: string[];
+    ceremonyLocation: string;
+  }): {
+    isValid: boolean;
+    errors: string[];
+    requirements: string[];
+  } {
+    const errors: string[] = [];
+    const requirements: string[] = [];
+
+    if (!customaryDetails) {
+      errors.push('Customary marriage details are required');
+      requirements.push(
+        'Provide bride price payment status',
+        'List elder witnesses',
+        'Specify ceremony location',
+      );
+      return { isValid: false, errors, requirements };
+    }
+
+    if (!customaryDetails.bridePricePaid) {
+      requirements.push('Complete bride price payment for full legal recognition');
+    }
+
+    if (!customaryDetails.elderWitnesses || customaryDetails.elderWitnesses.length === 0) {
+      errors.push('Elder witnesses are required for customary marriage');
+      requirements.push('Obtain at least 2 elder witnesses from both families');
+    }
+
+    if (!customaryDetails.ceremonyLocation || customaryDetails.ceremonyLocation.trim() === '') {
+      errors.push('Ceremony location is required');
+      requirements.push('Specify the location where traditional ceremony was conducted');
+    }
+
+    requirements.push(
+      'Registration with Registrar of Marriages recommended',
+      'Maintain documentation of customary ceremony',
+      'Obtain affidavits from elder witnesses for legal proceedings',
+    );
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      requirements,
     };
   }
 
@@ -62,7 +134,7 @@ export class CustomaryMarriagePolicy {
     const missing: string[] = [];
 
     if (evidence.dowryPaymentStatus === 'NONE') {
-      missing.push('Dowry/ bride price negotiations or payment');
+      missing.push('Dowry/bride price negotiations or payment');
     }
     if (!evidence.witnessedByElders) {
       missing.push('Family or elders participation');

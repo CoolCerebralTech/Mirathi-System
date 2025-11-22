@@ -11,7 +11,6 @@ import { Guardianship } from '../entities/guardianship.entity';
 import { RelationshipValidationPolicy } from '../policies/relationship-validation.policy';
 import { FamilyTreeIntegrityPolicy } from '../policies/family-tree-integrity.policy';
 import { PolygamousFamilyPolicy } from '../policies/polygamous-family.policy';
-import { CustomaryMarriagePolicy } from '../policies/customary-marriage.policy';
 import { GuardianEligibilityPolicy } from '../policies/guardian-eligibility.policy';
 import { FamilyMemberAddedEvent } from '../events/family-member-added.event';
 import { RelationshipCreatedEvent } from '../events/relationship-created.event';
@@ -65,7 +64,6 @@ export class FamilyTreeAggregate extends AggregateRoot {
   private relValidationPolicy = new RelationshipValidationPolicy();
   private integrityPolicy = new FamilyTreeIntegrityPolicy();
   private polygamyPolicy = new PolygamousFamilyPolicy();
-  private customaryPolicy = new CustomaryMarriagePolicy();
   private guardianPolicy = new GuardianEligibilityPolicy();
 
   private constructor(family: Family) {

@@ -136,10 +136,10 @@ export class FamilyTreeBuilderService {
     };
 
     // 2. Build Nodes with Enhanced Kenyan Attributes
-    graph.nodes = await this.buildTreeNodes(members, options);
+    graph.nodes = this.buildTreeNodes(members, options);
 
     // 3. Build Edges with Enhanced Relationship Types
-    graph.edges = await this.buildTreeEdges(relationships, marriages, guardianships, options);
+    graph.edges = this.buildTreeEdges(relationships, marriages, guardianships, options);
 
     // 4. Apply Layout if specified
     if (options.layoutType === 'HIERARCHICAL') {
@@ -190,7 +190,7 @@ export class FamilyTreeBuilderService {
 
     // Build the graph
     const graph: TreeGraph = {
-      nodes: await this.buildTreeNodes(validMembers, {
+      nodes: this.buildTreeNodes(validMembers, {
         layoutType: 'HIERARCHICAL',
         showDeceased: true,
         showMinors: true,
@@ -198,7 +198,7 @@ export class FamilyTreeBuilderService {
         includeMarriages: true,
         includeGuardianships: false,
       }),
-      edges: await this.buildTreeEdges([...outgoingRels, ...incomingRels], marriages, [], {
+      edges: this.buildTreeEdges([...outgoingRels, ...incomingRels], marriages, [], {
         layoutType: 'HIERARCHICAL',
         showDeceased: true,
         showMinors: true,
@@ -246,21 +246,24 @@ export class FamilyTreeBuilderService {
         inheritanceStrength: this.calculateInheritanceStrength(node.id, heirIds, fullTree.edges),
         nodeType: node.id === deceasedMemberId ? 'PERSON' : node.data.nodeType,
       },
-      style:
-        node.id === deceasedMemberId
+      style: {
+        ...(node.style as Record<string, string | number>), // preserve existing styles
+        ...(node.id === deceasedMemberId
           ? { backgroundColor: '#ffebee', border: '2px solid #f44336' }
           : heirIds.has(node.id)
             ? { backgroundColor: '#e8f5e8', border: '2px solid #4caf50' }
-            : node.style,
+            : {}),
+      },
     }));
 
-    // Highlight relationships to deceased
     fullTree.edges = fullTree.edges.map((edge) => ({
       ...edge,
-      style:
-        edge.source === deceasedMemberId || edge.target === deceasedMemberId
+      style: {
+        ...(edge.style as Record<string, string | number>),
+        ...(edge.source === deceasedMemberId || edge.target === deceasedMemberId
           ? { stroke: '#ff6b6b', strokeWidth: 3 }
-          : edge.style,
+          : {}),
+      },
     }));
 
     fullTree.metadata.hasComplexStructure = this.hasComplexSuccessionStructure(fullTree);
@@ -296,7 +299,7 @@ export class FamilyTreeBuilderService {
 
     // Build clan-focused graph
     const graph: TreeGraph = {
-      nodes: await this.buildTreeNodes(validMembers, {
+      nodes: this.buildTreeNodes(validMembers, {
         layoutType: 'HIERARCHICAL',
         showDeceased: true,
         showMinors: true,
@@ -304,7 +307,7 @@ export class FamilyTreeBuilderService {
         includeMarriages: true,
         includeGuardianships: false,
       }),
-      edges: await this.buildTreeEdges(ancestralRels, [], [], {
+      edges: this.buildTreeEdges(ancestralRels, [], [], {
         layoutType: 'HIERARCHICAL',
         showDeceased: true,
         showMinors: true,
@@ -333,10 +336,7 @@ export class FamilyTreeBuilderService {
   // PRIVATE IMPLEMENTATION - KENYAN FAMILY STRUCTURE SUPPORT
   // --------------------------------------------------------------------------
 
-  private async buildTreeNodes(
-    members: FamilyMember[],
-    options: TreeLayoutOptions,
-  ): Promise<TreeNode[]> {
+  private buildTreeNodes(members: FamilyMember[], options: TreeLayoutOptions): TreeNode[] {
     return members
       .filter((member) => this.shouldIncludeMember(member, options))
       .map((member) => this.buildTreeNode(member));
@@ -345,6 +345,7 @@ export class FamilyTreeBuilderService {
   private buildTreeNode(member: FamilyMember): TreeNode {
     const metadata = member.getMetadata();
     const age = member.getAge();
+    const gender = member.getGender();
 
     return {
       id: member.getId(),
@@ -356,10 +357,10 @@ export class FamilyTreeBuilderService {
         isMinor: member.getIsMinor(),
         isFamilyHead: metadata.isFamilyHead,
         isElder: metadata.isElder,
-        gender: member.getGender() as 'MALE' | 'FEMALE' | 'OTHER',
+        gender, // no assertion needed
         dateOfBirth: member.getDateOfBirth()?.toISOString().split('T')[0],
         dateOfDeath: member.getDateOfDeath()?.toISOString().split('T')[0],
-        age: age !== null ? age : undefined,
+        age: age ?? undefined,
         disabilityStatus: metadata.disabilityStatus,
         dependencyLevel: metadata.dependencyStatus,
         clan: metadata.clan,
@@ -372,12 +373,12 @@ export class FamilyTreeBuilderService {
     };
   }
 
-  private async buildTreeEdges(
+  private buildTreeEdges(
     relationships: Relationship[],
     marriages: Marriage[],
     guardianships: Guardianship[],
     options: TreeLayoutOptions,
-  ): Promise<TreeEdge[]> {
+  ): TreeEdge[] {
     const edges: TreeEdge[] = [];
 
     // Add blood relationships
@@ -479,7 +480,7 @@ export class FamilyTreeBuilderService {
     const polygamousMarriages = marriages.filter((m) => m.allowsPolygamy() && m.getIsActive());
 
     // Calculate generations (simplified)
-    const generationCount = this.calculateGenerationCount(members, marriages);
+    const generationCount = this.calculateGenerationCount(members);
 
     return {
       familyId,
@@ -510,12 +511,12 @@ export class FamilyTreeBuilderService {
     return true;
   }
 
-  private getNodeStyle(member: FamilyMember): any {
-    const baseStyle = {
+  private getNodeStyle(member: FamilyMember): Record<string, string | number> {
+    const baseStyle: Record<string, string | number> = {
       borderRadius: '8px',
-      padding: '10px',
-      minWidth: '120px',
-      textAlign: 'center' as const,
+      padding: 10,
+      minWidth: 120,
+      textAlign: 'center',
     };
 
     if (member.getIsDeceased()) {
@@ -528,11 +529,7 @@ export class FamilyTreeBuilderService {
     }
 
     if (member.getIsMinor()) {
-      return {
-        ...baseStyle,
-        backgroundColor: '#e3f2fd',
-        border: '2px solid #2196f3',
-      };
+      return { ...baseStyle, backgroundColor: '#e3f2fd', border: '2px solid #2196f3' };
     }
 
     if (member.getMetadata().isFamilyHead) {
@@ -544,17 +541,12 @@ export class FamilyTreeBuilderService {
       };
     }
 
-    return {
-      ...baseStyle,
-      backgroundColor: '#ffffff',
-      border: '2px solid #e0e0e0',
-    };
+    return { ...baseStyle, backgroundColor: '#ffffff', border: '2px solid #e0e0e0' };
   }
 
-  private getClanStyle(clan?: string): any {
+  private getClanStyle(clan?: string): Record<string, string> {
     if (!clan) return {};
 
-    // Assign colors based on clan (simplified)
     const clanColors: Record<string, string> = {
       kikuyu: '#4caf50',
       luo: '#2196f3',
@@ -565,9 +557,7 @@ export class FamilyTreeBuilderService {
 
     const color = clanColors[clan.toLowerCase()] || '#607d8b';
 
-    return {
-      borderLeft: `4px solid ${color}`,
-    };
+    return { borderLeft: `4px solid ${color}` };
   }
 
   private getRelationshipEdgeType(
@@ -592,7 +582,7 @@ export class FamilyTreeBuilderService {
     }
   }
 
-  private calculateGenerationCount(members: FamilyMember[], marriages: Marriage[]): number {
+  private calculateGenerationCount(members: FamilyMember[]): number {
     // Simplified generation calculation
     // In a real implementation, this would do proper graph traversal
     if (members.length === 0) return 0;

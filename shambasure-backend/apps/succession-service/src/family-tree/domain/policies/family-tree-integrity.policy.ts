@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Relationship } from '../entities/relationship.entity';
+import type { Relationship } from '../entities/relationship.entity';
 import { RelationshipType } from '@prisma/client';
 
 @Injectable()
@@ -16,12 +16,18 @@ export class FamilyTreeIntegrityPolicy {
     toId: string,
     type: RelationshipType,
     existingRelationships: Relationship[],
-  ): boolean {
+  ): { hasCycle: boolean; details?: string } {
     // Only hierarchical relationships (ancestry) can form cycles
-    const hierarchyTypes: RelationshipType[] = ['PARENT', 'CHILD', 'GRANDPARENT', 'GRANDCHILD'];
+    const hierarchyTypes: RelationshipType[] = [
+      'PARENT',
+      'CHILD',
+      'GRANDPARENT',
+      'GRANDCHILD',
+      'ADOPTED_CHILD',
+    ];
 
     if (!hierarchyTypes.includes(type)) {
-      return false;
+      return { hasCycle: false };
     }
 
     // Normalize direction to "ancestor -> descendant"
@@ -36,7 +42,16 @@ export class FamilyTreeIntegrityPolicy {
       descendantId = toId;
     }
 
-    return this.pathExists(descendantId, ancestorId, existingRelationships);
+    const hasCycle = this.pathExists(descendantId, ancestorId, existingRelationships);
+
+    if (hasCycle) {
+      return {
+        hasCycle: true,
+        details: `Adding this ${type} relationship would create a circular reference in the family tree`,
+      };
+    }
+
+    return { hasCycle: false };
   }
 
   /**
@@ -58,7 +73,9 @@ export class FamilyTreeIntegrityPolicy {
     const outgoing = allRelationships.filter(
       (r) =>
         r.getFromMemberId() === startId &&
-        (r.getType() === 'PARENT' || r.getType() === 'GRANDPARENT'),
+        (r.getType() === 'PARENT' ||
+          r.getType() === 'GRANDPARENT' ||
+          r.getType() === 'ADOPTED_CHILD'),
     );
 
     // Incoming hierarchical edges (startId is child/grandchild)
@@ -80,19 +97,27 @@ export class FamilyTreeIntegrityPolicy {
 
     return false;
   }
+
+  /**
+   * Detects circular relationships in the entire family tree
+   */
   detectCircularRelationships(relationships: Relationship[]): { hasCircular: boolean } {
     const ids = Array.from(
       new Set(relationships.flatMap((r) => [r.getFromMemberId(), r.getToMemberId()])),
     );
+
     for (const fromId of ids) {
       for (const toId of ids) {
         // Skip same member
         if (fromId === toId) continue;
-        if (this.checkCycle(fromId, toId, 'PARENT', relationships)) {
+
+        const result = this.checkCycle(fromId, toId, 'PARENT', relationships);
+        if (result.hasCycle) {
           return { hasCircular: true };
         }
       }
     }
+
     return { hasCircular: false };
   }
 }
