@@ -1,23 +1,46 @@
-// succession-service/src/succession-process/domain/repositories/creditor-claim.repository.interface.ts
-
-import { CreditorClaim } from '@prisma/client'; // Assuming entity mapping matches
-// Note: If we created a specific Domain Entity for this in Step 1, import that instead.
-// Based on previous steps, we mapped Debt logic heavily in EstatePlanning. 
-// This interface is for the formal "Claim" process in court.
+import { CreditorClaim, ClaimStatus, DebtType } from '../entities/creditor-claim.entity';
 
 export interface CreditorClaimRepositoryInterface {
-  save(claim: CreditorClaim): Promise<void>; // Using Prisma Type or Domain Entity
+  // Basic CRUD operations
   findById(id: string): Promise<CreditorClaim | null>;
+  findAll(): Promise<CreditorClaim[]>;
+  save(claim: CreditorClaim): Promise<CreditorClaim>;
+  delete(id: string): Promise<void>;
 
+  // Domain-specific queries
   findByEstateId(estateId: string): Promise<CreditorClaim[]>;
+  findByStatus(status: ClaimStatus): Promise<CreditorClaim[]>;
+  findByCreditorName(creditorName: string): Promise<CreditorClaim[]>;
+  findByDebtType(debtType: DebtType): Promise<CreditorClaim[]>;
 
-  /**
-   * Find claims that have been formally accepted by the Executor.
-   */
+  // Financial queries
   findAcceptedClaims(estateId: string): Promise<CreditorClaim[]>;
-
-  /**
-   * Find disputed claims (Executor rejected, Creditor suing).
-   */
+  findPendingClaims(estateId: string): Promise<CreditorClaim[]>;
+  findRejectedClaims(estateId: string): Promise<CreditorClaim[]>;
   findDisputedClaims(estateId: string): Promise<CreditorClaim[]>;
+
+  // Amount-based queries
+  findClaimsAboveAmount(amount: number): Promise<CreditorClaim[]>;
+  findClaimsByPriority(estateId: string): Promise<CreditorClaim[]>;
+
+  // Statistical queries
+  getTotalClaimAmount(estateId: string): Promise<number>;
+  getAcceptedClaimAmount(estateId: string): Promise<number>;
+  getPendingClaimAmount(estateId: string): Promise<number>;
+
+  // Complex queries
+  findOverdueClaims(): Promise<CreditorClaim[]>;
+  findClaimsRequiringPayment(): Promise<CreditorClaim[]>;
+  findClaimsWithInterest(): Promise<CreditorClaim[]>;
+
+  // Bulk operations
+  saveAll(claims: CreditorClaim[]): Promise<CreditorClaim[]>;
+  updateStatus(claimIds: string[], status: ClaimStatus): Promise<void>;
+
+  // Validation queries
+  existsByCreditorAndAmount(
+    estateId: string,
+    creditorName: string,
+    amount: number,
+  ): Promise<boolean>;
 }

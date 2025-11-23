@@ -1,14 +1,29 @@
-// succession-service/src/succession-process/domain/events/dispute-filed.event.ts
-
 import { DisputeType } from '@prisma/client';
 
 export class DisputeFiledEvent {
   constructor(
     public readonly disputeId: string,
-    public readonly willId: string, // Or EstateID if intestate
+    public readonly willId: string,
     public readonly disputantId: string,
     public readonly type: DisputeType,
     public readonly description: string,
-    public readonly timestamp: Date = new Date(),
+    public readonly legalGrounds: string[],
+    public readonly evidenceCount: number,
   ) {}
+
+  getEventType(): string {
+    return 'DisputeFiledEvent';
+  }
+
+  getPayload() {
+    return {
+      disputeId: this.disputeId,
+      willId: this.willId,
+      disputantId: this.disputantId,
+      type: this.type,
+      description: this.description,
+      legalGrounds: this.legalGrounds,
+      evidenceCount: this.evidenceCount,
+    };
+  }
 }

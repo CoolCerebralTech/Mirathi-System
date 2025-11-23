@@ -1,7 +1,5 @@
-// succession-service/src/succession-process/domain/services/dispute-resolution.service.ts
-
 import { Injectable, Inject } from '@nestjs/common';
-import { DisputeRepositoryInterface } from '../repositories/dispute.repository.interface';
+import type { DisputeRepositoryInterface } from '../repositories/dispute.repository.interface';
 import { DisputeGroundsPolicy } from '../policies/dispute-grounds.policy';
 import { DisputeType } from '@prisma/client';
 

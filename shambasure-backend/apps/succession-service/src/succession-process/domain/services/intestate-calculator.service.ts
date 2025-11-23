@@ -5,7 +5,7 @@ import {
   IntestateSuccessionPolicy,
   FamilyUnit,
   DistributionResult,
-} from '../policies/inestate-succession.policy';
+} from '../policies/intestate-succession.policy';
 import { FamilyMemberService } from '../../../family-tree/application/services/family-member.service';
 import { EstateAggregate } from '../../../estate-planning/domain/aggregates/estate.aggregate';
 import { WillRepositoryInterface } from '../../../estate-planning/domain/interfaces/will.repository.interface'; // To check partial intestacy

@@ -1,5 +1,3 @@
-// succession-service/src/succession-process/domain/events/inventory-item-added.event.ts
-
 import { AssetValue } from '../../../estate-planning/domain/value-objects/asset-value.vo';
 
 export class InventoryItemAddedEvent {
@@ -8,7 +6,25 @@ export class InventoryItemAddedEvent {
     public readonly estateId: string,
     public readonly description: string,
     public readonly estimatedValue: AssetValue,
-    public readonly assetId?: string, // If linked to a digital asset record
-    public readonly timestamp: Date = new Date(),
+    public readonly assetType: string,
+    public readonly assetId?: string,
+    public readonly ownershipType?: string,
   ) {}
+
+  getEventType(): string {
+    return 'InventoryItemAddedEvent';
+  }
+
+  getPayload() {
+    return {
+      inventoryId: this.inventoryId,
+      estateId: this.estateId,
+      description: this.description,
+      estimatedValue: this.estimatedValue.getAmount(),
+      currency: this.estimatedValue.getCurrency(),
+      assetType: this.assetType,
+      assetId: this.assetId,
+      ownershipType: this.ownershipType,
+    };
+  }
 }

@@ -1,29 +1,58 @@
-// succession-service/src/succession-process/domain/repositories/distribution.repository.interface.ts
-
-import { Distribution } from '../entities/distribution.entity';
-import { DistributionStatus } from '@prisma/client';
+import { Distribution, DistributionStatus, BeneficiaryType } from '../entities/distribution.entity';
 
 export interface DistributionRepositoryInterface {
-  save(distribution: Distribution): Promise<void>;
+  // Basic CRUD operations
   findById(id: string): Promise<Distribution | null>;
+  findAll(): Promise<Distribution[]>;
+  save(distribution: Distribution): Promise<Distribution>;
+  delete(id: string): Promise<void>;
 
-  /**
-   * Get the full Distribution Plan (Schedule of Distribution).
-   */
+  // Domain-specific queries
   findByEstateId(estateId: string): Promise<Distribution[]>;
-
-  /**
-   * Find what a specific beneficiary is getting.
-   */
   findByBeneficiaryId(beneficiaryId: string): Promise<Distribution[]>;
+  findByStatus(status: DistributionStatus): Promise<Distribution[]>;
+  findByAssetId(assetId: string): Promise<Distribution[]>;
 
-  /**
-   * Find distributions ready for transfer (Status: PENDING).
-   */
-  findPendingTransfers(estateId: string): Promise<Distribution[]>;
+  // Beneficiary type queries
+  findByBeneficiaryType(beneficiaryType: BeneficiaryType): Promise<Distribution[]>;
+  findExternalBeneficiaryDistributions(): Promise<Distribution[]>;
 
-  /**
-   * Bulk update status (e.g., marking 5 land parcels as TRANSFERRED).
-   */
-  bulkUpdateStatus(ids: string[], status: DistributionStatus, date: Date): Promise<void>;
+  // Status management queries
+  findPendingDistributions(estateId: string): Promise<Distribution[]>;
+  findCompletedDistributions(estateId: string): Promise<Distribution[]>;
+  findDisputedDistributions(estateId: string): Promise<Distribution[]>;
+  findDeferredDistributions(estateId: string): Promise<Distribution[]>;
+
+  // Financial queries
+  getTotalDistributionValue(estateId: string): Promise<number>;
+  getCompletedDistributionValue(estateId: string): Promise<number>;
+  getPendingDistributionValue(estateId: string): Promise<number>;
+
+  // Complex queries
+  findDistributionsRequiringTransfer(): Promise<Distribution[]>;
+  findDistributionsWithConditions(): Promise<Distribution[]>;
+  findLifeInterestDistributions(): Promise<Distribution[]>;
+  findMinorBeneficiaryDistributions(): Promise<Distribution[]>;
+
+  // Timeline queries
+  findOverdueDistributions(): Promise<Distribution[]>;
+  findDistributionsDueSoon(days: number): Promise<Distribution[]>;
+
+  // Bulk operations
+  saveAll(distributions: Distribution[]): Promise<Distribution[]>;
+  updateStatus(distributionIds: string[], status: DistributionStatus): Promise<void>;
+
+  // Validation queries
+  existsDistributionForAsset(estateId: string, assetId: string): Promise<boolean>;
+  existsDistributionForBeneficiary(estateId: string, beneficiaryId: string): Promise<boolean>;
+
+  // Statistical queries
+  getDistributionSummary(estateId: string): Promise<{
+    totalDistributions: number;
+    completed: number;
+    pending: number;
+    disputed: number;
+    deferred: number;
+    totalValue: number;
+  }>;
 }

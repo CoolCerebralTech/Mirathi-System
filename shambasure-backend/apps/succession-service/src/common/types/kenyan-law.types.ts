@@ -129,7 +129,16 @@ export type DisputeGrounds =
   | 'OMITTED_HEIR'
   | 'AMBIGUOUS_TERMS'
   | 'CONTRADICTORY_CLAUSES'
-  | 'REVOCATION_ISSUE';
+  | 'REVOCATION_ISSUE'
+  | 'CONCEALMENT_OF_FACT'
+  | 'FALSE_STATEMENT'
+  | 'DEFECTIVE_PROCESS'
+  | 'PROCEDURAL_IRREGULARITY'
+  | 'INADEQUATE_PROVISION'
+  | 'DEPENDANT_MAINTENANCE'
+  | 'ASSET_VALUATION'
+  | 'EXECUTOR_MISCONDUCT'
+  | 'OTHER';
 
 export type ResolutionMethod =
   | 'MEDIATION'
@@ -157,8 +166,26 @@ export type PolygamousStatus = 'MONOGAMOUS' | 'POLYGAMOUS' | 'BIGAMOUS'; // Ille
 /*                           COURT & LEGAL PROCEDURE                           */
 /* -------------------------------------------------------------------------- */
 
-export type HearingType = 'MENTION' | 'DIRECTIONS' | 'HEARING' | 'RULING' | 'JUDGMENT';
+export type HearingType =
+  | 'MENTION' // Brief appearance to confirm filing
+  | 'DIRECTIONS' // Case management and scheduling
+  | 'CONFIRMATION_OF_GRANT' // Confirm grant of probate/letters
+  | 'PROOF_OF_WILL' // Prove validity of will
+  | 'OBJECTION_HEARING' // Hear objections to grant
+  | 'DISTRIBUTION_CONFIRMATION' // Confirm distribution schedule
+  | 'EXECUTOR_ACCOUNTING' // Review executor's accounts
+  | 'DEPENDANTS_PROVISION' // Section 26 application
+  | 'REVOCATION_APPLICATION' // Application to revoke grant
+  | 'CAVEAT_HEARING' // Hearing on caveat proceedings
+  | 'MEDIATION_REFERRAL' // Refer to mediation
+  | 'FINAL_SETTLEMENT'; // Final estate settlement
 
+export interface HearingOutcome {
+  orders: string[];
+  rulings: string[];
+  nextSteps: string[];
+  complianceDeadline?: Date;
+}
 export type LegalDocumentType =
   | 'AFFIDAVIT'
   | 'SUMMONS'

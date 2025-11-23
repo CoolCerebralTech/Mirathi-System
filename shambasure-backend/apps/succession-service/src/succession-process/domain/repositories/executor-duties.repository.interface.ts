@@ -1,29 +1,65 @@
-// succession-service/src/succession-process/domain/repositories/executor-duties.repository.interface.ts
-
-import { ExecutorDuty } from '../entities/executor-duties.entity';
+import { ExecutorDuty, DutyStatus, ExecutorDutyType } from '../entities/executor-duties.entity';
 
 export interface ExecutorDutiesRepositoryInterface {
-  save(duty: ExecutorDuty): Promise<void>;
+  // Basic CRUD operations
   findById(id: string): Promise<ExecutorDuty | null>;
+  findAll(): Promise<ExecutorDuty[]>;
+  save(duty: ExecutorDuty): Promise<ExecutorDuty>;
+  delete(id: string): Promise<void>;
 
-  /**
-   * Get the To-Do list for an estate.
-   * Ordered by deadline.
-   */
+  // Domain-specific queries
   findByEstateId(estateId: string): Promise<ExecutorDuty[]>;
-
-  /**
-   * Find duties assigned to a specific executor (if duties are split).
-   */
   findByExecutorId(executorId: string): Promise<ExecutorDuty[]>;
+  findByStatus(status: DutyStatus): Promise<ExecutorDuty[]>;
+  findByType(type: ExecutorDutyType): Promise<ExecutorDuty[]>;
 
-  /**
-   * Find duties that are past their deadline and not completed.
-   */
-  findOverdueDuties(): Promise<ExecutorDuty[]>;
+  // Workflow queries
+  findPendingDuties(estateId: string): Promise<ExecutorDuty[]>;
+  findCompletedDuties(estateId: string): Promise<ExecutorDuty[]>;
+  findOverdueDuties(estateId: string): Promise<ExecutorDuty[]>;
+  findInProgressDuties(estateId: string): Promise<ExecutorDuty[]>;
 
-  /**
-   * Bulk initialize standard duties (Factory pattern helper).
-   */
-  initializeStandardDuties(estateId: string, grantDate: Date): Promise<void>;
+  // Priority and ordering queries
+  findByPriority(priority: 'HIGH' | 'MEDIUM' | 'LOW'): Promise<ExecutorDuty[]>;
+  findByStepOrder(estateId: string): Promise<ExecutorDuty[]>;
+  findCriticalDuties(): Promise<ExecutorDuty[]>;
+
+  // Timeline queries
+  findDutiesDueSoon(days: number): Promise<ExecutorDuty[]>;
+  findDutiesByDeadlineRange(start: Date, end: Date): Promise<ExecutorDuty[]>;
+  findRecentlyCompletedDuties(days: number): Promise<ExecutorDuty[]>;
+
+  // Complex queries
+  findDutiesRequiringCourtSupervision(): Promise<ExecutorDuty[]>;
+  findDutiesWithExtensions(): Promise<ExecutorDuty[]>;
+  findWaivedDuties(estateId: string): Promise<ExecutorDuty[]>;
+
+  // Statistical queries
+  getExecutorPerformance(executorId: string): Promise<{
+    totalDuties: number;
+    completed: number;
+    overdue: number;
+    completionRate: number;
+    averageCompletionTime: number;
+  }>;
+
+  getEstateDutyProgress(estateId: string): Promise<{
+    total: number;
+    completed: number;
+    pending: number;
+    overdue: number;
+    completionPercentage: number;
+  }>;
+
+  // Bulk operations
+  saveAll(duties: ExecutorDuty[]): Promise<ExecutorDuty[]>;
+  updateStatus(dutyIds: string[], status: DutyStatus): Promise<void>;
+  extendDeadlines(dutyIds: string[], newDeadline: Date): Promise<void>;
+
+  // Validation queries
+  existsByTypeAndEstate(estateId: string, type: ExecutorDutyType): Promise<boolean>;
+  hasOverdueDuties(estateId: string): Promise<boolean>;
+
+  // Search queries
+  searchDuties(query: string, estateId?: string): Promise<ExecutorDuty[]>;
 }
