@@ -32,23 +32,23 @@ export interface SuccessionCertificateProps {
   issuedBy: string;
   confirmedBy?: string | null;
   revocationDetails?: {
-    revocationDate?: Date | string;
-    revocationReason?: string;
-    revokedBy?: string;
-    courtOrderNumber?: string;
+    revocationDate?: Date | string | null;
+    revocationReason?: string | null;
+    revokedBy?: string | null;
+    courtOrderNumber?: string | null;
   } | null;
   amendmentHistory?: {
     amendmentDate: Date | string;
     amendmentReason: string;
     amendedBy: string;
     changes: string[];
-    courtOrderNumber?: string;
+    courtOrderNumber?: string | null;
   }[];
   conditions?: string[];
   replacementDetails?: {
-    replacedByGrantId?: string;
-    replacementDate?: Date | string;
-    replacementReason?: string;
+    replacedByGrantId?: string | null;
+    replacementDate?: Date | string | null;
+    replacementReason?: string | null;
   } | null;
   isActive: boolean;
   createdAt: Date | string;
@@ -133,7 +133,6 @@ export class SuccessionCertificate extends AggregateRoot {
     this.conditions = [];
     this.isActive = true;
 
-    // Set expiry date based on grant type
     this.expiryDate = this.calculateExpiryDate();
 
     this.revocationDetails = {
@@ -187,17 +186,9 @@ export class SuccessionCertificate extends AggregateRoot {
       options.issuedBy,
     );
 
-    if (options.fileReference) {
-      cert.fileReference = options.fileReference;
-    }
-
-    if (options.conditions) {
-      cert.conditions = options.conditions;
-    }
-
-    if (options.expiryDate) {
-      cert.expiryDate = options.expiryDate;
-    }
+    if (options.fileReference) cert.fileReference = options.fileReference;
+    if (options.conditions) cert.conditions = options.conditions;
+    if (options.expiryDate) cert.expiryDate = options.expiryDate;
 
     cert.apply(
       new GrantIssuedEvent(
@@ -208,7 +199,7 @@ export class SuccessionCertificate extends AggregateRoot {
         type,
         options.grantNumber,
         options.courtStation,
-        cert.expiryDate,
+        cert.expiryDate || undefined,
         options.conditions,
       ),
     );
@@ -217,7 +208,6 @@ export class SuccessionCertificate extends AggregateRoot {
   }
 
   static reconstitute(props: SuccessionCertificateProps): SuccessionCertificate {
-    // Validate required fields
     if (
       !props.id ||
       !props.estateId ||
@@ -244,27 +234,15 @@ export class SuccessionCertificate extends AggregateRoot {
       props.issuedBy,
     );
 
-    // Safe property assignments
     cert.status = props.status;
     cert.fileReference = props.fileReference ?? null;
     cert.confirmedBy = props.confirmedBy ?? null;
     cert.conditions = props.conditions || [];
     cert.isActive = props.isActive;
 
-    // Safe date handling
-    if (props.confirmationDate) {
-      cert.confirmationDate = new Date(props.confirmationDate);
-    } else {
-      cert.confirmationDate = null;
-    }
+    cert.confirmationDate = props.confirmationDate ? new Date(props.confirmationDate) : null;
+    cert.expiryDate = props.expiryDate ? new Date(props.expiryDate) : cert.calculateExpiryDate();
 
-    if (props.expiryDate) {
-      cert.expiryDate = new Date(props.expiryDate);
-    } else {
-      cert.expiryDate = cert.calculateExpiryDate();
-    }
-
-    // Revocation details
     if (props.revocationDetails) {
       cert.revocationDetails = {
         revocationDate: props.revocationDetails.revocationDate
@@ -276,18 +254,16 @@ export class SuccessionCertificate extends AggregateRoot {
       };
     }
 
-    // Amendment history
     if (props.amendmentHistory) {
       cert.amendmentHistory = props.amendmentHistory.map((amendment) => ({
         amendmentDate: new Date(amendment.amendmentDate),
         amendmentReason: amendment.amendmentReason,
         amendedBy: amendment.amendedBy,
         changes: amendment.changes,
-        courtOrderNumber: amendment.courtOrderNumber || null,
+        courtOrderNumber: amendment.courtOrderNumber ?? null,
       }));
     }
 
-    // Replacement details
     if (props.replacementDetails) {
       cert.replacementDetails = {
         replacedByGrantId: props.replacementDetails.replacedByGrantId ?? null,
@@ -308,31 +284,19 @@ export class SuccessionCertificate extends AggregateRoot {
   // BUSINESS LOGIC
   // --------------------------------------------------------------------------
 
-  /**
-   * Confirms the grant (Section 71)
-   */
   confirmGrant(
     confirmationDate: Date,
     confirmedBy: string,
-    options?: {
-      courtOrderNumber?: string;
-      confirmationNotes?: string;
-    },
+    options?: { courtOrderNumber?: string; confirmationNotes?: string },
   ): void {
-    if (this.status !== 'ISSUED') {
-      throw new Error('Only issued grants can be confirmed.');
-    }
+    if (this.status !== 'ISSUED') throw new Error('Only issued grants can be confirmed.');
 
-    // Timeline Check - Minimum 6 months for confirmation
     const minConfirmationDate = new Date(this.issueDate);
     const daysRequired = SUCCESSION_TIMEFRAMES.PROBATE?.CONFIRMATION_OF_GRANT || 180;
     minConfirmationDate.setDate(minConfirmationDate.getDate() + daysRequired);
 
     if (confirmationDate < minConfirmationDate) {
-      // Log warning but allow - courts can expedite in some cases
-      console.warn(
-        `Grant confirmed ${Math.floor((minConfirmationDate.getTime() - confirmationDate.getTime()) / (1000 * 60 * 60 * 24))} days early`,
-      );
+      console.warn(`Grant confirmed early. Min date: ${minConfirmationDate.toISOString()}`);
     }
 
     this.status = 'CONFIRMED';
@@ -352,18 +316,13 @@ export class SuccessionCertificate extends AggregateRoot {
     );
   }
 
-  /**
-   * Revokes the grant (Section 76)
-   */
   revokeGrant(
     revocationDate: Date,
     revocationReason: string,
     revokedBy: string,
     courtOrderNumber?: string,
   ): void {
-    if (this.status === 'REVOKED') {
-      throw new Error('Grant is already revoked.');
-    }
+    if (this.status === 'REVOKED') throw new Error('Grant is already revoked.');
 
     this.status = 'REVOKED';
     this.isActive = false;
@@ -387,9 +346,6 @@ export class SuccessionCertificate extends AggregateRoot {
     );
   }
 
-  /**
-   * Amends the grant with court approval
-   */
   amendGrant(
     amendmentDate: Date,
     amendmentReason: string,
@@ -397,9 +353,7 @@ export class SuccessionCertificate extends AggregateRoot {
     changes: string[],
     courtOrderNumber?: string,
   ): void {
-    if (!this.isActive) {
-      throw new Error('Cannot amend an inactive grant.');
-    }
+    if (!this.isActive) throw new Error('Cannot amend an inactive grant.');
 
     this.status = 'AMENDED';
     this.amendmentHistory.push({
@@ -424,9 +378,6 @@ export class SuccessionCertificate extends AggregateRoot {
     );
   }
 
-  /**
-   * Replaces this grant with a new one
-   */
   replaceGrant(
     newGrantId: string,
     replacementDate: Date,
@@ -454,80 +405,51 @@ export class SuccessionCertificate extends AggregateRoot {
     );
   }
 
-  /**
-   * Marks grant as expired
-   */
   markAsExpired(): void {
     if (this.status === 'EXPIRED') return;
-
     this.status = 'EXPIRED';
     this.isActive = false;
     this.updatedAt = new Date();
-
     this.apply(
       new GrantExpiredEvent(this.id, this.estateId, new Date(), this.type, this.applicantId),
     );
   }
 
-  /**
-   * Updates file reference when document is uploaded
-   */
   updateFileReference(fileReference: string): void {
-    if (!this.isActive) {
-      throw new Error('Cannot update file reference for inactive grant.');
-    }
-
+    if (!this.isActive) throw new Error('Cannot update file reference for inactive grant.');
     this.fileReference = fileReference;
     this.updatedAt = new Date();
   }
 
-  /**
-   * Adds conditions to the grant
-   */
   addConditions(newConditions: string[]): void {
-    if (!this.isActive) {
-      throw new Error('Cannot add conditions to inactive grant.');
-    }
-
+    if (!this.isActive) throw new Error('Cannot add conditions to inactive grant.');
     this.conditions = [...this.conditions, ...newConditions];
     this.updatedAt = new Date();
   }
 
   // --------------------------------------------------------------------------
-  // VALIDATION & HELPER METHODS
+  // HELPERS
   // --------------------------------------------------------------------------
 
   private calculateExpiryDate(): Date {
     const expiryDate = new Date(this.issueDate);
-
     switch (this.type) {
       case 'LIMITED_GRANT':
-        // Limited grants typically expire in 6 months
         expiryDate.setMonth(expiryDate.getMonth() + 6);
         break;
       case 'SPECIAL_GRANT':
-        // Special grants typically expire in 1 year
         expiryDate.setFullYear(expiryDate.getFullYear() + 1);
         break;
       default:
-        // Probate and Letters of Administration don't typically expire
-        // but may have statutory time limits for completion
-        return new Date('9999-12-31'); // Far future date
+        return new Date('9999-12-31');
     }
-
     return expiryDate;
   }
 
-  /**
-   * Checks if grant is ready for asset distribution
-   */
   isConfirmed(): boolean {
     return this.status === 'CONFIRMED';
   }
 
-  /**
-   * Checks if grant has expired
-   */
   hasExpired(): boolean {
     if (this.status === 'EXPIRED') return true;
     if (this.expiryDate && new Date() > this.expiryDate) {
@@ -537,58 +459,35 @@ export class SuccessionCertificate extends AggregateRoot {
     return false;
   }
 
-  /**
-   * Checks if grant is valid for use
-   */
   isValid(): boolean {
     return (
       this.isActive && !this.hasExpired() && this.status !== 'REVOKED' && this.status !== 'REPLACED'
     );
   }
 
-  /**
-   * Gets days remaining until expiry
-   */
   getDaysUntilExpiry(): number {
-    if (!this.expiryDate || this.expiryDate.getFullYear() === 9999) {
-      return Infinity; // No expiry
-    }
-
+    if (!this.expiryDate || this.expiryDate.getFullYear() === 9999) return Infinity;
     const now = new Date();
     const diffTime = this.expiryDate.getTime() - now.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
-  /**
-   * Gets days since issuance
-   */
   getDaysSinceIssuance(): number {
     const now = new Date();
     const diffTime = now.getTime() - this.issueDate.getTime();
     return Math.floor(diffTime / (1000 * 60 * 60 * 24));
   }
 
-  /**
-   * Checks if grant can be confirmed (minimum time elapsed)
-   */
   canBeConfirmed(): boolean {
     if (this.status !== 'ISSUED') return false;
-
     const minConfirmationDate = new Date(this.issueDate);
     const daysRequired = SUCCESSION_TIMEFRAMES.PROBATE?.CONFIRMATION_OF_GRANT || 180;
     minConfirmationDate.setDate(minConfirmationDate.getDate() + daysRequired);
-
     return new Date() >= minConfirmationDate;
   }
 
-  /**
-   * Gets the certificate type for display
-   */
   getCertificateType(): CertificateType {
-    if (this.status === 'CONFIRMED') {
-      return 'CONFIRMED_GRANT';
-    }
-
+    if (this.status === 'CONFIRMED') return 'CONFIRMED_GRANT';
     switch (this.type) {
       case 'PROBATE':
         return 'PROBATE';
@@ -601,10 +500,7 @@ export class SuccessionCertificate extends AggregateRoot {
     }
   }
 
-  // --------------------------------------------------------------------------
-  // GETTERS
-  // --------------------------------------------------------------------------
-
+  // Getters
   getId(): string {
     return this.id;
   }
@@ -669,7 +565,6 @@ export class SuccessionCertificate extends AggregateRoot {
     return this.updatedAt;
   }
 
-  // Method to get all properties for persistence
   getProps(): SuccessionCertificateProps {
     return {
       id: this.id,

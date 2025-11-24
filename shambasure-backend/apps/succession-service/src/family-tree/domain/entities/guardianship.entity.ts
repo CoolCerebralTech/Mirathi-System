@@ -47,7 +47,7 @@ export class Guardianship extends AggregateRoot {
 
   // Kenyan Legal Metadata
   private metadata: KenyanGuardianshipMetadata;
-  private familyId: string | null; // For cross-referencing
+  private familyId: string | null;
 
   private constructor(
     id: string,
@@ -66,7 +66,6 @@ export class Guardianship extends AggregateRoot {
     this.type = type;
     this.appointmentDate = appointmentDate;
 
-    // Defaults
     this.appointedBy = null;
     this.validUntil = null;
     this.isActiveRecord = true;
@@ -75,7 +74,6 @@ export class Guardianship extends AggregateRoot {
     this.updatedAt = new Date();
     this.familyId = null;
 
-    // Kenyan metadata defaults
     this.metadata = {
       isTemporary: false,
       conditions: [],
@@ -107,15 +105,11 @@ export class Guardianship extends AggregateRoot {
   ): Guardianship {
     const guardianship = new Guardianship(id, guardianId, wardId, type, new Date());
 
-    // Set family context
     guardianship.familyId = familyId;
-
-    // Calculate expiry based on Kenyan law (age 18)
     guardianship.validUntil = guardianship.calculateExpiryDate(wardDateOfBirth);
 
     if (details?.appointedBy) guardianship.appointedBy = details.appointedBy;
 
-    // Set Kenyan legal metadata
     guardianship.metadata = {
       isTemporary: details?.isTemporary || false,
       courtOrderNumber: details?.courtOrderNumber,
@@ -153,7 +147,6 @@ export class Guardianship extends AggregateRoot {
         : new Date(props.appointmentDate),
     );
 
-    // Safe assignments
     guardianship.appointedBy = props.appointedBy || null;
 
     if (props.validUntil) {
@@ -171,14 +164,28 @@ export class Guardianship extends AggregateRoot {
       props.updatedAt instanceof Date ? props.updatedAt : new Date(props.updatedAt);
     guardianship.familyId = props.familyId || null;
 
-    // Metadata
+    // Metadata reconstitution - FIX: Check if props.metadata exists first
     if (props.metadata) {
       guardianship.metadata = {
-        ...props.metadata, // first spread incoming metadata
-        conditions: props.metadata.conditions ?? [], // ensure arrays have defaults
+        ...props.metadata,
+        conditions: props.metadata.conditions ?? [],
         reportingRequirements: props.metadata.reportingRequirements ?? [],
         restrictedPowers: props.metadata.restrictedPowers ?? [],
-        isTemporary: props.metadata.isTemporary ?? false, // default if undefined
+        isTemporary: props.metadata.isTemporary ?? false,
+        // Handle Dates in metadata if they come as strings
+        reviewDate: props.metadata.reviewDate
+          ? props.metadata.reviewDate instanceof Date
+            ? props.metadata.reviewDate
+            : new Date(props.metadata.reviewDate)
+          : undefined,
+      };
+    } else {
+      // Default metadata if missing
+      guardianship.metadata = {
+        isTemporary: false,
+        conditions: [],
+        reportingRequirements: [],
+        restrictedPowers: [],
       };
     }
 
@@ -186,19 +193,15 @@ export class Guardianship extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // BUSINESS LOGIC - KENYAN LEGAL COMPLIANCE
+  // BUSINESS LOGIC
   // --------------------------------------------------------------------------
 
-  /**
-   * Terminate the guardianship with Kenyan legal considerations
-   */
   revoke(reason: string, revokedBy: string, courtOrderNumber?: string): void {
     if (!this.isActiveRecord) return;
 
     this.isActiveRecord = false;
     this.updatedAt = new Date();
 
-    // Update metadata if court order provided
     if (courtOrderNumber) {
       this.metadata.courtOrderNumber = courtOrderNumber;
     }
@@ -218,15 +221,13 @@ export class Guardianship extends AggregateRoot {
     }
   }
 
-  /**
-   * Extend guardianship beyond age 18 for special cases (disability, etc.)
-   */
   extendGuardianship(newExpiryDate: Date, extensionReason: string, authorizedBy: string): void {
-    if (!this.isActiveRecord) {
-      throw new Error('Cannot extend an inactive guardianship.');
-    }
+    if (!this.isActiveRecord) throw new Error('Cannot extend an inactive guardianship.');
 
-    if (newExpiryDate <= this.validUntil!) {
+    // Ensure validUntil is set before comparison (it might be null if reconstituted poorly, though factory sets it)
+    const currentExpiry = this.validUntil || new Date();
+
+    if (newExpiryDate <= currentExpiry) {
       throw new Error('New expiry date must be after current expiry date.');
     }
 
@@ -234,7 +235,6 @@ export class Guardianship extends AggregateRoot {
     this.validUntil = newExpiryDate;
     this.updatedAt = new Date();
 
-    // Add condition about extension
     this.metadata.conditions = [
       ...(this.metadata.conditions || []),
       `Extended until ${newExpiryDate.toDateString()} - ${extensionReason}`,
@@ -252,19 +252,11 @@ export class Guardianship extends AggregateRoot {
     }
   }
 
-  /**
-   * Update guardianship conditions as per court orders
-   */
   updateConditions(conditions: string[]): void {
     this.metadata.conditions = conditions;
     this.updatedAt = new Date();
-
-    // We could emit an event here for significant condition changes
   }
 
-  /**
-   * Add reporting requirements (e.g., annual reports to court)
-   */
   addReportingRequirement(requirement: string): void {
     this.metadata.reportingRequirements = [
       ...(this.metadata.reportingRequirements || []),
@@ -273,9 +265,6 @@ export class Guardianship extends AggregateRoot {
     this.updatedAt = new Date();
   }
 
-  /**
-   * Restrict specific powers of the guardian
-   */
   restrictPowers(powers: string[]): void {
     this.metadata.restrictedPowers = [...(this.metadata.restrictedPowers || []), ...powers];
     this.updatedAt = new Date();
@@ -287,93 +276,58 @@ export class Guardianship extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // VALIDATION METHODS - KENYAN LAW COMPLIANCE
+  // VALIDATION
   // --------------------------------------------------------------------------
 
-  /**
-   * Validates if the guardianship is legally compliant under Kenyan law
-   */
   validateLegalCompliance(): { isValid: boolean; issues: string[] } {
     const issues: string[] = [];
 
-    if (!this.isActiveRecord) {
-      issues.push('Guardianship is not active.');
-    }
+    if (!this.isActiveRecord) issues.push('Guardianship is not active.');
+    if (this.validUntil && new Date() > this.validUntil) issues.push('Guardianship has expired.');
 
-    // Check expiry
-    if (this.validUntil && new Date() > this.validUntil) {
-      issues.push('Guardianship has expired.');
-    }
-
-    // Court-ordered guardianships must have court details
     if (this.type === 'LEGAL_GUARDIAN' && !this.metadata.courtOrderNumber) {
       issues.push('Legal guardianships require a court order number.');
     }
-
-    // Testamentary guardianships must have appointedBy (will reference)
     if (this.type === 'TESTAMENTARY' && !this.appointedBy) {
       issues.push('Testamentary guardianships require a will reference.');
     }
-
-    // Temporary guardianships must have review dates
     if (this.metadata.isTemporary && !this.metadata.reviewDate) {
       issues.push('Temporary guardianships require a review date.');
     }
 
-    return {
-      isValid: issues.length === 0,
-      issues,
-    };
+    return { isValid: issues.length === 0, issues };
   }
 
-  /**
-   * Checks if the guardianship is currently legally valid under Kenyan law
-   */
   isValid(): boolean {
     const compliance = this.validateLegalCompliance();
     return compliance.isValid && this.isActiveRecord;
   }
 
-  /**
-   * Gets the remaining duration of the guardianship in months
-   */
   getRemainingDuration(): number | null {
     if (!this.validUntil || !this.isActiveRecord) return null;
-
     const now = new Date();
     const expiry = this.validUntil;
-
     if (expiry <= now) return 0;
-
     const diffTime = Math.abs(expiry.getTime() - now.getTime());
-    const diffMonths = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30));
-
-    return diffMonths;
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30));
   }
 
   // --------------------------------------------------------------------------
-  // PRIVATE HELPERS
+  // HELPERS
   // --------------------------------------------------------------------------
 
   private validateGuardianship(guardianId: string, wardId: string, type: GuardianType): void {
-    if (guardianId === wardId) {
-      throw new Error('A member cannot be their own guardian.');
-    }
-
+    if (guardianId === wardId) throw new Error('A member cannot be their own guardian.');
     const validTypes: GuardianType[] = [
       'LEGAL_GUARDIAN',
       'FINANCIAL_GUARDIAN',
       'PROPERTY_GUARDIAN',
       'TESTAMENTARY',
     ];
-
-    if (!validTypes.includes(type)) {
-      throw new Error(`Invalid guardian type: ${type}`);
-    }
+    if (!validTypes.includes(type)) throw new Error(`Invalid guardian type: ${type}`);
   }
 
   private calculateExpiryDate(wardDateOfBirth: Date): Date {
-    // Kenyan law: Guardianship typically expires when ward turns 18
     const expiry = new Date(wardDateOfBirth);
     expiry.setFullYear(expiry.getFullYear() + 18);
     return expiry;
@@ -425,7 +379,6 @@ export class Guardianship extends AggregateRoot {
 
   getGuardianshipSummary() {
     const compliance = this.validateLegalCompliance();
-
     return {
       id: this.id,
       guardianId: this.guardianId,

@@ -51,7 +51,16 @@ export interface WitnessEventInfo {
 export interface WitnessReconstituteProps {
   id: string;
   willId: string;
-  witnessInfo: WitnessInfo;
+
+  // Flattened Identity Fields
+  userId: string | null;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  idNumber: string | null;
+  relationship: string | null;
+  address: WitnessAddress | null;
+
   status: WitnessStatus;
   signedAt: Date | string | null;
   signatureData: string | null;
@@ -230,23 +239,31 @@ export class Witness extends AggregateRoot {
    * @throws {Error} When data validation fails during reconstruction
    */
   static reconstitute(props: WitnessReconstituteProps): Witness {
-    // Validate required reconstruction data
     if (!props.id || !props.willId) {
       throw new Error('Invalid reconstruction data: missing required fields');
     }
 
-    Witness.validateWitnessInfo(props.witnessInfo);
+    // Construct WitnessInfo from flat props
+    const witnessInfo: WitnessInfo = {
+      userId: props.userId || undefined,
+      fullName: props.fullName,
+      email: props.email || undefined,
+      phone: props.phone || undefined,
+      idNumber: props.idNumber || undefined,
+      relationship: props.relationship || undefined,
+      address: props.address || undefined,
+    };
 
-    const witness = new Witness(props.id, props.willId, props.witnessInfo);
+    Witness.validateWitnessInfo(witnessInfo);
 
-    // Hydrate additional properties with type safety
+    const witness = new Witness(props.id, props.willId, witnessInfo);
+
     witness._status = props.status;
     witness._signatureData = props.signatureData || null;
     witness._verifiedBy = props.verifiedBy || null;
     witness._isEligible = Boolean(props.isEligible);
     witness._ineligibilityReason = props.ineligibilityReason || null;
 
-    // Handle date conversions safely
     witness._signedAt = props.signedAt
       ? Witness.safeDateConversion(props.signedAt, 'signedAt')
       : null;

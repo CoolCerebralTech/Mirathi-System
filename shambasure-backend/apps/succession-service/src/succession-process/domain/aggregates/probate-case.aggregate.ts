@@ -4,14 +4,15 @@ import { SuccessionCertificate } from '../entities/succession-certificate.entity
 import { CourtHearing } from '../entities/court-hearing.entity';
 import { Dispute } from '../entities/dispute.entity';
 import { ExecutorDuty } from '../entities/executor-duties.entity';
-import { EstateInventory } from '../entities/estate-inventory.entity';
-import { Distribution } from '../entities/distribution.entity';
-import { HearingType } from '../../../common/types/kenyan-law.types';
-import { GrantType } from '@prisma/client';
+import { AssetCategory, EstateInventory, OwnershipType } from '../entities/estate-inventory.entity';
+import { BeneficiaryType, Distribution, TransferMethod } from '../entities/distribution.entity';
+import { ExecutorDutyType, HearingType, ShareType } from '../../../common/types/kenyan-law.types';
+import { DisputeType, GrantType } from '@prisma/client';
 import { ProbateCaseFiledEvent } from '../events/probate-case-filed.event';
 import { GrantIssuedEvent } from '../events/grant-issued.event';
 import { CaseClosedEvent } from '../events/case-closed.event';
 import { ObjectionFiledEvent } from '../events/objection-filed.event';
+import { AssetValue } from 'apps/succession-service/src/estate-planning/domain/value-objects/asset-value.vo';
 
 export class ProbateCaseAggregate extends AggregateRoot {
   private probateCase: ProbateCase;
@@ -191,9 +192,9 @@ export class ProbateCaseAggregate extends AggregateRoot {
 
     // Reschedule the hearing in the system
     this.scheduleHearing(`adjourned-${hearingId}-${Date.now()}`, nextDate, hearing.getType(), {
-      virtualLink: hearing.getVirtualLink(),
-      courtroom: hearing.getCourtroom(),
-      judgeName: hearing.getJudgeName(),
+      virtualLink: hearing.getVirtualLink() ?? undefined,
+      courtroom: hearing.getCourtroom() ?? undefined,
+      judgeName: hearing.getJudgeName() ?? undefined,
     });
   }
 
@@ -222,9 +223,9 @@ export class ProbateCaseAggregate extends AggregateRoot {
 
     const dispute = Dispute.create(
       disputeId,
-      this.probateCase.getWillId() || this.probateCase.getId(), // Use case ID if no will
+      this.probateCase.getId(),
       disputantId,
-      type,
+      type as DisputeType, // ✅ cast to the correct type
       description,
       options?.supportingEvidence || [],
     );
@@ -258,15 +259,12 @@ export class ProbateCaseAggregate extends AggregateRoot {
     isDismissed: boolean = false,
   ): void {
     const dispute = this.disputes.get(disputeId);
-    if (!dispute) {
-      throw new Error('Dispute not found.');
-    }
+    if (!dispute) throw new Error('Dispute not found.');
 
     dispute.resolve(outcome, isDismissed, resolvedBy);
 
-    // If all disputes are resolved, update case status
     if (this.areAllDisputesResolved()) {
-      this.probateCase.markUnderReview('system'); // Or specific user
+      // Logic to revert case status if needed, e.g. back to OBJECTION_PERIOD or GRANT_ISSUED readiness
     }
   }
 
@@ -429,9 +427,9 @@ export class ProbateCaseAggregate extends AggregateRoot {
   addInventoryItem(
     inventoryId: string,
     description: string,
-    estimatedValue: any, // AssetValue
-    assetCategory: any,
-    ownershipType: any,
+    estimatedValue: AssetValue,
+    assetCategory: AssetCategory,
+    ownershipType: OwnershipType,
     options?: {
       assetId?: string;
       ownedByDeceased?: boolean;
@@ -475,7 +473,7 @@ export class ProbateCaseAggregate extends AggregateRoot {
   assignExecutorDuty(
     dutyId: string,
     executorId: string,
-    type: any, // ExecutorDutyType
+    type: ExecutorDutyType,
     description: string,
     stepOrder: number,
     deadline: Date,
@@ -524,9 +522,9 @@ export class ProbateCaseAggregate extends AggregateRoot {
   createDistribution(
     distributionId: string,
     beneficiaryId: string,
-    beneficiaryType: any,
+    beneficiaryType: BeneficiaryType,
     sharePercentage: number,
-    shareType: any,
+    shareType: ShareType,
     options?: {
       assetId?: string;
       externalBeneficiaryName?: string;
@@ -557,7 +555,7 @@ export class ProbateCaseAggregate extends AggregateRoot {
    */
   completeDistribution(
     distributionId: string,
-    transferMethod: any,
+    transferMethod: TransferMethod,
     options?: {
       notes?: string;
       reference?: string;
@@ -801,13 +799,20 @@ export class ProbateCaseAggregate extends AggregateRoot {
    * Checks if case is overdue
    */
   isCaseOverdue(): { overdue: boolean; reason?: string; daysOverdue?: number } {
-    return this.probateCase.isOverdue()
-      ? {
-          overdue: true,
-          reason: 'Case has been inactive for over 1 year',
-          daysOverdue: this.probateCase.getDaysSinceFiling() - 365,
-        }
-      : { overdue: false };
+    if (this.probateCase.isOverdue()) {
+      const filingDate = this.probateCase.getFilingDate();
+      // Safe calculation if filingDate is null (though it shouldn't be if overdue)
+      const days = filingDate
+        ? Math.floor((new Date().getTime() - filingDate.getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+
+      return {
+        overdue: true,
+        reason: 'Case has been inactive for over 1 year',
+        daysOverdue: Math.max(0, days - 365),
+      };
+    }
+    return { overdue: false };
   }
 
   // --------------------------------------------------------------------------

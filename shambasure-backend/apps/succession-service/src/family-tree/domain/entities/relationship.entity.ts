@@ -26,7 +26,7 @@ export interface RelationshipReconstitutionProps {
   fromMemberId: string;
   toMemberId: string;
   type: RelationshipType;
-  metadata?: RelationshipMetadata | string;
+  metadata?: RelationshipMetadata | string | null;
   isVerified?: boolean;
   verificationMethod?: string | null;
   createdAt: string | Date;

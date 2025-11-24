@@ -22,16 +22,16 @@ export interface DisputeProps {
   lawyerName?: string | null;
   lawyerContact?: string | null;
   mediationDetails?: {
-    mediatorName?: string;
-    mediationDate?: Date | string;
-    location?: string;
-    outcome?: string;
+    mediatorName?: string | null;
+    mediationDate?: Date | string | null;
+    location?: string | null;
+    outcome?: string | null;
   } | null;
   courtDetails?: {
-    courtName?: string;
-    judgeName?: string;
-    filingDate?: Date | string;
-    nextHearingDate?: Date | string;
+    courtName?: string | null;
+    judgeName?: string | null;
+    filingDate?: Date | string | null;
+    nextHearingDate?: Date | string | null;
   } | null;
   createdAt: Date | string;
   updatedAt: Date | string;
@@ -132,8 +132,7 @@ export class Dispute extends AggregateRoot {
       lawyerContact?: string;
     },
   ): Dispute {
-    // Validate Grounds using Value Object logic
-    const grounds = new LegalGrounds(type, description, evidenceRef);
+    const grounds = LegalGrounds.createFromDisputeType(type, description, evidenceRef);
 
     const dispute = new Dispute(id, willId, disputantId, type, grounds);
     dispute.evidenceUrls = evidenceRef;
@@ -159,18 +158,16 @@ export class Dispute extends AggregateRoot {
   }
 
   static reconstitute(props: DisputeProps): Dispute {
-    // Validate required fields
     if (!props.id || !props.willId || !props.disputantId || !props.type || !props.grounds) {
       throw new Error('Missing required properties for Dispute reconstitution');
     }
 
-    // Reconstruct LegalGrounds safely
     let grounds: LegalGrounds;
     if (props.grounds instanceof LegalGrounds) {
       grounds = props.grounds;
     } else {
-      grounds = new LegalGrounds(
-        props.type,
+      grounds = LegalGrounds.createFromString(
+        props.grounds.ground,
         props.grounds.description,
         props.grounds.supportingEvidence || [],
       );
@@ -178,7 +175,6 @@ export class Dispute extends AggregateRoot {
 
     const dispute = new Dispute(props.id, props.willId, props.disputantId, props.type, grounds);
 
-    // Safe property assignments
     dispute.status = props.status;
     dispute.caseNumber = props.caseNumber ?? null;
     dispute.lawyerName = props.lawyerName ?? null;
@@ -186,30 +182,27 @@ export class Dispute extends AggregateRoot {
     dispute.resolution = props.resolution ?? null;
     dispute.evidenceUrls = props.evidenceUrls || [];
 
-    // Safe date handling
     if (props.resolvedAt) {
       dispute.resolvedAt = new Date(props.resolvedAt);
     } else {
       dispute.resolvedAt = null;
     }
 
-    // Mediation details
     if (props.mediationDetails) {
       dispute.mediationDetails = {
-        mediatorName: props.mediationDetails.mediatorName || null,
+        mediatorName: props.mediationDetails.mediatorName ?? null,
         mediationDate: props.mediationDetails.mediationDate
           ? new Date(props.mediationDetails.mediationDate)
           : null,
-        location: props.mediationDetails.location || null,
-        outcome: props.mediationDetails.outcome || null,
+        location: props.mediationDetails.location ?? null,
+        outcome: props.mediationDetails.outcome ?? null,
       };
     }
 
-    // Court details
     if (props.courtDetails) {
       dispute.courtDetails = {
-        courtName: props.courtDetails.courtName || null,
-        judgeName: props.courtDetails.judgeName || null,
+        courtName: props.courtDetails.courtName ?? null,
+        judgeName: props.courtDetails.judgeName ?? null,
         filingDate: props.courtDetails.filingDate ? new Date(props.courtDetails.filingDate) : null,
         nextHearingDate: props.courtDetails.nextHearingDate
           ? new Date(props.courtDetails.nextHearingDate)
@@ -227,13 +220,9 @@ export class Dispute extends AggregateRoot {
   // BUSINESS LOGIC
   // --------------------------------------------------------------------------
 
-  /**
-   * Move dispute to under review status
-   */
   markUnderReview(reviewedBy: string): void {
-    if (this.status !== 'FILED') {
+    if (this.status !== 'FILED')
       throw new Error('Only filed disputes can be marked as under review.');
-    }
 
     const oldStatus = this.status;
     this.status = 'UNDER_REVIEW';
@@ -251,18 +240,14 @@ export class Dispute extends AggregateRoot {
     );
   }
 
-  /**
-   * Start mediation process (Recommended first step in Kenya)
-   */
   startMediation(
     mediatorName: string,
     mediationDate: Date,
     location: string,
     startedBy: string,
   ): void {
-    if (!['FILED', 'UNDER_REVIEW'].includes(this.status)) {
+    if (!['FILED', 'UNDER_REVIEW'].includes(this.status))
       throw new Error('Dispute must be filed or under review to start mediation.');
-    }
 
     const oldStatus = this.status;
     this.status = 'MEDIATION';
@@ -274,7 +259,6 @@ export class Dispute extends AggregateRoot {
     this.apply(
       new DisputeMediationStartedEvent(this.id, this.willId, mediatorName, mediationDate, location),
     );
-
     this.apply(
       new DisputeStatusChangedEvent(
         this.id,
@@ -287,25 +271,16 @@ export class Dispute extends AggregateRoot {
     );
   }
 
-  /**
-   * Record mediation outcome
-   */
   recordMediationOutcome(outcome: string): void {
-    if (this.status !== 'MEDIATION') {
+    if (this.status !== 'MEDIATION')
       throw new Error('Can only record outcome for disputes in mediation.');
-    }
-
     this.mediationDetails.outcome = outcome;
     this.updatedAt = new Date();
   }
 
-  /**
-   * Escalates the dispute to formal Court Proceedings
-   */
   fileInCourt(courtCaseNumber: string, courtName: string, filingDate: Date, filedBy: string): void {
-    if (this.status === 'RESOLVED' || this.status === 'DISMISSED') {
+    if (this.status === 'RESOLVED' || this.status === 'DISMISSED')
       throw new Error('Cannot escalate a closed dispute.');
-    }
 
     const oldStatus = this.status;
     this.status = 'COURT_PROCEEDING';
@@ -317,7 +292,6 @@ export class Dispute extends AggregateRoot {
     this.apply(
       new DisputeCourtFiledEvent(this.id, this.willId, courtCaseNumber, courtName, filingDate),
     );
-
     this.apply(
       new DisputeStatusChangedEvent(
         this.id,
@@ -330,22 +304,14 @@ export class Dispute extends AggregateRoot {
     );
   }
 
-  /**
-   * Update court hearing details
-   */
   updateCourtHearing(judgeName: string, nextHearingDate: Date): void {
-    if (this.status !== 'COURT_PROCEEDING') {
+    if (this.status !== 'COURT_PROCEEDING')
       throw new Error('Can only update court details for disputes in court proceedings.');
-    }
-
     this.courtDetails.judgeName = judgeName;
     this.courtDetails.nextHearingDate = nextHearingDate;
     this.updatedAt = new Date();
   }
 
-  /**
-   * Resolve the dispute (Settled or Judged)
-   */
   resolve(
     outcome: string,
     isDismissed: boolean,
@@ -353,9 +319,7 @@ export class Dispute extends AggregateRoot {
     resolutionType?: string,
     courtOrderNumber?: string,
   ): void {
-    if (this.status === 'RESOLVED' || this.status === 'DISMISSED') {
-      return; // Idempotent
-    }
+    if (this.status === 'RESOLVED' || this.status === 'DISMISSED') return;
 
     const oldStatus = this.status;
     this.status = isDismissed ? 'DISMISSED' : 'RESOLVED';
@@ -374,7 +338,6 @@ export class Dispute extends AggregateRoot {
         courtOrderNumber,
       ),
     );
-
     this.apply(
       new DisputeStatusChangedEvent(
         this.id,
@@ -387,71 +350,43 @@ export class Dispute extends AggregateRoot {
     );
   }
 
-  /**
-   * Withdraw the dispute (by the disputant)
-   */
   withdraw(reason: string, withdrawnBy: string): void {
     this.resolve(`Withdrawn by applicant: ${reason}`, true, withdrawnBy, 'WITHDRAWN');
   }
 
-  /**
-   * Add evidence to the dispute
-   */
   addEvidence(evidenceUrl: string): void {
-    if (this.status === 'RESOLVED' || this.status === 'DISMISSED') {
+    if (this.status === 'RESOLVED' || this.status === 'DISMISSED')
       throw new Error('Cannot add evidence to a closed dispute.');
-    }
-
     this.evidenceUrls.push(evidenceUrl);
     this.grounds.addSupportingEvidence(evidenceUrl);
     this.updatedAt = new Date();
   }
 
-  /**
-   * Assign legal representation
-   */
   assignLawyer(lawyerName: string, lawyerContact: string): void {
     this.lawyerName = lawyerName;
     this.lawyerContact = lawyerContact;
     this.updatedAt = new Date();
   }
 
-  // --------------------------------------------------------------------------
-  // QUERY METHODS
-  // --------------------------------------------------------------------------
-
-  /**
-   * Check if dispute is eligible for mediation
-   */
   isEligibleForMediation(): boolean {
-    const nonMediableTypes: DisputeType[] = ['FRAUD', 'FORGERY'];
+    const nonMediableTypes: DisputeType[] = ['FRAUD'];
     return !nonMediableTypes.includes(this.type) && ['FILED', 'UNDER_REVIEW'].includes(this.status);
   }
 
-  /**
-   * Check if dispute has exceeded reasonable resolution time
-   */
   isOverdue(): boolean {
     const filingDate = this.createdAt;
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
     return filingDate < sixMonthsAgo && !['RESOLVED', 'DISMISSED'].includes(this.status);
   }
 
-  /**
-   * Get days since dispute was filed
-   */
   getDaysSinceFiling(): number {
     const today = new Date();
     const diffTime = today.getTime() - this.createdAt.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
-  // --------------------------------------------------------------------------
-  // GETTERS
-  // --------------------------------------------------------------------------
-
+  // Getters
   getId(): string {
     return this.id;
   }
@@ -501,7 +436,6 @@ export class Dispute extends AggregateRoot {
     return this.updatedAt;
   }
 
-  // Method to get all properties for persistence
   getProps(): DisputeProps {
     return {
       id: this.id,

@@ -1,4 +1,5 @@
-import { Distribution, DistributionStatus, BeneficiaryType } from '../entities/distribution.entity';
+import { Distribution, BeneficiaryType } from '../entities/distribution.entity';
+import { DistributionStatus } from '@prisma/client';
 
 export interface DistributionRepositoryInterface {
   // Basic CRUD operations

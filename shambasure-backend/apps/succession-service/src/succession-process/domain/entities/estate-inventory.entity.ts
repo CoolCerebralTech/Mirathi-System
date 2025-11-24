@@ -29,7 +29,7 @@ export interface EstateInventoryProps {
   estateId: string;
   assetId?: string | null;
   description: string;
-  estimatedValue: AssetValue | { amount: number; currency: string };
+  estimatedValue: AssetValue | { amount: number; currency: string; valuationDate?: Date | string };
   assetCategory: AssetCategory;
   ownershipType: OwnershipType;
   ownedByDeceased: boolean;
@@ -40,28 +40,28 @@ export interface EstateInventoryProps {
   verificationMethod?: string | null;
   verificationNotes?: string | null;
   locationDetails?: {
-    county?: string;
-    subCounty?: string;
-    ward?: string;
-    parcelNumber?: string;
-    coordinates?: { lat: number; lng: number };
+    county?: string | null;
+    subCounty?: string | null;
+    ward?: string | null;
+    parcelNumber?: string | null;
+    coordinates?: { lat: number; lng: number } | null;
   } | null;
   identificationDetails?: {
-    registrationNumber?: string;
-    titleDeedNumber?: string;
-    accountNumber?: string;
-    serialNumber?: string;
+    registrationNumber?: string | null;
+    titleDeedNumber?: string | null;
+    accountNumber?: string | null;
+    serialNumber?: string | null;
   } | null;
   disputeDetails?: {
-    reason?: string;
-    disputedBy?: string;
-    disputeDate?: Date | string;
-    evidence?: string[];
+    reason?: string | null;
+    disputedBy?: string | null;
+    disputeDate?: Date | string | null;
+    evidence?: string[] | null;
   } | null;
   removalDetails?: {
-    reason?: string;
-    removedBy?: string;
-    removalDate?: Date | string;
+    reason?: string | null;
+    removedBy?: string | null;
+    removalDate?: Date | string | null;
   } | null;
   createdAt: Date | string;
   updatedAt: Date | string;
@@ -253,7 +253,6 @@ export class EstateInventory extends AggregateRoot {
   }
 
   static reconstitute(props: EstateInventoryProps): EstateInventory {
-    // Validate required fields
     if (
       !props.id ||
       !props.estateId ||
@@ -265,14 +264,16 @@ export class EstateInventory extends AggregateRoot {
       throw new Error('Missing required properties for EstateInventory reconstitution');
     }
 
-    // Reconstruct AssetValue safely
     let estimatedValue: AssetValue;
     if (props.estimatedValue instanceof AssetValue) {
       estimatedValue = props.estimatedValue;
     } else {
-      estimatedValue = new AssetValue(
-        Number(props.estimatedValue.amount),
+      estimatedValue = AssetValue.create(
+        props.estimatedValue.amount,
         props.estimatedValue.currency || 'KES',
+        props.estimatedValue.valuationDate
+          ? new Date(props.estimatedValue.valuationDate)
+          : new Date(),
       );
     }
 
@@ -286,36 +287,33 @@ export class EstateInventory extends AggregateRoot {
       props.ownedByDeceased,
     );
 
-    // Safe property assignments
     item.assetId = props.assetId ?? null;
     item.status = props.status;
     item.isVerified = props.isVerified;
-
-    // Safe date handling
-    if (props.verifiedAt) {
-      item.verifiedAt = new Date(props.verifiedAt);
-    } else {
-      item.verifiedAt = null;
-    }
-
+    item.verifiedAt = props.verifiedAt ? new Date(props.verifiedAt) : null;
     item.verifiedBy = props.verifiedBy ?? null;
     item.verificationMethod = props.verificationMethod ?? null;
     item.verificationNotes = props.verificationNotes ?? null;
 
-    // Location details
     if (props.locationDetails) {
-      item.locationDetails = { ...item.locationDetails, ...props.locationDetails };
-    }
-
-    // Identification details
-    if (props.identificationDetails) {
-      item.identificationDetails = {
-        ...item.identificationDetails,
-        ...props.identificationDetails,
+      item.locationDetails = {
+        county: props.locationDetails.county ?? null,
+        subCounty: props.locationDetails.subCounty ?? null,
+        ward: props.locationDetails.ward ?? null,
+        parcelNumber: props.locationDetails.parcelNumber ?? null,
+        coordinates: props.locationDetails.coordinates ?? null,
       };
     }
 
-    // Dispute details
+    if (props.identificationDetails) {
+      item.identificationDetails = {
+        registrationNumber: props.identificationDetails.registrationNumber ?? null,
+        titleDeedNumber: props.identificationDetails.titleDeedNumber ?? null,
+        accountNumber: props.identificationDetails.accountNumber ?? null,
+        serialNumber: props.identificationDetails.serialNumber ?? null,
+      };
+    }
+
     if (props.disputeDetails) {
       item.disputeDetails = {
         reason: props.disputeDetails.reason ?? null,
@@ -327,7 +325,6 @@ export class EstateInventory extends AggregateRoot {
       };
     }
 
-    // Removal details
     if (props.removalDetails) {
       item.removalDetails = {
         reason: props.removalDetails.reason ?? null,
@@ -477,7 +474,7 @@ export class EstateInventory extends AggregateRoot {
   /**
    * Resolves dispute and returns to verified status
    */
-  resolveDispute(resolution: string, resolvedBy: string): void {
+  resolveDispute(resolution: string): void {
     if (this.status !== 'DISPUTED') {
       throw new Error('Can only resolve disputed inventory items.');
     }
@@ -515,16 +512,13 @@ export class EstateInventory extends AggregateRoot {
   /**
    * Updates location details for physical assets
    */
-  updateLocationDetails(
-    location: {
-      county?: string;
-      subCounty?: string;
-      ward?: string;
-      parcelNumber?: string;
-      coordinates?: { lat: number; lng: number };
-    },
-    updatedBy: string,
-  ): void {
+  updateLocationDetails(location: {
+    county?: string;
+    subCounty?: string;
+    ward?: string;
+    parcelNumber?: string;
+    coordinates?: { lat: number; lng: number };
+  }): void {
     if (this.status === 'REMOVED') {
       throw new Error('Cannot update location of a removed inventory item.');
     }
@@ -593,10 +587,11 @@ export class EstateInventory extends AggregateRoot {
   }
 
   /**
-   * Gets the full location description for legal documents
+   * Gets the full location description for legal documents - FIXED: Type safety
    */
   getFormalLocation(): string {
-    const parts = [];
+    const parts: string[] = [];
+
     if (this.locationDetails.county) parts.push(this.locationDetails.county);
     if (this.locationDetails.subCounty) parts.push(this.locationDetails.subCounty);
     if (this.locationDetails.ward) parts.push(this.locationDetails.ward);
@@ -696,7 +691,11 @@ export class EstateInventory extends AggregateRoot {
       estateId: this.estateId,
       assetId: this.assetId,
       description: this.description,
-      estimatedValue: this.estimatedValue,
+      estimatedValue: {
+        amount: this.estimatedValue.getAmount(),
+        currency: this.estimatedValue.getCurrency(),
+        valuationDate: this.estimatedValue.getValuationDate(),
+      }, // FIXED: Convert to plain object
       assetCategory: this.assetCategory,
       ownershipType: this.ownershipType,
       ownedByDeceased: this.ownedByDeceased,

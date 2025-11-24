@@ -10,7 +10,7 @@ export interface CustomaryMarriageDetails {
   bridePriceCurrency?: string;
   elderWitnesses: string[];
   ceremonyLocation: string;
-  traditionalCeremonyType?: string; // e.g., 'Kikuyu', 'Luo', 'Kalenjin'
+  traditionalCeremonyType?: string;
   lobolaReceiptNumber?: string;
   marriageElderContact?: string;
 }
@@ -28,10 +28,10 @@ export interface MarriageReconstitutionProps {
   isActive: boolean;
   createdAt: string | Date;
   updatedAt: string | Date;
-  customaryMarriageDetails?: CustomaryMarriageDetails;
-  marriageRegistrationNumber?: string;
-  marriageOfficer?: string;
-  marriageLocation?: string;
+  customaryMarriageDetails?: CustomaryMarriageDetails | null;
+  marriageRegistrationNumber?: string | null;
+  marriageOfficer?: string | null;
+  marriageLocation?: string | null;
 }
 
 export class Marriage extends AggregateRoot {
@@ -64,9 +64,7 @@ export class Marriage extends AggregateRoot {
   ) {
     super();
 
-    if (spouse1Id === spouse2Id) {
-      throw new Error('Cannot marry oneself.');
-    }
+    if (spouse1Id === spouse2Id) throw new Error('Cannot marry oneself.');
 
     this.id = id;
     this.familyId = familyId;
@@ -75,7 +73,6 @@ export class Marriage extends AggregateRoot {
     this.marriageType = marriageType;
     this.marriageDate = marriageDate;
 
-    // Defaults
     this.certificateNumber = null;
     this.divorceDate = null;
     this.divorceCertNumber = null;
@@ -107,14 +104,11 @@ export class Marriage extends AggregateRoot {
       customaryMarriageDetails?: CustomaryMarriageDetails;
     },
   ): Marriage {
-    // Validate marriage type for Kenyan law
     if (!this.isValidMarriageType(type)) {
       throw new Error(`Invalid marriage type for Kenyan law: ${type}`);
     }
 
-    if (date > new Date()) {
-      throw new Error('Marriage date cannot be in the future.');
-    }
+    if (date > new Date()) throw new Error('Marriage date cannot be in the future.');
 
     const marriage = new Marriage(id, familyId, spouse1Id, spouse2Id, type, date);
 
@@ -126,18 +120,8 @@ export class Marriage extends AggregateRoot {
     if (details?.customaryMarriageDetails)
       marriage.customaryMarriageDetails = details.customaryMarriageDetails;
 
-    marriage.apply(
-      new MarriageRegisteredEvent(
-        id,
-        familyId,
-        spouse1Id,
-        spouse2Id,
-        type,
-        date, // marriageDate
-      ),
-    );
+    marriage.apply(new MarriageRegisteredEvent(id, familyId, spouse1Id, spouse2Id, type, date));
 
-    // If there are customary details, emit separate event
     if (details?.customaryMarriageDetails) {
       marriage.apply(
         new CustomaryMarriageDetailsUpdatedEvent(id, familyId, details.customaryMarriageDetails),
@@ -173,7 +157,6 @@ export class Marriage extends AggregateRoot {
     marriage.updatedAt =
       props.updatedAt instanceof Date ? props.updatedAt : new Date(props.updatedAt);
 
-    // Kenyan marriage details
     marriage.customaryMarriageDetails = props.customaryMarriageDetails || null;
     marriage.marriageRegistrationNumber = props.marriageRegistrationNumber || null;
     marriage.marriageOfficer = props.marriageOfficer || null;
@@ -183,28 +166,18 @@ export class Marriage extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // BUSINESS LOGIC - KENYAN MARRIAGE LAW FOCUSED
+  // BUSINESS LOGIC
   // --------------------------------------------------------------------------
 
-  /**
-   * Dissolves the marriage according to Kenyan law requirements
-   */
   dissolve(
     date: Date,
     certificateNumber: string,
     dissolutionType: 'DIVORCE' | 'ANNULMENT' | 'DEATH' = 'DIVORCE',
   ): void {
-    if (!this.isActive) {
-      throw new Error('Marriage is already inactive/dissolved.');
-    }
-
-    if (date < this.marriageDate) {
+    if (!this.isActive) throw new Error('Marriage is already inactive/dissolved.');
+    if (date < this.marriageDate)
       throw new Error('Dissolution date cannot be before marriage date.');
-    }
-
-    if (date > new Date()) {
-      throw new Error('Dissolution date cannot be in the future.');
-    }
+    if (date > new Date()) throw new Error('Dissolution date cannot be in the future.');
 
     this.isActive = false;
     this.divorceDate = date;
@@ -223,122 +196,70 @@ export class Marriage extends AggregateRoot {
     );
   }
 
-  /**
-   * Updates certificate details for marriage registration
-   */
   registerCertificate(certNumber: string, registrationNumber?: string): void {
     this.certificateNumber = certNumber;
-    if (registrationNumber) {
-      this.marriageRegistrationNumber = registrationNumber;
-    }
+    if (registrationNumber) this.marriageRegistrationNumber = registrationNumber;
     this.updatedAt = new Date();
   }
 
-  /**
-   * Updates customary marriage details - important for Kenyan traditional marriages
-   */
   updateCustomaryMarriageDetails(details: CustomaryMarriageDetails): void {
     if (this.marriageType !== 'CUSTOMARY_MARRIAGE') {
       throw new Error('Customary marriage details can only be set for customary marriages.');
     }
-
     this.customaryMarriageDetails = details;
     this.updatedAt = new Date();
-
     this.apply(new CustomaryMarriageDetailsUpdatedEvent(this.id, this.familyId, details));
   }
 
-  /**
-   * Validates if this marriage is legally recognized under Kenyan law
-   */
   isValidUnderKenyanLaw(): { isValid: boolean; reasons: string[] } {
     const reasons: string[] = [];
+    if (!this.isActive) reasons.push('Marriage must be active to be valid.');
+    if (this.marriageDate > new Date()) reasons.push('Marriage date cannot be in the future.');
 
-    if (!this.isActive) {
-      reasons.push('Marriage must be active to be valid.');
-    }
-
-    if (this.marriageDate > new Date()) {
-      reasons.push('Marriage date cannot be in the future.');
-    }
-
-    // Customary marriage validation
     if (this.marriageType === 'CUSTOMARY_MARRIAGE') {
       if (!this.customaryMarriageDetails) {
         reasons.push('Customary marriages require customary marriage details.');
       } else {
-        if (
-          !this.customaryMarriageDetails.elderWitnesses ||
-          this.customaryMarriageDetails.elderWitnesses.length === 0
-        ) {
+        if (!this.customaryMarriageDetails.elderWitnesses?.length)
           reasons.push('Customary marriages require elder witnesses.');
-        }
-        if (!this.customaryMarriageDetails.ceremonyLocation) {
+        if (!this.customaryMarriageDetails.ceremonyLocation)
           reasons.push('Customary marriages require a ceremony location.');
-        }
       }
     }
 
-    // Civil marriage validation
     if (this.marriageType === 'CIVIL_UNION' && !this.certificateNumber) {
       reasons.push('Civil unions require a certificate number.');
     }
 
-    return {
-      isValid: reasons.length === 0,
-      reasons,
-    };
+    return { isValid: reasons.length === 0, reasons };
   }
 
-  /**
-   * Gets the duration of the marriage in years
-   */
   getMarriageDuration(): number | null {
     const endDate = this.divorceDate || (this.isActive ? new Date() : null);
     if (!endDate) return null;
 
     const start = this.marriageDate;
     const end = endDate;
-
     let years = end.getFullYear() - start.getFullYear();
     const monthDiff = end.getMonth() - start.getMonth();
 
     if (monthDiff < 0 || (monthDiff === 0 && end.getDate() < start.getDate())) {
       years--;
     }
-
     return Math.max(0, years);
   }
 
-  // --------------------------------------------------------------------------
-  // DOMAIN RULES / HELPERS - KENYAN LAW COMPLIANCE
-  // --------------------------------------------------------------------------
-
-  /**
-   * Checks if this marriage regime allows polygamy under Kenyan law
-   */
   allowsPolygamy(): boolean {
-    // Under Kenyan law, only customary and Islamic marriages allow polygamy
-    const polygamousTypes: MarriageStatus[] = [
-      'CUSTOMARY_MARRIAGE',
-      // Note: If ISLAMIC marriage is added to the enum, include it here
-    ];
-
+    const polygamousTypes: MarriageStatus[] = ['CUSTOMARY_MARRIAGE'];
     return polygamousTypes.includes(this.marriageType);
   }
 
-  /**
-   * Returns the ID of the spouse of the given member ID in this marriage
-   */
   getPartnerId(memberId: string): string | null {
     if (memberId === this.spouse1Id) return this.spouse2Id;
     if (memberId === this.spouse2Id) return this.spouse1Id;
     return null;
   }
 
-  /**
-   * Validates if a member can enter this marriage (polygamy checks, etc.)
-   */
   canMemberMarry(memberId: string): { canMarry: boolean; reason?: string } {
     if (!this.allowsPolygamy() && this.isActive) {
       return {
@@ -346,36 +267,18 @@ export class Marriage extends AggregateRoot {
         reason: 'This marriage type does not allow polygamy and marriage is still active.',
       };
     }
-
-    // Check if member is already in this marriage
     if (memberId === this.spouse1Id || memberId === this.spouse2Id) {
-      return {
-        canMarry: false,
-        reason: 'Member is already part of this marriage.',
-      };
+      return { canMarry: false, reason: 'Member is already part of this marriage.' };
     }
-
     return { canMarry: true };
   }
 
-  // --------------------------------------------------------------------------
-  // PRIVATE HELPERS
-  // --------------------------------------------------------------------------
-
   private static isValidMarriageType(type: MarriageStatus): boolean {
-    const validTypes: MarriageStatus[] = [
-      'CUSTOMARY_MARRIAGE',
-      'CIVIL_UNION',
-      'MARRIED', // Assuming this covers Christian/church marriages
-    ];
-
+    const validTypes: MarriageStatus[] = ['CUSTOMARY_MARRIAGE', 'CIVIL_UNION', 'MARRIED'];
     return validTypes.includes(type);
   }
 
-  // --------------------------------------------------------------------------
-  // GETTERS
-  // --------------------------------------------------------------------------
-
+  // Getters
   getId(): string {
     return this.id;
   }

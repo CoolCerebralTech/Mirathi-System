@@ -23,7 +23,6 @@ export interface DistributionResult {
 @Injectable()
 export class IntestateSuccessionPolicy {
   private readonly MAJORITY_AGE = 18;
-  private readonly SPOUSE_LIFE_INTEREST_AGE = 18; // Until youngest child reaches 18
 
   /**
    * Calculates shares based on Kenyan Intestacy Rules (Part V, Law of Succession Act)
@@ -76,7 +75,7 @@ export class IntestateSuccessionPolicy {
         distributions.push(...this.calculateChildrenOnlyShares(unit));
       } else {
         // Section 39: No Spouse or Children
-        distributions.push(...this.calculateExtendedFamilyShares(units));
+        distributions.push(...this.calculateExtendedFamilyShares());
       }
     }
 
@@ -130,7 +129,7 @@ export class IntestateSuccessionPolicy {
             beneficiaryId: house.spouseId,
             beneficiaryName: house.spouseName,
             sharePercentage: 0, // Special handling for personal effects
-            shareType: 'ABSOLUTE_INTEREST',
+            shareType: 'PERSONAL_EFFECTS',
             relationship: 'SPOUSE',
             notes: `Equal share of personal effects (KES ${(personalEffectsValue / spouseCount).toLocaleString()})`,
           });
@@ -153,13 +152,13 @@ export class IntestateSuccessionPolicy {
         });
       }
 
-      // Children's shares (absolute interest, deferred if minors)
+      // Children's shares (absolute interest, contingent if minors)
       house.childrenIds.forEach((childId) => {
         const age = house.childrenAges[childId] || 0;
         distributions.push({
           beneficiaryId: childId,
           sharePercentage: percentagePerUnit,
-          shareType: age < this.MAJORITY_AGE ? 'DEFERRED_ABSOLUTE_INTEREST' : 'ABSOLUTE_INTEREST',
+          shareType: age < this.MAJORITY_AGE ? 'CONTINGENT_INTEREST' : 'ABSOLUTE_INTEREST',
           relationship: 'CHILD',
           conditions: age < this.MAJORITY_AGE ? [`Vesting at age ${this.MAJORITY_AGE}`] : undefined,
           notes: `Polygamous child share (${percentagePerUnit.toFixed(2)}%)`,
@@ -192,7 +191,7 @@ export class IntestateSuccessionPolicy {
         beneficiaryId: unit.spouseId,
         beneficiaryName: unit.spouseName,
         sharePercentage: 0, // Special handling
-        shareType: 'ABSOLUTE_INTEREST',
+        shareType: 'PERSONAL_EFFECTS',
         relationship: 'SPOUSE',
         notes: `Personal effects (KES ${personalEffectsValue.toLocaleString()})`,
       });
@@ -214,7 +213,7 @@ export class IntestateSuccessionPolicy {
       });
     }
 
-    // Children get absolute interest in residue (deferred if minors)
+    // Children get absolute interest in residue (contingent if minors)
     unit.childrenIds.forEach((childId) => {
       const age = unit.childrenAges[childId] || 0;
       const share = 100 / unit.childrenIds.length;
@@ -222,7 +221,7 @@ export class IntestateSuccessionPolicy {
       distributions.push({
         beneficiaryId: childId,
         sharePercentage: share,
-        shareType: age < this.MAJORITY_AGE ? 'DEFERRED_ABSOLUTE_INTEREST' : 'ABSOLUTE_INTEREST',
+        shareType: age < this.MAJORITY_AGE ? 'CONTINGENT_INTEREST' : 'ABSOLUTE_INTEREST',
         relationship: 'CHILD',
         conditions: age < this.MAJORITY_AGE ? [`Vesting at age ${this.MAJORITY_AGE}`] : undefined,
         notes: `Child's absolute share (${share.toFixed(2)}%)`,
@@ -262,7 +261,7 @@ export class IntestateSuccessionPolicy {
       return {
         beneficiaryId: childId,
         sharePercentage: share,
-        shareType: age < this.MAJORITY_AGE ? 'DEFERRED_ABSOLUTE_INTEREST' : 'ABSOLUTE_INTEREST',
+        shareType: age < this.MAJORITY_AGE ? 'CONTINGENT_INTEREST' : 'ABSOLUTE_INTEREST',
         relationship: 'CHILD',
         conditions: age < this.MAJORITY_AGE ? [`Vesting at age ${this.MAJORITY_AGE}`] : undefined,
         notes: `Equal child share (${share.toFixed(2)}%)`,
@@ -273,7 +272,7 @@ export class IntestateSuccessionPolicy {
   /**
    * Extended family shares (Section 39)
    */
-  private calculateExtendedFamilyShares(units: FamilyUnit[]): DistributionResult[] {
+  private calculateExtendedFamilyShares(): DistributionResult[] {
     // This would involve more complex family tree analysis
     // For now, return empty with note
     return [
@@ -297,7 +296,7 @@ export class IntestateSuccessionPolicy {
     const issues: string[] = [];
     const recommendations: string[] = [];
 
-    const { hasSpouse, childCount, isPolygamous } = familyStructure;
+    const { hasSpouse, childCount } = familyStructure;
 
     // Check total shares
     const totalShares = distributions.reduce((sum, dist) => sum + dist.sharePercentage, 0);
@@ -344,5 +343,46 @@ export class IntestateSuccessionPolicy {
       issues,
       recommendations,
     };
+  }
+
+  /**
+   * Calculates maintenance amounts for dependants during administration
+   */
+  calculateDependantMaintenance(
+    distributions: DistributionResult[],
+    estateValue: number,
+    dependants: { id: string; age: number; relationship: string; needs: string[] }[],
+  ): { dependantId: string; monthlyAmount: number; durationMonths: number }[] {
+    const maintenance: { dependantId: string; monthlyAmount: number; durationMonths: number }[] =
+      [];
+
+    dependants.forEach((dependant) => {
+      if (dependant.age < this.MAJORITY_AGE) {
+        // Calculate maintenance until majority
+        const yearsUntilMajority = this.MAJORITY_AGE - dependant.age;
+        const monthlyAmount = this.calculateMonthlyMaintenance(estateValue, dependant.needs);
+
+        maintenance.push({
+          dependantId: dependant.id,
+          monthlyAmount,
+          durationMonths: yearsUntilMajority * 12,
+        });
+      }
+    });
+
+    return maintenance;
+  }
+
+  private calculateMonthlyMaintenance(estateValue: number, needs: string[]): number {
+    const baseAmount = estateValue * 0.01; // 1% of estate value as annual maintenance
+    const monthlyBase = baseAmount / 12;
+
+    // Adjust for special needs
+    let adjustment = 1.0;
+    if (needs.includes('MEDICAL')) adjustment += 0.5;
+    if (needs.includes('EDUCATION')) adjustment += 0.3;
+    if (needs.includes('SPECIAL_CARE')) adjustment += 0.7;
+
+    return Math.min(monthlyBase * adjustment, 100000); // Cap at KES 100,000 per month
   }
 }

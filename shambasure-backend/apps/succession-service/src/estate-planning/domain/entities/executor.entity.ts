@@ -47,7 +47,16 @@ export interface AssetValueData {
 export interface ExecutorReconstituteProps {
   id: string;
   willId: string;
-  executorInfo: ExecutorInfo;
+
+  // Identity fields flattened
+  userId: string | null;
+  fullName: string | null;
+  email: string | null;
+  phone: string | null;
+  relationship: string | null;
+  // Address is usually a JSON field in Prisma or separate columns; assuming JSON or absent for now
+  address?: ExecutorContactInfo;
+
   isPrimary: boolean;
   orderOfPriority: number;
   status: ExecutorStatus;
@@ -238,27 +247,34 @@ export class Executor extends AggregateRoot {
    * @throws {Error} When data validation fails during reconstruction
    */
   static reconstitute(props: ExecutorReconstituteProps): Executor {
-    // Validate required reconstruction data
     if (!props.id || !props.willId) {
       throw new Error('Invalid reconstruction data: missing required fields');
     }
 
-    Executor.validateExecutorInfo(props.executorInfo);
+    // Construct identity from flat props
+    const executorInfo: ExecutorInfo = {
+      userId: props.userId || undefined,
+      fullName: props.fullName || undefined,
+      email: props.email || undefined,
+      phone: props.phone || undefined,
+      relationship: props.relationship || undefined,
+      address: props.address,
+    };
+
+    Executor.validateExecutorInfo(executorInfo);
 
     const executor = new Executor(
       props.id,
       props.willId,
-      props.executorInfo,
+      executorInfo,
       props.isPrimary,
       props.orderOfPriority,
     );
 
-    // Hydrate additional properties with type safety
     executor._status = props.status;
     executor._isCompensated = Boolean(props.isCompensated);
     executor._declineReason = props.declineReason || null;
 
-    // Handle date conversions safely
     executor._appointedAt = props.appointedAt
       ? Executor.safeDateConversion(props.appointedAt, 'appointedAt')
       : null;
@@ -271,7 +287,6 @@ export class Executor extends AggregateRoot {
     executor._createdAt = Executor.safeDateConversion(props.createdAt, 'createdAt');
     executor._updatedAt = Executor.safeDateConversion(props.updatedAt, 'updatedAt');
 
-    // Handle AssetValue reconstruction if provided
     if (props.compensationAmount) {
       executor._compensationAmount = Executor.reconstructAssetValue(props.compensationAmount);
     }

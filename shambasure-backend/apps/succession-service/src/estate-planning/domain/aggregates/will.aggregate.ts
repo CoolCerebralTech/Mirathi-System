@@ -626,12 +626,11 @@ export class WillAggregate extends AggregateRoot {
 
         // Check for family member ID match
         if (
-          witnessInfo.userId && // Assuming witness user ID could match family member user ID
+          witnessInfo.userId &&
           beneficiaryIdentity.familyMemberId &&
           witnessInfo.userId === beneficiaryIdentity.familyMemberId
-        ) {
+        )
           return true;
-        }
 
         // Check for external name match (case-insensitive)
         if (

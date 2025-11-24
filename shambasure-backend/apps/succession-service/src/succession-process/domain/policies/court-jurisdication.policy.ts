@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { EstateValuation } from '../value-objects/estate-valuation.vo';
 import { KenyanCourtJurisdiction, CourtLevel } from '../value-objects/kenyan-court-jurisdiction.vo';
-import { COURT_JURISDICTION } from '../../../common/constants/court-jurisdiction.constants';
+import { COURT_LOCATIONS } from '../../../common/constants/court-jurisdiction.constants';
 
 @Injectable()
 export class CourtJurisdictionPolicy {
@@ -19,8 +19,7 @@ export class CourtJurisdictionPolicy {
       estateType?: 'TESTATE' | 'INTESTATE';
     },
   ): { jurisdiction: KenyanCourtJurisdiction; reason: string } {
-    const { isIslamic, county, preferredStation, hasComplexIssues, involvesMinors, estateType } =
-      options;
+    const { isIslamic, county, preferredStation, hasComplexIssues, involvesMinors } = options;
 
     let level: CourtLevel;
     let reason = '';
@@ -39,18 +38,22 @@ export class CourtJurisdictionPolicy {
     else {
       const netValue = valuation.getNetAmount();
 
-      if (netValue >= COURT_JURISDICTION.HIGH_COURT.minJurisdiction) {
-        level = 'HIGH_COURT';
-        reason = `Estate value (KES ${netValue.toLocaleString()}) exceeds magistrate court jurisdiction`;
-      } else if (netValue >= COURT_JURISDICTION.CHIEF_MAGISTRATE.minJurisdiction) {
-        level = 'CHIEF_MAGISTRATE';
-        reason = `Estate value (KES ${netValue.toLocaleString()}) within chief magistrate jurisdiction`;
-      } else if (netValue >= COURT_JURISDICTION.PRINCIPAL_MAGISTRATE.minJurisdiction) {
-        level = 'PRINCIPAL_MAGISTRATE';
-        reason = `Estate value (KES ${netValue.toLocaleString()}) within principal magistrate jurisdiction`;
-      } else {
+      if (netValue <= 7000000) {
+        // SENIOR_MAGISTRATE range
         level = 'SENIOR_MAGISTRATE';
         reason = `Estate value (KES ${netValue.toLocaleString()}) within senior magistrate jurisdiction`;
+      } else if (netValue <= 10000000) {
+        // PRINCIPAL_MAGISTRATE range
+        level = 'PRINCIPAL_MAGISTRATE';
+        reason = `Estate value (KES ${netValue.toLocaleString()}) within principal magistrate jurisdiction`;
+      } else if (netValue <= 20000000) {
+        // CHIEF_MAGISTRATE range
+        level = 'CHIEF_MAGISTRATE';
+        reason = `Estate value (KES ${netValue.toLocaleString()}) within chief magistrate jurisdiction`;
+      } else {
+        // HIGH_COURT range
+        level = 'HIGH_COURT';
+        reason = `Estate value (KES ${netValue.toLocaleString()}) exceeds magistrate court jurisdiction`;
       }
     }
 
@@ -78,8 +81,8 @@ export class CourtJurisdictionPolicy {
     const courtLevel = court.getLevel();
 
     // 1. Islamic estate validation
-    if (options.isIslamic && !court.isCompetentForIslamicEstate()) {
-      errors.push('Islamic estates must be filed in Kadhis Court or High Court');
+    if (options.isIslamic && courtLevel !== 'KADHIS_COURT') {
+      errors.push('Islamic estates must be filed in Kadhis Court');
     }
 
     // 2. Pecuniary jurisdiction validation
@@ -90,14 +93,14 @@ export class CourtJurisdictionPolicy {
     }
 
     // 3. Complex issues warning
-    if (options.hasComplexIssues && courtLevel !== 'HIGH_COURT') {
+    if (options.hasComplexIssues && !this.isHighCourtOrCapableMagistrate(courtLevel)) {
       warnings.push(
         'Complex estates are recommended to be filed in High Court for better supervision',
       );
     }
 
     // 4. High Court transfer warning for small estates
-    if (courtLevel === 'HIGH_COURT' && netValue < COURT_JURISDICTION.HIGH_COURT.minJurisdiction) {
+    if (courtLevel === 'HIGH_COURT' && netValue < 5000000) {
       warnings.push('Small estates filed in High Court may be transferred to magistrate court');
     }
 
@@ -124,6 +127,11 @@ export class CourtJurisdictionPolicy {
       return { transfer: false };
     }
 
+    // Kadhis Court handles only Islamic matters - no transfer based on value
+    if (currentLevel === 'KADHIS_COURT') {
+      return { transfer: false };
+    }
+
     // Check if value exceeds current court jurisdiction
     if (!currentCourt.canHandleEstateValue(netValue)) {
       const recommendedLevel = this.determineJurisdiction(valuation, {
@@ -144,7 +152,8 @@ export class CourtJurisdictionPolicy {
     }
 
     // Check complexity for transfer to High Court
-    if (caseComplexity === 'COMPLEX' && currentLevel !== 'HIGH_COURT') {
+    // Fixed: Only check if currentLevel is not HIGH_COURT (which we already handled above)
+    if (caseComplexity === 'COMPLEX' && this.isMagistrateCourt(currentLevel)) {
       return {
         transfer: true,
         recommendedCourt: new KenyanCourtJurisdiction(
@@ -159,10 +168,60 @@ export class CourtJurisdictionPolicy {
     return { transfer: false };
   }
 
+  /**
+   * Gets available court stations for a given county and court level
+   */
+  getAvailableStations(county: string, courtLevel: CourtLevel): string[] {
+    const countyKey = county.toUpperCase() as keyof typeof COURT_LOCATIONS;
+    const countyLocations = COURT_LOCATIONS[countyKey];
+
+    if (!countyLocations) {
+      // Fallback to default locations from COURT_JURISDICTION
+      return this.getDefaultStationsForCourtLevel(courtLevel);
+    }
+
+    const stationMap: Record<CourtLevel, string> = {
+      HIGH_COURT: 'highCourt',
+      CHIEF_MAGISTRATE: 'chiefMagistrate',
+      PRINCIPAL_MAGISTRATE: 'principalMagistrate',
+      SENIOR_MAGISTRATE: 'seniorMagistrate',
+      KADHIS_COURT: 'kadhisCourt',
+    };
+
+    const stationKey = stationMap[courtLevel] as keyof typeof countyLocations;
+    const station = countyLocations[stationKey];
+
+    return station ? [station as string] : this.getDefaultStationsForCourtLevel(courtLevel);
+  }
+
   private isHighComplexityEstate(valuation: EstateValuation): boolean {
     const netValue = valuation.getNetAmount();
     // Estates over 50M KES or with complex asset structures
     return netValue > 50000000 || valuation.getGrossAmount() - netValue > netValue * 0.3;
+  }
+
+  private isHighCourtOrCapableMagistrate(level: CourtLevel): boolean {
+    return level === 'HIGH_COURT' || level === 'CHIEF_MAGISTRATE';
+  }
+
+  private isMagistrateCourt(level: CourtLevel): boolean {
+    return (
+      level === 'CHIEF_MAGISTRATE' ||
+      level === 'PRINCIPAL_MAGISTRATE' ||
+      level === 'SENIOR_MAGISTRATE'
+    );
+  }
+
+  private getDefaultStationsForCourtLevel(courtLevel: CourtLevel): string[] {
+    const defaultStations: Record<CourtLevel, string[]> = {
+      HIGH_COURT: ['Milimani', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret'],
+      CHIEF_MAGISTRATE: ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret'],
+      PRINCIPAL_MAGISTRATE: ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret'],
+      SENIOR_MAGISTRATE: ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret'],
+      KADHIS_COURT: ['Nairobi', 'Mombasa', 'Malindi', 'Garissa', 'Isiolo'],
+    };
+
+    return defaultStations[courtLevel];
   }
 
   private getDefaultStationForCounty(county: string): string {

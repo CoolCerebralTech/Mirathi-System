@@ -74,12 +74,10 @@ export class FamilyMember extends AggregateRoot {
   private middleName?: string;
   private lastName: string;
 
-  // dateOfBirth is always a Date internally (guaranteed). If unknown, defaults to epoch (1970-01-01).
+  // dateOfBirth is always a Date internally. Defaults to epoch (1970-01-01) if unknown.
   private dateOfBirth: Date;
 
-  // dateOfDeath may be null when alive
   private dateOfDeath: Date | null;
-
   private isDeceased: boolean;
   private isMinor: boolean;
   private gender: 'MALE' | 'FEMALE' | 'OTHER';
@@ -112,13 +110,8 @@ export class FamilyMember extends AggregateRoot {
     this.addedBy = addedBy;
     this.gender = gender;
 
-    // Defaults
     this.userId = null;
-
-    // Ensure internal invariants: dateOfBirth always a Date object (never null/undefined)
-    // If the caller doesn't provide a DOB, we use epoch (1970-01-01) as a sentinel.
-    // NOTE: prefer callers to pass a real DOB. This avoids TS type mismatch with events.
-    this.dateOfBirth = dateOfBirth ?? new Date(0);
+    this.dateOfBirth = dateOfBirth ?? new Date(0); // Epoch fallback
 
     this.dateOfDeath = null;
     this.isDeceased = false;
@@ -129,7 +122,6 @@ export class FamilyMember extends AggregateRoot {
     this.updatedAt = new Date();
     this.deletedAt = null;
 
-    // Kenyan-specific defaults
     this.kenyanIdentification = {};
     this.metadata = {
       isFamilyHead: false,
@@ -137,7 +129,7 @@ export class FamilyMember extends AggregateRoot {
       dependencyStatus: 'INDEPENDENT',
     };
 
-    // derive minor status at creation
+    // If creating fresh, calculate based on provided DOB
     this.recalculateMinorStatus();
   }
 
@@ -176,7 +168,7 @@ export class FamilyMember extends AggregateRoot {
       role,
       addedBy,
       details?.gender || 'OTHER',
-      details?.dateOfBirth, // may be undefined => constructor uses epoch fallback
+      details?.dateOfBirth,
     );
 
     if (details?.userId) member.userId = details.userId;
@@ -188,11 +180,8 @@ export class FamilyMember extends AggregateRoot {
 
     if (details?.isDeceased) {
       member.isDeceased = true;
-      // dateOfDeath should be set via markAsDeceased when available; leave null otherwise
     }
 
-    // Emit event with strongly-typed Date fields.
-    // Map internal 'OTHER' gender to undefined for event (event expects optional MALE|FEMALE).
     member.apply(
       new FamilyMemberAddedEvent(member.familyId, {
         memberId: member.id,
@@ -219,7 +208,6 @@ export class FamilyMember extends AggregateRoot {
       props.role,
       props.addedBy,
       props.gender || 'OTHER',
-      // normalize incoming dateOfBirth string|Date|null -> Date or epoch fallback
       props.dateOfBirth instanceof Date
         ? props.dateOfBirth
         : props.dateOfBirth
@@ -237,29 +225,23 @@ export class FamilyMember extends AggregateRoot {
     }
 
     member.isDeceased = props.isDeceased ?? false;
+    // Initialize isMinor from props FIRST
     member.isMinor = props.isMinor ?? false;
 
-    if (props.contactInfo) {
-      member.contactInfo = props.contactInfo;
-    }
-
+    if (props.contactInfo) member.contactInfo = props.contactInfo;
     member.notes = props.notes || null;
+
     member.createdAt =
       props.createdAt instanceof Date ? props.createdAt : new Date(props.createdAt);
     member.updatedAt =
       props.updatedAt instanceof Date ? props.updatedAt : new Date(props.updatedAt);
+    member.deletedAt = props.deletedAt
+      ? props.deletedAt instanceof Date
+        ? props.deletedAt
+        : new Date(props.deletedAt)
+      : null;
 
-    if (props.deletedAt) {
-      member.deletedAt =
-        props.deletedAt instanceof Date ? props.deletedAt : new Date(props.deletedAt);
-    } else {
-      member.deletedAt = null;
-    }
-
-    if (props.kenyanIdentification) {
-      member.kenyanIdentification = props.kenyanIdentification;
-    }
-
+    if (props.kenyanIdentification) member.kenyanIdentification = props.kenyanIdentification;
     if (props.metadata) {
       member.metadata = {
         isFamilyHead: false,
@@ -268,12 +250,9 @@ export class FamilyMember extends AggregateRoot {
         ...props.metadata,
       };
     }
+    if (props.middleName) member.middleName = props.middleName;
 
-    if (props.middleName) {
-      member.middleName = props.middleName;
-    }
-
-    // ensure derived state is consistent
+    // Only recalculate if we have a real DOB. If it's epoch, trust the props.isMinor
     member.recalculateMinorStatus();
 
     return member;
@@ -294,9 +273,7 @@ export class FamilyMember extends AggregateRoot {
     if (updates.firstName) this.firstName = updates.firstName.trim();
     if (updates.lastName) this.lastName = updates.lastName.trim();
     if (updates.middleName !== undefined) this.middleName = updates.middleName?.trim();
-    if (updates.contactInfo) {
-      this.contactInfo = { ...this.contactInfo, ...updates.contactInfo };
-    }
+    if (updates.contactInfo) this.contactInfo = { ...this.contactInfo, ...updates.contactInfo };
     if (updates.notes !== undefined) this.notes = updates.notes;
     if (updates.gender) this.gender = updates.gender;
 
@@ -305,39 +282,27 @@ export class FamilyMember extends AggregateRoot {
   }
 
   setDateOfBirth(dob: Date): void {
-    if (dob > new Date()) {
-      throw new Error('Date of Birth cannot be in the future.');
-    }
+    if (dob > new Date()) throw new Error('Date of Birth cannot be in the future.');
     this.dateOfBirth = dob;
     this.recalculateMinorStatus();
     this.updatedAt = new Date();
   }
 
   markAsDeceased(
-    dateOfDeathInput: Date | string, // Accept string or Date
+    dateOfDeathInput: Date | string,
     markedBy: string,
     deathCertificateNumber?: string,
   ): void {
-    // Normalize to Date
     const dateOfDeath =
       dateOfDeathInput instanceof Date ? dateOfDeathInput : new Date(dateOfDeathInput);
 
-    if (isNaN(dateOfDeath.getTime())) {
-      throw new Error('Invalid Date of Death.');
-    }
-
-    if (dateOfDeath > new Date()) {
-      throw new Error('Date of Death cannot be in the future.');
-    }
-
-    if (this.isDeceased) {
-      throw new Error('Family member is already marked as deceased.');
-    }
+    if (isNaN(dateOfDeath.getTime())) throw new Error('Invalid Date of Death.');
+    if (dateOfDeath > new Date()) throw new Error('Date of Death cannot be in the future.');
+    if (this.isDeceased) throw new Error('Family member is already marked as deceased.');
 
     this.isDeceased = true;
     this.dateOfDeath = dateOfDeath;
     this.updatedAt = new Date();
-
     this.updateDependencyStatus();
 
     this.apply(
@@ -352,9 +317,7 @@ export class FamilyMember extends AggregateRoot {
   }
 
   linkToUser(userId: string): void {
-    if (this.userId) {
-      throw new Error('Family Member is already linked to a User.');
-    }
+    if (this.userId) throw new Error('Family Member is already linked to a User.');
     this.userId = userId;
     this.updatedAt = new Date();
     this.apply(new FamilyMemberUpdatedEvent(this.id, this.familyId, { linkedUserId: userId }));
@@ -376,9 +339,6 @@ export class FamilyMember extends AggregateRoot {
     this.updatedAt = new Date();
   }
 
-  /**
-   * Assign guardian details and emit event. appointedBy constrained to match event contract.
-   */
   assignAsGuardian(guardianDetails: {
     guardianType: string;
     appointedBy: 'court' | 'family' | 'will';
@@ -389,11 +349,7 @@ export class FamilyMember extends AggregateRoot {
     this.metadata.dependencyStatus = 'FULL';
     this.updatedAt = new Date();
 
-    const fullGuardianDetails = {
-      ...guardianDetails,
-      appointmentDate: new Date(), // current date as default
-    };
-
+    const fullGuardianDetails = { ...guardianDetails, appointmentDate: new Date() };
     this.apply(new FamilyMemberGuardianAssignedEvent(this.id, this.familyId, fullGuardianDetails));
   }
 
@@ -417,49 +373,40 @@ export class FamilyMember extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // VALIDATION METHODS
+  // VALIDATION
   // --------------------------------------------------------------------------
 
   validateForSuccession(): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
+    if (!this.firstName || !this.lastName)
+      errors.push('Family member must have first and last name.');
 
-    if (!this.firstName || !this.lastName) {
-      errors.push('Family member must have both first and last name for succession purposes.');
-    }
-
-    // dateOfBirth is always a Date internally; if it's epoch (unknown) and member is living, warn/error
     const isDobEpoch = this.dateOfBirth.getTime() === 0;
-    if (isDobEpoch && !this.isDeceased) {
-      errors.push('Date of birth is required for living family members.');
-    }
-
-    if (this.isDeceased && !this.dateOfDeath) {
-      errors.push('Date of death is required for deceased family members.');
-    }
-
+    if (isDobEpoch && !this.isDeceased)
+      errors.push('Date of birth is required for living members.');
+    if (this.isDeceased && !this.dateOfDeath)
+      errors.push('Date of death is required for deceased members.');
     if (!this.isMinor && !this.isDeceased && !this.kenyanIdentification.nationalId) {
-      errors.push('National ID is recommended for adult family members for legal identification.');
+      errors.push('National ID is recommended for adults.');
     }
 
-    return {
-      isValid: errors.length === 0,
-      errors,
-    };
+    return { isValid: errors.length === 0, errors };
   }
 
   isEligibleForInheritance(): boolean {
-    if (this.isDeceased) return false;
-    return true;
+    return !this.isDeceased;
   }
 
   // --------------------------------------------------------------------------
-  // PRIVATE HELPERS
+  // HELPERS
   // --------------------------------------------------------------------------
 
   private recalculateMinorStatus(): void {
-    if (!this.dateOfBirth) {
-      this.isMinor = false;
-      return;
+    // If DOB is Epoch (1970-01-01) or invalid, we assume it's unknown.
+    // In reconstitution, we trust the existing 'isMinor' flag.
+    // In creation, if DOB is unknown, default to false (Adult) unless explicitly set by events.
+    if (!this.dateOfBirth || this.dateOfBirth.getTime() === 0) {
+      return; // Do NOT overwrite isMinor if date is unknown
     }
 
     const age = this.calculateAge(this.dateOfBirth);
@@ -471,11 +418,18 @@ export class FamilyMember extends AggregateRoot {
     const today = new Date();
     let age = today.getFullYear() - dob.getFullYear();
     const monthDiff = today.getMonth() - dob.getMonth();
-
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
       age--;
     }
+    return age;
+  }
 
+  private calculateAgeAtDeath(dob: Date, dod: Date): number {
+    let age = dod.getFullYear() - dob.getFullYear();
+    const monthDiff = dod.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && dod.getDate() < dob.getDate())) {
+      age--;
+    }
     return age;
   }
 
@@ -506,7 +460,6 @@ export class FamilyMember extends AggregateRoot {
       ? `${this.firstName} ${this.middleName} ${this.lastName}`
       : `${this.firstName} ${this.lastName}`;
   }
-  // dateOfBirth always returns a Date (may be epoch if unknown)
   getDateOfBirth(): Date {
     return this.dateOfBirth;
   }
@@ -551,22 +504,10 @@ export class FamilyMember extends AggregateRoot {
   }
 
   getAge(): number | null {
-    if (!this.dateOfBirth) return null;
-    if (this.isDeceased && this.dateOfDeath) {
+    if (!this.dateOfBirth || this.dateOfBirth.getTime() === 0) return null;
+    if (this.isDeceased && this.dateOfDeath)
       return this.calculateAgeAtDeath(this.dateOfBirth, this.dateOfDeath);
-    }
     return this.calculateAge(this.dateOfBirth);
-  }
-
-  private calculateAgeAtDeath(dob: Date, dod: Date): number {
-    let age = dod.getFullYear() - dob.getFullYear();
-    const monthDiff = dod.getMonth() - dob.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && dod.getDate() < dob.getDate())) {
-      age--;
-    }
-
-    return age;
   }
 
   getSuccessionProfile() {

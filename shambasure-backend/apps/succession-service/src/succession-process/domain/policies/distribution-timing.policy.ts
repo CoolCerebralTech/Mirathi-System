@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { SUCCESSION_TIMEFRAMES } from '../../../common/constants/kenyan-law.constants';
 
+interface TimelineInfo {
+  timeline: string;
+  reference: string;
+  notes?: string;
+}
+
 @Injectable()
 export class DistributionTimingPolicy {
   private readonly CONFIRMATION_PERIOD_DAYS =
@@ -8,9 +14,6 @@ export class DistributionTimingPolicy {
   private readonly OBJECTION_PERIOD_DAYS = 30;
   private readonly APPEAL_PERIOD_DAYS = 30;
 
-  /**
-   * Comprehensive timing validation for grant confirmation
-   */
   canConfirmGrant(
     grantIssuedDate: Date,
     gazettePublishedDate: Date | null,
@@ -27,7 +30,7 @@ export class DistributionTimingPolicy {
     const reasons: string[] = [];
     const warnings: string[] = [];
 
-    // 1. Six Month Rule (Section 71)
+    // Six Month Rule (Section 71)
     const earliestConfirmDate = new Date(grantIssuedDate);
     earliestConfirmDate.setDate(earliestConfirmDate.getDate() + this.CONFIRMATION_PERIOD_DAYS);
 
@@ -40,7 +43,7 @@ export class DistributionTimingPolicy {
       );
     }
 
-    // 2. Gazette Notice Period (Section 67/68)
+    // Gazette Notice Period (Section 67/68)
     if (!gazettePublishedDate) {
       reasons.push('Gazette notice has not been published.');
     } else {
@@ -57,27 +60,25 @@ export class DistributionTimingPolicy {
       }
     }
 
-    // 3. Pending Objections Check
+    // Pending Objections Check
     const pendingObjections = objections.filter(
       (obj) => obj.status === 'PENDING' || obj.status === 'UNDER_REVIEW',
     );
-
     if (pendingObjections.length > 0) {
       reasons.push(
         `There are ${pendingObjections.length} pending objection(s) that must be resolved.`,
       );
     }
 
-    // 4. Complex Assets Warning
+    // Complex Assets Warning
     if (hasComplexAssets) {
       warnings.push(
-        'Complex assets (businesses, trusts, foreign assets) may require additional time for proper valuation and transfer.',
+        'Complex assets may require additional time for proper valuation and transfer.',
       );
     }
 
-    // 5. Calculate next earliest possible date
+    // Calculate next earliest possible date
     const potentialDates = [earliestConfirmDate];
-
     if (gazettePublishedDate) {
       const noticeExpiry = new Date(gazettePublishedDate);
       noticeExpiry.setDate(noticeExpiry.getDate() + this.OBJECTION_PERIOD_DAYS);
@@ -98,9 +99,6 @@ export class DistributionTimingPolicy {
     };
   }
 
-  /**
-   * Validates timing for asset distribution
-   */
   canDistributeAssets(
     grantConfirmedDate: Date,
     debtSettlementComplete: boolean,
@@ -112,14 +110,8 @@ export class DistributionTimingPolicy {
     recommendations: string[];
   } {
     const conditions: { met: boolean; description: string }[] = [
-      {
-        met: debtSettlementComplete,
-        description: 'All priority debts settled',
-      },
-      {
-        met: taxClearanceObtained,
-        description: 'Tax clearance certificate obtained',
-      },
+      { met: debtSettlementComplete, description: 'All priority debts settled' },
+      { met: taxClearanceObtained, description: 'Tax clearance certificate obtained' },
       {
         met: this.hasSufficientTimeElapsed(grantConfirmedDate),
         description: 'Reasonable time elapsed since grant confirmation',
@@ -128,7 +120,7 @@ export class DistributionTimingPolicy {
 
     const recommendations: string[] = [];
 
-    // Check asset-specific requirements
+    // Asset-specific recommendations
     if (assetTypes.includes('LAND')) {
       conditions.push({
         met: this.landTransferRequirementsMet(),
@@ -145,20 +137,15 @@ export class DistributionTimingPolicy {
       recommendations.push('Verify beneficiary bank account details before transfer');
     }
 
-    const allowed = conditions.every((condition) => condition.met);
-
     return {
-      allowed,
+      allowed: conditions.every((condition) => condition.met),
       conditions,
       recommendations,
     };
   }
 
-  /**
-   * Calculates statutory timelines for various succession processes
-   */
-  getStatutoryTimelines(process: string): { timeline: string; reference: string; notes?: string } {
-    const timelines: Record<string, { timeline: string; reference: string; notes?: string }> = {
+  getStatutoryTimelines(process: string): TimelineInfo {
+    const timelines: Record<string, TimelineInfo> = {
       OBJECTION_FILING: {
         timeline: '30 days from gazette publication',
         reference: 'Section 68, Law of Succession Act',
@@ -186,18 +173,15 @@ export class DistributionTimingPolicy {
       },
     };
 
-    return (
-      timelines[process] || {
-        timeline: 'Varies by circumstance',
-        reference: 'General succession practice',
-        notes: 'Consult legal counsel for specific timelines',
-      }
-    );
+    const defaultTimeline: TimelineInfo = {
+      timeline: 'Varies by circumstance',
+      reference: 'General succession practice',
+      notes: 'Consult legal counsel for specific timelines',
+    };
+
+    return timelines[process] || defaultTimeline;
   }
 
-  /**
-   * Validates if appeal period has expired
-   */
   isAppealPeriodExpired(decisionDate: Date): { expired: boolean; daysRemaining: number } {
     const appealDeadline = new Date(decisionDate);
     appealDeadline.setDate(appealDeadline.getDate() + this.APPEAL_PERIOD_DAYS);
@@ -216,13 +200,11 @@ export class DistributionTimingPolicy {
   private hasSufficientTimeElapsed(confirmedDate: Date): boolean {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
     return confirmedDate <= thirtyDaysAgo;
   }
 
   private landTransferRequirementsMet(): boolean {
-    // This would integrate with land registry checks
-    // For now, return true assuming checks are done elsewhere
+    // Integration with land registry checks would happen here
     return true;
   }
 }

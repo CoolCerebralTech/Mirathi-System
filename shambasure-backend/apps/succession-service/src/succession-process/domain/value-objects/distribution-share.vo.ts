@@ -33,6 +33,9 @@ export class DistributionShare {
   isContingent(): boolean {
     return this.type === 'CONTINGENT_INTEREST';
   }
+  hasConditions(): boolean {
+    return this.lifeInterestEndsCondition != null;
+  }
 
   /**
    * Section 35(1)(b): Spouse Life Interest terminates upon remarriage

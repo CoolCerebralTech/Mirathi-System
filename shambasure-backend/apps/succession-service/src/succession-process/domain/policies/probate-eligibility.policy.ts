@@ -146,6 +146,18 @@ export class ProbateEligibilityPolicy {
       case 'COUSIN':
         baseScore = 10;
         break;
+      case 'GUARDIAN':
+        baseScore = 3; // Guardian has high priority when minors involved
+        break;
+      case 'EX_SPOUSE':
+        baseScore = 15; // Lower priority for ex-spouse
+        break;
+      case 'ADOPTED_CHILD':
+        baseScore = 2; // Same as biological child
+        break;
+      case 'STEPCHILD':
+        baseScore = 6; // Lower than biological child
+        break;
       default:
         baseScore = 99;
     }
@@ -257,6 +269,84 @@ export class ProbateEligibilityPolicy {
     };
   }
 
+  /**
+   * Validates if applicant meets specific grant type requirements
+   */
+  validateGrantTypeEligibility(
+    applicants: Applicant[],
+    grantType: 'PROBATE' | 'LETTERS_OF_ADMINISTRATION' | 'LETTERS_OF_ADMINISTRATION_WITH_WILL',
+    willExecutorId?: string,
+  ): { eligible: boolean; requirements: string[]; missing: string[] } {
+    const requirements: string[] = [];
+    const missing: string[] = [];
+
+    switch (grantType) {
+      case 'PROBATE':
+        requirements.push('Will must name the applicant as executor');
+        requirements.push('Will must be valid and properly executed');
+        if (!willExecutorId || !applicants.some((a) => a.applicantId === willExecutorId)) {
+          missing.push('Applicant not named as executor in will');
+        }
+        break;
+
+      case 'LETTERS_OF_ADMINISTRATION_WITH_WILL':
+        requirements.push('Will exists but no executor named or willing to act');
+        requirements.push('Applicant has beneficial interest in estate');
+        if (willExecutorId && applicants.some((a) => a.applicantId === willExecutorId)) {
+          missing.push('Named executor is available and should apply for probate');
+        }
+        break;
+
+      case 'LETTERS_OF_ADMINISTRATION':
+        requirements.push('No valid will exists (intestate)');
+        requirements.push('Applicant is proper person under succession rules');
+        // No specific missing requirements for basic letters
+        break;
+    }
+
+    return {
+      eligible: missing.length === 0,
+      requirements,
+      missing,
+    };
+  }
+
+  /**
+   * Checks for conflicts of interest among applicants
+   */
+  identifyConflicts(
+    applicants: Applicant[],
+    beneficiaries: string[],
+  ): { conflicts: string[]; warnings: string[] } {
+    const conflicts: string[] = [];
+    const warnings: string[] = [];
+
+    // Check if applicant is also a major beneficiary
+    applicants.forEach((applicant) => {
+      if (beneficiaries.includes(applicant.applicantId)) {
+        warnings.push(
+          `Applicant ${applicant.applicantId} is also a beneficiary - potential conflict`,
+        );
+      }
+    });
+
+    // Check for multiple applicants from competing family branches
+    const spouseApplicants = applicants.filter((a) => a.relationship === 'SPOUSE');
+    const childApplicants = applicants.filter((a) => a.relationship === 'CHILD');
+
+    if (spouseApplicants.length > 0 && childApplicants.length > 0) {
+      warnings.push('Mixed applicant group (spouse and children) may have competing interests');
+    }
+
+    // Check for ex-spouse applicants
+    const exSpouseApplicants = applicants.filter((a) => a.relationship === 'EX_SPOUSE');
+    if (exSpouseApplicants.length > 0) {
+      conflicts.push('Ex-spouse applicants require court approval and clear justification');
+    }
+
+    return { conflicts, warnings };
+  }
+
   private prioritizeIntestateApplicants(applicants: Applicant[]): Applicant[] {
     return [...applicants].sort((a, b) => {
       const scoreA = this.getPriorityScore(a.relationship, {
@@ -286,9 +376,9 @@ export class ProbateEligibilityPolicy {
       COUSIN: 0,
       GUARDIAN: 5,
       OTHER: -5,
-      EX_SPOUSE: -10, // Ex-spouse has lower priority
+      EX_SPOUSE: -10,
       STEPCHILD: 2,
-      ADOPTED_CHILD: 15, // Same as biological child
+      ADOPTED_CHILD: 15,
     };
 
     return scores[relationship] || -10;
@@ -300,15 +390,22 @@ export class ProbateEligibilityPolicy {
     warnings: string[],
   ): void {
     // Islamic law may have specific requirements
-    // For example, preference for male relatives in some interpretations
-    const maleApplicants = applicants.filter(
-      (a) =>
-        a.relationship === 'SPOUSE' || a.relationship === 'CHILD' || a.relationship === 'BROTHER',
+    // Check for close male relatives as preferred administrators
+    const closeMaleRelationships: RelationshipType[] = ['SPOUSE', 'CHILD', 'SIBLING', 'PARENT'];
+    const hasCloseMaleApplicant = applicants.some((applicant) =>
+      closeMaleRelationships.includes(applicant.relationship),
     );
 
-    if (maleApplicants.length === 0) {
+    if (!hasCloseMaleApplicant) {
       warnings.push(
-        'Islamic estates traditionally prefer male administrators - consult religious advisor',
+        'Islamic estates traditionally prefer close male relatives as administrators - consult religious advisor',
+      );
+    }
+
+    // Additional Islamic law considerations
+    if (applicants.some((applicant) => applicant.relationship === 'EX_SPOUSE')) {
+      warnings.push(
+        'Ex-spouse administration in Islamic estates may require special consideration',
       );
     }
   }

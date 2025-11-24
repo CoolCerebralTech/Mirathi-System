@@ -70,7 +70,7 @@ export interface WillReconstituteProps {
   revokedAt: Date | string | null;
   revokedBy: string | null;
   revocationReason: string | null;
-  funeralWishes: FuneralWishes | null;
+  funeralWishes: FuneralWishes | string | null;
   burialLocation: string | null;
   residuaryClause: string | null;
   digitalAssetInstructions: DigitalAssetInstructions | null;
@@ -248,17 +248,16 @@ export class Will extends AggregateRoot {
    * @throws {Error} When data validation fails during reconstruction
    */
   static reconstitute(props: WillReconstituteProps): Will {
-    // Validate required reconstruction data
     if (!props.id || !props.title || !props.testatorId) {
       throw new Error('Invalid reconstruction data: missing required fields');
     }
 
     const will = new Will(props.id, props.title, props.testatorId, null);
 
-    // Hydrate properties with type safety
     will._status = props.status;
     will._versionNumber = props.versionNumber;
     will._supersedes = props.supersedes || null;
+
     will._activatedAt = props.activatedAt
       ? Will.safeDateConversion(props.activatedAt, 'activatedAt')
       : null;
@@ -272,20 +271,26 @@ export class Will extends AggregateRoot {
       : null;
     will._revokedBy = props.revokedBy || null;
     will._revocationReason = props.revocationReason || null;
-    will._funeralWishes = props.funeralWishes || null;
+
+    // Handle JSON parsing for flexible fields
+    will._funeralWishes = Will.parseJsonField<FuneralWishes>(props.funeralWishes);
+    will._digitalAssetInstructions = Will.parseJsonField<DigitalAssetInstructions>(
+      props.digitalAssetInstructions,
+    );
+
     will._burialLocation = props.burialLocation || null;
     will._residuaryClause = props.residuaryClause || null;
-    will._digitalAssetInstructions = props.digitalAssetInstructions || null;
     will._specialInstructions = props.specialInstructions || null;
+
     will._requiresWitnesses = Boolean(props.requiresWitnesses);
     will._witnessCount = Number(props.witnessCount) || 0;
     will._hasAllWitnesses = Boolean(props.hasAllWitnesses);
     will._isActiveRecord = Boolean(props.isActiveRecord);
+
     will._assetIds = [...(props._assetIds || [])];
     will._beneficiaryIds = [...(props._beneficiaryIds || [])];
     will._witnessIds = [...(props._witnessIds || [])];
 
-    // Handle date conversions safely
     will._willDate = Will.safeDateConversion(props.willDate, 'willDate');
     will._lastModified = Will.safeDateConversion(props.lastModified, 'lastModified');
     will._createdAt = Will.safeDateConversion(props.createdAt, 'createdAt');
@@ -294,7 +299,6 @@ export class Will extends AggregateRoot {
       ? Will.safeDateConversion(props.deletedAt, 'deletedAt')
       : null;
 
-    // Handle LegalCapacity reconstruction if provided
     if (props.legalCapacity) {
       will._legalCapacity = Will.reconstructLegalCapacity(props.legalCapacity);
     }
@@ -324,6 +328,30 @@ export class Will extends AggregateRoot {
         `Failed to convert ${fieldName} to valid Date: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }
+  }
+
+  /**
+   * Safely parses JSON fields that might come as strings or already parsed objects
+   */
+  private static parseJsonField<T>(field: unknown): T | null {
+    if (!field) return null;
+
+    // If Prisma already returned an object, return it directly
+    if (typeof field === 'object') {
+      return field as T;
+    }
+
+    // Only attempt to parse if it is strictly a string
+    if (typeof field === 'string') {
+      try {
+        return JSON.parse(field) as T;
+      } catch {
+        return null; // Handle invalid JSON strings gracefully
+      }
+    }
+
+    // If it's neither an object nor a string (e.g. unexpected number), return null
+    return null;
   }
 
   /**

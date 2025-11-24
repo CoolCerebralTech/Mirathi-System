@@ -250,22 +250,14 @@ export class Asset extends AggregateRoot {
     if (valueData instanceof AssetValue) {
       return valueData;
     }
-
     if (typeof valueData !== 'object' || valueData === null) {
-      throw new Error('Invalid asset value data: must be object or AssetValue instance');
+      throw new Error('Invalid asset value data');
     }
-
-    if (typeof valueData.amount !== 'number' || valueData.amount < 0) {
-      throw new Error('Invalid asset value: amount must be non-negative number');
-    }
-
-    if (typeof valueData.currency !== 'string' || !valueData.currency.trim()) {
-      throw new Error('Invalid asset value: currency is required');
-    }
-
-    const valuationDate = Asset.safeDateConversion(valueData.valuationDate, 'valuationDate');
-
-    return new AssetValue(valueData.amount, valueData.currency.trim(), valuationDate);
+    return new AssetValue(
+      valueData.amount,
+      valueData.currency,
+      Asset.safeDateConversion(valueData.valuationDate, 'valuationDate'),
+    );
   }
 
   /**
@@ -404,17 +396,22 @@ export class Asset extends AggregateRoot {
   addEncumbrance(details: string, amount: number): void {
     this.validateAssetIsActive();
 
-    if (!details?.trim()) {
-      throw new Error('Encumbrance details are required');
-    }
-
-    if (typeof amount !== 'number' || amount < 0) {
-      throw new Error('Encumbrance amount must be a non-negative number');
-    }
+    if (!details?.trim()) throw new Error('Encumbrance details required');
+    if (amount < 0) throw new Error('Encumbrance amount cannot be negative');
 
     this._isEncumbered = true;
-    this._encumbranceDetails = details.trim();
-    this._encumbranceAmount = amount;
+
+    // Append details if they exist, otherwise set them
+    const timestamp = new Date().toISOString().split('T')[0];
+    const newDetail = `[${timestamp}] ${details.trim()} (Amt: ${amount})`;
+
+    this._encumbranceDetails = this._encumbranceDetails
+      ? `${this._encumbranceDetails}; ${newDetail}`
+      : newDetail;
+
+    // Add to existing amount rather than overwriting
+    this._encumbranceAmount += amount;
+
     this._updatedAt = new Date();
 
     this.apply(
@@ -492,11 +489,11 @@ export class Asset extends AggregateRoot {
    */
   getTransferableValue(): AssetValue {
     this.validateAssetIsActive();
-
     const totalAmount = this._currentValue.getAmount();
     const shareFraction = this._ownershipShare / 100;
-
     const grossShareValue = totalAmount * shareFraction;
+
+    // Pro-rate liability based on share (simplification for general transfers)
     const liabilityShare = this._encumbranceAmount * shareFraction;
     const netValue = Math.max(0, grossShareValue - liabilityShare);
 

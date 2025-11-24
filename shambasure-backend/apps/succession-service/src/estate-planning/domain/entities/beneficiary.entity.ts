@@ -39,9 +39,16 @@ export interface BeneficiaryReconstituteProps {
   id: string;
   willId: string;
   assetId: string;
-  beneficiaryIdentity: BeneficiaryIdentity;
+
+  // Identity fields flattened (matches Prisma model)
+  userId: string | null;
+  familyMemberId: string | null;
+  externalName: string | null;
+  externalContact: string | null;
+  relationship: string | null;
+
   bequestType: BequestType;
-  sharePercentage: number | null;
+  sharePercentage: number | null; // Prisma Decimal -> number
   specificAmount: AssetValueData | AssetValue | null;
   conditionType: BequestConditionType;
   conditionDetails: string | null;
@@ -260,30 +267,36 @@ export class BeneficiaryAssignment extends AggregateRoot {
    * @throws {Error} When data validation fails during reconstruction
    */
   static reconstitute(props: BeneficiaryReconstituteProps): BeneficiaryAssignment {
-    // Validate required reconstruction data
     if (!props.id || !props.willId || !props.assetId) {
       throw new Error('Invalid reconstruction data: missing required fields');
     }
 
-    BeneficiaryAssignment.validateIdentity(props.beneficiaryIdentity);
+    // Construct identity from flat props
+    const identity: BeneficiaryIdentity = {
+      userId: props.userId || undefined,
+      familyMemberId: props.familyMemberId || undefined,
+      externalName: props.externalName || undefined,
+      externalContact: props.externalContact || undefined,
+      relationship: props.relationship || undefined,
+    };
+
+    BeneficiaryAssignment.validateIdentity(identity);
 
     const assignment = new BeneficiaryAssignment(
       props.id,
       props.willId,
       props.assetId,
-      props.beneficiaryIdentity,
+      identity,
       props.bequestType,
       props.priority,
     );
 
-    // Hydrate additional properties with type safety
     assignment._conditionType = props.conditionType;
     assignment._conditionDetails = props.conditionDetails || null;
     assignment._alternateBeneficiaryId = props.alternateBeneficiaryId || null;
     assignment._distributionStatus = props.distributionStatus;
     assignment._distributionNotes = props.distributionNotes || null;
 
-    // Reconstruct Value Objects with proper typing
     if (props.sharePercentage !== null && props.sharePercentage !== undefined) {
       assignment._sharePercentage = BeneficiaryAssignment.reconstructSharePercentage(
         props.sharePercentage,
@@ -302,7 +315,6 @@ export class BeneficiaryAssignment extends AggregateRoot {
       );
     }
 
-    // Handle date conversions safely
     assignment._distributedAt = props.distributedAt
       ? BeneficiaryAssignment.safeDateConversion(props.distributedAt, 'distributedAt')
       : null;

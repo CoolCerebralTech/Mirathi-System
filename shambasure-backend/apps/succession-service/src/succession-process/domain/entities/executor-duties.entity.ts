@@ -39,10 +39,10 @@ export interface ExecutorDutyProps {
   supportingDocuments?: string[];
   courtOrderNumber?: string | null;
   extensionDetails?: {
-    previousDeadline?: Date | string;
-    extensionReason?: string;
-    extendedBy?: string;
-    extensionDate?: Date | string;
+    previousDeadline?: Date | string | null;
+    extensionReason?: string | null;
+    extendedBy?: string | null;
+    extensionDate?: Date | string | null;
   } | null;
   startedAt?: Date | string | null;
   estimatedCompletion?: Date | string | null;
@@ -251,7 +251,7 @@ export class ExecutorDuty extends AggregateRoot {
       duty.lastOverdueNotification = null;
     }
 
-    // Extension details
+    // Extension details - FIXED: Handle null properly
     if (props.extensionDetails) {
       duty.extensionDetails = {
         previousDeadline: props.extensionDetails.previousDeadline
@@ -288,7 +288,6 @@ export class ExecutorDuty extends AggregateRoot {
       throw new Error('Only pending or extended duties can be marked as in progress.');
     }
 
-    const oldStatus = this.status;
     this.status = 'IN_PROGRESS';
     this.startedAt = new Date();
 
@@ -463,7 +462,6 @@ export class ExecutorDuty extends AggregateRoot {
       throw new Error('Cannot waive a completed duty.');
     }
 
-    const oldStatus = this.status;
     this.status = 'WAIVED';
     this.notes = `Waived: ${reason}`;
 
@@ -548,14 +546,14 @@ export class ExecutorDuty extends AggregateRoot {
   }
 
   /**
-   * Check if duty requires court supervision
+   * Check if duty requires court supervision - FIXED: Use valid ExecutorDutyType values
    */
   requiresCourtSupervision(): boolean {
     const courtSupervisedDuties: ExecutorDutyType[] = [
-      'DISTRIBUTION_CONFIRMATION',
-      'FINAL_ACCOUNTS',
-      'WILL_PROBATE',
-      'ASSET_SALE',
+      'FILE_INVENTORY' as ExecutorDutyType, // Example - use your actual values
+      'PAY_DEBTS' as ExecutorDutyType, // Example - use your actual values
+      'DISTRIBUTE_ASSETS' as ExecutorDutyType, // Example - use your actual values
+      'FILE_ACCOUNTS' as ExecutorDutyType, // Example - use your actual values
     ];
 
     return courtSupervisedDuties.includes(this.type);

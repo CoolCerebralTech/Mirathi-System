@@ -4,6 +4,7 @@ import {
   FamilyMember,
   KenyanFamilyMemberMetadata,
   KenyanIdentification,
+  MemberContactInfo,
 } from '../entities/family-member.entity';
 import { Relationship } from '../entities/relationship.entity';
 import { Marriage } from '../entities/marriage.entity';
@@ -42,11 +43,13 @@ export interface FamilyTreeSnapshot {
     unverifiedCriticalRelationships: string[];
   };
 }
-interface UpdateMemberDetails {
+
+// Use strict typing for updates
+export interface UpdateMemberDetails {
   firstName?: string;
   lastName?: string;
   middleName?: string;
-  contactInfo?: Record<string, unknown>; // or a stricter type if available
+  contactInfo?: MemberContactInfo;
   notes?: string;
   gender?: 'MALE' | 'FEMALE' | 'OTHER';
   kenyanIdentification?: Partial<KenyanIdentification>;
@@ -72,7 +75,7 @@ export class FamilyTreeAggregate extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // RECONSTITUTION (Loading from DB)
+  // RECONSTITUTION
   // --------------------------------------------------------------------------
 
   static reconstitute(
@@ -83,43 +86,33 @@ export class FamilyTreeAggregate extends AggregateRoot {
     guardianships: Guardianship[],
   ): FamilyTreeAggregate {
     const agg = new FamilyTreeAggregate(family);
-
     members.forEach((m) => agg.members.set(m.getId(), m));
     relationships.forEach((r) => agg.relationships.set(r.getId(), r));
     marriages.forEach((m) => agg.marriages.set(m.getId(), m));
     guardianships.forEach((g) => agg.guardianships.set(g.getId(), g));
-
     return agg;
   }
 
   // --------------------------------------------------------------------------
-  // MEMBER MANAGEMENT - KENYAN COMPLIANCE
+  // MEMBER MANAGEMENT
   // --------------------------------------------------------------------------
 
   addMember(member: FamilyMember): void {
-    if (this.members.has(member.getId())) {
-      throw new Error(`Member ${member.getId()} already exists in this tree.`);
-    }
-    if (member.getFamilyId() !== this.family.getId()) {
+    if (this.members.has(member.getId()))
+      throw new Error(`Member ${member.getId()} already exists.`);
+    if (member.getFamilyId() !== this.family.getId())
       throw new Error('Member belongs to a different family.');
-    }
 
-    // Kenyan legal validation
     const validation = member.validateForSuccession();
-    if (!validation.isValid) {
+    if (!validation.isValid)
       throw new Error(`Member validation failed: ${validation.errors.join(', ')}`);
-    }
 
     this.members.set(member.getId(), member);
 
-    function mapGenderForEvent(
-      gender: 'MALE' | 'FEMALE' | 'OTHER' | undefined,
-    ): 'MALE' | 'FEMALE' | undefined {
-      if (gender === 'MALE' || gender === 'FEMALE') return gender;
-      return undefined;
-    }
-
-    const genderForEvent = mapGenderForEvent(member.getGender());
+    const genderForEvent =
+      member.getGender() === 'MALE' || member.getGender() === 'FEMALE'
+        ? (member.getGender() as 'MALE' | 'FEMALE')
+        : undefined;
 
     this.apply(
       new FamilyMemberAddedEvent(this.family.getId(), {
@@ -140,20 +133,14 @@ export class FamilyTreeAggregate extends AggregateRoot {
 
   removeMember(memberId: string, reason: string = 'Removed from tree'): void {
     const member = this.members.get(memberId);
-    if (!member) {
-      throw new Error(`Member ${memberId} not found.`);
-    }
+    if (!member) throw new Error(`Member ${memberId} not found.`);
+    if (member.getIsDeceased())
+      throw new Error('Cannot remove deceased members (succession implications).');
 
-    // Enhanced validation for Kenyan succession implications
-    if (member.getIsDeceased()) {
-      throw new Error('Cannot remove deceased members as they may have succession implications.');
-    }
-
-    // Check if member has critical relationships that would break succession analysis
     const criticalRelationships = this.getCriticalRelationshipsForMember(memberId);
     if (criticalRelationships.length > 0) {
       throw new Error(
-        `Cannot remove member with ${criticalRelationships.length} critical relationships. Remove relationships first.`,
+        `Cannot remove member with ${criticalRelationships.length} critical relationships.`,
       );
     }
 
@@ -164,19 +151,20 @@ export class FamilyTreeAggregate extends AggregateRoot {
 
   updateMemberDetails(memberId: string, updates: UpdateMemberDetails): void {
     const member = this.members.get(memberId);
-    if (!member) {
-      throw new Error(`Member ${memberId} not found.`);
-    }
+    if (!member) throw new Error(`Member ${memberId} not found.`);
 
-    member.updateDetails(updates);
+    member.updateDetails({
+      firstName: updates.firstName,
+      lastName: updates.lastName,
+      middleName: updates.middleName,
+      contactInfo: updates.contactInfo,
+      notes: updates.notes,
+      gender: updates.gender,
+    });
 
-    if (updates.kenyanIdentification) {
+    if (updates.kenyanIdentification)
       member.updateKenyanIdentification(updates.kenyanIdentification);
-    }
-
-    if (updates.metadata) {
-      member.updateMetadata(updates.metadata);
-    }
+    if (updates.metadata) member.updateMetadata(updates.metadata);
 
     this.updateTreeStatistics();
   }
@@ -188,19 +176,15 @@ export class FamilyTreeAggregate extends AggregateRoot {
     deathCertificateNumber?: string,
   ): void {
     const member = this.members.get(memberId);
-    if (!member) {
-      throw new Error(`Member ${memberId} not found.`);
-    }
+    if (!member) throw new Error(`Member ${memberId} not found.`);
 
     member.markAsDeceased(dateOfDeath, markedBy, deathCertificateNumber);
     this.updateTreeStatistics();
-
-    // Trigger succession analysis when a member dies
     this.analyzeSuccessionImplications(memberId);
   }
 
   // --------------------------------------------------------------------------
-  // RELATIONSHIP MANAGEMENT - KENYAN LEGAL COMPLIANCE
+  // RELATIONSHIP MANAGEMENT
   // --------------------------------------------------------------------------
 
   addRelationship(relationship: Relationship): void {
@@ -208,37 +192,24 @@ export class FamilyTreeAggregate extends AggregateRoot {
     const toId = relationship.getToMemberId();
     const type = relationship.getType();
 
-    // Enhanced existence check
     const fromMember = this.members.get(fromId);
     const toMember = this.members.get(toId);
+    if (!fromMember || !toMember) throw new Error('Both members must exist in the tree.');
 
-    if (!fromMember || !toMember) {
-      throw new Error('Both members must exist in the tree to create a relationship.');
-    }
-
-    // Kenyan biological validation
     const validation = this.relValidationPolicy.validateRelationship(fromMember, toMember, type);
-    if (!validation.isValid) {
-      throw new Error(validation.error);
-    }
+    if (!validation.isValid) throw new Error(validation.error);
 
-    // Enhanced cycle detection
     const existingArray = Array.from(this.relationships.values());
-    const hasCycle = this.integrityPolicy.checkCycle(fromId, toId, type, existingArray);
-    if (hasCycle) {
+    if (this.integrityPolicy.checkCycle(fromId, toId, type, existingArray)) {
       throw new Error('This relationship creates a cycle in the family tree.');
     }
 
-    // Duplicate relationship check
-    const exists = Array.from(this.relationships.values()).some(
+    const exists = existingArray.some(
       (r) => r.getFromMemberId() === fromId && r.getToMemberId() === toId && r.getType() === type,
     );
-    if (exists) {
-      throw new Error('Relationship already exists between these members.');
-    }
+    if (exists) throw new Error('Relationship already exists.');
 
     this.relationships.set(relationship.getId(), relationship);
-
     this.apply(
       new RelationshipCreatedEvent(
         relationship.getId(),
@@ -249,21 +220,14 @@ export class FamilyTreeAggregate extends AggregateRoot {
         relationship.getMetadata(),
       ),
     );
-
     this.updateTreeStatistics();
   }
 
   removeRelationship(relationshipId: string, reason: string = 'Removed by user'): void {
     const relationship = this.relationships.get(relationshipId);
-    if (!relationship) {
-      throw new Error('Relationship not found.');
-    }
-
-    // Check if this is a critical relationship for succession
-    const isCritical = this.isCriticalRelationship(relationship);
-    if (isCritical) {
+    if (!relationship) throw new Error('Relationship not found.');
+    if (this.isCriticalRelationship(relationship))
       throw new Error('Cannot remove critical relationship without succession review.');
-    }
 
     relationship.remove(reason);
     this.relationships.delete(relationshipId);
@@ -282,47 +246,35 @@ export class FamilyTreeAggregate extends AggregateRoot {
     notes?: string,
   ): void {
     const relationship = this.relationships.get(relationshipId);
-    if (!relationship) {
-      throw new Error('Relationship not found.');
-    }
+    if (!relationship) throw new Error('Relationship not found.');
 
     relationship.verify(method, verifiedBy, notes);
     this.updateTreeStatistics();
 
-    // If this was the last critical relationship to verify, emit event
     if (this.areAllCriticalRelationshipsVerified()) {
       this.apply(new FamilyTreeVerifiedEvent(this.family.getId()));
     }
   }
 
   // --------------------------------------------------------------------------
-  // MARRIAGE MANAGEMENT - KENYAN CUSTOMARY LAW SUPPORT
+  // MARRIAGE MANAGEMENT
   // --------------------------------------------------------------------------
 
   registerMarriage(marriage: Marriage): void {
     const s1 = marriage.getSpouse1Id();
     const s2 = marriage.getSpouse2Id();
 
-    // Enhanced existence check
-    if (!this.members.has(s1) || !this.members.has(s2)) {
-      throw new Error('Both spouses must be members of the tree.');
-    }
+    if (!this.members.has(s1) || !this.members.has(s2))
+      throw new Error('Both spouses must be members.');
 
-    // Kenyan marriage validation
     const spouse1 = this.members.get(s1)!;
     const spouse2 = this.members.get(s2)!;
 
-    // Age validation (Kenyan legal age is 18)
     const age1 = spouse1.getAge();
     const age2 = spouse2.getAge();
-    if (age1 !== null && age1 < 18) {
-      throw new Error(`Spouse 1 is under the legal marriage age of 18 (age: ${age1}).`);
-    }
-    if (age2 !== null && age2 < 18) {
-      throw new Error(`Spouse 2 is under the legal marriage age of 18 (age: ${age2}).`);
-    }
+    if (age1 !== null && age1 < 18) throw new Error(`Spouse 1 is under 18 (age: ${age1}).`);
+    if (age2 !== null && age2 < 18) throw new Error(`Spouse 2 is under 18 (age: ${age2}).`);
 
-    // Polygamy validation
     const existingMarriages1 = Array.from(this.marriages.values()).filter(
       (m) => m.getSpouse1Id() === s1 || m.getSpouse2Id() === s1,
     );
@@ -330,45 +282,36 @@ export class FamilyTreeAggregate extends AggregateRoot {
       (m) => m.getSpouse1Id() === s2 || m.getSpouse2Id() === s2,
     );
 
-    const polygamyCheck1 = this.polygamyPolicy.checkMarriageEligibility(
+    const pCheck1 = this.polygamyPolicy.checkMarriageEligibility(
       s1,
       existingMarriages1,
       marriage.getMarriageType(),
     );
-    if (!polygamyCheck1.isAllowed) {
-      throw new Error(`Spouse 1 ineligible: ${polygamyCheck1.error}`);
-    }
+    if (!pCheck1.isAllowed) throw new Error(`Spouse 1 ineligible: ${pCheck1.error}`);
 
-    const polygamyCheck2 = this.polygamyPolicy.checkMarriageEligibility(
+    const pCheck2 = this.polygamyPolicy.checkMarriageEligibility(
       s2,
       existingMarriages2,
       marriage.getMarriageType(),
     );
-    if (!polygamyCheck2.isAllowed) {
-      throw new Error(`Spouse 2 ineligible: ${polygamyCheck2.error}`);
-    }
+    if (!pCheck2.isAllowed) throw new Error(`Spouse 2 ineligible: ${pCheck2.error}`);
 
-    // Active marriage check
     const existingActive = Array.from(this.marriages.values()).find(
       (m) =>
         m.getIsActive() &&
         ((m.getSpouse1Id() === s1 && m.getSpouse2Id() === s2) ||
           (m.getSpouse1Id() === s2 && m.getSpouse2Id() === s1)),
     );
-    if (existingActive) {
-      throw new Error('These members are already listed as married.');
-    }
+    if (existingActive) throw new Error('These members are already married.');
 
-    // Customary marriage validation
-    if (marriage.getMarriageType() === 'CUSTOMARY_MARRIAGE') {
-      const rites = marriage.getCustomaryMarriageDetails();
-      if (!rites) {
-        throw new Error('Customary marriage details are missing.');
-      }
+    if (
+      marriage.getMarriageType() === 'CUSTOMARY_MARRIAGE' &&
+      !marriage.getCustomaryMarriageDetails()
+    ) {
+      throw new Error('Customary marriage details missing.');
     }
 
     this.marriages.set(marriage.getId(), marriage);
-
     this.apply(
       new MarriageRegisteredEvent(
         marriage.getId(),
@@ -380,7 +323,6 @@ export class FamilyTreeAggregate extends AggregateRoot {
       ),
     );
 
-    // Update family metadata for Kenyan structure
     if (marriage.getMarriageType() === 'CUSTOMARY_MARRIAGE') {
       this.family.registerCustomaryMarriage({
         spouse1Id: s1,
@@ -391,7 +333,6 @@ export class FamilyTreeAggregate extends AggregateRoot {
         ceremonyLocation: marriage.getCustomaryMarriageDetails()?.ceremonyLocation || '',
       });
     }
-
     this.updateTreeStatistics();
   }
 
@@ -403,76 +344,61 @@ export class FamilyTreeAggregate extends AggregateRoot {
   ): void {
     const marriage = this.marriages.get(marriageId);
     if (!marriage) throw new Error('Marriage not found.');
-
     marriage.dissolve(date, cert, dissolutionType);
     this.updateTreeStatistics();
   }
 
   // --------------------------------------------------------------------------
-  // GUARDIANSHIP MANAGEMENT - KENYAN CHILDREN'S ACT COMPLIANCE
+  // GUARDIANSHIP MANAGEMENT
   // --------------------------------------------------------------------------
 
   assignGuardian(guardianship: Guardianship): void {
     const ward = this.members.get(guardianship.getWardId());
     const guardian = this.members.get(guardianship.getGuardianId());
 
-    if (!ward || !guardian) {
-      throw new Error('Guardian and Ward must be in tree.');
-    }
+    if (!ward || !guardian) throw new Error('Guardian and Ward must be in tree.');
 
-    // Kenyan guardian eligibility check
     const eligibility = this.guardianPolicy.checkEligibility(
       guardian,
       ward,
       guardianship.getType(),
     );
-    if (!eligibility.isEligible) {
-      throw new Error(`Guardian ineligible: ${eligibility.reason}`);
-    }
+    if (!eligibility.isEligible) throw new Error(`Guardian ineligible: ${eligibility.reason}`);
 
-    // Ward status validation
     if (!ward.getIsMinor() && guardianship.getType() !== 'FINANCIAL_GUARDIAN') {
       throw new Error('Guardianship typically applies to minors only.');
     }
 
-    // Existing guardianship check
-    const existingGuardianships = Array.from(this.guardianships.values()).filter(
+    const existing = Array.from(this.guardianships.values()).filter(
       (g) => g.getWardId() === guardianship.getWardId() && g.getIsActiveRecord(),
     );
-    if (existingGuardianships.length > 0) {
-      throw new Error('Ward already has active guardianship. Revoke existing guardianship first.');
-    }
+    if (existing.length > 0) throw new Error('Ward already has active guardianship.');
 
     this.guardianships.set(guardianship.getId(), guardianship);
-
     this.apply(
       new GuardianAssignedEvent(this.family.getId(), {
         guardianId: guardianship.getGuardianId(),
         wardId: guardianship.getWardId(),
         guardianType: guardianship.getType(),
-        appointedBy: 'family', // or 'court' depending on context
+        appointedBy: 'family',
         appointmentDate: guardianship.getAppointmentDate(),
         validUntil: guardianship.getValidUntil() || undefined,
         notes: guardianship.getNotes?.() || undefined,
       }),
     );
-
     this.updateTreeStatistics();
   }
 
   revokeGuardianship(guardianshipId: string, reason: string, revokedBy: string): void {
     const guardianship = this.guardianships.get(guardianshipId);
-    if (!guardianship) {
-      throw new Error('Guardianship not found.');
-    }
-
-    guardianship.revoke(this.family.getId(), reason, revokedBy);
+    if (!guardianship) throw new Error('Guardianship not found.');
+    guardianship.revoke(reason, revokedBy);
     this.guardianships.delete(guardianshipId);
     this.updateTreeStatistics();
   }
 
   // --------------------------------------------------------------------------
-  // FAMILY TREE ANALYSIS & SUCCESSION READINESS
+  // ANALYSIS & INTEGRITY
   // --------------------------------------------------------------------------
 
   analyzeSuccessionImplications(deceasedMemberId?: string): void {
@@ -484,7 +410,6 @@ export class FamilyTreeAggregate extends AggregateRoot {
       complexity: this.assessSuccessionComplexity(),
       recommendations: this.generateSuccessionRecommendations(),
     };
-
     this.apply(new SuccessionAnalysisCompletedEvent(this.family.getId(), analysis));
   }
 
@@ -504,7 +429,6 @@ export class FamilyTreeAggregate extends AggregateRoot {
       affectedMembers?: string[];
     }> = [];
 
-    // Circular relationships
     const circularCheck = this.integrityPolicy.detectCircularRelationships(
       Array.from(this.relationships.values()),
     );
@@ -512,76 +436,57 @@ export class FamilyTreeAggregate extends AggregateRoot {
       issues.push({
         type: 'ERROR',
         code: 'CIRCULAR_RELATIONSHIPS',
-        message: 'Circular relationships detected in family tree',
+        message: 'Circular relationships detected',
       });
     }
 
-    // Orphaned members
-    const orphanedMembers = this.findOrphanedMembers();
-    if (orphanedMembers.length > 0) {
+    const orphaned = this.findOrphanedMembers();
+    if (orphaned.length > 0) {
       issues.push({
         type: 'WARNING',
         code: 'ORPHANED_MEMBERS',
-        message: `${orphanedMembers.length} members have no family relationships`,
-        affectedMembers: orphanedMembers,
+        message: `${orphaned.length} orphaned members`,
+        affectedMembers: orphaned,
       });
     }
 
-    // Minors without guardians
-    const minorsWithoutGuardians = this.findMinorsWithoutGuardians();
-    if (minorsWithoutGuardians.length > 0) {
+    const minorsNoGuardian = this.findMinorsWithoutGuardians();
+    if (minorsNoGuardian.length > 0) {
       issues.push({
         type: 'ERROR',
         code: 'MINORS_WITHOUT_GUARDIANS',
-        message: `${minorsWithoutGuardians.length} minors do not have appointed guardians`,
-        affectedMembers: minorsWithoutGuardians,
+        message: `${minorsNoGuardian.length} minors have no guardian`,
+        affectedMembers: minorsNoGuardian,
       });
     }
 
-    // Unverified critical relationships
-    const unverifiedCritical = this.findUnverifiedCriticalRelationships();
-    if (unverifiedCritical.length > 0) {
+    const unverified = this.findUnverifiedCriticalRelationships();
+    if (unverified.length > 0) {
       issues.push({
         type: 'WARNING',
         code: 'UNVERIFIED_RELATIONSHIPS',
-        message: `${unverifiedCritical.length} critical relationships are not verified`,
-        affectedMembers: unverifiedCritical,
+        message: `${unverified.length} critical relationships unverified`,
+        affectedMembers: unverified,
       });
     }
 
-    return {
-      isValid: issues.filter((i) => i.type === 'ERROR').length === 0,
-      issues,
-    };
+    return { isValid: issues.filter((i) => i.type === 'ERROR').length === 0, issues };
   }
 
-  getSuccessionReadiness(): {
-    isReady: boolean;
-    score: number;
-    criticalIssues: string[];
-    recommendations: string[];
-  } {
+  getSuccessionReadiness() {
     const integrity = this.validateTreeIntegrity();
     let score = 100;
-
-    // Deduct points for issues
     score -= integrity.issues.filter((i) => i.type === 'ERROR').length * 20;
     score -= integrity.issues.filter((i) => i.type === 'WARNING').length * 5;
     score = Math.max(0, score);
 
     const recommendations: string[] = [];
-
-    if (this.findMinorsWithoutGuardians().length > 0) {
-      recommendations.push('Appoint guardians for all minors.');
-    }
-
-    if (this.findUnverifiedCriticalRelationships().length > 0) {
-      recommendations.push('Verify critical relationships to prevent succession disputes.');
-    }
-
-    if (!this.family.getMetadata().familyHeadId) {
-      recommendations.push('Consider appointing a family head for decision-making.');
-    }
+    if (this.findMinorsWithoutGuardians().length > 0)
+      recommendations.push('Appoint guardians for minors.');
+    if (this.findUnverifiedCriticalRelationships().length > 0)
+      recommendations.push('Verify critical relationships.');
+    if (!this.family.getMetadata().familyHeadId)
+      recommendations.push('Consider appointing a family head.');
 
     return {
       isReady: integrity.isValid && score >= 70,
@@ -592,16 +497,15 @@ export class FamilyTreeAggregate extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // PRIVATE HELPER METHODS
+  // PRIVATE HELPERS
   // --------------------------------------------------------------------------
 
   private updateTreeStatistics(): void {
-    // This would update internal statistics counters
-    // Implementation depends on specific requirements
+    // Stub for future statistics updating logic
   }
 
   private getCriticalRelationshipsForMember(memberId: string): Relationship[] {
-    const criticalTypes: string[] = ['PARENT', 'CHILD', 'SPOUSE'];
+    const criticalTypes = ['PARENT', 'CHILD', 'SPOUSE'];
     return Array.from(this.relationships.values()).filter(
       (r) =>
         (r.getFromMemberId() === memberId || r.getToMemberId() === memberId) &&
@@ -610,162 +514,115 @@ export class FamilyTreeAggregate extends AggregateRoot {
   }
 
   private isCriticalRelationship(relationship: Relationship): boolean {
-    const criticalTypes: string[] = ['PARENT', 'CHILD', 'SPOUSE'];
-    return criticalTypes.includes(relationship.getType());
+    return ['PARENT', 'CHILD', 'SPOUSE'].includes(relationship.getType());
   }
 
   private areAllCriticalRelationshipsVerified(): boolean {
-    const criticalRelationships = Array.from(this.relationships.values()).filter((r) =>
-      this.isCriticalRelationship(r),
-    );
-    return criticalRelationships.every((r) => r.getIsVerified());
+    return Array.from(this.relationships.values())
+      .filter((r) => this.isCriticalRelationship(r))
+      .every((r) => r.getIsVerified());
   }
 
   private findOrphanedMembers(): string[] {
-    const connectedMembers = new Set<string>();
-
-    Array.from(this.relationships.values()).forEach((rel) => {
-      connectedMembers.add(rel.getFromMemberId());
-      connectedMembers.add(rel.getToMemberId());
+    const connected = new Set<string>();
+    this.relationships.forEach((r) => {
+      connected.add(r.getFromMemberId());
+      connected.add(r.getToMemberId());
     });
-
-    Array.from(this.marriages.values()).forEach((marriage) => {
-      connectedMembers.add(marriage.getSpouse1Id());
-      connectedMembers.add(marriage.getSpouse2Id());
+    this.marriages.forEach((m) => {
+      connected.add(m.getSpouse1Id());
+      connected.add(m.getSpouse2Id());
     });
-
     return Array.from(this.members.values())
-      .filter((member) => !connectedMembers.has(member.getId()))
-      .map((member) => member.getId());
+      .filter((m) => !connected.has(m.getId()))
+      .map((m) => m.getId());
   }
 
   private findMinorsWithoutGuardians(): string[] {
     const minors = Array.from(this.members.values()).filter(
       (m) => m.getIsMinor() && !m.getIsDeceased(),
     );
-
-    const wardsWithGuardians = new Set(
+    const protectedWards = new Set(
       Array.from(this.guardianships.values())
         .filter((g) => g.getIsActiveRecord())
         .map((g) => g.getWardId()),
     );
-
-    return minors
-      .filter((minor) => !wardsWithGuardians.has(minor.getId()))
-      .map((minor) => minor.getId());
+    return minors.filter((m) => !protectedWards.has(m.getId())).map((m) => m.getId());
   }
 
   private findUnverifiedCriticalRelationships(): string[] {
-    const criticalTypes: string[] = ['PARENT', 'CHILD', 'SPOUSE'];
     return Array.from(this.relationships.values())
-      .filter((rel) => criticalTypes.includes(rel.getType()) && !rel.getIsVerified())
-      .map((rel) => rel.getId());
+      .filter((r) => this.isCriticalRelationship(r) && !r.getIsVerified())
+      .map((r) => r.getId());
   }
 
   private identifyPotentialHeirs(deceasedMemberId?: string): string[] {
-    // Simplified heir identification
-    // In real implementation, this would use complex graph traversal
     if (!deceasedMemberId) return [];
+    const heirs: string[] = [];
 
-    const potentialHeirs: string[] = [];
-    const relationships = Array.from(this.relationships.values());
+    this.marriages.forEach((m) => {
+      if (m.getIsActive()) {
+        if (m.getSpouse1Id() === deceasedMemberId) heirs.push(m.getSpouse2Id());
+        if (m.getSpouse2Id() === deceasedMemberId) heirs.push(m.getSpouse1Id());
+      }
+    });
 
-    // Find spouses
-    const spouses = Array.from(this.marriages.values())
-      .filter(
-        (m) =>
-          m.getIsActive() &&
-          (m.getSpouse1Id() === deceasedMemberId || m.getSpouse2Id() === deceasedMemberId),
-      )
-      .map((m) => (m.getSpouse1Id() === deceasedMemberId ? m.getSpouse2Id() : m.getSpouse1Id()));
+    this.relationships.forEach((r) => {
+      if (r.getFromMemberId() === deceasedMemberId && r.getType() === 'CHILD')
+        heirs.push(r.getToMemberId());
+    });
 
-    potentialHeirs.push(...spouses);
-
-    // Find children
-    const children = relationships
-      .filter((r) => r.getFromMemberId() === deceasedMemberId && r.getType() === 'CHILD')
-      .map((r) => r.getToMemberId());
-
-    potentialHeirs.push(...children);
-
-    return potentialHeirs;
+    return heirs;
   }
 
   private identifyLegalDependants(deceasedMemberId?: string): string[] {
     if (!deceasedMemberId) return [];
+    const dependants = this.identifyPotentialHeirs(deceasedMemberId);
 
-    // Simplified dependant identification
-    // In real implementation, this would use the DependantCalculatorService
-    const dependants: string[] = [];
-    const members = Array.from(this.members.values());
-    const relationships = Array.from(this.relationships.values());
-
-    // Immediate family (spouse and children)
-    const immediateFamily = this.identifyPotentialHeirs(deceasedMemberId);
-    dependants.push(...immediateFamily);
-
-    // Parents who were dependent
-    const parents = relationships
-      .filter((r) => r.getToMemberId() === deceasedMemberId && r.getType() === 'PARENT')
-      .map((r) => r.getFromMemberId())
-      .filter((parentId) => {
-        const parent = members.find((m) => m.getId() === parentId);
-        return parent && parent.getMetadata().dependencyStatus !== 'INDEPENDENT';
-      });
-
-    dependants.push(...parents);
-
+    this.relationships.forEach((r) => {
+      if (r.getToMemberId() === deceasedMemberId && r.getType() === 'PARENT') {
+        const parent = this.members.get(r.getFromMemberId());
+        if (parent && parent.getMetadata().dependencyStatus !== 'INDEPENDENT')
+          dependants.push(parent.getId());
+      }
+    });
     return dependants;
   }
 
   private determineSuccessionType(): 'TESTATE' | 'INTESTATE' | 'MIXED' {
-    // Simplified determination - in real implementation, check for wills
-    // For now, assume intestate unless we have will information
     return 'INTESTATE';
   }
 
   private assessSuccessionComplexity(): 'SIMPLE' | 'MODERATE' | 'COMPLEX' {
-    const members = Array.from(this.members.values());
-    const marriages = Array.from(this.marriages.values());
-
-    const polygamousMarriages = marriages.filter((m) => m.allowsPolygamy() && m.getIsActive());
-    const minors = members.filter((m) => m.getIsMinor() && !m.getIsDeceased());
-    const customaryMarriages = marriages.filter(
+    const polygamous = Array.from(this.marriages.values()).filter(
+      (m) => m.allowsPolygamy() && m.getIsActive(),
+    );
+    const minors = Array.from(this.members.values()).filter(
+      (m) => m.getIsMinor() && !m.getIsDeceased(),
+    );
+    const customary = Array.from(this.marriages.values()).filter(
       (m) => m.getMarriageType() === 'CUSTOMARY_MARRIAGE',
     );
 
-    if (polygamousMarriages.length > 1 || minors.length > 3) {
-      return 'COMPLEX';
-    } else if (customaryMarriages.length > 0 || minors.length > 0) {
-      return 'MODERATE';
-    } else {
-      return 'SIMPLE';
-    }
+    if (polygamous.length > 1 || minors.length > 3) return 'COMPLEX';
+    if (customary.length > 0 || minors.length > 0) return 'MODERATE';
+    return 'SIMPLE';
   }
 
   private generateSuccessionRecommendations(): string[] {
     const recommendations: string[] = [];
     const readiness = this.getSuccessionReadiness();
-
-    if (!readiness.isReady) {
-      recommendations.push('Address critical issues before proceeding with succession.');
-    }
+    if (!readiness.isReady) recommendations.push('Address critical issues.');
 
     const minors = this.findMinorsWithoutGuardians();
-    if (minors.length > 0) {
-      recommendations.push(`Appoint guardians for ${minors.length} minor(s).`);
-    }
+    if (minors.length > 0) recommendations.push(`Appoint guardians for ${minors.length} minor(s).`);
 
     const unverified = this.findUnverifiedCriticalRelationships();
-    if (unverified.length > 0) {
+    if (unverified.length > 0)
       recommendations.push(`Verify ${unverified.length} critical relationship(s).`);
-    }
 
-    const complexity = this.assessSuccessionComplexity();
-    if (complexity === 'COMPLEX') {
-      recommendations.push('Consider legal assistance for complex succession case.');
-    }
-
+    if (this.assessSuccessionComplexity() === 'COMPLEX')
+      recommendations.push('Consider legal assistance.');
     return recommendations;
   }
 
@@ -776,55 +633,44 @@ export class FamilyTreeAggregate extends AggregateRoot {
   getMembers(): FamilyMember[] {
     return Array.from(this.members.values());
   }
-
   getRelationships(): Relationship[] {
     return Array.from(this.relationships.values());
   }
-
   getMarriages(): Marriage[] {
     return Array.from(this.marriages.values());
   }
-
   getGuardianships(): Guardianship[] {
     return Array.from(this.guardianships.values());
   }
-
   getFamily(): Family {
     return this.family;
   }
 
   getSnapshot(): FamilyTreeSnapshot {
     const members = this.getMembers();
-    const relationships = this.getRelationships();
-    const marriages = this.getMarriages();
-    const guardianships = this.getGuardianships();
-
-    const livingMembers = members.filter((m) => !m.getIsDeceased());
-    const deceasedMembers = members.filter((m) => m.getIsDeceased());
-    const minors = members.filter((m) => m.getIsMinor());
-    const customaryMarriages = marriages.filter(
-      (m) => m.getMarriageType() === 'CUSTOMARY_MARRIAGE',
-    );
-    const verifiedRelationships = relationships.filter((r) => r.getIsVerified());
-    const activeGuardianships = guardianships.filter((g) => g.getIsActiveRecord());
-
     const integrity = this.validateTreeIntegrity();
 
     return {
       family: this.family,
       members,
-      relationships,
-      marriages,
-      guardianships,
+      relationships: this.getRelationships(),
+      marriages: this.getMarriages(),
+      guardianships: this.getGuardianships(),
       statistics: {
         totalMembers: members.length,
-        livingMembers: livingMembers.length,
-        deceasedMembers: deceasedMembers.length,
-        minorCount: minors.length,
-        marriageCount: marriages.length,
-        customaryMarriageCount: customaryMarriages.length,
-        verifiedRelationships: verifiedRelationships.length,
-        activeGuardianships: activeGuardianships.length,
+        livingMembers: members.filter((m) => !m.getIsDeceased()).length,
+        deceasedMembers: members.filter((m) => m.getIsDeceased()).length,
+        minorCount: members.filter((m) => m.getIsMinor()).length,
+        marriageCount: this.marriages.size,
+        customaryMarriageCount: Array.from(this.marriages.values()).filter(
+          (m) => m.getMarriageType() === 'CUSTOMARY_MARRIAGE',
+        ).length,
+        verifiedRelationships: Array.from(this.relationships.values()).filter((r) =>
+          r.getIsVerified(),
+        ).length,
+        activeGuardianships: Array.from(this.guardianships.values()).filter((g) =>
+          g.getIsActiveRecord(),
+        ).length,
       },
       integrity: {
         hasCircularRelationships: integrity.issues.some((i) => i.code === 'CIRCULAR_RELATIONSHIPS'),

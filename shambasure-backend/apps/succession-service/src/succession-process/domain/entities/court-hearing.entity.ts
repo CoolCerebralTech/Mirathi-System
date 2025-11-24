@@ -157,9 +157,31 @@ export class CourtHearing extends AggregateRoot {
   }
 
   static reconstitute(props: CourtHearingProps): CourtHearing {
-    // Validate required fields
-    if (!props.id || !props.caseId || !props.date || !props.type || !props.courtStation) {
-      throw new Error('Missing required properties for CourtHearing reconstitution');
+    // validation with specific error messages
+    const requiredFields = ['id', 'caseId', 'date', 'type', 'courtStation'];
+    const missingFields = requiredFields.filter((field) => !props[field]);
+
+    if (missingFields.length > 0) {
+      throw new Error(
+        `Missing required properties for CourtHearing reconstitution: ${missingFields.join(', ')}`,
+      );
+    }
+
+    // Validate date format
+    if (isNaN(new Date(props.date).getTime())) {
+      throw new Error('Invalid date format in CourtHearing properties');
+    }
+
+    // Validate hearing status
+    const validStatuses: HearingStatus[] = [
+      'SCHEDULED',
+      'COMPLETED',
+      'ADJOURNED',
+      'CANCELLED',
+      'IN_PROGRESS',
+    ];
+    if (!validStatuses.includes(props.status)) {
+      throw new Error(`Invalid hearing status: ${props.status}`);
     }
 
     const hearing = new CourtHearing(
@@ -210,7 +232,20 @@ export class CourtHearing extends AggregateRoot {
    */
   markInProgress(presidingOfficer: string): void {
     if (this.status !== 'SCHEDULED') {
-      throw new Error('Only scheduled hearings can be marked as in progress.');
+      throw new Error(
+        `Only scheduled hearings can be marked as in progress. Current status: ${this.status}`,
+      );
+    }
+
+    // Validate presiding officer
+    if (!presidingOfficer || presidingOfficer.trim().length < 3) {
+      throw new Error('Presiding officer name is required and must be at least 3 characters.');
+    }
+
+    // Check if hearing date is today
+    const today = new Date();
+    if (this.date.toDateString() !== today.toDateString()) {
+      throw new Error('Hearing can only be marked in progress on the scheduled date.');
     }
 
     this.status = 'IN_PROGRESS';
@@ -322,6 +357,34 @@ export class CourtHearing extends AggregateRoot {
       ),
     );
   }
+  /**
+   * Check if hearing can be edited based on Kenyan court rules
+   */
+  canBeEdited(): boolean {
+    const now = new Date();
+    const hoursUntilHearing = (this.date.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    // Kenyan courts typically require 48 hours notice for changes
+    return this.status === 'SCHEDULED' && hoursUntilHearing > 48;
+  }
+
+  /**
+   * Get next available hearing date based on Kenyan court rules
+   */
+  static getNextAvailableHearingDate(): Date {
+    const now = new Date();
+    const nextDate = new Date(now);
+
+    // Skip weekends and find next business day
+    do {
+      nextDate.setDate(nextDate.getDate() + 1);
+    } while (nextDate.getDay() === 0 || nextDate.getDay() === 6);
+
+    // Set to 9:00 AM court time
+    nextDate.setHours(9, 0, 0, 0);
+
+    return nextDate;
+  }
 
   /**
    * Add compliance tracking for court orders
@@ -357,17 +420,47 @@ export class CourtHearing extends AggregateRoot {
       throw new Error('Court hearings are typically not scheduled on weekends.');
     }
 
-    // Kenyan court hours (simplified)
+    // Kenyan court hours (enhanced validation)
     const hour = date.getHours();
-    if (hour < 8 || hour > 17) {
-      throw new Error('Court hearings are typically scheduled between 8:00 AM and 5:00 PM.');
+    const minutes = date.getMinutes();
+
+    // Court hours: 8:00 AM to 5:00 PM
+    const totalMinutes = hour * 60 + minutes;
+    if (totalMinutes < 8 * 60 || totalMinutes > 17 * 60) {
+      throw new Error('Court hearings must be scheduled between 8:00 AM and 5:00 PM.');
+    }
+
+    // Kenyan public holidays check (basic implementation)
+    if (this.isKenyanPublicHoliday(date)) {
+      throw new Error('Cannot schedule hearings on Kenyan public holidays.');
     }
   }
 
+  private static isKenyanPublicHoliday(date: Date): boolean {
+    // TODO: Implement proper Kenyan public holiday logic
+    // This would integrate with Kenyan calendar service
+    const holidays = [
+      '01-01', // New Years
+      '01-01', // Labour Day
+      '06-01', // Madaraka Day
+      '10-20', // Mashujaa Day
+      '12-12', // Jamhuri Day
+      '12-25', // Christmas
+      '12-26', // Boxing Day
+    ];
+
+    const monthDay = `${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+    return holidays.includes(monthDay);
+  }
+
   private generateHearingNumber(): string {
-    const timestamp = new Date().getTime().toString().slice(-6);
+    // More robust hearing number generation for Kenyan courts
+    const courtCode = this.courtStation.substring(0, 3).toUpperCase();
+    const year = new Date().getFullYear();
+    const timestamp = Date.now().toString().slice(-6);
     const random = Math.random().toString(36).substring(2, 5).toUpperCase();
-    return `HRG-${timestamp}-${random}`;
+
+    return `HRG-${courtCode}-${year}-${timestamp}-${random}`;
   }
 
   private formatOutcomeNotes(outcome: HearingOutcome): string {

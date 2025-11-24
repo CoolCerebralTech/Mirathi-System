@@ -1,5 +1,5 @@
-import { CourtHearing } from '../entities/court-hearing.entity';
-import { HearingStatus, HearingType } from '../../../common/types/kenyan-law.types';
+import { CourtHearing, HearingStatus } from '../entities/court-hearing.entity';
+import { HearingType } from '../../../common/types/kenyan-law.types';
 
 export interface CourtHearingRepositoryInterface {
   // Basic CRUD operations

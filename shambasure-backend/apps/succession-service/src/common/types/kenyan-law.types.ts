@@ -104,15 +104,12 @@ export type ProbateStatus =
 /* -------------------------------------------------------------------------- */
 
 export type ExecutorDutyType =
-  | 'LOCATE_WILL'
-  | 'NOTIFY_HEIRS'
-  | 'INVENTORY_ASSETS'
-  | 'MANAGE_ASSETS'
+  | 'FILE_INVENTORY'
   | 'PAY_DEBTS'
-  | 'FILE_TAXES'
   | 'DISTRIBUTE_ASSETS'
   | 'FILE_ACCOUNTS'
-  | 'CLOSE_ESTATE';
+  | 'OBTAIN_GRANT'
+  | 'MANAGE_PROPERTY';
 
 export type CompensationType = 'PERCENTAGE' | 'FIXED_AMOUNT' | 'HOURLY_RATE' | 'COURT_DETERMINED';
 

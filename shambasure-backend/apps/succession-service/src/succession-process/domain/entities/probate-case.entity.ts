@@ -7,7 +7,7 @@ import { ObjectionFiledEvent } from '../events/objection-filed.event';
 import { GrantIssuedEvent } from '../events/grant-issued.event';
 import { CaseClosedEvent } from '../events/case-closed.event';
 import { GrantApplicationType } from '../value-objects/grant-application-type.vo';
-import { KenyanCourtJurisdiction } from '../value-objects/kenyan-court-jurisdiction.vo';
+import { KenyanCourtJurisdiction, CourtLevel } from '../value-objects/kenyan-court-jurisdiction.vo';
 import { ProbateCaseNumber } from '../value-objects/probate-case-number.vo';
 import { GazetteNotice } from '../value-objects/gazette-notice.vo';
 
@@ -46,10 +46,10 @@ export interface ProbateCaseProps {
   grantId?: string | null;
   inventoryId?: string | null;
   applicantDetails?: {
-    applicantId: string;
-    applicantName: string;
-    relationship: string;
-    contactInfo: string;
+    applicantId?: string | null;
+    applicantName?: string | null;
+    relationship?: string | null;
+    contactInfo?: string | null;
   } | null;
   priority: CasePriority;
   objections: {
@@ -63,23 +63,23 @@ export interface ProbateCaseProps {
     hearingId: string;
     date: Date | string;
     type: string;
-    outcome?: string;
+    outcome?: string | null;
   }[];
   grantDetails?: {
-    grantNumber?: string;
-    issueDate?: Date | string;
-    issuedBy?: string;
-    expiryDate?: Date | string;
+    grantNumber?: string | null;
+    issueDate?: Date | string | null;
+    issuedBy?: string | null;
+    expiryDate?: Date | string | null;
   } | null;
   closureDetails?: {
-    closureDate?: Date | string;
-    closureReason?: string;
-    closedBy?: string;
+    closureDate?: Date | string | null;
+    closureReason?: string | null;
+    closedBy?: string | null;
   } | null;
   legalRepresentation?: {
-    lawyerName?: string;
-    lawyerFirm?: string;
-    contactInfo?: string;
+    lawyerName?: string | null;
+    lawyerFirm?: string | null;
+    contactInfo?: string | null;
   } | null;
   createdAt: Date | string;
   updatedAt: Date | string;
@@ -213,7 +213,8 @@ export class ProbateCase extends AggregateRoot {
     id: string,
     estateId: string,
     type: GrantType,
-    courtDetails: { level: any; station: string; county: string },
+    // FIXED: Use proper CourtLevel type
+    courtDetails: { level: CourtLevel; station: string; county: string },
     options?: {
       priority?: CasePriority;
       applicantDetails?: {
@@ -230,6 +231,8 @@ export class ProbateCase extends AggregateRoot {
     },
   ): ProbateCase {
     const appType = new GrantApplicationType(type);
+
+    // FIXED: Now level is the correct CourtLevel type
     const court = new KenyanCourtJurisdiction(
       courtDetails.level,
       courtDetails.station,
@@ -274,8 +277,9 @@ export class ProbateCase extends AggregateRoot {
     if (props.court instanceof KenyanCourtJurisdiction) {
       court = props.court;
     } else {
+      // FIXED: Cast level to CourtLevel since we know it's valid from persistence
       court = new KenyanCourtJurisdiction(
-        props.court.level,
+        props.court.level as CourtLevel,
         props.court.station,
         props.court.county,
       );
@@ -316,22 +320,22 @@ export class ProbateCase extends AggregateRoot {
       );
     }
 
-    // Applicant details
+    // Applicant details - FIXED: Handle null/undefined properly
     if (props.applicantDetails) {
       probateCase.applicantDetails = {
-        applicantId: props.applicantDetails.applicantId || null,
-        applicantName: props.applicantDetails.applicantName || null,
-        relationship: props.applicantDetails.relationship || null,
-        contactInfo: props.applicantDetails.contactInfo || null,
+        applicantId: props.applicantDetails.applicantId ?? null,
+        applicantName: props.applicantDetails.applicantName ?? null,
+        relationship: props.applicantDetails.relationship ?? null,
+        contactInfo: props.applicantDetails.contactInfo ?? null,
       };
     }
 
-    // Legal representation
+    // Legal representation - FIXED: Handle null/undefined properly
     if (props.legalRepresentation) {
       probateCase.legalRepresentation = {
-        lawyerName: props.legalRepresentation.lawyerName || null,
-        lawyerFirm: props.legalRepresentation.lawyerFirm || null,
-        contactInfo: props.legalRepresentation.contactInfo || null,
+        lawyerName: props.legalRepresentation.lawyerName ?? null,
+        lawyerFirm: props.legalRepresentation.lawyerFirm ?? null,
+        contactInfo: props.legalRepresentation.contactInfo ?? null,
       };
     }
 
@@ -346,34 +350,34 @@ export class ProbateCase extends AggregateRoot {
       }));
     }
 
-    // Hearings
+    // Hearings - FIXED: Handle outcome properly
     if (props.hearings) {
       probateCase.hearings = props.hearings.map((hearing) => ({
         hearingId: hearing.hearingId,
         date: new Date(hearing.date),
         type: hearing.type,
-        outcome: hearing.outcome || null,
+        outcome: hearing.outcome ?? null,
       }));
     }
 
-    // Grant details
+    // Grant details - FIXED: Handle null/undefined properly
     if (props.grantDetails) {
       probateCase.grantDetails = {
-        grantNumber: props.grantDetails.grantNumber || null,
+        grantNumber: props.grantDetails.grantNumber ?? null,
         issueDate: props.grantDetails.issueDate ? new Date(props.grantDetails.issueDate) : null,
-        issuedBy: props.grantDetails.issuedBy || null,
+        issuedBy: props.grantDetails.issuedBy ?? null,
         expiryDate: props.grantDetails.expiryDate ? new Date(props.grantDetails.expiryDate) : null,
       };
     }
 
-    // Closure details
+    // Closure details - FIXED: Handle null/undefined properly
     if (props.closureDetails) {
       probateCase.closureDetails = {
         closureDate: props.closureDetails.closureDate
           ? new Date(props.closureDetails.closureDate)
           : null,
-        closureReason: props.closureDetails.closureReason || null,
-        closedBy: props.closureDetails.closedBy || null,
+        closureReason: props.closureDetails.closureReason ?? null,
+        closedBy: props.closureDetails.closedBy ?? null,
       };
     }
 
@@ -536,14 +540,15 @@ export class ProbateCase extends AggregateRoot {
 
     this.apply(
       new GrantIssuedEvent(
-        this.id,
-        this.estateId,
         grantId,
-        this.applicationType.getValue(),
+        this.estateId,
+        this.applicantDetails.applicantId || 'UNKNOWN',
         issueDate,
-        issuedBy,
+        this.applicationType.getValue(),
         grantNumber,
+        this.court.getStation(),
         expiryDate,
+        undefined,
       ),
     );
   }
@@ -796,7 +801,7 @@ export class ProbateCase extends AggregateRoot {
         ? {
             noticeNumber: this.gazetteNotice.getNoticeNumber(),
             publicationDate: this.gazetteNotice.getPublicationDate(),
-            objectionPeriodDays: 30, // Default from GazetteNotice
+            objectionPeriodDays: this.gazetteNotice.getDaysRemaining(),
             noticeType: this.applicationType.getValue().includes('PROBATE')
               ? 'PROBATE'
               : 'LETTERS_OF_ADMINISTRATION',

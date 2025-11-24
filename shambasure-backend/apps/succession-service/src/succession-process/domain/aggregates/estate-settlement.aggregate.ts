@@ -1,7 +1,7 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { EstateInventory } from '../entities/estate-inventory.entity';
 import { ExecutorDuty } from '../entities/executor-duties.entity';
-import { Distribution } from '../entities/distribution.entity';
+import { Distribution, TransferMethod } from '../entities/distribution.entity';
 import { CreditorClaim } from '../entities/creditor-claim.entity';
 import { DebtPriorityPolicy } from '../policies/debt-priority.policy';
 import { DistributionTimingPolicy } from '../policies/distribution-timing.policy';
@@ -211,12 +211,7 @@ export class EstateSettlementAggregate extends AggregateRoot {
     this.recalculateEstateValue();
   }
 
-  updateInventoryValuation(
-    itemId: string,
-    newValue: number,
-    updatedBy: string,
-    reason: string,
-  ): void {
+  updateInventoryValuation(itemId: string): void {
     const item = this.inventory.get(itemId);
     if (!item) throw new Error('Inventory item not found.');
 
@@ -292,12 +287,11 @@ export class EstateSettlementAggregate extends AggregateRoot {
     amount: number,
     paymentMethod: string,
     transactionReference?: string,
-    paidBy?: string,
   ): void {
     const claim = this.claims.get(claimId);
     if (!claim) throw new Error('Creditor claim not found.');
 
-    claim.markAsPaid(amount, paymentMethod, transactionReference, paidBy);
+    claim.markAsPaid(amount, paymentMethod, transactionReference);
     this.recalculateLiabilities();
 
     // Check if all debts are settled
@@ -409,7 +403,7 @@ export class EstateSettlementAggregate extends AggregateRoot {
 
   completeDistribution(
     distributionId: string,
-    transferMethod: string,
+    transferMethod: TransferMethod,
     options?: {
       notes?: string;
       reference?: string;
@@ -573,12 +567,12 @@ export class EstateSettlementAggregate extends AggregateRoot {
   // FINANCIAL METHODS
   // --------------------------------------------------------------------------
 
-  recordSettlementCost(amount: number, description: string): void {
+  recordSettlementCost(amount: number): void {
     this.settlementCosts += amount;
     this.recalculateEstateValue();
   }
 
-  recordTaxPayment(amount: number, taxType: string): void {
+  recordTaxPayment(amount: number): void {
     this.taxesPaid += amount;
     this.recalculateEstateValue();
   }
@@ -588,7 +582,9 @@ export class EstateSettlementAggregate extends AggregateRoot {
   // --------------------------------------------------------------------------
 
   getSettlementTimeline(): { phase: string; startDate: Date; endDate?: Date }[] {
-    const timeline = [{ phase: 'Initiation', startDate: this.initiationDate }];
+    const timeline: { phase: string; startDate: Date; endDate?: Date }[] = [
+      { phase: 'Initiation', startDate: this.initiationDate },
+    ];
 
     if (this.inventoryCompletionDate) {
       timeline.push({ phase: 'Inventory Complete', startDate: this.inventoryCompletionDate });
@@ -719,6 +715,17 @@ export class EstateSettlementAggregate extends AggregateRoot {
   }
   isCourtSupervisionRequired(): boolean {
     return this.courtSupervisionRequired;
+  }
+  getDebtPriorityPolicy(): DebtPriorityPolicy {
+    return this.debtPriorityPolicy;
+  }
+
+  getDistributionTimingPolicy(): DistributionTimingPolicy {
+    return this.distributionTimingPolicy;
+  }
+
+  getIntestateSuccessionPolicy(): IntestateSuccessionPolicy {
+    return this.intestateSuccessionPolicy;
   }
 
   getInventory(): EstateInventory[] {

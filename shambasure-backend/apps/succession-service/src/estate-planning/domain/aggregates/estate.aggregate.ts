@@ -37,6 +37,17 @@ export interface DebtPriorityResult {
 }
 
 /**
+ * Properties required to hydrate the aggregate from the repository
+ */
+export interface EstateReconstituteProps {
+  id: string;
+  deceasedId: string;
+  wills?: Will[];
+  assets?: Asset[];
+  debts?: Debt[];
+}
+
+/**
  * Estate Aggregate Root representing the complete estate of a deceased person
  *
  * Core Domain Aggregate for managing:
@@ -89,6 +100,26 @@ export class EstateAggregate extends AggregateRoot {
     const estate = new EstateAggregate(id, deceasedId);
 
     estate.apply(new EstateCreatedEvent(estate._id, estate._deceasedId, new Date()));
+
+    return estate;
+  }
+
+  /**
+   * Reconstitutes the aggregate from persistence.
+   * Accepts fully hydrated child entities from the Repository.
+   */
+  static reconstitute(props: EstateReconstituteProps): EstateAggregate {
+    const estate = new EstateAggregate(props.id, props.deceasedId);
+
+    if (props.wills) {
+      props.wills.forEach((will) => estate._wills.set(will.id, will));
+    }
+    if (props.assets) {
+      props.assets.forEach((asset) => estate._assets.set(asset.id, asset));
+    }
+    if (props.debts) {
+      props.debts.forEach((debt) => estate._debts.set(debt.id, debt));
+    }
 
     return estate;
   }

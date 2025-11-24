@@ -40,7 +40,8 @@ export class DisputeGroundsPolicy {
 
     // 3. Post-grant revocation rules (Section 76)
     if (stage === 'POST_GRANT') {
-      const grounds = new LegalGrounds(type, description, supportingEvidence);
+      // Use the factory method that handles DisputeType conversion
+      const grounds = LegalGrounds.createFromDisputeType(type, description, supportingEvidence);
 
       if (!grounds.isValidGroundForRevocation()) {
         errors.push(
@@ -103,7 +104,7 @@ export class DisputeGroundsPolicy {
     estateValue: number,
   ): { recommended: boolean; reason: string; urgency: 'LOW' | 'MEDIUM' | 'HIGH' } {
     // Cases not suitable for mediation
-    const nonMediableTypes: DisputeType[] = ['FRAUD', 'FORGERY', 'LACK_CAPACITY'];
+    const nonMediableTypes: DisputeType[] = ['FRAUD', 'LACK_CAPACITY']; // Removed FORGERY since it's not in DisputeType
 
     if (nonMediableTypes.includes(type)) {
       return {
@@ -179,10 +180,10 @@ export class DisputeGroundsPolicy {
         likelihood = 'MEDIUM'; // Courts often provide for omitted dependants
         break;
       case 'FRAUD':
-      case 'FORGERY':
         factors.push('Requires clear and convincing evidence');
         if (evidenceStrength === 'STRONG') likelihood = 'HIGH';
         break;
+      // Removed FORGERY case since it's not in DisputeType
     }
 
     // Stage impact
@@ -194,19 +195,76 @@ export class DisputeGroundsPolicy {
     return { likelihood, factors };
   }
 
+  /**
+   * Validates if dispute can proceed to court filing
+   */
+  validateCourtFiling(
+    type: DisputeType,
+    description: string,
+    evidence: string[],
+    estateValue: number,
+  ): { canFile: boolean; requirements: string[]; missingRequirements: string[] } {
+    const requirements: string[] = [];
+    const missingRequirements: string[] = [];
+
+    // Basic requirements for all disputes
+    if (description.length < this.MIN_DESCRIPTION_LENGTH) {
+      missingRequirements.push(`Detailed description (min ${this.MIN_DESCRIPTION_LENGTH} chars)`);
+    } else {
+      requirements.push('Adequate description provided');
+    }
+
+    if (evidence.length === 0) {
+      missingRequirements.push('Supporting evidence/documents');
+    } else {
+      requirements.push('Supporting evidence provided');
+    }
+
+    // Type-specific requirements
+    switch (type) {
+      case 'LACK_CAPACITY':
+        requirements.push('Medical evidence required');
+        requirements.push('Witness affidavits from time of will execution');
+        break;
+      case 'FRAUD':
+        requirements.push('Clear evidence of fraudulent intent');
+        requirements.push('Documentation showing misrepresentation');
+        break;
+      case 'UNDUE_INFLUENCE':
+        requirements.push('Evidence of coercion or pressure');
+        requirements.push('Relationship dynamics documentation');
+        break;
+      case 'OMITTED_HEIR':
+        requirements.push('Proof of relationship');
+        requirements.push('Evidence of dependency on deceased');
+        break;
+    }
+
+    // High-value estate additional requirements
+    if (estateValue > 10000000) {
+      requirements.push('Legal representation recommended for high-value estates');
+    }
+
+    return {
+      canFile: missingRequirements.length === 0,
+      requirements,
+      missingRequirements,
+    };
+  }
+
   private getLegalBasis(type: DisputeType, stage: 'PRE_GRANT' | 'POST_GRANT'): string {
     const bases: Record<DisputeType, string> = {
       LACK_CAPACITY: 'Law of Succession Act, Section 7',
       UNDUE_INFLUENCE: 'Law of Succession Act, Section 7',
       FRAUD: 'Law of Succession Act, Section 76(a)',
-      FORGERY: 'Penal Code, Section 345',
       OMITTED_HEIR: 'Law of Succession Act, Section 26',
       ASSET_VALUATION: 'Law of Succession Act, Section 83',
       EXECUTOR_MISCONDUCT: 'Law of Succession Act, Section 83(h)',
       OTHER: 'Various applicable laws',
+      VALIDITY_CHALLENGE: '',
     };
 
-    const base = bases[type];
+    const base = bases[type] || 'Various applicable laws';
     return stage === 'POST_GRANT' ? `${base} (Revocation)` : base;
   }
 

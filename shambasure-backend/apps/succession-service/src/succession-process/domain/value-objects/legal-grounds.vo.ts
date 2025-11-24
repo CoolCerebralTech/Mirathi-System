@@ -19,6 +19,70 @@ export class LegalGrounds {
     this.supportingEvidence = supportingEvidence;
   }
 
+  // Create a static factory method that accepts string and validates
+  static createFromString(
+    ground: string,
+    description: string,
+    supportingEvidence: string[] = [],
+  ): LegalGrounds {
+    // Validate and convert string to DisputeGrounds
+    const validatedGround = this.validateAndConvertGround(ground);
+
+    return new LegalGrounds(validatedGround, description, supportingEvidence);
+  }
+
+  // Helper method to validate and convert string to DisputeGrounds
+  private static validateAndConvertGround(ground: string): DisputeGrounds {
+    const validGrounds: DisputeGrounds[] = [
+      'FRAUD',
+      'CONCEALMENT_OF_FACT',
+      'FALSE_STATEMENT',
+      'DEFECTIVE_PROCESS',
+      'FORGERY',
+      'PROCEDURAL_IRREGULARITY',
+      'LACK_CAPACITY',
+      'UNDUE_INFLUENCE',
+      'OMITTED_HEIR',
+      'IMPROPER_EXECUTION',
+      'INADEQUATE_PROVISION',
+      'DEPENDANT_MAINTENANCE',
+      'ASSET_VALUATION',
+      'EXECUTOR_MISCONDUCT',
+      'OTHER',
+      'AMBIGUOUS_TERMS',
+      'CONTRADICTORY_CLAUSES',
+      'REVOCATION_ISSUE',
+    ];
+
+    // Type assertion with validation
+    if (validGrounds.includes(ground as DisputeGrounds)) {
+      return ground as DisputeGrounds;
+    }
+
+    throw new Error(`Invalid legal ground: ${ground}. Must be one of: ${validGrounds.join(', ')}`);
+  }
+
+  // Create from DisputeType (for use in Dispute entity)
+  static createFromDisputeType(
+    disputeType: string,
+    description: string,
+    supportingEvidence: string[] = [],
+  ): LegalGrounds {
+    const groundMap: Record<string, DisputeGrounds> = {
+      VALIDITY_CHALLENGE: 'PROCEDURAL_IRREGULARITY',
+      UNDUE_INFLUENCE: 'UNDUE_INFLUENCE',
+      LACK_CAPACITY: 'LACK_CAPACITY',
+      FRAUD: 'FRAUD',
+      OMITTED_HEIR: 'OMITTED_HEIR',
+      ASSET_VALUATION: 'ASSET_VALUATION',
+      EXECUTOR_MISCONDUCT: 'EXECUTOR_MISCONDUCT',
+      OTHER: 'OTHER',
+    };
+
+    const ground = groundMap[disputeType] || 'OTHER';
+    return new LegalGrounds(ground, description, supportingEvidence);
+  }
+
   // Section 76: Revocation of Grant grounds
   isValidGroundForRevocation(): boolean {
     const revocationGrounds: DisputeGrounds[] = [
@@ -57,6 +121,14 @@ export class LegalGrounds {
     return dependantGrounds.includes(this.ground);
   }
 
+  getGround(): DisputeGrounds {
+    return this.ground;
+  }
+
+  getDescription(): string {
+    return this.description;
+  }
+
   getSupportingEvidence(): string[] {
     return [...this.supportingEvidence];
   }
@@ -92,5 +164,14 @@ export class LegalGrounds {
     };
 
     return basisMap[this.ground] || 'Applicable Kenyan Law';
+  }
+
+  //  Method to get all properties for serialization
+  getProps(): { ground: DisputeGrounds; description: string; supportingEvidence: string[] } {
+    return {
+      ground: this.ground,
+      description: this.description,
+      supportingEvidence: [...this.supportingEvidence],
+    };
   }
 }

@@ -9,20 +9,45 @@ export interface Debt {
   getPriority(): number;
   isSecured(): boolean;
   hasPreferentialStatus(): boolean;
+  getInterestRate?(): number;
+  getDueDate?(): Date;
+  // NEW: Kenyan-specific debt properties
+  isStatutory?(): boolean;
+  isCooperative?(): boolean;
 }
 
 @Injectable()
 export class DebtPriorityPolicy {
   private readonly debtPriority: Map<DebtType, number> = new Map([
     ['FUNERAL_EXPENSE', 1], // First charge - Reasonable funeral expenses
-    ['TAX_OBLIGATION', 2], // Second charge - Government taxes
+    ['TAX_OBLIGATION', 2], // Second charge - Government taxes (includes NHIF, NSSF)
     ['MEDICAL_BILL', 3], // Third charge - Last illness medical expenses
     ['MORTGAGE', 4], // Secured debts - Specific asset charges
-    ['BUSINESS_DEBT', 5], // Business debts with security
+    ['BUSINESS_DEBT', 5], // Business debts with security (includes cooperative loans)
     ['PERSONAL_LOAN', 6], // Unsecured personal loans
     ['CREDIT_CARD', 7], // Credit card debts
     ['OTHER', 8], // Other unsecured debts
   ]);
+
+  /**
+   * Enhanced debt priority calculation with Kenyan context
+   */
+  private getEnhancedDebtPriority(debt: Debt): number {
+    const basePriority = this.debtPriority.get(debt.getType()) || 99;
+
+    // Adjust priority based on Kenyan-specific characteristics
+    if (debt.isStatutory?.()) {
+      // Statutory debts (like NHIF, NSSF) get higher priority
+      return Math.max(2, basePriority - 1); // Promote to near tax obligation level
+    }
+
+    if (debt.isCooperative?.()) {
+      // Cooperative loans get moderate priority adjustment
+      return Math.max(4, basePriority - 0.5); // Slight promotion
+    }
+
+    return basePriority;
+  }
 
   /**
    * Sorts debts by payment priority under Kenyan law (Section 83)
@@ -30,7 +55,7 @@ export class DebtPriorityPolicy {
   sortDebts(debts: Debt[]): { priority: number; debt: Debt }[] {
     return debts
       .map((debt) => ({
-        priority: this.getDebtPriority(debt),
+        priority: this.getEnhancedDebtPriority(debt),
         debt,
       }))
       .sort((a, b) => a.priority - b.priority)
@@ -80,7 +105,18 @@ export class DebtPriorityPolicy {
       }
     }
 
-    // 3. Check secured debts
+    // 3. Check statutory debts specifically
+    const statutoryDebts = outstandingDebts.filter((debt) => debt.isStatutory?.());
+    if (statutoryDebts.length > 0) {
+      const unpaidStatutory = statutoryDebts.filter((debt) => debt.getOutstandingBalance() > 0);
+      if (unpaidStatutory.length > 0) {
+        warnings.push(
+          'Statutory obligations (NHIF, NSSF, etc.) should be prioritized to avoid penalties',
+        );
+      }
+    }
+
+    // 4. Check secured debts
     const securedDebts = outstandingDebts.filter((debt) => debt.isSecured());
     if (securedDebts.length > 0) {
       warnings.push(
@@ -88,7 +124,7 @@ export class DebtPriorityPolicy {
       );
     }
 
-    // 4. Check overall debt burden
+    // 5. Check overall debt burden
     if (totalDebt > estateLiquidAssets * 0.8) {
       warnings.push('High debt burden: Consider creditor negotiations or asset sales');
     }
@@ -135,11 +171,21 @@ export class DebtPriorityPolicy {
     const settlementRatio = settlementAmount / outstandingBalance;
 
     // Full payment for priority debts
-    if (this.getDebtPriority(debt) <= 3 && settlementRatio < 1) {
+    const debtPriority = this.getEnhancedDebtPriority(debt);
+    if (debtPriority <= 3 && settlementRatio < 1) {
       return {
         valid: false,
         reason: 'Priority debts (funeral, taxes, medical) must be paid in full',
         recommendation: 'Seek court approval for partial settlement',
+      };
+    }
+
+    // Statutory debts require special handling
+    if (debt.isStatutory?.() && settlementRatio < 1) {
+      return {
+        valid: false,
+        reason: 'Statutory obligations require full payment or formal settlement agreement',
+        recommendation: 'Contact the relevant statutory body for settlement options',
       };
     }
 
@@ -163,7 +209,133 @@ export class DebtPriorityPolicy {
     return { valid: true };
   }
 
-  private getDebtPriority(debt: Debt): number {
-    return this.debtPriority.get(debt.getType()) || 99;
+  /**
+   * Kenyan law compliance validation for settlements
+   */
+  validateKenyanSettlementCompliance(
+    debt: Debt,
+    settlementAmount: number,
+  ): { compliant: boolean; legalRequirements: string[] } {
+    const legalRequirements: string[] = [];
+
+    // Kenyan law: Funeral expenses must be "reasonable"
+    if (debt.getType() === 'FUNERAL_EXPENSE' && settlementAmount > 500000) {
+      legalRequirements.push('Funeral expenses exceeding KES 500,000 require court approval');
+    }
+
+    // Kenyan law: Tax obligations cannot be settled for less than full amount without KRA approval
+    if (debt.getType() === 'TAX_OBLIGATION' && settlementAmount < debt.getOutstandingBalance()) {
+      legalRequirements.push(
+        'Tax obligations require full payment or formal KRA settlement agreement',
+      );
+    }
+
+    // Statutory debts (NHIF, NSSF) have specific rules
+    if (debt.isStatutory?.() && settlementAmount < debt.getOutstandingBalance()) {
+      legalRequirements.push(
+        'Statutory debts require full payment or formal settlement with the institution',
+      );
+    }
+
+    return {
+      compliant: legalRequirements.length === 0,
+      legalRequirements,
+    };
+  }
+
+  /**
+   * Enhanced debt analysis with Kenyan context
+   */
+  analyzeDebtPortfolio(
+    debts: Debt[],
+    estateValue: number,
+  ): {
+    summary: {
+      totalDebt: number;
+      priorityDebt: number;
+      securedDebt: number;
+      statutoryDebt: number;
+      cooperativeDebt: number;
+      debtToEstateRatio: number;
+    };
+    recommendations: string[];
+    risks: string[];
+  } {
+    const totalDebt = debts.reduce((sum, debt) => sum + debt.getOutstandingBalance(), 0);
+    const priorityDebt = debts
+      .filter((debt) => this.getEnhancedDebtPriority(debt) <= 3)
+      .reduce((sum, debt) => sum + debt.getOutstandingBalance(), 0);
+    const securedDebt = debts
+      .filter((debt) => debt.isSecured())
+      .reduce((sum, debt) => sum + debt.getOutstandingBalance(), 0);
+    const statutoryDebt = debts
+      .filter((debt) => debt.isStatutory?.())
+      .reduce((sum, debt) => sum + debt.getOutstandingBalance(), 0);
+    const cooperativeDebt = debts
+      .filter((debt) => debt.isCooperative?.())
+      .reduce((sum, debt) => sum + debt.getOutstandingBalance(), 0);
+
+    const debtToEstateRatio = totalDebt / estateValue;
+
+    const recommendations: string[] = [];
+    const risks: string[] = [];
+
+    // Risk assessment
+    if (debtToEstateRatio > 0.7) {
+      risks.push('High debt burden: Estate may be insolvent');
+      recommendations.push('Consider filing for insolvency administration');
+    }
+
+    if (priorityDebt > estateValue * 0.5) {
+      risks.push('Priority debts consume significant portion of estate');
+      recommendations.push('Focus on liquidating assets to cover priority obligations');
+    }
+
+    // Kenyan-specific recommendations based on debt characteristics
+    if (statutoryDebt > 0) {
+      recommendations.push(
+        'Contact relevant statutory bodies (KRA, NHIF, NSSF) for debt verification',
+      );
+    }
+
+    if (cooperativeDebt > 0) {
+      recommendations.push('Contact cooperative society for potential restructuring options');
+    }
+
+    // General recommendations
+    if (securedDebt > 0) {
+      recommendations.push('Consider asset sales to cover secured debts and avoid foreclosure');
+    }
+
+    return {
+      summary: {
+        totalDebt,
+        priorityDebt,
+        securedDebt,
+        statutoryDebt,
+        cooperativeDebt,
+        debtToEstateRatio,
+      },
+      recommendations,
+      risks,
+    };
+  }
+
+  /**
+   * Helper method to identify statutory debts from description
+   */
+  isLikelyStatutoryDebt(debt: Debt): boolean {
+    const description = debt.getDescription().toLowerCase();
+    const statutoryKeywords = ['nhif', 'nssf', 'kra', 'tax', 'statutory', 'government', 'revenue'];
+    return statutoryKeywords.some((keyword) => description.includes(keyword));
+  }
+
+  /**
+   * Helper method to identify cooperative debts from description
+   */
+  isLikelyCooperativeDebt(debt: Debt): boolean {
+    const description = debt.getDescription().toLowerCase();
+    const cooperativeKeywords = ['cooperative', 'sacco', 'chama', 'society'];
+    return cooperativeKeywords.some((keyword) => description.includes(keyword));
   }
 }
