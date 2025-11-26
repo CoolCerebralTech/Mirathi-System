@@ -1,80 +1,99 @@
-import { WillWitness as PrismaWitness } from '@prisma/client';
-import { Witness, WitnessInfo } from '../../../domain/entities/witness.entity';
+import { WillWitness as PrismaWitness, Prisma } from '@prisma/client';
+import {
+  Witness,
+  WitnessReconstituteProps,
+  WitnessAddress,
+} from '../../../domain/entities/witness.entity';
 
 export class WitnessMapper {
-  static toPersistence(domain: Witness): PrismaWitness {
-    const info = domain.getWitnessInfo();
+  static toDomain(raw: PrismaWitness): Witness {
+    const address = WitnessMapper.parseAddress(raw.address);
+
+    const props: WitnessReconstituteProps = {
+      id: raw.id,
+      willId: raw.willId,
+      userId: raw.witnessId,
+      fullName: raw.fullName,
+      email: raw.email,
+      phone: raw.phone,
+      idNumber: raw.idNumber,
+      relationship: raw.relationship,
+      address: address,
+      status: raw.status,
+      signedAt: raw.signedAt,
+      signatureData: raw.signatureData,
+      verifiedAt: raw.verifiedAt,
+      verifiedBy: raw.verifiedBy,
+      isEligible: raw.isEligible,
+      ineligibilityReason: raw.ineligibilityReason,
+      createdAt: raw.createdAt,
+      updatedAt: raw.updatedAt,
+    };
+
+    return Witness.reconstitute(props);
+  }
+
+  static toPersistence(entity: Witness): Prisma.WillWitnessUncheckedCreateInput {
+    const info = entity.witnessInfo;
+
+    const addressJson = info.address
+      ? (JSON.parse(JSON.stringify(info.address)) as Prisma.JsonObject)
+      : Prisma.DbNull;
 
     return {
-      id: domain.getId(),
-      willId: domain.getWillId(),
-
-      // Info Flattening
+      id: entity.id,
+      willId: entity.willId,
       witnessId: info.userId || null,
       fullName: info.fullName,
       email: info.email || null,
       phone: info.phone || null,
       idNumber: info.idNumber || null,
       relationship: info.relationship || null,
-
-      // JSON Address
-      address: info.address ? JSON.stringify({ street: info.address }) : null, // Simple string wrapper for JSON field
-
-      // Status
-      status: domain.getStatus(),
-      signedAt: domain.getSignedAt(),
-      signatureData: domain.getSignatureData(),
-
-      verifiedAt: domain.getVerifiedAt(),
-      verifiedBy: domain.getVerifiedBy(),
-
-      // Logic Fields
-      isEligible: true, // Calculated by policy, stored as true/false
-      ineligibilityReason: domain.getRejectionReason(),
-
-      createdAt: domain.getCreatedAt(),
-      updatedAt: domain.getUpdatedAt(),
-    } as unknown as PrismaWitness;
+      address: addressJson,
+      status: entity.status,
+      signedAt: entity.signedAt,
+      signatureData: entity.signatureData,
+      verifiedAt: entity.verifiedAt,
+      verifiedBy: entity.verifiedBy,
+      isEligible: entity.isEligible,
+      ineligibilityReason: entity.ineligibilityReason,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    };
   }
 
-  static toDomain(raw: PrismaWitness): Witness {
-    // Parse Address
-    let addressStr: string | undefined;
-    if (raw.address) {
-      try {
-        // Handle if stored as JSON object or simple string
-        const parsed = typeof raw.address === 'string' ? JSON.parse(raw.address) : raw.address;
-        addressStr = parsed?.street || parsed?.toString();
-      } catch {
-        addressStr = String(raw.address);
-      }
-    }
+  static toUpdatePersistence(entity: Witness): Prisma.WillWitnessUncheckedUpdateInput {
+    const full = this.toPersistence(entity);
 
-    const info: WitnessInfo = {
-      userId: raw.witnessId || undefined,
-      fullName: raw.fullName,
-      email: raw.email || undefined,
-      phone: raw.phone || undefined,
-      idNumber: raw.idNumber || undefined,
-      relationship: raw.relationship || undefined,
-      address: addressStr,
+    const updatableFields: Omit<
+      Prisma.WillWitnessUncheckedCreateInput,
+      'id' | 'willId' | 'witnessId' | 'fullName' | 'createdAt'
+    > = full;
+
+    return {
+      ...updatableFields,
+      updatedAt: new Date(),
     };
+  }
 
-    return Witness.reconstitute({
-      id: raw.id,
-      willId: raw.willId,
-      witnessInfo: info,
-      status: raw.status,
+  private static parseAddress(input: Prisma.JsonValue | null): WitnessAddress | null {
+    if (input === null || input === undefined) return null;
+    if (typeof input !== 'object' || Array.isArray(input)) return null;
 
-      signedAt: raw.signedAt,
-      signatureData: raw.signatureData,
+    const address = input as Record<string, unknown>;
+    return {
+      street: typeof address.street === 'string' ? address.street : undefined,
+      city: typeof address.city === 'string' ? address.city : undefined,
+      county: typeof address.county === 'string' ? address.county : undefined,
+      postalCode: typeof address.postalCode === 'string' ? address.postalCode : undefined,
+    };
+  }
 
-      verifiedAt: raw.verifiedAt,
-      verifiedBy: raw.verifiedBy,
-      rejectionReason: raw.ineligibilityReason,
+  static toDomainBatch(records: PrismaWitness[]): Witness[] {
+    return records.map((record) => this.toDomain(record));
+  }
 
-      createdAt: raw.createdAt,
-      updatedAt: raw.updatedAt,
-    });
+  static toPersistenceBatch(entities: Witness[]): Prisma.WillWitnessUncheckedCreateInput[] {
+    return entities.map((entity) => this.toPersistence(entity));
   }
 }

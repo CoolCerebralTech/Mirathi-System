@@ -1,72 +1,111 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@shamba/database';
-import { WillStatus } from '@prisma/client';
-import { WillRepositoryInterface } from '../../../domain/interfaces/will.repository.interface';
+import { WillStatus, Prisma } from '@prisma/client';
 import { WillAggregate } from '../../../domain/aggregates/will.aggregate';
+import { WillRepositoryInterface } from '../../../domain/interfaces/will.repository.interface';
 import { WillMapper } from '../mappers/will.mapper';
-import { AssetMapper } from '../mappers/asset.mapper';
-import { BeneficiaryMapper } from '../mappers/beneficiary.mapper';
-import { ExecutorMapper } from '../mappers/executor.mapper';
-import { WitnessMapper } from '../mappers/witness.mapper';
 
 @Injectable()
 export class WillPrismaRepository implements WillRepositoryInterface {
   constructor(private readonly prisma: PrismaService) {}
 
-  // --------------------------------------------------------------------------
-  // BASIC PERSISTENCE
-  // --------------------------------------------------------------------------
-
-  /**
-   * Saves the Will Root Entity.
-   * NOTE: In a strict DDD approach with Prisma, saving the Aggregate Root
-   * typically implies saving the root properties. Child entities (Assets, etc.)
-   * are usually saved via their own repositories within the same Transaction scope,
-   * or using nested Prisma writes if strict consistency is required.
-   *
-   * For this implementation, we persist the Will Entity fields.
-   */
   async save(aggregate: WillAggregate): Promise<void> {
-    const will = aggregate.getWill();
-    const persistenceModel = WillMapper.toPersistence(will);
+    const persistenceData = WillMapper.toPersistence(aggregate);
 
     await this.prisma.will.upsert({
-      where: { id: persistenceModel.id },
-      update: persistenceModel,
-      create: persistenceModel,
+      where: { id: aggregate.getWill().id },
+      create: persistenceData,
+      update: WillMapper.toUpdatePersistence(aggregate),
     });
   }
 
   async findById(id: string): Promise<WillAggregate | null> {
-    const raw = await this.prisma.will.findUnique({
+    const record = await this.prisma.will.findUnique({
       where: { id },
       include: {
-        assets: true, // Fetch linked assets
-        beneficiaryAssignments: true, // Fetch beneficiaries
-        executors: true, // Fetch executors
-        witnesses: true, // Fetch witnesses
+        beneficiaryAssignments: true,
+        executors: true,
+        witnesses: true,
       },
     });
 
-    if (!raw) return null;
+    if (!record) return null;
 
-    // Map Children
-    const willEntity = WillMapper.toDomain(raw);
+    const assetIds = [
+      ...new Set(record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean)),
+    ] as string[];
 
-    const assets = raw.assets.map((a) => AssetMapper.toDomain(a));
+    const assets =
+      assetIds.length > 0
+        ? await this.prisma.asset.findMany({
+            where: {
+              id: { in: assetIds },
+              deletedAt: null,
+            },
+          })
+        : [];
 
-    const beneficiaries = raw.beneficiaryAssignments.map((b) => BeneficiaryMapper.toDomain(b));
+    const rawWithRelations = {
+      ...record,
+      assets,
+      beneficiaries: record.beneficiaryAssignments,
+      executors: record.executors,
+      witnesses: record.witnesses,
+    };
 
-    const executors = raw.executors.map((e) => ExecutorMapper.toDomain(e));
+    return WillMapper.toDomain(rawWithRelations);
+  }
 
-    const witnesses = raw.witnesses.map((w) => WitnessMapper.toDomain(w));
+  async findByTestatorId(testatorId: string): Promise<WillAggregate[]> {
+    const records = await this.prisma.will.findMany({
+      where: { testatorId, deletedAt: null },
+      orderBy: { willDate: 'desc' },
+      include: {
+        beneficiaryAssignments: true,
+        executors: true,
+        witnesses: true,
+      },
+    });
 
-    // Reconstitute Aggregate
-    return WillAggregate.reconstitute(willEntity, assets, beneficiaries, executors, witnesses);
+    const allAssetIds = [
+      ...new Set(
+        records.flatMap((record) =>
+          record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean),
+        ),
+      ),
+    ] as string[];
+
+    const allAssets =
+      allAssetIds.length > 0
+        ? await this.prisma.asset.findMany({
+            where: {
+              id: { in: allAssetIds },
+              deletedAt: null,
+            },
+          })
+        : [];
+
+    const assetMap = new Map(allAssets.map((asset) => [asset.id, asset]));
+
+    return records.map((record) => {
+      const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
+
+      const assets = recordAssetIds.map((assetId) => assetMap.get(assetId)).filter(Boolean);
+
+      return WillMapper.toDomain({
+        ...record,
+        assets,
+        beneficiaries: record.beneficiaryAssignments,
+        executors: record.executors,
+        witnesses: record.witnesses,
+      });
+    });
   }
 
   async exists(id: string): Promise<boolean> {
-    const count = await this.prisma.will.count({ where: { id } });
+    const count = await this.prisma.will.count({
+      where: { id, deletedAt: null },
+    });
     return count > 0;
   }
 
@@ -80,102 +119,237 @@ export class WillPrismaRepository implements WillRepositoryInterface {
       data: {
         isActive: false,
         deletedAt: new Date(),
+        updatedAt: new Date(),
       },
     });
   }
 
-  // --------------------------------------------------------------------------
-  // DOMAIN LOOKUPS
-  // --------------------------------------------------------------------------
-
-  async findByTestatorId(testatorId: string): Promise<WillAggregate[]> {
-    const wills = await this.prisma.will.findMany({
-      where: { testatorId, deletedAt: null },
+  async findByStatus(status: WillStatus): Promise<WillAggregate[]> {
+    const records = await this.prisma.will.findMany({
+      where: { status, deletedAt: null },
       include: {
-        assets: true,
         beneficiaryAssignments: true,
         executors: true,
         witnesses: true,
       },
     });
 
-    return wills.map((raw) => {
-      return WillAggregate.reconstitute(
-        WillMapper.toDomain(raw),
-        raw.assets.map(AssetMapper.toDomain),
-        raw.beneficiaryAssignments.map(BeneficiaryMapper.toDomain),
-        raw.executors.map(ExecutorMapper.toDomain),
-        raw.witnesses.map(WitnessMapper.toDomain),
-      );
-    });
-  }
+    const allAssetIds = [
+      ...new Set(
+        records.flatMap((record) =>
+          record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean),
+        ),
+      ),
+    ] as string[];
 
-  async findByStatus(status: WillStatus): Promise<WillAggregate[]> {
-    const wills = await this.prisma.will.findMany({
-      where: { status },
-      include: { assets: true, beneficiaryAssignments: true, executors: true, witnesses: true },
-    });
+    const allAssets =
+      allAssetIds.length > 0
+        ? await this.prisma.asset.findMany({
+            where: {
+              id: { in: allAssetIds },
+              deletedAt: null,
+            },
+          })
+        : [];
 
-    // Simplified mapping for bulk queries (reusing logic)
-    return wills.map(this.mapToAggregate);
+    const assetMap = new Map(allAssets.map((asset) => [asset.id, asset]));
+
+    return records.map((record) => {
+      const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
+
+      const assets = recordAssetIds.map((assetId) => assetMap.get(assetId)).filter(Boolean);
+
+      return WillMapper.toDomain({
+        ...record,
+        assets,
+        beneficiaries: record.beneficiaryAssignments,
+        executors: record.executors,
+        witnesses: record.witnesses,
+      });
+    });
   }
 
   async findActiveWillByTestatorId(testatorId: string): Promise<WillAggregate | null> {
-    const raw = await this.prisma.will.findFirst({
+    const record = await this.prisma.will.findFirst({
       where: {
         testatorId,
         status: WillStatus.ACTIVE,
         deletedAt: null,
       },
       include: {
-        assets: true,
         beneficiaryAssignments: true,
         executors: true,
         witnesses: true,
       },
     });
 
-    return raw ? this.mapToAggregate(raw) : null;
+    if (!record) return null;
+
+    const assetIds = [
+      ...new Set(record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean)),
+    ] as string[];
+
+    const assets =
+      assetIds.length > 0
+        ? await this.prisma.asset.findMany({
+            where: {
+              id: { in: assetIds },
+              deletedAt: null,
+            },
+          })
+        : [];
+
+    return WillMapper.toDomain({
+      ...record,
+      assets,
+      beneficiaries: record.beneficiaryAssignments,
+      executors: record.executors,
+      witnesses: record.witnesses,
+    });
   }
 
   async findSupersededWills(originalWillId: string): Promise<WillAggregate[]> {
-    const wills = await this.prisma.will.findMany({
+    const records = await this.prisma.will.findMany({
       where: { supersedes: originalWillId },
-      include: { assets: true, beneficiaryAssignments: true, executors: true, witnesses: true },
+      include: {
+        beneficiaryAssignments: true,
+        executors: true,
+        witnesses: true,
+      },
     });
-    return wills.map(this.mapToAggregate);
+
+    const allAssetIds = [
+      ...new Set(
+        records.flatMap((record) =>
+          record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean),
+        ),
+      ),
+    ] as string[];
+
+    const allAssets =
+      allAssetIds.length > 0
+        ? await this.prisma.asset.findMany({
+            where: {
+              id: { in: allAssetIds },
+              deletedAt: null,
+            },
+          })
+        : [];
+
+    const assetMap = new Map(allAssets.map((asset) => [asset.id, asset]));
+
+    return records.map((record) => {
+      const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
+
+      const assets = recordAssetIds.map((assetId) => assetMap.get(assetId)).filter(Boolean);
+
+      return WillMapper.toDomain({
+        ...record,
+        assets,
+        beneficiaries: record.beneficiaryAssignments,
+        executors: record.executors,
+        witnesses: record.witnesses,
+      });
+    });
   }
 
-  // --------------------------------------------------------------------------
-  // WORKFLOW QUERIES
-  // --------------------------------------------------------------------------
-
   async findWillsRequiringWitnesses(): Promise<WillAggregate[]> {
-    const wills = await this.prisma.will.findMany({
+    const records = await this.prisma.will.findMany({
       where: {
-        status: WillStatus.PENDING_WITNESS,
-        isActive: true,
+        status: { in: [WillStatus.DRAFT, WillStatus.PENDING_WITNESS] },
+        requiresWitnesses: true,
+        hasAllWitnesses: false,
+        deletedAt: null,
       },
-      include: { assets: true, beneficiaryAssignments: true, executors: true, witnesses: true },
+      include: {
+        beneficiaryAssignments: true,
+        executors: true,
+        witnesses: true,
+      },
     });
-    return wills.map(this.mapToAggregate);
+
+    const allAssetIds = [
+      ...new Set(
+        records.flatMap((record) =>
+          record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean),
+        ),
+      ),
+    ] as string[];
+
+    const allAssets =
+      allAssetIds.length > 0
+        ? await this.prisma.asset.findMany({
+            where: {
+              id: { in: allAssetIds },
+              deletedAt: null,
+            },
+          })
+        : [];
+
+    const assetMap = new Map(allAssets.map((asset) => [asset.id, asset]));
+
+    return records.map((record) => {
+      const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
+
+      const assets = recordAssetIds.map((assetId) => assetMap.get(assetId)).filter(Boolean);
+
+      return WillMapper.toDomain({
+        ...record,
+        assets,
+        beneficiaries: record.beneficiaryAssignments,
+        executors: record.executors,
+        witnesses: record.witnesses,
+      });
+    });
   }
 
   async findWillsPendingActivation(): Promise<WillAggregate[]> {
-    // "Witnessed" status implies ready for activation but not yet Active
-    const wills = await this.prisma.will.findMany({
+    const records = await this.prisma.will.findMany({
       where: {
         status: WillStatus.WITNESSED,
-        isActive: true,
+        deletedAt: null,
       },
-      include: { assets: true, beneficiaryAssignments: true, executors: true, witnesses: true },
+      include: {
+        beneficiaryAssignments: true,
+        executors: true,
+        witnesses: true,
+      },
     });
-    return wills.map(this.mapToAggregate);
-  }
 
-  // --------------------------------------------------------------------------
-  // VERSIONING
-  // --------------------------------------------------------------------------
+    const allAssetIds = [
+      ...new Set(
+        records.flatMap((record) =>
+          record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean),
+        ),
+      ),
+    ] as string[];
+
+    const allAssets =
+      allAssetIds.length > 0
+        ? await this.prisma.asset.findMany({
+            where: {
+              id: { in: allAssetIds },
+              deletedAt: null,
+            },
+          })
+        : [];
+
+    const assetMap = new Map(allAssets.map((asset) => [asset.id, asset]));
+
+    return records.map((record) => {
+      const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
+
+      const assets = recordAssetIds.map((assetId) => assetMap.get(assetId)).filter(Boolean);
+
+      return WillMapper.toDomain({
+        ...record,
+        assets,
+        beneficiaries: record.beneficiaryAssignments,
+        executors: record.executors,
+        witnesses: record.witnesses,
+      });
+    });
+  }
 
   async saveVersion(
     willId: string,
@@ -186,9 +360,9 @@ export class WillPrismaRepository implements WillRepositoryInterface {
       data: {
         willId,
         versionNumber,
-        snapshot: versionData,
-        changeLog: `Version ${versionNumber} auto-saved`,
-        changedBy: 'SYSTEM', // Or pass user context if available
+        snapshot: versionData as Prisma.InputJsonValue,
+        changeLog: `Version ${versionNumber}`,
+        changedBy: 'SYSTEM',
       },
     });
   }
@@ -198,7 +372,6 @@ export class WillPrismaRepository implements WillRepositoryInterface {
       where: { willId },
       orderBy: { versionNumber: 'desc' },
     });
-
     return versions.map((v) => ({
       version: v.versionNumber,
       data: v.snapshot,
@@ -206,55 +379,63 @@ export class WillPrismaRepository implements WillRepositoryInterface {
     }));
   }
 
-  // --------------------------------------------------------------------------
-  // ANALYTICS / BULK
-  // --------------------------------------------------------------------------
-
   async countByTestatorId(testatorId: string): Promise<number> {
     return this.prisma.will.count({
-      where: { testatorId, isActive: true },
+      where: {
+        testatorId,
+        deletedAt: null,
+      },
     });
   }
 
   async findRecentWills(days: number): Promise<WillAggregate[]> {
-    const sinceDate = new Date();
-    sinceDate.setDate(sinceDate.getDate() - days);
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() - days);
 
-    const wills = await this.prisma.will.findMany({
+    const records = await this.prisma.will.findMany({
       where: {
-        updatedAt: { gte: sinceDate },
+        updatedAt: { gte: thresholdDate },
+        deletedAt: null,
       },
-      include: { assets: true, beneficiaryAssignments: true, executors: true, witnesses: true },
+      include: {
+        beneficiaryAssignments: true,
+        executors: true,
+        witnesses: true,
+      },
     });
-    return wills.map(this.mapToAggregate);
-  }
 
-  // --------------------------------------------------------------------------
-  // HELPERS
-  // --------------------------------------------------------------------------
+    const allAssetIds = [
+      ...new Set(
+        records.flatMap((record) =>
+          record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean),
+        ),
+      ),
+    ] as string[];
 
-  /**
-   * Helper to map a fully loaded Prisma result to an Aggregate
-   * Note: Bind this if passing as callback
-   */
-  private mapToAggregate = (raw: any): WillAggregate => {
-    return WillAggregate.reconstitute(
-      WillMapper.toDomain(raw),
-      raw.assets?.map(AssetMapper.toDomain) || [],
-      raw.beneficiaryAssignments?.map(BeneficiaryMapper.toDomain) || [],
-      raw.executors?.map(ExecutorMapper.toDomain) || [],
-      raw.witnesses?.map(WitnessMapper.toDomain) || [],
-    );
-  };
+    const allAssets =
+      allAssetIds.length > 0
+        ? await this.prisma.asset.findMany({
+            where: {
+              id: { in: allAssetIds },
+              deletedAt: null,
+            },
+          })
+        : [];
 
-  /**
-   * Transaction support required by Interface.
-   * This allows the Application Service to wrap multiple repository calls (Will + Assets)
-   * into one atomic DB transaction.
-   */
-  async transaction<T>(work: () => Promise<T>): Promise<T> {
-    return this.prisma.$transaction(async () => {
-      return await work();
+    const assetMap = new Map(allAssets.map((asset) => [asset.id, asset]));
+
+    return records.map((record) => {
+      const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
+
+      const assets = recordAssetIds.map((assetId) => assetMap.get(assetId)).filter(Boolean);
+
+      return WillMapper.toDomain({
+        ...record,
+        assets,
+        beneficiaries: record.beneficiaryAssignments,
+        executors: record.executors,
+        witnesses: record.witnesses,
+      });
     });
   }
 }

@@ -1,76 +1,89 @@
-import { WillExecutor as PrismaExecutor } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
-import { Executor, ExecutorInfo } from '../../../domain/entities/executor.entity';
-import { AssetValue } from '../../../domain/value-objects/asset-value.vo';
+import { WillExecutor as PrismaExecutor, Prisma } from '@prisma/client';
+import { Executor, ExecutorReconstituteProps } from '../../../domain/entities/executor.entity';
 
 export class ExecutorMapper {
-  static toPersistence(domain: Executor): PrismaExecutor {
-    const info = domain.getExecutorInfo();
-    const comp = domain.getCompensationAmount();
-
-    return {
-      id: domain.getId(),
-      willId: domain.getWillId(),
-
-      // Info Flattening
-      executorId: info.userId || null,
-      fullName: info.fullName || null,
-      email: info.email || null,
-      phone: info.phone || null,
-      relationship: info.relationship || null,
-
-      // Configuration
-      isPrimary: domain.getIsPrimary(),
-      orderOfPriority: domain.getOrderOfPriority(),
-      status: domain.getStatus(),
-
-      // Dates
-      appointedAt: domain.getAppointedAt(),
-      acceptedAt: domain.getAcceptedAt(),
-      declinedAt: domain.getDeclinedAt(),
-      declineReason: domain.getDeclineReason(),
-
-      // Compensation
-      isCompensated: domain.getIsCompensated(),
-      compensationAmount: comp ? new Decimal(comp.getAmount()) : null,
-
-      createdAt: domain.getCreatedAt(),
-      updatedAt: domain.getUpdatedAt(),
-    } as unknown as PrismaExecutor;
-  }
-
   static toDomain(raw: PrismaExecutor): Executor {
-    const info: ExecutorInfo = {
-      userId: raw.executorId || undefined,
-      fullName: raw.fullName || undefined,
-      email: raw.email || undefined,
-      phone: raw.phone || undefined,
-      relationship: raw.relationship || undefined,
-    };
+    const compensationVal = raw.compensationAmount ? raw.compensationAmount.toNumber() : null;
 
-    // Handle Compensation VO
-    const compAmount = raw.compensationAmount
-      ? new AssetValue(Number(raw.compensationAmount), 'KES')
-      : null;
+    const compensationData =
+      compensationVal !== null
+        ? {
+            amount: compensationVal,
+            currency: 'KES',
+            valuationDate: raw.updatedAt,
+          }
+        : null;
 
-    return Executor.reconstitute({
+    const props: ExecutorReconstituteProps = {
       id: raw.id,
       willId: raw.willId,
-      executorInfo: info,
+      userId: raw.executorId,
+      fullName: raw.fullName,
+      email: raw.email,
+      phone: raw.phone,
+      relationship: raw.relationship,
+      address: undefined,
       isPrimary: raw.isPrimary,
       orderOfPriority: raw.orderOfPriority,
-
       status: raw.status,
       appointedAt: raw.appointedAt,
       acceptedAt: raw.acceptedAt,
       declinedAt: raw.declinedAt,
       declineReason: raw.declineReason,
-
       isCompensated: raw.isCompensated,
-      compensationAmount: compAmount,
-
+      compensationAmount: compensationData,
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt,
-    });
+    };
+
+    return Executor.reconstitute(props);
+  }
+
+  static toPersistence(entity: Executor): Prisma.WillExecutorUncheckedCreateInput {
+    const info = entity.executorInfo;
+    const compensation = entity.compensationAmount;
+
+    return {
+      id: entity.id,
+      willId: entity.willId,
+      executorId: info.userId || null,
+      fullName: info.fullName || null,
+      email: info.email || null,
+      phone: info.phone || null,
+      relationship: info.relationship || null,
+      isPrimary: entity.isPrimary,
+      orderOfPriority: entity.orderOfPriority,
+      status: entity.status,
+      appointedAt: entity.appointedAt,
+      acceptedAt: entity.acceptedAt,
+      declinedAt: entity.declinedAt,
+      declineReason: entity.declineReason,
+      isCompensated: entity.isCompensated,
+      compensationAmount: compensation ? new Prisma.Decimal(compensation.getAmount()) : null,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    };
+  }
+
+  static toUpdatePersistence(entity: Executor): Prisma.WillExecutorUncheckedUpdateInput {
+    const full = this.toPersistence(entity);
+
+    const updatableFields: Omit<
+      Prisma.WillExecutorUncheckedCreateInput,
+      'id' | 'willId' | 'executorId' | 'createdAt'
+    > = full;
+
+    return {
+      ...updatableFields,
+      updatedAt: new Date(),
+    };
+  }
+
+  static toDomainBatch(records: PrismaExecutor[]): Executor[] {
+    return records.map((record) => this.toDomain(record));
+  }
+
+  static toPersistenceBatch(entities: Executor[]): Prisma.WillExecutorUncheckedCreateInput[] {
+    return entities.map((entity) => this.toPersistence(entity));
   }
 }

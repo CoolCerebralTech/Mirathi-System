@@ -1,69 +1,44 @@
-import { Will as PrismaWill } from '@prisma/client';
+import {
+  Will as PrismaWill,
+  Asset as PrismaAsset,
+  BeneficiaryAssignment as PrismaBeneficiary,
+  WillExecutor as PrismaExecutor,
+  WillWitness as PrismaWitness,
+  Prisma,
+} from '@prisma/client';
+import { WillAggregate } from '../../../domain/aggregates/will.aggregate';
 import {
   Will,
   WillReconstituteProps,
   FuneralWishes,
   DigitalAssetInstructions,
 } from '../../../domain/entities/will.entity';
+import { AssetMapper } from './asset.mapper';
+import { BeneficiaryMapper } from './beneficiary.mapper';
+import { ExecutorMapper } from './executor.mapper';
+import { WitnessMapper } from './witness.mapper';
+
+type WillWithRelations = PrismaWill & {
+  assets?: PrismaAsset[];
+  beneficiaries?: PrismaBeneficiary[];
+  executors?: PrismaExecutor[];
+  witnesses?: PrismaWitness[];
+};
 
 export class WillMapper {
-  static toPersistence(will: Will): PrismaWill {
-    const funeralWishes = will.getFuneralWishes();
-    const digitalInstructions = will.getDigitalAssetInstructions();
-
-    return {
-      id: will.getId(),
-      title: will.getTitle(),
-      status: will.getStatus(),
-      testatorId: will.getTestatorId(),
-
-      willDate: will.getWillDate(),
-      lastModified: will.getLastModified(),
-      versionNumber: will.getVersionNumber(),
-      supersedes: will.getSupersedes(),
-
-      activatedAt: will.getActivatedAt(),
-      activatedBy: will.getActivatedBy(),
-      executedAt: will.getExecutedAt(),
-      executedBy: will.getExecutedBy(),
-      revokedAt: will.getRevokedAt(),
-      revokedBy: will.getRevokedBy(),
-      revocationReason: will.getRevocationReason(),
-
-      funeralWishes: funeralWishes ? this.safeStringify(funeralWishes) : null,
-      burialLocation: will.getBurialLocation(),
-      residuaryClause: will.getResiduaryClause(),
-      digitalAssetInstructions: digitalInstructions
-        ? this.safeStringify(digitalInstructions)
-        : null,
-      specialInstructions: will.getSpecialInstructions(),
-
-      requiresWitnesses: will.getRequiresWitnesses(),
-      witnessCount: will.getWitnessCount(),
-      hasAllWitnesses: will.getHasAllWitnesses(),
-
-      isActive: will.getIsActiveRecord(),
-      createdAt: will.getCreatedAt(),
-      updatedAt: will.getUpdatedAt(),
-      deletedAt: will.getDeletedAt(),
-    } as PrismaWill;
-  }
-
-  static toDomain(raw: PrismaWill): Will {
+  static toDomain(raw: WillWithRelations): WillAggregate {
     const funeralWishes = this.parseFuneralWishes(raw.funeralWishes);
-    const digitalInstructions = this.parseDigitalInstructions(raw.digitalAssetInstructions);
+    const digitalAssets = this.parseDigitalAssetInstructions(raw.digitalAssetInstructions);
 
-    const reconstituteProps: WillReconstituteProps = {
+    const rootProps: WillReconstituteProps = {
       id: raw.id,
       title: raw.title,
-      status: raw.status,
       testatorId: raw.testatorId,
-
+      status: raw.status,
       willDate: raw.willDate,
       lastModified: raw.lastModified,
       versionNumber: raw.versionNumber,
       supersedes: raw.supersedes,
-
       activatedAt: raw.activatedAt,
       activatedBy: raw.activatedBy,
       executedAt: raw.executedAt,
@@ -71,153 +46,125 @@ export class WillMapper {
       revokedAt: raw.revokedAt,
       revokedBy: raw.revokedBy,
       revocationReason: raw.revocationReason,
-
-      funeralWishes,
+      funeralWishes: funeralWishes,
       burialLocation: raw.burialLocation,
       residuaryClause: raw.residuaryClause,
-      digitalAssetInstructions: digitalInstructions,
+      digitalAssetInstructions: digitalAssets,
       specialInstructions: raw.specialInstructions,
-
       requiresWitnesses: raw.requiresWitnesses,
       witnessCount: raw.witnessCount,
       hasAllWitnesses: raw.hasAllWitnesses,
-
       isActiveRecord: raw.isActive,
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt,
       deletedAt: raw.deletedAt,
-
-      _assetIds: [],
-      _beneficiaryIds: [],
-      _witnessIds: [],
-      legalCapacity: null,
+      _assetIds: raw.assets ? raw.assets.map((asset) => asset.id) : [],
+      _beneficiaryIds: raw.beneficiaries
+        ? raw.beneficiaries.map((beneficiary) => beneficiary.id)
+        : [],
+      _witnessIds: raw.witnesses ? raw.witnesses.map((witness) => witness.id) : [],
+      legalCapacity: null, // Remove legal capacity since we can't access private properties
     };
 
-    return Will.reconstitute(reconstituteProps);
+    const rootWill = Will.reconstitute(rootProps);
+
+    const assets = raw.assets ? raw.assets.map((asset) => AssetMapper.toDomain(asset)) : [];
+    const beneficiaries = raw.beneficiaries
+      ? raw.beneficiaries.map((beneficiary) => BeneficiaryMapper.toDomain(beneficiary))
+      : [];
+    const executors = raw.executors
+      ? raw.executors.map((executor) => ExecutorMapper.toDomain(executor))
+      : [];
+    const witnesses = raw.witnesses
+      ? raw.witnesses.map((witness) => WitnessMapper.toDomain(witness))
+      : [];
+
+    return WillAggregate.reconstitute(rootWill, assets, beneficiaries, executors, witnesses);
   }
 
-  /**
-   * Safe JSON stringify with error handling
-   */
-  private static safeStringify(data: object): string {
+  static toPersistence(aggregate: WillAggregate): Prisma.WillUncheckedCreateInput {
+    const entity = aggregate.getWill();
+
+    return {
+      id: entity.id,
+      title: entity.title,
+      testatorId: entity.testatorId,
+      status: entity.status,
+      willDate: entity.willDate,
+      lastModified: entity.lastModified,
+      versionNumber: entity.versionNumber,
+      supersedes: entity.supersedes,
+      activatedAt: entity.activatedAt,
+      activatedBy: entity.activatedBy,
+      executedAt: entity.executedAt,
+      executedBy: entity.executedBy,
+      revokedAt: entity.revokedAt,
+      revokedBy: entity.revokedBy,
+      revocationReason: entity.revocationReason,
+      funeralWishes: entity.funeralWishes ? JSON.stringify(entity.funeralWishes) : null,
+      burialLocation: entity.burialLocation,
+      residuaryClause: entity.residuaryClause,
+      digitalAssetInstructions: entity.digitalAssetInstructions
+        ? JSON.stringify(entity.digitalAssetInstructions)
+        : null,
+      specialInstructions: entity.specialInstructions,
+      requiresWitnesses: entity.requiresWitnesses,
+      witnessCount: entity.witnessCount,
+      hasAllWitnesses: entity.hasAllWitnesses,
+      isActive: entity.isActiveRecord,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+      deletedAt: entity.deletedAt,
+    };
+  }
+
+  static toUpdatePersistence(aggregate: WillAggregate): Prisma.WillUncheckedUpdateInput {
+    const full = this.toPersistence(aggregate);
+
+    const updatableFields: Omit<
+      Prisma.WillUncheckedCreateInput,
+      'id' | 'testatorId' | 'createdAt'
+    > = full;
+
+    return {
+      ...updatableFields,
+      updatedAt: new Date(),
+    };
+  }
+
+  private static parseFuneralWishes(funeralWishes: string | null): FuneralWishes | null {
+    if (!funeralWishes) return null;
+
     try {
-      return JSON.stringify(data);
-    } catch (error) {
-      throw new Error(
-        `Failed to serialize data to JSON: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-    }
-  }
-
-  /**
-   * Type-safe funeral wishes parsing without any
-   */
-  private static parseFuneralWishes(funeralWishesData: string | null): FuneralWishes | null {
-    if (!funeralWishesData) return null;
-
-    const parseResult = this.safeParseJson(funeralWishesData);
-    if (!parseResult.success) {
-      console.warn('Failed to parse funeral wishes JSON:', parseResult.error);
+      if (typeof funeralWishes === 'string') {
+        return JSON.parse(funeralWishes) as FuneralWishes;
+      }
+      return funeralWishes as FuneralWishes;
+    } catch {
       return null;
     }
-
-    return this.validateFuneralWishes(parseResult.data);
   }
 
-  /**
-   * Type-safe digital instructions parsing without any
-   */
-  private static parseDigitalInstructions(
-    digitalInstructionsData: string | null,
+  private static parseDigitalAssetInstructions(
+    instructions: string | null,
   ): DigitalAssetInstructions | null {
-    if (!digitalInstructionsData) return null;
+    if (!instructions) return null;
 
-    const parseResult = this.safeParseJson(digitalInstructionsData);
-    if (!parseResult.success) {
-      console.warn('Failed to parse digital instructions JSON:', parseResult.error);
-      return null;
-    }
-
-    return this.validateDigitalInstructions(parseResult.data);
-  }
-
-  /**
-   * Safe JSON parsing without any type
-   */
-  private static safeParseJson(
-    jsonString: string,
-  ): { success: true; data: unknown } | { success: false; error: string } {
     try {
-      const parsed: unknown = JSON.parse(jsonString);
-      return { success: true, data: parsed };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown parsing error',
-      };
-    }
-  }
-
-  /**
-   * Strict validation for funeral wishes
-   */
-  private static validateFuneralWishes(data: unknown): FuneralWishes | null {
-    if (typeof data !== 'object' || data === null) {
+      if (typeof instructions === 'string') {
+        return JSON.parse(instructions) as DigitalAssetInstructions;
+      }
+      return instructions as DigitalAssetInstructions;
+    } catch {
       return null;
     }
-
-    const obj = data as Record<string, unknown>;
-    const wishes: FuneralWishes = {};
-
-    // Validate each field with proper type checking
-    if (this.isOptionalString(obj.burialLocation)) {
-      wishes.burialLocation = obj.burialLocation;
-    }
-    if (this.isOptionalString(obj.funeralType)) {
-      wishes.funeralType = obj.funeralType;
-    }
-    if (this.isOptionalString(obj.specificInstructions)) {
-      wishes.specificInstructions = obj.specificInstructions;
-    }
-    if (this.isOptionalString(obj.preferredOfficiant)) {
-      wishes.preferredOfficiant = obj.preferredOfficiant;
-    }
-
-    return Object.keys(wishes).length > 0 ? wishes : null;
   }
 
-  /**
-   * Strict validation for digital asset instructions
-   */
-  private static validateDigitalInstructions(data: unknown): DigitalAssetInstructions | null {
-    if (typeof data !== 'object' || data === null) {
-      return null;
-    }
-
-    const obj = data as Record<string, unknown>;
-    const instructions: DigitalAssetInstructions = {};
-
-    // Validate each field with proper type checking
-    if (this.isOptionalString(obj.socialMediaHandling)) {
-      instructions.socialMediaHandling = obj.socialMediaHandling;
-    }
-    if (this.isOptionalString(obj.emailAccountHandling)) {
-      instructions.emailAccountHandling = obj.emailAccountHandling;
-    }
-    if (this.isOptionalString(obj.cryptocurrencyInstructions)) {
-      instructions.cryptocurrencyInstructions = obj.cryptocurrencyInstructions;
-    }
-    if (this.isOptionalString(obj.onlineAccountClosure)) {
-      instructions.onlineAccountClosure = obj.onlineAccountClosure;
-    }
-
-    return Object.keys(instructions).length > 0 ? instructions : null;
+  static toDomainBatch(records: WillWithRelations[]): WillAggregate[] {
+    return records.map((record) => this.toDomain(record));
   }
 
-  /**
-   * Type guard for optional string fields
-   */
-  private static isOptionalString(value: unknown): value is string | undefined {
-    return value === undefined || typeof value === 'string';
+  static toPersistenceBatch(aggregates: WillAggregate[]): Prisma.WillUncheckedCreateInput[] {
+    return aggregates.map((aggregate) => this.toPersistence(aggregate));
   }
 }

@@ -1,33 +1,30 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@shamba/database';
 import { BequestType, DistributionStatus } from '@prisma/client';
-import { BeneficiaryRepositoryInterface } from '../../../domain/interfaces/beneficiary.repository.interface';
 import { BeneficiaryAssignment } from '../../../domain/entities/beneficiary.entity';
+import { BeneficiaryRepositoryInterface } from '../../../domain/interfaces/beneficiary.repository.interface';
 import { BeneficiaryMapper } from '../mappers/beneficiary.mapper';
 
 @Injectable()
 export class BeneficiaryPrismaRepository implements BeneficiaryRepositoryInterface {
   constructor(private readonly prisma: PrismaService) {}
 
-  // --------------------------------------------------------------------------
-  // BASIC PERSISTENCE
-  // --------------------------------------------------------------------------
-
   async save(assignment: BeneficiaryAssignment): Promise<void> {
-    const persistenceModel = BeneficiaryMapper.toPersistence(assignment);
+    const persistenceData = BeneficiaryMapper.toPersistence(assignment);
 
     await this.prisma.beneficiaryAssignment.upsert({
-      where: { id: persistenceModel.id },
-      create: persistenceModel,
-      update: persistenceModel,
+      where: { id: assignment.id },
+      create: persistenceData,
+      update: BeneficiaryMapper.toUpdatePersistence(assignment),
     });
   }
 
   async findById(id: string): Promise<BeneficiaryAssignment | null> {
-    const raw = await this.prisma.beneficiaryAssignment.findUnique({
+    const record = await this.prisma.beneficiaryAssignment.findUnique({
       where: { id },
     });
-    return raw ? BeneficiaryMapper.toDomain(raw) : null;
+
+    return record ? BeneficiaryMapper.toDomain(record) : null;
   }
 
   async delete(id: string): Promise<void> {
@@ -36,213 +33,150 @@ export class BeneficiaryPrismaRepository implements BeneficiaryRepositoryInterfa
     });
   }
 
-  // --------------------------------------------------------------------------
-  // STANDARD LOOKUPS
-  // --------------------------------------------------------------------------
-
   async findByWillId(willId: string): Promise<BeneficiaryAssignment[]> {
-    const raw = await this.prisma.beneficiaryAssignment.findMany({
+    const records = await this.prisma.beneficiaryAssignment.findMany({
       where: { willId },
-      orderBy: { priority: 'asc' }, // Load primary beneficiaries first
+      orderBy: { priority: 'asc' },
     });
-    return raw.map(BeneficiaryMapper.toDomain);
+
+    return records.map((record) => BeneficiaryMapper.toDomain(record));
   }
 
   async findByAssetId(assetId: string): Promise<BeneficiaryAssignment[]> {
-    const raw = await this.prisma.beneficiaryAssignment.findMany({
+    const records = await this.prisma.beneficiaryAssignment.findMany({
       where: { assetId },
+      orderBy: { priority: 'asc' },
     });
-    return raw.map(BeneficiaryMapper.toDomain);
+
+    return records.map((record) => BeneficiaryMapper.toDomain(record));
   }
 
   async findByBeneficiaryUserId(userId: string): Promise<BeneficiaryAssignment[]> {
-    const raw = await this.prisma.beneficiaryAssignment.findMany({
+    const records = await this.prisma.beneficiaryAssignment.findMany({
       where: { beneficiaryId: userId },
+      orderBy: { createdAt: 'desc' },
     });
-    return raw.map(BeneficiaryMapper.toDomain);
+
+    return records.map((record) => BeneficiaryMapper.toDomain(record));
   }
 
   async findByBeneficiaryFamilyMemberId(familyMemberId: string): Promise<BeneficiaryAssignment[]> {
-    const raw = await this.prisma.beneficiaryAssignment.findMany({
+    const records = await this.prisma.beneficiaryAssignment.findMany({
       where: { familyMemberId },
+      orderBy: { createdAt: 'desc' },
     });
-    return raw.map(BeneficiaryMapper.toDomain);
+
+    return records.map((record) => BeneficiaryMapper.toDomain(record));
   }
 
-  // --------------------------------------------------------------------------
-  // STATUS & LOGIC QUERIES
-  // --------------------------------------------------------------------------
-
   async findConditionalBequests(willId: string): Promise<BeneficiaryAssignment[]> {
-    const raw = await this.prisma.beneficiaryAssignment.findMany({
+    const records = await this.prisma.beneficiaryAssignment.findMany({
       where: {
         willId,
         hasCondition: true,
       },
     });
-    return raw.map(BeneficiaryMapper.toDomain);
+
+    return records.map((record) => BeneficiaryMapper.toDomain(record));
   }
 
   async findDistributedBequests(willId: string): Promise<BeneficiaryAssignment[]> {
-    const raw = await this.prisma.beneficiaryAssignment.findMany({
+    const records = await this.prisma.beneficiaryAssignment.findMany({
       where: {
         willId,
         distributionStatus: DistributionStatus.COMPLETED,
       },
     });
-    return raw.map(BeneficiaryMapper.toDomain);
-  }
 
-  async findPendingDistributions(willId: string): Promise<BeneficiaryAssignment[]> {
-    const raw = await this.prisma.beneficiaryAssignment.findMany({
-      where: {
-        willId,
-        distributionStatus: DistributionStatus.PENDING,
-      },
-    });
-    return raw.map(BeneficiaryMapper.toDomain);
+    return records.map((record) => BeneficiaryMapper.toDomain(record));
   }
 
   async findByDistributionStatus(
     willId: string,
     status: DistributionStatus,
   ): Promise<BeneficiaryAssignment[]> {
-    const raw = await this.prisma.beneficiaryAssignment.findMany({
-      where: { willId, distributionStatus: status },
+    const records = await this.prisma.beneficiaryAssignment.findMany({
+      where: {
+        willId,
+        distributionStatus: status,
+      },
     });
-    return raw.map(BeneficiaryMapper.toDomain);
-  }
 
-  // --------------------------------------------------------------------------
-  // ANALYTICAL SUMMARIES (Aggregation)
-  // --------------------------------------------------------------------------
+    return records.map((record) => BeneficiaryMapper.toDomain(record));
+  }
 
   async getAssetDistributionSummary(assetId: string): Promise<{
     totalAllocatedPercent: number;
     beneficiaryCount: number;
     hasResiduary: boolean;
-    conditionalCount: number;
   }> {
-    // 1. Aggregate Stats
-    const stats = await this.prisma.beneficiaryAssignment.aggregate({
+    const aggregation = await this.prisma.beneficiaryAssignment.aggregate({
       where: { assetId },
-      _sum: {
-        sharePercent: true,
-      },
-      _count: {
-        id: true,
-      },
+      _sum: { sharePercent: true },
+      _count: { id: true },
     });
 
-    // 2. Check for specific types (Residuary / Conditional) efficiently
-    // We use count instead of findMany to be faster
     const residuaryCount = await this.prisma.beneficiaryAssignment.count({
-      where: { assetId, bequestType: BequestType.RESIDUARY },
-    });
-
-    const conditionalCount = await this.prisma.beneficiaryAssignment.count({
-      where: { assetId, hasCondition: true },
+      where: {
+        assetId,
+        bequestType: BequestType.RESIDUARY,
+      },
     });
 
     return {
-      totalAllocatedPercent: Number(stats._sum.sharePercent || 0),
-      beneficiaryCount: stats._count.id,
+      totalAllocatedPercent: aggregation._sum.sharePercent?.toNumber() || 0,
+      beneficiaryCount: aggregation._count.id,
       hasResiduary: residuaryCount > 0,
-      conditionalCount,
     };
   }
 
   async getWillBeneficiarySummary(willId: string): Promise<{
     totalBeneficiaries: number;
     byBequestType: Record<BequestType, number>;
-    byRelationship: Record<string, number>; // Note: Relationship is not directly on the table in current schema, skipping or needs join
     totalConditional: number;
   }> {
-    // Group by Bequest Type
-    const typeGroups = await this.prisma.beneficiaryAssignment.groupBy({
+    const totalBeneficiaries = await this.prisma.beneficiaryAssignment.count({
+      where: { willId },
+    });
+
+    const byTypeGroups = await this.prisma.beneficiaryAssignment.groupBy({
       by: ['bequestType'],
       where: { willId },
-      _count: { id: true },
+      _count: { _all: true },
     });
 
-    // Get Total Count
-    const totalCount = await this.prisma.beneficiaryAssignment.count({
-      where: { willId },
+    const byBequestType = byTypeGroups.reduce(
+      (acc, curr) => {
+        acc[curr.bequestType] = curr._count._all;
+        return acc;
+      },
+      {} as Record<BequestType, number>,
+    );
+
+    Object.values(BequestType).forEach((type) => {
+      if (!byBequestType[type]) byBequestType[type] = 0;
     });
 
-    const conditionalCount = await this.prisma.beneficiaryAssignment.count({
-      where: { willId, hasCondition: true },
-    });
-
-    // Map DB result to clean object
-    const byBequestType = {} as Record<BequestType, number>;
-    typeGroups.forEach((g) => {
-      byBequestType[g.bequestType] = g._count.id;
+    const totalConditional = await this.prisma.beneficiaryAssignment.count({
+      where: {
+        willId,
+        hasCondition: true,
+      },
     });
 
     return {
-      totalBeneficiaries: totalCount,
+      totalBeneficiaries,
       byBequestType,
-      byRelationship: {}, // Placeholder until relationship column is denormalized or joined
-      totalConditional: conditionalCount,
+      totalConditional,
     };
-  }
-
-  // --------------------------------------------------------------------------
-  // BULK OPERATIONS
-  // --------------------------------------------------------------------------
-
-  async bulkUpdateDistributionStatus(
-    beneficiaryIds: string[],
-    status: DistributionStatus,
-    notes?: string,
-  ): Promise<void> {
-    await this.prisma.beneficiaryAssignment.updateMany({
-      where: {
-        id: { in: beneficiaryIds },
-      },
-      data: {
-        distributionStatus: status,
-        distributionNotes: notes,
-        distributedAt: status === DistributionStatus.COMPLETED ? new Date() : null,
-        updatedAt: new Date(),
-      },
-    });
-  }
-
-  // --------------------------------------------------------------------------
-  // VALIDATION HELPERS
-  // --------------------------------------------------------------------------
-
-  async validateNoDuplicateAssignments(
-    willId: string,
-    assetId: string,
-    beneficiaryId: string,
-  ): Promise<boolean> {
-    // We check if a record exists with this combo.
-    // Note: 'beneficiaryId' in this context implies the USER ID column.
-    // If checking family member, we'd need a separate check or logic.
-    const count = await this.prisma.beneficiaryAssignment.count({
-      where: {
-        willId,
-        assetId,
-        beneficiaryId,
-      },
-    });
-    return count === 0;
   }
 
   async getTotalPercentageAllocation(assetId: string): Promise<number> {
     const result = await this.prisma.beneficiaryAssignment.aggregate({
-      where: {
-        assetId,
-        bequestType: BequestType.PERCENTAGE,
-      },
-      _sum: {
-        sharePercent: true,
-      },
+      where: { assetId },
+      _sum: { sharePercent: true },
     });
 
-    return Number(result._sum.sharePercent || 0);
+    return result._sum.sharePercent?.toNumber() || 0;
   }
 }
