@@ -5,6 +5,9 @@ import { WillAggregate } from '../../../domain/aggregates/will.aggregate';
 import { WillRepositoryInterface } from '../../../domain/interfaces/will.repository.interface';
 import { WillMapper } from '../mappers/will.mapper';
 
+// Utility type guard to remove undefined values from arrays
+const notUndefined = <T>(value: T | undefined): value is T => value !== undefined;
+
 @Injectable()
 export class WillPrismaRepository implements WillRepositoryInterface {
   constructor(private readonly prisma: PrismaService) {}
@@ -45,15 +48,17 @@ export class WillPrismaRepository implements WillRepositoryInterface {
           })
         : [];
 
-    const rawWithRelations = {
+    const assetMap = new Map(assets.map((asset) => [asset.id, asset]));
+
+    const resolvedAssets = assetIds.map((assetId) => assetMap.get(assetId)).filter(notUndefined);
+
+    return WillMapper.toDomain({
       ...record,
-      assets,
+      assets: resolvedAssets,
       beneficiaries: record.beneficiaryAssignments,
       executors: record.executors,
       witnesses: record.witnesses,
-    };
-
-    return WillMapper.toDomain(rawWithRelations);
+    });
   }
 
   async findByTestatorId(testatorId: string): Promise<WillAggregate[]> {
@@ -90,11 +95,13 @@ export class WillPrismaRepository implements WillRepositoryInterface {
     return records.map((record) => {
       const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
 
-      const assets = recordAssetIds.map((assetId) => assetMap.get(assetId)).filter(Boolean);
+      const resolvedAssets = recordAssetIds
+        .map((assetId) => assetMap.get(assetId))
+        .filter(notUndefined);
 
       return WillMapper.toDomain({
         ...record,
-        assets,
+        assets: resolvedAssets,
         beneficiaries: record.beneficiaryAssignments,
         executors: record.executors,
         witnesses: record.witnesses,
@@ -156,12 +163,13 @@ export class WillPrismaRepository implements WillRepositoryInterface {
 
     return records.map((record) => {
       const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
-
-      const assets = recordAssetIds.map((assetId) => assetMap.get(assetId)).filter(Boolean);
+      const resolvedAssets = recordAssetIds
+        .map((assetId) => assetMap.get(assetId))
+        .filter(notUndefined);
 
       return WillMapper.toDomain({
         ...record,
-        assets,
+        assets: resolvedAssets,
         beneficiaries: record.beneficiaryAssignments,
         executors: record.executors,
         witnesses: record.witnesses,
@@ -185,9 +193,7 @@ export class WillPrismaRepository implements WillRepositoryInterface {
 
     if (!record) return null;
 
-    const assetIds = [
-      ...new Set(record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean)),
-    ] as string[];
+    const assetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
 
     const assets =
       assetIds.length > 0
@@ -199,9 +205,12 @@ export class WillPrismaRepository implements WillRepositoryInterface {
           })
         : [];
 
+    const assetMap = new Map(assets.map((asset) => [asset.id, asset]));
+    const resolvedAssets = assetIds.map((id) => assetMap.get(id)).filter(notUndefined);
+
     return WillMapper.toDomain({
       ...record,
-      assets,
+      assets: resolvedAssets,
       beneficiaries: record.beneficiaryAssignments,
       executors: record.executors,
       witnesses: record.witnesses,
@@ -241,11 +250,13 @@ export class WillPrismaRepository implements WillRepositoryInterface {
     return records.map((record) => {
       const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
 
-      const assets = recordAssetIds.map((assetId) => assetMap.get(assetId)).filter(Boolean);
+      const resolvedAssets = recordAssetIds
+        .map((assetId) => assetMap.get(assetId))
+        .filter(notUndefined);
 
       return WillMapper.toDomain({
         ...record,
-        assets,
+        assets: resolvedAssets,
         beneficiaries: record.beneficiaryAssignments,
         executors: record.executors,
         witnesses: record.witnesses,
@@ -291,11 +302,13 @@ export class WillPrismaRepository implements WillRepositoryInterface {
     return records.map((record) => {
       const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
 
-      const assets = recordAssetIds.map((assetId) => assetMap.get(assetId)).filter(Boolean);
+      const resolvedAssets = recordAssetIds
+        .map((assetId) => assetMap.get(assetId))
+        .filter(notUndefined);
 
       return WillMapper.toDomain({
         ...record,
-        assets,
+        assets: resolvedAssets,
         beneficiaries: record.beneficiaryAssignments,
         executors: record.executors,
         witnesses: record.witnesses,
@@ -339,11 +352,13 @@ export class WillPrismaRepository implements WillRepositoryInterface {
     return records.map((record) => {
       const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
 
-      const assets = recordAssetIds.map((assetId) => assetMap.get(assetId)).filter(Boolean);
+      const resolvedAssets = recordAssetIds
+        .map((assetId) => assetMap.get(assetId))
+        .filter(notUndefined);
 
       return WillMapper.toDomain({
         ...record,
-        assets,
+        assets: resolvedAssets,
         beneficiaries: record.beneficiaryAssignments,
         executors: record.executors,
         witnesses: record.witnesses,
@@ -427,11 +442,13 @@ export class WillPrismaRepository implements WillRepositoryInterface {
     return records.map((record) => {
       const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
 
-      const assets = recordAssetIds.map((assetId) => assetMap.get(assetId)).filter(Boolean);
+      const resolvedAssets = recordAssetIds
+        .map((assetId) => assetMap.get(assetId))
+        .filter(notUndefined);
 
       return WillMapper.toDomain({
         ...record,
-        assets,
+        assets: resolvedAssets,
         beneficiaries: record.beneficiaryAssignments,
         executors: record.executors,
         witnesses: record.witnesses,
