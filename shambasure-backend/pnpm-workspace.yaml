@@ -5,6 +5,7 @@ onlyBuiltDependencies:
   - '@scarf/scarf'
   - argon2
   - bcrypt
+  - diskusage
   - esbuild
   - prisma
   - protobufjs

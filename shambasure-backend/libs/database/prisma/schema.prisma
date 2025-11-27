@@ -1,11 +1,10 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
 }
 
+generator client {
+  provider = "prisma-client-js"
+}
 // -----------------------------------------------------------------------------
 // ENUMS
 // -----------------------------------------------------------------------------
@@ -14,6 +13,46 @@ enum UserRole {
   ADMIN
   VERIFIER
   AUDITOR
+}
+enum GrantStatus {
+  ISSUED
+  CONFIRMED
+  REVOKED
+  EXPIRED
+  AMENDED
+  REPLACED
+}
+enum ExecutorDutyType {
+  FILE_INVENTORY
+  PAY_DEBTS
+  DISTRIBUTE_ASSETS
+  FILE_ACCOUNTS
+  OBTAIN_GRANT
+  NOTIFY_BENEFICIARIES
+  MANAGE_PROPERTY
+  SETTLE_TAXES
+  CLOSE_ESTATE
+  OTHER
+}
+enum DutyStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+  WAIVED
+  EXTENDED
+}
+enum PriorityLevel {
+  HIGH
+  MEDIUM
+  LOW
+}
+enum LegalBasis {
+  SECTION_83
+  SECTION_79
+  COURT_ORDER
+  WILL_PROVISION
+  CUSTOMARY_LAW
 }
 enum RelationshipType {
   SPOUSE
@@ -423,6 +462,20 @@ enum ObjectionStatus {
   DISMISSED
   UPHELD
 }
+enum ClaimStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  DISPUTED
+  PAID
+  PARTIALLY_PAID
+}
+enum ClaimPriority {
+  PREFERRED
+  ORDINARY
+  SECURED
+  UNSECURED
+}
 enum DocumentCategory {
   LAND_OWNERSHIP       // Title deeds, purchase agreements, land registry extracts
   IDENTITY_PROOF       // National ID, birth certificate, death certificate
@@ -493,13 +546,15 @@ model User {
   DocumentVerificationAttempt DocumentVerificationAttempt[]
   notifications       Notification[]
   auditLogsAsActor    AuditLog[]
+  filedCreditorClaims    CreditorClaim[] @relation("ClaimFiledBy")
+  reviewedCreditorClaims CreditorClaim[] @relation("ClaimReviewedBy")
+  estates Estate[]
 
   @@index([email, isActive])
   @@index([createdAt])
   @@index([deletedAt])
   @@map("users")
-  
-  estates Estate[]
+  executorDuties ExecutorDuty[]
 }
 
 
@@ -508,7 +563,7 @@ model UserProfile {
   userId        String   @unique
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   bio           String?
-  phoneNumber   String?  @db.VarChar(20)
+  phoneNumber   String?
   phoneVerified Boolean  @default(false)
   emailVerified Boolean  @default(false)
   marketingOptIn Boolean @default(false)
@@ -543,8 +598,8 @@ model RefreshToken {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   deviceId  String?
-  ipAddress String?  @db.VarChar(45) // IPv6 support
-  userAgent String?  @db.Text
+  ipAddress String?
+  userAgent String?
   createdAt DateTime @default(now())
   revokedAt DateTime?
   lastUsedAt DateTime?
@@ -561,7 +616,7 @@ model RoleChange {
   oldRole   UserRole
   newRole   UserRole
   changedBy String?
-  reason    String?  @db.Text
+  reason    String?
   createdAt DateTime @default(now())
 
   @@index([userId])
@@ -615,8 +670,8 @@ model LoginSession {
   userId        String
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   tokenHash     String    @unique 
-  ipAddress     String?   @db.VarChar(45) // IPv6 support
-  userAgent     String?   @db.Text
+  ipAddress     String?  // IPv6 support
+  userAgent     String?
   deviceId      String?   // Unique device identifier
   lastActivity  DateTime  @default(now())
   expiresAt     DateTime
@@ -649,7 +704,7 @@ model PasswordHistory {
 model Family {
   id          String   @id @default(uuid())
   name        String   // "The Kamau Family"
-  description String?  @db.Text
+  description String?
   creatorId   String
   creator     User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   
@@ -714,7 +769,7 @@ model FamilyMember {
   isDeceased  Boolean  @default(false)
   
   // Metadata
-  notes       String?  @db.Text
+  notes       String?
   addedBy     String   // User who added this member
   
   createdAt   DateTime @default(now())
@@ -808,7 +863,7 @@ model Marriage {
   
   // Customary Marriage Details
   bridePricePaid Boolean @default(false)
-  bridePriceAmount Decimal? @db.Decimal(10,2)
+  bridePriceAmount Float?
   bridePriceCurrency String? @default("KES")
   elderWitnesses Json? // Array of strings
   ceremonyLocation String?
@@ -892,7 +947,7 @@ model Guardian {
   
   // Status
   isActive    Boolean  @default(true)
-  notes       String?  @db.Text
+  notes       String?
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -912,14 +967,14 @@ model Asset {
   
   // Core Identity
   name                    String
-  description             String?                @db.Text
+  description             String?
   type                    AssetType
   
   // Ownership - Kenyan Law Compliance
   ownerId                 String
   owner                   User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   ownershipType           AssetOwnershipType     @default(SOLE)
-  ownershipShare          Decimal                @db.Decimal(5,2) // 0-100%
+  ownershipShare          Float // 0-100%
   
   // Kenyan-Specific Location Data
   county                  KenyanCounty?
@@ -936,7 +991,7 @@ model Asset {
   identificationDetails   Json?                 // Flexible storage for other IDs
   
   // Valuation - Current and Historical
-  currentValue            Decimal?              @db.Decimal(15,2)
+  currentValue            Float?
   currency                String                @default("KES")
   valuationDate           DateTime?
   valuationSource         String?               // "Professional Valuer", "Market Rate", "Self"
@@ -945,8 +1000,8 @@ model Asset {
   verificationStatus      AssetVerificationStatus @default(UNVERIFIED)
   isEncumbered            Boolean               @default(false)
   encumbranceType         AssetEncumbranceType?
-  encumbranceDetails      String?               @db.Text
-  encumbranceAmount       Decimal?              @db.Decimal(15,2)
+  encumbranceDetails      String?
+  encumbranceAmount       Float?
   
   // Matrimonial Property Status (Kenyan Law of Succession Act)
   isMatrimonialProperty   Boolean               @default(false)
@@ -984,6 +1039,7 @@ model Asset {
   @@index([requiresProbate])
   @@index([deletedAt])
   @@map("assets")
+  creditorClaims CreditorClaim[]
 }
 
 model AssetCoOwner {
@@ -1001,7 +1057,7 @@ model AssetCoOwner {
   phone       String?
   
   // Ownership details
-  sharePercent Decimal @db.Decimal(5,2) // 0-100%
+  sharePercent Float // 0-100%
   relationship String? // "Spouse", "Business Partner"
   
   createdAt   DateTime @default(now())
@@ -1018,7 +1074,7 @@ model AssetValuation {
   assetId         String
   asset           Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
   
-  value           Decimal   @db.Decimal(15,2)
+  value           Float
   currency        String    @default("KES")
   valuationDate   DateTime
   valuedBy        String?   // Valuer name or organization
@@ -1031,7 +1087,7 @@ model AssetValuation {
   
   // Supporting Evidence
   reportUrl       String?   // Link to valuation report
-  notes           String?   @db.Text
+  notes           String?   
   
   createdAt       DateTime  @default(now())
 
@@ -1047,15 +1103,15 @@ model Debt {
   ownerId                 String
   owner                   User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   type                    DebtType
-  description             String                 @db.Text
+  description             String
   
   // Asset Linkage
   assetId                 String?
   asset                   Asset?                 @relation(fields: [assetId], references: [id], onDelete: SetNull)
   
   // Financial Details
-  principalAmount         Decimal                @db.Decimal(15,2)
-  outstandingBalance      Decimal                @db.Decimal(15,2)
+  principalAmount         Float
+  outstandingBalance      Float
   currency                String                 @default("KES")
   
   // Kenyan Tax-Specific Fields
@@ -1072,7 +1128,7 @@ model Debt {
   
   // Loan Terms & Conditions
   dueDate                 DateTime?
-  interestRate            Decimal?               @db.Decimal(5,2) // Annual %
+  interestRate            Float? // Annual %
   interestType            String?                // "Fixed", "Variable", "Compound"
   compoundingFrequency    String?                // "Monthly", "Quarterly", "Annually"
   
@@ -1088,13 +1144,13 @@ model Debt {
   
   // Security & Collateral
   isSecured               Boolean                @default(false)
-  securityDetails         String?                @db.Text
-  collateralDescription   String?                @db.Text
+  securityDetails         String?               
+  collateralDescription   String?                
   
   // Payment Tracking
   lastPaymentDate         DateTime?
-  lastPaymentAmount       Decimal?               @db.Decimal(15,2)
-  totalPaid               Decimal                @db.Decimal(15,2) @default(0)
+  lastPaymentAmount       Float?
+  totalPaid               Float                  @default(0)
   
   // Settlement Information
   isPaid                  Boolean                @default(false)
@@ -1103,7 +1159,7 @@ model Debt {
   
   // Dispute Information
   isDisputed              Boolean                @default(false)
-  disputeReason           String?                @db.Text
+  disputeReason           String?           
   disputeResolvedAt       DateTime?
   
   // Audit Trail
@@ -1128,12 +1184,12 @@ model DebtPayment {
   debt            Debt      @relation(fields: [debtId], references: [id], onDelete: Cascade)
   
   paymentDate     DateTime
-  amount          Decimal   @db.Decimal(15,2)
+  amount          Float
   currency        String    @default("KES")
   paymentMethod   String?   // "Cash", "Bank Transfer", "Cheque"
   referenceNumber String?   // Payment reference
   paidBy          String?   // Who made the payment
-  notes           String?   @db.Text
+  notes           String?  
   
   createdAt       DateTime  @default(now())
 
@@ -1180,19 +1236,19 @@ model Will {
   revokedAt                   DateTime?
   revokedBy                   String?
   revocationMethod            RevocationMethod?
-  revocationReason            String?                @db.Text
+  revocationReason            String?             
   
   // Kenyan-Specific Content
   funeralWishes               Json?                  // Structured funeral instructions
   burialLocation              String?
-  cremationInstructions       String?                @db.Text
+  cremationInstructions       String?                
   organDonation               Boolean                @default(false)
-  organDonationDetails        String?                @db.Text
+  organDonationDetails        String?            
   
   // Estate Distribution
-  residuaryClause             String?                @db.Text
+  residuaryClause             String?               
   digitalAssetInstructions    Json?                  // Structured digital asset handling
-  specialInstructions         String?                @db.Text
+  specialInstructions         String?               
   
   // Witness Management (Kenyan Legal Requirements)
   requiresWitnesses           Boolean                @default(true)
@@ -1209,7 +1265,7 @@ model Will {
   
   // Storage & Security
   storageLocation             WillStorageLocation?
-  storageDetails              String?                @db.Text
+  storageDetails              String?                
   isEncrypted                 Boolean                @default(false)
   encryptionKeyId             String?
   
@@ -1221,7 +1277,7 @@ model Will {
   
   // Dependant Provision (Kenyan Law Section 26)
   hasDependantProvision       Boolean                @default(false)
-  dependantProvisionDetails   String?                @db.Text
+  dependantProvisionDetails   String?              
   courtApprovedProvision      Boolean                @default(false)
   
   // Record Management
@@ -1255,7 +1311,7 @@ model WillVersion {
   
   versionNumber   Int
   snapshot        Json     // Full will data at time of save
-  changeLog       String   @db.Text
+  changeLog       String 
   
   // change tracking
   changeType      String?  // "CREATED", "UPDATED", "WITNESSED", "ACTIVATED"
@@ -1313,7 +1369,7 @@ model WillExecutor {
   eligibilityStatus       ExecutorEligibilityStatus @default(PENDING_VERIFICATION)
   eligibilityVerifiedAt   DateTime?
   eligibilityVerifiedBy   String?                  // User who verified eligibility
-  ineligibilityReason     String?                  @db.Text
+  ineligibilityReason     String?                 
   
   // Appointment & Service Timeline
   status                  ExecutorStatus           @default(NOMINATED)
@@ -1321,31 +1377,31 @@ model WillExecutor {
   appointedAt             DateTime?                // Court appointment date
   acceptedAt              DateTime?
   declinedAt              DateTime?
-  declineReason           String?                  @db.Text
+  declineReason           String?                 
   removedAt               DateTime?
-  removalReason           String?                  @db.Text
+  removalReason           String?                 
   completedAt             DateTime?
   
   // Compensation (Kenyan Law of Succession Act Section 83)
   isCompensated           Boolean                  @default(false)
   compensationType        ExecutorCompensationType
-  compensationAmount      Decimal?                 @db.Decimal(15,2) // Fixed amount
-  compensationPercentage  Decimal?                 @db.Decimal(5,2)  // % of estate
-  hourlyRate              Decimal?                 @db.Decimal(10,2) // Hourly rate
+  compensationAmount      Float? // Fixed amount
+  compensationPercentage  Float?  // % of estate
+  hourlyRate              Float? // Hourly rate
   estimatedHours          Int?                     // Estimated time commitment
   courtApprovedCompensation Boolean               @default(false)
   
   // Bond & Security (Kenyan Probate Practice)
   requiresBond            Boolean                  @default(false)
-  bondAmount              Decimal?                 @db.Decimal(15,2)
+  bondAmount              Float?
   bondProvided            Boolean                  @default(false)
   bondProvider            String?                  // Insurance company
   bondExpiryDate          DateTime?
   
   // Duties & Responsibilities
-  specificDuties          String?                  @db.Text
-  limitations             String?                  @db.Text
-  specialPowers           String?                  @db.Text
+  specificDuties          String?                  
+  limitations             String?                  
+  specialPowers           String?                  
   
   // Communication Preferences
   preferredContactMethod  String?                  // "Email", "Phone", "SMS"
@@ -1364,6 +1420,54 @@ model WillExecutor {
   @@index([eligibilityStatus])
   @@index([appointmentType])
   @@map("will_executors")
+}
+model ExecutorDuty {
+  id                      String           @id @default(uuid())
+  estateId                String
+  estate                  Estate           @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  executorId              String
+  executor                User             @relation(fields: [executorId], references: [id], onDelete: Cascade)
+  
+  // Core Duty Information
+  type                    ExecutorDutyType
+  description             String           
+  stepOrder               Int
+  deadline                DateTime
+  status                  DutyStatus       @default(PENDING)
+  priority                PriorityLevel    @default(MEDIUM)
+  legalBasis              LegalBasis       @default(SECTION_83)
+  
+  // Timing & Progress
+  startedAt               DateTime?
+  estimatedCompletion     DateTime?
+  completedAt             DateTime?
+  
+  // Documentation & References
+  notes                   String?         
+  supportingDocuments     Json?        // Array of document IDs
+  courtOrderNumber        String?          // Reference to court order if applicable
+  
+  // Extension Tracking
+  previousDeadline        DateTime?        // For tracking extensions
+  extensionReason         String?         
+  extendedBy              String?          // User who approved extension
+  extensionDate           DateTime?
+  
+  // Overdue Tracking
+  overdueNotificationsSent Int            @default(0)
+  lastOverdueNotification  DateTime?
+  
+  // Audit Trail
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+  
+  // Indexes for Performance
+  @@index([estateId, status])
+  @@index([executorId, deadline])
+  @@index([status, priority])
+  @@index([deadline])
+  @@index([type])
+  @@map("executor_duties")
 }
 model WillWitness {
   id                      String                   @id @default(uuid())
@@ -1404,13 +1508,13 @@ model WillWitness {
   eligibilityStatus       WitnessEligibilityStatus @default(PENDING_ELIGIBILITY_CHECK)
   eligibilityVerifiedAt   DateTime?
   eligibilityVerifiedBy   String?
-  ineligibilityReason     String?                  @db.Text
+  ineligibilityReason     String?         
   
   // Witnessing Process
   status                  WitnessStatus            @default(PENDING)
   signedAt                DateTime?
   signatureType           SignatureType?
-  signatureData           String?                  @db.Text
+  signatureData           String?                 
   signatureLocation       String?                  // Physical or digital location
   witnessingMethod        String?                  // "In Person", "Video Conference", "Digital Platform"
   
@@ -1418,12 +1522,12 @@ model WillWitness {
   verifiedAt              DateTime?
   verifiedBy              String?                  // Admin who verified identity
   verificationMethod      WitnessVerificationMethod?
-  verificationNotes       String?                  @db.Text
+  verificationNotes       String?                
   
   // Legal Requirements Tracking
   isEligible              Boolean                  @default(true)
   hasConflictOfInterest   Boolean                  @default(false)
-  conflictDetails         String?                  @db.Text
+  conflictDetails         String?                 
   understandsObligation   Boolean                  @default(false)
   obligationAcknowledgedAt DateTime?
   
@@ -1480,13 +1584,13 @@ model BeneficiaryAssignment {
   
   // Bequest Configuration
   bequestType             BequestType            @default(SPECIFIC)
-  sharePercent            Decimal?               @db.Decimal(5,2) // 0-100%
-  specificAmount          Decimal?               @db.Decimal(15,2) // Fixed amount
+  sharePercent            Float? // 0-100%
+  specificAmount          Float? // Fixed amount
   currency                String                 @default("KES")
   
   // Conditions for Kenyan Law
   conditionType           BequestConditionType   @default(NONE)
-  conditionDetails        String?                @db.Text
+  conditionDetails        String?                
   conditionMet           Boolean?               // Track condition status
   conditionDeadline       DateTime?              // When condition must be met
   
@@ -1503,7 +1607,7 @@ model BeneficiaryAssignment {
   // Distribution Tracking
   distributionStatus      DistributionStatus     @default(PENDING)
   distributedAt           DateTime?
-  distributionNotes       String?                @db.Text
+  distributionNotes       String?                
   distributionMethod      String?                // "Cash", "Transfer", "Physical"
   
   // Legal Compliance (Kenyan Law)
@@ -1543,8 +1647,8 @@ model DisinheritanceRecord {
   disinheritedMemberId String
   disinheritedMember   FamilyMember @relation(fields: [disinheritedMemberId], references: [id], onDelete: Cascade)
   
-  // Reason (optional but recommended)
-  reason      String?  @db.Text
+  // Reason 
+  reason      String? 
   
   // Legal notice
   wasNotified Boolean  @default(false)
@@ -1575,7 +1679,7 @@ model Dispute {
   // Dispute details
   type        DisputeType
   status      DisputeStatus @default(FILED)
-  description String   @db.Text
+  description String  
   
   // Legal representation
   lawyerName  String?
@@ -1585,10 +1689,10 @@ model Dispute {
   // Timeline
   filedAt     DateTime @default(now())
   resolvedAt  DateTime?
-  resolution  String?  @db.Text
+  resolution  String? 
   
   // Supporting evidence
-  evidenceUrls String[] // Links to uploaded documents
+  evidenceUrls Json? // Links to uploaded documents
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1606,7 +1710,7 @@ model Estate {
   deceasedName     String
   dateOfDeath      DateTime?
   probateCaseNumber String?  // Court reference / Probate case no
-  estateValue      Decimal?  @db.Decimal(18,2)
+  estateValue      Float?
   currency         String    @default("KES")
   status           DistributionStatus @default(PENDING) // reuse enum
   administrationType GrantType?
@@ -1632,6 +1736,7 @@ model Estate {
   testamentaryTrusts TestamentaryTrust[]
   willExecutors WillExecutor[]
   probateCases ProbateCase[]
+  executorDuties ExecutorDuty[]
 }
 
 model EstateInventory {
@@ -1639,8 +1744,8 @@ model EstateInventory {
   estateId    String
   estate      Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
   assetId     String?  // linked Asset if recorded
-  description String   @db.Text
-  estimatedValue Decimal @db.Decimal(18,2)
+  description String   
+  estimatedValue Float?
   currency    String   @default("KES")
   ownedByDeceased Boolean @default(true)
   createdAt   DateTime @default(now())
@@ -1650,27 +1755,52 @@ model EstateInventory {
   probateCases ProbateCase[]
 }
 model GrantOfAdministration {
-  id            String   @id @default(uuid())
-  estateId      String
-  estate        Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
-  applicantId   String?  // User applying
-  applicantName String?
-  grantType     GrantType 
-  issuedBy      String?  // Court user id or clerk
-  issuedAt      DateTime?
-  expiresAt     DateTime?
-  caseNumber    String?  // The "E123 of 2024" number
-  fileReference String?  // Physical file tracking
-  notes         String?  @db.Text
-  status        DistributionStatus @default(PENDING)
-  probateCaseId   String?
-  probateCase     ProbateCase?     @relation("CaseGrants", fields: [probateCaseId], references: [id], onDelete: Cascade)
+  id               String      @id @default(uuid())
+  estateId         String
+  estate           Estate      @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  applicantId      String?     // User applying
+  applicantName    String?
+  grantType        GrantType 
+  issuedBy         String?     // Court user id or clerk
+  issuedAt         DateTime?
+  expiresAt        DateTime?
+  caseNumber       String?     // The "E123 of 2024" number
+  fileReference    String?     // Physical file tracking
+  notes            String?     
+  status           GrantStatus @default(ISSUED) // CHANGED FROM DistributionStatus
+  
+  // New fields for comprehensive certificate management
+  grantNumber      String?     @unique // Official grant number from court
+  courtStation     String?     // Kenyan court station
+  confirmedBy      String?     // User who confirmed the grant
+  confirmationDate DateTime?   // When grant was confirmed
+  revokedBy        String?     // User who revoked the grant
+  revocationDate   DateTime?   // When grant was revoked
+  revocationReason String?     // Reason for revocation
+  courtOrderNumber String?     // Court order reference for amendments/revocations
+  isActive         Boolean     @default(true)
+  conditions       Json?    // Array of conditions attached to grant
+  
+  // Amendment tracking
+  amendmentHistory Json?       // Array of amendment records
+  
+  // Replacement tracking
+  replacedByGrantId String?    // Reference to new grant if replaced
+  replacementReason String?    
+  
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  // RELATIONS
+  probateCase      ProbateCase? @relation("CaseGrants", fields: [probateCaseId], references: [id])
+  probateCaseId    String?
 
-  @@index([probateCaseId])
   @@index([estateId, applicantId])
+  @@index([grantNumber])
+  @@index([courtStation])
+  @@index([status, isActive])
+  @@index([issuedAt])
+  @@index([expiresAt])
   @@map("grants_of_administration")
   probateCases ProbateCase[]
 }
@@ -1698,7 +1828,7 @@ model ProbateCase {
   
   // Filing Information
   filingDate              DateTime?
-  filingFee               Decimal?            @db.Decimal(10,2)
+  filingFee               Float?
   filedBy                 String?             // User ID who filed
   
   // Applicant Information (Kenyan Legal Requirements)
@@ -1722,7 +1852,7 @@ model ProbateCase {
   
   // Case Closure
   closureDate            DateTime?
-  closureReason          String?             @db.Text
+  closureReason          String?            
   closedBy               String?             // User ID who closed
   
   // Kenyan Court Performance Tracking
@@ -1759,14 +1889,14 @@ model Objection {
   objectorRelationship String?     // Relationship to deceased
   
   // Kenyan Legal Grounds
-  grounds         String[]         // Array of legal grounds per Kenyan law
-  supportingEvidence String?       @db.Text // Description of evidence
+  grounds         Json?        // Array of legal grounds per Kenyan law
+  supportingEvidence String?      // Description of evidence
   
   // Objection Management
   filingDate      DateTime         @default(now())
   status          ObjectionStatus  @default(PENDING)
   hearingDate     DateTime?        // Scheduled hearing date
-  outcomeNotes    String?          @db.Text
+  outcomeNotes    String?         
   
   // Legal Representation
   objectorLawyerName String?
@@ -1774,9 +1904,9 @@ model Objection {
   
   // Withdrawal/Dismissal
   withdrawnAt     DateTime?
-  withdrawalReason String?         @db.Text
+  withdrawalReason String?        
   dismissedAt     DateTime?
-  dismissalReason String?          @db.Text
+  dismissalReason String?         
   upheldAt        DateTime?
   
   // Audit Trail
@@ -1792,38 +1922,137 @@ model Objection {
 // Creditor Claims & Accounting
 // ----------------------
 model CreditorClaim {
-  id             String   @id @default(uuid())
-  estateId       String
-  estate         Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
-  creditorName   String
-  amountClaimed  Decimal  @db.Decimal(18,2)
-  currency       String   @default("KES")
-  supportingDocumentId String?
-  status         String   // "PENDING","ACCEPTED","REJECTED","PAID"
-  resolvedAt     DateTime?
-  createdAt      DateTime @default(now())
-
+  id                      String          @id @default(uuid())
+  estateId                String
+  estate                  Estate          @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  
+  // Creditor Information (Kenyan Legal Requirements)
+  creditorName            String
+  creditorContact         String?         // Phone/email for notifications
+  creditorKraPin          String?         // KRA PIN for institutional creditors
+  creditorAccountNumber   String?         // For payment processing
+  
+  // Claim Details (Kenyan Law of Succession Act)
+  claimType               DebtType
+  description             String        
+  priority                ClaimPriority
+  
+  // Financial Details
+  amountClaimed           Float
+  currency                String          @default("KES")
+  interestRate            Float?         // Annual percentage
+  interestType            String?         // "SIMPLE", "COMPOUND"
+  compoundingFrequency    String?         // "MONTHLY", "QUARTERLY", "ANNUALLY"
+  
+  // Due Date & Time Limitations (Kenyan Law)
+  dueDate                 DateTime?
+  isStatuteBarred         Boolean         @default(false)
+  statuteBarredDate       DateTime?       // When claim becomes unenforceable
+  
+  // Security & Collateral (Kenyan Legal Framework)
+  isSecured               Boolean         @default(false)
+  securityDetails         String?        
+  collateralDescription   String?        
+  securedAssetId          String?         // Reference to specific asset
+  securedAsset            Asset?          @relation(fields: [securedAssetId], references: [id])
+  
+  // Supporting Evidence
+  supportingDocumentId    String?         // Main supporting document
+  supportingDocuments     Json?       // Array of additional document IDs
+  
+  // Court & Legal References
+  courtCaseNumber         String?         // If already in court
+  courtStation            String?         // Kenyan court handling the case
+  
+  // Claim Workflow (Kenyan Succession Process)
+  status                  ClaimStatus     @default(PENDING)
+  
+  // FIXED: Added relation names to disambiguate User references
+  filedByUserId           String?         // User who filed the claim
+  filedBy                 User?           @relation("ClaimFiledBy", fields: [filedByUserId], references: [id])
+  
+  // Review & Approval
+  reviewedByUserId        String?         // Administrator/executor who reviewed
+  reviewedBy              User?           @relation("ClaimReviewedBy", fields: [reviewedByUserId], references: [id])
+  reviewedAt              DateTime?
+  rejectionReason         String?        
+  
+  // Dispute Tracking
+  isDisputed              Boolean         @default(false)
+  disputeReason           String?        
+  disputeResolvedAt       DateTime?
+  
+  // Payment Tracking (Kenyan Payment Methods)
+  paidAmount              Float             @default(0)
+  paymentDate             DateTime?
+  paymentMethod           String?         // "BANK_TRANSFER", "CHEQUE", "MPESA", "CASH", "RTGS"
+  transactionReference    String?         // M-PESA ref, cheque number, etc.
+  paymentNotes            String?     
+  
+  // Legal Compliance (Kenyan Requirements)
+  requiresCourtApproval   Boolean         @default(false)
+  courtApprovalObtained   Boolean         @default(false)
+  courtApprovalDate       DateTime?
+  
+  // Audit Trail
+  resolvedAt              DateTime?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  
+  // RELATIONS
+  paymentHistory          ClaimPayment[]
+  
+  // Indexes for Kenyan Legal Performance
   @@index([estateId, status])
+  @@index([creditorName])
+  @@index([claimType, priority])
+  @@index([dueDate])
+  @@index([isStatuteBarred])
+  @@index([isSecured])
+  @@index([filedByUserId])
   @@map("creditor_claims")
 }
-
+model ClaimPayment {
+  id                      String          @id @default(uuid())
+  creditorClaimId         String
+  creditorClaim           CreditorClaim   @relation(fields: [creditorClaimId], references: [id], onDelete: Cascade)
+  
+  paymentDate             DateTime
+  amount                  Float
+  currency                String          @default("KES")
+  paymentMethod           String          // "BANK_TRANSFER", "CHEQUE", "MPESA", "CASH", "RTGS"
+  transactionReference    String?         // M-PESA ref, cheque number, etc.
+  paidBy                  String?         // User who made the payment
+  notes                   String?        
+  
+  // Kenyan Banking Details
+  bankName                String?
+  accountNumber           String?
+  chequeNumber            String?
+  mpesaReference          String?
+  
+  createdAt               DateTime        @default(now())
+  
+  @@index([creditorClaimId, paymentDate])
+  @@index([paymentDate])
+  @@map("claim_payments")
+}
 model EstateAccounting {
   id               String   @id @default(uuid())
   estateId         String   @unique
   estate           Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
-  totalAssets      Decimal  @db.Decimal(18,2) @default(0)
-  totalLiabilities Decimal  @db.Decimal(18,2) @default(0)
-  netEstateValue   Decimal  @db.Decimal(18,2) @default(0)
+  totalAssets      Float
+  totalLiabilities Float
+  netEstateValue   Float
   preparedById     String?
   preparedAt       DateTime?
   auditedAt        DateTime?
-  notes            String?  @db.Text
+  notes            String? 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@map("estate_accountings")
 }
-
 // ----------------------
 // Distribution & Entitlements (intestacy/testate handling)
 // ----------------------
@@ -1835,10 +2064,10 @@ model BeneficiaryEntitlement {
   beneficiaryFamilyMemberId String?
   externalName      String?
   relationship      RelationshipType?
-  entitlementType   BequestType @default(SPECIFIC) // mapping semantics
-  sharePercent      Decimal? @db.Decimal(5,2)
-  fixedAmount       Decimal? @db.Decimal(18,2)
-  lifeInterest      Boolean  @default(false) // e.g., spouse life interest
+  entitlementType   BequestType @default(SPECIFIC)
+  sharePercent      Float?
+  fixedAmount       Float?
+  lifeInterest      Boolean  @default(false)
   lifeInterestEndsAt DateTime?
   isMinor           Boolean  @default(false)
   heldInTrustId     String?  // links to TestamentaryTrust
@@ -1851,7 +2080,6 @@ model BeneficiaryEntitlement {
   @@index([estateId, beneficiaryUserId])
   @@map("beneficiary_entitlements")
 }
-
 model DistributionSchedule {
   id          String   @id @default(uuid())
   estateId    String
@@ -1867,7 +2095,6 @@ model DistributionSchedule {
   @@index([estateId, stepOrder])
   @@map("distribution_schedules")
 }
-
 // ----------------------
 // Intestacy helper (store computed decision path)
 // ----------------------
@@ -1878,7 +2105,7 @@ model IntestacyCase {
   computedAt     DateTime @default(now())
   decisionJson   Json     // store the computed heir order, shares, life interests etc
   computedBy     String?  // service/process id
-  notes          String?  @db.Text
+  notes          String?
 
   @@index([estateId])
   @@map("intestacy_cases")
@@ -1893,9 +2120,9 @@ model TestamentaryTrust {
   estate       Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
   trusteeId    String?  // User acting as trustee
   trusteeName  String?
-  purpose      String?  @db.Text
+  purpose      String? 
   validUntil   DateTime? // e.g., until beneficiary reaches 18/25
-  fundsHeld    Decimal? @db.Decimal(18,2)
+  fundsHeld    Float?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -1933,10 +2160,10 @@ model CourtHearing {
   
   // Adjournment Tracking (Kenyan courts)
   adjournmentCount    Int             @default(0)
-  adjournmentReasons  String[]        // Array of adjournment reasons
+  adjournmentReasons  Json?        // Array of adjournment reasons
   
   // Hearing Outcome
-  outcomeNotes        String?         @db.Text
+  outcomeNotes        String?         
   outcome             Json?           // Structured outcome: { orders: string[], rulings: string[], nextSteps: string[] }
   
   // Compliance Tracking
@@ -1964,7 +2191,7 @@ model Document {
   version     Int
   filename    String
   storagePath String           // Local path or cloud URL
-  mimeType    String           @db.VarChar(100)
+  mimeType    String          
   sizeBytes   Int
   category    DocumentCategory
   status      DocumentStatus   @default(PENDING_VERIFICATION)
@@ -1979,14 +2206,14 @@ model Document {
   // --- Verification Tracking ---
   verifiedBy     String?       // User ID of verifier (ADMIN or VERIFIER role)
   verifiedAt     DateTime?
-  rejectionReason String?      @db.Text
+  rejectionReason String?     
 
   // Retention & Expiry
   expiresAt   DateTime? // Auto-delete after this date
   retentionPolicy String? // COMPLIANCE, LEGAL, etc.
 
   // Access Control List
-  allowedViewers String[] // User IDs who can view this document
+  allowedViewers Json? // User IDs who can view this document
 
   // Security & Access
   isPublic    Boolean   @default(false)
@@ -2045,9 +2272,9 @@ model DocumentVersion {
   id            String   @id @default(uuid())
   versionNumber Int
   storagePath   String
-  changeNote    String?  @db.Text
+  changeNote    String?  
   sizeBytes     Int      // Track size per version
-  mimeType      String   @db.VarChar(100)
+  mimeType      String   
   checksum      String? 
   
   documentId    String
@@ -2070,7 +2297,7 @@ model DocumentVerificationAttempt {
   verifierId String   // User ID of the verifier
   verifier    User     @relation(fields: [verifierId], references: [id], onDelete: Cascade)
   status     DocumentStatus // VERIFIED or REJECTED
-  reason     String?  @db.Text // Corresponds to rejectionReason
+  reason     String?   // Corresponds to rejectionReason
   metadata    Json?    // Additional verification data
   createdAt  DateTime @default(now())
 
