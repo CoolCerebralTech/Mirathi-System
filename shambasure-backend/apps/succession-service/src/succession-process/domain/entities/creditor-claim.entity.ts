@@ -1,266 +1,340 @@
 import { AggregateRoot } from '@nestjs/cqrs';
+import { ClaimPriority, ClaimStatus, DebtType } from '@prisma/client';
 
-import { AssetValue } from '../../../estate-planning/domain/value-objects/asset-value.vo';
 import { ClaimDisputedEvent } from '../events/claim-disputed.event';
+// Domain Events
 import { ClaimFiledEvent } from '../events/claim-filed.event';
 import { ClaimPaidEvent } from '../events/claim-paid.event';
 import { ClaimStatusChangedEvent } from '../events/claim-status-changed.event';
 
-export type ClaimStatus =
-  | 'PENDING'
-  | 'ACCEPTED'
-  | 'REJECTED'
-  | 'DISPUTED'
-  | 'PAID'
-  | 'PARTIALLY_PAID';
-export type ClaimPriority = 'PREFERRED' | 'ORDINARY' | 'SECURED' | 'UNSECURED';
-export type DebtType =
-  | 'MORTGAGE'
-  | 'PERSONAL_LOAN'
-  | 'CREDIT_CARD'
-  | 'BUSINESS_DEBT'
-  | 'TAX_OBLIGATION'
-  | 'FUNERAL_EXPENSE'
-  | 'MEDICAL_BILL'
-  | 'OTHER';
-
-// Safe interface for reconstitution
-export interface CreditorClaimProps {
-  id: string;
-  estateId: string;
-  creditorName: string;
-  // amountClaimed can be the object from Prisma JSON or the class instance
-  amountClaimed: AssetValue | { amount: number; currency: string; valuationDate?: Date | string };
-  documentId?: string | null;
-  status: ClaimStatus;
-  resolvedAt?: Date | string | null;
-  rejectionReason?: string | null;
-  claimType: DebtType;
-  priority: ClaimPriority;
-  dueDate?: Date | string | null;
-  interestRate?: number;
-  supportingDocuments?: string[];
-  courtCaseNumber?: string | null;
-  filedByUserId?: string | null;
-  approvedByUserId?: string | null;
-  paidAmount?: number;
-  paymentDate?: Date | string | null;
-  paymentMethod?: string | null;
-  transactionReference?: string | null;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-}
-
-export class CreditorClaim extends AggregateRoot {
-  private id: string;
-  private estateId: string;
-
-  // Claimant Details
-  private creditorName: string;
-  private amountClaimed: AssetValue;
-  private documentId: string | null;
-  private claimType: DebtType;
-  private priority: ClaimPriority;
-  private dueDate: Date | null;
-  private interestRate: number;
-  private supportingDocuments: string[];
-  private courtCaseNumber: string | null;
-  private filedByUserId: string | null;
-
-  // Workflow
-  private status: ClaimStatus;
-  private resolvedAt: Date | null;
-  private rejectionReason: string | null;
-  private approvedByUserId: string | null;
-
-  // Payment Tracking
-  private paidAmount: number;
-  private paymentDate: Date | null;
-  private paymentMethod: string | null;
-  private transactionReference: string | null;
-
-  private createdAt: Date;
-  private updatedAt: Date;
-
-  private constructor(
-    id: string,
-    estateId: string,
-    creditorName: string,
-    amountClaimed: AssetValue,
-    claimType: DebtType,
+// Value Objects
+export class MonetaryAmount {
+  constructor(
+    private readonly amount: number,
+    private readonly currency: string = 'KES',
   ) {
-    super();
-    this.id = id;
-    this.estateId = estateId;
-    this.creditorName = creditorName;
-    this.amountClaimed = amountClaimed;
-    this.claimType = claimType;
-
-    // Set priority based on claim type (Kenyan law priorities)
-    this.priority = this.determinePriority(claimType);
-
-    this.status = 'PENDING';
-    this.documentId = null;
-    this.dueDate = null;
-    this.interestRate = 0;
-    this.supportingDocuments = [];
-    this.courtCaseNumber = null;
-    this.filedByUserId = null;
-    this.approvedByUserId = null;
-    this.resolvedAt = null;
-    this.rejectionReason = null;
-    this.paidAmount = 0;
-    this.paymentDate = null;
-    this.paymentMethod = null;
-    this.transactionReference = null;
-
-    this.createdAt = new Date();
-    this.updatedAt = new Date();
+    if (amount < 0) {
+      throw new Error('Amount cannot be negative');
+    }
+    if (!currency || currency.length !== 3) {
+      throw new Error('Currency must be a 3-letter code');
+    }
   }
 
-  // --------------------------------------------------------------------------
-  // FACTORY METHODS
-  // --------------------------------------------------------------------------
+  getAmount(): number {
+    return this.amount;
+  }
+  getCurrency(): string {
+    return this.currency;
+  }
+
+  add(amount: number): MonetaryAmount {
+    return new MonetaryAmount(this.amount + amount, this.currency);
+  }
+
+  subtract(amount: number): MonetaryAmount {
+    return new MonetaryAmount(this.amount - amount, this.currency);
+  }
+
+  equals(other: MonetaryAmount): boolean {
+    return this.amount === other.amount && this.currency === other.currency;
+  }
+}
+
+export class CreditorIdentification {
+  constructor(
+    public readonly name: string,
+    public readonly contact?: string,
+    public readonly kraPin?: string,
+    public readonly accountNumber?: string,
+  ) {
+    if (!name?.trim()) {
+      throw new Error('Creditor name is required');
+    }
+  }
+}
+
+// Main Entity
+export class CreditorClaim extends AggregateRoot {
+  constructor(
+    private readonly id: string,
+    private readonly estateId: string,
+    private creditor: CreditorIdentification,
+    private claimType: DebtType,
+    private description: string,
+    private amountClaimed: MonetaryAmount,
+    private priority: ClaimPriority,
+    private status: ClaimStatus = ClaimStatus.PENDING,
+    private currency: string = 'KES',
+    private interestRate?: number,
+    private interestType?: 'SIMPLE' | 'COMPOUND',
+    private compoundingFrequency?: 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY',
+    private dueDate?: Date,
+    private isStatuteBarred: boolean = false,
+    private statuteBarredDate?: Date,
+    private isSecured: boolean = false,
+    private securityDetails?: string,
+    private collateralDescription?: string,
+    private securedAssetId?: string,
+    private supportingDocumentId?: string,
+    private supportingDocuments: string[] = [],
+    private courtCaseNumber?: string,
+    private courtStation?: string,
+    private filedByUserId?: string,
+    private reviewedByUserId?: string,
+    private reviewedAt?: Date,
+    private rejectionReason?: string,
+    private isDisputed: boolean = false,
+    private disputeReason?: string,
+    private disputeResolvedAt?: Date,
+    private paidAmount: number = 0,
+    private paymentDate?: Date,
+    private paymentMethod?: string,
+    private transactionReference?: string,
+    private paymentNotes?: string,
+    private requiresCourtApproval: boolean = false,
+    private courtApprovalObtained: boolean = false,
+    private courtApprovalDate?: Date,
+    private resolvedAt?: Date,
+    private readonly createdAt: Date = new Date(),
+    private updatedAt: Date = new Date(),
+  ) {
+    super();
+    this.validate();
+  }
+
+  // ==========================================================================
+  // FACTORY METHODS (Creation & Reconstitution)
+  // ==========================================================================
 
   static file(
     id: string,
     estateId: string,
     creditorName: string,
-    amount: AssetValue,
     claimType: DebtType,
+    description: string,
+    amount: number,
     options?: {
-      documentId?: string;
-      dueDate?: Date;
+      creditorContact?: string;
+      creditorKraPin?: string;
+      creditorAccountNumber?: string;
+      priority?: ClaimPriority;
+      currency?: string;
       interestRate?: number;
+      interestType?: 'SIMPLE' | 'COMPOUND';
+      compoundingFrequency?: 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY';
+      dueDate?: Date;
+      isSecured?: boolean;
+      securityDetails?: string;
+      collateralDescription?: string;
+      securedAssetId?: string;
+      supportingDocumentId?: string;
       supportingDocuments?: string[];
+      courtCaseNumber?: string;
+      courtStation?: string;
       filedByUserId?: string;
+      requiresCourtApproval?: boolean;
     },
   ): CreditorClaim {
-    if (amount.getAmount() <= 0) {
-      throw new Error('Claim amount must be positive.');
-    }
-
-    if (amount.getCurrency() !== 'KES') {
-      throw new Error('Kenyan estate claims must be in KES.');
-    }
-
-    if (options?.interestRate && options.interestRate < 0) {
-      throw new Error('Interest rate cannot be negative.');
-    }
-
+    // Legal Validation: Kenyan Limitation of Actions Act
     if (options?.dueDate) {
-      const dueDate = new Date(options.dueDate);
-      const now = new Date();
-      const yearsSinceDue = (now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24 * 365);
+      const limitationPeriod = CreditorClaim.getLimitationPeriod(claimType);
+      const yearsSinceDue = (Date.now() - options.dueDate.getTime()) / (1000 * 60 * 60 * 24 * 365);
 
-      if (yearsSinceDue > 6) {
-        throw new Error('Claim appears to be time-barred under Kenyan Limitation of Actions Act.');
+      if (yearsSinceDue > limitationPeriod) {
+        throw new Error(
+          `Claim appears to be time-barred under Kenyan Limitation of Actions Act (${limitationPeriod} years)`,
+        );
       }
     }
 
-    const claim = new CreditorClaim(id, estateId, creditorName, amount, claimType);
-
-    if (options) {
-      if (options.documentId) claim.documentId = options.documentId;
-      if (options.dueDate) claim.dueDate = options.dueDate;
-      if (options.interestRate) {
-        claim.validateInterestRate(options.interestRate);
-        claim.interestRate = options.interestRate;
-      }
-      if (options.supportingDocuments) claim.supportingDocuments = options.supportingDocuments;
-      if (options.filedByUserId) claim.filedByUserId = options.filedByUserId;
-    }
-
-    claim.apply(
-      new ClaimFiledEvent(
-        id,
-        estateId,
-        creditorName,
-        amount,
-        claim.documentId ?? undefined,
-        claimType,
-      ),
+    const creditor = new CreditorIdentification(
+      creditorName,
+      options?.creditorContact,
+      options?.creditorKraPin,
+      options?.creditorAccountNumber,
     );
-    return claim;
-  }
 
-  static reconstitute(props: CreditorClaimProps): CreditorClaim {
-    if (
-      !props.id ||
-      !props.estateId ||
-      !props.creditorName ||
-      !props.amountClaimed ||
-      !props.claimType
-    ) {
-      throw new Error('Missing required properties for CreditorClaim reconstitution');
-    }
-
-    // Reconstruct AssetValue safely
-    let amountClaimed: AssetValue;
-    if (props.amountClaimed instanceof AssetValue) {
-      amountClaimed = props.amountClaimed;
-    } else {
-      const valDate = props.amountClaimed.valuationDate
-        ? props.amountClaimed.valuationDate instanceof Date
-          ? props.amountClaimed.valuationDate
-          : new Date(props.amountClaimed.valuationDate)
-        : new Date();
-
-      amountClaimed = new AssetValue(
-        Number(props.amountClaimed.amount),
-        props.amountClaimed.currency || 'KES',
-        valDate,
-      );
-    }
+    const amountClaimed = new MonetaryAmount(amount, options?.currency || 'KES');
+    const priority = options?.priority || CreditorClaim.determinePriority(claimType);
 
     const claim = new CreditorClaim(
-      props.id,
-      props.estateId,
-      props.creditorName,
+      id,
+      estateId,
+      creditor,
+      claimType,
+      description,
       amountClaimed,
-      props.claimType,
+      priority,
+      ClaimStatus.PENDING,
+      options?.currency || 'KES',
+      options?.interestRate,
+      options?.interestType,
+      options?.compoundingFrequency,
+      options?.dueDate,
+      false, // isStatuteBarred
+      undefined, // statuteBarredDate
+      options?.isSecured,
+      options?.securityDetails,
+      options?.collateralDescription,
+      options?.securedAssetId,
+      options?.supportingDocumentId,
+      options?.supportingDocuments,
+      options?.courtCaseNumber,
+      options?.courtStation,
+      options?.filedByUserId,
+      undefined, // reviewedByUserId
+      undefined, // reviewedAt
+      undefined, // rejectionReason
+      false, // isDisputed
+      undefined, // disputeReason
+      undefined, // disputeResolvedAt
+      0, // paidAmount
+      undefined, // paymentDate
+      undefined, // paymentMethod
+      undefined, // transactionReference
+      undefined, // paymentNotes
+      options?.requiresCourtApproval || amount >= 1000000, // Auto-detect large claims
+      false, // courtApprovalObtained
+      undefined, // courtApprovalDate
+      undefined, // resolvedAt
+      new Date(), // createdAt
+      new Date(), // updatedAt
     );
 
-    claim.documentId = props.documentId ?? null;
-    claim.priority = props.priority || claim.determinePriority(props.claimType);
-    claim.status = props.status;
-
-    claim.dueDate = props.dueDate ? new Date(props.dueDate) : null;
-    claim.interestRate = props.interestRate || 0;
-    claim.supportingDocuments = props.supportingDocuments || [];
-    claim.courtCaseNumber = props.courtCaseNumber ?? null;
-    claim.filedByUserId = props.filedByUserId ?? null;
-    claim.approvedByUserId = props.approvedByUserId ?? null;
-
-    claim.resolvedAt = props.resolvedAt ? new Date(props.resolvedAt) : null;
-    claim.rejectionReason = props.rejectionReason ?? null;
-    claim.paidAmount = props.paidAmount || 0;
-
-    claim.paymentDate = props.paymentDate ? new Date(props.paymentDate) : null;
-    claim.paymentMethod = props.paymentMethod ?? null;
-    claim.transactionReference = props.transactionReference ?? null;
-    claim.createdAt = new Date(props.createdAt);
-    claim.updatedAt = new Date(props.updatedAt);
-
+    claim.apply(new ClaimFiledEvent(claim.id, claim.estateId, creditorName, amount));
     return claim;
   }
 
-  // --------------------------------------------------------------------------
-  // BUSINESS LOGIC
-  // --------------------------------------------------------------------------
+  static reconstitute(props: {
+    id: string;
+    estateId: string;
+    creditorName: string;
+    creditorContact?: string;
+    creditorKraPin?: string;
+    creditorAccountNumber?: string;
+    claimType: DebtType;
+    description: string;
+    amountClaimed: number;
+    priority: ClaimPriority;
+    status: ClaimStatus;
+    currency?: string;
+    interestRate?: number;
+    interestType?: 'SIMPLE' | 'COMPOUND';
+    compoundingFrequency?: 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY';
+    dueDate?: Date;
+    isStatuteBarred?: boolean;
+    statuteBarredDate?: Date;
+    isSecured?: boolean;
+    securityDetails?: string;
+    collateralDescription?: string;
+    securedAssetId?: string;
+    supportingDocumentId?: string;
+    supportingDocuments?: string[];
+    courtCaseNumber?: string;
+    courtStation?: string;
+    filedByUserId?: string;
+    reviewedByUserId?: string;
+    reviewedAt?: Date;
+    rejectionReason?: string;
+    isDisputed?: boolean;
+    disputeReason?: string;
+    disputeResolvedAt?: Date;
+    paidAmount?: number;
+    paymentDate?: Date;
+    paymentMethod?: string;
+    transactionReference?: string;
+    paymentNotes?: string;
+    requiresCourtApproval?: boolean;
+    courtApprovalObtained?: boolean;
+    courtApprovalDate?: Date;
+    resolvedAt?: Date;
+    createdAt: Date;
+    updatedAt: Date;
+  }): CreditorClaim {
+    const creditor = new CreditorIdentification(
+      props.creditorName,
+      props.creditorContact,
+      props.creditorKraPin,
+      props.creditorAccountNumber,
+    );
 
-  accept(approvedByUserId: string): void {
-    if (this.status !== 'PENDING') throw new Error('Only pending claims can be accepted.');
-    this.status = 'ACCEPTED';
-    this.approvedByUserId = approvedByUserId;
+    const amountClaimed = new MonetaryAmount(props.amountClaimed, props.currency || 'KES');
+
+    return new CreditorClaim(
+      props.id,
+      props.estateId,
+      creditor,
+      props.claimType,
+      props.description,
+      amountClaimed,
+      props.priority,
+      props.status,
+      props.currency || 'KES',
+      props.interestRate,
+      props.interestType,
+      props.compoundingFrequency,
+      props.dueDate,
+      props.isStatuteBarred || false,
+      props.statuteBarredDate,
+      props.isSecured || false,
+      props.securityDetails,
+      props.collateralDescription,
+      props.securedAssetId,
+      props.supportingDocumentId,
+      props.supportingDocuments || [],
+      props.courtCaseNumber,
+      props.courtStation,
+      props.filedByUserId,
+      props.reviewedByUserId,
+      props.reviewedAt,
+      props.rejectionReason,
+      props.isDisputed || false,
+      props.disputeReason,
+      props.disputeResolvedAt,
+      props.paidAmount || 0,
+      props.paymentDate,
+      props.paymentMethod,
+      props.transactionReference,
+      props.paymentNotes,
+      props.requiresCourtApproval || false,
+      props.courtApprovalObtained || false,
+      props.courtApprovalDate,
+      props.resolvedAt,
+      props.createdAt,
+      props.updatedAt,
+    );
+  }
+
+  // ==========================================================================
+  // BUSINESS LOGIC (Domain Behavior)
+  // ==========================================================================
+
+  // Legal Requirement: Section 83 of Law of Succession Act - Debt payment order
+  accept(approvedByUserId: string, courtApprovalObtained: boolean = false): void {
+    if (this.status !== ClaimStatus.PENDING) {
+      throw new Error('Only pending claims can be accepted');
+    }
+
+    // Legal Requirement: Large claims require court approval
+    if (this.requiresCourtApproval && !courtApprovalObtained) {
+      throw new Error('Court approval required for this claim before acceptance');
+    }
+
+    this.status = ClaimStatus.ACCEPTED;
+    this.reviewedByUserId = approvedByUserId;
+    this.reviewedAt = new Date();
     this.resolvedAt = new Date();
+    this.courtApprovalObtained = courtApprovalObtained;
+    this.courtApprovalDate = courtApprovalObtained ? new Date() : undefined;
     this.updatedAt = new Date();
+
     this.apply(
       new ClaimStatusChangedEvent(
         this.id,
         this.estateId,
-        'PENDING',
-        'ACCEPTED',
+        ClaimStatus.PENDING,
+        ClaimStatus.ACCEPTED,
         'Claim accepted for payment',
         approvedByUserId,
       ),
@@ -268,66 +342,100 @@ export class CreditorClaim extends AggregateRoot {
   }
 
   reject(reason: string, rejectedByUserId: string): void {
-    if (this.status !== 'PENDING') throw new Error('Only pending claims can be rejected.');
-    this.status = 'REJECTED';
+    if (this.status !== ClaimStatus.PENDING) {
+      throw new Error('Only pending claims can be rejected');
+    }
+
+    this.status = ClaimStatus.REJECTED;
     this.rejectionReason = reason;
+    this.reviewedByUserId = rejectedByUserId;
+    this.reviewedAt = new Date();
     this.resolvedAt = new Date();
     this.updatedAt = new Date();
+
     this.apply(
       new ClaimStatusChangedEvent(
         this.id,
         this.estateId,
-        'PENDING',
-        'REJECTED',
+        ClaimStatus.PENDING,
+        ClaimStatus.REJECTED,
         reason,
         rejectedByUserId,
       ),
     );
   }
 
+  // Legal Requirement: Dispute resolution process
   markAsDisputed(disputeReason: string, courtCaseNumber?: string): void {
-    if (this.status !== 'REJECTED') throw new Error('Only rejected claims can be disputed.');
-    this.status = 'DISPUTED';
-    this.courtCaseNumber = courtCaseNumber || null;
+    if (this.status !== ClaimStatus.REJECTED) {
+      throw new Error('Only rejected claims can be disputed');
+    }
+
+    this.status = ClaimStatus.DISPUTED;
+    this.isDisputed = true;
+    this.disputeReason = disputeReason;
+    this.courtCaseNumber = courtCaseNumber;
     this.updatedAt = new Date();
+
     this.apply(new ClaimDisputedEvent(this.id, this.estateId, disputeReason, courtCaseNumber));
   }
 
-  markAsPaid(amountPaid: number, paymentMethod: string, transactionReference?: string): void {
-    if (!['ACCEPTED', 'PARTIALLY_PAID'].includes(this.status)) {
-      throw new Error('Only accepted or partially paid claims can be marked as paid.');
-    }
-    if (amountPaid <= 0) throw new Error('Payment amount must be positive.');
-
-    const validPaymentMethods = ['BANK_TRANSFER', 'CHEQUE', 'MPESA', 'CASH', 'RTGS'];
-    if (!validPaymentMethods.includes(paymentMethod)) {
-      throw new Error(`Invalid payment method: ${paymentMethod}`);
+  resolveDispute(resolution: string, resolvedByUserId: string): void {
+    if (this.status !== ClaimStatus.DISPUTED) {
+      throw new Error('Only disputed claims can be resolved');
     }
 
-    const totalPaid = this.paidAmount + amountPaid;
+    this.isDisputed = false;
+    this.disputeResolvedAt = new Date();
+    this.updatedAt = new Date();
+
+    // Additional business logic for dispute resolution outcome
+    this.paymentNotes = `Dispute resolved: ${resolution} (by ${resolvedByUserId})`;
+  }
+
+  // Legal Requirement: Payment tracking with Kenyan payment methods
+  recordPayment(
+    amount: number,
+    paymentMethod: string,
+    transactionReference?: string,
+    paymentNotes?: string,
+  ): void {
+    if (![ClaimStatus.ACCEPTED, ClaimStatus.PARTIALLY_PAID].includes(this.status)) {
+      throw new Error('Only accepted or partially paid claims can receive payments');
+    }
+
+    if (amount <= 0) {
+      throw new Error('Payment amount must be positive');
+    }
+
+    this.validatePaymentMethod(paymentMethod, transactionReference);
+
+    const totalPaid = this.paidAmount + amount;
     const totalClaimed = this.amountClaimed.getAmount();
 
-    if (totalPaid > totalClaimed) throw new Error('Payment amount exceeds claimed amount.');
-    if (paymentMethod === 'MPESA' && !transactionReference)
-      throw new Error('M-PESA payments require a transaction reference.');
+    if (totalPaid > totalClaimed) {
+      throw new Error('Payment amount exceeds claimed amount');
+    }
 
     this.paidAmount = totalPaid;
     this.paymentDate = new Date();
     this.paymentMethod = paymentMethod;
-    this.transactionReference = transactionReference || null;
+    this.transactionReference = transactionReference;
+    this.paymentNotes = paymentNotes;
     this.updatedAt = new Date();
 
     if (totalPaid === totalClaimed) {
-      this.status = 'PAID';
+      this.status = ClaimStatus.PAID;
+      this.resolvedAt = new Date();
     } else {
-      this.status = 'PARTIALLY_PAID';
+      this.status = ClaimStatus.PARTIALLY_PAID;
     }
 
     this.apply(
       new ClaimPaidEvent(
         this.id,
         this.estateId,
-        amountPaid,
+        amount,
         this.paymentDate,
         paymentMethod,
         transactionReference,
@@ -336,86 +444,132 @@ export class CreditorClaim extends AggregateRoot {
   }
 
   addSupportingDocument(documentId: string): void {
-    if (this.status !== 'PENDING') throw new Error('Cannot add documents to resolved claims.');
+    if (this.status !== ClaimStatus.PENDING) {
+      throw new Error('Cannot add documents to resolved claims');
+    }
     this.supportingDocuments.push(documentId);
     this.updatedAt = new Date();
   }
 
-  isTimeBarred(): boolean {
-    const claimDate = this.createdAt;
-    const now = new Date();
-    let limitationPeriod = 3;
-    if (this.claimType === 'MORTGAGE') limitationPeriod = 6;
-    const yearsDifference = (now.getTime() - claimDate.getTime()) / (1000 * 60 * 60 * 24 * 365);
-    return yearsDifference > limitationPeriod;
+  // ==========================================================================
+  // LEGAL COMPLIANCE & VALIDATION
+  // ==========================================================================
+
+  private validate(): void {
+    if (!this.id) throw new Error('Claim ID is required');
+    if (!this.estateId) throw new Error('Estate ID is required');
+    if (!this.creditor) throw new Error('Creditor information is required');
+    if (!this.claimType) throw new Error('Claim type is required');
+    if (!this.description?.trim()) throw new Error('Claim description is required');
+    if (!this.amountClaimed) throw new Error('Claim amount is required');
+    if (!this.priority) throw new Error('Claim priority is required');
+
+    // Kenyan Legal Requirement: Currency must be KES
+    if (this.currency !== 'KES') {
+      throw new Error('Kenyan estate claims must be in KES');
+    }
+
+    // Validate interest rate if provided
+    if (this.interestRate !== undefined) {
+      this.validateInterestRate(this.interestRate);
+    }
   }
 
-  getCourtSummary(): { description: string; amount: number; priority: string } {
-    return {
-      description: `${this.claimType} claim by ${this.creditorName}`,
-      amount: this.getTotalAmountDue(),
-      priority: this.priority,
-    };
-  }
+  private validatePaymentMethod(method: string, reference?: string): void {
+    const validMethods = ['BANK_TRANSFER', 'CHEQUE', 'MPESA', 'CASH', 'RTGS'];
+    if (!validMethods.includes(method)) {
+      throw new Error(`Invalid payment method: ${method}`);
+    }
 
-  requiresCourtApproval(): boolean {
-    return this.amountClaimed.getAmount() >= 1000000;
+    // Kenyan Specific: M-PESA requires transaction reference
+    if (method === 'MPESA' && !reference) {
+      throw new Error('M-PESA payments require a transaction reference');
+    }
   }
-
-  // --------------------------------------------------------------------------
-  // HELPERS
-  // --------------------------------------------------------------------------
 
   private validateInterestRate(rate: number): void {
-    const MAX_ALLOWED_RATE = 14.0;
-    if (rate > MAX_ALLOWED_RATE)
-      throw new Error(
-        `Interest rate ${rate}% exceeds Kenyan legal maximum of ${MAX_ALLOWED_RATE}%`,
-      );
+    const MAX_LEGAL_RATE = 14.0; // Kenyan Banking Act maximum
     if (rate < 0) throw new Error('Interest rate cannot be negative');
+    if (rate > MAX_LEGAL_RATE) {
+      throw new Error(`Interest rate ${rate}% exceeds Kenyan legal maximum of ${MAX_LEGAL_RATE}%`);
+    }
   }
 
-  private determinePriority(claimType: DebtType): ClaimPriority {
+  private static determinePriority(claimType: DebtType): ClaimPriority {
     const priorityMap: Record<DebtType, ClaimPriority> = {
-      FUNERAL_EXPENSE: 'PREFERRED',
-      TAX_OBLIGATION: 'PREFERRED',
-      MEDICAL_BILL: 'PREFERRED',
-      MORTGAGE: 'SECURED',
-      PERSONAL_LOAN: 'ORDINARY',
-      CREDIT_CARD: 'ORDINARY',
-      BUSINESS_DEBT: 'ORDINARY',
-      OTHER: 'UNSECURED',
+      FUNERAL_EXPENSE: ClaimPriority.PREFERRED, // Highest priority per Kenyan law
+      TAX_OBLIGATION: ClaimPriority.PREFERRED,
+      MEDICAL_BILL: ClaimPriority.PREFERRED,
+      MORTGAGE: ClaimPriority.SECURED,
+      PERSONAL_LOAN: ClaimPriority.ORDINARY,
+      CREDIT_CARD: ClaimPriority.ORDINARY,
+      BUSINESS_DEBT: ClaimPriority.ORDINARY,
+      OTHER: ClaimPriority.UNSECURED,
     };
-    return priorityMap[claimType] || 'UNSECURED';
+    return priorityMap[claimType] || ClaimPriority.UNSECURED;
   }
+
+  private static getLimitationPeriod(claimType: DebtType): number {
+    // Kenyan Limitation of Actions Act
+    const limitationPeriods: Record<DebtType, number> = {
+      MORTGAGE: 6,
+      TAX_OBLIGATION: 6,
+      FUNERAL_EXPENSE: 3,
+      MEDICAL_BILL: 3,
+      PERSONAL_LOAN: 3,
+      CREDIT_CARD: 3,
+      BUSINESS_DEBT: 3,
+      OTHER: 3,
+    };
+    return limitationPeriods[claimType] || 3;
+  }
+
+  // ==========================================================================
+  // QUERY METHODS & BUSINESS RULES
+  // ==========================================================================
 
   calculateAccruedInterest(): number {
-    if (!this.dueDate || this.interestRate === 0) return 0;
-    const today = new Date();
-    const due = new Date(this.dueDate);
-    if (today <= due) return 0;
+    if (!this.interestRate || !this.dueDate) return 0;
 
-    const daysOverdue = Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
-    const dailyInterestRate = this.interestRate / 365 / 100;
-    return this.amountClaimed.getAmount() * dailyInterestRate * daysOverdue;
+    const today = new Date();
+    if (today <= this.dueDate) return 0;
+
+    const daysOverdue = Math.floor(
+      (today.getTime() - this.dueDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    const dailyRate = this.interestRate / 365 / 100;
+
+    return this.amountClaimed.getAmount() * dailyRate * daysOverdue;
   }
 
   getTotalAmountDue(): number {
     return this.amountClaimed.getAmount() + this.calculateAccruedInterest();
   }
 
-  isOverdue(): boolean {
-    if (!this.dueDate) return false;
-    return new Date() > new Date(this.dueDate);
-  }
-
   getOutstandingBalance(): number {
     return this.getTotalAmountDue() - this.paidAmount;
   }
 
-  // --------------------------------------------------------------------------
-  // GETTERS
-  // --------------------------------------------------------------------------
+  isTimeBarred(): boolean {
+    if (!this.dueDate) return false;
+
+    const limitationPeriod = CreditorClaim.getLimitationPeriod(this.claimType);
+    const yearsSinceDue = (Date.now() - this.dueDate.getTime()) / (1000 * 60 * 60 * 24 * 365);
+
+    return yearsSinceDue > limitationPeriod;
+  }
+
+  requiresCourtApproval(): boolean {
+    return this.requiresCourtApproval || this.amountClaimed.getAmount() >= 1000000;
+  }
+
+  isFullySecured(): boolean {
+    return this.isSecured && !!this.securedAssetId;
+  }
+
+  // ==========================================================================
+  // GETTERS (Persistence Interface)
+  // ==========================================================================
 
   getId(): string {
     return this.id;
@@ -424,55 +578,124 @@ export class CreditorClaim extends AggregateRoot {
     return this.estateId;
   }
   getCreditorName(): string {
-    return this.creditorName;
+    return this.creditor.name;
   }
-  getAmountClaimed(): AssetValue {
-    return this.amountClaimed;
+  getCreditorContact(): string | undefined {
+    return this.creditor.contact;
   }
-  getStatus(): ClaimStatus {
-    return this.status;
+  getCreditorKraPin(): string | undefined {
+    return this.creditor.kraPin;
   }
-  getDocumentId(): string | null {
-    return this.documentId;
-  }
-  getResolvedAt(): Date | null {
-    return this.resolvedAt;
+  getCreditorAccountNumber(): string | undefined {
+    return this.creditor.accountNumber;
   }
   getClaimType(): DebtType {
     return this.claimType;
   }
+  getDescription(): string {
+    return this.description;
+  }
+  getAmountClaimed(): number {
+    return this.amountClaimed.getAmount();
+  }
   getPriority(): ClaimPriority {
     return this.priority;
   }
-  getDueDate(): Date | null {
+  getStatus(): ClaimStatus {
+    return this.status;
+  }
+  getCurrency(): string {
+    return this.currency;
+  }
+  getInterestRate(): number | undefined {
+    return this.interestRate;
+  }
+  getInterestType(): string | undefined {
+    return this.interestType;
+  }
+  getCompoundingFrequency(): string | undefined {
+    return this.compoundingFrequency;
+  }
+  getDueDate(): Date | undefined {
     return this.dueDate;
   }
-  getInterestRate(): number {
-    return this.interestRate;
+  getIsStatuteBarred(): boolean {
+    return this.isStatuteBarred;
+  }
+  getStatuteBarredDate(): Date | undefined {
+    return this.statuteBarredDate;
+  }
+  getIsSecured(): boolean {
+    return this.isSecured;
+  }
+  getSecurityDetails(): string | undefined {
+    return this.securityDetails;
+  }
+  getCollateralDescription(): string | undefined {
+    return this.collateralDescription;
+  }
+  getSecuredAssetId(): string | undefined {
+    return this.securedAssetId;
+  }
+  getSupportingDocumentId(): string | undefined {
+    return this.supportingDocumentId;
   }
   getSupportingDocuments(): string[] {
     return [...this.supportingDocuments];
   }
-  getCourtCaseNumber(): string | null {
+  getCourtCaseNumber(): string | undefined {
     return this.courtCaseNumber;
   }
-  getFiledByUserId(): string | null {
+  getCourtStation(): string | undefined {
+    return this.courtStation;
+  }
+  getFiledByUserId(): string | undefined {
     return this.filedByUserId;
   }
-  getApprovedByUserId(): string | null {
-    return this.approvedByUserId;
+  getReviewedByUserId(): string | undefined {
+    return this.reviewedByUserId;
+  }
+  getReviewedAt(): Date | undefined {
+    return this.reviewedAt;
+  }
+  getRejectionReason(): string | undefined {
+    return this.rejectionReason;
+  }
+  getIsDisputed(): boolean {
+    return this.isDisputed;
+  }
+  getDisputeReason(): string | undefined {
+    return this.disputeReason;
+  }
+  getDisputeResolvedAt(): Date | undefined {
+    return this.disputeResolvedAt;
   }
   getPaidAmount(): number {
     return this.paidAmount;
   }
-  getPaymentDate(): Date | null {
+  getPaymentDate(): Date | undefined {
     return this.paymentDate;
   }
-  getPaymentMethod(): string | null {
+  getPaymentMethod(): string | undefined {
     return this.paymentMethod;
   }
-  getTransactionReference(): string | null {
+  getTransactionReference(): string | undefined {
     return this.transactionReference;
+  }
+  getPaymentNotes(): string | undefined {
+    return this.paymentNotes;
+  }
+  getRequiresCourtApproval(): boolean {
+    return this.requiresCourtApproval;
+  }
+  getCourtApprovalObtained(): boolean {
+    return this.courtApprovalObtained;
+  }
+  getCourtApprovalDate(): Date | undefined {
+    return this.courtApprovalDate;
+  }
+  getResolvedAt(): Date | undefined {
+    return this.resolvedAt;
   }
   getCreatedAt(): Date {
     return this.createdAt;
@@ -481,28 +704,51 @@ export class CreditorClaim extends AggregateRoot {
     return this.updatedAt;
   }
 
-  getProps(): CreditorClaimProps {
+  // For persistence reconstitution
+  getProps() {
     return {
       id: this.id,
       estateId: this.estateId,
-      creditorName: this.creditorName,
-      amountClaimed: this.amountClaimed,
-      documentId: this.documentId,
-      status: this.status,
-      resolvedAt: this.resolvedAt,
-      rejectionReason: this.rejectionReason,
+      creditorName: this.creditor.name,
+      creditorContact: this.creditor.contact,
+      creditorKraPin: this.creditor.kraPin,
+      creditorAccountNumber: this.creditor.accountNumber,
       claimType: this.claimType,
+      description: this.description,
+      amountClaimed: this.amountClaimed.getAmount(),
       priority: this.priority,
-      dueDate: this.dueDate,
+      status: this.status,
+      currency: this.currency,
       interestRate: this.interestRate,
+      interestType: this.interestType,
+      compoundingFrequency: this.compoundingFrequency,
+      dueDate: this.dueDate,
+      isStatuteBarred: this.isStatuteBarred,
+      statuteBarredDate: this.statuteBarredDate,
+      isSecured: this.isSecured,
+      securityDetails: this.securityDetails,
+      collateralDescription: this.collateralDescription,
+      securedAssetId: this.securedAssetId,
+      supportingDocumentId: this.supportingDocumentId,
       supportingDocuments: this.supportingDocuments,
       courtCaseNumber: this.courtCaseNumber,
+      courtStation: this.courtStation,
       filedByUserId: this.filedByUserId,
-      approvedByUserId: this.approvedByUserId,
+      reviewedByUserId: this.reviewedByUserId,
+      reviewedAt: this.reviewedAt,
+      rejectionReason: this.rejectionReason,
+      isDisputed: this.isDisputed,
+      disputeReason: this.disputeReason,
+      disputeResolvedAt: this.disputeResolvedAt,
       paidAmount: this.paidAmount,
       paymentDate: this.paymentDate,
       paymentMethod: this.paymentMethod,
       transactionReference: this.transactionReference,
+      paymentNotes: this.paymentNotes,
+      requiresCourtApproval: this.requiresCourtApproval,
+      courtApprovalObtained: this.courtApprovalObtained,
+      courtApprovalDate: this.courtApprovalDate,
+      resolvedAt: this.resolvedAt,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

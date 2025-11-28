@@ -1,738 +1,576 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { GrantType } from '@prisma/client';
+import {
+  CasePriority,
+  CaseStatus,
+  GazetteNoticeType,
+  GrantType,
+  KenyanCounty,
+} from '@prisma/client';
 
 import { CaseClosedEvent } from '../events/case-closed.event';
 import { GazetteNoticePublishedEvent } from '../events/gazette-notice-published.event';
 import { GrantIssuedEvent } from '../events/grant-issued.event';
-import { ObjectionFiledEvent } from '../events/objection-filed.event';
+// Domain Events
 import { ProbateCaseFiledEvent } from '../events/probate-case-filed.event';
-import { ProbateStatusChangedEvent } from '../events/probate-status-changed.event';
-import { GazetteNotice } from '../value-objects/gazette-notice.vo';
-import { GrantApplicationType } from '../value-objects/grant-application-type.vo';
-import { CourtLevel, KenyanCourtJurisdiction } from '../value-objects/kenyan-court-jurisdiction.vo';
-import { ProbateCaseNumber } from '../value-objects/probate-case-number.vo';
 
-export type CaseStatus =
-  | 'DRAFT_FILING'
-  | 'FILED'
-  | 'GAZETTED'
-  | 'OBJECTION_PERIOD'
-  | 'OBJECTION_RECEIVED'
-  | 'HEARING_SCHEDULED'
-  | 'HEARING_COMPLETED'
-  | 'GRANT_ISSUED'
-  | 'CONFIRMATION_HEARING'
-  | 'CONFIRMED'
-  | 'APPEALED'
-  | 'CLOSED'
-  | 'WITHDRAWN';
-
-export type CasePriority = 'NORMAL' | 'URGENT' | 'EXPEDITED';
-
-// Safe interface for reconstitution
-export interface ProbateCaseProps {
-  id: string;
-  estateId: string;
-  caseNumber?: string | null;
-  court: KenyanCourtJurisdiction | { level: string; station: string; county: string };
-  applicationType: GrantApplicationType | { type: GrantType };
-  status: CaseStatus;
-  gazetteNotice?: {
-    noticeNumber: string;
-    publicationDate: Date | string;
-    objectionPeriodDays: number;
-    noticeType: 'PROBATE' | 'LETTERS_OF_ADMINISTRATION';
-  } | null;
-  filingDate?: Date | string | null;
-  grantId?: string | null;
-  inventoryId?: string | null;
-  applicantDetails?: {
-    applicantId?: string | null;
-    applicantName?: string | null;
-    relationship?: string | null;
-    contactInfo?: string | null;
-  } | null;
-  priority: CasePriority;
-  objections: {
-    objectionId: string;
-    objectorName: string;
-    grounds: string[];
-    filingDate: Date | string;
-    status: 'PENDING' | 'WITHDRAWN' | 'DISMISSED' | 'UPHELD';
-  }[];
-  hearings: {
-    hearingId: string;
-    date: Date | string;
-    type: string;
-    outcome?: string | null;
-  }[];
-  grantDetails?: {
-    grantNumber?: string | null;
-    issueDate?: Date | string | null;
-    issuedBy?: string | null;
-    expiryDate?: Date | string | null;
-  } | null;
-  closureDetails?: {
-    closureDate?: Date | string | null;
-    closureReason?: string | null;
-    closedBy?: string | null;
-  } | null;
-  legalRepresentation?: {
-    lawyerName?: string | null;
-    lawyerFirm?: string | null;
-    contactInfo?: string | null;
-  } | null;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-}
-
-export class ProbateCase extends AggregateRoot {
-  private id: string;
-  private estateId: string;
-
-  // Court Info
-  private caseNumber: ProbateCaseNumber | null;
-  private court: KenyanCourtJurisdiction;
-  private applicationType: GrantApplicationType;
-  private priority: CasePriority;
-
-  // Workflow
-  private status: CaseStatus;
-  private gazetteNotice: GazetteNotice | null;
-  private filingDate: Date | null;
-
-  // Applicant Information
-  private applicantDetails: {
-    applicantId: string | null;
-    applicantName: string | null;
-    relationship: string | null;
-    contactInfo: string | null;
-  };
-
-  // Legal Representation
-  private legalRepresentation: {
-    lawyerName: string | null;
-    lawyerFirm: string | null;
-    contactInfo: string | null;
-  };
-
-  // Linked Entities (IDs)
-  private grantId: string | null;
-  private inventoryId: string | null;
-
-  // Case Tracking
-  private objections: {
-    objectionId: string;
-    objectorName: string;
-    grounds: string[];
-    filingDate: Date;
-    status: 'PENDING' | 'WITHDRAWN' | 'DISMISSED' | 'UPHELD';
-  }[];
-
-  private hearings: {
-    hearingId: string;
-    date: Date;
-    type: string;
-    outcome: string | null;
-  }[];
-
-  private grantDetails: {
-    grantNumber: string | null;
-    issueDate: Date | null;
-    issuedBy: string | null;
-    expiryDate: Date | null;
-  };
-
-  private closureDetails: {
-    closureDate: Date | null;
-    closureReason: string | null;
-    closedBy: string | null;
-  };
-
-  private createdAt: Date;
-  private updatedAt: Date;
-
-  private constructor(
-    id: string,
-    estateId: string,
-    applicationType: GrantApplicationType,
-    court: KenyanCourtJurisdiction,
-    priority: CasePriority = 'NORMAL',
+// Value Objects
+export class KenyanCourtIdentification {
+  constructor(
+    private readonly courtLevel: string,
+    private readonly courtStation: string,
+    private readonly courtCounty: KenyanCounty,
   ) {
-    super();
-    this.id = id;
-    this.estateId = estateId;
-    this.applicationType = applicationType;
-    this.court = court;
-    this.priority = priority;
-
-    this.caseNumber = null;
-    this.status = 'DRAFT_FILING';
-    this.gazetteNotice = null;
-    this.filingDate = null;
-    this.grantId = null;
-    this.inventoryId = null;
-
-    this.applicantDetails = {
-      applicantId: null,
-      applicantName: null,
-      relationship: null,
-      contactInfo: null,
-    };
-
-    this.legalRepresentation = {
-      lawyerName: null,
-      lawyerFirm: null,
-      contactInfo: null,
-    };
-
-    this.objections = [];
-    this.hearings = [];
-
-    this.grantDetails = {
-      grantNumber: null,
-      issueDate: null,
-      issuedBy: null,
-      expiryDate: null,
-    };
-
-    this.closureDetails = {
-      closureDate: null,
-      closureReason: null,
-      closedBy: null,
-    };
-
-    this.createdAt = new Date();
-    this.updatedAt = new Date();
+    if (!courtLevel?.trim() || !courtStation?.trim() || !courtCounty) {
+      throw new Error('Court level, station, and county are required');
+    }
   }
 
-  // --------------------------------------------------------------------------
-  // FACTORY METHODS
-  // --------------------------------------------------------------------------
+  getCourtLevel(): string {
+    return this.courtLevel;
+  }
+  getCourtStation(): string {
+    return this.courtStation;
+  }
+  getCourtCounty(): KenyanCounty {
+    return this.courtCounty;
+  }
+
+  getFormattedReference(): string {
+    return `${this.courtStation} ${this.courtLevel} - ${this.courtCounty}`;
+  }
+}
+
+export class GazetteNoticeDetails {
+  constructor(
+    private readonly noticeNumber: string,
+    private readonly publicationDate: Date,
+    private readonly noticeType: GazetteNoticeType,
+    private readonly objectionPeriodDays: number = 30,
+  ) {
+    if (!noticeNumber?.trim()) {
+      throw new Error('Gazette notice number is required');
+    }
+    if (objectionPeriodDays < 1) {
+      throw new Error('Objection period must be at least 1 day');
+    }
+  }
+
+  getNoticeNumber(): string {
+    return this.noticeNumber;
+  }
+  getPublicationDate(): Date {
+    return this.publicationDate;
+  }
+  getNoticeType(): GazetteNoticeType {
+    return this.noticeType;
+  }
+  getObjectionPeriodDays(): number {
+    return this.objectionPeriodDays;
+  }
+
+  getObjectionExpiryDate(): Date {
+    const expiry = new Date(this.publicationDate);
+    expiry.setDate(expiry.getDate() + this.objectionPeriodDays);
+    return expiry;
+  }
+
+  isObjectionPeriodActive(): boolean {
+    return new Date() <= this.getObjectionExpiryDate();
+  }
+
+  hasObjectionPeriodExpired(): boolean {
+    return new Date() > this.getObjectionExpiryDate();
+  }
+}
+
+// Main Entity
+export class ProbateCase extends AggregateRoot {
+  constructor(
+    private readonly id: string,
+    private readonly estateId: string,
+    private applicationType: GrantType,
+    private courtIdentification: KenyanCourtIdentification,
+    private status: CaseStatus = CaseStatus.DRAFT_FILING,
+    private priority: CasePriority = CasePriority.NORMAL,
+    private caseNumber?: string,
+    private gazetteNotice?: GazetteNoticeDetails,
+    private filingDate?: Date,
+    private filingFee?: number,
+    private filedBy?: string,
+    private applicantId?: string,
+    private applicantName?: string,
+    private applicantRelationship?: string,
+    private applicantContactInfo?: string,
+    private lawyerName?: string,
+    private lawyerFirm?: string,
+    private lawyerContactInfo?: string,
+    private grantId?: string,
+    private inventoryId?: string,
+    private isExpedited: boolean = false,
+    private requiresConfirmationHearing: boolean = false,
+    private confirmationHearingDate?: Date,
+    private closureDate?: Date,
+    private closureReason?: string,
+    private closedBy?: string,
+    private readonly createdAt: Date = new Date(),
+    private updatedAt: Date = new Date(),
+  ) {
+    super();
+    this.validate();
+  }
+
+  // ==========================================================================
+  // FACTORY METHODS (Creation & Reconstitution)
+  // ==========================================================================
 
   static create(
     id: string,
     estateId: string,
-    type: GrantType,
-    // FIXED: Use proper CourtLevel type
-    courtDetails: { level: CourtLevel; station: string; county: string },
+    applicationType: GrantType,
+    courtLevel: string,
+    courtStation: string,
+    courtCounty: KenyanCounty,
     options?: {
       priority?: CasePriority;
-      applicantDetails?: {
-        applicantId: string;
-        applicantName: string;
-        relationship: string;
-        contactInfo: string;
-      };
-      legalRepresentation?: {
-        lawyerName: string;
-        lawyerFirm: string;
-        contactInfo: string;
-      };
+      applicantId?: string;
+      applicantName?: string;
+      applicantRelationship?: string;
+      applicantContactInfo?: string;
+      lawyerName?: string;
+      lawyerFirm?: string;
+      lawyerContactInfo?: string;
+      isExpedited?: boolean;
+      requiresConfirmationHearing?: boolean;
     },
   ): ProbateCase {
-    const appType = new GrantApplicationType(type);
-
-    // FIXED: Now level is the correct CourtLevel type
-    const court = new KenyanCourtJurisdiction(
-      courtDetails.level,
-      courtDetails.station,
-      courtDetails.county,
-    );
+    // Legal Validation: Kenyan court jurisdiction
+    const courtId = new KenyanCourtIdentification(courtLevel, courtStation, courtCounty);
 
     const probateCase = new ProbateCase(
       id,
       estateId,
-      appType,
-      court,
-      options?.priority || 'NORMAL',
+      applicationType,
+      courtId,
+      CaseStatus.DRAFT_FILING,
+      options?.priority || CasePriority.NORMAL,
+      undefined, // caseNumber
+      undefined, // gazetteNotice
+      undefined, // filingDate
+      undefined, // filingFee
+      undefined, // filedBy
+      options?.applicantId,
+      options?.applicantName,
+      options?.applicantRelationship,
+      options?.applicantContactInfo,
+      options?.lawyerName,
+      options?.lawyerFirm,
+      options?.lawyerContactInfo,
+      undefined, // grantId
+      undefined, // inventoryId
+      options?.isExpedited || false,
+      options?.requiresConfirmationHearing || false,
+      undefined, // confirmationHearingDate
+      undefined, // closureDate
+      undefined, // closureReason
+      undefined, // closedBy
+      new Date(), // createdAt
+      new Date(), // updatedAt
     );
-
-    if (options?.applicantDetails) {
-      probateCase.applicantDetails = { ...options.applicantDetails };
-    }
-
-    if (options?.legalRepresentation) {
-      probateCase.legalRepresentation = { ...options.legalRepresentation };
-    }
 
     return probateCase;
   }
 
-  static reconstitute(props: ProbateCaseProps): ProbateCase {
-    // Validate required fields
-    if (!props.id || !props.estateId || !props.court || !props.applicationType) {
-      throw new Error('Missing required properties for ProbateCase reconstitution');
-    }
+  static reconstitute(props: {
+    id: string;
+    estateId: string;
+    applicationType: GrantType;
+    courtLevel: string;
+    courtStation: string;
+    courtCounty: KenyanCounty;
+    status: CaseStatus;
+    priority: CasePriority;
+    caseNumber?: string;
+    gazetteNoticeNumber?: string;
+    gazettePublicationDate?: Date;
+    gazetteObjectionPeriodDays?: number;
+    gazetteNoticeType?: GazetteNoticeType;
+    filingDate?: Date;
+    filingFee?: number;
+    filedBy?: string;
+    applicantId?: string;
+    applicantName?: string;
+    applicantRelationship?: string;
+    applicantContactInfo?: string;
+    lawyerName?: string;
+    lawyerFirm?: string;
+    lawyerContactInfo?: string;
+    grantId?: string;
+    inventoryId?: string;
+    isExpedited?: boolean;
+    requiresConfirmationHearing?: boolean;
+    confirmationHearingDate?: Date;
+    closureDate?: Date;
+    closureReason?: string;
+    closedBy?: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }): ProbateCase {
+    const courtId = new KenyanCourtIdentification(
+      props.courtLevel,
+      props.courtStation,
+      props.courtCounty,
+    );
 
-    // Reconstruct GrantApplicationType safely
-    let applicationType: GrantApplicationType;
-    if (props.applicationType instanceof GrantApplicationType) {
-      applicationType = props.applicationType;
-    } else {
-      applicationType = new GrantApplicationType(props.applicationType.type);
-    }
-
-    // Reconstruct KenyanCourtJurisdiction safely
-    let court: KenyanCourtJurisdiction;
-    if (props.court instanceof KenyanCourtJurisdiction) {
-      court = props.court;
-    } else {
-      // FIXED: Cast level to CourtLevel since we know it's valid from persistence
-      court = new KenyanCourtJurisdiction(
-        props.court.level as CourtLevel,
-        props.court.station,
-        props.court.county,
+    let gazetteNotice: GazetteNoticeDetails | undefined;
+    if (props.gazetteNoticeNumber && props.gazettePublicationDate && props.gazetteNoticeType) {
+      gazetteNotice = new GazetteNoticeDetails(
+        props.gazetteNoticeNumber,
+        props.gazettePublicationDate,
+        props.gazetteNoticeType,
+        props.gazetteObjectionPeriodDays,
       );
     }
 
-    const probateCase = new ProbateCase(
+    return new ProbateCase(
       props.id,
       props.estateId,
-      applicationType,
-      court,
-      props.priority || 'NORMAL',
+      props.applicationType,
+      courtId,
+      props.status,
+      props.priority,
+      props.caseNumber,
+      gazetteNotice,
+      props.filingDate,
+      props.filingFee,
+      props.filedBy,
+      props.applicantId,
+      props.applicantName,
+      props.applicantRelationship,
+      props.applicantContactInfo,
+      props.lawyerName,
+      props.lawyerFirm,
+      props.lawyerContactInfo,
+      props.grantId,
+      props.inventoryId,
+      props.isExpedited || false,
+      props.requiresConfirmationHearing || false,
+      props.confirmationHearingDate,
+      props.closureDate,
+      props.closureReason,
+      props.closedBy,
+      props.createdAt,
+      props.updatedAt,
     );
-
-    // Safe property assignments
-    probateCase.status = props.status;
-    probateCase.grantId = props.grantId ?? null;
-    probateCase.inventoryId = props.inventoryId ?? null;
-
-    // Case number
-    if (props.caseNumber) {
-      probateCase.caseNumber = new ProbateCaseNumber(props.caseNumber);
-    }
-
-    // Filing date
-    if (props.filingDate) {
-      probateCase.filingDate = new Date(props.filingDate);
-    } else {
-      probateCase.filingDate = null;
-    }
-
-    // Gazette notice
-    if (props.gazetteNotice) {
-      probateCase.gazetteNotice = new GazetteNotice(
-        props.gazetteNotice.noticeNumber,
-        new Date(props.gazetteNotice.publicationDate),
-        props.gazetteNotice.noticeType,
-        props.gazetteNotice.objectionPeriodDays,
-      );
-    }
-
-    // Applicant details - FIXED: Handle null/undefined properly
-    if (props.applicantDetails) {
-      probateCase.applicantDetails = {
-        applicantId: props.applicantDetails.applicantId ?? null,
-        applicantName: props.applicantDetails.applicantName ?? null,
-        relationship: props.applicantDetails.relationship ?? null,
-        contactInfo: props.applicantDetails.contactInfo ?? null,
-      };
-    }
-
-    // Legal representation - FIXED: Handle null/undefined properly
-    if (props.legalRepresentation) {
-      probateCase.legalRepresentation = {
-        lawyerName: props.legalRepresentation.lawyerName ?? null,
-        lawyerFirm: props.legalRepresentation.lawyerFirm ?? null,
-        contactInfo: props.legalRepresentation.contactInfo ?? null,
-      };
-    }
-
-    // Objections
-    if (props.objections) {
-      probateCase.objections = props.objections.map((obj) => ({
-        objectionId: obj.objectionId,
-        objectorName: obj.objectorName,
-        grounds: obj.grounds,
-        filingDate: new Date(obj.filingDate),
-        status: obj.status,
-      }));
-    }
-
-    // Hearings - FIXED: Handle outcome properly
-    if (props.hearings) {
-      probateCase.hearings = props.hearings.map((hearing) => ({
-        hearingId: hearing.hearingId,
-        date: new Date(hearing.date),
-        type: hearing.type,
-        outcome: hearing.outcome ?? null,
-      }));
-    }
-
-    // Grant details - FIXED: Handle null/undefined properly
-    if (props.grantDetails) {
-      probateCase.grantDetails = {
-        grantNumber: props.grantDetails.grantNumber ?? null,
-        issueDate: props.grantDetails.issueDate ? new Date(props.grantDetails.issueDate) : null,
-        issuedBy: props.grantDetails.issuedBy ?? null,
-        expiryDate: props.grantDetails.expiryDate ? new Date(props.grantDetails.expiryDate) : null,
-      };
-    }
-
-    // Closure details - FIXED: Handle null/undefined properly
-    if (props.closureDetails) {
-      probateCase.closureDetails = {
-        closureDate: props.closureDetails.closureDate
-          ? new Date(props.closureDetails.closureDate)
-          : null,
-        closureReason: props.closureDetails.closureReason ?? null,
-        closedBy: props.closureDetails.closedBy ?? null,
-      };
-    }
-
-    probateCase.createdAt = new Date(props.createdAt);
-    probateCase.updatedAt = new Date(props.updatedAt);
-
-    return probateCase;
   }
 
-  // --------------------------------------------------------------------------
-  // BUSINESS LOGIC
-  // --------------------------------------------------------------------------
+  // ==========================================================================
+  // BUSINESS LOGIC (Domain Behavior)
+  // ==========================================================================
 
-  /**
-   * Officially records the case in the court system
-   */
-  fileCase(caseNumberString: string, filingFee: number, filedBy: string): void {
-    if (this.status !== 'DRAFT_FILING') {
-      throw new Error('Case is already filed.');
+  // Legal Requirement: Proper case filing with Kenyan court procedures
+  fileCase(caseNumber: string, filingFee: number, filedBy: string, inventoryId?: string): void {
+    if (this.status !== CaseStatus.DRAFT_FILING) {
+      throw new Error('Case can only be filed from draft status');
     }
 
-    if (!this.applicantDetails.applicantName) {
-      throw new Error('Applicant details must be set before filing case.');
+    // Legal Requirement: Applicant information must be complete
+    if (!this.applicantName || !this.applicantRelationship) {
+      throw new Error('Applicant name and relationship are required for filing');
     }
 
-    this.caseNumber = new ProbateCaseNumber(caseNumberString);
+    this.caseNumber = caseNumber;
     this.filingDate = new Date();
-    this.changeStatus('FILED', 'Case officially filed in court', filedBy);
+    this.filingFee = filingFee;
+    this.filedBy = filedBy;
+    this.inventoryId = inventoryId;
+    this.status = CaseStatus.FILED;
+    this.updatedAt = new Date();
 
     this.apply(
       new ProbateCaseFiledEvent(
         this.id,
         this.estateId,
-        this.caseNumber.getValue(),
-        this.court.getStation(),
+        caseNumber,
+        this.courtIdentification.getCourtStation(),
         this.filingDate,
-        this.applicationType.getValue(),
-        this.applicantDetails.applicantName,
+        this.applicationType,
+        this.applicantName,
         filingFee,
       ),
     );
   }
 
-  /**
-   * Records publication in the Kenya Gazette
-   */
-  publishGazetteNotice(noticeNumber: string, pubDate: Date, gazetteIssueNumber: string): void {
-    if (this.status !== 'FILED') {
-      throw new Error('Case must be filed before gazettement.');
+  // Legal Requirement: Kenya Gazette publication for probate notices
+  publishGazetteNotice(
+    noticeNumber: string,
+    publicationDate: Date,
+    noticeType: GazetteNoticeType,
+  ): void {
+    if (this.status !== CaseStatus.FILED) {
+      throw new Error('Case must be filed before gazette publication');
     }
 
-    this.gazetteNotice = new GazetteNotice(
+    // Legal Requirement: 30-day objection period for Kenyan probate
+    const objectionPeriodDays = 30;
+
+    this.gazetteNotice = new GazetteNoticeDetails(
       noticeNumber,
-      pubDate,
-      this.applicationType.getValue().includes('PROBATE') ? 'PROBATE' : 'LETTERS_OF_ADMINISTRATION',
+      publicationDate,
+      noticeType,
+      objectionPeriodDays,
     );
 
-    this.changeStatus('OBJECTION_PERIOD', 'Gazette notice published');
+    this.status = CaseStatus.GAZETTED;
+    this.updatedAt = new Date();
 
     this.apply(
       new GazetteNoticePublishedEvent(
         this.id,
         this.estateId,
         noticeNumber,
-        pubDate,
+        publicationDate,
         this.gazetteNotice.getObjectionExpiryDate(),
-        gazetteIssueNumber,
-        this.applicationType.getValue().includes('PROBATE')
-          ? 'PROBATE'
-          : 'LETTERS_OF_ADMINISTRATION',
+        noticeType,
       ),
     );
   }
 
-  /**
-   * Records an objection to the grant
-   */
-  recordObjection(
-    objectionId: string,
-    objectorName: string,
-    grounds: string[],
-    filingDate: Date = new Date(),
-  ): void {
-    if (this.status !== 'OBJECTION_PERIOD' && this.status !== 'GAZETTED') {
-      throw new Error('Objections can only be filed during objection period.');
+  // Legal Requirement: Objection period management
+  markObjectionPeriodActive(): void {
+    if (this.status !== CaseStatus.GAZETTED) {
+      throw new Error('Case must be gazetted before objection period can start');
     }
 
-    this.objections.push({
-      objectionId,
-      objectorName,
-      grounds,
-      filingDate,
-      status: 'PENDING',
-    });
-
-    this.changeStatus('OBJECTION_RECEIVED', `Objection filed by ${objectorName}`);
-
-    this.apply(
-      new ObjectionFiledEvent(
-        this.id,
-        this.estateId,
-        objectionId,
-        objectorName,
-        grounds,
-        filingDate,
-      ),
-    );
+    this.status = CaseStatus.OBJECTION_PERIOD;
+    this.updatedAt = new Date();
   }
 
-  /**
-   * Schedules a hearing for the case
-   */
-  scheduleHearing(hearingId: string, date: Date, type: string): void {
-    this.hearings.push({
-      hearingId,
-      date,
-      type,
-      outcome: null,
-    });
-
-    this.changeStatus('HEARING_SCHEDULED', `${type} hearing scheduled`);
-  }
-
-  /**
-   * Records hearing outcome
-   */
-  recordHearingOutcome(hearingId: string, outcome: string): void {
-    const hearing = this.hearings.find((h) => h.hearingId === hearingId);
-    if (!hearing) {
-      throw new Error('Hearing not found');
+  // Legal Requirement: Objection handling
+  recordObjectionReceived(): void {
+    if (this.status !== CaseStatus.OBJECTION_PERIOD) {
+      throw new Error('Objections can only be received during objection period');
     }
 
-    hearing.outcome = outcome;
-    this.changeStatus('HEARING_COMPLETED', `Hearing completed: ${outcome}`);
+    this.status = CaseStatus.OBJECTION_RECEIVED;
+    this.updatedAt = new Date();
   }
 
-  /**
-   * Issues grant for the case
-   */
-  issueGrant(
-    grantId: string,
-    grantNumber: string,
-    issueDate: Date,
-    issuedBy: string,
-    expiryDate?: Date,
-  ): void {
-    if (!this.canIssueGrant()) {
-      throw new Error('Cannot issue grant at this stage.');
+  // Legal Requirement: Hearing scheduling
+  scheduleHearing(hearingType: string = 'DIRECTIONS'): void {
+    if (![CaseStatus.OBJECTION_RECEIVED, CaseStatus.FILED].includes(this.status)) {
+      throw new Error('Hearing can only be scheduled after objections or for directions');
+    }
+
+    this.status = CaseStatus.HEARING_SCHEDULED;
+    this.updatedAt = new Date();
+  }
+
+  // Legal Requirement: Hearing completion
+  completeHearing(): void {
+    if (this.status !== CaseStatus.HEARING_SCHEDULED) {
+      throw new Error('Only scheduled hearings can be completed');
+    }
+
+    this.status = CaseStatus.HEARING_COMPLETED;
+    this.updatedAt = new Date();
+  }
+
+  // Legal Requirement: Grant issuance
+  issueGrant(grantId: string, issuedBy: string): void {
+    if (this.status !== CaseStatus.HEARING_COMPLETED && this.status !== CaseStatus.GAZETTED) {
+      throw new Error(
+        'Grant can only be issued after hearing completion or gazettement without objections',
+      );
+    }
+
+    // Legal Requirement: Check if objection period has expired for non-objection cases
+    if (
+      this.status === CaseStatus.GAZETTED &&
+      this.gazetteNotice &&
+      !this.gazetteNotice.hasObjectionPeriodExpired()
+    ) {
+      throw new Error('Grant cannot be issued before objection period expires');
     }
 
     this.grantId = grantId;
-    this.grantDetails = {
-      grantNumber,
-      issueDate,
-      issuedBy,
-      expiryDate: expiryDate || null,
-    };
-
-    this.changeStatus('GRANT_ISSUED', 'Grant of representation issued');
+    this.status = CaseStatus.GRANT_ISSUED;
+    this.updatedAt = new Date();
 
     this.apply(
       new GrantIssuedEvent(
         grantId,
         this.estateId,
-        this.applicantDetails.applicantId || 'UNKNOWN',
-        issueDate,
-        this.applicationType.getValue(),
-        grantNumber,
-        this.court.getStation(),
-        expiryDate,
-        undefined,
+        this.applicationType,
+        this.caseNumber!,
+        issuedBy,
       ),
     );
   }
 
-  /**
-   * Schedules confirmation hearing for grant
-   */
-  scheduleConfirmationHearing(hearingId: string, date: Date): void {
-    if (this.status !== 'GRANT_ISSUED') {
-      throw new Error('Grant must be issued before scheduling confirmation.');
+  // Legal Requirement: Confirmation hearing for grants
+  scheduleConfirmationHearing(hearingDate: Date): void {
+    if (this.status !== CaseStatus.GRANT_ISSUED) {
+      throw new Error('Confirmation hearing can only be scheduled after grant issuance');
     }
 
-    this.scheduleHearing(hearingId, date, 'CONFIRMATION_OF_GRANT');
-    this.changeStatus('CONFIRMATION_HEARING', 'Confirmation hearing scheduled');
+    this.requiresConfirmationHearing = true;
+    this.confirmationHearingDate = hearingDate;
+    this.status = CaseStatus.CONFIRMATION_HEARING;
+    this.updatedAt = new Date();
   }
 
-  /**
-   * Confirms the grant after successful confirmation hearing
-   */
-  confirmGrant(confirmationDate: Date, confirmedBy: string): void {
-    this.changeStatus('CONFIRMED', 'Grant confirmed by court', confirmedBy);
-  }
-
-  /**
-   * Closes the probate case
-   */
-  closeCase(closureReason: string, closedBy: string, finalDistributionDate?: Date): void {
-    if (this.status !== 'CONFIRMED') {
-      throw new Error('Only confirmed cases can be closed.');
+  // Legal Requirement: Grant confirmation
+  confirmGrant(confirmedBy: string): void {
+    if (this.status !== CaseStatus.CONFIRMATION_HEARING) {
+      throw new Error('Grant can only be confirmed after confirmation hearing');
     }
 
-    this.closureDetails = {
-      closureDate: new Date(),
-      closureReason,
-      closedBy,
-    };
+    this.status = CaseStatus.CONFIRMED;
+    this.updatedAt = new Date();
+  }
 
-    this.changeStatus('CLOSED', `Case closed: ${closureReason}`, closedBy);
+  // Legal Requirement: Case closure
+  closeCase(closureReason: string, closedBy: string): void {
+    if (![CaseStatus.CONFIRMED, CaseStatus.GRANT_ISSUED].includes(this.status)) {
+      throw new Error('Only confirmed cases or cases with issued grants can be closed');
+    }
+
+    this.closureDate = new Date();
+    this.closureReason = closureReason;
+    this.closedBy = closedBy;
+    this.status = CaseStatus.CLOSED;
+    this.updatedAt = new Date();
 
     this.apply(
-      new CaseClosedEvent(
-        this.id,
-        this.estateId,
-        new Date(),
-        closureReason,
-        closedBy,
-        finalDistributionDate,
-      ),
+      new CaseClosedEvent(this.id, this.estateId, this.closureDate, closureReason, closedBy),
     );
   }
 
-  /**
-   * Withdraws the case
-   */
-  withdrawCase(reason: string, withdrawnBy: string): void {
-    this.changeStatus('WITHDRAWN', `Case withdrawn: ${reason}`, withdrawnBy);
-  }
-
-  /**
-   * Updates applicant details
-   */
-  updateApplicantDetails(details: {
-    applicantName?: string;
-    relationship?: string;
-    contactInfo?: string;
-  }): void {
-    if (this.status !== 'DRAFT_FILING') {
-      throw new Error('Cannot update applicant details after filing.');
+  // Legal Requirement: Case withdrawal
+  withdrawCase(withdrawalReason: string, withdrawnBy: string): void {
+    if ([CaseStatus.CLOSED, CaseStatus.CONFIRMED].includes(this.status)) {
+      throw new Error('Cannot withdraw closed or confirmed cases');
     }
 
-    this.applicantDetails = { ...this.applicantDetails, ...details };
+    this.closureDate = new Date();
+    this.closureReason = `Withdrawn: ${withdrawalReason}`;
+    this.closedBy = withdrawnBy;
+    this.status = CaseStatus.WITHDRAWN;
     this.updatedAt = new Date();
   }
 
-  /**
-   * Assigns legal representation
-   */
-  assignLegalRepresentation(representation: {
-    lawyerName: string;
-    lawyerFirm: string;
-    contactInfo: string;
-  }): void {
-    this.legalRepresentation = { ...representation };
+  // Legal Requirement: Appeal handling
+  markAsAppealed(): void {
+    this.status = CaseStatus.APPEALED;
     this.updatedAt = new Date();
   }
 
-  // --------------------------------------------------------------------------
-  // VALIDATION & HELPER METHODS
-  // --------------------------------------------------------------------------
+  // ==========================================================================
+  // LEGAL COMPLIANCE & VALIDATION
+  // ==========================================================================
 
-  /**
-   * Checks if we can proceed to extract the Grant
-   */
-  canIssueGrant(): boolean {
-    // Must have gazette notice
-    if (!this.gazetteNotice) return false;
+  private validate(): void {
+    if (!this.id) throw new Error('Case ID is required');
+    if (!this.estateId) throw new Error('Estate ID is required');
+    if (!this.applicationType) throw new Error('Application type is required');
+    if (!this.courtIdentification) throw new Error('Court identification is required');
+    if (!this.status) throw new Error('Case status is required');
+    if (!this.priority) throw new Error('Case priority is required');
 
-    // Must be past objection period
-    if (!this.gazetteNotice.hasMatured()) return false;
+    // Legal Requirement: Filing validation
+    if (this.filingDate && this.filingDate > new Date()) {
+      throw new Error('Filing date cannot be in the future');
+    }
 
-    // Must not have pending objections
-    const pendingObjections = this.objections.filter((obj) => obj.status === 'PENDING');
-    if (pendingObjections.length > 0) return false;
+    // Legal Requirement: Gazette notice validation
+    if (this.gazetteNotice && this.gazetteNotice.getPublicationDate() > new Date()) {
+      throw new Error('Gazette publication date cannot be in the future');
+    }
 
-    return true;
+    // Legal Requirement: Confirmation hearing validation
+    if (this.confirmationHearingDate && this.confirmationHearingDate < new Date()) {
+      throw new Error('Confirmation hearing date cannot be in the past');
+    }
   }
 
-  /**
-   * Checks if objection period is active
-   */
+  // ==========================================================================
+  // QUERY METHODS & BUSINESS RULES
+  // ==========================================================================
+
   isObjectionPeriodActive(): boolean {
+    return this.gazetteNotice ? this.gazetteNotice.isObjectionPeriodActive() : false;
+  }
+
+  canIssueGrant(): boolean {
+    // Legal Requirements for Grant Issuance:
+    // 1. Must be gazetted
+    // 2. Objection period must have expired OR objections must be resolved
+    // 3. No pending objections
     if (!this.gazetteNotice) return false;
-    return this.gazetteNotice.isObjectionPeriodActive();
+
+    const objectionPeriodExpired = this.gazetteNotice.hasObjectionPeriodExpired();
+    const noObjections = this.status !== CaseStatus.OBJECTION_RECEIVED;
+
+    return objectionPeriodExpired && noObjections;
   }
 
-  /**
-   * Gets days remaining in objection period
-   */
-  getObjectionDaysRemaining(): number {
-    if (!this.gazetteNotice) return 0;
-    return this.gazetteNotice.getDaysRemaining();
+  requiresConfirmation(): boolean {
+    // Legal Requirement: Certain grant types require confirmation hearing
+    const confirmationRequiredTypes = [
+      GrantType.LETTERS_OF_ADMINISTRATION,
+      GrantType.LETTERS_OF_ADMINISTRATION_WITH_WILL,
+    ];
+    return confirmationRequiredTypes.includes(this.applicationType);
   }
 
-  /**
-   * Checks if case is overdue (stuck in a state for too long)
-   */
   isOverdue(): boolean {
-    const overdueThreshold = 365; // 1 year
+    const overdueThreshold = 365; // 1 year in days
     const daysSinceUpdate = Math.floor(
       (new Date().getTime() - this.updatedAt.getTime()) / (1000 * 60 * 60 * 24),
     );
 
     return (
       daysSinceUpdate > overdueThreshold &&
-      !['CLOSED', 'WITHDRAWN', 'CONFIRMED'].includes(this.status)
+      ![CaseStatus.CLOSED, CaseStatus.WITHDRAWN, CaseStatus.CONFIRMED].includes(this.status)
     );
   }
 
-  /**
-   * Gets the next required action for the case
-   */
   getNextRequiredAction(): string {
     switch (this.status) {
-      case 'DRAFT_FILING':
-        return 'File case with court';
-      case 'FILED':
+      case CaseStatus.DRAFT_FILING:
+        return 'Complete applicant details and file case';
+      case CaseStatus.FILED:
         return 'Publish gazette notice';
-      case 'OBJECTION_PERIOD':
-        return 'Wait for objection period to end';
-      case 'OBJECTION_RECEIVED':
+      case CaseStatus.GAZETTED:
+        return 'Wait for objection period to expire';
+      case CaseStatus.OBJECTION_PERIOD:
+        return 'Monitor for objections';
+      case CaseStatus.OBJECTION_RECEIVED:
         return 'Schedule hearing for objections';
-      case 'HEARING_SCHEDULED':
+      case CaseStatus.HEARING_SCHEDULED:
         return 'Conduct hearing';
-      case 'HEARING_COMPLETED':
+      case CaseStatus.HEARING_COMPLETED:
         return 'Issue grant';
-      case 'GRANT_ISSUED':
-        return 'Schedule confirmation hearing';
-      case 'CONFIRMATION_HEARING':
+      case CaseStatus.GRANT_ISSUED:
+        return this.requiresConfirmation() ? 'Schedule confirmation hearing' : 'Close case';
+      case CaseStatus.CONFIRMATION_HEARING:
         return 'Conduct confirmation hearing';
-      case 'CONFIRMED':
-        return 'Close case after distribution';
+      case CaseStatus.CONFIRMED:
+        return 'Close case';
       default:
         return 'No action required';
     }
   }
 
-  // --------------------------------------------------------------------------
-  // PRIVATE METHODS
-  // --------------------------------------------------------------------------
-
-  private changeStatus(newStatus: CaseStatus, reason?: string, changedBy?: string): void {
-    const old = this.status;
-    this.status = newStatus;
-    this.updatedAt = new Date();
-
-    this.apply(
-      new ProbateStatusChangedEvent(this.id, this.estateId, old, newStatus, reason, changedBy),
-    );
+  getDaysInCurrentStatus(): number {
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - this.updatedAt.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
-  // --------------------------------------------------------------------------
-  // GETTERS
-  // --------------------------------------------------------------------------
+  // ==========================================================================
+  // GETTERS (Persistence Interface)
+  // ==========================================================================
 
   getId(): string {
     return this.id;
@@ -740,47 +578,92 @@ export class ProbateCase extends AggregateRoot {
   getEstateId(): string {
     return this.estateId;
   }
-  getCaseNumber(): string | null {
-    return this.caseNumber?.getValue() || null;
+  getApplicationType(): GrantType {
+    return this.applicationType;
+  }
+  getCourtLevel(): string {
+    return this.courtIdentification.getCourtLevel();
+  }
+  getCourtStation(): string {
+    return this.courtIdentification.getCourtStation();
+  }
+  getCourtCounty(): KenyanCounty {
+    return this.courtIdentification.getCourtCounty();
   }
   getStatus(): CaseStatus {
     return this.status;
   }
-  getApplicationType(): GrantApplicationType {
-    return this.applicationType;
-  }
-  getCourt(): KenyanCourtJurisdiction {
-    return this.court;
-  }
-  getFilingDate(): Date | null {
-    return this.filingDate;
-  }
-  getGazetteNotice(): GazetteNotice | null {
-    return this.gazetteNotice;
-  }
-  getGrantId(): string | null {
-    return this.grantId;
-  }
   getPriority(): CasePriority {
     return this.priority;
   }
-  getApplicantDetails() {
-    return { ...this.applicantDetails };
+  getCaseNumber(): string | undefined {
+    return this.caseNumber;
   }
-  getLegalRepresentation() {
-    return { ...this.legalRepresentation };
+  getGazetteNoticeNumber(): string | undefined {
+    return this.gazetteNotice?.getNoticeNumber();
   }
-  getObjections() {
-    return [...this.objections];
+  getGazettePublicationDate(): Date | undefined {
+    return this.gazetteNotice?.getPublicationDate();
   }
-  getHearings() {
-    return [...this.hearings];
+  getGazetteObjectionPeriodDays(): number | undefined {
+    return this.gazetteNotice?.getObjectionPeriodDays();
   }
-  getGrantDetails() {
-    return { ...this.grantDetails };
+  getGazetteNoticeType(): GazetteNoticeType | undefined {
+    return this.gazetteNotice?.getNoticeType();
   }
-  getClosureDetails() {
-    return { ...this.closureDetails };
+  getFilingDate(): Date | undefined {
+    return this.filingDate;
+  }
+  getFilingFee(): number | undefined {
+    return this.filingFee;
+  }
+  getFiledBy(): string | undefined {
+    return this.filedBy;
+  }
+  getApplicantId(): string | undefined {
+    return this.applicantId;
+  }
+  getApplicantName(): string | undefined {
+    return this.applicantName;
+  }
+  getApplicantRelationship(): string | undefined {
+    return this.applicantRelationship;
+  }
+  getApplicantContactInfo(): string | undefined {
+    return this.applicantContactInfo;
+  }
+  getLawyerName(): string | undefined {
+    return this.lawyerName;
+  }
+  getLawyerFirm(): string | undefined {
+    return this.lawyerFirm;
+  }
+  getLawyerContactInfo(): string | undefined {
+    return this.lawyerContactInfo;
+  }
+  getGrantId(): string | undefined {
+    return this.grantId;
+  }
+  getInventoryId(): string | undefined {
+    return this.inventoryId;
+  }
+  getIsExpedited(): boolean {
+    return this.isExpedited;
+  }
+  getRequiresConfirmationHearing(): boolean {
+    return this.requiresConfirmationHearing;
+  }
+  getConfirmationHearingDate(): Date | undefined {
+    return this.confirmationHearingDate;
+  }
+  getClosureDate(): Date | undefined {
+    return this.closureDate;
+  }
+  getClosureReason(): string | undefined {
+    return this.closureReason;
+  }
+  getClosedBy(): string | undefined {
+    return this.closedBy;
   }
   getCreatedAt(): Date {
     return this.createdAt;
@@ -789,35 +672,40 @@ export class ProbateCase extends AggregateRoot {
     return this.updatedAt;
   }
 
-  // Method to get all properties for persistence
-  getProps(): ProbateCaseProps {
+  // For persistence reconstitution
+  getProps() {
     return {
       id: this.id,
       estateId: this.estateId,
-      caseNumber: this.caseNumber?.getValue() || null,
-      court: this.court,
       applicationType: this.applicationType,
+      courtLevel: this.courtIdentification.getCourtLevel(),
+      courtStation: this.courtIdentification.getCourtStation(),
+      courtCounty: this.courtIdentification.getCourtCounty(),
       status: this.status,
-      gazetteNotice: this.gazetteNotice
-        ? {
-            noticeNumber: this.gazetteNotice.getNoticeNumber(),
-            publicationDate: this.gazetteNotice.getPublicationDate(),
-            objectionPeriodDays: this.gazetteNotice.getDaysRemaining(),
-            noticeType: this.applicationType.getValue().includes('PROBATE')
-              ? 'PROBATE'
-              : 'LETTERS_OF_ADMINISTRATION',
-          }
-        : null,
+      priority: this.priority,
+      caseNumber: this.caseNumber,
+      gazetteNoticeNumber: this.gazetteNotice?.getNoticeNumber(),
+      gazettePublicationDate: this.gazetteNotice?.getPublicationDate(),
+      gazetteObjectionPeriodDays: this.gazetteNotice?.getObjectionPeriodDays(),
+      gazetteNoticeType: this.gazetteNotice?.getNoticeType(),
       filingDate: this.filingDate,
+      filingFee: this.filingFee,
+      filedBy: this.filedBy,
+      applicantId: this.applicantId,
+      applicantName: this.applicantName,
+      applicantRelationship: this.applicantRelationship,
+      applicantContactInfo: this.applicantContactInfo,
+      lawyerName: this.lawyerName,
+      lawyerFirm: this.lawyerFirm,
+      lawyerContactInfo: this.lawyerContactInfo,
       grantId: this.grantId,
       inventoryId: this.inventoryId,
-      applicantDetails: this.applicantDetails,
-      priority: this.priority,
-      objections: this.objections,
-      hearings: this.hearings,
-      grantDetails: this.grantDetails,
-      closureDetails: this.closureDetails,
-      legalRepresentation: this.legalRepresentation,
+      isExpedited: this.isExpedited,
+      requiresConfirmationHearing: this.requiresConfirmationHearing,
+      confirmationHearingDate: this.confirmationHearingDate,
+      closureDate: this.closureDate,
+      closureReason: this.closureReason,
+      closedBy: this.closedBy,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

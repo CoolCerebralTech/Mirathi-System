@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '@shamba/database';
 
-import { SuccessionCertificate } from '../../../domain/entities/succession-certificate.entity';
+import { SuccessionCertificate } from '../../../domain/entities/grant-of-administration.entity';
 import { SuccessionCertificateRepositoryInterface } from '../../../domain/repositories/succession-certificate.repository.interface';
 import { SuccessionCertificateMapper } from '../mappers/succession-certificate.mapper';
 

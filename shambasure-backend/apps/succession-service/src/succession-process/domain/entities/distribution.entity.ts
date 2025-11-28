@@ -1,583 +1,457 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { DistributionStatus } from '@prisma/client';
+import { BequestType, DistributionStatus, RelationshipType } from '@prisma/client';
 
-import { ShareType } from '../../../common/types/kenyan-law.types';
-import { AssetTransferredEvent } from '../events/asset-transferred.event';
+import { DistributionCompletedEvent } from '../events/distribution-completed.event';
 import { DistributionDeferredEvent } from '../events/distribution-deferred.event';
 import { DistributionDisputedEvent } from '../events/distribution-disputed.event';
-import { DistributionStatusChangedEvent } from '../events/distribution-status-changed.event';
-import { EntitlementCreatedEvent } from '../events/entitlement-created.event';
-import { DistributionShare } from '../value-objects/distribution-share.vo';
+// Domain Events
+import { DistributionStartedEvent } from '../events/distribution-started.event';
 
-export type BeneficiaryType = 'USER' | 'FAMILY_MEMBER' | 'EXTERNAL';
-export type TransferMethod = 'TITLE_DEED' | 'CASH_TRANSFER' | 'SHARE_CERTIFICATE' | 'OTHER';
-
-// Safe interface for reconstitution
-export interface DistributionProps {
-  id: string;
-  estateId: string;
-  beneficiaryId: string;
-  beneficiaryType: BeneficiaryType;
-  externalBeneficiaryName?: string | null;
-  externalBeneficiaryContact?: string | null;
-  assetId?: string | null;
-  share:
-    | DistributionShare
-    | {
-        percentage: number;
-        type: ShareType;
-        beneficiaryType?: 'SPOUSE' | 'CHILD' | 'DEPENDANT' | 'OTHER';
-        condition?: string;
-      };
-  status: DistributionStatus;
-  transferDate?: Date | string | null;
-  transferNotes?: string | null;
-  transferMethod?: TransferMethod | null;
-  transferReference?: string | null;
-  transferValue?: number | null;
-  disputeReason?: string | null;
-  disputedBy?: string | null;
-  disputeDate?: Date | string | null;
-  deferralReason?: string | null;
-  deferredUntil?: Date | string | null;
-  legalDescription?: string | null;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-}
-
-export class Distribution extends AggregateRoot {
-  private id: string;
-  private estateId: string;
-
-  // Beneficiary Information
-  private beneficiaryId: string;
-  private beneficiaryType: BeneficiaryType;
-  private externalBeneficiaryName: string | null;
-  private externalBeneficiaryContact: string | null;
-
-  // Asset Information
-  private assetId: string | null;
-  private share: DistributionShare;
-
-  // Status and Tracking
-  private status: DistributionStatus;
-  private transferDate: Date | null;
-  private transferNotes: string | null;
-  private transferMethod: TransferMethod | null;
-  private transferReference: string | null;
-  private transferValue: number | null;
-
-  // Dispute Information
-  private disputeReason: string | null;
-  private disputedBy: string | null;
-  private disputeDate: Date | null;
-
-  // Deferral Information
-  private deferralReason: string | null;
-  private deferredUntil: Date | null;
-
-  // Legal Documentation
-  private legalDescription: string | null;
-
-  private createdAt: Date;
-  private updatedAt: Date;
-
-  private constructor(
-    id: string,
-    estateId: string,
-    beneficiaryId: string,
-    beneficiaryType: BeneficiaryType,
-    share: DistributionShare,
-    assetId: string | null,
+// Value Objects
+export class DistributionShare {
+  constructor(
+    private readonly sharePercent?: number,
+    private readonly fixedAmount?: number,
+    private readonly currency: string = 'KES',
   ) {
-    super();
-    this.id = id;
-    this.estateId = estateId;
-    this.beneficiaryId = beneficiaryId;
-    this.beneficiaryType = beneficiaryType;
-    this.share = share;
-    this.assetId = assetId;
-
-    this.status = 'PENDING';
-    this.transferDate = null;
-    this.transferNotes = null;
-    this.transferMethod = null;
-    this.transferReference = null;
-    this.transferValue = null;
-    this.disputeReason = null;
-    this.disputedBy = null;
-    this.disputeDate = null;
-    this.deferralReason = null;
-    this.deferredUntil = null;
-    this.externalBeneficiaryName = null;
-    this.externalBeneficiaryContact = null;
-    this.legalDescription = null;
-
-    this.createdAt = new Date();
-    this.updatedAt = new Date();
+    if (sharePercent && (sharePercent < 0 || sharePercent > 100)) {
+      throw new Error('Share percentage must be between 0 and 100');
+    }
+    if (fixedAmount && fixedAmount < 0) {
+      throw new Error('Fixed amount cannot be negative');
+    }
+    if (sharePercent && fixedAmount) {
+      throw new Error('Cannot specify both share percentage and fixed amount');
+    }
+    if (!sharePercent && !fixedAmount) {
+      throw new Error('Must specify either share percentage or fixed amount');
+    }
   }
 
-  // --------------------------------------------------------------------------
-  // FACTORY METHODS
-  // --------------------------------------------------------------------------
+  getSharePercent(): number | undefined {
+    return this.sharePercent;
+  }
+  getFixedAmount(): number | undefined {
+    return this.fixedAmount;
+  }
+  getCurrency(): string {
+    return this.currency;
+  }
 
-  static create(
+  calculateAmount(totalEstateValue: number): number {
+    if (this.fixedAmount) return this.fixedAmount;
+    if (this.sharePercent) return (totalEstateValue * this.sharePercent) / 100;
+    return 0;
+  }
+
+  isPercentageBased(): boolean {
+    return this.sharePercent !== undefined;
+  }
+}
+
+// Main Entity
+export class Distribution extends AggregateRoot {
+  constructor(
+    private readonly id: string,
+    private readonly estateId: string,
+    private beneficiaryType: BequestType,
+    private share: DistributionShare,
+    private status: DistributionStatus = DistributionStatus.PENDING,
+    private beneficiaryUserId?: string,
+    private beneficiaryFamilyMemberId?: string,
+    private externalName?: string,
+    private relationship?: RelationshipType,
+    private lifeInterest: boolean = false,
+    private lifeInterestEndsAt?: Date,
+    private isMinor: boolean = false,
+    private heldInTrustId?: string,
+    private distributedAt?: Date,
+    private priority: number = 1,
+    private readonly createdAt: Date = new Date(),
+    private updatedAt: Date = new Date(),
+  ) {
+    super();
+    this.validate();
+  }
+
+  // ==========================================================================
+  // FACTORY METHODS (Creation & Reconstitution)
+  // ==========================================================================
+
+  static createForBeneficiary(
     id: string,
     estateId: string,
-    beneficiaryId: string,
-    beneficiaryType: BeneficiaryType,
-    sharePercentage: number,
-    shareType: ShareType,
+    beneficiaryType: BequestType,
+    sharePercent?: number,
+    fixedAmount?: number,
     options?: {
-      assetId?: string;
-      externalBeneficiaryName?: string;
-      externalBeneficiaryContact?: string;
-      condition?: string;
-      legalDescription?: string;
+      beneficiaryUserId?: string;
+      beneficiaryFamilyMemberId?: string;
+      externalName?: string;
+      relationship?: RelationshipType;
+      lifeInterest?: boolean;
+      lifeInterestEndsAt?: Date;
+      isMinor?: boolean;
+      heldInTrustId?: string;
+      priority?: number;
     },
   ): Distribution {
-    const share = new DistributionShare(
-      sharePercentage,
-      shareType,
-      this.mapBeneficiaryType(beneficiaryType),
-      options?.condition,
-    );
+    // Legal Validation: Kenyan succession rules
+    Distribution.validateBeneficiaryType(beneficiaryType, options?.relationship);
+
+    const share = new DistributionShare(sharePercent, fixedAmount, 'KES');
 
     const distribution = new Distribution(
       id,
       estateId,
-      beneficiaryId,
       beneficiaryType,
       share,
-      options?.assetId || null,
+      DistributionStatus.PENDING,
+      options?.beneficiaryUserId,
+      options?.beneficiaryFamilyMemberId,
+      options?.externalName,
+      options?.relationship,
+      options?.lifeInterest || false,
+      options?.lifeInterestEndsAt,
+      options?.isMinor || false,
+      options?.heldInTrustId,
+      undefined, // distributedAt
+      options?.priority || 1,
+      new Date(), // createdAt
+      new Date(), // updatedAt
     );
 
-    if (options) {
-      if (options.externalBeneficiaryName)
-        distribution.externalBeneficiaryName = options.externalBeneficiaryName;
-      if (options.externalBeneficiaryContact)
-        distribution.externalBeneficiaryContact = options.externalBeneficiaryContact;
-      if (options.legalDescription) distribution.legalDescription = options.legalDescription;
+    // Legal Requirement: Minors must have trusts for property
+    if (options?.isMinor && !options.heldInTrustId) {
+      console.warn('Minor beneficiary should have testamentary trust for asset protection');
     }
-
-    distribution.apply(
-      new EntitlementCreatedEvent(
-        id,
-        estateId,
-        beneficiaryId,
-        beneficiaryType === 'USER',
-        options?.assetId || null,
-        sharePercentage,
-        shareType,
-        beneficiaryType,
-        options?.condition,
-      ),
-    );
 
     return distribution;
   }
 
-  static reconstitute(props: DistributionProps): Distribution {
-    if (
-      !props.id ||
-      !props.estateId ||
-      !props.beneficiaryId ||
-      !props.beneficiaryType ||
-      !props.share
-    ) {
-      throw new Error('Missing required properties for Distribution reconstitution');
-    }
+  static reconstitute(props: {
+    id: string;
+    estateId: string;
+    beneficiaryType: BequestType;
+    sharePercent?: number;
+    fixedAmount?: number;
+    status: DistributionStatus;
+    beneficiaryUserId?: string;
+    beneficiaryFamilyMemberId?: string;
+    externalName?: string;
+    relationship?: RelationshipType;
+    lifeInterest?: boolean;
+    lifeInterestEndsAt?: Date;
+    isMinor?: boolean;
+    heldInTrustId?: string;
+    distributedAt?: Date;
+    priority?: number;
+    createdAt: Date;
+    updatedAt: Date;
+  }): Distribution {
+    const share = new DistributionShare(props.sharePercent, props.fixedAmount, 'KES');
 
-    let share: DistributionShare;
-    if (props.share instanceof DistributionShare) {
-      share = props.share;
-    } else {
-      // Prefer stored beneficiaryType, fallback to mapping from generic type
-      const shareBeneficiaryType =
-        props.share.beneficiaryType || Distribution.mapBeneficiaryType(props.beneficiaryType);
-
-      share = new DistributionShare(
-        Number(props.share.percentage),
-        props.share.type,
-        shareBeneficiaryType,
-        props.share.condition,
-      );
-    }
-
-    const distribution = new Distribution(
+    return new Distribution(
       props.id,
       props.estateId,
-      props.beneficiaryId,
       props.beneficiaryType,
       share,
-      props.assetId || null,
+      props.status,
+      props.beneficiaryUserId,
+      props.beneficiaryFamilyMemberId,
+      props.externalName,
+      props.relationship,
+      props.lifeInterest || false,
+      props.lifeInterestEndsAt,
+      props.isMinor || false,
+      props.heldInTrustId,
+      props.distributedAt,
+      props.priority || 1,
+      props.createdAt,
+      props.updatedAt,
     );
-
-    distribution.status = props.status;
-    distribution.externalBeneficiaryName = props.externalBeneficiaryName ?? null;
-    distribution.externalBeneficiaryContact = props.externalBeneficiaryContact ?? null;
-    distribution.transferNotes = props.transferNotes ?? null;
-    distribution.transferMethod = props.transferMethod ?? null;
-    distribution.transferReference = props.transferReference ?? null;
-    distribution.transferValue = props.transferValue ?? null;
-    distribution.disputeReason = props.disputeReason ?? null;
-    distribution.disputedBy = props.disputedBy ?? null;
-    distribution.deferralReason = props.deferralReason ?? null;
-    distribution.legalDescription = props.legalDescription ?? null;
-
-    distribution.transferDate = props.transferDate ? new Date(props.transferDate) : null;
-    distribution.disputeDate = props.disputeDate ? new Date(props.disputeDate) : null;
-    distribution.deferredUntil = props.deferredUntil ? new Date(props.deferredUntil) : null;
-    distribution.createdAt = new Date(props.createdAt);
-    distribution.updatedAt = new Date(props.updatedAt);
-
-    return distribution;
   }
 
-  // --------------------------------------------------------------------------
-  // BUSINESS LOGIC
-  // --------------------------------------------------------------------------
+  // ==========================================================================
+  // BUSINESS LOGIC (Domain Behavior)
+  // ==========================================================================
 
-  startTransfer(initiatedBy: string): void {
-    if (this.status !== 'PENDING' && this.status !== 'DEFERRED')
-      throw new Error('Only pending or deferred distributions can start transfer.');
-    const oldStatus = this.status;
-    this.status = 'IN_PROGRESS';
+  // Legal Requirement: Section 35-40 of Law of Succession Act - Distribution order
+  startDistribution(initiatedBy: string): void {
+    if (this.status !== DistributionStatus.PENDING) {
+      throw new Error('Only pending distributions can be started');
+    }
+
+    // Legal Requirement: Minors require trust setup before distribution
+    if (this.isMinor && !this.heldInTrustId) {
+      throw new Error('Minor beneficiaries require testamentary trust before distribution');
+    }
+
+    // Legal Requirement: Life interest validation
+    if (this.lifeInterest && !this.lifeInterestEndsAt) {
+      throw new Error('Life interest distributions must have an end date');
+    }
+
+    this.status = DistributionStatus.IN_PROGRESS;
     this.updatedAt = new Date();
+
     this.apply(
-      new DistributionStatusChangedEvent(
+      new DistributionStartedEvent(
         this.id,
         this.estateId,
-        oldStatus,
-        this.status,
-        'Transfer process initiated',
+        this.getBeneficiaryIdentifier(),
+        this.share.calculateAmount(0), // Will be calculated with actual estate value
         initiatedBy,
       ),
     );
   }
 
-  completeTransfer(
-    date: Date,
-    transferMethod: TransferMethod,
-    options?: { notes?: string; reference?: string; transferValue?: number; completedBy?: string },
+  // Legal Requirement: Proper completion with Kenyan transfer formalities
+  completeDistribution(
+    distributedAt: Date = new Date(),
+    options?: {
+      transferMethod?: string;
+      transactionReference?: string;
+      completedBy?: string;
+    },
   ): void {
-    if (this.status === 'COMPLETED') return;
-    if (this.status === 'DISPUTED') throw new Error('Cannot distribute a disputed entitlement.');
-    if (this.status === 'DEFERRED' && this.deferredUntil && date < this.deferredUntil)
-      throw new Error('Cannot complete transfer before deferral period ends.');
-
-    this.validateKenyanTransferMethod(transferMethod, options?.reference);
-
-    const oldStatus = this.status;
-    this.status = 'COMPLETED';
-    this.transferDate = date;
-    this.transferMethod = transferMethod;
-
-    if (options) {
-      if (options.notes) this.transferNotes = options.notes;
-      if (options.reference) this.transferReference = options.reference;
-      if (options.transferValue) this.transferValue = options.transferValue;
+    if (this.status !== DistributionStatus.IN_PROGRESS) {
+      throw new Error('Only distributions in progress can be completed');
     }
+
+    // Legal Requirement: Life interest validation
+    if (this.lifeInterest && this.lifeInterestEndsAt && distributedAt > this.lifeInterestEndsAt) {
+      throw new Error('Cannot complete life interest distribution after interest end date');
+    }
+
+    this.status = DistributionStatus.COMPLETED;
+    this.distributedAt = distributedAt;
     this.updatedAt = new Date();
 
     this.apply(
-      new AssetTransferredEvent(
+      new DistributionCompletedEvent(
         this.id,
         this.estateId,
-        this.assetId || 'RESIDUARY',
-        date,
-        transferMethod,
-        options?.reference,
-        options?.transferValue,
-      ),
-    );
-
-    this.apply(
-      new DistributionStatusChangedEvent(
-        this.id,
-        this.estateId,
-        oldStatus,
-        this.status,
-        'Transfer completed successfully',
+        this.getBeneficiaryIdentifier(),
+        distributedAt,
+        options?.transferMethod,
+        options?.transactionReference,
         options?.completedBy,
       ),
     );
   }
 
-  private validateKenyanTransferMethod(method: TransferMethod, reference?: string): void {
-    const methodRequirements: Record<
-      TransferMethod,
-      { requiresReference: boolean; description: string }
-    > = {
-      TITLE_DEED: {
-        requiresReference: true,
-        description: 'Lands Registry Title Deed reference required',
-      },
-      CASH_TRANSFER: { requiresReference: true, description: 'Bank/M-Pesa reference required' },
-      SHARE_CERTIFICATE: {
-        requiresReference: true,
-        description: 'Share certificate number required',
-      },
-      OTHER: { requiresReference: false, description: 'Documentation recommended' },
-    };
-    const requirement = methodRequirements[method];
-    if (requirement.requiresReference && !reference) {
-      throw new Error(`${requirement.description} for transfer method: ${method}`);
-    }
-  }
-
-  markDisputed(reason: string, disputedBy: string): void {
-    if (this.status === 'COMPLETED') {
+  // Legal Requirement: Dispute handling for contested distributions
+  markAsDisputed(disputeReason: string, disputedBy: string): void {
+    if (this.status === DistributionStatus.COMPLETED) {
+      // Legal Requirement: 6-month limitation for challenging distributions
       const sixMonthsAgo = new Date();
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      if (this.transferDate && this.transferDate < sixMonthsAgo) {
-        throw new Error('Disputes must be filed within 6 months of distribution under Kenyan law.');
+
+      if (this.distributedAt && this.distributedAt < sixMonthsAgo) {
+        throw new Error(
+          'Distributions cannot be disputed after 6 months under Kenyan limitation laws',
+        );
       }
     }
 
-    const oldStatus = this.status;
-    this.status = 'DISPUTED';
-    this.disputeReason = reason;
-    this.disputedBy = disputedBy;
-    this.disputeDate = new Date();
+    this.status = DistributionStatus.DISPUTED;
     this.updatedAt = new Date();
 
-    this.apply(
-      new DistributionDisputedEvent(this.id, this.estateId, reason, disputedBy, this.disputeDate),
-    );
-    this.apply(
-      new DistributionStatusChangedEvent(
-        this.id,
-        this.estateId,
-        oldStatus,
-        this.status,
-        `Distribution disputed: ${reason}`,
-        disputedBy,
-      ),
-    );
+    this.apply(new DistributionDisputedEvent(this.id, this.estateId, disputeReason, disputedBy));
   }
 
-  resolveDispute(resolution: string, resolvedBy: string): void {
-    if (this.status !== 'DISPUTED') throw new Error('Can only resolve disputed distributions.');
-    const newStatus = this.transferDate ? 'COMPLETED' : 'PENDING';
-    const oldStatus = this.status;
-    this.status = newStatus;
-    this.disputeReason = `${this.disputeReason} - RESOLVED: ${resolution}`;
-    this.updatedAt = new Date();
-    this.apply(
-      new DistributionStatusChangedEvent(
-        this.id,
-        this.estateId,
-        oldStatus,
-        this.status,
-        `Dispute resolved: ${resolution}`,
-        resolvedBy,
-      ),
-    );
-  }
-
-  defer(reason: string, untilDate: Date, deferredBy: string): void {
-    if (this.status !== 'PENDING') throw new Error('Only pending distributions can be deferred.');
-    if (reason.toLowerCase().includes('minor')) {
-      const maxMinorAgeDate = new Date();
-      maxMinorAgeDate.setFullYear(maxMinorAgeDate.getFullYear() + 21);
-      if (untilDate > maxMinorAgeDate)
-        throw new Error('Deferral for minors cannot extend beyond age 21.');
+  // Legal Requirement: Deferral for minors and conditional bequests
+  deferDistribution(deferralReason: string, deferredUntil: Date, deferredBy: string): void {
+    if (this.status !== DistributionStatus.PENDING) {
+      throw new Error('Only pending distributions can be deferred');
     }
 
-    const oldStatus = this.status;
-    this.status = 'DEFERRED';
-    this.deferralReason = reason;
-    this.deferredUntil = untilDate;
+    // Legal Requirement: Maximum deferral period for minors (age 18)
+    if (this.isMinor) {
+      const maxAgeDate = new Date();
+      maxAgeDate.setFullYear(maxAgeDate.getFullYear() + 18); // Until age 18
+
+      if (deferredUntil > maxAgeDate) {
+        throw new Error('Deferral for minors cannot extend beyond age 18');
+      }
+    }
+
+    this.status = DistributionStatus.DEFERRED;
     this.updatedAt = new Date();
 
     this.apply(
-      new DistributionDeferredEvent(this.id, this.estateId, reason, untilDate, deferredBy),
-    );
-    this.apply(
-      new DistributionStatusChangedEvent(
+      new DistributionDeferredEvent(
         this.id,
         this.estateId,
-        oldStatus,
-        this.status,
-        `Distribution deferred until ${untilDate.toDateString()}: ${reason}`,
+        deferralReason,
+        deferredUntil,
         deferredBy,
       ),
     );
   }
 
-  updateLegalDescription(description: string): void {
-    if (this.status === 'COMPLETED')
-      throw new Error('Cannot update legal description for completed transfers.');
-    this.legalDescription = description;
-    this.updatedAt = new Date();
-  }
-
-  calculateStampDuty(): number {
-    if (!this.assetId || !this.transferValue) return 0;
-    const transferValue = this.transferValue;
-    let stampDuty = 0;
-    // Simplified Kenyan rates
-    if (transferValue <= 100000) {
-      stampDuty = transferValue * 0.01;
-    } else if (transferValue <= 1000000) {
-      stampDuty = 1000 + (transferValue - 100000) * 0.02;
-    } else {
-      stampDuty = 19000 + (transferValue - 1000000) * 0.04;
+  resolveDispute(resolution: string, resolvedBy: string): void {
+    if (this.status !== DistributionStatus.DISPUTED) {
+      throw new Error('Only disputed distributions can be resolved');
     }
-    return Math.max(stampDuty, 100);
-  }
 
-  validateStampDutyPaid(stampDutyReceiptNumber: string, paidAmount: number): void {
-    if (this.transferMethod !== 'TITLE_DEED')
-      throw new Error('Stamp duty validation only applies to property transfers.');
-    const calculatedDuty = this.calculateStampDuty();
-    if (paidAmount < calculatedDuty)
-      throw new Error(`Paid stamp duty (${paidAmount}) is less than required (${calculatedDuty})`);
-    this.transferNotes =
-      `${this.transferNotes || ''} | Stamp Duty: KES ${paidAmount}, Receipt: ${stampDutyReceiptNumber}`.trim();
+    // Determine appropriate status after dispute resolution
+    const newStatus = this.distributedAt
+      ? DistributionStatus.COMPLETED
+      : DistributionStatus.PENDING;
+
+    this.status = newStatus;
     this.updatedAt = new Date();
-  }
 
-  requiresCourtConfirmation(totalEstateValue?: number): boolean {
-    let distributionValue: number;
-    if (this.transferValue) {
-      distributionValue = this.transferValue;
-    } else if (totalEstateValue) {
-      distributionValue = totalEstateValue * (this.share.getPercentage() / 100);
-    } else {
-      return false;
+    // Additional business logic for dispute resolution
+    if (this.isMinor) {
+      console.warn('Minor beneficiary distribution resolved - ensure proper trust management');
     }
-    return distributionValue >= 5000000;
   }
 
-  generateLegalDescription(propertyDetails: {
-    parcelNumber: string;
-    location: string;
-    area: string;
-  }): string {
-    this.legalDescription = `ALL THAT piece of land known as ${propertyDetails.parcelNumber} situated at ${propertyDetails.location} measuring approximately ${propertyDetails.area} as transferred under Grant of Representation ${this.estateId}`;
-    return this.legalDescription;
+  // ==========================================================================
+  // LEGAL COMPLIANCE & VALIDATION
+  // ==========================================================================
+
+  private validate(): void {
+    if (!this.id) throw new Error('Distribution ID is required');
+    if (!this.estateId) throw new Error('Estate ID is required');
+    if (!this.beneficiaryType) throw new Error('Beneficiary type is required');
+    if (!this.share) throw new Error('Distribution share is required');
+    if (!this.status) throw new Error('Distribution status is required');
+
+    // Legal Requirement: Beneficiary identification
+    if (!this.beneficiaryUserId && !this.beneficiaryFamilyMemberId && !this.externalName) {
+      throw new Error('Distribution must have a beneficiary (user, family member, or external)');
+    }
+
+    // Legal Requirement: Life interest validation
+    if (this.lifeInterest && !this.lifeInterestEndsAt) {
+      throw new Error('Life interest distributions must specify an end date');
+    }
+
+    // Legal Requirement: Minor beneficiary protection
+    if (this.isMinor && this.beneficiaryType === BequestType.SPECIFIC) {
+      console.warn('Specific bequests to minors should be held in trust for protection');
+    }
   }
 
-  validateKenyanCompliance(): string[] {
-    const issues: string[] = [];
-    if (this.share.getBeneficiaryType() === 'SPOUSE' && this.share.getPercentage() < 20)
-      issues.push('Spousal entitlement appears below recommended minimum share');
-    if (this.share.getBeneficiaryType() === 'CHILD' && !this.deferredUntil)
-      issues.push('Minor child beneficiary should have deferred distribution');
-    if (this.transferMethod === 'TITLE_DEED' && !this.legalDescription)
-      issues.push('Property transfer requires legal description');
-    return issues;
+  private static validateBeneficiaryType(
+    beneficiaryType: BequestType,
+    relationship?: RelationshipType,
+  ): void {
+    // Legal Requirement: Relationship validation for family distributions
+    if (beneficiaryType === BequestType.SPECIFIC && !relationship) {
+      console.warn('Specific bequests should specify relationship for legal clarity');
+    }
+
+    // Legal Requirement: Conditional bequest validation
+    if (beneficiaryType === BequestType.CONDITIONAL) {
+      console.warn('Conditional bequests require careful legal drafting and monitoring');
+    }
   }
 
-  // --------------------------------------------------------------------------
-  // HELPER METHODS
-  // --------------------------------------------------------------------------
+  // ==========================================================================
+  // QUERY METHODS & BUSINESS RULES
+  // ==========================================================================
 
-  private static mapBeneficiaryType(
-    beneficiaryType: BeneficiaryType,
-  ): 'SPOUSE' | 'CHILD' | 'DEPENDANT' | 'OTHER' {
-    const mapping: Record<BeneficiaryType, 'SPOUSE' | 'CHILD' | 'DEPENDANT' | 'OTHER'> = {
-      USER: 'OTHER',
-      FAMILY_MEMBER: 'OTHER',
-      EXTERNAL: 'OTHER',
-    };
-    return mapping[beneficiaryType];
+  getBeneficiaryIdentifier(): string {
+    if (this.beneficiaryUserId) return `USER:${this.beneficiaryUserId}`;
+    if (this.beneficiaryFamilyMemberId) return `FAMILY:${this.beneficiaryFamilyMemberId}`;
+    if (this.externalName) return `EXTERNAL:${this.externalName}`;
+    return 'UNKNOWN';
   }
 
-  updateBeneficiaryCategory(category: 'SPOUSE' | 'CHILD' | 'DEPENDANT' | 'OTHER'): void {
-    if (this.status === 'COMPLETED')
-      throw new Error('Cannot update beneficiary category for completed distributions.');
-    this.share = new DistributionShare(
-      this.share.getPercentage(),
-      this.share.getType(),
-      category,
-      this.share.getCondition(),
-    );
-    this.updatedAt = new Date();
+  calculateDistributionAmount(totalEstateValue: number): number {
+    return this.share.calculateAmount(totalEstateValue);
   }
 
-  canProceed(): boolean {
-    return this.status === 'PENDING' || (this.status === 'DEFERRED' && this.isDeferralPeriodOver());
+  isReadyForDistribution(): boolean {
+    if (this.status !== DistributionStatus.PENDING) return false;
+
+    // Legal Restrictions
+    if (this.isMinor && !this.heldInTrustId) return false;
+    if (this.lifeInterest && this.lifeInterestEndsAt && new Date() > this.lifeInterestEndsAt) {
+      return false; // Life interest has expired
+    }
+
+    return true;
   }
 
-  isDeferralPeriodOver(): boolean {
-    if (!this.deferredUntil) return true;
-    return new Date() >= this.deferredUntil;
+  requiresCourtConfirmation(totalEstateValue: number): boolean {
+    const distributionAmount = this.calculateDistributionAmount(totalEstateValue);
+
+    // Legal Requirement: Large distributions may require court confirmation
+    return distributionAmount > 5000000; // 5 million KES threshold
   }
 
-  isLifeInterest(): boolean {
-    return this.share.isLifeInterest();
-  }
-  hasConditions(): boolean {
-    return this.share.getCondition() !== undefined;
+  isLifeInterestActive(): boolean {
+    if (!this.lifeInterest || !this.lifeInterestEndsAt) return false;
+    return new Date() <= this.lifeInterestEndsAt;
   }
 
-  getBeneficiaryDisplayName(): string {
-    return this.externalBeneficiaryName || `Beneficiary ${this.beneficiaryId.substring(0, 8)}`;
+  getDaysSinceCreation(): number {
+    const today = new Date();
+    const diffTime = Math.abs(today.getTime() - this.createdAt.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
-  // Getters
+  canBeModified(): boolean {
+    return [DistributionStatus.PENDING, DistributionStatus.DEFERRED].includes(this.status);
+  }
+
+  // ==========================================================================
+  // GETTERS (Persistence Interface)
+  // ==========================================================================
+
   getId(): string {
     return this.id;
-  }
-  getShare(): DistributionShare {
-    return this.share;
-  }
-  getStatus(): DistributionStatus {
-    return this.status;
-  }
-  getBeneficiaryId(): string {
-    return this.beneficiaryId;
-  }
-  getAssetId(): string | null {
-    return this.assetId;
   }
   getEstateId(): string {
     return this.estateId;
   }
-  getBeneficiaryType(): BeneficiaryType {
+  getBeneficiaryType(): BequestType {
     return this.beneficiaryType;
   }
-  getExternalBeneficiaryName(): string | null {
-    return this.externalBeneficiaryName;
+  getSharePercent(): number | undefined {
+    return this.share.getSharePercent();
   }
-  getExternalBeneficiaryContact(): string | null {
-    return this.externalBeneficiaryContact;
+  getFixedAmount(): number | undefined {
+    return this.share.getFixedAmount();
   }
-  getTransferDate(): Date | null {
-    return this.transferDate;
+  getStatus(): DistributionStatus {
+    return this.status;
   }
-  getTransferNotes(): string | null {
-    return this.transferNotes;
+  getBeneficiaryUserId(): string | undefined {
+    return this.beneficiaryUserId;
   }
-  getTransferMethod(): TransferMethod | null {
-    return this.transferMethod;
+  getBeneficiaryFamilyMemberId(): string | undefined {
+    return this.beneficiaryFamilyMemberId;
   }
-  getTransferReference(): string | null {
-    return this.transferReference;
+  getExternalName(): string | undefined {
+    return this.externalName;
   }
-  getTransferValue(): number | null {
-    return this.transferValue;
+  getRelationship(): RelationshipType | undefined {
+    return this.relationship;
   }
-  getDisputeReason(): string | null {
-    return this.disputeReason;
+  getLifeInterest(): boolean {
+    return this.lifeInterest;
   }
-  getDisputedBy(): string | null {
-    return this.disputedBy;
+  getLifeInterestEndsAt(): Date | undefined {
+    return this.lifeInterestEndsAt;
   }
-  getDisputeDate(): Date | null {
-    return this.disputeDate;
+  getIsMinor(): boolean {
+    return this.isMinor;
   }
-  getDeferralReason(): string | null {
-    return this.deferralReason;
+  getHeldInTrustId(): string | undefined {
+    return this.heldInTrustId;
   }
-  getDeferredUntil(): Date | null {
-    return this.deferredUntil;
+  getDistributedAt(): Date | undefined {
+    return this.distributedAt;
   }
-  getLegalDescription(): string | null {
-    return this.legalDescription;
+  getPriority(): number {
+    return this.priority;
   }
   getCreatedAt(): Date {
     return this.createdAt;
@@ -586,28 +460,25 @@ export class Distribution extends AggregateRoot {
     return this.updatedAt;
   }
 
-  getProps(): DistributionProps {
+  // For persistence reconstitution
+  getProps() {
     return {
       id: this.id,
       estateId: this.estateId,
-      beneficiaryId: this.beneficiaryId,
       beneficiaryType: this.beneficiaryType,
-      externalBeneficiaryName: this.externalBeneficiaryName,
-      externalBeneficiaryContact: this.externalBeneficiaryContact,
-      assetId: this.assetId,
-      share: this.share,
+      sharePercent: this.share.getSharePercent(),
+      fixedAmount: this.share.getFixedAmount(),
       status: this.status,
-      transferDate: this.transferDate,
-      transferNotes: this.transferNotes,
-      transferMethod: this.transferMethod,
-      transferReference: this.transferReference,
-      transferValue: this.transferValue,
-      disputeReason: this.disputeReason,
-      disputedBy: this.disputedBy,
-      disputeDate: this.disputeDate,
-      deferralReason: this.deferralReason,
-      deferredUntil: this.deferredUntil,
-      legalDescription: this.legalDescription,
+      beneficiaryUserId: this.beneficiaryUserId,
+      beneficiaryFamilyMemberId: this.beneficiaryFamilyMemberId,
+      externalName: this.externalName,
+      relationship: this.relationship,
+      lifeInterest: this.lifeInterest,
+      lifeInterestEndsAt: this.lifeInterestEndsAt,
+      isMinor: this.isMinor,
+      heldInTrustId: this.heldInTrustId,
+      distributedAt: this.distributedAt,
+      priority: this.priority,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

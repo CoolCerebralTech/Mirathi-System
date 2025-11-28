@@ -1,11 +1,9 @@
 import { Prisma, Asset as PrismaAsset } from '@prisma/client';
-import { AssetOwnershipType, AssetType } from '@prisma/client';
 
 import {
   Asset,
-  AssetIdentification,
-  AssetLocation,
   AssetReconstituteProps,
+  GPSCoordinates,
 } from '../../../domain/entities/asset.entity';
 
 export class AssetMapper {
@@ -13,54 +11,65 @@ export class AssetMapper {
    * Converts a Prisma Database Model to a Domain Entity
    */
   static toDomain(raw: PrismaAsset): Asset {
-    // 1. Safe JSON extraction with explicit typing
-    const location =
-      raw.location && typeof raw.location === 'object' && !Array.isArray(raw.location)
-        ? (raw.location as unknown as AssetLocation)
-        : null;
+    // 1. Safe JSON extraction for GPS coordinates
+    const gpsCoordinates = this.parseGpsCoordinates(raw.gpsCoordinates);
 
-    const identification =
-      raw.identificationDetails &&
-      typeof raw.identificationDetails === 'object' &&
-      !Array.isArray(raw.identificationDetails)
-        ? (raw.identificationDetails as unknown as AssetIdentification)
-        : null;
+    // 2. Safe JSON extraction for identification details
+    const identificationDetails = this.parseIdentificationDetails(raw.identificationDetails);
 
-    // 2. Extract Metadata safely
-    const metadataRecord = (raw.metadata as Record<string, unknown>) || {};
-    const encumbranceAmount =
-      typeof metadataRecord.encumbranceAmount === 'number' ? metadataRecord.encumbranceAmount : 0;
-
-    // 3. Handle Decimal conversions safely
-    const ownershipShare = raw.ownershipShare ? raw.ownershipShare.toNumber() : 100;
-    const estimatedValue = raw.estimatedValue ? raw.estimatedValue.toNumber() : 0;
-
-    // 4. Construct Reconstruction Props
+    // 3. Construct Reconstruction Props with ALL fields
     const props: AssetReconstituteProps = {
+      // Core Identity
       id: raw.id,
       name: raw.name,
-      description: raw.description || '',
-      type: raw.type as unknown as AssetType,
+      description: raw.description,
+      type: raw.type,
       ownerId: raw.ownerId,
-      ownershipType: raw.ownershipType as unknown as AssetOwnershipType,
-      ownershipShare: ownershipShare,
+      ownershipType: raw.ownershipType,
+      ownershipShare: raw.ownershipShare.toNumber(),
 
-      // Reconstruct AssetValue Data
-      currentValue: {
-        amount: estimatedValue,
-        currency: raw.currency,
-        valuationDate: raw.valuationDate || raw.createdAt,
-      },
+      // Kenyan Location Data
+      county: raw.county,
+      subCounty: raw.subCounty,
+      ward: raw.ward,
+      village: raw.village,
+      landReferenceNumber: raw.landReferenceNumber,
+      gpsCoordinates: gpsCoordinates,
 
-      location: location,
-      identification: identification,
+      // Kenyan Identification
+      titleDeedNumber: raw.titleDeedNumber,
+      registrationNumber: raw.registrationNumber,
+      kraPin: raw.kraPin,
+      identificationDetails: identificationDetails,
 
-      hasVerifiedDocument: raw.hasVerifiedDocument,
+      // Valuation
+      currentValue: raw.currentValue ? raw.currentValue.toNumber() : null,
+      currency: raw.currency,
+      valuationDate: raw.valuationDate,
+      valuationSource: raw.valuationSource,
+
+      // Legal Status - Kenyan Compliance
+      verificationStatus: raw.verificationStatus,
       isEncumbered: raw.isEncumbered,
+      encumbranceType: raw.encumbranceType,
       encumbranceDetails: raw.encumbranceDetails,
-      encumbranceAmount: encumbranceAmount,
+      encumbranceAmount: raw.encumbranceAmount ? raw.encumbranceAmount.toNumber() : null,
 
+      // Matrimonial Property Status
+      isMatrimonialProperty: raw.isMatrimonialProperty,
+      acquiredDuringMarriage: raw.acquiredDuringMarriage,
+      spouseConsentRequired: raw.spouseConsentRequired,
+
+      // Life Interest Support
+      hasLifeInterest: raw.hasLifeInterest,
+      lifeInterestHolderId: raw.lifeInterestHolderId,
+      lifeInterestEndsAt: raw.lifeInterestEndsAt,
+
+      // Management & Status
       isActive: raw.isActive,
+      requiresProbate: raw.requiresProbate,
+
+      // Audit Trail
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt,
       deletedAt: raw.deletedAt,
@@ -71,72 +80,71 @@ export class AssetMapper {
 
   /**
    * Converts a Domain Entity to a Prisma Persistence format
-   * ENHANCED: Proper JSON null handling for Prisma
    */
   static toPersistence(entity: Asset): Prisma.AssetUncheckedCreateInput {
-    // 1. Extract Value Objects
-    const currentValue = entity.currentValue;
-
-    // 2. Prepare Metadata strictly as a JsonObject
-    const metadata: Prisma.JsonObject = {
-      encumbranceAmount: entity.encumbranceAmount,
-      domainVersion: 1,
-    };
-
-    // 3. ENHANCED: Prepare JSON objects with proper Prisma null handling
-    const locationJson = entity.location
-      ? (JSON.parse(JSON.stringify(entity.location)) as Prisma.JsonObject)
+    // Prepare JSON objects with proper Prisma null handling
+    const gpsCoordinatesJson = entity.gpsCoordinates
+      ? (JSON.parse(JSON.stringify(entity.gpsCoordinates)) as Prisma.JsonObject)
       : Prisma.JsonNull;
 
-    const identificationJson = entity.identification
-      ? (JSON.parse(JSON.stringify(entity.identification)) as Prisma.JsonObject)
+    const identificationDetailsJson = entity.identificationDetails
+      ? (JSON.parse(JSON.stringify(entity.identificationDetails)) as Prisma.JsonObject)
       : Prisma.JsonNull;
 
-    const metadataJson = metadata
-      ? (JSON.parse(JSON.stringify(metadata)) as Prisma.JsonObject)
-      : Prisma.JsonNull;
-
-    // 4. Map 'registrationNumber' using ONLY fields that exist in AssetIdentification
-    const regNumber =
-      entity.identification?.registrationNumber ||
-      entity.identification?.parcelNumber || // Used for Land
-      entity.identification?.vehicleRegistration ||
-      null;
-
-    // 5. ENHANCED: Return Prisma input type instead of model type for better compatibility
     return {
+      // Core Identity
       id: entity.id,
       name: entity.name,
       description: entity.description,
-
-      // Strict Enum Casting
       type: entity.type,
       ownerId: entity.ownerId,
       ownershipType: entity.ownershipType,
-
       ownershipShare: new Prisma.Decimal(entity.ownershipShare),
 
-      // Valuation Mapping
-      estimatedValue: new Prisma.Decimal(currentValue.getAmount()),
-      currency: currentValue.getCurrency(),
-      valuationDate: currentValue.getValuationDate(),
-      valuationSource: 'System Update',
+      // Kenyan Location Data
+      county: entity.county,
+      subCounty: entity.subCounty,
+      ward: entity.ward,
+      village: entity.village,
+      landReferenceNumber: entity.landReferenceNumber,
+      gpsCoordinates: gpsCoordinatesJson,
 
-      // ENHANCED: Use Prisma.JsonNull for null JSON values
-      location: locationJson,
-      identificationDetails: identificationJson,
-      registrationNumber: regNumber,
+      // Kenyan Identification
+      titleDeedNumber: entity.titleDeedNumber,
+      registrationNumber: entity.registrationNumber,
+      kraPin: entity.kraPin,
+      identificationDetails: identificationDetailsJson,
+
+      // Valuation
+      currentValue: entity.currentValue ? new Prisma.Decimal(entity.currentValue) : null,
+      currency: entity.currency,
+      valuationDate: entity.valuationDate,
+      valuationSource: entity.valuationSource,
 
       // Legal Status
-      hasVerifiedDocument: entity.hasVerifiedDocument,
+      verificationStatus: entity.verificationStatus,
       isEncumbered: entity.isEncumbered,
+      encumbranceType: entity.encumbranceType,
       encumbranceDetails: entity.encumbranceDetails,
+      encumbranceAmount: entity.encumbranceAmount
+        ? new Prisma.Decimal(entity.encumbranceAmount)
+        : null,
 
-      // ENHANCED: Use Prisma.JsonNull for metadata
-      metadata: metadataJson,
+      // Matrimonial Property
+      isMatrimonialProperty: entity.isMatrimonialProperty,
+      acquiredDuringMarriage: entity.acquiredDuringMarriage,
+      spouseConsentRequired: entity.spouseConsentRequired,
 
-      // System Flags
+      // Life Interest
+      hasLifeInterest: entity.hasLifeInterest,
+      lifeInterestHolderId: entity.lifeInterestHolderId,
+      lifeInterestEndsAt: entity.lifeInterestEndsAt,
+
+      // Management & Status
       isActive: entity.isActive,
+      requiresProbate: entity.requiresProbate,
+
+      // Audit Trail
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
       deletedAt: entity.deletedAt,
@@ -144,20 +152,54 @@ export class AssetMapper {
   }
 
   /**
-   * ENHANCEMENT: Create update-specific persistence data
+   * Create update-specific persistence data
    * Excludes immutable fields and handles partial updates
    */
   static toUpdatePersistence(entity: Asset): Prisma.AssetUncheckedUpdateInput {
-    const full = this.toPersistence(entity);
+    const persistenceData = this.toPersistence(entity);
 
-    const updatableFields: Omit<
-      Prisma.AssetUncheckedCreateInput,
-      'id' | 'ownerId' | 'type' | 'createdAt'
-    > = full;
+    // Remove immutable fields for update operations
+    const { id, ownerId, type, createdAt, ...updatableFields } = persistenceData;
 
     return {
       ...updatableFields,
-      updatedAt: new Date(),
+      updatedAt: new Date(), // Always update the timestamp
     };
+  }
+
+  /**
+   * Parse GPS coordinates from Prisma JSON field
+   */
+  private static parseGpsCoordinates(gpsCoordinates: Prisma.JsonValue): GPSCoordinates | null {
+    if (!gpsCoordinates || typeof gpsCoordinates !== 'object' || Array.isArray(gpsCoordinates)) {
+      return null;
+    }
+
+    const coords = gpsCoordinates as Record<string, unknown>;
+    if (typeof coords.latitude === 'number' && typeof coords.longitude === 'number') {
+      return {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Parse identification details from Prisma JSON field
+   */
+  private static parseIdentificationDetails(
+    identificationDetails: Prisma.JsonValue,
+  ): Record<string, any> | null {
+    if (
+      !identificationDetails ||
+      typeof identificationDetails !== 'object' ||
+      Array.isArray(identificationDetails)
+    ) {
+      return null;
+    }
+
+    return identificationDetails as Record<string, any>;
   }
 }

@@ -1,522 +1,515 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { BequestConditionType, BequestType, DistributionStatus } from '@prisma/client';
+import {
+  BeneficiaryType,
+  BequestConditionType,
+  BequestPriority,
+  BequestType,
+  DistributionStatus,
+  KenyanRelationshipCategory,
+} from '@prisma/client';
 
 import { BeneficiaryAssignedEvent } from '../events/beneficiary-assigned.event';
 import { BeneficiaryConditionAddedEvent } from '../events/beneficiary-condition-added.event';
 import { BeneficiaryDistributedEvent } from '../events/beneficiary-distributed.event';
 import { BeneficiaryRemovedEvent } from '../events/beneficiary-removed.event';
 import { BeneficiaryShareUpdatedEvent } from '../events/beneficiary-share-updated.event';
-import { AssetValue } from '../value-objects/asset-value.vo';
 import { SharePercentage } from '../value-objects/share-percentage.vo';
 
 /**
- * Represents the identity of a beneficiary in Kenyan succession law
- * A beneficiary can be a registered user, family member, or external entity
- * @interface BeneficiaryIdentity
- */
-export interface BeneficiaryIdentity {
-  userId?: string;
-  familyMemberId?: string;
-  externalName?: string;
-  externalContact?: string;
-  relationship?: string;
-}
-
-/**
- * Data structure for asset valuation information
- * @interface AssetValueData
- */
-export interface AssetValueData {
-  amount: number;
-  currency: string;
-  valuationDate: Date | string;
-}
-
-/**
  * Properties required for entity reconstitution from persistence
- * @interface BeneficiaryReconstituteProps
+ * Strictly aligned with Prisma Schema.
  */
 export interface BeneficiaryReconstituteProps {
   id: string;
   willId: string;
   assetId: string;
 
-  // Identity fields flattened (matches Prisma model)
+  // Beneficiary Identity
+  beneficiaryType: BeneficiaryType;
   userId: string | null;
   familyMemberId: string | null;
   externalName: string | null;
   externalContact: string | null;
-  relationship: string | null;
+  externalIdentification: string | null;
+  externalAddress: Record<string, any> | null; // Parsed from Json
 
+  // Kenyan Relationship Context
+  relationshipCategory: KenyanRelationshipCategory;
+  specificRelationship: string | null;
+  isDependant: boolean;
+
+  // Bequest Configuration
   bequestType: BequestType;
-  sharePercentage: number | null; // Prisma Decimal -> number
-  specificAmount: AssetValueData | AssetValue | null;
+  sharePercent: number | null;
+  specificAmount: number | null;
+  currency: string;
+
+  // Conditions for Kenyan Law
   conditionType: BequestConditionType;
   conditionDetails: string | null;
-  alternateBeneficiaryId: string | null;
-  alternateShare: number | null;
+  conditionMet: boolean | null;
+  conditionDeadline: Date | string | null;
+
+  // Life Interest Support (Kenyan Succession)
+  hasLifeInterest: boolean;
+  lifeInterestDuration: number | null; // Years
+  lifeInterestEndsAt: Date | string | null;
+
+  // Alternate Beneficiary
+  alternateAssignmentId: string | null;
+
+  // Distribution Tracking
   distributionStatus: DistributionStatus;
   distributedAt: Date | string | null;
   distributionNotes: string | null;
+  distributionMethod: string | null;
+
+  // Legal Compliance (Kenyan Law)
+  isSubjectToDependantsProvision: boolean;
+  courtApprovalRequired: boolean;
+  courtApprovalObtained: boolean;
+
+  // Priority & Order
   priority: number;
+  bequestPriority: BequestPriority;
+
+  // Audit Trail
   createdAt: Date | string;
   updatedAt: Date | string;
 }
 
 /**
- * Beneficiary Assignment Entity representing inheritance rights under Kenyan succession law
+ * Beneficiary Assignment Entity
  *
- * Core Domain Entity for managing:
- * - User beneficiaries (registered platform users)
- * - Family member beneficiaries (non-registered family members)
- * - External beneficiaries (charities, organizations, non-family)
- * - Conditional bequests with Kenyan legal compliance
+ * Represents the assignment of an Asset to a Beneficiary within a Will.
  *
- * @class BeneficiaryAssignment
- * @extends {AggregateRoot}
+ * Legal Context:
+ * - Governed by Law of Succession Act (Cap 160).
+ * - Section 26 & 29: Provisions for Dependants.
+ * - Section 37: Life Interest for Spouses.
  */
 export class BeneficiaryAssignment extends AggregateRoot {
   // Core Assignment Properties
   private readonly _id: string;
   private readonly _willId: string;
   private readonly _assetId: string;
-  private readonly _beneficiaryIdentity: BeneficiaryIdentity;
+
+  // Beneficiary Identity
+  private _beneficiaryType: BeneficiaryType;
+  private _userId: string | null;
+  private _familyMemberId: string | null;
+  private _externalName: string | null;
+  private _externalContact: string | null;
+  private _externalIdentification: string | null;
+  private _externalAddress: Record<string, any> | null;
+
+  // Kenyan Relationship Context
+  private _relationshipCategory: KenyanRelationshipCategory;
+  private _specificRelationship: string | null;
+  private _isDependant: boolean;
+
+  // Bequest Configuration
   private _bequestType: BequestType;
-  private _sharePercentage: SharePercentage | null;
-  private _specificAmount: AssetValue | null;
+  private _sharePercent: SharePercentage | null;
+  private _specificAmount: number | null;
+  private _currency: string;
+
+  // Conditions
   private _conditionType: BequestConditionType;
   private _conditionDetails: string | null;
-  private _alternateBeneficiaryId: string | null;
-  private _alternateShare: SharePercentage | null;
+  private _conditionMet: boolean | null;
+  private _conditionDeadline: Date | null;
+
+  // Life Interest Support
+  private _hasLifeInterest: boolean;
+  private _lifeInterestDuration: number | null;
+  private _lifeInterestEndsAt: Date | null;
+
+  // Alternate Beneficiary
+  private _alternateAssignmentId: string | null;
+
+  // Distribution Tracking
   private _distributionStatus: DistributionStatus;
   private _distributedAt: Date | null;
   private _distributionNotes: string | null;
-  private _priority: number;
+  private _distributionMethod: string | null;
 
-  // Audit Trail
+  // Legal Compliance
+  private _isSubjectToDependantsProvision: boolean;
+  private _courtApprovalRequired: boolean;
+  private _courtApprovalObtained: boolean;
+
+  // Priority & Order
+  private _priority: number;
+  private _bequestPriority: BequestPriority;
+
+  // Timestamps
   private _createdAt: Date;
   private _updatedAt: Date;
 
   // --------------------------------------------------------------------------
-  // PRIVATE CONSTRUCTOR - Enforces use of factory methods
+  // CONSTRUCTOR
   // --------------------------------------------------------------------------
   private constructor(
     id: string,
     willId: string,
     assetId: string,
-    identity: BeneficiaryIdentity,
-    bequestType: BequestType,
-    priority: number = 1,
+    beneficiaryType: BeneficiaryType,
+    relationshipCategory: KenyanRelationshipCategory,
+    bequestType: BequestType = BequestType.SPECIFIC,
+    currency: string = 'KES',
   ) {
     super();
 
-    // Validate required parameters
     if (!id?.trim()) throw new Error('Beneficiary assignment ID is required');
     if (!willId?.trim()) throw new Error('Will ID is required');
     if (!assetId?.trim()) throw new Error('Asset ID is required');
 
-    BeneficiaryAssignment.validateIdentity(identity);
-
     this._id = id;
     this._willId = willId;
     this._assetId = assetId;
-    this._beneficiaryIdentity = { ...identity };
+    this._beneficiaryType = beneficiaryType;
+    this._relationshipCategory = relationshipCategory;
     this._bequestType = bequestType;
-    this._priority = priority;
+    this._currency = currency;
 
-    // Initialize default values
-    this._sharePercentage = null;
+    // Defaults
+    this._userId = null;
+    this._familyMemberId = null;
+    this._externalName = null;
+    this._externalContact = null;
+    this._externalIdentification = null;
+    this._externalAddress = null;
+    this._specificRelationship = null;
+    this._isDependant = false;
+
+    this._sharePercent = null;
     this._specificAmount = null;
+
     this._conditionType = BequestConditionType.NONE;
     this._conditionDetails = null;
-    this._alternateBeneficiaryId = null;
-    this._alternateShare = null;
+    this._conditionMet = null;
+    this._conditionDeadline = null;
+
+    this._hasLifeInterest = false;
+    this._lifeInterestDuration = null;
+    this._lifeInterestEndsAt = null;
+
+    this._alternateAssignmentId = null;
+
     this._distributionStatus = DistributionStatus.PENDING;
     this._distributedAt = null;
     this._distributionNotes = null;
+    this._distributionMethod = null;
+
+    this._isSubjectToDependantsProvision = false;
+    this._courtApprovalRequired = false;
+    this._courtApprovalObtained = false;
+
+    this._priority = 1;
+    this._bequestPriority = BequestPriority.PRIMARY;
+
     this._createdAt = new Date();
     this._updatedAt = new Date();
   }
 
   // --------------------------------------------------------------------------
-  // FACTORY METHODS - Domain Lifecycle Management
+  // FACTORY METHODS
   // --------------------------------------------------------------------------
 
-  /**
-   * Creates a beneficiary assignment for a registered platform user
-   *
-   * @static
-   * @param {string} id - Unique assignment identifier
-   * @param {string} willId - Will containing the bequest
-   * @param {string} assetId - Asset being bequeathed
-   * @param {string} userId - Registered user ID of beneficiary
-   * @param {BequestType} bequestType - Type of bequest under Kenyan law
-   * @param {string} [relationship] - Relationship to testator
-   * @returns {BeneficiaryAssignment} New beneficiary assignment
-   */
   static createForUser(
     id: string,
     willId: string,
     assetId: string,
     userId: string,
-    bequestType: BequestType,
-    relationship?: string,
+    relationshipCategory: KenyanRelationshipCategory,
+    specificRelationship?: string,
+    isDependant: boolean = false,
   ): BeneficiaryAssignment {
-    const identity: BeneficiaryIdentity = {
-      userId: userId.trim(),
-      relationship: relationship?.trim(),
-    };
+    if (!userId?.trim()) throw new Error('User ID is required');
 
-    const assignment = new BeneficiaryAssignment(id, willId, assetId, identity, bequestType);
+    const assignment = new BeneficiaryAssignment(
+      id,
+      willId,
+      assetId,
+      BeneficiaryType.USER,
+      relationshipCategory,
+    );
+    assignment._userId = userId;
+    assignment._specificRelationship = specificRelationship || null;
+    assignment._isDependant = isDependant;
 
     assignment.apply(
       new BeneficiaryAssignedEvent(
         assignment._id,
         assignment._willId,
         assignment._assetId,
-        assignment._beneficiaryIdentity,
-        assignment._bequestType,
+        assignment._beneficiaryType,
+        assignment._userId,
+        assignment._relationshipCategory,
       ),
     );
-
     return assignment;
   }
 
-  /**
-   * Creates a beneficiary assignment for a family member
-   *
-   * @static
-   * @param {string} id - Unique assignment identifier
-   * @param {string} willId - Will containing the bequest
-   * @param {string} assetId - Asset being bequeathed
-   * @param {string} familyMemberId - Family member ID of beneficiary
-   * @param {BequestType} bequestType - Type of bequest under Kenyan law
-   * @returns {BeneficiaryAssignment} New beneficiary assignment
-   */
   static createForFamilyMember(
     id: string,
     willId: string,
     assetId: string,
     familyMemberId: string,
-    bequestType: BequestType,
+    relationshipCategory: KenyanRelationshipCategory,
+    specificRelationship?: string,
+    isDependant: boolean = false,
   ): BeneficiaryAssignment {
-    const identity: BeneficiaryIdentity = {
-      familyMemberId: familyMemberId.trim(),
-    };
+    if (!familyMemberId?.trim()) throw new Error('Family member ID is required');
 
-    const assignment = new BeneficiaryAssignment(id, willId, assetId, identity, bequestType);
+    const assignment = new BeneficiaryAssignment(
+      id,
+      willId,
+      assetId,
+      BeneficiaryType.FAMILY_MEMBER,
+      relationshipCategory,
+    );
+    assignment._familyMemberId = familyMemberId;
+    assignment._specificRelationship = specificRelationship || null;
+    assignment._isDependant = isDependant;
 
     assignment.apply(
       new BeneficiaryAssignedEvent(
         assignment._id,
         assignment._willId,
         assignment._assetId,
-        assignment._beneficiaryIdentity,
-        assignment._bequestType,
+        assignment._beneficiaryType,
+        assignment._familyMemberId,
+        assignment._relationshipCategory,
       ),
     );
-
     return assignment;
   }
 
-  /**
-   * Creates a beneficiary assignment for external entities (charities, organizations)
-   *
-   * @static
-   * @param {string} id - Unique assignment identifier
-   * @param {string} willId - Will containing the bequest
-   * @param {string} assetId - Asset being bequeathed
-   * @param {string} externalName - Name of external beneficiary
-   * @param {string} [externalContact] - Contact information
-   * @param {BequestType} [bequestType=BequestType.SPECIFIC] - Type of bequest
-   * @returns {BeneficiaryAssignment} New beneficiary assignment
-   */
   static createForExternal(
     id: string,
     willId: string,
     assetId: string,
     externalName: string,
+    relationshipCategory: KenyanRelationshipCategory,
     externalContact?: string,
-    bequestType: BequestType = BequestType.SPECIFIC,
+    externalIdentification?: string,
+    externalAddress?: Record<string, any>,
   ): BeneficiaryAssignment {
-    const identity: BeneficiaryIdentity = {
-      externalName: externalName.trim(),
-      externalContact: externalContact?.trim(),
-    };
+    if (!externalName?.trim()) throw new Error('External name is required');
 
-    const assignment = new BeneficiaryAssignment(id, willId, assetId, identity, bequestType);
+    const assignment = new BeneficiaryAssignment(
+      id,
+      willId,
+      assetId,
+      BeneficiaryType.EXTERNAL,
+      relationshipCategory,
+    );
+    assignment._externalName = externalName;
+    assignment._externalContact = externalContact || null;
+    assignment._externalIdentification = externalIdentification || null;
+    assignment._externalAddress = externalAddress || null;
 
     assignment.apply(
       new BeneficiaryAssignedEvent(
         assignment._id,
         assignment._willId,
         assignment._assetId,
-        assignment._beneficiaryIdentity,
-        assignment._bequestType,
+        assignment._beneficiaryType,
+        assignment._externalName,
+        assignment._relationshipCategory,
       ),
     );
-
     return assignment;
   }
 
-  /**
-   * Reconstructs BeneficiaryAssignment entity from persistence layer data
-   *
-   * @static
-   * @param {BeneficiaryReconstituteProps} props - Data from database
-   * @returns {BeneficiaryAssignment} Rehydrated beneficiary assignment
-   * @throws {Error} When data validation fails during reconstruction
-   */
+  static createForCharity(
+    id: string,
+    willId: string,
+    assetId: string,
+    charityName: string,
+    registrationNumber?: string,
+    contact?: string,
+  ): BeneficiaryAssignment {
+    if (!charityName?.trim()) throw new Error('Charity name is required');
+
+    const assignment = new BeneficiaryAssignment(
+      id,
+      willId,
+      assetId,
+      BeneficiaryType.CHARITY,
+      KenyanRelationshipCategory.NON_FAMILY,
+    );
+    assignment._externalName = charityName;
+    assignment._externalContact = contact || null;
+    assignment._externalIdentification = registrationNumber || null;
+
+    assignment.apply(
+      new BeneficiaryAssignedEvent(
+        assignment._id,
+        assignment._willId,
+        assignment._assetId,
+        assignment._beneficiaryType,
+        assignment._externalName,
+        assignment._relationshipCategory,
+      ),
+    );
+    return assignment;
+  }
+
   static reconstitute(props: BeneficiaryReconstituteProps): BeneficiaryAssignment {
-    if (!props.id || !props.willId || !props.assetId) {
-      throw new Error('Invalid reconstruction data: missing required fields');
-    }
-
-    // Construct identity from flat props
-    const identity: BeneficiaryIdentity = {
-      userId: props.userId || undefined,
-      familyMemberId: props.familyMemberId || undefined,
-      externalName: props.externalName || undefined,
-      externalContact: props.externalContact || undefined,
-      relationship: props.relationship || undefined,
-    };
-
-    BeneficiaryAssignment.validateIdentity(identity);
-
     const assignment = new BeneficiaryAssignment(
       props.id,
       props.willId,
       props.assetId,
-      identity,
+      props.beneficiaryType,
+      props.relationshipCategory,
       props.bequestType,
-      props.priority,
+      props.currency,
     );
 
+    assignment._userId = props.userId;
+    assignment._familyMemberId = props.familyMemberId;
+    assignment._externalName = props.externalName;
+    assignment._externalContact = props.externalContact;
+    assignment._externalIdentification = props.externalIdentification;
+    assignment._externalAddress = props.externalAddress;
+    assignment._specificRelationship = props.specificRelationship;
+    assignment._isDependant = props.isDependant;
+
+    // Bequest Config
+    if (props.sharePercent !== null) {
+      assignment._sharePercent = new SharePercentage(props.sharePercent);
+    }
+    assignment._specificAmount = props.specificAmount;
+
+    // Conditions
     assignment._conditionType = props.conditionType;
-    assignment._conditionDetails = props.conditionDetails || null;
-    assignment._alternateBeneficiaryId = props.alternateBeneficiaryId || null;
-    assignment._distributionStatus = props.distributionStatus;
-    assignment._distributionNotes = props.distributionNotes || null;
-
-    if (props.sharePercentage !== null && props.sharePercentage !== undefined) {
-      assignment._sharePercentage = BeneficiaryAssignment.reconstructSharePercentage(
-        props.sharePercentage,
-      );
-    }
-
-    if (props.specificAmount) {
-      assignment._specificAmount = BeneficiaryAssignment.reconstructAssetValue(
-        props.specificAmount,
-      );
-    }
-
-    if (props.alternateShare !== null && props.alternateShare !== undefined) {
-      assignment._alternateShare = BeneficiaryAssignment.reconstructSharePercentage(
-        props.alternateShare,
-      );
-    }
-
-    assignment._distributedAt = props.distributedAt
-      ? BeneficiaryAssignment.safeDateConversion(props.distributedAt, 'distributedAt')
+    assignment._conditionDetails = props.conditionDetails;
+    assignment._conditionMet = props.conditionMet;
+    assignment._conditionDeadline = props.conditionDeadline
+      ? new Date(props.conditionDeadline)
       : null;
-    assignment._createdAt = BeneficiaryAssignment.safeDateConversion(props.createdAt, 'createdAt');
-    assignment._updatedAt = BeneficiaryAssignment.safeDateConversion(props.updatedAt, 'updatedAt');
+
+    // Life Interest
+    assignment._hasLifeInterest = props.hasLifeInterest;
+    assignment._lifeInterestDuration = props.lifeInterestDuration;
+    assignment._lifeInterestEndsAt = props.lifeInterestEndsAt
+      ? new Date(props.lifeInterestEndsAt)
+      : null;
+
+    // Alternate
+    assignment._alternateAssignmentId = props.alternateAssignmentId;
+
+    // Distribution
+    assignment._distributionStatus = props.distributionStatus;
+    assignment._distributedAt = props.distributedAt ? new Date(props.distributedAt) : null;
+    assignment._distributionNotes = props.distributionNotes;
+    assignment._distributionMethod = props.distributionMethod;
+
+    // Legal Compliance
+    assignment._isSubjectToDependantsProvision = props.isSubjectToDependantsProvision;
+    assignment._courtApprovalRequired = props.courtApprovalRequired;
+    assignment._courtApprovalObtained = props.courtApprovalObtained;
+
+    // Priority
+    assignment._priority = props.priority;
+    assignment._bequestPriority = props.bequestPriority;
+
+    assignment._createdAt = new Date(props.createdAt);
+    assignment._updatedAt = new Date(props.updatedAt);
 
     return assignment;
-  }
-
-  /**
-   * Safely converts date strings to Date objects with validation
-   *
-   * @private
-   * @static
-   * @param {Date | string} dateInput - Date to convert
-   * @param {string} fieldName - Field name for error reporting
-   * @returns {Date} Valid Date object
-   * @throws {Error} When date conversion fails
-   */
-  private static safeDateConversion(dateInput: Date | string, fieldName: string): Date {
-    try {
-      const date = new Date(dateInput);
-      if (isNaN(date.getTime())) {
-        throw new Error(`Invalid date value for ${fieldName}`);
-      }
-      return date;
-    } catch (error) {
-      throw new Error(
-        `Failed to convert ${fieldName} to valid Date: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-    }
-  }
-
-  /**
-   * Reconstructs SharePercentage from raw number or existing instance
-   *
-   * @private
-   * @static
-   * @param {number | SharePercentage} shareData - Share data to reconstruct
-   * @returns {SharePercentage} Reconstructed SharePercentage instance
-   * @throws {Error} When share data is invalid
-   */
-  private static reconstructSharePercentage(shareData: number | SharePercentage): SharePercentage {
-    if (shareData instanceof SharePercentage) {
-      return shareData;
-    }
-
-    if (typeof shareData !== 'number' || isNaN(shareData)) {
-      throw new Error('Invalid share percentage data: must be number or SharePercentage instance');
-    }
-
-    return new SharePercentage(shareData);
-  }
-
-  /**
-   * Reconstructs AssetValue from raw data or existing instance
-   *
-   * @private
-   * @static
-   * @param {AssetValueData | AssetValue} valueData - Value data to reconstruct
-   * @returns {AssetValue} Reconstructed AssetValue instance
-   * @throws {Error} When value data is invalid
-   */
-  private static reconstructAssetValue(valueData: AssetValueData | AssetValue): AssetValue {
-    if (valueData instanceof AssetValue) {
-      return valueData;
-    }
-
-    if (typeof valueData !== 'object' || valueData === null) {
-      throw new Error('Invalid asset value data: must be object or AssetValue instance');
-    }
-
-    if (typeof valueData.amount !== 'number' || valueData.amount < 0) {
-      throw new Error('Invalid asset value: amount must be non-negative number');
-    }
-
-    if (typeof valueData.currency !== 'string' || !valueData.currency.trim()) {
-      throw new Error('Invalid asset value: currency is required');
-    }
-
-    const valuationDate = BeneficiaryAssignment.safeDateConversion(
-      valueData.valuationDate,
-      'valuationDate',
-    );
-
-    return new AssetValue(valueData.amount, valueData.currency.trim(), valuationDate);
-  }
-
-  /**
-   * Validates beneficiary identity structure
-   *
-   * @private
-   * @static
-   * @param {BeneficiaryIdentity} identity - Identity to validate
-   * @throws {Error} When identity structure is invalid
-   */
-  private static validateIdentity(identity: BeneficiaryIdentity): void {
-    const hasUserId = Boolean(identity.userId?.trim());
-    const hasFamilyMemberId = Boolean(identity.familyMemberId?.trim());
-    const hasExternalName = Boolean(identity.externalName?.trim());
-
-    const identityCount =
-      (hasUserId ? 1 : 0) + (hasFamilyMemberId ? 1 : 0) + (hasExternalName ? 1 : 0);
-
-    if (identityCount === 0) {
-      throw new Error(
-        'Beneficiary must have exactly one form of identification (User ID, Family Member ID, or External Name)',
-      );
-    }
-
-    if (identityCount > 1) {
-      throw new Error('Beneficiary cannot have multiple forms of identification simultaneously');
-    }
   }
 
   // --------------------------------------------------------------------------
   // BUSINESS LOGIC & DOMAIN OPERATIONS
   // --------------------------------------------------------------------------
 
-  /**
-   * Updates percentage share allocation for percentage/residuary bequests
-   *
-   * @param {SharePercentage} share - Percentage share (0-100%)
-   * @param {string} [updatedBy] - User ID of person making update
-   * @throws {Error} When bequest type doesn't support shares or share is invalid
-   */
-  updateShare(share: SharePercentage, updatedBy?: string): void {
+  public updateSharePercentage(sharePercent: SharePercentage): void {
     if (
       this._bequestType !== BequestType.PERCENTAGE &&
       this._bequestType !== BequestType.RESIDUARY
     ) {
       throw new Error('Share percentage can only be set for PERCENTAGE or RESIDUARY bequests');
     }
+    // Kenyan Law of Succession Act, Section 26: If a dependant is not adequately provided for, they can challenge the will.
+    // Changing a dependant's share requires care, but strictly speaking, the Testator *can* change it before death.
+    // The previous check "dependant shares require court approval" is only true AFTER death/probate.
+    // Assuming this entity manages the "Will Planning" phase (pre-death), we allow modification but warn.
+    // If this entity manages "Estate Administration" (post-death), then yes, court orders are needed.
+    // Given this is likely "Will Writing", we allow it but maybe flag it.
 
-    this._sharePercentage = share;
-    this._specificAmount = null; // Mutual exclusion
+    this._sharePercent = sharePercent;
+    this._specificAmount = null;
     this._updatedAt = new Date();
 
-    if (updatedBy?.trim()) {
-      this.apply(
-        new BeneficiaryShareUpdatedEvent(
-          this._id,
-          this._willId,
-          this._bequestType,
-          share,
-          null,
-          updatedBy.trim(),
-        ),
-      );
-    }
+    this.apply(
+      new BeneficiaryShareUpdatedEvent(
+        this._id,
+        this._willId,
+        this._bequestType,
+        sharePercent.getValue(), // Pass value, not object, to event
+        null,
+      ),
+    );
   }
 
-  /**
-   * Updates specific amount allocation for specific bequests
-   *
-   * @param {AssetValue} amount - Specific monetary amount
-   * @param {string} [updatedBy] - User ID of person making update
-   * @throws {Error} When bequest type doesn't support specific amounts
-   */
-  updateSpecificAmount(amount: AssetValue, updatedBy?: string): void {
+  public updateSpecificAmount(amount: number): void {
     if (this._bequestType !== BequestType.SPECIFIC) {
       throw new Error('Specific amount can only be set for SPECIFIC bequests');
     }
+    if (amount < 0) throw new Error('Specific amount cannot be negative');
 
     this._specificAmount = amount;
-    this._sharePercentage = null; // Mutual exclusion
+    this._sharePercent = null;
     this._updatedAt = new Date();
 
-    if (updatedBy?.trim()) {
-      this.apply(
-        new BeneficiaryShareUpdatedEvent(
-          this._id,
-          this._willId,
-          this._bequestType,
-          null,
-          amount,
-          updatedBy.trim(),
-        ),
-      );
-    }
+    this.apply(
+      new BeneficiaryShareUpdatedEvent(this._id, this._willId, this._bequestType, null, amount),
+    );
   }
 
-  /**
-   * Adds conditional requirement to bequest under Kenyan law
-   *
-   * @param {BequestConditionType} type - Type of condition
-   * @param {string} details - Condition details description
-   * @throws {Error} When condition details are empty
-   */
-  addCondition(type: BequestConditionType, details: string): void {
+  public markAsDependant(): void {
+    // Reference: Law of Succession Act, Section 29
+    this._isDependant = true;
+    this._isSubjectToDependantsProvision = true;
+    // Note: 'courtApprovalRequired' usually applies to *distribution* deviations, not just being a dependant.
+    // However, if we mean "distributing to this person is mandatory", we flag it.
+    this._updatedAt = new Date();
+  }
+
+  public setLifeInterest(durationYears: number, endsAt: Date): void {
+    if (durationYears < 1) throw new Error('Duration must be at least 1 year');
+    if (endsAt <= new Date()) throw new Error('End date must be in the future');
+
+    this._hasLifeInterest = true;
+    this._lifeInterestDuration = durationYears;
+    this._lifeInterestEndsAt = endsAt;
+    this._updatedAt = new Date();
+  }
+
+  public addCondition(type: BequestConditionType, details: string, deadline?: Date): void {
     if (type === BequestConditionType.NONE) {
       this.removeCondition();
       return;
     }
+    if (!details?.trim()) throw new Error('Condition details required');
 
-    if (!details?.trim()) {
-      throw new Error('Condition details are required');
+    // Section 11 of Law of Succession Act: Void conditions.
+    // Conditions repugnant to the interest given, or illegal/immoral conditions are void.
+    // While we can't fully automate legality checks, preventing marriage restrictions on dependants is a good heuristic.
+    if (type === BequestConditionType.MARRIAGE && this._isDependant) {
+      throw new Error(
+        'Marriage conditions on dependants may be void under Kenyan law (Section 11)',
+      );
     }
 
     this._conditionType = type;
     this._conditionDetails = details.trim();
+    this._conditionDeadline = deadline || null;
+    this._conditionMet = false;
     this._updatedAt = new Date();
 
     this.apply(
@@ -524,57 +517,42 @@ export class BeneficiaryAssignment extends AggregateRoot {
     );
   }
 
-  /**
-   * Removes all conditions from bequest
-   */
-  removeCondition(): void {
+  private removeCondition(): void {
     this._conditionType = BequestConditionType.NONE;
     this._conditionDetails = null;
+    this._conditionMet = null;
+    this._conditionDeadline = null;
     this._updatedAt = new Date();
   }
 
-  /**
-   * Sets alternate beneficiary for conditional bequests
-   *
-   * @param {string} alternateBeneficiaryId - ID of alternate beneficiary
-   * @param {SharePercentage} share - Share percentage for alternate
-   * @throws {Error} When parameters are invalid
-   */
-  setAlternateBeneficiary(alternateBeneficiaryId: string, share: SharePercentage): void {
-    if (!alternateBeneficiaryId?.trim()) {
-      throw new Error('Alternate beneficiary ID is required');
-    }
-
-    this._alternateBeneficiaryId = alternateBeneficiaryId.trim();
-    this._alternateShare = share;
+  public markConditionAsMet(): void {
+    if (this._conditionType === BequestConditionType.NONE) throw new Error('No condition set');
+    this._conditionMet = true;
     this._updatedAt = new Date();
   }
 
-  /**
-   * Updates distribution priority order
-   *
-   * @param {number} priority - Priority level (1 = highest)
-   * @throws {Error} When priority is less than 1
-   */
-  updatePriority(priority: number): void {
-    if (priority < 1) {
-      throw new Error('Priority must be at least 1');
-    }
-
-    this._priority = priority;
+  public setAlternateBeneficiary(alternateAssignmentId: string): void {
+    if (!alternateAssignmentId?.trim()) throw new Error('Alternate beneficiary ID required');
+    this._alternateAssignmentId = alternateAssignmentId.trim();
     this._updatedAt = new Date();
   }
 
-  /**
-   * Marks bequest as distributed (succession execution phase)
-   *
-   * @param {string} [notes] - Distribution notes or comments
-   */
-  markAsDistributed(notes?: string): void {
+  public markAsDistributed(method: string, notes?: string): void {
     if (this._distributionStatus === DistributionStatus.COMPLETED) return;
+
+    if (this._courtApprovalRequired && !this._courtApprovalObtained) {
+      throw new Error('Court approval required before distribution (Law of Succession Act)');
+    }
+
+    // You cannot "Distribute" (transfer ownership) if there is a Life Interest currently active.
+    // The asset is held in trust, not transferred to the remainderman yet.
+    if (this.hasActiveLifeInterest()) {
+      throw new Error('Cannot absolutely distribute asset with active life interest');
+    }
 
     this._distributionStatus = DistributionStatus.COMPLETED;
     this._distributedAt = new Date();
+    this._distributionMethod = method;
     this._distributionNotes = notes?.trim() || null;
     this._updatedAt = new Date();
 
@@ -584,257 +562,94 @@ export class BeneficiaryAssignment extends AggregateRoot {
         this._willId,
         this._assetId,
         this._distributedAt,
-        this._distributionNotes ?? undefined,
+        this._distributionMethod,
       ),
     );
   }
 
-  /**
-   * Marks bequest as in progress during distribution
-   */
-  markAsInProgress(): void {
-    this._distributionStatus = DistributionStatus.IN_PROGRESS;
+  public obtainCourtApproval(approvalDate: Date, approvalDetails?: string): void {
+    this._courtApprovalObtained = true;
     this._updatedAt = new Date();
+    if (approvalDetails) {
+      this._distributionNotes =
+        (this._distributionNotes || '') + ` Court approval: ${approvalDetails}`;
+    }
   }
 
-  /**
-   * Marks bequest as disputed under Kenyan succession law
-   */
-  markAsDisputed(): void {
-    this._distributionStatus = DistributionStatus.DISPUTED;
-    this._updatedAt = new Date();
-  }
-
-  /**
-   * Marks bequest as deferred (conditions not yet met)
-   */
-  markAsDeferred(): void {
-    this._distributionStatus = DistributionStatus.DEFERRED;
-    this._updatedAt = new Date();
-  }
-
-  /**
-   * Initiates removal of beneficiary assignment with reason
-   *
-   * @param {string} [reason] - Reason for removal
-   */
-  remove(reason?: string): void {
-    this.apply(new BeneficiaryRemovedEvent(this._id, this._willId, reason?.trim() || undefined));
+  public remove(reason?: string): void {
+    // If this is a Post-Probate entity, removing a dependant is illegal without court order.
+    // If Pre-Probate (Will Writing), the Testator can do what they want (though it may be contested later).
+    // Assuming this handles the Will Creation logic predominantly:
+    if (this._isDependant && this._isSubjectToDependantsProvision) {
+      // Warning: Removing a dependant increases risk of litigation under Section 26.
+      // We allow it but maybe the service layer logs a warning.
+    }
+    this.apply(new BeneficiaryRemovedEvent(this._id, this._willId, reason?.trim()));
   }
 
   // --------------------------------------------------------------------------
-  // DOMAIN CALCULATIONS & BUSINESS RULES
+  // DOMAIN CALCULATIONS
   // --------------------------------------------------------------------------
 
-  /**
-   * Determines if bequest has conditional requirements
-   *
-   * @returns {boolean} True if conditional bequest
-   */
-  isConditional(): boolean {
+  public isConditional(): boolean {
     return this._conditionType !== BequestConditionType.NONE;
   }
 
-  /**
-   * Determines if bequest has alternate beneficiary configured
-   *
-   * @returns {boolean} True if alternate beneficiary exists
-   */
-  hasAlternate(): boolean {
-    return Boolean(this._alternateBeneficiaryId && this._alternateShare);
+  public isConditionMet(): boolean {
+    return this._conditionMet === true;
   }
 
-  /**
-   * Determines if bequest has been fully distributed
-   *
-   * @returns {boolean} True if distribution completed
-   */
-  isDistributed(): boolean {
-    return this._distributionStatus === DistributionStatus.COMPLETED;
+  public hasActiveLifeInterest(): boolean {
+    if (!this._hasLifeInterest || !this._lifeInterestEndsAt) return false;
+    return this._lifeInterestEndsAt > new Date();
   }
 
-  /**
-   * Determines if bequest can be distributed
-   *
-   * @returns {boolean} True if distribution can proceed
-   */
-  canBeDistributed(): boolean {
-    return (
-      this._distributionStatus === DistributionStatus.PENDING ||
-      this._distributionStatus === DistributionStatus.IN_PROGRESS
-    );
-  }
-
-  /**
-   * Determines if bequest is pending distribution
-   *
-   * @returns {boolean} True if pending distribution
-   */
-  isPending(): boolean {
-    return this._distributionStatus === DistributionStatus.PENDING;
-  }
-
-  /**
-   * Determines if bequest distribution is in progress
-   *
-   * @returns {boolean} True if distribution in progress
-   */
-  isInProgress(): boolean {
-    return this._distributionStatus === DistributionStatus.IN_PROGRESS;
-  }
-
-  /**
-   * Determines if bequest is disputed
-   *
-   * @returns {boolean} True if disputed
-   */
-  isDisputed(): boolean {
-    return this._distributionStatus === DistributionStatus.DISPUTED;
-  }
-
-  /**
-   * Determines if bequest is deferred
-   *
-   * @returns {boolean} True if deferred
-   */
-  isDeferred(): boolean {
-    return this._distributionStatus === DistributionStatus.DEFERRED;
-  }
-
-  /**
-   * Calculates expected value based on asset total and allocation type
-   *
-   * @param {number} [assetTotalValue] - Total value of the asset
-   * @returns {AssetValue | null} Expected value or null if cannot calculate
-   */
-  getExpectedValue(assetTotalValue?: number): AssetValue | null {
-    if (this._sharePercentage && assetTotalValue !== undefined && assetTotalValue > 0) {
-      const amount = assetTotalValue * (this._sharePercentage.getValue() / 100);
-      // Use KES as default currency for Kenyan succession
-      return new AssetValue(amount, 'KES', new Date());
+  public canBeDistributed(): boolean {
+    if (this._distributionStatus === DistributionStatus.COMPLETED) return false;
+    if (this._courtApprovalRequired && !this._courtApprovalObtained) return false;
+    // If active life interest exists, we cannot distribute full title yet
+    if (this.hasActiveLifeInterest()) return false;
+    // Condition checks
+    if (this.isConditional()) {
+      if (this.isConditionMet()) return true;
+      // If deadline passed and not met, we cannot distribute to THIS beneficiary
+      if (this._conditionDeadline && this._conditionDeadline < new Date()) return false;
+      return false;
     }
-
-    return this._specificAmount;
+    return this.hasValidAllocation();
   }
 
-  /**
-   * Validates if assignment is properly configured for execution
-   *
-   * @returns {boolean} True if valid for execution
-   */
-  isValidForExecution(): boolean {
-    const hasValidAllocation = Boolean(
-      (this._sharePercentage && this._sharePercentage.getValue() > 0) ||
-      (this._specificAmount && this._specificAmount.getAmount() > 0),
-    );
-
-    const hasValidIdentity = Boolean(
-      this._beneficiaryIdentity.userId ||
-      this._beneficiaryIdentity.familyMemberId ||
-      this._beneficiaryIdentity.externalName,
-    );
-
-    return hasValidAllocation && hasValidIdentity && !this.isDistributed();
-  }
-
-  /**
-   * Determines if alternate beneficiary should be activated
-   *
-   * @returns {boolean} True if conditions met for alternate activation
-   */
-  requiresAlternateActivation(): boolean {
-    return this.isConditional() && this.hasAlternate();
-  }
-
-  /**
-   * Validates allocation configuration based on bequest type
-   *
-   * @returns {boolean} True if allocation is valid
-   */
-  hasValidAllocation(): boolean {
+  public hasValidAllocation(): boolean {
     if (
       this._bequestType === BequestType.PERCENTAGE ||
       this._bequestType === BequestType.RESIDUARY
     ) {
-      return Boolean(this._sharePercentage && this._sharePercentage.getValue() > 0);
+      return Boolean(this._sharePercent && this._sharePercent.getValue() > 0);
     } else if (this._bequestType === BequestType.SPECIFIC) {
-      return Boolean(this._specificAmount && this._specificAmount.getAmount() > 0);
+      return Boolean(this._specificAmount && this._specificAmount > 0);
+    } else if (this._bequestType === BequestType.CONDITIONAL) {
+      return this.isConditional();
     }
-
     return false;
   }
 
-  /**
-   * Determines if assignment is fully configured
-   *
-   * @returns {boolean} True if fully configured
-   */
-  isFullyConfigured(): boolean {
-    return this.hasValidAllocation() && this.isValidForExecution();
-  }
-
-  /**
-   * Gets human-readable beneficiary name
-   *
-   * @returns {string} Beneficiary display name
-   */
-  getBeneficiaryName(): string {
-    if (this._beneficiaryIdentity.userId) {
-      return `User ${this._beneficiaryIdentity.userId}`;
-    } else if (this._beneficiaryIdentity.familyMemberId) {
-      return `Family Member ${this._beneficiaryIdentity.familyMemberId}`;
-    } else if (this._beneficiaryIdentity.externalName) {
-      return this._beneficiaryIdentity.externalName;
+  public getBeneficiaryName(): string {
+    switch (this._beneficiaryType) {
+      case BeneficiaryType.USER:
+        return `User ${this._userId}`;
+      case BeneficiaryType.FAMILY_MEMBER:
+        return `Family Member ${this._familyMemberId}`;
+      case BeneficiaryType.EXTERNAL:
+      case BeneficiaryType.CHARITY:
+      case BeneficiaryType.ORGANIZATION:
+        return this._externalName || 'Unknown';
+      default:
+        return 'Unknown';
     }
-
-    return 'Unknown Beneficiary';
-  }
-
-  /**
-   * Gets beneficiary type category
-   *
-   * @returns {'USER' | 'FAMILY_MEMBER' | 'EXTERNAL'} Beneficiary type
-   * @throws {Error} When identity is invalid
-   */
-  getBeneficiaryType(): 'USER' | 'FAMILY_MEMBER' | 'EXTERNAL' {
-    if (this._beneficiaryIdentity.userId) return 'USER';
-    if (this._beneficiaryIdentity.familyMemberId) return 'FAMILY_MEMBER';
-    if (this._beneficiaryIdentity.externalName) return 'EXTERNAL';
-
-    throw new Error('Invalid beneficiary identity configuration');
-  }
-
-  /**
-   * Gets validation errors for assignment configuration
-   *
-   * @returns {string[]} Array of validation error messages
-   */
-  getValidationErrors(): string[] {
-    const errors: string[] = [];
-
-    if (!this.hasValidAllocation()) {
-      errors.push('Beneficiary assignment has no valid allocation configured');
-    }
-
-    const hasValidIdentity = Boolean(
-      this._beneficiaryIdentity.userId ||
-      this._beneficiaryIdentity.familyMemberId ||
-      this._beneficiaryIdentity.externalName,
-    );
-
-    if (!hasValidIdentity) {
-      errors.push('Beneficiary has no valid identity information');
-    }
-
-    if (this.isDistributed()) {
-      errors.push('Beneficiary assignment has already been distributed');
-    }
-
-    return errors;
   }
 
   // --------------------------------------------------------------------------
-  // IMMUTABLE GETTERS - Provide read-only access to entity state
+  // GETTERS
   // --------------------------------------------------------------------------
 
   get id(): string {
@@ -846,42 +661,108 @@ export class BeneficiaryAssignment extends AggregateRoot {
   get assetId(): string {
     return this._assetId;
   }
-  get beneficiaryIdentity(): BeneficiaryIdentity {
-    return { ...this._beneficiaryIdentity };
+  get beneficiaryType(): BeneficiaryType {
+    return this._beneficiaryType;
   }
+  get userId(): string | null {
+    return this._userId;
+  }
+  get familyMemberId(): string | null {
+    return this._familyMemberId;
+  }
+  get externalName(): string | null {
+    return this._externalName;
+  }
+  get externalContact(): string | null {
+    return this._externalContact;
+  }
+  get externalIdentification(): string | null {
+    return this._externalIdentification;
+  }
+  get externalAddress(): Record<string, any> | null {
+    return this._externalAddress ? { ...this._externalAddress } : null;
+  }
+
+  get relationshipCategory(): KenyanRelationshipCategory {
+    return this._relationshipCategory;
+  }
+  get specificRelationship(): string | null {
+    return this._specificRelationship;
+  }
+  get isDependant(): boolean {
+    return this._isDependant;
+  }
+
   get bequestType(): BequestType {
     return this._bequestType;
   }
-  get sharePercentage(): SharePercentage | null {
-    return this._sharePercentage;
+  get sharePercent(): SharePercentage | null {
+    return this._sharePercent;
   }
-  get specificAmount(): AssetValue | null {
+  get specificAmount(): number | null {
     return this._specificAmount;
   }
+  get currency(): string {
+    return this._currency;
+  }
+
   get conditionType(): BequestConditionType {
     return this._conditionType;
   }
   get conditionDetails(): string | null {
     return this._conditionDetails;
   }
-  get alternateBeneficiaryId(): string | null {
-    return this._alternateBeneficiaryId;
+  get conditionMet(): boolean | null {
+    return this._conditionMet;
   }
-  get alternateShare(): SharePercentage | null {
-    return this._alternateShare;
+  get conditionDeadline(): Date | null {
+    return this._conditionDeadline;
   }
+
+  get hasLifeInterest(): boolean {
+    return this._hasLifeInterest;
+  }
+  get lifeInterestDuration(): number | null {
+    return this._lifeInterestDuration;
+  }
+  get lifeInterestEndsAt(): Date | null {
+    return this._lifeInterestEndsAt;
+  }
+
+  get alternateAssignmentId(): string | null {
+    return this._alternateAssignmentId;
+  }
+
   get distributionStatus(): DistributionStatus {
     return this._distributionStatus;
   }
   get distributedAt(): Date | null {
-    return this._distributedAt ? new Date(this._distributedAt) : null;
+    return this._distributedAt;
   }
   get distributionNotes(): string | null {
     return this._distributionNotes;
   }
+  get distributionMethod(): string | null {
+    return this._distributionMethod;
+  }
+
+  get isSubjectToDependantsProvision(): boolean {
+    return this._isSubjectToDependantsProvision;
+  }
+  get courtApprovalRequired(): boolean {
+    return this._courtApprovalRequired;
+  }
+  get courtApprovalObtained(): boolean {
+    return this._courtApprovalObtained;
+  }
+
   get priority(): number {
     return this._priority;
   }
+  get bequestPriority(): BequestPriority {
+    return this._bequestPriority;
+  }
+
   get createdAt(): Date {
     return new Date(this._createdAt);
   }

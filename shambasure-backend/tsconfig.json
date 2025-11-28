@@ -2,6 +2,8 @@
   "compilerOptions": {
     "module": "nodenext",
     "moduleResolution": "nodenext",
+    "baseUrl": "./",
+    "ignoreDeprecations": "5.0",
     "resolvePackageJsonExports": true,
     "esModuleInterop": true,
     "isolatedModules": true,
@@ -13,7 +15,6 @@
     "target": "ES2023",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
     "noUnusedLocals": true,
@@ -23,7 +24,6 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
-    "ignoreDeprecations": "6.0",
     "paths": {
       "@shamba/auth": [
         "libs/auth/src"

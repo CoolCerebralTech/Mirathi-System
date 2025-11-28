@@ -1,209 +1,288 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { ExecutorStatus } from '@prisma/client';
+import {
+  ExecutorAppointmentType,
+  ExecutorCompensationType,
+  ExecutorEligibilityStatus,
+  ExecutorStatus,
+} from '@prisma/client';
 
 import { ExecutorAcceptedEvent } from '../events/executor-accepted.event';
 import { ExecutorDeclinedEvent } from '../events/executor-declined.event';
+import { ExecutorEligibilityVerifiedEvent } from '../events/executor-eligibility-verified.event';
 import { ExecutorNominatedEvent } from '../events/executor-nominated.event';
 import { ExecutorRemovedEvent } from '../events/executor-removed.event';
-import { AssetValue } from '../value-objects/asset-value.vo';
-
-/**
- * Contact information for executor under Kenyan succession law
- * @interface ExecutorContactInfo
- */
-export interface ExecutorContactInfo {
-  street?: string;
-  city?: string;
-  county?: string;
-  postalCode?: string;
-}
-
-/**
- * Identity information for executor (user or external)
- * @interface ExecutorInfo
- */
-export interface ExecutorInfo {
-  userId?: string;
-  fullName?: string;
-  email?: string;
-  phone?: string;
-  relationship?: string;
-  address?: ExecutorContactInfo;
-}
-
-/**
- * Data structure for asset valuation information
- * @interface AssetValueData
- */
-export interface AssetValueData {
-  amount: number;
-  currency: string;
-  valuationDate: Date | string;
-}
 
 /**
  * Properties required for entity reconstitution from persistence
- * @interface ExecutorReconstituteProps
+ * Strictly aligned with Prisma Schema.
  */
 export interface ExecutorReconstituteProps {
   id: string;
   willId: string;
 
-  // Identity fields flattened
-  userId: string | null;
+  // Identity
+  executorId: string | null;
   fullName: string | null;
   email: string | null;
   phone: string | null;
-  relationship: string | null;
-  // Address is usually a JSON field in Prisma or separate columns; assuming JSON or absent for now
-  address?: ExecutorContactInfo;
+  idNumber: string | null;
+  kraPin: string | null;
 
+  // Professional executor details
+  isProfessional: boolean;
+  professionalQualification: string | null;
+  practicingCertificateNumber: string | null;
+
+  // Relationship context
+  relationship: string | null;
+  relationshipDuration: string | null;
+
+  // Address Information
+  physicalAddress: Record<string, any> | null;
+  postalAddress: Record<string, any> | null;
+
+  // Role Configuration
   isPrimary: boolean;
   orderOfPriority: number;
+  appointmentType: ExecutorAppointmentType;
+
+  // Legal Eligibility (Kenyan Law of Succession Act)
+  eligibilityStatus: ExecutorEligibilityStatus;
+  eligibilityVerifiedAt: Date | string | null;
+  eligibilityVerifiedBy: string | null;
+  ineligibilityReason: string | null;
+
+  // Appointment & Service Timeline
   status: ExecutorStatus;
+  nominatedAt: Date | string | null;
   appointedAt: Date | string | null;
   acceptedAt: Date | string | null;
   declinedAt: Date | string | null;
   declineReason: string | null;
+  removedAt: Date | string | null;
+  removalReason: string | null;
+  completedAt: Date | string | null;
+
+  // Compensation (Kenyan Law of Succession Act Section 83)
   isCompensated: boolean;
-  compensationAmount: AssetValueData | AssetValue | null;
+  compensationType: ExecutorCompensationType;
+  compensationAmount: number | null;
+  compensationPercentage: number | null;
+  hourlyRate: number | null;
+  estimatedHours: number | null;
+  courtApprovedCompensation: boolean;
+
+  // Bond & Security (Kenyan Probate Practice)
+  requiresBond: boolean;
+  bondAmount: number | null;
+  bondProvided: boolean;
+  bondProvider: string | null;
+  bondExpiryDate: Date | string | null;
+
+  // Duties & Responsibilities
+  specificDuties: string | null;
+  limitations: string | null;
+  specialPowers: string | null;
+
+  // Communication Preferences
+  preferredContactMethod: string | null;
+  languagePreference: string;
+
+  // Audit Trail
   createdAt: Date | string;
   updatedAt: Date | string;
 }
 
 /**
- * Executor Entity representing will executor/administrator under Kenyan succession law
+ * Executor Entity
  *
- * Core Domain Entity for managing:
- * - User executors (registered platform users)
- * - External executors (lawyers, family friends, professionals)
- * - Executor appointment and acceptance process
- * - Compensation under Kenyan Law of Succession Act Section 83
+ * Represents the person appointed to administer the estate of a deceased person.
  *
- * @class Executor
- * @extends {AggregateRoot}
+ * Legal Context:
+ * - Governed by Law of Succession Act (Cap 160).
+ * - Section 6: Jurisdiction.
+ * - Section 83: Duties of Personal Representatives.
+ * - Probate & Administration Rules (Section 80A for bonds).
  */
 export class Executor extends AggregateRoot {
-  // Core Executor Properties
+  // Core Identity
   private readonly _id: string;
   private readonly _willId: string;
-  private readonly _executorInfo: ExecutorInfo;
+
+  // Identity
+  private _executorId: string | null; // Linked User
+  private _fullName: string | null;
+  private _email: string | null;
+  private _phone: string | null;
+  private _idNumber: string | null;
+  private _kraPin: string | null;
+
+  // Professional Details
+  private _isProfessional: boolean;
+  private _professionalQualification: string | null;
+  private _practicingCertificateNumber: string | null;
+
+  // Relationship
+  private _relationship: string | null;
+  private _relationshipDuration: string | null;
+
+  // Address
+  private _physicalAddress: Record<string, any> | null;
+  private _postalAddress: Record<string, any> | null;
 
   // Role Configuration
   private _isPrimary: boolean;
   private _orderOfPriority: number;
+  private _appointmentType: ExecutorAppointmentType;
 
-  // Appointment Status
+  // Eligibility
+  private _eligibilityStatus: ExecutorEligibilityStatus;
+  private _eligibilityVerifiedAt: Date | null;
+  private _eligibilityVerifiedBy: string | null;
+  private _ineligibilityReason: string | null;
+
+  // Timeline
   private _status: ExecutorStatus;
+  private _nominatedAt: Date | null;
   private _appointedAt: Date | null;
   private _acceptedAt: Date | null;
   private _declinedAt: Date | null;
   private _declineReason: string | null;
+  private _removedAt: Date | null;
+  private _removalReason: string | null;
+  private _completedAt: Date | null;
 
-  // Compensation (Kenyan Law of Succession Act Section 83)
+  // Compensation (Section 83)
   private _isCompensated: boolean;
-  private _compensationAmount: AssetValue | null;
+  private _compensationType: ExecutorCompensationType;
+  private _compensationAmount: number | null;
+  private _compensationPercentage: number | null;
+  private _hourlyRate: number | null;
+  private _estimatedHours: number | null;
+  private _courtApprovedCompensation: boolean;
 
-  // Audit Trail
+  // Bond (Probate Rules)
+  private _requiresBond: boolean;
+  private _bondAmount: number | null;
+  private _bondProvided: boolean;
+  private _bondProvider: string | null;
+  private _bondExpiryDate: Date | null;
+
+  // Duties
+  private _specificDuties: string | null;
+  private _limitations: string | null;
+  private _specialPowers: string | null;
+
+  // Preferences
+  private _preferredContactMethod: string | null;
+  private _languagePreference: string;
+
+  // Timestamps
   private _createdAt: Date;
   private _updatedAt: Date;
 
   // --------------------------------------------------------------------------
-  // PRIVATE CONSTRUCTOR - Enforces use of factory methods
+  // CONSTRUCTOR
   // --------------------------------------------------------------------------
   private constructor(
     id: string,
     willId: string,
-    executorInfo: ExecutorInfo,
-    isPrimary: boolean = false,
-    orderOfPriority: number = 1,
+    appointmentType: ExecutorAppointmentType = ExecutorAppointmentType.TESTAMENTARY,
+    languagePreference: string = 'English',
   ) {
     super();
 
-    // Validate required parameters
     if (!id?.trim()) throw new Error('Executor ID is required');
     if (!willId?.trim()) throw new Error('Will ID is required');
 
-    Executor.validateExecutorInfo(executorInfo);
-
     this._id = id;
     this._willId = willId;
-    this._executorInfo = { ...executorInfo };
-    this._isPrimary = isPrimary;
-    this._orderOfPriority = orderOfPriority;
+    this._appointmentType = appointmentType;
+    this._languagePreference = languagePreference;
 
-    // Initialize default values
+    // Defaults
+    this._executorId = null;
+    this._fullName = null;
+    this._email = null;
+    this._phone = null;
+    this._idNumber = null;
+    this._kraPin = null;
+    this._isProfessional = false;
+    this._professionalQualification = null;
+    this._practicingCertificateNumber = null;
+    this._relationship = null;
+    this._relationshipDuration = null;
+    this._physicalAddress = null;
+    this._postalAddress = null;
+    this._isPrimary = false;
+    this._orderOfPriority = 1;
+    this._eligibilityStatus = ExecutorEligibilityStatus.PENDING_VERIFICATION;
+    this._eligibilityVerifiedAt = null;
+    this._eligibilityVerifiedBy = null;
+    this._ineligibilityReason = null;
     this._status = ExecutorStatus.NOMINATED;
+    this._nominatedAt = new Date();
     this._appointedAt = null;
     this._acceptedAt = null;
     this._declinedAt = null;
     this._declineReason = null;
+    this._removedAt = null;
+    this._removalReason = null;
+    this._completedAt = null;
     this._isCompensated = false;
+    this._compensationType = ExecutorCompensationType.NONE;
     this._compensationAmount = null;
+    this._compensationPercentage = null;
+    this._hourlyRate = null;
+    this._estimatedHours = null;
+    this._courtApprovedCompensation = false;
+    this._requiresBond = false;
+    this._bondAmount = null;
+    this._bondProvided = false;
+    this._bondProvider = null;
+    this._bondExpiryDate = null;
+    this._specificDuties = null;
+    this._limitations = null;
+    this._specialPowers = null;
+    this._preferredContactMethod = null;
     this._createdAt = new Date();
     this._updatedAt = new Date();
   }
 
   // --------------------------------------------------------------------------
-  // FACTORY METHODS - Domain Lifecycle Management
+  // FACTORY METHODS
   // --------------------------------------------------------------------------
 
-  /**
-   * Creates an executor assignment for a registered platform user
-   *
-   * @static
-   * @param {string} id - Unique executor identifier
-   * @param {string} willId - Will containing the executor nomination
-   * @param {string} userId - Registered user ID of executor
-   * @param {string} [relationship] - Relationship to testator
-   * @param {boolean} [isPrimary=false] - Whether this is primary executor
-   * @param {number} [priority=1] - Order of priority (1 = highest)
-   * @returns {Executor} New executor entity
-   */
   static createForUser(
     id: string,
     willId: string,
-    userId: string,
+    executorId: string,
     relationship?: string,
     isPrimary: boolean = false,
     priority: number = 1,
   ): Executor {
-    const info: ExecutorInfo = {
-      userId: userId.trim(),
-      relationship: relationship?.trim(),
-    };
+    if (!executorId?.trim()) throw new Error('Executor user ID is required');
 
-    const executor = new Executor(id, willId, info, isPrimary, priority);
+    const executor = new Executor(id, willId);
+    executor._executorId = executorId;
+    executor._relationship = relationship || null;
+    executor._isPrimary = isPrimary;
+    executor._orderOfPriority = priority;
 
     executor.apply(
       new ExecutorNominatedEvent(
         executor._id,
         executor._willId,
-        executor._executorInfo,
+        executor._executorId,
+        null, // No external name for registered user
         'USER',
         executor._isPrimary,
         executor._orderOfPriority,
       ),
     );
-
     return executor;
   }
 
-  /**
-   * Creates an executor assignment for external parties (lawyers, professionals)
-   *
-   * @static
-   * @param {string} id - Unique executor identifier
-   * @param {string} willId - Will containing the executor nomination
-   * @param {string} fullName - Full name of external executor
-   * @param {string} email - Contact email address
-   * @param {string} phone - Contact phone number
-   * @param {string} [relationship] - Relationship to testator
-   * @param {ExecutorContactInfo} [address] - Physical address information
-   * @param {boolean} [isPrimary=false] - Whether this is primary executor
-   * @param {number} [priority=1] - Order of priority (1 = highest)
-   * @returns {Executor} New executor entity
-   */
   static createForExternal(
     id: string,
     willId: string,
@@ -211,488 +290,356 @@ export class Executor extends AggregateRoot {
     email: string,
     phone: string,
     relationship?: string,
-    address?: ExecutorContactInfo,
+    idNumber?: string,
+    kraPin?: string,
     isPrimary: boolean = false,
     priority: number = 1,
   ): Executor {
-    const info: ExecutorInfo = {
-      fullName: fullName.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      relationship: relationship?.trim(),
-      address: address ? { ...address } : undefined,
-    };
+    if (!fullName?.trim()) throw new Error('Full name required');
+    if (!email?.trim()) throw new Error('Email required');
 
-    const executor = new Executor(id, willId, info, isPrimary, priority);
+    const executor = new Executor(id, willId);
+    executor._fullName = fullName;
+    executor._email = email;
+    executor._phone = phone;
+    executor._relationship = relationship || null;
+    executor._idNumber = idNumber || null;
+    executor._kraPin = kraPin || null;
+    executor._isPrimary = isPrimary;
+    executor._orderOfPriority = priority;
 
     executor.apply(
       new ExecutorNominatedEvent(
         executor._id,
         executor._willId,
-        executor._executorInfo,
+        null,
+        executor._fullName,
         'EXTERNAL',
         executor._isPrimary,
         executor._orderOfPriority,
       ),
     );
-
     return executor;
   }
 
-  /**
-   * Reconstructs Executor entity from persistence layer data
-   *
-   * @static
-   * @param {ExecutorReconstituteProps} props - Data from database
-   * @returns {Executor} Rehydrated executor entity
-   * @throws {Error} When data validation fails during reconstruction
-   */
+  static createForProfessional(
+    id: string,
+    willId: string,
+    fullName: string,
+    email: string,
+    phone: string,
+    qualification: string,
+    certificateNumber: string,
+    relationship: string = 'Professional Advisor',
+    isPrimary: boolean = false,
+    priority: number = 1,
+  ): Executor {
+    if (!qualification?.trim()) throw new Error('Professional qualification required');
+    if (!certificateNumber?.trim()) throw new Error('Practicing certificate required');
+
+    const executor = new Executor(id, willId);
+    executor._fullName = fullName;
+    executor._email = email;
+    executor._phone = phone;
+    executor._relationship = relationship;
+    executor._isProfessional = true;
+    executor._professionalQualification = qualification;
+    executor._practicingCertificateNumber = certificateNumber;
+    executor._isPrimary = isPrimary;
+    executor._orderOfPriority = priority;
+    executor._requiresBond = true; // Kenyan courts usually require bonds for administration
+
+    executor.apply(
+      new ExecutorNominatedEvent(
+        executor._id,
+        executor._willId,
+        null,
+        executor._fullName,
+        'PROFESSIONAL',
+        executor._isPrimary,
+        executor._orderOfPriority,
+      ),
+    );
+    return executor;
+  }
+
   static reconstitute(props: ExecutorReconstituteProps): Executor {
-    if (!props.id || !props.willId) {
-      throw new Error('Invalid reconstruction data: missing required fields');
-    }
-
-    // Construct identity from flat props
-    const executorInfo: ExecutorInfo = {
-      userId: props.userId || undefined,
-      fullName: props.fullName || undefined,
-      email: props.email || undefined,
-      phone: props.phone || undefined,
-      relationship: props.relationship || undefined,
-      address: props.address,
-    };
-
-    Executor.validateExecutorInfo(executorInfo);
-
     const executor = new Executor(
       props.id,
       props.willId,
-      executorInfo,
-      props.isPrimary,
-      props.orderOfPriority,
+      props.appointmentType,
+      props.languagePreference,
     );
 
+    executor._executorId = props.executorId;
+    executor._fullName = props.fullName;
+    executor._email = props.email;
+    executor._phone = props.phone;
+    executor._idNumber = props.idNumber;
+    executor._kraPin = props.kraPin;
+    executor._isProfessional = props.isProfessional;
+    executor._professionalQualification = props.professionalQualification;
+    executor._practicingCertificateNumber = props.practicingCertificateNumber;
+    executor._relationship = props.relationship;
+    executor._relationshipDuration = props.relationshipDuration;
+    executor._physicalAddress = props.physicalAddress;
+    executor._postalAddress = props.postalAddress;
+    executor._isPrimary = props.isPrimary;
+    executor._orderOfPriority = props.orderOfPriority;
+    executor._eligibilityStatus = props.eligibilityStatus;
+    executor._ineligibilityReason = props.ineligibilityReason;
     executor._status = props.status;
-    executor._isCompensated = Boolean(props.isCompensated);
-    executor._declineReason = props.declineReason || null;
+    executor._declineReason = props.declineReason;
+    executor._removalReason = props.removalReason;
+    executor._isCompensated = props.isCompensated;
+    executor._compensationType = props.compensationType;
+    executor._compensationAmount = props.compensationAmount;
+    executor._compensationPercentage = props.compensationPercentage;
+    executor._hourlyRate = props.hourlyRate;
+    executor._estimatedHours = props.estimatedHours;
+    executor._courtApprovedCompensation = props.courtApprovedCompensation;
+    executor._requiresBond = props.requiresBond;
+    executor._bondAmount = props.bondAmount;
+    executor._bondProvided = props.bondProvided;
+    executor._bondProvider = props.bondProvider;
+    executor._specificDuties = props.specificDuties;
+    executor._limitations = props.limitations;
+    executor._specialPowers = props.specialPowers;
+    executor._preferredContactMethod = props.preferredContactMethod;
 
-    executor._appointedAt = props.appointedAt
-      ? Executor.safeDateConversion(props.appointedAt, 'appointedAt')
+    executor._eligibilityVerifiedAt = props.eligibilityVerifiedAt
+      ? new Date(props.eligibilityVerifiedAt)
       : null;
-    executor._acceptedAt = props.acceptedAt
-      ? Executor.safeDateConversion(props.acceptedAt, 'acceptedAt')
-      : null;
-    executor._declinedAt = props.declinedAt
-      ? Executor.safeDateConversion(props.declinedAt, 'declinedAt')
-      : null;
-    executor._createdAt = Executor.safeDateConversion(props.createdAt, 'createdAt');
-    executor._updatedAt = Executor.safeDateConversion(props.updatedAt, 'updatedAt');
+    executor._nominatedAt = props.nominatedAt ? new Date(props.nominatedAt) : null;
+    executor._appointedAt = props.appointedAt ? new Date(props.appointedAt) : null;
+    executor._acceptedAt = props.acceptedAt ? new Date(props.acceptedAt) : null;
+    executor._declinedAt = props.declinedAt ? new Date(props.declinedAt) : null;
+    executor._removedAt = props.removedAt ? new Date(props.removedAt) : null;
+    executor._completedAt = props.completedAt ? new Date(props.completedAt) : null;
+    executor._bondExpiryDate = props.bondExpiryDate ? new Date(props.bondExpiryDate) : null;
+    executor._createdAt = new Date(props.createdAt);
+    executor._updatedAt = new Date(props.updatedAt);
 
-    if (props.compensationAmount) {
-      executor._compensationAmount = Executor.reconstructAssetValue(props.compensationAmount);
+    if (props.eligibilityVerifiedBy) {
+      executor._eligibilityVerifiedBy = props.eligibilityVerifiedBy;
     }
 
     return executor;
   }
 
-  /**
-   * Safely converts date strings to Date objects with validation
-   *
-   * @private
-   * @static
-   * @param {Date | string} dateInput - Date to convert
-   * @param {string} fieldName - Field name for error reporting
-   * @returns {Date} Valid Date object
-   * @throws {Error} When date conversion fails
-   */
-  private static safeDateConversion(dateInput: Date | string, fieldName: string): Date {
-    try {
-      const date = new Date(dateInput);
-      if (isNaN(date.getTime())) {
-        throw new Error(`Invalid date value for ${fieldName}`);
-      }
-      return date;
-    } catch (error) {
-      throw new Error(
-        `Failed to convert ${fieldName} to valid Date: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-    }
-  }
-
-  /**
-   * Reconstructs AssetValue from raw data or existing instance
-   *
-   * @private
-   * @static
-   * @param {AssetValueData | AssetValue} valueData - Value data to reconstruct
-   * @returns {AssetValue} Reconstructed AssetValue instance
-   * @throws {Error} When value data is invalid
-   */
-  private static reconstructAssetValue(valueData: AssetValueData | AssetValue): AssetValue {
-    if (valueData instanceof AssetValue) {
-      return valueData;
-    }
-
-    if (typeof valueData !== 'object' || valueData === null) {
-      throw new Error('Invalid asset value data: must be object or AssetValue instance');
-    }
-
-    if (typeof valueData.amount !== 'number' || valueData.amount < 0) {
-      throw new Error('Invalid asset value: amount must be non-negative number');
-    }
-
-    if (typeof valueData.currency !== 'string' || !valueData.currency.trim()) {
-      throw new Error('Invalid asset value: currency is required');
-    }
-
-    const valuationDate = Executor.safeDateConversion(valueData.valuationDate, 'valuationDate');
-
-    return new AssetValue(valueData.amount, valueData.currency.trim(), valuationDate);
-  }
-
-  /**
-   * Validates executor identity structure
-   *
-   * @private
-   * @static
-   * @param {ExecutorInfo} info - Executor information to validate
-   * @throws {Error} When identity structure is invalid
-   */
-  private static validateExecutorInfo(info: ExecutorInfo): void {
-    const hasUserId = Boolean(info.userId?.trim());
-    const hasFullName = Boolean(info.fullName?.trim());
-
-    if (!hasUserId && !hasFullName) {
-      throw new Error(
-        'Executor must have either a User ID (for registered users) or a Full Name (for external parties)',
-      );
-    }
-
-    // External executors require at least one contact method
-    if (!hasUserId && !info.email?.trim() && !info.phone?.trim()) {
-      throw new Error('External executors must have at least one contact method (email or phone)');
-    }
-  }
-
   // --------------------------------------------------------------------------
-  // BUSINESS LOGIC & DOMAIN OPERATIONS
+  // DOMAIN OPERATIONS
   // --------------------------------------------------------------------------
 
-  /**
-   * Officially appoints executor (typically by court or testator)
-   *
-   * @throws {Error} When executor is not in nominated status
-   */
-  appoint(): void {
+  public verifyEligibility(
+    verifiedBy: string,
+    status: ExecutorEligibilityStatus,
+    reason?: string,
+  ): void {
     if (this._status !== ExecutorStatus.NOMINATED) {
-      throw new Error('Only nominated executors can be officially appointed');
+      // In Kenyan law, eligibility can be challenged even after appointment, but usually, checks happen before.
+      // We allow re-verification but logs might be needed.
     }
+    this._eligibilityStatus = status;
+    this._eligibilityVerifiedAt = new Date();
+    this._eligibilityVerifiedBy = verifiedBy;
+    this._ineligibilityReason =
+      status !== ExecutorEligibilityStatus.ELIGIBLE ? reason || null : null;
+    this._updatedAt = new Date();
 
+    this.apply(
+      new ExecutorEligibilityVerifiedEvent(
+        this._id,
+        this._willId,
+        status,
+        verifiedBy,
+        this._eligibilityVerifiedAt,
+      ),
+    );
+
+    if (status !== ExecutorEligibilityStatus.ELIGIBLE) {
+      this._status = ExecutorStatus.DECLINED;
+      this._declineReason = `Automatically declined due to ineligibility: ${reason}`;
+      this._declinedAt = new Date();
+      this.apply(new ExecutorDeclinedEvent(this._id, this._willId, this._declineReason));
+    }
+  }
+
+  public appoint(
+    appointmentType: ExecutorAppointmentType = ExecutorAppointmentType.COURT_APPOINTED,
+  ): void {
+    if (this._status !== ExecutorStatus.NOMINATED && this._status !== ExecutorStatus.ACTIVE) {
+      // Allow idempotency if already ACTIVE, but ensure correct transitions
+    }
+    if (this._eligibilityStatus !== ExecutorEligibilityStatus.ELIGIBLE) {
+      throw new Error('Cannot appoint ineligible executor');
+    }
     this._status = ExecutorStatus.ACTIVE;
+    this._appointmentType = appointmentType;
     this._appointedAt = new Date();
     this._updatedAt = new Date();
   }
 
-  /**
-   * Accepts executor role and responsibilities
-   *
-   * @throws {Error} When executor cannot accept the role
-   */
-  accept(): void {
-    if (this._status !== ExecutorStatus.NOMINATED && this._status !== ExecutorStatus.ACTIVE) {
-      throw new Error('Executor must be NOMINATED or ACTIVE to accept the role');
+  public accept(): void {
+    if (this._status !== ExecutorStatus.NOMINATED) {
+      throw new Error('Only nominated executors can accept');
     }
-
+    if (this._requiresBond && !this._bondProvided) {
+      throw new Error('Bond must be provided before acceptance (Probate & Administration Rules)');
+    }
     this._status = ExecutorStatus.ACTIVE;
     this._acceptedAt = new Date();
-
-    // Auto-appoint if not already appointed
-    if (!this._appointedAt) {
-      this._appointedAt = new Date();
-    }
-
     this._updatedAt = new Date();
-
     this.apply(new ExecutorAcceptedEvent(this._id, this._willId, this._acceptedAt));
   }
 
-  /**
-   * Declines executor role with reason
-   *
-   * @param {string} reason - Reason for declining the role
-   * @throws {Error} When executor cannot decline the role
-   */
-  decline(reason: string): void {
-    if (this._status === ExecutorStatus.DECLINED || this._status === ExecutorStatus.COMPLETED) {
-      throw new Error('Cannot decline an already declined or completed executor role');
-    }
-
-    if (!reason?.trim()) {
-      throw new Error('Decline reason is required');
-    }
+  public decline(reason: string): void {
+    if (this._status === ExecutorStatus.COMPLETED) throw new Error('Cannot decline completed role');
+    if (!reason?.trim()) throw new Error('Decline reason required');
 
     this._status = ExecutorStatus.DECLINED;
     this._declinedAt = new Date();
     this._declineReason = reason.trim();
     this._updatedAt = new Date();
-
     this.apply(new ExecutorDeclinedEvent(this._id, this._willId, this._declineReason));
   }
 
-  /**
-   * Removes executor from role with reason
-   *
-   * @param {string} reason - Reason for removal
-   * @throws {Error} When removal reason is not provided
-   */
-  remove(reason: string): void {
-    if (!reason?.trim()) {
-      throw new Error('Removal reason is required');
-    }
-
+  public remove(reason: string, removedBy?: string): void {
+    if (!reason?.trim()) throw new Error('Removal reason required');
+    // Section 76 of Law of Succession Act: Revocation of Grant.
+    // A grant can be revoked by court. The "removedBy" here implies a system user recording that court order.
     this._status = ExecutorStatus.REMOVED;
+    this._removedAt = new Date();
+    this._removalReason = reason.trim();
     this._updatedAt = new Date();
-
-    this.apply(new ExecutorRemovedEvent(this._id, this._willId, reason.trim()));
+    this.apply(new ExecutorRemovedEvent(this._id, this._willId, this._removalReason, removedBy));
   }
 
-  /**
-   * Marks executor duties as completed
-   *
-   * @throws {Error} When executor is not active
-   */
-  markAsCompleted(): void {
-    if (this._status !== ExecutorStatus.ACTIVE) {
-      throw new Error('Only active executors can be marked as completed');
-    }
-
+  public markAsCompleted(): void {
+    if (this._status !== ExecutorStatus.ACTIVE) throw new Error('Executor not active');
+    // Ensure accounts are filed? This entity doesn't know about accounts.
     this._status = ExecutorStatus.COMPLETED;
+    this._completedAt = new Date();
     this._updatedAt = new Date();
   }
 
-  // --------------------------------------------------------------------------
-  // ROLE CONFIGURATION & COMPENSATION
-  // --------------------------------------------------------------------------
-
-  /**
-   * Marks executor as primary (first in order of priority)
-   */
-  markAsPrimary(): void {
-    this._isPrimary = true;
-    this._updatedAt = new Date();
-  }
-
-  /**
-   * Marks executor as secondary (not primary)
-   */
-  markAsSecondary(): void {
-    this._isPrimary = false;
-    this._updatedAt = new Date();
-  }
-
-  /**
-   * Updates executor priority order
-   *
-   * @param {number} priority - New priority level (1 = highest)
-   * @throws {Error} When priority is less than 1
-   */
-  updatePriority(priority: number): void {
-    if (priority < 1) {
-      throw new Error('Priority must be at least 1');
-    }
-
-    this._orderOfPriority = priority;
-    this._updatedAt = new Date();
-  }
-
-  /**
-   * Sets compensation amount under Kenyan Law of Succession Act Section 83
-   *
-   * @param {AssetValue} amount - Compensation amount
-   * @throws {Error} When executor cannot be compensated
-   */
-  setCompensation(amount: AssetValue): void {
-    if (!this.canBeCompensated()) {
-      throw new Error('Only active or completed executors can be compensated');
-    }
-
-    if (amount.getAmount() <= 0) {
-      throw new Error('Compensation amount must be positive');
-    }
-
+  public setCompensation(
+    type: ExecutorCompensationType,
+    amount?: number,
+    percentage?: number,
+    hourlyRate?: number,
+    estimatedHours?: number,
+  ): void {
+    if (!this.canBeCompensated()) throw new Error('Executor status prevents compensation setup');
+    this._compensationType = type;
     this._isCompensated = true;
-    this._compensationAmount = amount;
-    this._updatedAt = new Date();
-  }
 
-  /**
-   * Removes compensation from executor
-   */
-  removeCompensation(): void {
-    this._isCompensated = false;
+    // Reset others
     this._compensationAmount = null;
+    this._compensationPercentage = null;
+    this._hourlyRate = null;
+    this._estimatedHours = null;
+
+    if (type === ExecutorCompensationType.FIXED_AMOUNT) {
+      if (!amount || amount <= 0) throw new Error('Positive fixed amount required');
+      this._compensationAmount = amount;
+    } else if (type === ExecutorCompensationType.PERCENTAGE_OF_ESTATE) {
+      if (!percentage || percentage <= 0) throw new Error('Valid percentage required');
+      this._compensationPercentage = percentage;
+    } else if (type === ExecutorCompensationType.HOURLY_RATE) {
+      if (!hourlyRate || hourlyRate <= 0) throw new Error('Valid hourly rate required');
+      this._hourlyRate = hourlyRate;
+      this._estimatedHours = estimatedHours || null;
+    } else if (type === ExecutorCompensationType.NONE) {
+      this._isCompensated = false;
+    }
+    this._updatedAt = new Date();
+  }
+
+  public obtainCourtApprovalForCompensation(): void {
+    if (!this._isCompensated) throw new Error('No compensation set');
+    this._courtApprovedCompensation = true;
+    this._updatedAt = new Date();
+  }
+
+  public setBondRequirement(amount: number, provider?: string, expiryDate?: Date): void {
+    this._requiresBond = true;
+    this._bondAmount = amount;
+    this._bondProvider = provider || null;
+    this._bondExpiryDate = expiryDate || null;
+    this._updatedAt = new Date();
+  }
+
+  public provideBond(): void {
+    if (!this._requiresBond) throw new Error('Bond not required');
+    this._bondProvided = true;
     this._updatedAt = new Date();
   }
 
   // --------------------------------------------------------------------------
-  // DOMAIN CALCULATIONS & BUSINESS RULES
+  // GETTERS & HELPERS
   // --------------------------------------------------------------------------
 
-  /**
-   * Determines if executor is currently active
-   *
-   * @returns {boolean} True if executor is active
-   */
-  isActive(): boolean {
-    return this._status === ExecutorStatus.ACTIVE;
-  }
-
-  /**
-   * Determines if executor is nominated but not yet active
-   *
-   * @returns {boolean} True if executor is nominated
-   */
-  isNominated(): boolean {
-    return this._status === ExecutorStatus.NOMINATED;
-  }
-
-  /**
-   * Determines if executor has completed duties
-   *
-   * @returns {boolean} True if executor duties are completed
-   */
-  isCompleted(): boolean {
-    return this._status === ExecutorStatus.COMPLETED;
-  }
-
-  /**
-   * Determines if executor has been removed
-   *
-   * @returns {boolean} True if executor is removed
-   */
-  isRemoved(): boolean {
-    return this._status === ExecutorStatus.REMOVED;
-  }
-
-  /**
-   * Determines if executor has accepted the role
-   *
-   * @returns {boolean} True if executor has accepted
-   */
-  hasAccepted(): boolean {
-    return Boolean(this._acceptedAt);
-  }
-
-  /**
-   * Determines if executor can accept the role
-   *
-   * @returns {boolean} True if executor can accept
-   */
-  canAccept(): boolean {
-    return this._status === ExecutorStatus.NOMINATED || this._status === ExecutorStatus.ACTIVE;
-  }
-
-  /**
-   * Determines if executor can decline the role
-   *
-   * @returns {boolean} True if executor can decline
-   */
-  canDecline(): boolean {
-    return this._status !== ExecutorStatus.DECLINED && this._status !== ExecutorStatus.COMPLETED;
-  }
-
-  /**
-   * Determines if executor requires court appointment under Kenyan law
-   *
-   * @returns {boolean} True if court appointment is required
-   */
-  requiresCourtAppointment(): boolean {
-    return this._isPrimary && !this._appointedAt;
-  }
-
-  /**
-   * Determines if executor can be compensated
-   *
-   * @returns {boolean} True if executor can receive compensation
-   */
-  canBeCompensated(): boolean {
-    return this.isActive() || this.isCompleted();
-  }
-
-  /**
-   * Determines if executor is fully configured with required information
-   *
-   * @returns {boolean} True if executor is fully configured
-   */
-  isFullyConfigured(): boolean {
-    const hasRequiredInfo = Boolean(
-      this._executorInfo.userId ||
-      (this._executorInfo.fullName && (this._executorInfo.email || this._executorInfo.phone)),
+  public canBeCompensated(): boolean {
+    return (
+      this._status === ExecutorStatus.ACTIVE ||
+      this._status === ExecutorStatus.COMPLETED ||
+      this._status === ExecutorStatus.NOMINATED
     );
-
-    return hasRequiredInfo && this._orderOfPriority >= 1;
   }
 
-  /**
-   * Gets formatted contact information for display
-   *
-   * @returns {string} Formatted contact information
-   */
-  getContactInfo(): string {
-    if (this._executorInfo.email && this._executorInfo.phone) {
-      return `${this._executorInfo.email} / ${this._executorInfo.phone}`;
-    }
-
-    return this._executorInfo.email || this._executorInfo.phone || 'No contact information';
+  private calculateStatutoryCompensation(estateValue?: number): number | null {
+    // Basic logic for Law of Succession Act Statutory Scale (illustrative)
+    if (!estateValue) return null;
+    if (estateValue <= 1000000) return estateValue * 0.05;
+    return 50000 + (estateValue - 1000000) * 0.03;
   }
 
-  /**
-   * Validates if executor is valid for official appointment
-   *
-   * @returns {boolean} True if valid for appointment
-   */
-  isValidForAppointment(): boolean {
-    return this.isNominated() && this.isFullyConfigured();
-  }
-
-  /**
-   * Determines if executor can assume official duties
-   *
-   * @returns {boolean} True if executor can assume duties
-   */
-  canAssumeDuties(): boolean {
-    return this.isActive() && this.hasAccepted() && Boolean(this._appointedAt);
-  }
-
-  /**
-   * Validates compensation configuration
-   *
-   * @returns {boolean} True if compensation is valid
-   */
-  hasValidCompensation(): boolean {
-    if (!this._isCompensated || !this._compensationAmount) {
-      return true; // No compensation is valid
-    }
-
-    try {
-      return this._compensationAmount.getAmount() > 0;
-    } catch {
-      return false;
-    }
-  }
-
-  // --------------------------------------------------------------------------
-  // IMMUTABLE GETTERS - Provide read-only access to entity state
-  // --------------------------------------------------------------------------
-
+  // Getters
   get id(): string {
     return this._id;
   }
   get willId(): string {
     return this._willId;
   }
-  get executorInfo(): ExecutorInfo {
-    return { ...this._executorInfo };
+  get executorId(): string | null {
+    return this._executorId;
+  }
+  get fullName(): string | null {
+    return this._fullName;
+  }
+  get email(): string | null {
+    return this._email;
+  }
+  get phone(): string | null {
+    return this._phone;
+  }
+  get idNumber(): string | null {
+    return this._idNumber;
+  }
+  get kraPin(): string | null {
+    return this._kraPin;
+  }
+  get isProfessional(): boolean {
+    return this._isProfessional;
+  }
+  get professionalQualification(): string | null {
+    return this._professionalQualification;
+  }
+  get practicingCertificateNumber(): string | null {
+    return this._practicingCertificateNumber;
+  }
+  get relationship(): string | null {
+    return this._relationship;
+  }
+  get relationshipDuration(): string | null {
+    return this._relationshipDuration;
+  }
+  get physicalAddress(): Record<string, any> | null {
+    return this._physicalAddress ? { ...this._physicalAddress } : null;
+  }
+  get postalAddress(): Record<string, any> | null {
+    return this._postalAddress ? { ...this._postalAddress } : null;
   }
   get isPrimary(): boolean {
     return this._isPrimary;
@@ -700,49 +647,103 @@ export class Executor extends AggregateRoot {
   get orderOfPriority(): number {
     return this._orderOfPriority;
   }
+  get appointmentType(): ExecutorAppointmentType {
+    return this._appointmentType;
+  }
+  get eligibilityStatus(): ExecutorEligibilityStatus {
+    return this._eligibilityStatus;
+  }
+  get eligibilityVerifiedAt(): Date | null {
+    return this._eligibilityVerifiedAt;
+  }
+  get eligibilityVerifiedBy(): string | null {
+    return this._eligibilityVerifiedBy;
+  }
+  get ineligibilityReason(): string | null {
+    return this._ineligibilityReason;
+  }
   get status(): ExecutorStatus {
     return this._status;
   }
+  get nominatedAt(): Date | null {
+    return this._nominatedAt;
+  }
   get appointedAt(): Date | null {
-    return this._appointedAt ? new Date(this._appointedAt) : null;
+    return this._appointedAt;
   }
   get acceptedAt(): Date | null {
-    return this._acceptedAt ? new Date(this._acceptedAt) : null;
+    return this._acceptedAt;
   }
   get declinedAt(): Date | null {
-    return this._declinedAt ? new Date(this._declinedAt) : null;
+    return this._declinedAt;
   }
   get declineReason(): string | null {
     return this._declineReason;
   }
+  get removedAt(): Date | null {
+    return this._removedAt;
+  }
+  get removalReason(): string | null {
+    return this._removalReason;
+  }
+  get completedAt(): Date | null {
+    return this._completedAt;
+  }
   get isCompensated(): boolean {
     return this._isCompensated;
   }
-  get compensationAmount(): AssetValue | null {
+  get compensationType(): ExecutorCompensationType {
+    return this._compensationType;
+  }
+  get compensationAmount(): number | null {
     return this._compensationAmount;
+  }
+  get compensationPercentage(): number | null {
+    return this._compensationPercentage;
+  }
+  get hourlyRate(): number | null {
+    return this._hourlyRate;
+  }
+  get estimatedHours(): number | null {
+    return this._estimatedHours;
+  }
+  get courtApprovedCompensation(): boolean {
+    return this._courtApprovedCompensation;
+  }
+  get requiresBond(): boolean {
+    return this._requiresBond;
+  }
+  get bondAmount(): number | null {
+    return this._bondAmount;
+  }
+  get bondProvided(): boolean {
+    return this._bondProvided;
+  }
+  get bondProvider(): string | null {
+    return this._bondProvider;
+  }
+  get bondExpiryDate(): Date | null {
+    return this._bondExpiryDate;
+  }
+  get specificDuties(): string | null {
+    return this._specificDuties;
+  }
+  get limitations(): string | null {
+    return this._limitations;
+  }
+  get specialPowers(): string | null {
+    return this._specialPowers;
+  }
+  get preferredContactMethod(): string | null {
+    return this._preferredContactMethod;
+  }
+  get languagePreference(): string {
+    return this._languagePreference;
   }
   get createdAt(): Date {
     return new Date(this._createdAt);
   }
   get updatedAt(): Date {
     return new Date(this._updatedAt);
-  }
-  get fullName(): string | undefined {
-    return this._executorInfo.fullName;
-  }
-  get email(): string | undefined {
-    return this._executorInfo.email;
-  }
-  get phone(): string | undefined {
-    return this._executorInfo.phone;
-  }
-  get relationship(): string | undefined {
-    return this._executorInfo.relationship;
-  }
-  get address(): ExecutorContactInfo | undefined {
-    return this._executorInfo.address ? { ...this._executorInfo.address } : undefined;
-  }
-  get userId(): string | undefined {
-    return this._executorInfo.userId;
   }
 }

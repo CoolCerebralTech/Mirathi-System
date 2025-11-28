@@ -1,670 +1,541 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { WitnessStatus } from '@prisma/client';
+import {
+  SignatureType,
+  WitnessEligibilityStatus,
+  WitnessStatus,
+  WitnessType,
+  WitnessVerificationMethod,
+} from '@prisma/client';
 
 import { WitnessAddedEvent } from '../events/witness-added.event';
 import { WitnessRejectedEvent } from '../events/witness-rejected.event';
 import { WitnessSignedEvent } from '../events/witness-signed.event';
 import { WitnessVerifiedEvent } from '../events/witness-verified.event';
-import { KenyanId } from '../value-objects/kenyan-id.vo';
-
-/**
- * Physical address information for witness under Kenyan law
- * @interface WitnessAddress
- */
-export interface WitnessAddress {
-  street?: string;
-  city?: string;
-  county?: string;
-  postalCode?: string;
-}
-
-/**
- * Identity information for witness (user or external)
- * @interface WitnessInfo
- */
-export interface WitnessInfo {
-  userId?: string;
-  fullName: string;
-  email?: string;
-  phone?: string;
-  idNumber?: string;
-  relationship?: string;
-  address?: WitnessAddress;
-}
-
-/**
- * Event-specific witness information for domain events
- * @interface WitnessEventInfo
- */
-export interface WitnessEventInfo {
-  userId?: string;
-  fullName: string;
-  email?: string;
-  phone?: string;
-  idNumber?: string;
-  relationship?: string;
-}
 
 /**
  * Properties required for entity reconstitution from persistence
- * @interface WitnessReconstituteProps
+ * Strictly aligned with Prisma Schema.
  */
 export interface WitnessReconstituteProps {
   id: string;
   willId: string;
 
-  // Flattened Identity Fields
-  userId: string | null;
+  // Witness Type and Identity
+  witnessType: WitnessType;
+  witnessId: string | null;
   fullName: string;
   email: string | null;
   phone: string | null;
-  idNumber: string | null;
-  relationship: string | null;
-  address: WitnessAddress | null;
 
+  // Kenyan Identification
+  idNumber: string | null;
+  idType: WitnessVerificationMethod | null;
+  idDocumentId: string | null;
+  idVerified: boolean;
+
+  // Professional witness details
+  isProfessionalWitness: boolean;
+  professionalCapacity: string | null;
+  professionalLicense: string | null;
+
+  // Relationship Context
+  relationship: string | null;
+  relationshipDuration: string | null;
+  knowsTestatorWell: boolean;
+
+  // Address Information
+  physicalAddress: Record<string, any> | null;
+  residentialCounty: string | null;
+
+  // Legal Eligibility (Kenyan Law of Succession Act)
+  eligibilityStatus: WitnessEligibilityStatus;
+  eligibilityVerifiedAt: Date | string | null;
+  eligibilityVerifiedBy: string | null;
+  ineligibilityReason: string | null;
+
+  // Witnessing Process
   status: WitnessStatus;
   signedAt: Date | string | null;
+  signatureType: SignatureType | null;
   signatureData: string | null;
+  signatureLocation: string | null;
+  witnessingMethod: string | null;
+
+  // Verification
   verifiedAt: Date | string | null;
   verifiedBy: string | null;
+  verificationMethod: WitnessVerificationMethod | null;
+  verificationNotes: string | null;
+
+  // Legal Requirements Tracking
   isEligible: boolean;
-  ineligibilityReason: string | null;
+  hasConflictOfInterest: boolean;
+  conflictDetails: string | null;
+  understandsObligation: boolean;
+  obligationAcknowledgedAt: Date | string | null;
+
+  // Communication & Notifications
+  invitationSentAt: Date | string | null;
+  invitationMethod: string | null;
+  reminderSentAt: Date | string | null;
+  responseReceivedAt: Date | string | null;
+
+  // Audit Trail
   createdAt: Date | string;
   updatedAt: Date | string;
 }
 
 /**
- * Witness Entity representing will witness under Kenyan succession law
+ * Witness Entity
  *
- * Core Domain Entity for managing:
- * - User witnesses (registered platform users)
- * - External witnesses (non-registered individuals)
- * - Witness signing and verification process
- * - Kenyan legal compliance for witness eligibility
- * - Digital signature capture and validation
+ * Represents a witness to the execution of a Will.
  *
- * @class Witness
- * @extends {AggregateRoot}
+ * Legal Context:
+ * - Law of Succession Act (Cap 160), Section 11 (Capacity of Witnesses).
+ * - Section 13 (Execution of Wills) - requires 2+ witnesses present at same time.
+ * - Section 13(c): Witnesses must attest and sign the will in the presence of the testator.
  */
 export class Witness extends AggregateRoot {
-  // Core Witness Properties
+  // Core Identity
   private readonly _id: string;
   private readonly _willId: string;
-  private _witnessInfo: WitnessInfo;
-  private _status: WitnessStatus;
 
-  // Signing & Verification
-  private _signedAt: Date | null;
-  private _signatureData: string | null;
-  private _verifiedAt: Date | null;
-  private _verifiedBy: string | null;
+  // Identity
+  private _witnessType: WitnessType;
+  private _witnessId: string | null;
+  private _fullName: string;
+  private _email: string | null;
+  private _phone: string | null;
 
-  // Legal Eligibility
-  private _isEligible: boolean;
+  // ID
+  private _idNumber: string | null;
+  private _idType: WitnessVerificationMethod | null;
+  private _idDocumentId: string | null;
+  private _idVerified: boolean;
+
+  // Professional
+  private _isProfessionalWitness: boolean;
+  private _professionalCapacity: string | null;
+  private _professionalLicense: string | null;
+
+  // Context
+  private _relationship: string | null;
+  private _relationshipDuration: string | null;
+  private _knowsTestatorWell: boolean;
+
+  // Address
+  private _physicalAddress: Record<string, any> | null;
+  private _residentialCounty: string | null;
+
+  // Eligibility
+  private _eligibilityStatus: WitnessEligibilityStatus;
+  private _eligibilityVerifiedAt: Date | null;
+  private _eligibilityVerifiedBy: string | null;
   private _ineligibilityReason: string | null;
 
-  // Audit Trail
+  // Status
+  private _status: WitnessStatus;
+  private _signedAt: Date | null;
+  private _signatureType: SignatureType | null;
+  private _signatureData: string | null;
+  private _signatureLocation: string | null;
+  private _witnessingMethod: string | null;
+
+  // Verification
+  private _verifiedAt: Date | null;
+  private _verifiedBy: string | null;
+  private _verificationMethod: WitnessVerificationMethod | null;
+  private _verificationNotes: string | null;
+
+  // Legal Compliance
+  private _isEligible: boolean;
+  private _hasConflictOfInterest: boolean;
+  private _conflictDetails: string | null;
+  private _understandsObligation: boolean;
+  private _obligationAcknowledgedAt: Date | null;
+
+  // Comms
+  private _invitationSentAt: Date | null;
+  private _invitationMethod: string | null;
+  private _reminderSentAt: Date | null;
+  private _responseReceivedAt: Date | null;
+
+  // Timestamps
   private _createdAt: Date;
   private _updatedAt: Date;
 
   // --------------------------------------------------------------------------
-  // PRIVATE CONSTRUCTOR - Enforces use of factory methods
+  // CONSTRUCTOR
   // --------------------------------------------------------------------------
-  private constructor(id: string, willId: string, witnessInfo: WitnessInfo) {
+  private constructor(id: string, willId: string, witnessType: WitnessType, fullName: string) {
     super();
 
-    // Validate required parameters
     if (!id?.trim()) throw new Error('Witness ID is required');
     if (!willId?.trim()) throw new Error('Will ID is required');
-
-    Witness.validateWitnessInfo(witnessInfo);
+    if (!fullName?.trim()) throw new Error('Witness full name is required');
 
     this._id = id;
     this._willId = willId;
-    this._witnessInfo = { ...witnessInfo };
+    this._witnessType = witnessType;
+    this._fullName = fullName.trim();
 
-    // Initialize default values
+    // Defaults
+    this._witnessId = null;
+    this._email = null;
+    this._phone = null;
+    this._idNumber = null;
+    this._idType = null;
+    this._idDocumentId = null;
+    this._idVerified = false;
+    this._isProfessionalWitness = false;
+    this._professionalCapacity = null;
+    this._professionalLicense = null;
+    this._relationship = null;
+    this._relationshipDuration = null;
+    this._knowsTestatorWell = true;
+    this._physicalAddress = null;
+    this._residentialCounty = null;
+    this._eligibilityStatus = WitnessEligibilityStatus.PENDING_ELIGIBILITY_CHECK;
+    this._eligibilityVerifiedAt = null;
+    this._eligibilityVerifiedBy = null;
+    this._ineligibilityReason = null;
     this._status = WitnessStatus.PENDING;
     this._signedAt = null;
+    this._signatureType = null;
     this._signatureData = null;
+    this._signatureLocation = null;
+    this._witnessingMethod = null;
     this._verifiedAt = null;
     this._verifiedBy = null;
+    this._verificationMethod = null;
+    this._verificationNotes = null;
     this._isEligible = true;
-    this._ineligibilityReason = null;
+    this._hasConflictOfInterest = false;
+    this._conflictDetails = null;
+    this._understandsObligation = false;
+    this._obligationAcknowledgedAt = null;
+    this._invitationSentAt = null;
+    this._invitationMethod = null;
+    this._reminderSentAt = null;
+    this._responseReceivedAt = null;
     this._createdAt = new Date();
     this._updatedAt = new Date();
   }
 
   // --------------------------------------------------------------------------
-  // FACTORY METHODS - Domain Lifecycle Management
+  // FACTORY METHODS
   // --------------------------------------------------------------------------
 
-  /**
-   * Creates a witness assignment for a registered platform user
-   *
-   * @static
-   * @param {string} id - Unique witness identifier
-   * @param {string} willId - Will being witnessed
-   * @param {string} userId - Registered user ID of witness
-   * @param {string} fullName - Full name of witness
-   * @param {string} [relationship] - Relationship to testator
-   * @returns {Witness} New witness entity
-   */
-  static createForUser(
+  static createForRegisteredUser(
     id: string,
     willId: string,
-    userId: string,
+    witnessId: string,
     fullName: string,
     relationship?: string,
   ): Witness {
-    const witnessInfo: WitnessInfo = {
-      userId: userId.trim(),
-      fullName: fullName.trim(),
-      relationship: relationship?.trim(),
-    };
+    if (!witnessId?.trim()) throw new Error('Witness user ID is required');
 
-    const witness = new Witness(id, willId, witnessInfo);
+    const witness = new Witness(id, willId, WitnessType.REGISTERED_USER, fullName);
+    witness._witnessId = witnessId;
+    witness._relationship = relationship || null;
+    witness._knowsTestatorWell = true;
 
-    // Create event-specific information
-    const eventInfo: WitnessEventInfo = {
-      userId: witnessInfo.userId,
-      fullName: witnessInfo.fullName,
-      relationship: witnessInfo.relationship,
-    };
-
-    witness.apply(new WitnessAddedEvent(witness._id, witness._willId, eventInfo, 'USER'));
-
+    witness.apply(
+      new WitnessAddedEvent(
+        witness._id,
+        witness._willId,
+        witness._witnessType,
+        witness._witnessId,
+        witness._fullName,
+      ),
+    );
     return witness;
   }
 
-  /**
-   * Creates a witness assignment for external individuals
-   *
-   * @static
-   * @param {string} id - Unique witness identifier
-   * @param {string} willId - Will being witnessed
-   * @param {string} fullName - Full name of witness
-   * @param {string} email - Contact email address
-   * @param {string} phone - Contact phone number
-   * @param {string} [idNumber] - Kenyan national ID number
-   * @param {string} [relationship] - Relationship to testator
-   * @param {WitnessAddress} [address] - Physical address information
-   * @returns {Witness} New witness entity
-   */
-  static createForExternal(
+  static createForExternalIndividual(
     id: string,
     willId: string,
     fullName: string,
     email: string,
     phone: string,
-    idNumber?: string,
     relationship?: string,
-    address?: WitnessAddress,
+    idNumber?: string,
+    idType?: WitnessVerificationMethod,
   ): Witness {
-    // Pre-validate Kenyan ID format if provided
-    if (idNumber && !KenyanId.isValid(idNumber)) {
-      throw new Error(`Invalid Kenyan ID number: ${idNumber}`);
-    }
+    // Note: Email/Phone logic moved to updateContactInfo or validation, as minimal creation might not always have them
+    // But keeping validation here if business rule requires it on creation.
+    if (!email?.trim() && !phone?.trim()) throw new Error('At least one contact method required');
 
-    const witnessInfo: WitnessInfo = {
-      fullName: fullName.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      idNumber: idNumber?.trim(),
-      relationship: relationship?.trim(),
-      address: address ? { ...address } : undefined,
-    };
+    const witness = new Witness(id, willId, WitnessType.EXTERNAL_INDIVIDUAL, fullName);
+    witness._email = email || null;
+    witness._phone = phone || null;
+    witness._relationship = relationship || null;
+    witness._idNumber = idNumber || null;
+    witness._idType = idType || null;
 
-    const witness = new Witness(id, willId, witnessInfo);
-
-    // Create event-specific information
-    const eventInfo: WitnessEventInfo = {
-      fullName: witnessInfo.fullName,
-      email: witnessInfo.email,
-      phone: witnessInfo.phone,
-      idNumber: witnessInfo.idNumber,
-      relationship: witnessInfo.relationship,
-    };
-
-    witness.apply(new WitnessAddedEvent(witness._id, witness._willId, eventInfo, 'EXTERNAL'));
-
+    witness.apply(
+      new WitnessAddedEvent(
+        witness._id,
+        witness._willId,
+        witness._witnessType,
+        null,
+        witness._fullName,
+      ),
+    );
     return witness;
   }
 
-  /**
-   * Reconstructs Witness entity from persistence layer data
-   *
-   * @static
-   * @param {WitnessReconstituteProps} props - Data from database
-   * @returns {Witness} Rehydrated witness entity
-   * @throws {Error} When data validation fails during reconstruction
-   */
+  static createForProfessional(
+    id: string,
+    willId: string,
+    fullName: string,
+    email: string,
+    phone: string,
+    professionalCapacity: string,
+    professionalLicense?: string,
+    relationship: string = 'Professional Witness',
+  ): Witness {
+    if (!professionalCapacity?.trim()) throw new Error('Professional capacity required');
+
+    const witness = new Witness(id, willId, WitnessType.PROFESSIONAL_WITNESS, fullName);
+    witness._email = email;
+    witness._phone = phone;
+    witness._relationship = relationship;
+    witness._isProfessionalWitness = true;
+    witness._professionalCapacity = professionalCapacity;
+    witness._professionalLicense = professionalLicense || null;
+    witness._knowsTestatorWell = false;
+
+    witness.apply(
+      new WitnessAddedEvent(
+        witness._id,
+        witness._willId,
+        witness._witnessType,
+        null,
+        witness._fullName,
+      ),
+    );
+    return witness;
+  }
+
+  static createForCourtOfficer(
+    id: string,
+    willId: string,
+    fullName: string,
+    courtStation: string,
+    badgeNumber?: string,
+  ): Witness {
+    const witness = new Witness(id, willId, WitnessType.COURT_OFFICER, fullName);
+    witness._professionalCapacity = `Court Officer - ${courtStation}`;
+    witness._professionalLicense = badgeNumber || null;
+    witness._knowsTestatorWell = false;
+
+    witness.apply(
+      new WitnessAddedEvent(
+        witness._id,
+        witness._willId,
+        witness._witnessType,
+        null,
+        witness._fullName,
+      ),
+    );
+    return witness;
+  }
+
   static reconstitute(props: WitnessReconstituteProps): Witness {
-    if (!props.id || !props.willId) {
-      throw new Error('Invalid reconstruction data: missing required fields');
-    }
+    const witness = new Witness(props.id, props.willId, props.witnessType, props.fullName);
 
-    // Construct WitnessInfo from flat props
-    const witnessInfo: WitnessInfo = {
-      userId: props.userId || undefined,
-      fullName: props.fullName,
-      email: props.email || undefined,
-      phone: props.phone || undefined,
-      idNumber: props.idNumber || undefined,
-      relationship: props.relationship || undefined,
-      address: props.address || undefined,
-    };
-
-    Witness.validateWitnessInfo(witnessInfo);
-
-    const witness = new Witness(props.id, props.willId, witnessInfo);
-
+    witness._witnessId = props.witnessId;
+    witness._email = props.email;
+    witness._phone = props.phone;
+    witness._idNumber = props.idNumber;
+    witness._idType = props.idType;
+    witness._idDocumentId = props.idDocumentId;
+    witness._idVerified = props.idVerified;
+    witness._isProfessionalWitness = props.isProfessionalWitness;
+    witness._professionalCapacity = props.professionalCapacity;
+    witness._professionalLicense = props.professionalLicense;
+    witness._relationship = props.relationship;
+    witness._relationshipDuration = props.relationshipDuration;
+    witness._knowsTestatorWell = props.knowsTestatorWell;
+    witness._physicalAddress = props.physicalAddress;
+    witness._residentialCounty = props.residentialCounty;
+    witness._eligibilityStatus = props.eligibilityStatus;
+    witness._ineligibilityReason = props.ineligibilityReason;
     witness._status = props.status;
-    witness._signatureData = props.signatureData || null;
-    witness._verifiedBy = props.verifiedBy || null;
-    witness._isEligible = Boolean(props.isEligible);
-    witness._ineligibilityReason = props.ineligibilityReason || null;
+    witness._signatureType = props.signatureType;
+    witness._signatureData = props.signatureData;
+    witness._signatureLocation = props.signatureLocation;
+    witness._witnessingMethod = props.witnessingMethod;
+    witness._verifiedBy = props.verifiedBy;
+    witness._verificationMethod = props.verificationMethod;
+    witness._verificationNotes = props.verificationNotes;
+    witness._isEligible = props.isEligible;
+    witness._hasConflictOfInterest = props.hasConflictOfInterest;
+    witness._conflictDetails = props.conflictDetails;
+    witness._understandsObligation = props.understandsObligation;
+    witness._invitationMethod = props.invitationMethod;
 
-    witness._signedAt = props.signedAt
-      ? Witness.safeDateConversion(props.signedAt, 'signedAt')
+    witness._eligibilityVerifiedAt = props.eligibilityVerifiedAt
+      ? new Date(props.eligibilityVerifiedAt)
       : null;
-    witness._verifiedAt = props.verifiedAt
-      ? Witness.safeDateConversion(props.verifiedAt, 'verifiedAt')
+    witness._signedAt = props.signedAt ? new Date(props.signedAt) : null;
+    witness._verifiedAt = props.verifiedAt ? new Date(props.verifiedAt) : null;
+    witness._obligationAcknowledgedAt = props.obligationAcknowledgedAt
+      ? new Date(props.obligationAcknowledgedAt)
       : null;
-    witness._createdAt = Witness.safeDateConversion(props.createdAt, 'createdAt');
-    witness._updatedAt = Witness.safeDateConversion(props.updatedAt, 'updatedAt');
+    witness._invitationSentAt = props.invitationSentAt ? new Date(props.invitationSentAt) : null;
+    witness._reminderSentAt = props.reminderSentAt ? new Date(props.reminderSentAt) : null;
+    witness._responseReceivedAt = props.responseReceivedAt
+      ? new Date(props.responseReceivedAt)
+      : null;
+    witness._createdAt = new Date(props.createdAt);
+    witness._updatedAt = new Date(props.updatedAt);
+
+    if (props.eligibilityVerifiedBy) {
+      witness._eligibilityVerifiedBy = props.eligibilityVerifiedBy;
+    }
 
     return witness;
   }
 
-  /**
-   * Safely converts date strings to Date objects with validation
-   *
-   * @private
-   * @static
-   * @param {Date | string} dateInput - Date to convert
-   * @param {string} fieldName - Field name for error reporting
-   * @returns {Date} Valid Date object
-   * @throws {Error} When date conversion fails
-   */
-  private static safeDateConversion(dateInput: Date | string, fieldName: string): Date {
-    try {
-      const date = new Date(dateInput);
-      if (isNaN(date.getTime())) {
-        throw new Error(`Invalid date value for ${fieldName}`);
-      }
-      return date;
-    } catch (error) {
-      throw new Error(
-        `Failed to convert ${fieldName} to valid Date: ${error instanceof Error ? error.message : 'Unknown error'}`,
+  // --------------------------------------------------------------------------
+  // DOMAIN OPERATIONS
+  // --------------------------------------------------------------------------
+
+  public verifyEligibility(
+    verifiedBy: string,
+    status: WitnessEligibilityStatus,
+    reason?: string,
+  ): void {
+    if (this._status === WitnessStatus.REJECTED || this._status === WitnessStatus.SIGNED) {
+      // Eligibility checks usually happen before signing.
+    }
+
+    this._eligibilityStatus = status;
+    this._eligibilityVerifiedAt = new Date();
+    this._eligibilityVerifiedBy = verifiedBy;
+    this._isEligible = status === WitnessEligibilityStatus.ELIGIBLE;
+    this._ineligibilityReason = !this._isEligible ? reason || null : null;
+    this._updatedAt = new Date();
+
+    if (!this._isEligible) {
+      this._status = WitnessStatus.REJECTED;
+      this.apply(
+        new WitnessRejectedEvent(this._id, this._willId, this._ineligibilityReason || 'Ineligible'),
       );
     }
   }
 
-  /**
-   * Validates witness identity structure
-   *
-   * @private
-   * @static
-   * @param {WitnessInfo} info - Witness information to validate
-   * @throws {Error} When identity structure is invalid
-   */
-  private static validateWitnessInfo(info: WitnessInfo): void {
-    if (!info.fullName?.trim()) {
-      throw new Error('Witness full name is required');
-    }
+  public sign(
+    signatureType: SignatureType,
+    signatureData: string,
+    signatureLocation: string,
+    witnessingMethod: string,
+  ): void {
+    if (this._status !== WitnessStatus.PENDING) throw new Error('Witness status prevents signing');
+    if (!this._isEligible) throw new Error('Ineligible witness cannot sign');
+    if (!this._understandsObligation) throw new Error('Must acknowledge obligation before signing');
 
-    // External witnesses require contact information
-    if (!info.userId && (!info.email?.trim() || !info.phone?.trim())) {
-      throw new Error('External witnesses must have both email and phone contact information');
-    }
-
-    // Validate Kenyan ID format if provided
-    if (info.idNumber && !KenyanId.isValid(info.idNumber)) {
-      throw new Error(`Invalid Kenyan ID number format: ${info.idNumber}`);
-    }
-  }
-
-  // --------------------------------------------------------------------------
-  // BUSINESS LOGIC & DOMAIN OPERATIONS
-  // --------------------------------------------------------------------------
-
-  /**
-   * Records witness signature with digital signature data
-   *
-   * @param {string} signatureData - Digital signature hash or data
-   * @throws {Error} When witness cannot sign or signature data is invalid
-   */
-  sign(signatureData: string): void {
-    if (this._status !== WitnessStatus.PENDING) {
-      throw new Error('Only pending witnesses can sign the will');
-    }
-
-    if (!signatureData?.trim()) {
-      throw new Error('Signature data is required');
-    }
-
-    if (!this._isEligible) {
-      throw new Error('Ineligible witness cannot sign the will');
-    }
+    // Section 13(2) - Beneficiary cannot witness
+    if (this._hasConflictOfInterest) throw new Error('Witness has conflict of interest');
+    if (!signatureData?.trim()) throw new Error('Signature data required');
 
     this._status = WitnessStatus.SIGNED;
     this._signedAt = new Date();
+    this._signatureType = signatureType;
     this._signatureData = signatureData.trim();
+    this._signatureLocation = signatureLocation;
+    this._witnessingMethod = witnessingMethod;
     this._updatedAt = new Date();
 
-    this.apply(new WitnessSignedEvent(this._id, this._willId, this._signedAt));
+    this.apply(new WitnessSignedEvent(this._id, this._willId, this._signedAt, signatureType));
   }
 
-  /**
-   * Verifies witness identity and signature authenticity
-   *
-   * @param {string} verifiedBy - ID of user performing verification
-   * @throws {Error} When witness cannot be verified or ID number invalid
-   */
-  verify(verifiedBy: string): void {
-    if (this._status !== WitnessStatus.SIGNED) {
-      throw new Error('Only signed witnesses can be verified');
-    }
+  public verify(
+    verifiedBy: string,
+    verificationMethod: WitnessVerificationMethod,
+    notes?: string,
+  ): void {
+    if (this._status !== WitnessStatus.SIGNED)
+      throw new Error('Witness must sign before verification');
+    if (!verifiedBy?.trim()) throw new Error('Verifier ID required');
 
-    if (!verifiedBy?.trim()) {
-      throw new Error('Verifier ID is required');
-    }
-
-    if (!this._witnessInfo.idNumber) {
-      throw new Error('Witness must have an ID number for verification');
-    }
-
-    if (!KenyanId.isValid(this._witnessInfo.idNumber)) {
-      throw new Error('Cannot verify witness: Invalid Kenyan ID number');
+    // Section 11 - Capacity must be verified
+    if (!this._idNumber && !this._isProfessionalWitness) {
+      // While external witnesses might not have uploaded ID yet, they must at least have an ID Number record
+      throw new Error('ID Number missing for verification');
     }
 
     this._status = WitnessStatus.VERIFIED;
     this._verifiedAt = new Date();
     this._verifiedBy = verifiedBy.trim();
+    this._verificationMethod = verificationMethod;
+    this._verificationNotes = notes?.trim() || null;
+    this._idVerified = true;
     this._updatedAt = new Date();
 
     this.apply(
-      new WitnessVerifiedEvent(this._id, this._willId, this._verifiedBy, this._verifiedAt),
+      new WitnessVerifiedEvent(
+        this._id,
+        this._willId,
+        this._verifiedBy,
+        this._verifiedAt,
+        verificationMethod,
+      ),
     );
   }
 
-  /**
-   * Rejects witness due to ineligibility or refusal to sign
-   *
-   * @param {string} reason - Reason for rejection
-   * @throws {Error} When rejection reason is not provided
-   */
-  reject(reason: string): void {
-    if (!reason?.trim()) {
-      throw new Error('Rejection reason is required');
-    }
-
-    this._status = WitnessStatus.REJECTED;
-    this._ineligibilityReason = reason.trim();
-    this._isEligible = false;
+  public acknowledgeObligation(): void {
+    this._understandsObligation = true;
+    this._obligationAcknowledgedAt = new Date();
     this._updatedAt = new Date();
+  }
 
+  public recordConflictOfInterest(details: string): void {
+    if (!details?.trim()) throw new Error('Conflict details required');
+    this._hasConflictOfInterest = true;
+    this._conflictDetails = details.trim();
+    this._isEligible = false;
+    this._eligibilityStatus = WitnessEligibilityStatus.INELIGIBLE_RELATIONSHIP;
+    this._updatedAt = new Date();
+    // Section 13(2): A gift to an attesting witness is void.
+    // This doesn't invalidate the Will, but invalidates the gift to this witness.
+    // Ideally, we should warn, not necessarily reject, but blocking helps user avoid mistakes.
+  }
+
+  public reject(reason: string): void {
+    if (!reason?.trim()) throw new Error('Rejection reason required');
+    this._status = WitnessStatus.REJECTED;
+    this._isEligible = false;
+    this._ineligibilityReason = reason.trim();
+    this._updatedAt = new Date();
     this.apply(new WitnessRejectedEvent(this._id, this._willId, this._ineligibilityReason));
   }
 
-  /**
-   * Marks witness as ineligible (without full rejection)
-   *
-   * @param {string} reason - Reason for ineligibility
-   * @throws {Error} When ineligibility reason is not provided
-   */
-  markAsIneligible(reason: string): void {
-    if (!reason?.trim()) {
-      throw new Error('Ineligibility reason is required');
-    }
-
-    this._isEligible = false;
-    this._ineligibilityReason = reason.trim();
+  public updateIdentification(
+    idNumber?: string,
+    idType?: WitnessVerificationMethod,
+    idDocumentId?: string,
+  ): void {
+    // Note: removed `KenyanId.isValid` usage as it's a value object not present in this file scope
+    // and validation should happen in the Application Service or via a dedicated method.
+    this._idNumber = idNumber || this._idNumber;
+    this._idType = idType || this._idType;
+    this._idDocumentId = idDocumentId || this._idDocumentId;
+    this._idVerified = false;
     this._updatedAt = new Date();
   }
 
-  /**
-   * Updates witness contact information with validation
-   *
-   * @param {string} [email] - Updated email address
-   * @param {string} [phone] - Updated phone number
-   * @param {WitnessAddress} [address] - Updated address information
-   * @throws {Error} When witness is external and contact info becomes invalid
-   */
-  updateContactInfo(email?: string, phone?: string, address?: WitnessAddress): void {
-    // For external witnesses, ensure we maintain at least one contact method
-    if (!this._witnessInfo.userId) {
-      const hasEmail = email?.trim() || this._witnessInfo.email;
-      const hasPhone = phone?.trim() || this._witnessInfo.phone;
-
-      if (!hasEmail || !hasPhone) {
-        throw new Error(
-          'External witnesses must maintain both email and phone contact information',
-        );
-      }
-    }
-
-    if (email !== undefined) {
-      this._witnessInfo.email = email?.trim() || undefined;
-    }
-
-    if (phone !== undefined) {
-      this._witnessInfo.phone = phone?.trim() || undefined;
-    }
-
-    if (address !== undefined) {
-      this._witnessInfo.address = address ? { ...address } : undefined;
-    }
-
+  public updateContactInfo(email?: string, phone?: string, residentialCounty?: string): void {
+    this._email = email || this._email;
+    this._phone = phone || this._phone;
+    this._residentialCounty = residentialCounty || this._residentialCounty;
     this._updatedAt = new Date();
   }
 
   // --------------------------------------------------------------------------
-  // LEGAL COMPLIANCE & VALIDATION
-  // --------------------------------------------------------------------------
-
-  /**
-   * Validates witness compliance with Kenyan legal requirements
-   *
-   * @returns {{ isValid: boolean; issues: string[] }} Validation result with issues
-   */
-  validateForKenyanLaw(): { isValid: boolean; issues: string[] } {
-    const issues: string[] = [];
-
-    // Witness must have ID number for verification
-    if (this._status === WitnessStatus.VERIFIED && !this._witnessInfo.idNumber) {
-      issues.push('Kenyan ID number is required for legal witness verification');
-    }
-
-    // Basic relationship conflict checks (detailed checking happens at Will aggregate level)
-    const relationship = this._witnessInfo.relationship?.toLowerCase();
-    if (relationship?.includes('spouse')) {
-      issues.push('Spouse of testator cannot serve as a witness under Kenyan law');
-    }
-
-    if (relationship?.includes('beneficiary')) {
-      issues.push('Beneficiaries should not serve as witnesses to avoid conflict of interest');
-    }
-
-    return {
-      isValid: issues.length === 0,
-      issues,
-    };
-  }
-
-  // --------------------------------------------------------------------------
-  // DOMAIN CALCULATIONS & BUSINESS RULES
-  // --------------------------------------------------------------------------
-
-  /**
-   * Determines if witness is a registered platform user
-   *
-   * @returns {boolean} True if witness is registered user
-   */
-  isRegisteredUser(): boolean {
-    return Boolean(this._witnessInfo.userId);
-  }
-
-  /**
-   * Determines if witness has signed the will
-   *
-   * @returns {boolean} True if witness has signed
-   */
-  hasSigned(): boolean {
-    return this._status === WitnessStatus.SIGNED || this._status === WitnessStatus.VERIFIED;
-  }
-
-  /**
-   * Determines if witness has been verified
-   *
-   * @returns {boolean} True if witness is verified
-   */
-  isVerified(): boolean {
-    return this._status === WitnessStatus.VERIFIED;
-  }
-
-  /**
-   * Determines if witness is pending action
-   *
-   * @returns {boolean} True if witness is pending
-   */
-  isPending(): boolean {
-    return this._status === WitnessStatus.PENDING;
-  }
-
-  /**
-   * Determines if witness has been rejected
-   *
-   * @returns {boolean} True if witness is rejected
-   */
-  isRejected(): boolean {
-    return this._status === WitnessStatus.REJECTED;
-  }
-
-  /**
-   * Determines if witness can sign the will
-   *
-   * @returns {boolean} True if witness can sign
-   */
-  canSign(): boolean {
-    return this._status === WitnessStatus.PENDING && this._isEligible;
-  }
-
-  /**
-   * Determines if witness can be verified
-   *
-   * @returns {boolean} True if witness can be verified
-   */
-  canBeVerified(): boolean {
-    const idNumber = this._witnessInfo.idNumber;
-    return (
-      this._status === WitnessStatus.SIGNED &&
-      this._isEligible &&
-      typeof idNumber === 'string' &&
-      KenyanId.isValid(idNumber)
-    );
-  }
-
-  /**
-   * Validates witness has required contact information
-   *
-   * @returns {boolean} True if contact information is complete
-   */
-  hasRequiredContactInfo(): boolean {
-    if (this._witnessInfo.userId) {
-      return true; // Registered users have contact info in their profile
-    }
-
-    return Boolean(this._witnessInfo.email && this._witnessInfo.phone);
-  }
-
-  /**
-   * Validates Kenyan ID number format if present
-   *
-   * @returns {boolean} True if ID number is valid
-   */
-  hasValidIdNumber(): boolean {
-    return Boolean(this._witnessInfo.idNumber && KenyanId.isValid(this._witnessInfo.idNumber));
-  }
-
-  /**
-   * Determines if witness is compliant with Kenyan legal requirements
-   *
-   * @returns {boolean} True if witness is legally compliant
-   */
-  isCompliantWithKenyanLaw(): boolean {
-    const validation = this.validateForKenyanLaw();
-    return validation.isValid;
-  }
-
-  /**
-   * Gets legal compliance issues for witness
-   *
-   * @returns {string[]} Array of compliance issues
-   */
-  getComplianceIssues(): string[] {
-    const validation = this.validateForKenyanLaw();
-    return validation.issues;
-  }
-
-  /**
-   * Gets formatted contact information for display
-   *
-   * @returns {string} Formatted contact information
-   */
-  getContactInfo(): string {
-    if (this._witnessInfo.email && this._witnessInfo.phone) {
-      return `${this._witnessInfo.email} / ${this._witnessInfo.phone}`;
-    }
-
-    return this._witnessInfo.email || this._witnessInfo.phone || 'No contact information';
-  }
-
-  /**
-   * Gets formatted address for display
-   *
-   * @returns {string} Formatted address string
-   */
-  getFormattedAddress(): string {
-    if (!this._witnessInfo.address) return 'No address provided';
-
-    const { street, city, county, postalCode } = this._witnessInfo.address;
-    const parts = [street, city, county, postalCode].filter(Boolean);
-    return parts.join(', ');
-  }
-
-  /**
-   * Determines if witness can be reinstated after rejection/ineligibility
-   *
-   * @returns {boolean} True if witness can be reinstated
-   */
-  canBeReinstated(): boolean {
-    return this._status === WitnessStatus.REJECTED || !this._isEligible;
-  }
-
-  /**
-   * Reinstates previously rejected or ineligible witness
-   *
-   * @throws {Error} When witness cannot be reinstated
-   */
-  reinstate(): void {
-    if (!this.canBeReinstated()) {
-      throw new Error('Witness cannot be reinstated in current state');
-    }
-
-    this._isEligible = true;
-    this._ineligibilityReason = null;
-
-    if (this._status === WitnessStatus.REJECTED) {
-      this._status = WitnessStatus.PENDING;
-    }
-
-    this._updatedAt = new Date();
-  }
-
-  // --------------------------------------------------------------------------
-  // IMMUTABLE GETTERS - Provide read-only access to entity state
+  // GETTERS
   // --------------------------------------------------------------------------
 
   get id(): string {
@@ -673,55 +544,130 @@ export class Witness extends AggregateRoot {
   get willId(): string {
     return this._willId;
   }
-  get witnessInfo(): WitnessInfo {
-    return { ...this._witnessInfo };
+  get witnessType(): WitnessType {
+    return this._witnessType;
+  }
+  get witnessId(): string | null {
+    return this._witnessId;
+  }
+  get fullName(): string {
+    return this._fullName;
+  }
+  get email(): string | null {
+    return this._email;
+  }
+  get phone(): string | null {
+    return this._phone;
+  }
+  get idNumber(): string | null {
+    return this._idNumber;
+  }
+  get idType(): WitnessVerificationMethod | null {
+    return this._idType;
+  }
+  get idDocumentId(): string | null {
+    return this._idDocumentId;
+  }
+  get idVerified(): boolean {
+    return this._idVerified;
+  }
+  get isProfessionalWitness(): boolean {
+    return this._isProfessionalWitness;
+  }
+  get professionalCapacity(): string | null {
+    return this._professionalCapacity;
+  }
+  get professionalLicense(): string | null {
+    return this._professionalLicense;
+  }
+  get relationship(): string | null {
+    return this._relationship;
+  }
+  get relationshipDuration(): string | null {
+    return this._relationshipDuration;
+  }
+  get knowsTestatorWell(): boolean {
+    return this._knowsTestatorWell;
+  }
+  get physicalAddress(): Record<string, any> | null {
+    return this._physicalAddress ? { ...this._physicalAddress } : null;
+  }
+  get residentialCounty(): string | null {
+    return this._residentialCounty;
+  }
+  get eligibilityStatus(): WitnessEligibilityStatus {
+    return this._eligibilityStatus;
+  }
+  get eligibilityVerifiedAt(): Date | null {
+    return this._eligibilityVerifiedAt;
+  }
+  get eligibilityVerifiedBy(): string | null {
+    return this._eligibilityVerifiedBy;
+  }
+  get ineligibilityReason(): string | null {
+    return this._ineligibilityReason;
   }
   get status(): WitnessStatus {
     return this._status;
   }
   get signedAt(): Date | null {
-    return this._signedAt ? new Date(this._signedAt) : null;
+    return this._signedAt;
+  }
+  get signatureType(): SignatureType | null {
+    return this._signatureType;
   }
   get signatureData(): string | null {
     return this._signatureData;
   }
+  get signatureLocation(): string | null {
+    return this._signatureLocation;
+  }
+  get witnessingMethod(): string | null {
+    return this._witnessingMethod;
+  }
   get verifiedAt(): Date | null {
-    return this._verifiedAt ? new Date(this._verifiedAt) : null;
+    return this._verifiedAt;
   }
   get verifiedBy(): string | null {
     return this._verifiedBy;
   }
+  get verificationMethod(): WitnessVerificationMethod | null {
+    return this._verificationMethod;
+  }
+  get verificationNotes(): string | null {
+    return this._verificationNotes;
+  }
   get isEligible(): boolean {
     return this._isEligible;
   }
-  get ineligibilityReason(): string | null {
-    return this._ineligibilityReason;
+  get hasConflictOfInterest(): boolean {
+    return this._hasConflictOfInterest;
+  }
+  get conflictDetails(): string | null {
+    return this._conflictDetails;
+  }
+  get understandsObligation(): boolean {
+    return this._understandsObligation;
+  }
+  get obligationAcknowledgedAt(): Date | null {
+    return this._obligationAcknowledgedAt;
+  }
+  get invitationSentAt(): Date | null {
+    return this._invitationSentAt;
+  }
+  get invitationMethod(): string | null {
+    return this._invitationMethod;
+  }
+  get reminderSentAt(): Date | null {
+    return this._reminderSentAt;
+  }
+  get responseReceivedAt(): Date | null {
+    return this._responseReceivedAt;
   }
   get createdAt(): Date {
     return new Date(this._createdAt);
   }
   get updatedAt(): Date {
     return new Date(this._updatedAt);
-  }
-  get fullName(): string {
-    return this._witnessInfo.fullName;
-  }
-  get email(): string | undefined {
-    return this._witnessInfo.email;
-  }
-  get phone(): string | undefined {
-    return this._witnessInfo.phone;
-  }
-  get idNumber(): string | undefined {
-    return this._witnessInfo.idNumber;
-  }
-  get relationship(): string | undefined {
-    return this._witnessInfo.relationship;
-  }
-  get address(): WitnessAddress | undefined {
-    return this._witnessInfo.address ? { ...this._witnessInfo.address } : undefined;
-  }
-  get userId(): string | undefined {
-    return this._witnessInfo.userId;
   }
 }

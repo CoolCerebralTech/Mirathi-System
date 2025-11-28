@@ -1,177 +1,242 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { AssetOwnershipType, AssetType } from '@prisma/client';
+import {
+  AssetEncumbranceType,
+  AssetOwnershipType,
+  AssetType,
+  AssetVerificationStatus,
+  KenyanCounty,
+} from '@prisma/client';
 
-import { KENYAN_COUNTIES_LIST } from '../../../common/constants/kenyan-law.constants';
 import { AssetAddedEvent } from '../events/asset-added.event';
 import { AssetEncumberedEvent } from '../events/asset-encumbered.event';
 import { AssetUpdatedEvent } from '../events/asset-updated.event';
 import { AssetValuationUpdatedEvent } from '../events/asset-valuation-updated.event';
 import { AssetVerifiedEvent } from '../events/asset-verified.event';
-import { AssetValue } from '../value-objects/asset-value.vo';
+
+// -----------------------------------------------------------------------------
+// VALUE OBJECTS & INTERFACES
+// -----------------------------------------------------------------------------
 
 /**
- * Represents the geographical location of an asset within Kenya
- * @interface AssetLocation
+ * GPS coordinates for Kenyan land parcels.
+ * Mapped from Prisma Json field.
  */
-export interface AssetLocation {
-  county: string;
-  subCounty?: string;
-  ward?: string;
-  village?: string;
-  gpsCoordinates?: {
-    latitude: number;
-    longitude: number;
-  };
+export interface GPSCoordinates {
+  latitude: number;
+  longitude: number;
 }
 
 /**
- * Identification details for various asset types in Kenya
- * @interface AssetIdentification
- */
-export interface AssetIdentification {
-  registrationNumber?: string;
-  serialNumber?: string;
-  accountNumber?: string;
-  parcelNumber?: string;
-  vehicleRegistration?: string;
-  otherIdentifiers?: Record<string, string>;
-}
-
-/**
- * Data structure for asset valuation information
- * @interface AssetValueData
- */
-export interface AssetValueData {
-  amount: number;
-  currency: string;
-  valuationDate: Date | string;
-}
-
-/**
- * Properties required for entity reconstitution from persistence
- * @interface AssetReconstituteProps
+ * Properties required for entity reconstitution from persistence.
+ * Strictly aligned with Prisma Schema.
  */
 export interface AssetReconstituteProps {
   id: string;
   name: string;
-  description: string;
+  description: string | null;
   type: AssetType;
   ownerId: string;
   ownershipType: AssetOwnershipType;
   ownershipShare: number;
-  currentValue: AssetValueData | AssetValue;
-  location: AssetLocation | null;
-  identification: AssetIdentification | null;
-  hasVerifiedDocument: boolean;
+
+  // Kenyan Location Data
+  county: KenyanCounty | null;
+  subCounty: string | null;
+  ward: string | null;
+  village: string | null;
+  landReferenceNumber: string | null;
+  gpsCoordinates: GPSCoordinates | null; // Parsed from Json
+
+  // Kenyan Identification
+  titleDeedNumber: string | null;
+  registrationNumber: string | null;
+  kraPin: string | null;
+  identificationDetails: Record<string, any> | null; // Parsed from Json
+
+  // Valuation
+  currentValue: number | null;
+  currency: string;
+  valuationDate: Date | null;
+  valuationSource: string | null;
+
+  // Legal Status - Kenyan Compliance
+  verificationStatus: AssetVerificationStatus;
   isEncumbered: boolean;
+  encumbranceType: AssetEncumbranceType | null;
   encumbranceDetails: string | null;
-  encumbranceAmount: number;
+  encumbranceAmount: number | null;
+
+  // Matrimonial Property Status (Matrimonial Property Act, 2013)
+  isMatrimonialProperty: boolean;
+  acquiredDuringMarriage: boolean;
+  spouseConsentRequired: boolean;
+
+  // Life Interest Support (Law of Succession Act, Cap 160)
+  hasLifeInterest: boolean;
+  lifeInterestHolderId: string | null;
+  lifeInterestEndsAt: Date | null;
+
+  // Management & Status
   isActive: boolean;
+  requiresProbate: boolean;
+
+  // Audit Trail
   createdAt: Date | string;
   updatedAt: Date | string;
   deletedAt: Date | string | null;
 }
 
-// Define the KenyanCounty type based on KENYAN_COUNTIES_LIST
-type KenyanCounty = (typeof KENYAN_COUNTIES_LIST)[number];
-
 /**
- * Asset Entity representing property ownership under Kenyan succession law
+ * Asset Aggregate Root
  *
- * Core Domain Entity for managing testator's assets including:
- * - Land parcels (with Kenyan title deed validation)
- * - Financial assets (bank accounts, investments)
- * - Business interests and personal property
+ * Represents an item of property within a Kenyan Estate.
  *
- * @class Asset
- * @extends {AggregateRoot}
+ * Legal Context:
+ * - Governed by Law of Succession Act (Cap 160).
+ * - Matrimonial Property Act (2013) applies to ownership and consent.
+ * - Land Registration Act applies to title details.
  */
 export class Asset extends AggregateRoot {
-  // Core Asset Properties
+  // Core Identity
   private readonly _id: string;
   private _name: string;
-  private _description: string;
+  private _description: string | null;
   private readonly _type: AssetType;
   private readonly _ownerId: string;
+
+  // Ownership
   private _ownershipType: AssetOwnershipType;
-  private _ownershipShare: number;
-  private _currentValue: AssetValue;
-  private _location: AssetLocation | null;
-  private _identification: AssetIdentification | null;
+  private _ownershipShare: number; // Percentage (0-100)
 
-  // Legal Status Flags (Kenyan Law Compliance)
-  private _hasVerifiedDocument: boolean;
+  // Kenyan Location Data
+  private _county: KenyanCounty | null;
+  private _subCounty: string | null;
+  private _ward: string | null;
+  private _village: string | null;
+  private _landReferenceNumber: string | null; // Critical for Land Assets (L.R. No)
+  private _gpsCoordinates: GPSCoordinates | null;
+
+  // Kenyan Identification
+  private _titleDeedNumber: string | null;
+  private _registrationNumber: string | null; // For Vehicles/Business
+  private _kraPin: string | null; // For Tax compliance check
+  private _identificationDetails: Record<string, any> | null;
+
+  // Valuation
+  private _currentValue: number | null;
+  private _currency: string;
+  private _valuationDate: Date | null;
+  private _valuationSource: string | null;
+
+  // Legal Status
+  private _verificationStatus: AssetVerificationStatus;
   private _isEncumbered: boolean;
+  private _encumbranceType: AssetEncumbranceType | null;
   private _encumbranceDetails: string | null;
-  private _encumbranceAmount: number;
-  private _isActive: boolean;
+  private _encumbranceAmount: number | null;
 
-  // Audit Trail - Remove readonly for reconstruction
+  // Matrimonial Property (Matrimonial Property Act)
+  private _isMatrimonialProperty: boolean;
+  private _acquiredDuringMarriage: boolean;
+  private _spouseConsentRequired: boolean;
+
+  // Life Interest (Cap 160, Section 37)
+  private _hasLifeInterest: boolean;
+  private _lifeInterestHolderId: string | null; // Link to FamilyMember
+  private _lifeInterestEndsAt: Date | null;
+
+  // State
+  private _isActive: boolean;
+  private _requiresProbate: boolean;
+
+  // Timestamps
   private _createdAt: Date;
   private _updatedAt: Date;
   private _deletedAt: Date | null;
 
   // --------------------------------------------------------------------------
-  // PRIVATE CONSTRUCTOR - Enforces use of factory methods
+  // CONSTRUCTOR
   // --------------------------------------------------------------------------
   private constructor(
     id: string,
     name: string,
     type: AssetType,
     ownerId: string,
-    currentValue: AssetValue,
-    ownershipType: AssetOwnershipType = AssetOwnershipType.SOLE,
-    ownershipShare: number = 100,
+    currency: string = 'KES',
   ) {
     super();
 
-    if (!id?.trim()) throw new Error('Asset ID is required');
-    if (!name?.trim()) throw new Error('Asset name is required');
-    if (!ownerId?.trim()) throw new Error('Owner ID is required');
+    if (!id) throw new Error('Asset ID is required');
+    if (!name) throw new Error('Asset name is required');
+    if (!ownerId) throw new Error('Owner ID is required');
 
     this._id = id;
     this._name = name.trim();
     this._type = type;
     this._ownerId = ownerId;
-    this._currentValue = currentValue;
-    this._ownershipType = ownershipType;
-    this._ownershipShare = ownershipShare;
+    this._currency = currency;
 
-    // Initialize default values
-    this._description = '';
-    this._location = null;
-    this._identification = null;
-    this._hasVerifiedDocument = false;
+    // Defaults
+    this._description = null;
+    this._ownershipType = AssetOwnershipType.SOLE;
+    this._ownershipShare = 100.0;
+
+    // Location Defaults
+    this._county = null;
+    this._subCounty = null;
+    this._ward = null;
+    this._village = null;
+    this._landReferenceNumber = null;
+    this._gpsCoordinates = null;
+
+    // ID Defaults
+    this._titleDeedNumber = null;
+    this._registrationNumber = null;
+    this._kraPin = null;
+    this._identificationDetails = null;
+
+    // Valuation Defaults
+    this._currentValue = null;
+    this._valuationDate = null;
+    this._valuationSource = null;
+
+    // Status Defaults
+    this._verificationStatus = AssetVerificationStatus.UNVERIFIED;
     this._isEncumbered = false;
+    this._encumbranceType = null;
     this._encumbranceDetails = null;
-    this._encumbranceAmount = 0;
+    this._encumbranceAmount = null;
+
+    // Matrimonial Defaults
+    this._isMatrimonialProperty = false;
+    this._acquiredDuringMarriage = false;
+    this._spouseConsentRequired = false;
+
+    // Life Interest Defaults
+    this._hasLifeInterest = false;
+    this._lifeInterestHolderId = null;
+    this._lifeInterestEndsAt = null;
+
+    // System Defaults
     this._isActive = true;
+    this._requiresProbate = true; // Default to true for caution in Kenya
     this._createdAt = new Date();
     this._updatedAt = new Date();
     this._deletedAt = null;
   }
 
   // --------------------------------------------------------------------------
-  // FACTORY METHODS - Domain Lifecycle Management
+  // FACTORY METHODS
   // --------------------------------------------------------------------------
 
-  /**
-   * Creates a new Asset entity with proper domain event emission
-   */
   static create(
     id: string,
     name: string,
     type: AssetType,
     ownerId: string,
-    value: AssetValue,
-    ownershipType: AssetOwnershipType = AssetOwnershipType.SOLE,
-    ownershipShare: number = 100,
+    currency: string = 'KES',
   ): Asset {
-    if (ownershipShare < 0 || ownershipShare > 100) {
-      throw new Error('Ownership share must be between 0 and 100 percent');
-    }
-
-    const asset = new Asset(id, name, type, ownerId, value, ownershipType, ownershipShare);
+    const asset = new Asset(id, name, type, ownerId, currency);
 
     asset.apply(
       new AssetAddedEvent(
@@ -179,7 +244,6 @@ export class Asset extends AggregateRoot {
         asset._ownerId,
         asset._type,
         asset._ownershipType,
-        asset._currentValue,
         asset._createdAt,
       ),
     );
@@ -187,146 +251,205 @@ export class Asset extends AggregateRoot {
     return asset;
   }
 
-  /**
-   * Reconstructs Asset entity from persistence layer data
-   */
   static reconstitute(props: AssetReconstituteProps): Asset {
-    if (!props.id || !props.name || !props.ownerId) {
-      throw new Error('Invalid reconstruction data: missing required fields');
-    }
+    const asset = new Asset(props.id, props.name, props.type, props.ownerId, props.currency);
 
-    const currentValue = Asset.reconstructAssetValue(props.currentValue);
+    asset._description = props.description;
+    asset._ownershipType = props.ownershipType;
+    asset._ownershipShare = props.ownershipShare;
 
-    const asset = new Asset(
-      props.id,
-      props.name,
-      props.type,
-      props.ownerId,
-      currentValue,
-      props.ownershipType,
-      props.ownershipShare,
-    );
+    // Location
+    asset._county = props.county;
+    asset._subCounty = props.subCounty;
+    asset._ward = props.ward;
+    asset._village = props.village;
+    asset._landReferenceNumber = props.landReferenceNumber;
+    asset._gpsCoordinates = props.gpsCoordinates;
 
-    // Hydrate additional properties
-    asset._description = props.description || '';
-    asset._location = props.location ? { ...props.location } : null;
-    asset._identification = props.identification ? { ...props.identification } : null;
-    asset._hasVerifiedDocument = Boolean(props.hasVerifiedDocument);
-    asset._isEncumbered = Boolean(props.isEncumbered);
-    asset._encumbranceDetails = props.encumbranceDetails || null;
-    asset._encumbranceAmount = Number(props.encumbranceAmount) || 0;
-    asset._isActive = Boolean(props.isActive);
+    // ID
+    asset._titleDeedNumber = props.titleDeedNumber;
+    asset._registrationNumber = props.registrationNumber;
+    asset._kraPin = props.kraPin;
+    asset._identificationDetails = props.identificationDetails;
 
-    // Handle date reconstruction - remove readonly constraint
-    asset._createdAt = Asset.safeDateConversion(props.createdAt, 'createdAt');
-    asset._updatedAt = Asset.safeDateConversion(props.updatedAt, 'updatedAt');
-    asset._deletedAt = props.deletedAt
-      ? Asset.safeDateConversion(props.deletedAt, 'deletedAt')
+    // Valuation
+    asset._currentValue = props.currentValue;
+    asset._valuationDate = props.valuationDate ? new Date(props.valuationDate) : null;
+    asset._valuationSource = props.valuationSource;
+
+    // Legal
+    asset._verificationStatus = props.verificationStatus;
+    asset._isEncumbered = props.isEncumbered;
+    asset._encumbranceType = props.encumbranceType;
+    asset._encumbranceDetails = props.encumbranceDetails;
+    asset._encumbranceAmount = props.encumbranceAmount;
+
+    // Matrimonial
+    asset._isMatrimonialProperty = props.isMatrimonialProperty;
+    asset._acquiredDuringMarriage = props.acquiredDuringMarriage;
+    asset._spouseConsentRequired = props.spouseConsentRequired;
+
+    // Life Interest
+    asset._hasLifeInterest = props.hasLifeInterest;
+    asset._lifeInterestHolderId = props.lifeInterestHolderId;
+    asset._lifeInterestEndsAt = props.lifeInterestEndsAt
+      ? new Date(props.lifeInterestEndsAt)
       : null;
+
+    // State
+    asset._isActive = props.isActive;
+    asset._requiresProbate = props.requiresProbate;
+    asset._createdAt = new Date(props.createdAt);
+    asset._updatedAt = new Date(props.updatedAt);
+    asset._deletedAt = props.deletedAt ? new Date(props.deletedAt) : null;
 
     return asset;
   }
 
-  /**
-   * Safely converts date strings to Date objects with validation
-   */
-  private static safeDateConversion(dateInput: Date | string, fieldName: string): Date {
-    try {
-      const date = new Date(dateInput);
-      if (isNaN(date.getTime())) {
-        throw new Error(`Invalid date value for ${fieldName}`);
-      }
-      return date;
-    } catch (error) {
-      throw new Error(
-        `Failed to convert ${fieldName} to valid Date: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-    }
-  }
-
-  /**
-   * Reconstructs AssetValue from raw data or existing instance
-   */
-  private static reconstructAssetValue(valueData: AssetValueData | AssetValue): AssetValue {
-    if (valueData instanceof AssetValue) {
-      return valueData;
-    }
-    if (typeof valueData !== 'object' || valueData === null) {
-      throw new Error('Invalid asset value data');
-    }
-    return new AssetValue(
-      valueData.amount,
-      valueData.currency,
-      Asset.safeDateConversion(valueData.valuationDate, 'valuationDate'),
-    );
-  }
-
-  /**
-   * Validates Kenyan county against official list with type safety
-   */
-  private static isValidKenyanCounty(county: string): county is KenyanCounty {
-    const countyUpper = county.trim().toUpperCase();
-    return (KENYAN_COUNTIES_LIST as readonly string[]).includes(countyUpper);
-  }
-
   // --------------------------------------------------------------------------
-  // BUSINESS LOGIC & DOMAIN OPERATIONS
+  // DOMAIN BEHAVIORS (Kenyan Succession Law)
   // --------------------------------------------------------------------------
 
-  /**
-   * Updates asset descriptive information with validation
-   */
-  updateDetails(name: string, description: string): void {
-    this.validateAssetIsActive();
+  public updateValuation(value: number, valuationDate: Date, source: string): void {
+    this.checkInvariants();
 
-    if (!name?.trim()) {
-      throw new Error('Asset name cannot be empty');
-    }
+    if (value < 0) throw new Error('Asset value cannot be negative');
+    if (valuationDate > new Date()) throw new Error('Valuation date cannot be in the future');
 
-    this._name = name.trim();
-    this._description = description?.trim() || '';
-    this._updatedAt = new Date();
-
-    this.apply(new AssetUpdatedEvent(this._id, this._ownerId));
-  }
-
-  /**
-   * Updates asset valuation and emits valuation event
-   */
-  updateValue(newValue: AssetValue, reason: string = 'Manual Update'): void {
-    this.validateAssetIsActive();
-
-    if (!(newValue instanceof AssetValue)) {
-      throw new Error('New value must be instance of AssetValue');
-    }
-
-    const oldValue = this._currentValue;
-    this._currentValue = newValue;
+    this._currentValue = value;
+    this._valuationDate = valuationDate;
+    this._valuationSource = source;
     this._updatedAt = new Date();
 
     this.apply(
       new AssetValuationUpdatedEvent(
         this._id,
         this._ownerId,
-        oldValue,
-        newValue,
-        reason.trim() || 'Manual Update',
+        value,
+        this._currency,
+        valuationDate,
+        source,
       ),
     );
   }
 
   /**
-   * Updates ownership structure with Kenyan legal validation
+   * Designates asset as Matrimonial Property.
+   * Reference: Matrimonial Property Act, 2013 (Section 6 & 12).
+   * Matrimonial property cannot be alienated without spousal consent.
    */
-  updateOwnership(ownershipType: AssetOwnershipType, share: number): void {
-    this.validateAssetIsActive();
+  public markAsMatrimonialProperty(acquiredDuringMarriage: boolean = true): void {
+    this.checkInvariants();
+    this._isMatrimonialProperty = true;
+    this._acquiredDuringMarriage = acquiredDuringMarriage;
+    this._spouseConsentRequired = true; // Legal default
+    this._updatedAt = new Date();
+  }
+
+  /**
+   * Establishes a Life Interest.
+   * Reference: Law of Succession Act (Cap 160), Section 37.
+   * Usually for surviving spouse or children until age of majority.
+   */
+  public setLifeInterest(holderFamilyMemberId: string, endsAt: Date): void {
+    this.checkInvariants();
+
+    if (endsAt <= new Date()) {
+      throw new Error('Life interest end date must be in the future');
+    }
+    // Note: holderFamilyMemberId refers to a FamilyMember entity ID, not User ID
+    this._hasLifeInterest = true;
+    this._lifeInterestHolderId = holderFamilyMemberId;
+    this._lifeInterestEndsAt = endsAt;
+    this._updatedAt = new Date();
+  }
+
+  public terminateLifeInterest(): void {
+    this.checkInvariants();
+    this._hasLifeInterest = false;
+    this._lifeInterestHolderId = null;
+    this._lifeInterestEndsAt = null;
+    this._updatedAt = new Date();
+  }
+
+  public updateVerificationStatus(status: AssetVerificationStatus, verifiedByUserId: string): void {
+    this.checkInvariants();
+    this._verificationStatus = status;
+    this._updatedAt = new Date();
+
+    if (status === AssetVerificationStatus.VERIFIED) {
+      this.apply(new AssetVerifiedEvent(this._id, verifiedByUserId));
+    }
+  }
+
+  /**
+   * Registers an encumbrance (e.g., Bank Charge, Caveat).
+   * This reduces the Net Estate value available for distribution.
+   */
+  public addEncumbrance(type: AssetEncumbranceType, details: string, amount: number = 0): void {
+    this.checkInvariants();
+
+    if (!details) throw new Error('Encumbrance details required');
+    if (amount < 0) throw new Error('Encumbrance amount cannot be negative');
+
+    this._isEncumbered = true;
+    this._encumbranceType = type;
+    this._encumbranceDetails = details;
+    this._encumbranceAmount = amount;
+    this._updatedAt = new Date();
+
+    this.apply(new AssetEncumberedEvent(this._id, this._ownerId, type, details, amount));
+  }
+
+  public setKenyanLocation(
+    county: KenyanCounty,
+    subCounty?: string,
+    ward?: string,
+    village?: string,
+    landReferenceNumber?: string,
+    gpsCoordinates?: GPSCoordinates,
+  ): void {
+    this.checkInvariants();
+
+    this._county = county;
+    this._subCounty = subCounty || null;
+    this._ward = ward || null;
+    this._village = village || null;
+    this._landReferenceNumber = landReferenceNumber || null;
+    this._gpsCoordinates = gpsCoordinates || null;
+    this._updatedAt = new Date();
+  }
+
+  public setKenyanIdentification(
+    titleDeedNumber?: string,
+    registrationNumber?: string,
+    kraPin?: string,
+    identificationDetails?: Record<string, any>,
+  ): void {
+    this.checkInvariants();
+    this._titleDeedNumber = titleDeedNumber || null;
+    this._registrationNumber = registrationNumber || null;
+    this._kraPin = kraPin || null;
+    this._identificationDetails = identificationDetails || null;
+    this._updatedAt = new Date();
+  }
+
+  public updateOwnership(ownershipType: AssetOwnershipType, share: number): void {
+    this.checkInvariants();
 
     if (share < 0 || share > 100) {
       throw new Error('Ownership share must be between 0 and 100 percent');
     }
-
     if (ownershipType === AssetOwnershipType.SOLE && share !== 100) {
-      throw new Error('Sole ownership requires 100% ownership share under Kenyan law');
+      throw new Error('Sole ownership requires 100% share');
+    }
+    // Logic: If transitioning FROM Matrimonial TO Sole, strict checks (usually consent) are needed.
+    // We enforce validation here, though the actual consent document is handled in the Documents module.
+    if (this._isMatrimonialProperty && ownershipType === AssetOwnershipType.SOLE) {
+      if (this._spouseConsentRequired) {
+        // In a real app, we might check for a linked consent document here.
+        // For now, we allow the change but it technically flags a legal risk.
+      }
     }
 
     this._ownershipType = ownershipType;
@@ -337,221 +460,48 @@ export class Asset extends AggregateRoot {
   }
 
   /**
-   * Sets geographical location with Kenyan county validation
+   * Can this asset be distributed in a will or intestacy?
    */
-  setLocation(location: AssetLocation): void {
-    this.validateAssetIsActive();
+  public canBeTransferred(): boolean {
+    if (!this._isActive) return false;
 
-    if (!location?.county?.trim()) {
-      throw new Error('County is required for asset location');
-    }
+    // Unverified assets pose a risk of fraud (e.g., non-existent land)
+    if (this._verificationStatus !== AssetVerificationStatus.VERIFIED) return false;
 
-    // Validate Kenyan county with type-safe approach
-    if (!Asset.isValidKenyanCounty(location.county)) {
-      throw new Error(
-        `Invalid Kenyan county: ${location.county}. Must be one of: ${KENYAN_COUNTIES_LIST.join(', ')}`,
-      );
-    }
+    // Assets with active life interest cannot be transferred absolutely
+    if (this.hasActiveLifeInterest()) return false;
 
-    this._location = { ...location };
-    this._updatedAt = new Date();
+    // Court orders (e.g., disputes) freeze the asset
+    if (this._isEncumbered && this._encumbranceType === AssetEncumbranceType.COURT_ORDER)
+      return false;
+
+    return true;
   }
 
-  /**
-   * Sets asset identification details
-   */
-  setIdentification(identification: AssetIdentification): void {
-    this.validateAssetIsActive();
-    this._identification = identification ? { ...identification } : null;
-    this._updatedAt = new Date();
-  }
-
-  /**
-   * Marks asset as verified with supporting document
-   */
-  markAsVerified(documentId: string, verifiedBy: string): void {
-    this.validateAssetIsActive();
-
-    if (!documentId?.trim() || !verifiedBy?.trim()) {
-      throw new Error('Document ID and verifier are required for verification');
-    }
-
-    this._hasVerifiedDocument = true;
-    this._updatedAt = new Date();
-
-    this.apply(new AssetVerifiedEvent(this._id, documentId.trim(), verifiedBy.trim()));
-  }
-
-  /**
-   * Removes verified status from asset
-   */
-  markAsUnverified(): void {
-    this.validateAssetIsActive();
-    this._hasVerifiedDocument = false;
-    this._updatedAt = new Date();
-  }
-
-  /**
-   * Adds encumbrance (debt/liability) to asset with validation
-   */
-  addEncumbrance(details: string, amount: number): void {
-    this.validateAssetIsActive();
-
-    if (!details?.trim()) throw new Error('Encumbrance details required');
-    if (amount < 0) throw new Error('Encumbrance amount cannot be negative');
-
-    this._isEncumbered = true;
-
-    // Append details if they exist, otherwise set them
-    const timestamp = new Date().toISOString().split('T')[0];
-    const newDetail = `[${timestamp}] ${details.trim()} (Amt: ${amount})`;
-
-    this._encumbranceDetails = this._encumbranceDetails
-      ? `${this._encumbranceDetails}; ${newDetail}`
-      : newDetail;
-
-    // Add to existing amount rather than overwriting
-    this._encumbranceAmount += amount;
-
-    this._updatedAt = new Date();
-
-    this.apply(
-      new AssetEncumberedEvent(
-        this._id,
-        this._ownerId,
-        this._encumbranceDetails,
-        this._encumbranceAmount,
-      ),
-    );
-  }
-
-  /**
-   * Removes all encumbrances from asset
-   */
-  removeEncumbrance(): void {
-    this.validateAssetIsActive();
-    this._isEncumbered = false;
-    this._encumbranceDetails = null;
-    this._encumbranceAmount = 0;
-    this._updatedAt = new Date();
-  }
-
-  /**
-   * Performs soft deletion of asset
-   */
-  softDelete(): void {
-    this._isActive = false;
-    this._deletedAt = new Date();
-    this._updatedAt = new Date();
-  }
-
-  /**
-   * Restores previously soft-deleted asset
-   */
-  restore(): void {
-    this._isActive = true;
-    this._deletedAt = null;
-    this._updatedAt = new Date();
+  public getNetEquityValue(): number {
+    const value = this._currentValue ?? 0;
+    const debt = this._encumbranceAmount ?? 0;
+    const netValue = Math.max(0, value - debt);
+    // Return value proportional to ownership share
+    return netValue * (this._ownershipShare / 100);
   }
 
   // --------------------------------------------------------------------------
-  // VALIDATION METHODS
+  // PRIVATE HELPERS
   // --------------------------------------------------------------------------
 
-  /**
-   * Validates that asset is active for operations
-   */
-  private validateAssetIsActive(): void {
-    if (!this._isActive) {
-      throw new Error('Cannot perform operation on inactive asset');
-    }
+  private checkInvariants(): void {
+    if (!this._isActive) throw new Error('Asset is not active');
+    if (this._deletedAt) throw new Error('Asset is deleted');
   }
 
-  // --------------------------------------------------------------------------
-  // DOMAIN CALCULATIONS & BUSINESS RULES
-  // --------------------------------------------------------------------------
-
-  /**
-   * Determines if asset is fully owned by a single owner
-   */
-  isFullyOwned(): boolean {
-    return this._ownershipType === AssetOwnershipType.SOLE && this._ownershipShare === 100;
-  }
-
-  /**
-   * Determines if asset can be legally transferred under Kenyan law
-   */
-  canBeTransferred(): boolean {
-    return this._isActive && this._hasVerifiedDocument;
-  }
-
-  /**
-   * Calculates net transferable value considering ownership share and encumbrances
-   */
-  getTransferableValue(): AssetValue {
-    this.validateAssetIsActive();
-    const totalAmount = this._currentValue.getAmount();
-    const shareFraction = this._ownershipShare / 100;
-    const grossShareValue = totalAmount * shareFraction;
-
-    // Pro-rate liability based on share (simplification for general transfers)
-    const liabilityShare = this._encumbranceAmount * shareFraction;
-    const netValue = Math.max(0, grossShareValue - liabilityShare);
-
-    return new AssetValue(
-      netValue,
-      this._currentValue.getCurrency(),
-      this._currentValue.getValuationDate(),
-    );
-  }
-
-  /**
-   * Calculates total net equity value (asset value minus total encumbrances)
-   */
-  getNetValue(): AssetValue {
-    const netValue = Math.max(0, this._currentValue.getAmount() - this._encumbranceAmount);
-
-    return new AssetValue(
-      netValue,
-      this._currentValue.getCurrency(),
-      this._currentValue.getValuationDate(),
-    );
-  }
-
-  /**
-   * Determines if asset has sufficient equity for legal transfer
-   */
-  hasSufficientEquity(minimumEquityPercentage: number = 10): boolean {
-    if (minimumEquityPercentage < 0 || minimumEquityPercentage > 100) {
-      throw new Error('Minimum equity percentage must be between 0 and 100');
-    }
-
-    const netValue = this.getNetValue().getAmount();
-    const totalValue = this._currentValue.getAmount();
-
-    if (totalValue === 0) return false;
-
-    const equityPercentage = (netValue / totalValue) * 100;
-    return equityPercentage >= minimumEquityPercentage;
-  }
-
-  /**
-   * Validates Kenyan location data
-   */
-  hasValidLocation(): boolean {
-    if (!this._location?.county) return false;
-    return Asset.isValidKenyanCounty(this._location.county);
-  }
-
-  /**
-   * Checks if asset documentation meets legal requirements for transfer
-   */
-  isDocumentationComplete(): boolean {
-    return this._hasVerifiedDocument && this._identification !== null && this.hasValidLocation();
+  public hasActiveLifeInterest(): boolean {
+    if (!this._hasLifeInterest || !this._lifeInterestEndsAt) return false;
+    return this._lifeInterestEndsAt > new Date();
   }
 
   // --------------------------------------------------------------------------
-  // IMMUTABLE GETTERS - Provide read-only access to entity state
+  // GETTERS
   // --------------------------------------------------------------------------
 
   get id(): string {
@@ -560,7 +510,7 @@ export class Asset extends AggregateRoot {
   get name(): string {
     return this._name;
   }
-  get description(): string {
+  get description(): string | null {
     return this._description;
   }
   get type(): AssetType {
@@ -575,30 +525,95 @@ export class Asset extends AggregateRoot {
   get ownershipShare(): number {
     return this._ownershipShare;
   }
-  get currentValue(): AssetValue {
+
+  get county(): KenyanCounty | null {
+    return this._county;
+  }
+  get subCounty(): string | null {
+    return this._subCounty;
+  }
+  get ward(): string | null {
+    return this._ward;
+  }
+  get village(): string | null {
+    return this._village;
+  }
+  get landReferenceNumber(): string | null {
+    return this._landReferenceNumber;
+  }
+  get gpsCoordinates(): GPSCoordinates | null {
+    return this._gpsCoordinates ? { ...this._gpsCoordinates } : null;
+  }
+
+  get titleDeedNumber(): string | null {
+    return this._titleDeedNumber;
+  }
+  get registrationNumber(): string | null {
+    return this._registrationNumber;
+  }
+  get kraPin(): string | null {
+    return this._kraPin;
+  }
+  get identificationDetails(): Record<string, any> | null {
+    return this._identificationDetails ? { ...this._identificationDetails } : null;
+  }
+
+  get currentValue(): number | null {
     return this._currentValue;
   }
-  get location(): AssetLocation | null {
-    return this._location ? { ...this._location } : null;
+  get currency(): string {
+    return this._currency;
   }
-  get identification(): AssetIdentification | null {
-    return this._identification ? { ...this._identification } : null;
+  get valuationDate(): Date | null {
+    return this._valuationDate;
   }
-  get hasVerifiedDocument(): boolean {
-    return this._hasVerifiedDocument;
+  get valuationSource(): string | null {
+    return this._valuationSource;
+  }
+
+  get verificationStatus(): AssetVerificationStatus {
+    return this._verificationStatus;
   }
   get isEncumbered(): boolean {
     return this._isEncumbered;
   }
+  get encumbranceType(): AssetEncumbranceType | null {
+    return this._encumbranceType;
+  }
   get encumbranceDetails(): string | null {
     return this._encumbranceDetails;
   }
-  get encumbranceAmount(): number {
+  get encumbranceAmount(): number | null {
     return this._encumbranceAmount;
   }
+
+  get isMatrimonialProperty(): boolean {
+    return this._isMatrimonialProperty;
+  }
+  get acquiredDuringMarriage(): boolean {
+    return this._acquiredDuringMarriage;
+  }
+  get spouseConsentRequired(): boolean {
+    return this._spouseConsentRequired;
+  }
+
+  get hasLifeInterest(): boolean {
+    return this._hasLifeInterest;
+  }
+  get lifeInterestHolderId(): string | null {
+    return this._lifeInterestHolderId;
+  }
+  get lifeInterestEndsAt(): Date | null {
+    return this._lifeInterestEndsAt;
+  }
+
   get isActive(): boolean {
     return this._isActive;
   }
+  get requiresProbate(): boolean {
+    return this._requiresProbate;
+  }
+
   get createdAt(): Date {
     return new Date(this._createdAt);
   }

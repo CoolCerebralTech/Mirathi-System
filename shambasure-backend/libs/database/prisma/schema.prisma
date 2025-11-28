@@ -795,6 +795,9 @@ model FamilyMember {
   @@index([userId])
   @@index([isMinor, isDeceased])
   @@index([deletedAt])
+  @@index([dateOfBirth, isDeceased]) // For age-based queries
+  @@index([firstName, lastName])     // For name searches
+  @@index([dateOfDeath])             // For deceased member queries
   @@map("family_members")
   assets Asset[]
 }
@@ -1029,7 +1032,8 @@ model Asset {
   beneficiaryAssignments  BeneficiaryAssignment[]
   debts                   Debt[]
   lifeInterestHolder      FamilyMember?         @relation(fields: [lifeInterestHolderId], references: [id])
-  
+   creditorClaims CreditorClaim[]
+
   @@index([ownerId, isActive])
   @@index([type, verificationStatus])
   @@index([county, subCounty])
@@ -1038,8 +1042,10 @@ model Asset {
   @@index([hasLifeInterest])
   @@index([requiresProbate])
   @@index([deletedAt])
+   @@index([currentValue])            // For valuation queries
+  @@index([createdAt, ownerId])      // For user asset lists
+  @@index([verificationStatus, createdAt]) // For admin review queues
   @@map("assets")
-  creditorClaims CreditorClaim[]
 }
 
 model AssetCoOwner {
@@ -1296,8 +1302,8 @@ model Will {
   disputes                    Dispute[]
   estates                     Estate[]               @relation("EstateWills")
   
-  @@index([testatorId, status])
-  @@index([status, activatedAt])
+  @@index([testatorId, status, createdAt]) // User will dashboard
+  @@index([status, isRevoked, deletedAt])  // Admin will management
   @@index([type])
   @@index([legalCapacityStatus])
   @@index([isRevoked])
@@ -1410,9 +1416,6 @@ model WillExecutor {
   // Audit Trail
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
-
-  // RELATIONS
-  estateAdministrations   Estate[]
   
   @@index([willId])
   @@index([executorId])
@@ -1567,7 +1570,7 @@ model BeneficiaryAssignment {
   // Beneficiary Identity
   beneficiaryType         BeneficiaryType
   userId                  String?
-  user                    User?                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  beneficiary             User?                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   familyMemberId          String?
   familyMember            FamilyMember?          @relation(fields: [familyMemberId], references: [id], onDelete: Cascade)
   
@@ -1601,8 +1604,7 @@ model BeneficiaryAssignment {
   
   // Alternate Beneficiary
   alternateAssignmentId   String?
-  alternateAssignment     BeneficiaryAssignment? @relation("AlternateBeneficiary", fields: [alternateAssignmentid], references: [id])
-  alternateAssignmentid String?
+  alternateAssignment     BeneficiaryAssignment? @relation("AlternateBeneficiary", fields: [alternateAssignmentId], references: [id])
   
   // Distribution Tracking
   distributionStatus      DistributionStatus     @default(PENDING)
@@ -1720,6 +1722,28 @@ model Estate {
   updatedAt        DateTime  @updatedAt
   closedAt         DateTime?
 
+  deceasedDateOfBirth DateTime?        // Important for age calculations
+  deceasedIdNumber    String?          // National ID
+  deceasedKraPin      String?          // KRA PIN for tax purposes
+  placeOfDeath        String?          // Kenyan legal requirement
+  deathCertificateNumber String?       // Official document reference
+  burialPermitNumber  String?          // Kenyan burial permit
+  
+  // Estate administration timeline
+  administrationStartedAt DateTime?
+  administrationCompletedAt DateTime?
+  estimatedCompletionDate DateTime?
+  
+  // Tax compliance (Kenyan requirements)
+  taxComplianceCertificateNumber String?
+  taxComplianceCertificateDate DateTime?
+  estateDutyPaid Boolean @default(false)
+  estateDutyAmount Float?
+  
+  // Court information
+  primaryCourtStation String?          // e.g., "Nairobi High Court"
+  courtFileReference  String?          // Physical file tracking
+
   // relations
   wills           Will[]            @relation("EstateWills")
   inventories     EstateInventory[]
@@ -1728,15 +1752,20 @@ model Estate {
   claims          CreditorClaim[]
   distributions   DistributionSchedule[]
   entitlements    BeneficiaryEntitlement[]
+  intestacyCases IntestacyCase[]
+  testamentaryTrusts TestamentaryTrust[]
+  probateCases ProbateCase[]
+  executorDuties ExecutorDuty[]
 
   @@index([deceasedUserId])
   @@index([probateCaseNumber])
+  @@index([status, createdAt])
+  @@index([administrationType, status])
+  @@index([dateOfDeath])
+  @@index([estateValue])
+  @@index([createdAt, closedAt])
+  @@index([deceasedIdNumber])
   @@map("estates")
-  intestacyCases IntestacyCase[]
-  testamentaryTrusts TestamentaryTrust[]
-  willExecutors WillExecutor[]
-  probateCases ProbateCase[]
-  executorDuties ExecutorDuty[]
 }
 
 model EstateInventory {
@@ -1802,7 +1831,6 @@ model GrantOfAdministration {
   @@index([issuedAt])
   @@index([expiresAt])
   @@map("grants_of_administration")
-  probateCases ProbateCase[]
 }
 model ProbateCase {
   id                      String              @id @default(uuid())
@@ -1844,8 +1872,6 @@ model ProbateCase {
   
   // Grant Tracking
   grantId                 String?             // Reference to GrantOfAdministration
-  grant                   GrantOfAdministration? @relation(fields: [grantId], references: [id])
-  
   // Inventory Reference
   inventoryId            String?             // Reference to EstateInventory
   inventory              EstateInventory?    @relation(fields: [inventoryId], references: [id])
@@ -2101,11 +2127,11 @@ model DistributionSchedule {
 model IntestacyCase {
   id             String   @id @default(uuid())
   estateId       String
-  estate         Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
   computedAt     DateTime @default(now())
   decisionJson   Json     // store the computed heir order, shares, life interests etc
   computedBy     String?  // service/process id
   notes          String?
+  estate         Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
 
   @@index([estateId])
   @@map("intestacy_cases")
@@ -2117,7 +2143,6 @@ model IntestacyCase {
 model TestamentaryTrust {
   id           String   @id @default(uuid())
   estateId     String
-  estate       Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
   trusteeId    String?  // User acting as trustee
   trusteeName  String?
   purpose      String? 
@@ -2125,6 +2150,7 @@ model TestamentaryTrust {
   fundsHeld    Float?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  estate       Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
 
   @@index([estateId, trusteeId])
   @@map("testamentary_trusts")
@@ -2250,7 +2276,8 @@ model Document {
 
   // --- Relations ---
   versions    DocumentVersion[]
-  verificationAttempts        DocumentVerificationAttempt[] 
+  verificationAttempts        DocumentVerificationAttempt[]
+  willWitnesses WillWitness[] @relation("WitnessIdentityDocuments") 
 
   // --- Indexes for Performance ---
   @@index([uploaderId, status, createdAt])
@@ -2265,7 +2292,6 @@ model Document {
   @@index([documentNumber])
   @@index([expiryDate])
   @@map("documents")
-  willWitnesses WillWitness[] @relation("WitnessIdentityDocuments")
 }
 
 model DocumentVersion {

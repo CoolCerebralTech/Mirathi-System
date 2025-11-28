@@ -1,12 +1,9 @@
 import { AggregateRoot } from '@nestjs/cqrs';
+import { HearingStatus, HearingType } from '@prisma/client';
 
-import { HearingType } from '../../../common/types/kenyan-law.types';
 import { HearingAdjournedEvent } from '../events/hearing-adjourned.event';
-import { HearingCancelledEvent } from '../events/hearing-cancelled.event';
-import { HearingOutcomeRecordedEvent } from '../events/hearing-outcome-recorded.event';
+import { HearingCompletedEvent } from '../events/hearing-completed.event';
 import { HearingScheduledEvent } from '../events/hearing-scheduled.event';
-
-export type HearingStatus = 'SCHEDULED' | 'COMPLETED' | 'ADJOURNED' | 'CANCELLED' | 'IN_PROGRESS';
 
 export interface HearingOutcome {
   orders: string[];
@@ -15,105 +12,57 @@ export interface HearingOutcome {
   complianceDeadline?: Date;
 }
 
-// Safe interface for reconstitution
-export interface CourtHearingProps {
-  id: string;
-  caseId: string;
-  hearingNumber: string;
-  date: Date | string;
-  type: HearingType;
-  courtStation: string;
-  status: HearingStatus;
-  virtualLink?: string | null;
-  courtroom?: string | null;
-  judgeName?: string | null;
-  causeListNumber?: string | null;
-  startTime?: string;
-  endTime?: string;
-  outcomeNotes?: string | null;
-  outcome?: HearingOutcome | null;
-  presidedBy?: string | null;
-  adjournmentCount?: number;
-  adjournmentReasons?: string[];
-  minutesTaken?: boolean;
-  ordersIssued?: boolean;
-  complianceDeadline?: Date | string | null;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-}
-
-export class CourtHearing extends AggregateRoot {
-  private id: string;
-  private caseId: string;
-  private hearingNumber: string;
-
-  // Scheduling Details
-  private date: Date;
-  private startTime: string;
-  private endTime: string;
-  private type: HearingType;
-  private virtualLink: string | null;
-  private courtroom: string | null;
-  private judgeName: string | null;
-
-  // Kenyan Court Specific
-  private courtStation: string;
-  private causeListNumber: string | null;
-
-  // Outcome
-  private status: HearingStatus;
-  private outcomeNotes: string | null;
-  private outcome: HearingOutcome | null;
-  private presidedBy: string | null;
-  private adjournmentCount: number;
-  private adjournmentReasons: string[];
-
-  // Legal Compliance
-  private minutesTaken: boolean;
-  private ordersIssued: boolean;
-  private complianceDeadline: Date | null;
-
-  private createdAt: Date;
-  private updatedAt: Date;
-
-  private constructor(
-    id: string,
-    caseId: string,
-    date: Date,
-    type: HearingType,
-    courtStation: string,
+// Value Object for Kenyan Court Identification
+export class CourtIdentification {
+  constructor(
+    public readonly courtStation: string,
+    public readonly causeListNumber?: string,
+    public readonly courtroom?: string,
   ) {
-    super();
-    this.id = id;
-    this.caseId = caseId;
-    this.date = date;
-    this.type = type;
-    this.courtStation = courtStation;
-
-    this.status = 'SCHEDULED';
-    this.virtualLink = null;
-    this.courtroom = null;
-    this.judgeName = null;
-    this.causeListNumber = null;
-    this.startTime = '09:00';
-    this.endTime = '10:00';
-    this.outcomeNotes = null;
-    this.outcome = null;
-    this.presidedBy = null;
-    this.adjournmentCount = 0;
-    this.adjournmentReasons = [];
-    this.minutesTaken = false;
-    this.ordersIssued = false;
-    this.complianceDeadline = null;
-    this.hearingNumber = this.generateHearingNumber();
-
-    this.createdAt = new Date();
-    this.updatedAt = new Date();
+    if (!courtStation.trim()) {
+      throw new Error('Court station is required');
+    }
   }
 
-  // --------------------------------------------------------------------------
-  // FACTORY METHODS
-  // --------------------------------------------------------------------------
+  getFormattedReference(): string {
+    return this.causeListNumber
+      ? `${this.courtStation} - ${this.causeListNumber}`
+      : this.courtStation;
+  }
+}
+
+// Main Entity
+export class CourtHearing extends AggregateRoot {
+  constructor(
+    private readonly id: string,
+    private readonly caseId: string, // ProbateCase reference
+    private hearingNumber: string,
+    private date: Date,
+    private type: HearingType,
+    private courtIdentification: CourtIdentification,
+    private status: HearingStatus = HearingStatus.SCHEDULED,
+    private judgeName?: string,
+    private presidedBy?: string,
+    private virtualLink?: string,
+    private startTime: string = '09:00',
+    private endTime: string = '10:00',
+    private outcomeNotes?: string,
+    private outcome?: HearingOutcome,
+    private adjournmentCount: number = 0,
+    private adjournmentReasons: string[] = [],
+    private minutesTaken: boolean = false,
+    private ordersIssued: boolean = false,
+    private complianceDeadline?: Date,
+    private readonly createdAt: Date = new Date(),
+    private updatedAt: Date = new Date(),
+  ) {
+    super();
+    this.validate();
+  }
+
+  // ==========================================================================
+  // FACTORY METHODS (Creation & Reconstitution)
+  // ==========================================================================
 
   static schedule(
     id: string,
@@ -122,394 +71,257 @@ export class CourtHearing extends AggregateRoot {
     type: HearingType,
     courtStation: string,
     options?: {
-      virtualLink?: string;
+      hearingNumber?: string;
+      causeListNumber?: string;
       courtroom?: string;
       judgeName?: string;
       startTime?: string;
       endTime?: string;
-      causeListNumber?: string;
+      virtualLink?: string;
     },
   ): CourtHearing {
-    this.validateHearingDate(date);
+    // Validate legal requirements before creation
+    CourtHearing.validateHearingDate(date);
 
-    const hearing = new CourtHearing(id, caseId, date, type, courtStation);
-
-    if (options) {
-      if (options.virtualLink) hearing.virtualLink = options.virtualLink;
-      if (options.courtroom) hearing.courtroom = options.courtroom;
-      if (options.judgeName) hearing.judgeName = options.judgeName;
-      if (options.startTime) hearing.startTime = options.startTime;
-      if (options.endTime) hearing.endTime = options.endTime;
-      if (options.causeListNumber) hearing.causeListNumber = options.causeListNumber;
-    }
-
-    hearing.apply(
-      new HearingScheduledEvent(
-        id,
-        caseId,
-        date,
-        type,
-        hearing.virtualLink || undefined,
-        hearing.courtroom || undefined,
-        hearing.judgeName || undefined,
-      ),
+    const courtId = new CourtIdentification(
+      courtStation,
+      options?.causeListNumber,
+      options?.courtroom,
     );
-    return hearing;
-  }
 
-  static reconstitute(props: CourtHearingProps): CourtHearing {
-    // validation with specific error messages
-    const requiredFields = ['id', 'caseId', 'date', 'type', 'courtStation'];
-    const missingFields = requiredFields.filter((field) => !props[field]);
-
-    if (missingFields.length > 0) {
-      throw new Error(
-        `Missing required properties for CourtHearing reconstitution: ${missingFields.join(', ')}`,
-      );
-    }
-
-    // Validate date format
-    if (isNaN(new Date(props.date).getTime())) {
-      throw new Error('Invalid date format in CourtHearing properties');
-    }
-
-    // Validate hearing status
-    const validStatuses: HearingStatus[] = [
-      'SCHEDULED',
-      'COMPLETED',
-      'ADJOURNED',
-      'CANCELLED',
-      'IN_PROGRESS',
-    ];
-    if (!validStatuses.includes(props.status)) {
-      throw new Error(`Invalid hearing status: ${props.status}`);
-    }
+    const hearingNumber = options?.hearingNumber || CourtHearing.generateHearingNumber();
 
     const hearing = new CourtHearing(
-      props.id,
-      props.caseId,
-      new Date(props.date),
-      props.type,
-      props.courtStation,
+      id,
+      caseId,
+      hearingNumber,
+      date,
+      type,
+      courtId,
+      HearingStatus.SCHEDULED,
+      options?.judgeName,
+      undefined, // presidedBy
+      options?.virtualLink,
+      options?.startTime,
+      options?.endTime,
     );
 
-    // Safe property assignments with validation
-    hearing.hearingNumber = props.hearingNumber || hearing.generateHearingNumber();
-    hearing.status = props.status;
-    hearing.virtualLink = props.virtualLink ?? null;
-    hearing.courtroom = props.courtroom ?? null;
-    hearing.judgeName = props.judgeName ?? null;
-    hearing.causeListNumber = props.causeListNumber ?? null;
-    hearing.startTime = props.startTime || '09:00';
-    hearing.endTime = props.endTime || '10:00';
-    hearing.outcomeNotes = props.outcomeNotes ?? null;
-    hearing.outcome = props.outcome ?? null;
-    hearing.presidedBy = props.presidedBy ?? null;
-    hearing.adjournmentCount = props.adjournmentCount || 0;
-    hearing.adjournmentReasons = props.adjournmentReasons || [];
-    hearing.minutesTaken = props.minutesTaken ?? false;
-    hearing.ordersIssued = props.ordersIssued ?? false;
-
-    // Safe date handling for complianceDeadline
-    if (props.complianceDeadline) {
-      hearing.complianceDeadline = new Date(props.complianceDeadline);
-    } else {
-      hearing.complianceDeadline = null;
-    }
-
-    // Safe date handling for timestamps
-    hearing.createdAt = new Date(props.createdAt);
-    hearing.updatedAt = new Date(props.updatedAt);
-
+    hearing.apply(new HearingScheduledEvent(hearing.id, hearing.caseId, hearing.date));
     return hearing;
   }
 
-  // --------------------------------------------------------------------------
-  // BUSINESS LOGIC
-  // --------------------------------------------------------------------------
+  static reconstitute(props: {
+    id: string;
+    caseId: string;
+    hearingNumber: string;
+    date: Date;
+    type: HearingType;
+    courtStation: string;
+    status: HearingStatus;
+    causeListNumber?: string;
+    courtroom?: string;
+    judgeName?: string;
+    presidedBy?: string;
+    virtualLink?: string;
+    startTime?: string;
+    endTime?: string;
+    outcomeNotes?: string;
+    outcome?: HearingOutcome;
+    adjournmentCount?: number;
+    adjournmentReasons?: string[];
+    minutesTaken?: boolean;
+    ordersIssued?: boolean;
+    complianceDeadline?: Date;
+    createdAt: Date;
+    updatedAt: Date;
+  }): CourtHearing {
+    const courtId = new CourtIdentification(
+      props.courtStation,
+      props.causeListNumber,
+      props.courtroom,
+    );
 
-  /**
-   * Mark hearing as in progress
-   */
-  markInProgress(presidingOfficer: string): void {
-    if (this.status !== 'SCHEDULED') {
-      throw new Error(
-        `Only scheduled hearings can be marked as in progress. Current status: ${this.status}`,
-      );
-    }
-
-    // Validate presiding officer
-    if (!presidingOfficer || presidingOfficer.trim().length < 3) {
-      throw new Error('Presiding officer name is required and must be at least 3 characters.');
-    }
-
-    // Check if hearing date is today
-    const today = new Date();
-    if (this.date.toDateString() !== today.toDateString()) {
-      throw new Error('Hearing can only be marked in progress on the scheduled date.');
-    }
-
-    this.status = 'IN_PROGRESS';
-    this.presidedBy = presidingOfficer;
-    this.updatedAt = new Date();
-  }
-
-  /**
-   * Record that the hearing took place successfully.
-   */
-  complete(
-    outcome: HearingOutcome,
-    presidingOfficer: string,
-    minutesTaken: boolean = true,
-    ordersIssued: boolean = true,
-  ): void {
-    if (!['SCHEDULED', 'IN_PROGRESS'].includes(this.status)) {
-      throw new Error('Hearing must be scheduled or in progress to complete.');
-    }
-
-    this.status = 'COMPLETED';
-    this.outcome = outcome;
-    this.presidedBy = presidingOfficer;
-    this.minutesTaken = minutesTaken;
-    this.ordersIssued = ordersIssued;
-    this.complianceDeadline = outcome.complianceDeadline || null;
-    this.updatedAt = new Date();
-
-    this.apply(
-      new HearingOutcomeRecordedEvent(
-        this.id,
-        this.caseId,
-        'COMPLETED',
-        this.formatOutcomeNotes(outcome),
-        undefined,
-        outcome.orders,
-        outcome.nextSteps,
-      ),
+    return new CourtHearing(
+      props.id,
+      props.caseId,
+      props.hearingNumber,
+      props.date,
+      props.type,
+      courtId,
+      props.status,
+      props.judgeName,
+      props.presidedBy,
+      props.virtualLink,
+      props.startTime,
+      props.endTime,
+      props.outcomeNotes,
+      props.outcome,
+      props.adjournmentCount,
+      props.adjournmentReasons,
+      props.minutesTaken,
+      props.ordersIssued,
+      props.complianceDeadline,
+      props.createdAt,
+      props.updatedAt,
     );
   }
 
-  /**
-   * Hearing happened but was pushed to a later date without progress.
-   */
-  adjourn(reason: string, nextDate: Date, presidingOfficer: string): void {
-    if (!['SCHEDULED', 'IN_PROGRESS'].includes(this.status)) {
-      throw new Error('Hearing must be scheduled or in progress to adjourn.');
+  // ==========================================================================
+  // BUSINESS LOGIC (Domain Behavior)
+  // ==========================================================================
+
+  // Legal Invariant: Hearing must be scheduled before it can proceed
+  markInProgress(presidingOfficer: string): void {
+    if (this.status !== HearingStatus.SCHEDULED) {
+      throw new Error(
+        `Only scheduled hearings can be marked in progress. Current status: ${this.status}`,
+      );
     }
 
-    this.status = 'ADJOURNED';
+    this.validatePresidingOfficer(presidingOfficer);
+    this.ensureHearingDateIsToday();
+
+    this.status = HearingStatus.IN_PROGRESS;
+    this.presidedBy = presidingOfficer;
+    this.updatedAt = new Date();
+  }
+
+  // Legal Invariant: Completed hearings must have recorded outcomes
+  complete(outcome: HearingOutcome, presidingOfficer: string): void {
+    if (![HearingStatus.SCHEDULED, HearingStatus.IN_PROGRESS].includes(this.status)) {
+      throw new Error('Only scheduled or in-progress hearings can be completed');
+    }
+
+    this.validatePresidingOfficer(presidingOfficer);
+    this.validateHearingOutcome(outcome);
+
+    this.status = HearingStatus.COMPLETED;
+    this.outcome = outcome;
+    this.presidedBy = presidingOfficer;
+    this.minutesTaken = true;
+    this.ordersIssued = outcome.orders.length > 0;
+    this.complianceDeadline = outcome.complianceDeadline;
+    this.updatedAt = new Date();
+
+    this.apply(new HearingCompletedEvent(this.id, this.caseId, outcome));
+  }
+
+  // Legal Requirement: Track adjournment history for court records
+  adjourn(reason: string, nextDate: Date, presidingOfficer: string): void {
+    if (![HearingStatus.SCHEDULED, HearingStatus.IN_PROGRESS].includes(this.status)) {
+      throw new Error('Only scheduled or in-progress hearings can be adjourned');
+    }
+
+    CourtHearing.validateHearingDate(nextDate);
+
+    this.status = HearingStatus.ADJOURNED;
     this.adjournmentCount++;
     this.adjournmentReasons.push(`${new Date().toISOString()}: ${reason}`);
     this.presidedBy = presidingOfficer;
     this.updatedAt = new Date();
 
-    this.apply(
-      new HearingAdjournedEvent(
-        this.id,
-        this.caseId,
-        reason,
-        nextDate,
-        this.adjournmentCount,
-        presidingOfficer,
-      ),
-    );
+    this.apply(new HearingAdjournedEvent(this.id, this.caseId, reason, nextDate));
   }
 
-  /**
-   * Cancel a hearing before it occurs
-   */
-  cancel(reason: string, cancelledBy: string): void {
-    if (this.status !== 'SCHEDULED') {
-      throw new Error('Only scheduled hearings can be cancelled.');
+  cancel(reason: string): void {
+    if (this.status !== HearingStatus.SCHEDULED) {
+      throw new Error('Only scheduled hearings can be cancelled');
     }
 
-    this.status = 'CANCELLED';
+    this.status = HearingStatus.CANCELLED;
     this.outcomeNotes = `Cancelled: ${reason}`;
     this.updatedAt = new Date();
-
-    this.apply(new HearingCancelledEvent(this.id, this.caseId, reason, cancelledBy, new Date()));
   }
 
-  reschedule(newDate: Date, reason?: string): void {
-    if (!['SCHEDULED', 'ADJOURNED'].includes(this.status)) {
-      throw new Error('Cannot reschedule a completed or cancelled hearing.');
-    }
+  // ==========================================================================
+  // VALIDATION & LEGAL COMPLIANCE
+  // ==========================================================================
 
-    // Correct call to static method
-    CourtHearing.validateHearingDate(newDate);
+  private validate(): void {
+    if (!this.id) throw new Error('Hearing ID is required');
+    if (!this.caseId) throw new Error('Case ID is required');
+    if (!this.hearingNumber) throw new Error('Hearing number is required');
+    if (!this.date) throw new Error('Hearing date is required');
+    if (!this.type) throw new Error('Hearing type is required');
+    if (!this.courtIdentification) throw new Error('Court identification is required');
 
-    const oldDate = this.date;
-    this.date = newDate;
-    this.status = 'SCHEDULED';
-    this.updatedAt = new Date();
-
-    if (reason) {
-      this.outcomeNotes = `Rescheduled from ${oldDate.toDateString()}: ${reason}`;
-    }
-
-    this.apply(
-      new HearingScheduledEvent(
-        this.id,
-        this.caseId,
-        newDate,
-        this.type,
-        this.virtualLink || undefined,
-        this.courtroom || undefined,
-        this.judgeName || undefined,
-      ),
-    );
+    CourtHearing.validateHearingDate(this.date);
   }
-  /**
-   * Check if hearing can be edited based on Kenyan court rules
-   */
-  canBeEdited(): boolean {
-    const now = new Date();
-    const hoursUntilHearing = (this.date.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-    // Kenyan courts typically require 48 hours notice for changes
-    return this.status === 'SCHEDULED' && hoursUntilHearing > 48;
-  }
-
-  /**
-   * Get next available hearing date based on Kenyan court rules
-   */
-  static getNextAvailableHearingDate(): Date {
-    const now = new Date();
-    const nextDate = new Date(now);
-
-    // Skip weekends and find next business day
-    do {
-      nextDate.setDate(nextDate.getDate() + 1);
-    } while (nextDate.getDay() === 0 || nextDate.getDay() === 6);
-
-    // Set to 9:00 AM court time
-    nextDate.setHours(9, 0, 0, 0);
-
-    return nextDate;
-  }
-
-  /**
-   * Add compliance tracking for court orders
-   */
-  markComplianceDeadline(deadline: Date, requirement: string): void {
-    if (this.status !== 'COMPLETED') {
-      throw new Error('Can only set compliance deadlines for completed hearings.');
-    }
-
-    if (!this.outcome) {
-      this.outcome = { orders: [], rulings: [], nextSteps: [] };
-    }
-
-    this.outcome.complianceDeadline = deadline;
-    this.outcome.nextSteps.push(
-      `Compliance required by ${deadline.toDateString()}: ${requirement}`,
-    );
-    this.updatedAt = new Date();
-  }
-
-  // --------------------------------------------------------------------------
-  // VALIDATION METHODS
-  // --------------------------------------------------------------------------
 
   private static validateHearingDate(date: Date): void {
     if (date < new Date()) {
-      throw new Error('Cannot schedule a hearing in the past.');
+      throw new Error('Cannot schedule hearing in the past');
     }
 
-    // Kenyan courts typically don't sit on weekends
+    // Kenyan courts don't typically sit on weekends
     const dayOfWeek = date.getDay();
     if (dayOfWeek === 0 || dayOfWeek === 6) {
-      throw new Error('Court hearings are typically not scheduled on weekends.');
+      throw new Error('Court hearings cannot be scheduled on weekends');
     }
 
-    // Kenyan court hours (enhanced validation)
+    // Kenyan court hours validation
     const hour = date.getHours();
-    const minutes = date.getMinutes();
-
-    // Court hours: 8:00 AM to 5:00 PM
-    const totalMinutes = hour * 60 + minutes;
-    if (totalMinutes < 8 * 60 || totalMinutes > 17 * 60) {
-      throw new Error('Court hearings must be scheduled between 8:00 AM and 5:00 PM.');
-    }
-
-    // Kenyan public holidays check (basic implementation)
-    if (this.isKenyanPublicHoliday(date)) {
-      throw new Error('Cannot schedule hearings on Kenyan public holidays.');
+    if (hour < 8 || hour > 17) {
+      throw new Error('Court hearings must be scheduled between 8:00 AM and 5:00 PM');
     }
   }
 
-  private static isKenyanPublicHoliday(date: Date): boolean {
-    // TODO: Implement proper Kenyan public holiday logic
-    // This would integrate with Kenyan calendar service
-    const holidays = [
-      '01-01', // New Years
-      '01-01', // Labour Day
-      '06-01', // Madaraka Day
-      '10-20', // Mashujaa Day
-      '12-12', // Jamhuri Day
-      '12-25', // Christmas
-      '12-26', // Boxing Day
-    ];
-
-    const monthDay = `${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-    return holidays.includes(monthDay);
+  private validatePresidingOfficer(officer: string): void {
+    if (!officer?.trim() || officer.trim().length < 3) {
+      throw new Error('Valid presiding officer name is required (min 3 characters)');
+    }
   }
 
-  private generateHearingNumber(): string {
-    // More robust hearing number generation for Kenyan courts
-    const courtCode = this.courtStation.substring(0, 3).toUpperCase();
+  private validateHearingOutcome(outcome: HearingOutcome): void {
+    if (!outcome.orders?.length && !outcome.rulings?.length) {
+      throw new Error('Hearing outcome must include at least orders or rulings');
+    }
+  }
+
+  private ensureHearingDateIsToday(): void {
+    const today = new Date();
+    if (this.date.toDateString() !== today.toDateString()) {
+      throw new Error('Hearing can only be marked in progress on its scheduled date');
+    }
+  }
+
+  private static generateHearingNumber(): string {
+    const courtCode = 'HC'; // High Court default
     const year = new Date().getFullYear();
-    const timestamp = Date.now().toString().slice(-6);
-    const random = Math.random().toString(36).substring(2, 5).toUpperCase();
-
-    return `HRG-${courtCode}-${year}-${timestamp}-${random}`;
+    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+    return `HRG-${courtCode}-${year}-${random}`;
   }
 
-  private formatOutcomeNotes(outcome: HearingOutcome): string {
-    const notes: string[] = [];
-
-    if (outcome.orders.length > 0) {
-      notes.push(`Orders: ${outcome.orders.join('; ')}`);
-    }
-
-    if (outcome.rulings.length > 0) {
-      notes.push(`Rulings: ${outcome.rulings.join('; ')}`);
-    }
-
-    if (outcome.nextSteps.length > 0) {
-      notes.push(`Next Steps: ${outcome.nextSteps.join('; ')}`);
-    }
-
-    return notes.join(' | ');
-  }
-
-  // --------------------------------------------------------------------------
+  // ==========================================================================
   // QUERY METHODS
-  // --------------------------------------------------------------------------
+  // ==========================================================================
 
-  isOverdue(): boolean {
-    if (this.complianceDeadline) {
-      return new Date() > this.complianceDeadline;
-    }
-    return false;
+  isComplianceOverdue(): boolean {
+    return this.complianceDeadline ? new Date() > this.complianceDeadline : false;
   }
 
-  getAdjournmentHistory(): string[] {
+  canBeRescheduled(): boolean {
+    const hoursUntilHearing = (this.date.getTime() - Date.now()) / (1000 * 60 * 60);
+    return this.status === HearingStatus.SCHEDULED && hoursUntilHearing > 48;
+  }
+
+  getAdjournmentHistory(): ReadonlyArray<string> {
     return [...this.adjournmentReasons];
   }
 
-  requiresCompliance(): boolean {
-    return this.complianceDeadline !== null;
-  }
+  // ==========================================================================
+  // GETTERS (Persistence Interface)
+  // ==========================================================================
 
-  // --------------------------------------------------------------------------
-  // GETTERS
-  // --------------------------------------------------------------------------
-
+  // Aligns with Prisma schema CourtHearing model
   getId(): string {
     return this.id;
   }
   getCaseId(): string {
     return this.caseId;
+  }
+  getHearingNumber(): string {
+    return this.hearingNumber;
   }
   getDate(): Date {
     return this.date;
@@ -520,44 +332,50 @@ export class CourtHearing extends AggregateRoot {
   getStatus(): HearingStatus {
     return this.status;
   }
-  getOutcomeNotes(): string | null {
-    return this.outcomeNotes;
-  }
-  getOutcome(): HearingOutcome | null {
-    return this.outcome;
-  }
-  getPresidedBy(): string | null {
-    return this.presidedBy;
-  }
   getCourtStation(): string {
-    return this.courtStation;
+    return this.courtIdentification.courtStation;
   }
-  getCourtroom(): string | null {
-    return this.courtroom;
+  getCauseListNumber(): string | undefined {
+    return this.courtIdentification.causeListNumber;
   }
-  getJudgeName(): string | null {
+  getCourtroom(): string | undefined {
+    return this.courtIdentification.courtroom;
+  }
+  getJudgeName(): string | undefined {
     return this.judgeName;
   }
-  getVirtualLink(): string | null {
+  getPresidedBy(): string | undefined {
+    return this.presidedBy;
+  }
+  getVirtualLink(): string | undefined {
     return this.virtualLink;
-  }
-  getHearingNumber(): string {
-    return this.hearingNumber;
-  }
-  getCauseListNumber(): string | null {
-    return this.causeListNumber;
-  }
-  getAdjournmentCount(): number {
-    return this.adjournmentCount;
-  }
-  getComplianceDeadline(): Date | null {
-    return this.complianceDeadline;
   }
   getStartTime(): string {
     return this.startTime;
   }
   getEndTime(): string {
     return this.endTime;
+  }
+  getOutcomeNotes(): string | undefined {
+    return this.outcomeNotes;
+  }
+  getOutcome(): HearingOutcome | undefined {
+    return this.outcome;
+  }
+  getAdjournmentCount(): number {
+    return this.adjournmentCount;
+  }
+  getAdjournmentReasons(): string[] {
+    return [...this.adjournmentReasons];
+  }
+  getMinutesTaken(): boolean {
+    return this.minutesTaken;
+  }
+  getOrdersIssued(): boolean {
+    return this.ordersIssued;
+  }
+  getComplianceDeadline(): Date | undefined {
+    return this.complianceDeadline;
   }
   getCreatedAt(): Date {
     return this.createdAt;
@@ -566,25 +384,25 @@ export class CourtHearing extends AggregateRoot {
     return this.updatedAt;
   }
 
-  // Method to get all properties for persistence
-  getProps(): CourtHearingProps {
+  // For persistence reconstitution
+  getProps() {
     return {
       id: this.id,
       caseId: this.caseId,
       hearingNumber: this.hearingNumber,
       date: this.date,
       type: this.type,
-      courtStation: this.courtStation,
+      courtStation: this.courtIdentification.courtStation,
       status: this.status,
-      virtualLink: this.virtualLink,
-      courtroom: this.courtroom,
+      causeListNumber: this.courtIdentification.causeListNumber,
+      courtroom: this.courtIdentification.courtroom,
       judgeName: this.judgeName,
-      causeListNumber: this.causeListNumber,
+      presidedBy: this.presidedBy,
+      virtualLink: this.virtualLink,
       startTime: this.startTime,
       endTime: this.endTime,
       outcomeNotes: this.outcomeNotes,
       outcome: this.outcome,
-      presidedBy: this.presidedBy,
       adjournmentCount: this.adjournmentCount,
       adjournmentReasons: this.adjournmentReasons,
       minutesTaken: this.minutesTaken,
