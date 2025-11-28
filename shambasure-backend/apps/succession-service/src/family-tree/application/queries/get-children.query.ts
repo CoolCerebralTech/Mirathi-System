@@ -35,22 +35,22 @@ export class GetChildrenHandler implements IQueryHandler<GetChildrenQuery> {
     if (!family || family.getOwnerId() !== userId) throw new ForbiddenException('Access denied.');
 
     // 2. Fetch Outgoing edges of type 'PARENT' or 'CHILD' depending on edge direction
-    // Our schema defines Edge as From -> To. 
+    // Our schema defines Edge as From -> To.
     // The AddMemberCommand logic established: If adding Child, Edge is Parent -> Child.
     // So we look for edges where From = ParentID AND Type = 'PARENT' (or generic parent/child check)
-    
+
     // We use findByFromMemberId and filter for 'PARENT' type (Standard DDD approach)
     // OR we use the specialized 'findByType' if implemented in repo.
     const outgoing = await this.relationshipRepository.findByFromMemberId(parentId);
-    
+
     // Filter: Only keep edges where this person is the PARENT
-    const childrenEdges = outgoing.filter(r => r.getType() === 'PARENT');
+    const childrenEdges = outgoing.filter((r) => r.getType() === 'PARENT');
 
     // NOTE: If we supported "Child -> Parent" edges (inverse), we'd check incoming too.
     // But strict graph direction simplifies this.
 
-    return childrenEdges.map(r => 
-      plainToInstance(RelationshipResponseDto, r, { excludeExtraneousValues: true })
+    return childrenEdges.map((r) =>
+      plainToInstance(RelationshipResponseDto, r, { excludeExtraneousValues: true }),
     );
   }
 }

@@ -42,7 +42,7 @@ export class EstateInventoryPrismaRepository implements EstateInventoryRepositor
   }
 
   async findVerifiedItems(estateId: string): Promise<EstateInventory[]> {
-    // Note: If 'isVerified' isn't a direct column in schema, we might use 
+    // Note: If 'isVerified' isn't a direct column in schema, we might use
     // metadata or assume all added to inventory are verified for now.
     // Assuming implementation via metadata check or future schema update.
     // For MVP, returns all items as they are "Verified" by virtue of being filed.

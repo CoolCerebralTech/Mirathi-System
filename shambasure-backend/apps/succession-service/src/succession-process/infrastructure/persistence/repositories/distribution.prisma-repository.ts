@@ -39,10 +39,7 @@ export class DistributionPrismaRepository implements DistributionRepositoryInter
   async findByBeneficiaryId(beneficiaryId: string): Promise<Distribution[]> {
     const raw = await this.prisma.beneficiaryEntitlement.findMany({
       where: {
-        OR: [
-          { beneficiaryUserId: beneficiaryId },
-          { beneficiaryFamilyMemberId: beneficiaryId },
-        ],
+        OR: [{ beneficiaryUserId: beneficiaryId }, { beneficiaryFamilyMemberId: beneficiaryId }],
       },
     });
     return raw.map(DistributionMapper.toDomain);

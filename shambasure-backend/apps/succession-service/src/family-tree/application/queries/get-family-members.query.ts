@@ -33,8 +33,8 @@ export class GetFamilyMembersHandler implements IQueryHandler<GetFamilyMembersQu
     const members = await this.memberRepository.findByFamilyId(familyId);
 
     // 3. Map
-    return members.map(member => 
-      plainToInstance(FamilyMemberResponseDto, member, { excludeExtraneousValues: true })
+    return members.map((member) =>
+      plainToInstance(FamilyMemberResponseDto, member, { excludeExtraneousValues: true }),
     );
   }
 }

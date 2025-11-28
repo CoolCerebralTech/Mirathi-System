@@ -5,12 +5,12 @@ import { HealthController } from './health.controller';
 
 /**
  * Database Module
- * 
+ *
  * Provides:
  * - PrismaService: Low-level Prisma client access
  * - DatabaseService: High-level database operations
  * - HealthController: Health check endpoints
- * 
+ *
  * Configuration:
  * - All database config is in libs/database/.env
  * - No dependency on @shamba/config package

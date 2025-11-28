@@ -4,7 +4,6 @@ import { Dispute as PrismaDispute } from '@prisma/client';
 import { Dispute } from '../../../domain/entities/dispute.entity';
 
 export class DisputeMapper {
-
   static toPersistence(domain: Dispute): PrismaDispute {
     const grounds = domain.getGrounds();
 
@@ -13,14 +12,14 @@ export class DisputeMapper {
       id: domain.getId(),
       willId: domain.getWillId(),
       disputantId: domain.getDisputantId(),
-      
+
       type: (domain as any).type, // Accessing internal type via cast or getter
       description: (grounds as any).description, // Extract description from VO
-      
+
       status: domain.getStatus(),
       resolution: domain.getResolution() || null,
       resolvedAt: (domain as any).resolvedAt || null,
-      
+
       // Mapping specific fields present in schema
       lawyerName: (domain as any).lawyerName || null,
       lawyerContact: (domain as any).lawyerContact || null,
@@ -40,17 +39,17 @@ export class DisputeMapper {
       id: raw.id,
       willId: raw.willId,
       disputantId: raw.disputantId,
-      
+
       type: raw.type,
       description: raw.description,
-      
+
       status: raw.status,
       resolution: raw.resolution,
       resolvedAt: raw.resolvedAt,
-      
+
       caseNumber: raw.caseNumber,
       evidenceUrls: raw.evidenceUrls,
-      
+
       createdAt: raw.filedAt || raw.createdAt,
       updatedAt: raw.updatedAt,
     });

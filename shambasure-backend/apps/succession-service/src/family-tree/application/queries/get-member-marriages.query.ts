@@ -38,8 +38,8 @@ export class GetMemberMarriagesHandler implements IQueryHandler<GetMemberMarriag
     const marriages = await this.marriageRepository.findByMemberId(memberId);
 
     // 3. Map
-    return marriages.map(m => 
-      plainToInstance(MarriageResponseDto, m, { excludeExtraneousValues: true })
+    return marriages.map((m) =>
+      plainToInstance(MarriageResponseDto, m, { excludeExtraneousValues: true }),
     );
   }
 }

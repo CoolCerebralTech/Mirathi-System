@@ -154,7 +154,8 @@ export interface ServiceUrlsConfig {
  * This is the final shape of the object provided by the ConfigService.
  */
 export interface Config
-  extends AppConfig,
+  extends
+    AppConfig,
     DatabaseConfig,
     ServiceConfig,
     ServicePortsConfig,

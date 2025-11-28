@@ -626,7 +626,7 @@ export class Executor extends AggregateRoot {
   isFullyConfigured(): boolean {
     const hasRequiredInfo = Boolean(
       this._executorInfo.userId ||
-        (this._executorInfo.fullName && (this._executorInfo.email || this._executorInfo.phone)),
+      (this._executorInfo.fullName && (this._executorInfo.email || this._executorInfo.phone)),
     );
 
     return hasRequiredInfo && this._orderOfPriority >= 1;

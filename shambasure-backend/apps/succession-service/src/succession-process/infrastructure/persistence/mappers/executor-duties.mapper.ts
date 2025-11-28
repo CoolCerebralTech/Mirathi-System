@@ -5,20 +5,19 @@ import { ExecutorDuty, DutyStatus } from '../../../domain/entities/executor-duti
 import { ExecutorDutyType } from '../../../../common/types/kenyan-law.types';
 
 export class ExecutorDutiesMapper {
-
   static toPersistence(domain: ExecutorDuty): PrismaSchedule {
     return {
       id: domain.getId(),
       estateId: (domain as any).estateId,
-      
+
       stepOrder: domain.getStepOrder(),
       stepType: domain.getType(),
       description: (domain as any).description,
-      
+
       dueDate: domain.getDeadline(),
       completed: domain.getStatus() === 'COMPLETED',
       completedAt: (domain as any).completedAt || null,
-      
+
       createdAt: new Date(),
     } as unknown as PrismaSchedule;
   }
@@ -37,11 +36,11 @@ export class ExecutorDutiesMapper {
       description: raw.description,
       stepOrder: raw.stepOrder,
       dueDate: raw.dueDate,
-      
+
       status: status,
       completed: raw.completed,
       completedAt: raw.completedAt,
-      
+
       createdAt: raw.createdAt,
     });
   }

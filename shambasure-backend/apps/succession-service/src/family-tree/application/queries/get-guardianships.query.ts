@@ -35,8 +35,8 @@ export class GetGuardianshipsHandler implements IQueryHandler<GetGuardianshipsQu
     const records = await this.guardianshipRepository.findActiveByFamilyId(familyId);
 
     // 3. Map
-    return records.map(g => 
-      plainToInstance(GuardianshipResponseDto, g, { excludeExtraneousValues: true })
+    return records.map((g) =>
+      plainToInstance(GuardianshipResponseDto, g, { excludeExtraneousValues: true }),
     );
   }
 }

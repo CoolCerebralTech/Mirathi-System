@@ -11,7 +11,7 @@ dotenv.config({ path: resolve(__dirname, '../../.env') });
 
 /**
  * Production-Ready PrismaService for Prisma 7
- * 
+ *
  * Features:
  * - Connection pooling with optimal settings
  * - Graceful shutdown handling
@@ -47,16 +47,16 @@ export class PrismaService
     // 2. Configure connection pool with production-ready settings
     const poolConfig: PoolConfig = {
       connectionString: databaseUrl,
-      
+
       // Connection Pool Settings (properly typed as numbers)
-      max: poolMax,                     // Max connections
-      min: poolMin,                     // Min idle connections
-      idleTimeoutMillis: 30000,         // Close idle connections after 30s
-      connectionTimeoutMillis: 5000,    // Timeout for acquiring connection
-      
+      max: poolMax, // Max connections
+      min: poolMin, // Min idle connections
+      idleTimeoutMillis: 30000, // Close idle connections after 30s
+      connectionTimeoutMillis: 5000, // Timeout for acquiring connection
+
       // Health & Recovery
-      allowExitOnIdle: false,           // Keep pool alive
-      
+      allowExitOnIdle: false, // Keep pool alive
+
       // Statement timeout (properly typed)
       statement_timeout: statementTimeout,
     };
@@ -139,10 +139,12 @@ export class PrismaService
     try {
       await this.$connect();
       this.logger.log('✅ Database connection established (Prisma 7 + PostgreSQL adapter).');
-      
+
       // Log connection pool stats
-      this.logger.log(`Connection pool: max=${this.pool.options.max}, min=${this.pool.options.min || 0}`);
-      
+      this.logger.log(
+        `Connection pool: max=${this.pool.options.max}, min=${this.pool.options.min || 0}`,
+      );
+
       // Test the connection
       await this.healthCheck();
     } catch (error) {
@@ -161,22 +163,24 @@ export class PrismaService
     // Wait for active transactions to complete (max 10 seconds)
     const maxWaitTime = 10000;
     const startTime = Date.now();
-    
+
     while (this.activeTransactions > 0 && Date.now() - startTime < maxWaitTime) {
       this.logger.log(`Waiting for ${this.activeTransactions} active transactions to complete...`);
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
     if (this.activeTransactions > 0) {
-      this.logger.warn(`Forcing shutdown with ${this.activeTransactions} transactions still active`);
+      this.logger.warn(
+        `Forcing shutdown with ${this.activeTransactions} transactions still active`,
+      );
     }
 
     // Disconnect Prisma Client
     await this.$disconnect();
-    
+
     // Close the connection pool
     await this.pool.end();
-    
+
     this.logger.log('✅ Database connection closed gracefully.');
   }
 
@@ -238,15 +242,12 @@ export class PrismaService
     try {
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          const result = await this.$transaction(
-            (tx) => operation(tx),
-            {
-              maxWait,
-              timeout,
-              isolationLevel,
-            },
-          );
-          
+          const result = await this.$transaction((tx) => operation(tx), {
+            maxWait,
+            timeout,
+            isolationLevel,
+          });
+
           return result;
         } catch (error: unknown) {
           if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -256,21 +257,21 @@ export class PrismaService
               this.logger.warn(
                 `Transaction attempt ${attempt}/${maxRetries} failed with deadlock (P2034), retrying...`,
               );
-              
+
               if (attempt < maxRetries) {
                 const backoffMs = Math.min(Math.pow(2, attempt) * 100, 5000);
                 await new Promise((res) => setTimeout(res, backoffMs));
                 continue;
               }
             }
-            
+
             // Handle serialization failure (P2028) - also retry
             if (error.code === 'P2028') {
               lastError = error;
               this.logger.warn(
                 `Transaction attempt ${attempt}/${maxRetries} failed with serialization error (P2028), retrying...`,
               );
-              
+
               if (attempt < maxRetries) {
                 const backoffMs = Math.min(Math.pow(2, attempt) * 100, 5000);
                 await new Promise((res) => setTimeout(res, backoffMs));
@@ -278,7 +279,7 @@ export class PrismaService
               }
             }
           }
-          
+
           // For non-retryable errors, throw immediately
           throw error;
         }

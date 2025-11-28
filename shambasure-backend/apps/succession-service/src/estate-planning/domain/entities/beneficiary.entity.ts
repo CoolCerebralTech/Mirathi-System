@@ -724,13 +724,13 @@ export class BeneficiaryAssignment extends AggregateRoot {
   isValidForExecution(): boolean {
     const hasValidAllocation = Boolean(
       (this._sharePercentage && this._sharePercentage.getValue() > 0) ||
-        (this._specificAmount && this._specificAmount.getAmount() > 0),
+      (this._specificAmount && this._specificAmount.getAmount() > 0),
     );
 
     const hasValidIdentity = Boolean(
       this._beneficiaryIdentity.userId ||
-        this._beneficiaryIdentity.familyMemberId ||
-        this._beneficiaryIdentity.externalName,
+      this._beneficiaryIdentity.familyMemberId ||
+      this._beneficiaryIdentity.externalName,
     );
 
     return hasValidAllocation && hasValidIdentity && !this.isDistributed();
@@ -817,8 +817,8 @@ export class BeneficiaryAssignment extends AggregateRoot {
 
     const hasValidIdentity = Boolean(
       this._beneficiaryIdentity.userId ||
-        this._beneficiaryIdentity.familyMemberId ||
-        this._beneficiaryIdentity.externalName,
+      this._beneficiaryIdentity.familyMemberId ||
+      this._beneficiaryIdentity.externalName,
     );
 
     if (!hasValidIdentity) {

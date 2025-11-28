@@ -51,7 +51,7 @@ export class CreateRelationshipHandler implements ICommandHandler<CreateRelation
       familyId,
       dto.fromMemberId,
       dto.toMemberId,
-      dto.type
+      dto.type,
     );
 
     // 4. Create Entity
@@ -65,8 +65,8 @@ export class CreateRelationshipHandler implements ICommandHandler<CreateRelation
       {
         isAdopted: dto.isAdopted,
         adoptionOrderNumber: dto.adoptionOrderNumber,
-        bornOutOfWedlock: dto.bornOutOfWedlock
-      }
+        bornOutOfWedlock: dto.bornOutOfWedlock,
+      },
     );
 
     // 5. Persist

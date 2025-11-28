@@ -52,9 +52,7 @@ export class VerificationAttemptNotFoundError extends VerificationQueryRepositor
 // ============================================================================
 
 @Injectable()
-export class PrismaDocumentVerificationQueryRepository
-  implements IDocumentVerificationAttemptQueryRepository
-{
+export class PrismaDocumentVerificationQueryRepository implements IDocumentVerificationAttemptQueryRepository {
   private readonly logger = new Logger(PrismaDocumentVerificationQueryRepository.name);
 
   constructor(private readonly prisma: PrismaService) {}

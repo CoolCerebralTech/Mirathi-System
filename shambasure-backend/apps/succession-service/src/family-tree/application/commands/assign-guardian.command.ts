@@ -43,7 +43,7 @@ export class AssignGuardianHandler implements ICommandHandler<AssignGuardianComm
     const guardian = await this.memberRepository.findById(dto.guardianId);
 
     if (!ward || !guardian) throw new NotFoundException('Ward or Guardian not found.');
-    
+
     if (ward.getFamilyId() !== familyId || guardian.getFamilyId() !== familyId) {
       throw new BadRequestException('Members belong to different families.');
     }
@@ -56,7 +56,9 @@ export class AssignGuardianHandler implements ICommandHandler<AssignGuardianComm
 
     // 4. Ward DOB Validation (Required for expiry calculation)
     if (!ward.getDateOfBirth()) {
-      throw new BadRequestException('Ward must have a Date of Birth set to calculate legal guardianship expiry.');
+      throw new BadRequestException(
+        'Ward must have a Date of Birth set to calculate legal guardianship expiry.',
+      );
     }
 
     // 5. Create Entity
@@ -68,7 +70,7 @@ export class AssignGuardianHandler implements ICommandHandler<AssignGuardianComm
       dto.wardId,
       dto.type,
       ward.getDateOfBirth()!, // Non-null assertion safe due to check above
-      dto.appointedBy
+      dto.appointedBy,
     );
 
     // 6. Persist

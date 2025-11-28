@@ -30,13 +30,10 @@ export class VerifyRelationshipHandler implements ICommandHandler<VerifyRelation
 
     // 2. Execute Logic
     const relModel = this.publisher.mergeObjectContext(relationship);
-    
+
     // Map DTO string to allowed Union Type in Entity
     // 'BIRTH_CERTIFICATE' | 'AFFIDAVIT' | 'DNA_TEST' | 'COMMUNITY_RECOGNITION'
-    relModel.verify(
-        dto.verificationMethod as any, 
-        verifierId
-    );
+    relModel.verify(dto.verificationMethod as any, verifierId);
 
     // 3. Save
     await this.relationshipRepository.save(relModel);

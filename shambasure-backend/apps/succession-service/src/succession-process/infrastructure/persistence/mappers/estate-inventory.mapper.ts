@@ -6,7 +6,6 @@ import { EstateInventory } from '../../../domain/entities/estate-inventory.entit
 import { AssetValue } from '../../../../estate-planning/domain/value-objects/asset-value.vo';
 
 export class EstateInventoryMapper {
-
   static toPersistence(domain: EstateInventory): PrismaInventory {
     const value = domain.getValue();
 
@@ -14,13 +13,13 @@ export class EstateInventoryMapper {
       id: domain.getId(),
       estateId: domain.getEstateId(),
       assetId: domain.getAssetId(),
-      
+
       description: domain.getDescription(),
       estimatedValue: new Decimal(value.getAmount()),
       currency: value.getCurrency(),
-      
+
       ownedByDeceased: (domain as any).ownedByDeceased, // Accessing via private/protected if getter missing, or assume getter exists
-      
+
       createdAt: new Date(),
       // Note: 'isVerified' logic might be stored in a specific column or ignored if schema lacks it.
       // Assuming standard fields.
@@ -40,7 +39,7 @@ export class EstateInventoryMapper {
       currency: raw.currency,
       assetId: raw.assetId,
       ownedByDeceased: raw.ownedByDeceased,
-      
+
       createdAt: raw.createdAt,
       // If 'isVerified' isn't in schema, it defaults to false in entity
     });

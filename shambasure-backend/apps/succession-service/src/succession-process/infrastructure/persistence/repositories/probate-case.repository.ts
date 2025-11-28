@@ -50,7 +50,7 @@ export class ProbateCasePrismaRepository implements ProbateCaseRepositoryInterfa
     const raw = await this.prisma.estate.findMany({
       // We assume 'status' column on Estate maps to CaseStatus
       // If strict enum mapping is needed, use a mapper helper here
-      where: { status: status as any }, 
+      where: { status: status as any },
     });
     return raw.map(ProbateCaseMapper.toDomain);
   }
@@ -62,7 +62,7 @@ export class ProbateCasePrismaRepository implements ProbateCaseRepositoryInterfa
     const raw = await this.prisma.estate.findMany({
       where: { status: 'DISPUTED' }, // Mapping 'OBJECTION_PERIOD' to a DB status
     });
-    
+
     // Note: Real implementation should align DB Enum with Domain Enum perfectly
     return raw.map(ProbateCaseMapper.toDomain);
   }

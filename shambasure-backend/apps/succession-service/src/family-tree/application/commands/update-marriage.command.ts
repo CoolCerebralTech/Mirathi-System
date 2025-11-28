@@ -39,12 +39,12 @@ export class UpdateMarriageHandler implements ICommandHandler<UpdateMarriageComm
 
     // 2. Updates
     if (dto.certificateNumber) {
-        marriageModel.registerCertificate(dto.certificateNumber);
+      marriageModel.registerCertificate(dto.certificateNumber);
     }
-    
+
     // Note: We generally don't allow changing dates easily as it affects chronology validation.
     // But for correcting data entry errors, we might allow it via strict admin flows or flexible entities.
-    // Entity didn't expose "setDate", but we can add if needed. 
+    // Entity didn't expose "setDate", but we can add if needed.
     // For now, we assume only certificate updates are common in this flow.
 
     await this.marriageRepository.save(marriageModel);

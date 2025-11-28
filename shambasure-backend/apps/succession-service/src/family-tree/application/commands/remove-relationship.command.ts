@@ -46,7 +46,7 @@ export class RemoveRelationshipHandler implements ICommandHandler<RemoveRelation
 
     // 4. Delete (Hard delete for edges to keep graph clean, event audit trail remains)
     await this.relationshipRepository.delete(relationshipId);
-    
+
     // Note: We commit AFTER delete to ensure event fires only on successful DB op
     relModel.commit();
   }

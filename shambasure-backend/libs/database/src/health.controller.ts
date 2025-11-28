@@ -3,7 +3,7 @@ import { PrismaService } from './services/prisma.service';
 
 /**
  * Production-ready health check controller
- * 
+ *
  * Endpoints for:
  * - Kubernetes liveness/readiness probes
  * - Load balancer health checks
@@ -17,7 +17,7 @@ export class HealthController {
   /**
    * Basic health check - always returns 200 if service is running
    * GET /health
-   * 
+   *
    * Use for: Basic monitoring, uptime checks
    */
   @Get()
@@ -33,7 +33,7 @@ export class HealthController {
   /**
    * Comprehensive database health check with performance metrics
    * GET /health/database
-   * 
+   *
    * Use for: Detailed monitoring, alerting on slow queries
    * Returns: Database latency, connection pool stats, readiness
    */
@@ -78,7 +78,7 @@ export class HealthController {
   /**
    * Kubernetes readiness probe
    * GET /health/ready
-   * 
+   *
    * Use for: K8s readiness checks - tells if service can handle traffic
    * Returns 200: Service ready to accept requests
    * Returns 503: Service not ready (starting up, shutting down, or unhealthy)
@@ -123,7 +123,7 @@ export class HealthController {
   /**
    * Kubernetes liveness probe
    * GET /health/live
-   * 
+   *
    * Use for: K8s liveness checks - tells if service should be restarted
    * Returns 200: Process is alive and functioning
    * Should only fail if process is deadlocked or in unrecoverable state
@@ -150,7 +150,7 @@ export class HealthController {
   /**
    * Deep health check with full system diagnostics
    * GET /health/deep
-   * 
+   *
    * Use for: Troubleshooting, detailed monitoring
    * Returns: Comprehensive system status including environment info
    */
@@ -206,7 +206,7 @@ export class HealthController {
    */
   private getPoolStatus(poolStats: any): string {
     const utilization = parseInt(this.calculatePoolUtilization(poolStats));
-    
+
     if (poolStats.waiting > 0) return 'saturated';
     if (utilization > 80) return 'high';
     if (utilization > 50) return 'normal';

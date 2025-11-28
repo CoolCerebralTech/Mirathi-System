@@ -29,8 +29,8 @@ export class GetRelationshipsHandler implements IQueryHandler<GetRelationshipsQu
 
     const relationships = await this.relationshipRepository.findByFamilyId(familyId);
 
-    return relationships.map(r => 
-      plainToInstance(RelationshipResponseDto, r, { excludeExtraneousValues: true })
+    return relationships.map((r) =>
+      plainToInstance(RelationshipResponseDto, r, { excludeExtraneousValues: true }),
     );
   }
 }

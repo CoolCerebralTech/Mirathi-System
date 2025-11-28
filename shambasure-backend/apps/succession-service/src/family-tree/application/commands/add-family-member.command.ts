@@ -61,18 +61,18 @@ export class AddFamilyMemberHandler implements ICommandHandler<AddFamilyMemberCo
           email: dto.email,
           phone: dto.phone,
           address: dto.address,
-        }
-      }
+        },
+      },
     );
-    
+
     if (dto.isDeceased && dto.dateOfDeath) {
-        newMember.markAsDeceased(new Date(dto.dateOfDeath), userId);
+      newMember.markAsDeceased(new Date(dto.dateOfDeath), userId);
     }
 
     // 4. Determine Relationship Direction based on Role
     // e.g., If I add "FATHER", Relationship is NewMember -> PARENT -> Me
     // e.g., If I add "CHILD", Relationship is Me -> PARENT -> NewMember
-    
+
     let fromId: string;
     let toId: string;
     let relType: any; // RelationshipType
@@ -96,15 +96,15 @@ export class AddFamilyMemberHandler implements ICommandHandler<AddFamilyMemberCo
       case 'SPOUSE': // Not handled here, requires Marriage Command
         // We can create member, but Marriage Entity handles the link
         // For now, we allow creating the node, but warn about link
-        relType = null; 
+        relType = null;
         break;
       default:
-         // For uncles/aunts etc, we ideally find the grandparent path.
-         // MVP: Just create the node, link manually later or assume simple edge if schema supports 'AUNT_UNCLE' edge
-         // Our schema RelationshipType has 'AUNT_UNCLE', so we can link directly for visual simplicity
-         fromId = newMemberId;
-         toId = rootMember.getId();
-         relType = dto.role;
+        // For uncles/aunts etc, we ideally find the grandparent path.
+        // MVP: Just create the node, link manually later or assume simple edge if schema supports 'AUNT_UNCLE' edge
+        // Our schema RelationshipType has 'AUNT_UNCLE', so we can link directly for visual simplicity
+        fromId = newMemberId;
+        toId = rootMember.getId();
+        relType = dto.role;
     }
 
     // 5. Persist Member
@@ -113,20 +113,14 @@ export class AddFamilyMemberHandler implements ICommandHandler<AddFamilyMemberCo
 
     // 6. Persist Relationship (if inferred)
     if (relType) {
-        // Use Integrity Service to validate this implicit link
-        // Note: We save member first so Integrity Service can find it in DB check
-        await this.integrityService.validateNewRelationship(familyId, fromId!, toId!, relType);
-        
-        const relationship = Relationship.create(
-            uuidv4(),
-            familyId,
-            fromId!,
-            toId!,
-            relType
-        );
-        const relModel = this.publisher.mergeObjectContext(relationship);
-        await this.relationshipRepository.save(relModel);
-        relModel.commit();
+      // Use Integrity Service to validate this implicit link
+      // Note: We save member first so Integrity Service can find it in DB check
+      await this.integrityService.validateNewRelationship(familyId, fromId!, toId!, relType);
+
+      const relationship = Relationship.create(uuidv4(), familyId, fromId!, toId!, relType);
+      const relModel = this.publisher.mergeObjectContext(relationship);
+      await this.relationshipRepository.save(relModel);
+      relModel.commit();
     }
 
     memberModel.commit();

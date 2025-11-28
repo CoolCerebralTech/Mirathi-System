@@ -5,9 +5,7 @@ import { FamilyRepositoryInterface } from '../../domain/interfaces/family.reposi
 import { FamilyResponseDto } from '../dto/response/family.response.dto';
 
 export class ListFamiliesQuery {
-  constructor(
-    public readonly userId: string,
-  ) {}
+  constructor(public readonly userId: string) {}
 }
 
 @QueryHandler(ListFamiliesQuery)
@@ -22,8 +20,8 @@ export class ListFamiliesHandler implements IQueryHandler<ListFamiliesQuery> {
 
     const families = await this.familyRepository.findByOwnerId(userId);
 
-    return families.map(f => 
-      plainToInstance(FamilyResponseDto, f, { excludeExtraneousValues: true })
+    return families.map((f) =>
+      plainToInstance(FamilyResponseDto, f, { excludeExtraneousValues: true }),
     );
   }
 }

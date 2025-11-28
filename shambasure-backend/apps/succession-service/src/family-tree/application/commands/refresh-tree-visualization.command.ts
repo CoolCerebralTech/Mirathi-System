@@ -8,9 +8,7 @@ export class RefreshTreeVisualizationCommand {
 }
 
 @CommandHandler(RefreshTreeVisualizationCommand)
-export class RefreshTreeVisualizationHandler
-  implements ICommandHandler<RefreshTreeVisualizationCommand>
-{
+export class RefreshTreeVisualizationHandler implements ICommandHandler<RefreshTreeVisualizationCommand> {
   constructor(
     @Inject('FamilyRepositoryInterface')
     private readonly familyRepository: FamilyRepositoryInterface,
