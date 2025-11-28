@@ -1,9 +1,10 @@
 import { AggregateRoot } from '@nestjs/cqrs';
+
 import { AssetValue } from '../../../estate-planning/domain/value-objects/asset-value.vo';
-import { ClaimFiledEvent } from '../events/claim-filed.event';
-import { ClaimStatusChangedEvent } from '../events/claim-status-changed.event';
 import { ClaimDisputedEvent } from '../events/claim-disputed.event';
+import { ClaimFiledEvent } from '../events/claim-filed.event';
 import { ClaimPaidEvent } from '../events/claim-paid.event';
+import { ClaimStatusChangedEvent } from '../events/claim-status-changed.event';
 
 export type ClaimStatus =
   | 'PENDING'

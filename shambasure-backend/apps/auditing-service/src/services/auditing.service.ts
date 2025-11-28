@@ -4,12 +4,13 @@
 // ============================================================================
 // auditing.service.ts - Audit Logging & Analytics
 // ============================================================================
-
 import { Injectable, Logger } from '@nestjs/common';
-import { AuditLog } from '@shamba/database';
+
 import { AuditQueryDto, ShambaEvent, SortOrder } from '@shamba/common';
-import { AuditingRepository } from '../repositories/auditing.repository';
+import { AuditLog } from '@shamba/database';
+
 import { AuditSummaryEntity } from '../entities/audit.entity';
+import { AuditingRepository } from '../repositories/auditing.repository';
 
 /**
  * AuditingService - Audit logging and analytics

@@ -1,8 +1,9 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, BadRequestException } from '@nestjs/common';
-import { DissolveMarriageDto } from '../dto/request/dissolve-marriage.dto';
+import { BadRequestException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
 import type { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
 import type { MarriageRepositoryInterface } from '../../domain/interfaces/marriage.repository.interface';
+import { DissolveMarriageDto } from '../dto/request/dissolve-marriage.dto';
 
 export class DissolveMarriageCommand {
   constructor(

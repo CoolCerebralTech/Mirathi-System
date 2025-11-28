@@ -1,10 +1,11 @@
 import { AggregateRoot } from '@nestjs/cqrs';
+
 import { AssetValue } from '../../../estate-planning/domain/value-objects/asset-value.vo';
 import { InventoryItemAddedEvent } from '../events/inventory-item-added.event';
-import { InventoryItemVerifiedEvent } from '../events/inventory-item-verified.event';
-import { InventoryItemUpdatedEvent } from '../events/inventory-item-updated.event';
 import { InventoryItemDisputedEvent } from '../events/inventory-item-disputed.event';
 import { InventoryItemRemovedEvent } from '../events/inventory-item-removed.event';
+import { InventoryItemUpdatedEvent } from '../events/inventory-item-updated.event';
+import { InventoryItemVerifiedEvent } from '../events/inventory-item-verified.event';
 
 export type InventoryStatus = 'PENDING' | 'VERIFIED' | 'DISPUTED' | 'REMOVED' | 'AMENDED';
 export type AssetCategory =

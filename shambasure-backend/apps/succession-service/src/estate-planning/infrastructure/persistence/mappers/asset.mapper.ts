@@ -1,11 +1,12 @@
-import { Asset as PrismaAsset, Prisma } from '@prisma/client';
+import { Prisma, Asset as PrismaAsset } from '@prisma/client';
+import { AssetOwnershipType, AssetType } from '@prisma/client';
+
 import {
   Asset,
-  AssetLocation,
   AssetIdentification,
+  AssetLocation,
   AssetReconstituteProps,
 } from '../../../domain/entities/asset.entity';
-import { AssetType, AssetOwnershipType } from '@prisma/client';
 
 export class AssetMapper {
   /**

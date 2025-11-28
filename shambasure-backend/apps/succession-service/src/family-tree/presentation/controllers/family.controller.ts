@@ -1,22 +1,24 @@
 import {
+  Body,
   Controller,
   Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  UseGuards,
-  Req,
-  HttpStatus,
   HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { JwtAuthGuard } from '@shamba/auth';
-import { FamilyService } from '../../application/services/family.service';
+
 import { CreateFamilyDto } from '../../application/dto/request/create-family.dto';
 import { UpdateFamilyDto } from '../../application/dto/request/update-family.dto';
-import { FamilyResponseDto } from '../../application/dto/response/family.response.dto';
 import { FamilyTreeResponseDto } from '../../application/dto/response/family-tree.response.dto';
+import { FamilyResponseDto } from '../../application/dto/response/family.response.dto';
+import { FamilyService } from '../../application/services/family.service';
 
 interface RequestWithUser extends Request {
   user: {

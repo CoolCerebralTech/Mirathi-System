@@ -5,9 +5,8 @@
  *
  * ========================================================================
  */
-
 // --- NEW: Importing constants to derive types from ---
-import { VALUATION_METHODS, ASSET_TYPES } from '../constants/asset-types.constants';
+import { ASSET_TYPES, VALUATION_METHODS } from '../constants/asset-types.constants';
 import { RELATIONSHIP_TYPES } from '../constants/relationship-types.constants';
 
 /* -----------------------------------------------------------------------

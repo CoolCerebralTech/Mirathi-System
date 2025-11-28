@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import type { FamilyMember } from '../entities/family-member.entity';
 import { RelationshipType } from '@prisma/client';
+
+import type { FamilyMember } from '../entities/family-member.entity';
 
 export interface ValidationResult {
   isValid: boolean;

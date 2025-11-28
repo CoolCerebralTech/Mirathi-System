@@ -1,8 +1,9 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, BadRequestException } from '@nestjs/common';
-import { UpdateFamilyMemberDto } from '../dto/request/update-family-member.dto';
-import type { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
+import { BadRequestException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
 import type { FamilyMemberRepositoryInterface } from '../../domain/interfaces/family-member.repository.interface';
+import type { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
+import { UpdateFamilyMemberDto } from '../dto/request/update-family-member.dto';
 
 export class UpdateFamilyMemberCommand {
   constructor(

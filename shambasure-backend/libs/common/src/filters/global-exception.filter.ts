@@ -1,7 +1,7 @@
 import {
-  ExceptionFilter,
-  Catch,
   ArgumentsHost,
+  Catch,
+  ExceptionFilter,
   HttpException,
   HttpStatus,
   Logger,
@@ -9,6 +9,7 @@ import {
 import { HttpAdapterHost } from '@nestjs/core';
 import { ApiProperty } from '@nestjs/swagger';
 import { Request } from 'express';
+
 import { ConfigService } from '@shamba/config';
 
 // Define ErrorResponse class for Swagger documentation and type safety

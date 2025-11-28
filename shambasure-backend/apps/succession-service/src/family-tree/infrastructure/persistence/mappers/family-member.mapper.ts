@@ -1,9 +1,10 @@
 import { FamilyMember as PrismaFamilyMember } from '@prisma/client';
+
 import {
   FamilyMember,
-  MemberContactInfo,
-  KenyanIdentification,
   KenyanFamilyMemberMetadata,
+  KenyanIdentification,
+  MemberContactInfo,
 } from '../../../domain/entities/family-member.entity';
 
 export class FamilyMemberMapper {

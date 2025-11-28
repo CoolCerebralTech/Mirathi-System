@@ -1,5 +1,5 @@
-import { DomainEvent } from './base.event';
 import { Uuid } from '../value-objects';
+import { DomainEvent } from './base.event';
 
 export class DocumentExpiredEvent extends DomainEvent<Uuid> {
   constructor(

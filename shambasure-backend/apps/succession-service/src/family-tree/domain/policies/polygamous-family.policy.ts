@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import type { Marriage } from '../entities/marriage.entity';
 import { MarriageStatus } from '@prisma/client';
+
+import type { Marriage } from '../entities/marriage.entity';
 
 export interface PolygamyCheckResult {
   isAllowed: boolean;

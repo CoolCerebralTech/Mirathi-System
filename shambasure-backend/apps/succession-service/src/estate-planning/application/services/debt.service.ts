@@ -4,19 +4,17 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 // Commands
 import { AddDebtCommand } from '../commands/add-debt.command';
 import { RecordDebtPaymentCommand } from '../commands/record-debt-payment.command';
-
-// Queries
-import { GetDebtsQuery } from '../queries/get-debts.query';
-import { GetDebtQuery } from '../queries/get-debt.query';
-import {
-  GetLiabilitiesSummaryQuery,
-  LiabilitiesSummaryResponse,
-} from '../queries/get-liabilities-summary.query';
-
 // DTOs
 import { AddDebtDto } from '../dto/request/add-debt.dto';
 import { RecordDebtPaymentDto } from '../dto/request/record-debt-payment.dto';
 import { DebtResponseDto } from '../dto/response/debt.response.dto';
+import { GetDebtQuery } from '../queries/get-debt.query';
+// Queries
+import { GetDebtsQuery } from '../queries/get-debts.query';
+import {
+  GetLiabilitiesSummaryQuery,
+  LiabilitiesSummaryResponse,
+} from '../queries/get-liabilities-summary.query';
 
 @Injectable()
 export class DebtService {

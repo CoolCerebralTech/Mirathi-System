@@ -1,5 +1,6 @@
-import { Marriage } from '../entities/marriage.entity';
 import { MarriageStatus } from '@prisma/client';
+
+import { Marriage } from '../entities/marriage.entity';
 
 export interface MarriageRepositoryInterface {
   // ---------------------------------------------------------

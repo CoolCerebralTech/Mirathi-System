@@ -1,21 +1,22 @@
 import { Injectable } from '@nestjs/common';
+
 import { User } from '../../domain/models';
 import { UserProfile } from '../../domain/models';
 import {
+  AccountLockedResponseDto,
   AuthResponseDto,
   AuthUserResponseDto,
-  RefreshTokenResponseDto,
-  TokenMetadataDto,
-  VerifyEmailResponseDto,
-  ResendVerificationResponseDto,
-  ForgotPasswordResponseDto,
-  ValidateResetTokenResponseDto,
-  ResetPasswordResponseDto,
   ChangePasswordResponseDto,
-  LogoutResponseDto,
-  RequestEmailChangeResponseDto,
   ConfirmEmailChangeResponseDto,
-  AccountLockedResponseDto,
+  ForgotPasswordResponseDto,
+  LogoutResponseDto,
+  RefreshTokenResponseDto,
+  RequestEmailChangeResponseDto,
+  ResendVerificationResponseDto,
+  ResetPasswordResponseDto,
+  TokenMetadataDto,
+  ValidateResetTokenResponseDto,
+  VerifyEmailResponseDto,
 } from '../dtos';
 
 export interface TokenPair {

@@ -1,15 +1,16 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { GrantType } from '@prisma/client';
+
+import { CaseClosedEvent } from '../events/case-closed.event';
+import { GazetteNoticePublishedEvent } from '../events/gazette-notice-published.event';
+import { GrantIssuedEvent } from '../events/grant-issued.event';
+import { ObjectionFiledEvent } from '../events/objection-filed.event';
 import { ProbateCaseFiledEvent } from '../events/probate-case-filed.event';
 import { ProbateStatusChangedEvent } from '../events/probate-status-changed.event';
-import { GazetteNoticePublishedEvent } from '../events/gazette-notice-published.event';
-import { ObjectionFiledEvent } from '../events/objection-filed.event';
-import { GrantIssuedEvent } from '../events/grant-issued.event';
-import { CaseClosedEvent } from '../events/case-closed.event';
-import { GrantApplicationType } from '../value-objects/grant-application-type.vo';
-import { KenyanCourtJurisdiction, CourtLevel } from '../value-objects/kenyan-court-jurisdiction.vo';
-import { ProbateCaseNumber } from '../value-objects/probate-case-number.vo';
 import { GazetteNotice } from '../value-objects/gazette-notice.vo';
+import { GrantApplicationType } from '../value-objects/grant-application-type.vo';
+import { CourtLevel, KenyanCourtJurisdiction } from '../value-objects/kenyan-court-jurisdiction.vo';
+import { ProbateCaseNumber } from '../value-objects/probate-case-number.vo';
 
 export type CaseStatus =
   | 'DRAFT_FILING'

@@ -1,13 +1,14 @@
 import { Injectable } from '@nestjs/common';
+
 import { WillAggregate } from '../aggregates/will.aggregate';
-import { WillStructurePolicy } from '../policies/will-structure.policy';
+import { AssetVerificationPolicy } from '../policies/asset-verification.policy';
 import {
   DependantsProvisionPolicy,
   PotentialDependant,
 } from '../policies/dependants-provision.policy';
 import { ExecutorEligibilityPolicy } from '../policies/executor-eligibility.policy';
+import { WillStructurePolicy } from '../policies/will-structure.policy';
 import { WitnessEligibilityPolicy } from '../policies/witness-eligibility.policy';
-import { AssetVerificationPolicy } from '../policies/asset-verification.policy';
 
 export interface ValidationResult {
   isValid: boolean;

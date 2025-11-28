@@ -1,5 +1,6 @@
-import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { Inject } from '@nestjs/common';
+import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
+
 import type { DebtRepositoryInterface } from '../../domain/interfaces/debt.repository.interface';
 
 export class GetLiabilitiesSummaryQuery {

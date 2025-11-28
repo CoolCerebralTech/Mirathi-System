@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
+
 import { EstateAggregate } from '../../../estate-planning/domain/aggregates/estate.aggregate';
-import { DebtPriorityPolicy } from '../policies/debt-priority.policy';
 import { Distribution } from '../entities/distribution.entity';
+import { DebtPriorityPolicy } from '../policies/debt-priority.policy';
 
 @Injectable()
 export class DistributionValidatorService {

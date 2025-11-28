@@ -1,5 +1,5 @@
-import { DomainEvent } from './base.event';
 import { DocumentId, UserId } from '../value-objects';
+import { DomainEvent } from './base.event';
 
 export interface DocumentDetailsPayload {
   documentNumber?: string | null;

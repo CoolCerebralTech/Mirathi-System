@@ -1,16 +1,17 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { WillStatus, DebtType } from '@prisma/client';
-import { Will } from '../entities/will.entity';
+import { DebtType, WillStatus } from '@prisma/client';
+
+import { DEBT_PRIORITY } from '../../../common/constants/distribution-rules.constants';
 import { Asset } from '../entities/asset.entity';
 import { Debt } from '../entities/debt.entity';
-import { AssetValue } from '../value-objects/asset-value.vo';
-import { DEBT_PRIORITY } from '../../../common/constants/distribution-rules.constants';
-import { EstateCreatedEvent } from '../events/estate-created.event';
+import { Will } from '../entities/will.entity';
 import { EstateAssetAddedEvent } from '../events/estate-asset-added.event';
+import { EstateCreatedEvent } from '../events/estate-created.event';
 import { EstateDebtAddedEvent } from '../events/estate-debt-added.event';
-import { EstateWillAddedEvent } from '../events/estate-will-added.event';
-import { EstateSolvencyCheckedEvent } from '../events/estate-solvency-checked.event';
 import { EstateProbateValidatedEvent } from '../events/estate-probate-validated.event';
+import { EstateSolvencyCheckedEvent } from '../events/estate-solvency-checked.event';
+import { EstateWillAddedEvent } from '../events/estate-will-added.event';
+import { AssetValue } from '../value-objects/asset-value.vo';
 
 /**
  * Financial summary of the estate for probate and distribution purposes

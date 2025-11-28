@@ -1,7 +1,7 @@
-import { DomainEvent } from './base.event';
 import { DocumentId } from '../value-objects';
 import { UserId } from '../value-objects';
 import { RejectionReason } from '../value-objects';
+import { DomainEvent } from './base.event';
 
 /**
  * Triggered when a document fails the verification process.

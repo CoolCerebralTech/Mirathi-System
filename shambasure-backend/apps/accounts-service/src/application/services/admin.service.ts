@@ -1,51 +1,53 @@
 import {
-  Injectable,
   BadRequestException,
-  NotFoundException,
   ConflictException,
   ForbiddenException,
+  Inject,
+  Injectable,
   InternalServerErrorException,
   Logger,
-  Inject,
+  NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+
+import { UserRole } from '@shamba/common';
+
+import { UsersBulkUpdatedEvent } from '../../domain/events';
 import type {
-  IUserRepository,
-  IRefreshTokenRepository,
   ILoginSessionRepository,
   IPasswordHistoryRepository,
-  UserFilters,
+  IRefreshTokenRepository,
+  IUserRepository,
   PaginationOptions,
+  UserFilters,
   UserUpdateData,
 } from '../../domain/interfaces';
 import type { IEventPublisher, INotificationService } from '../../domain/interfaces';
 import { User } from '../../domain/models/user.model';
 import { Email, Password } from '../../domain/value-objects';
-import { UserMapper } from '../mappers';
-import { UsersBulkUpdatedEvent } from '../../domain/events';
 import {
-  UserQueryDto,
-  AdminUpdateUserRequestDto,
-  UpdateUserRoleRequestDto,
-  LockUserAccountRequestDto,
-  UnlockUserAccountRequestDto,
-  SoftDeleteUserRequestDto,
-  RestoreUserRequestDto,
-  AdminCreateUserRequestDto,
   AdminBulkUpdateUsersRequestDto,
-  AdminUpdateUserResponseDto,
-  UpdateUserRoleResponseDto,
-  LockUserAccountResponseDto,
-  UnlockUserAccountResponseDto,
-  SoftDeleteUserResponseDto,
-  RestoreUserResponseDto,
-  AdminCreateUserResponseDto,
   AdminBulkUpdateUsersResponseDto,
-  PaginatedUsersResponseDto,
-  UserStatsResponseDto,
+  AdminCreateUserRequestDto,
+  AdminCreateUserResponseDto,
+  AdminUpdateUserRequestDto,
+  AdminUpdateUserResponseDto,
   GetUserResponseDto,
+  LockUserAccountRequestDto,
+  LockUserAccountResponseDto,
+  PaginatedUsersResponseDto,
+  RestoreUserRequestDto,
+  RestoreUserResponseDto,
+  SoftDeleteUserRequestDto,
+  SoftDeleteUserResponseDto,
+  UnlockUserAccountRequestDto,
+  UnlockUserAccountResponseDto,
+  UpdateUserRoleRequestDto,
+  UpdateUserRoleResponseDto,
+  UserQueryDto,
+  UserStatsResponseDto,
 } from '../dtos/admin.dto';
-import { UserRole } from '@shamba/common';
+import { UserMapper } from '../mappers';
 
 // Custom exceptions for admin operations
 export class AdminServiceError extends Error {

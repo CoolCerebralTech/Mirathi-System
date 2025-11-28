@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import type { FamilyMember } from '../entities/family-member.entity';
 import { GuardianType } from '@prisma/client';
+
+import type { FamilyMember } from '../entities/family-member.entity';
 
 @Injectable()
 export class GuardianEligibilityPolicy {

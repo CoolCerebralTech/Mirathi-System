@@ -3,8 +3,9 @@
  * Covers: Law of Succession Act, Marriage Act, Probate Rules, Court Process.
  */
 import { LAW_OF_SUCCESSION_SECTIONS } from '../constants/kenyan-law.constants';
-import { RELATIONSHIP_TYPES } from '../constants/relationship-types.constants';
 import { KENYAN_COUNTIES_LIST } from '../constants/kenyan-law.constants';
+import { RELATIONSHIP_TYPES } from '../constants/relationship-types.constants';
+
 /* -------------------------------------------------------------------------- */
 /*                        LAW OF SUCCESSION ACT SECTIONS                      */
 /* -------------------------------------------------------------------------- */

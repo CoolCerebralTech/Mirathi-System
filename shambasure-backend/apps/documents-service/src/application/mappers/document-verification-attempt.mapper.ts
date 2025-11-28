@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
+
 import { DocumentVerificationAttempt } from '../../domain/models';
+import { DocumentId, UserId } from '../../domain/value-objects';
 import {
-  VerificationAttemptDto,
   DocumentVerificationHistoryResponseDto,
+  VerificationAttemptDto,
   VerifierPerformanceResponseDto,
 } from '../dtos/verification-history-response.dto';
-import { DocumentId, UserId } from '../../domain/value-objects';
 
 /**
  * Maps DocumentVerificationAttempt domain objects and related data to DTOs for API responses.

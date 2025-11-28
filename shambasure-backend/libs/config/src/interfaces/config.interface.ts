@@ -1,7 +1,6 @@
 // ============================================================================
 // Shamba Sure - Core Configuration Interface
 // ============================================================================
-
 import { Environment } from '../types';
 
 export interface AppConfig {

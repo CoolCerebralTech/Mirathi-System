@@ -1,28 +1,29 @@
-import {
-  IsString,
-  IsOptional,
-  IsEmail,
-  MinLength,
-  MaxLength,
-  IsEnum,
-  IsBoolean,
-  IsUUID,
-  IsDateString,
-  IsInt,
-  Min,
-  Max,
-  IsArray,
-  ArrayNotEmpty,
-  ValidateNested,
-  IsNumber,
-  IsPositive,
-  IsObject,
-  IsIn,
-} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, TransformFnParams, Type } from 'class-transformer';
+import {
+  ArrayNotEmpty,
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsPositive,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
+
 import { UserRole } from '@shamba/common';
-import { BaseResponseDto, PaginationQueryDto, PaginationMetaDto } from '@shamba/common';
+import { BaseResponseDto, PaginationMetaDto, PaginationQueryDto } from '@shamba/common';
 
 // ============================================================================
 // QUERY DTOs (For Filtering/Pagination)

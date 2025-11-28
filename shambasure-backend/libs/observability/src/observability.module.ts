@@ -1,7 +1,8 @@
-import { DynamicModule, Module, Global } from '@nestjs/common';
-import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
-import { ConfigService } from '@shamba/config';
+import { DynamicModule, Global, Module } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
+
+import { ConfigService } from '@shamba/config';
 
 import { HealthModule } from './health/health.module';
 import { MetricsModule } from './metrics/metrics.module';

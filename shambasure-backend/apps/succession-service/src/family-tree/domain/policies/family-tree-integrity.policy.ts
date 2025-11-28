@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import type { Relationship } from '../entities/relationship.entity';
 import { RelationshipType } from '@prisma/client';
+
+import type { Relationship } from '../entities/relationship.entity';
 
 @Injectable()
 export class FamilyTreeIntegrityPolicy {

@@ -1,26 +1,27 @@
-import {
-  IsString,
-  IsOptional,
-  IsEmail,
-  MinLength,
-  MaxLength,
-  IsEnum,
-  ValidateNested,
-  IsBoolean,
-  IsNumberString,
-  Length,
-  IsNotEmpty,
-  IsPostalCode,
-  IsUUID,
-  IsNumber,
-  IsPositive,
-  IsDateString,
-  IsArray,
-  Matches,
-  IsIn,
-} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, TransformFnParams, Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsEnum,
+  IsIn,
+  IsNotEmpty,
+  IsNumber,
+  IsNumberString,
+  IsOptional,
+  IsPositive,
+  IsPostalCode,
+  IsString,
+  IsUUID,
+  Length,
+  Matches,
+  MaxLength,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
+
 import { RelationshipType } from '@shamba/common';
 import { IsKenyanPhoneNumber } from '@shamba/common';
 

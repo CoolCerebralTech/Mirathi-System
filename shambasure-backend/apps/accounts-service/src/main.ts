@@ -1,9 +1,11 @@
+import { ClassSerializerInterceptor, ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, VersioningType, ClassSerializerInterceptor } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Reflector } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
+
 import { ConfigService } from '@shamba/config';
+
 import { AccountModule } from './accounts.module';
 
 async function bootstrap() {

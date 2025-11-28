@@ -3,20 +3,18 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 
 // Commands
 import { AssignBeneficiaryCommand } from '../commands/assign-beneficiary.command';
-import { UpdateBeneficiaryCommand } from '../commands/update-beneficiary.command';
 import { RemoveBeneficiaryCommand } from '../commands/remove-beneficiary.command';
-
-// Queries
-import { GetBeneficiariesQuery } from '../queries/get-beneficiaries.query';
-import { GetBeneficiaryQuery } from '../queries/get-beneficiary.query';
-import {
-  GetAssetDistributionQuery,
-  AssetDistributionSummaryResponse,
-} from '../queries/get-asset-distribution.query';
-
+import { UpdateBeneficiaryCommand } from '../commands/update-beneficiary.command';
 // DTOs
 import { AssignBeneficiaryDto } from '../dto/request/assign-beneficiary.dto';
 import { BeneficiaryResponseDto } from '../dto/response/beneficiary.response.dto';
+import {
+  AssetDistributionSummaryResponse,
+  GetAssetDistributionQuery,
+} from '../queries/get-asset-distribution.query';
+// Queries
+import { GetBeneficiariesQuery } from '../queries/get-beneficiaries.query';
+import { GetBeneficiaryQuery } from '../queries/get-beneficiary.query';
 
 @Injectable()
 export class BeneficiaryService {

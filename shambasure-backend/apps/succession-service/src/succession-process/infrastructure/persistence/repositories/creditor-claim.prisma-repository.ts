@@ -1,16 +1,18 @@
 // succession-service/src/succession-process/infrastructure/persistence/repositories/creditor-claim.prisma-repository.ts
-
 import { Injectable } from '@nestjs/common';
+import { CreditorClaim } from '@prisma/client';
+
 import { PrismaService } from '@shamba/database';
-import { CreditorClaim } from '@prisma/client'; // Using direct Prisma type if Entity wrapper matches closely
+
+// Using direct Prisma type if Entity wrapper matches closely
 // Note: If using the specific Domain Entity from earlier steps, assume mapped import:
 // import { CreditorClaim } from '../../../domain/entities/creditor-claim.entity';
 // import { CreditorClaimMapper } from '../mappers/creditor-claim.mapper';
 
 // For consistency with previous mapping logic, using Mapper pattern:
 import { CreditorClaim as DomainClaim } from '../../../domain/entities/creditor-claim.entity';
-import { CreditorClaimMapper } from '../mappers/creditor-claim.mapper';
 import { CreditorClaimRepositoryInterface } from '../../../domain/repositories/creditor-claim.repository.interface';
+import { CreditorClaimMapper } from '../mappers/creditor-claim.mapper';
 
 @Injectable()
 export class CreditorClaimPrismaRepository implements CreditorClaimRepositoryInterface {

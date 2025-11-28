@@ -3,16 +3,14 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 
 // Commands
 import { AddWitnessCommand } from '../commands/add-witness.command';
-import { RemoveWitnessCommand } from '../commands/remove-witness.command';
 import { InviteWitnessCommand } from '../commands/invite-witness.command';
-
-// Queries
-import { GetWitnessesQuery } from '../queries/get-witnesses.query';
-import { GetWitnessQuery } from '../queries/get-witness.query';
-
+import { RemoveWitnessCommand } from '../commands/remove-witness.command';
 // DTOs
 import { AddWitnessDto } from '../dto/request/add-witness.dto';
 import { WitnessResponseDto } from '../dto/response/witness.response.dto';
+import { GetWitnessQuery } from '../queries/get-witness.query';
+// Queries
+import { GetWitnessesQuery } from '../queries/get-witnesses.query';
 
 @Injectable()
 export class WitnessService {

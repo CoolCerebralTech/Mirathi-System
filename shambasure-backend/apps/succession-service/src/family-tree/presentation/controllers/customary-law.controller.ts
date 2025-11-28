@@ -1,9 +1,11 @@
-import { Controller, Post, Body, UseGuards, HttpStatus, HttpCode } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
+import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiProperty, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { JwtAuthGuard } from '@shamba/auth';
+
 import {
-  CustomaryLawService,
   CustomaryAssessmentDto,
+  CustomaryLawService,
 } from '../../application/services/customary-law.service';
 
 // Inline DTO for the assessment request (or reuse from service if exported)

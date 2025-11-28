@@ -1,4 +1,5 @@
 import { RelationshipType } from '@shamba/common';
+
 import { PhoneNumber } from '../value-objects';
 
 // ============================================================================

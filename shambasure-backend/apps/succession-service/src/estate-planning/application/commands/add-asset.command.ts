@@ -1,11 +1,12 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
 import { Inject } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
 import { AssetOwnershipType } from '@prisma/client';
-import { AddAssetDto } from '../dto/request/add-asset.dto';
-import type { AssetRepositoryInterface } from '../../domain/interfaces/asset.repository.interface';
-import { Asset } from '../../domain/entities/asset.entity';
-import { AssetValue } from '../../domain/value-objects/asset-value.vo';
 import { v4 as uuidv4 } from 'uuid';
+
+import { Asset } from '../../domain/entities/asset.entity';
+import type { AssetRepositoryInterface } from '../../domain/interfaces/asset.repository.interface';
+import { AssetValue } from '../../domain/value-objects/asset-value.vo';
+import { AddAssetDto } from '../dto/request/add-asset.dto';
 
 export class AddAssetCommand {
   constructor(

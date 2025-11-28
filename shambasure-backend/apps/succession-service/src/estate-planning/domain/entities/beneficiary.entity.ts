@@ -1,12 +1,13 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { BequestType, BequestConditionType, DistributionStatus } from '@prisma/client';
-import { SharePercentage } from '../value-objects/share-percentage.vo';
-import { AssetValue } from '../value-objects/asset-value.vo';
+import { BequestConditionType, BequestType, DistributionStatus } from '@prisma/client';
+
 import { BeneficiaryAssignedEvent } from '../events/beneficiary-assigned.event';
 import { BeneficiaryConditionAddedEvent } from '../events/beneficiary-condition-added.event';
-import { BeneficiaryShareUpdatedEvent } from '../events/beneficiary-share-updated.event';
 import { BeneficiaryDistributedEvent } from '../events/beneficiary-distributed.event';
 import { BeneficiaryRemovedEvent } from '../events/beneficiary-removed.event';
+import { BeneficiaryShareUpdatedEvent } from '../events/beneficiary-share-updated.event';
+import { AssetValue } from '../value-objects/asset-value.vo';
+import { SharePercentage } from '../value-objects/share-percentage.vo';
 
 /**
  * Represents the identity of a beneficiary in Kenyan succession law

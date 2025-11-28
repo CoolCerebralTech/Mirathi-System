@@ -1,8 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { WillStatus, WitnessStatus } from '@prisma/client';
+
+import featureFlagsConfig from '../config/feature-flags.config';
 import { legalRulesConfig } from '../config/legal-rules.config';
-import featureFlagsConfig from '../config/feature-flags.config'; // Fixed import
+
+// Fixed import
 
 // Define proper interfaces to replace 'any'
 export interface Witness {

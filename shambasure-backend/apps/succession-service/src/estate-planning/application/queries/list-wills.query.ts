@@ -1,7 +1,8 @@
-import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { Inject } from '@nestjs/common';
-import { plainToInstance } from 'class-transformer';
+import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { WillStatus } from '@prisma/client';
+import { plainToInstance } from 'class-transformer';
+
 import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
 import { WillResponseDto } from '../dto/response/will.response.dto';
 

@@ -1,14 +1,15 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { WillStatus } from '@prisma/client';
-import { LegalCapacity } from '../value-objects/legal-capacity.vo';
+
 import { KENYAN_LEGAL_REQUIREMENTS } from '../../../common/constants/kenyan-law.constants';
 import { WILL_STATUS } from '../../../common/constants/will-status.constants';
-import { WillCreatedEvent } from '../events/will-created.event';
-import { WillWitnessedEvent } from '../events/will-witnessed.event';
 import { WillActivatedEvent } from '../events/will-activated.event';
+import { WillContestedEvent } from '../events/will-contested.event';
+import { WillCreatedEvent } from '../events/will-created.event';
 import { WillRevokedEvent } from '../events/will-revoked.event';
 import { WillSupersededEvent } from '../events/will-superseded.event';
-import { WillContestedEvent } from '../events/will-contested.event';
+import { WillWitnessedEvent } from '../events/will-witnessed.event';
+import { LegalCapacity } from '../value-objects/legal-capacity.vo';
 
 /**
  * Funeral and burial wishes for the testator

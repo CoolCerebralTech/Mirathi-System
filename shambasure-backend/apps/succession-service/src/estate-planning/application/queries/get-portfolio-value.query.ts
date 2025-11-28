@@ -1,5 +1,6 @@
-import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { Inject } from '@nestjs/common';
+import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
+
 import type { AssetRepositoryInterface } from '../../domain/interfaces/asset.repository.interface';
 
 export class GetPortfolioValueQuery {

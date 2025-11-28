@@ -1,31 +1,33 @@
 import { randomUUID } from 'crypto';
+
 import { UserRole } from '@shamba/common';
-import { Email, Password, PhoneNumber } from '../value-objects';
+
 import {
   DomainEvent,
-  UserCreatedEvent,
-  UserUpdatedEvent,
-  EmailVerifiedEvent,
-  RoleChangedEvent,
-  UserLockedEvent,
-  UserUnlockedEvent,
-  UserDeletedEvent,
-  UserDeactivatedEvent,
-  UserReactivatedEvent,
-  PasswordChangedEvent,
-  PasswordResetEvent,
-  UserLoggedInEvent,
-  LoginFailedEvent,
   EmailChangeRequestedEvent,
   EmailChangedEvent,
-  UserLoggedOutEvent,
-  SessionRevokedEvent,
-  PhoneVerificationRequestedEvent,
+  EmailVerifiedEvent,
+  LoginFailedEvent,
+  PasswordChangedEvent,
+  PasswordResetEvent,
   PhoneNumberUpdatedEvent,
+  PhoneVerificationRequestedEvent,
   ProfileUpdatedEvent,
+  RoleChangedEvent,
+  SessionRevokedEvent,
   SuspiciousActivityDetectedEvent,
+  UserCreatedEvent,
+  UserDeactivatedEvent,
+  UserDeletedEvent,
+  UserLockedEvent,
+  UserLoggedInEvent,
+  UserLoggedOutEvent,
+  UserReactivatedEvent,
+  UserUnlockedEvent,
+  UserUpdatedEvent,
 } from '../events';
-import { UserProfile, Address, NextOfKin } from './user-profile.model';
+import { Email, Password, PhoneNumber } from '../value-objects';
+import { Address, NextOfKin, UserProfile } from './user-profile.model';
 
 // ============================================================================
 // Custom Domain Errors

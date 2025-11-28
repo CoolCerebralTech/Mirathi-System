@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { HealthIndicator, HealthIndicatorResult, HealthCheckError } from '@nestjs/terminus';
+import { HealthCheckError, HealthIndicator, HealthIndicatorResult } from '@nestjs/terminus';
+
 import { MessagingService } from '@shamba/messaging';
 
 // Define the expected shape of the broker health response

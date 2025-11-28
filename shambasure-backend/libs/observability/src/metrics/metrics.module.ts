@@ -1,5 +1,6 @@
-import { Module, OnModuleInit, Logger } from '@nestjs/common';
+import { Logger, Module, OnModuleInit } from '@nestjs/common';
 import { Registry, collectDefaultMetrics } from 'prom-client';
+
 import { MetricsService } from './metrics.service';
 
 @Module({})

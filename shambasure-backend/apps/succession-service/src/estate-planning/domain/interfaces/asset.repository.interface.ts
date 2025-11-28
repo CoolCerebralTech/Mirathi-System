@@ -1,4 +1,5 @@
-import { AssetType, AssetOwnershipType } from '@prisma/client';
+import { AssetOwnershipType, AssetType } from '@prisma/client';
+
 import { Asset } from '../entities/asset.entity';
 
 /**

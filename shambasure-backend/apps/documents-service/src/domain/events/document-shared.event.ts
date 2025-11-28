@@ -1,6 +1,6 @@
-import { DomainEvent } from './base.event';
 import { DocumentId } from '../value-objects';
 import { UserId } from '../value-objects';
+import { DomainEvent } from './base.event';
 
 /**
  * Triggered when a user grants access to a document to other users.

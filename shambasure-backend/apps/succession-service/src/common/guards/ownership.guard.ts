@@ -1,15 +1,17 @@
 import {
-  Injectable,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
-  NotFoundException,
+  Injectable,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { PrismaService } from '@shamba/database';
+
 import { JwtPayload } from '@shamba/auth';
+import { PrismaService } from '@shamba/database';
+
 import { CHECK_OWNERSHIP_KEY, OwnershipOptions } from '../decorators/ownership.decorator';
 
 // Extended request type with user

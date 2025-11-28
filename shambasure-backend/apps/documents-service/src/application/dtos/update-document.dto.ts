@@ -1,15 +1,15 @@
-import {
-  IsString,
-  IsOptional,
-  IsDateString,
-  MaxLength,
-  IsObject,
-  IsBoolean,
-  IsArray,
-  IsUUID,
-  IsNotEmpty,
-} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 
 /**
  * DTO for updating a document's metadata, details, and access control properties.

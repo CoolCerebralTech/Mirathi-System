@@ -1,7 +1,7 @@
 // succession-service/src/succession-process/infrastructure/persistence/mappers/probate-case.mapper.ts
+import { GrantType, Estate as PrismaEstate } from '@prisma/client';
 
-import { Estate as PrismaEstate, GrantType } from '@prisma/client';
-import { ProbateCase, CaseStatus } from '../../../domain/entities/probate-case.entity';
+import { CaseStatus, ProbateCase } from '../../../domain/entities/probate-case.entity';
 
 export class ProbateCaseMapper {
   static toPersistence(domain: ProbateCase): PrismaEstate {

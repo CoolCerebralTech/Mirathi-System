@@ -1,10 +1,11 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { WitnessStatus } from '@prisma/client';
-import { KenyanId } from '../value-objects/kenyan-id.vo';
+
 import { WitnessAddedEvent } from '../events/witness-added.event';
+import { WitnessRejectedEvent } from '../events/witness-rejected.event';
 import { WitnessSignedEvent } from '../events/witness-signed.event';
 import { WitnessVerifiedEvent } from '../events/witness-verified.event';
-import { WitnessRejectedEvent } from '../events/witness-rejected.event';
+import { KenyanId } from '../value-objects/kenyan-id.vo';
 
 /**
  * Physical address information for witness under Kenyan law

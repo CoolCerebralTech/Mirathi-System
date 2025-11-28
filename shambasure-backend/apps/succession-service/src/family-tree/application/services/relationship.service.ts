@@ -3,17 +3,15 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 
 // Commands
 import { CreateRelationshipCommand } from '../commands/create-relationship.command';
-import { VerifyRelationshipCommand } from '../commands/verify-relationship.command';
 import { RemoveRelationshipCommand } from '../commands/remove-relationship.command';
-
-// Queries
-import { GetRelationshipsQuery } from '../queries/get-relationships.query';
-import { GetChildrenQuery } from '../queries/get-children.query';
-
+import { VerifyRelationshipCommand } from '../commands/verify-relationship.command';
 // DTOs
 import { CreateRelationshipDto } from '../dto/request/create-relationship.dto';
 import { VerifyRelationshipDto } from '../dto/request/verify-relationship.dto';
 import { RelationshipResponseDto } from '../dto/response/relationship.response.dto';
+import { GetChildrenQuery } from '../queries/get-children.query';
+// Queries
+import { GetRelationshipsQuery } from '../queries/get-relationships.query';
 
 @Injectable()
 export class RelationshipService {

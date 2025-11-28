@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma, RelationshipType } from '@prisma/client';
+
 import { PrismaService } from '@shamba/database';
-import { RelationshipType, Prisma } from '@prisma/client';
+
 import { Relationship } from '../../../domain/entities/relationship.entity';
 import { RelationshipRepositoryInterface } from '../../../domain/interfaces/relationship.repository.interface';
 import { RelationshipMapper } from '../mappers/relationship.mapper';

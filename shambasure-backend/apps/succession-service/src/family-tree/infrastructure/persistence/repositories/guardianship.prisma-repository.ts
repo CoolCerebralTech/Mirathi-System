@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '@shamba/database';
 import { GuardianType } from '@prisma/client';
+
+import { PrismaService } from '@shamba/database';
+
 import { Guardianship } from '../../../domain/entities/guardianship.entity';
 import { GuardianshipRepositoryInterface } from '../../../domain/interfaces/guardianship.repository.interface';
 import { GuardianshipMapper } from '../mappers/guardianship.mapper';

@@ -1,9 +1,9 @@
 // succession-service/src/succession-process/infrastructure/persistence/mappers/estate-inventory.mapper.ts
-
 import { EstateInventory as PrismaInventory } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
-import { EstateInventory } from '../../../domain/entities/estate-inventory.entity';
+
 import { AssetValue } from '../../../../estate-planning/domain/value-objects/asset-value.vo';
+import { EstateInventory } from '../../../domain/entities/estate-inventory.entity';
 
 export class EstateInventoryMapper {
   static toPersistence(domain: EstateInventory): PrismaInventory {

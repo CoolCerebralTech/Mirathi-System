@@ -1,8 +1,8 @@
 // succession-service/src/succession-process/domain/services/legal-compliance-tracker.service.ts
+import { Inject, Injectable } from '@nestjs/common';
 
-import { Injectable, Inject } from '@nestjs/common';
-import { ExecutorDutiesRepositoryInterface } from '../repositories/executor-duties.repository.interface';
 import { ExecutorDuty } from '../entities/executor-duties.entity';
+import { ExecutorDutiesRepositoryInterface } from '../repositories/executor-duties.repository.interface';
 
 @Injectable()
 export class LegalComplianceTrackerService {

@@ -3,21 +3,19 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 
 // Commands
 import { AddFamilyMemberCommand } from '../commands/add-family-member.command';
-import { UpdateFamilyMemberCommand } from '../commands/update-family-member.command';
 import { RemoveFamilyMemberCommand } from '../commands/remove-family-member.command';
-
-// Queries
-import { GetFamilyMembersQuery } from '../queries/get-family-members.query';
-import { GetFamilyMemberQuery } from '../queries/get-family-member.query';
-import {
-  FindPotentialHeirsQuery,
-  PotentialHeirResponse,
-} from '../queries/find-potential-heirs.query';
-
+import { UpdateFamilyMemberCommand } from '../commands/update-family-member.command';
 // DTOs
 import { AddFamilyMemberDto } from '../dto/request/add-family-member.dto';
 import { UpdateFamilyMemberDto } from '../dto/request/update-family-member.dto';
 import { FamilyMemberResponseDto } from '../dto/response/family-member.response.dto';
+import {
+  FindPotentialHeirsQuery,
+  PotentialHeirResponse,
+} from '../queries/find-potential-heirs.query';
+import { GetFamilyMemberQuery } from '../queries/get-family-member.query';
+// Queries
+import { GetFamilyMembersQuery } from '../queries/get-family-members.query';
 
 @Injectable()
 export class FamilyMemberService {

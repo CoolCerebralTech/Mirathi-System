@@ -1,10 +1,11 @@
 // succession-service/src/succession-process/infrastructure/persistence/repositories/distribution.prisma-repository.ts
-
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '@shamba/database';
 import { DistributionStatus } from '@prisma/client';
-import { DistributionRepositoryInterface } from '../../../domain/repositories/distribution.repository.interface';
+
+import { PrismaService } from '@shamba/database';
+
 import { Distribution } from '../../../domain/entities/distribution.entity';
+import { DistributionRepositoryInterface } from '../../../domain/repositories/distribution.repository.interface';
 import { DistributionMapper } from '../mappers/distribution.mapper';
 
 @Injectable()

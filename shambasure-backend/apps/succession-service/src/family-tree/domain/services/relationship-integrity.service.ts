@@ -1,18 +1,19 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { RelationshipType, MarriageStatus } from '@prisma/client';
-import type { FamilyMemberRepositoryInterface } from '../interfaces/family-member.repository.interface';
-import type { RelationshipRepositoryInterface } from '../interfaces/relationship.repository.interface';
-import type { MarriageRepositoryInterface } from '../interfaces/marriage.repository.interface';
-import type { GuardianshipRepositoryInterface } from '../interfaces/guardianship.repository.interface';
-import { RelationshipValidationPolicy } from '../policies/relationship-validation.policy';
-import { FamilyTreeIntegrityPolicy } from '../policies/family-tree-integrity.policy';
-import { PolygamousFamilyPolicy } from '../policies/polygamous-family.policy';
-import { CustomaryMarriagePolicy } from '../policies/customary-marriage.policy';
-import { GuardianEligibilityPolicy } from '../policies/guardian-eligibility.policy';
+import { Inject, Injectable } from '@nestjs/common';
+import { MarriageStatus, RelationshipType } from '@prisma/client';
+
 import type { FamilyMember } from '../entities/family-member.entity';
-import type { Relationship } from '../entities/relationship.entity';
-import type { Marriage } from '../entities/marriage.entity';
 import type { Guardianship } from '../entities/guardianship.entity';
+import type { Marriage } from '../entities/marriage.entity';
+import type { Relationship } from '../entities/relationship.entity';
+import type { FamilyMemberRepositoryInterface } from '../interfaces/family-member.repository.interface';
+import type { GuardianshipRepositoryInterface } from '../interfaces/guardianship.repository.interface';
+import type { MarriageRepositoryInterface } from '../interfaces/marriage.repository.interface';
+import type { RelationshipRepositoryInterface } from '../interfaces/relationship.repository.interface';
+import { CustomaryMarriagePolicy } from '../policies/customary-marriage.policy';
+import { FamilyTreeIntegrityPolicy } from '../policies/family-tree-integrity.policy';
+import { GuardianEligibilityPolicy } from '../policies/guardian-eligibility.policy';
+import { PolygamousFamilyPolicy } from '../policies/polygamous-family.policy';
+import { RelationshipValidationPolicy } from '../policies/relationship-validation.policy';
 
 type RelationshipMetadata = {
   isAdopted?: boolean;

@@ -1,5 +1,6 @@
-import { SuccessionCertificate, GrantStatus } from '../entities/succession-certificate.entity';
 import { GrantType } from '@prisma/client';
+
+import { GrantStatus, SuccessionCertificate } from '../entities/succession-certificate.entity';
 
 export interface SuccessionCertificateRepositoryInterface {
   // Basic CRUD operations

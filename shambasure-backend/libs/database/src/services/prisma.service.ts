@@ -1,10 +1,11 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { Prisma, PrismaClient } from '@prisma/client';
-import { PrismaTransaction } from '../types/prisma.types';
 import * as dotenv from 'dotenv';
 import { resolve } from 'path';
 import { Pool, PoolConfig } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
+
+import { PrismaTransaction } from '../types/prisma.types';
 
 // Load .env from database package root
 dotenv.config({ path: resolve(__dirname, '../../.env') });

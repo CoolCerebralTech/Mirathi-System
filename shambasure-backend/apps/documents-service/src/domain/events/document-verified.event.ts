@@ -1,6 +1,6 @@
-import { DomainEvent } from './base.event';
 import { DocumentId } from '../value-objects';
 import { UserId } from '../value-objects';
+import { DomainEvent } from './base.event';
 
 /**
  * Triggered when a document has been successfully verified by an admin or verifier.

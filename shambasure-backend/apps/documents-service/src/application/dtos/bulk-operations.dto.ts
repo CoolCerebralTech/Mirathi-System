@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsUUID, IsEnum, IsNotEmpty, ValidateIf, IsString } from 'class-validator';
+import { IsArray, IsEnum, IsNotEmpty, IsString, IsUUID, ValidateIf } from 'class-validator';
+
 import { DocumentStatusEnum } from '../../domain/value-objects/document-status.vo';
 
 /**

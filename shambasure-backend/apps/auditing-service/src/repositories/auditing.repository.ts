@@ -2,10 +2,10 @@
 // ============================================================================
 // auditing.repository.ts - Audit Log Data Access Layer
 // ============================================================================
-
 import { Injectable } from '@nestjs/common';
-import { Prisma, PrismaService, AuditLog } from '@shamba/database';
+
 import { PaginationQueryDto } from '@shamba/common';
+import { AuditLog, Prisma, PrismaService } from '@shamba/database';
 
 /**
  * AuditingRepository - Pure data access for audit logs

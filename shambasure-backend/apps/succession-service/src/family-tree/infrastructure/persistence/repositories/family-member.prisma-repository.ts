@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma, RelationshipType } from '@prisma/client';
+
 import { PrismaService } from '@shamba/database';
-import { RelationshipType, Prisma } from '@prisma/client';
+
 import { FamilyMember } from '../../../domain/entities/family-member.entity';
 import { FamilyMemberRepositoryInterface } from '../../../domain/interfaces/family-member.repository.interface';
 import { FamilyMemberMapper } from '../mappers/family-member.mapper';

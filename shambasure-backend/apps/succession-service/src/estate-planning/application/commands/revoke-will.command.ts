@@ -1,7 +1,8 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { RevokeWillDto } from '../dto/request/revoke-will.dto';
+import { ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
 import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
+import { RevokeWillDto } from '../dto/request/revoke-will.dto';
 
 export class RevokeWillCommand {
   constructor(

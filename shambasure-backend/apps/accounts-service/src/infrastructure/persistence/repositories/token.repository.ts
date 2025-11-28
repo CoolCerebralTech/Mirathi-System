@@ -1,32 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
+
 import { PrismaService } from '@shamba/database';
+
 import {
-  IPasswordResetTokenRepository,
-  IEmailVerificationTokenRepository,
-  IPhoneVerificationTokenRepository,
   IEmailChangeTokenRepository,
-  IRefreshTokenRepository,
+  IEmailVerificationTokenRepository,
   ILoginSessionRepository,
   IPasswordHistoryRepository,
-  SessionStats,
+  IPasswordResetTokenRepository,
+  IPhoneVerificationTokenRepository,
+  IRefreshTokenRepository,
   PasswordHistory,
+  SessionStats,
 } from '../../../domain/interfaces';
 import {
-  PasswordResetToken,
-  EmailVerificationToken,
-  PhoneVerificationToken,
   EmailChangeToken,
-  RefreshToken,
+  EmailVerificationToken,
   LoginSession,
+  PasswordResetToken,
+  PhoneVerificationToken,
+  RefreshToken,
 } from '../../../domain/models/token.model';
 import {
-  PasswordResetTokenMapper,
-  EmailVerificationTokenMapper,
-  PhoneVerificationTokenMapper,
   EmailChangeTokenMapper,
-  RefreshTokenMapper,
+  EmailVerificationTokenMapper,
   LoginSessionMapper,
   PasswordHistoryMapper,
+  PasswordResetTokenMapper,
+  PhoneVerificationTokenMapper,
+  RefreshTokenMapper,
 } from '../mappers';
 
 // ============================================================================

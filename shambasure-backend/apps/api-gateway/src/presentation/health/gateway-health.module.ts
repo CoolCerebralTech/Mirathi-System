@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TerminusModule } from '@nestjs/terminus';
-import { ObservabilityModule } from '@shamba/observability';
-import { ConfigModule } from '@shamba/config';
 
-import { HealthController, DownstreamServicesHealthIndicator } from './health.controller';
+import { ConfigModule } from '@shamba/config';
+import { ObservabilityModule } from '@shamba/observability';
+
 import { ProxyModule } from '../../app.module';
+import { DownstreamServicesHealthIndicator, HealthController } from './health.controller';
 
 @Module({
   imports: [TerminusModule, ObservabilityModule, ConfigModule, ProxyModule],

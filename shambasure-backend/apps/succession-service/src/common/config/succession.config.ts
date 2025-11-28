@@ -1,10 +1,10 @@
 import { registerAs } from '@nestjs/config';
 
+import { MINOR_PROTECTION } from '../constants/distribution-rules.constants';
 import {
   KENYAN_LEGAL_REQUIREMENTS,
   SUCCESSION_TIMEFRAMES,
 } from '../constants/kenyan-law.constants';
-import { MINOR_PROTECTION } from '../constants/distribution-rules.constants';
 
 export default registerAs('succession', () => ({
   // ---------------------------------------------------------------------------

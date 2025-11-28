@@ -4,15 +4,13 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 // Commands
 import { NominateExecutorCommand } from '../commands/nominate-executor.command';
 import { RemoveExecutorCommand } from '../commands/remove-executor.command';
-
-// Queries
-import { GetExecutorsQuery } from '../queries/get-executors.query';
-import { GetExecutorQuery } from '../queries/get-executor.query';
-import { GetMyNominationsQuery } from '../queries/get-my-nominations.query';
-
 // DTOs
 import { NominateExecutorDto } from '../dto/request/nominate-executor.dto';
 import { ExecutorResponseDto } from '../dto/response/executor.response.dto';
+import { GetExecutorQuery } from '../queries/get-executor.query';
+// Queries
+import { GetExecutorsQuery } from '../queries/get-executors.query';
+import { GetMyNominationsQuery } from '../queries/get-my-nominations.query';
 
 @Injectable()
 export class ExecutorService {

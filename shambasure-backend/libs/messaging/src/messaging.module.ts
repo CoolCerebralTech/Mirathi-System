@@ -1,9 +1,11 @@
-import { DynamicModule, Module, Provider, Global } from '@nestjs/common';
-import { ClientProxyFactory, Transport, RmqOptions } from '@nestjs/microservices';
+import { DynamicModule, Global, Module, Provider } from '@nestjs/common';
+import { ClientProxyFactory, RmqOptions, Transport } from '@nestjs/microservices';
+
 import { ConfigModule, ConfigService } from '@shamba/config';
-import { MessagingService } from './messaging.service';
-import { Exchange, Queue } from './interfaces/messaging.interface';
+
 import { IEventPublisher } from './interfaces/event-publisher.interface';
+import { Exchange, Queue } from './interfaces/messaging.interface';
+import { MessagingService } from './messaging.service';
 
 /**
  * Configuration options for registering the MessagingModule.

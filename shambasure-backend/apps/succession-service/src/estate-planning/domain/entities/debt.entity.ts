@@ -1,9 +1,10 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { DebtType } from '@prisma/client';
-import { AssetValue } from '../value-objects/asset-value.vo';
+
 import { DebtAddedEvent } from '../events/debt-added.event';
-import { DebtPaymentMadeEvent } from '../events/debt-payment-made.event';
 import { DebtClearedEvent } from '../events/debt-cleared.event';
+import { DebtPaymentMadeEvent } from '../events/debt-payment-made.event';
+import { AssetValue } from '../value-objects/asset-value.vo';
 
 /**
  * Data structure for asset valuation information

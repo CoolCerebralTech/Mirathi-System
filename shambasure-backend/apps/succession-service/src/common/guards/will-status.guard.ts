@@ -1,16 +1,18 @@
 import {
-  Injectable,
+  BadRequestException,
   CanActivate,
   ExecutionContext,
-  NotFoundException,
   ForbiddenException,
+  Injectable,
   Logger,
-  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
-import { PrismaService } from '@shamba/database';
 import { WillStatus } from '@prisma/client';
+import { Request } from 'express';
+
+import { PrismaService } from '@shamba/database';
+
 import { ALLOWED_WILL_ACTIONS_KEY, WillActionOptions } from '../decorators/will-status.decorator';
 
 // Extended request type with will status

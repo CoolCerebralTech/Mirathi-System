@@ -1,18 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
+
 import { PrismaService } from '@shamba/database';
+
 import {
-  IUserRepository,
   IUserProfileRepository,
-  UserFilters,
-  ProfileFilters,
-  PaginationOptions,
+  IUserRepository,
   PaginatedResult,
+  PaginationOptions,
+  ProfileFilters,
+  UserFilters,
   UserStats,
   UserUpdateData,
 } from '../../../domain/interfaces';
-import { User } from '../../../domain/models/user.model';
 import { UserProfile } from '../../../domain/models/user-profile.model';
+import { User } from '../../../domain/models/user.model';
 import { Email, PhoneNumber } from '../../../domain/value-objects';
 import { UserEntity, UserInclude, UserProfileInclude } from '../entities/account.entity';
 import { UserMapper } from '../mappers/user.mapper';

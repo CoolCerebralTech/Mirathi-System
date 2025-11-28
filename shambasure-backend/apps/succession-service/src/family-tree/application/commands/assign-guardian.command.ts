@@ -1,12 +1,13 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
 import { v4 as uuidv4 } from 'uuid';
-import { AssignGuardianDto } from '../dto/request/assign-guardian.dto';
-import { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
+
+import { Guardianship } from '../../domain/entities/guardianship.entity';
 import { FamilyMemberRepositoryInterface } from '../../domain/interfaces/family-member.repository.interface';
+import { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
 import { GuardianshipRepositoryInterface } from '../../domain/interfaces/guardianship.repository.interface';
 import { GuardianEligibilityPolicy } from '../../domain/policies/guardian-eligibility.policy';
-import { Guardianship } from '../../domain/entities/guardianship.entity';
+import { AssignGuardianDto } from '../dto/request/assign-guardian.dto';
 
 export class AssignGuardianCommand {
   constructor(

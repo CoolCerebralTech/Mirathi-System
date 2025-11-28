@@ -1,4 +1,5 @@
 import { RelationshipType } from '@prisma/client';
+
 import { Relationship } from '../entities/relationship.entity';
 
 export interface RelationshipRepositoryInterface {

@@ -1,9 +1,10 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { RelationshipType } from '@prisma/client';
+
 import { RelationshipCreatedEvent } from '../events/relationship-created.event';
+import { RelationshipMetadataUpdatedEvent } from '../events/relationship-metadata-updated.event';
 import { RelationshipRemovedEvent } from '../events/relationship-removed.event';
 import { RelationshipVerifiedEvent } from '../events/relationship-verified.event';
-import { RelationshipMetadataUpdatedEvent } from '../events/relationship-metadata-updated.event';
 
 export interface RelationshipMetadata {
   isAdopted?: boolean;

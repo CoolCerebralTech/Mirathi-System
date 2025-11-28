@@ -1,5 +1,6 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
 import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
 import { WillValidationService } from '../../domain/services/will-validation.service';
 

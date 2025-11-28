@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+
 import { SUCCESSION_TIMEFRAMES } from '../../../common/constants/kenyan-law.constants';
 
 interface TimelineInfo {

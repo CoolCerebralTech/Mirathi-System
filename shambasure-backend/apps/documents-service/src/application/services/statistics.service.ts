@@ -1,15 +1,16 @@
-import { Injectable, Logger, ForbiddenException, Inject } from '@nestjs/common';
-import type { IDocumentQueryRepository, FindDocumentsFilters } from '../../domain/interfaces';
+import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
+
+import type { FindDocumentsFilters, IDocumentQueryRepository } from '../../domain/interfaces';
 import { Actor, DocumentCategory, DocumentStatus, UserId } from '../../domain/value-objects';
-import { StatisticsMapper } from '../mappers';
+import { DOCUMENT_QUERY_REPOSITORY } from '../../injection.tokens';
 import {
   DashboardAnalyticsResponseDto,
   DocumentAnalyticsResponseDto,
   StorageAnalyticsResponseDto,
-  VerificationMetricsResponseDto,
   UploadAnalyticsResponseDto,
+  VerificationMetricsResponseDto,
 } from '../dtos/analytics-response.dto';
-import { DOCUMENT_QUERY_REPOSITORY } from '../../injection.tokens';
+import { StatisticsMapper } from '../mappers';
 
 export interface TimeRange {
   start: Date;

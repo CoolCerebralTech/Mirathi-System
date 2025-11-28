@@ -1,12 +1,13 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { AssetType, AssetOwnershipType } from '@prisma/client';
-import { AssetValue } from '../value-objects/asset-value.vo';
+import { AssetOwnershipType, AssetType } from '@prisma/client';
+
 import { KENYAN_COUNTIES_LIST } from '../../../common/constants/kenyan-law.constants';
 import { AssetAddedEvent } from '../events/asset-added.event';
+import { AssetEncumberedEvent } from '../events/asset-encumbered.event';
 import { AssetUpdatedEvent } from '../events/asset-updated.event';
 import { AssetValuationUpdatedEvent } from '../events/asset-valuation-updated.event';
 import { AssetVerifiedEvent } from '../events/asset-verified.event';
-import { AssetEncumberedEvent } from '../events/asset-encumbered.event';
+import { AssetValue } from '../value-objects/asset-value.vo';
 
 /**
  * Represents the geographical location of an asset within Kenya

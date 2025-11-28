@@ -1,17 +1,18 @@
-import {
-  IsString,
-  IsEnum,
-  IsOptional,
-  IsObject,
-  IsUUID,
-  IsNotEmpty,
-  MaxLength,
-  IsDateString,
-  IsBoolean,
-  ValidateIf,
-  IsArray,
-} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
+
 import { DocumentCategoryEnum } from '../../domain/value-objects/document-category.vo';
 import { RetentionPolicyType } from '../../domain/value-objects/retention-policy.vo';
 

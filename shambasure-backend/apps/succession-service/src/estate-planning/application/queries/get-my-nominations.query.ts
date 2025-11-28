@@ -1,6 +1,7 @@
-import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { Inject } from '@nestjs/common';
+import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { plainToInstance } from 'class-transformer';
+
 import type { ExecutorRepositoryInterface } from '../../domain/interfaces/executor.repository.interface';
 import { ExecutorResponseDto } from '../dto/response/executor.response.dto';
 

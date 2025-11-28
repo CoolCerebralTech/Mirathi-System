@@ -1,28 +1,42 @@
 import { Module } from '@nestjs/common';
-import { CqrsModule } from '@nestjs/cqrs';
 import { ConfigModule } from '@nestjs/config';
+import { CqrsModule } from '@nestjs/cqrs';
 
-// --- Controllers (Presentation Layer) ---
-import { FamilyController } from './presentation/controllers/family.controller';
-import { FamilyMemberController } from './presentation/controllers/family-member.controller';
-import { MarriageController } from './presentation/controllers/marriage.controller';
-import { RelationshipController } from './presentation/controllers/relationship.controller';
-import { GuardianshipController } from './presentation/controllers/guardianship.controller';
-import { CustomaryLawController } from './presentation/controllers/customary-law.controller';
-
+import { AddFamilyMemberHandler } from './application/commands/add-family-member.command';
+import { AssignGuardianHandler } from './application/commands/assign-guardian.command';
+// --- Command Handlers ---
+import { CreateFamilyHandler } from './application/commands/create-family.command';
+import { CreateMarriageHandler } from './application/commands/create-marriage.command';
+import { CreateRelationshipHandler } from './application/commands/create-relationship.command';
+import { DissolveMarriageHandler } from './application/commands/dissolve-marriage.command';
+import { RefreshTreeVisualizationHandler } from './application/commands/refresh-tree-visualization.command';
+import { RemoveFamilyMemberHandler } from './application/commands/remove-family-member.command';
+import { RemoveGuardianHandler } from './application/commands/remove-guardian.command';
+import { RemoveRelationshipHandler } from './application/commands/remove-relationship.command';
+import { UpdateFamilyMemberHandler } from './application/commands/update-family-member.command';
+import { UpdateFamilyHandler } from './application/commands/update-family.command';
+import { UpdateMarriageHandler } from './application/commands/update-marriage.command';
+import { VerifyRelationshipHandler } from './application/commands/verify-relationship.command';
+import { FindPotentialHeirsHandler } from './application/queries/find-potential-heirs.query';
+import { GetChildrenHandler } from './application/queries/get-children.query';
+import { GetDependantsHandler } from './application/queries/get-dependants.query';
+import { GetFamilyMemberHandler } from './application/queries/get-family-member.query';
+import { GetFamilyMembersHandler } from './application/queries/get-family-members.query';
+import { GetFamilyTreeHandler } from './application/queries/get-family-tree.query';
+// --- Query Handlers ---
+import { GetFamilyHandler } from './application/queries/get-family.query';
+import { GetGuardianshipsHandler } from './application/queries/get-guardianships.query';
+import { GetMarriagesHandler } from './application/queries/get-marriages.query';
+import { GetMemberMarriagesHandler } from './application/queries/get-member-marriages.query';
+import { GetRelationshipsHandler } from './application/queries/get-relationships.query';
+import { ListFamiliesHandler } from './application/queries/list-families.query';
+import { CustomaryLawService } from './application/services/customary-law.service';
+import { FamilyMemberService } from './application/services/family-member.service';
 // --- Application Services ---
 import { FamilyService } from './application/services/family.service';
-import { FamilyMemberService } from './application/services/family-member.service';
+import { GuardianshipService } from './application/services/guardianship.service';
 import { MarriageService } from './application/services/marriage.service';
 import { RelationshipService } from './application/services/relationship.service';
-import { GuardianshipService } from './application/services/guardianship.service';
-import { CustomaryLawService } from './application/services/customary-law.service';
-
-// --- Domain Services ---
-import { FamilyTreeBuilderService } from './domain/services/family-tree-builder.service';
-import { RelationshipIntegrityService } from './domain/services/relationship-integrity.service';
-import { DependantCalculatorService } from './domain/services/dependant-calculator.service';
-
 // --- Domain Policies ---
 import { CustomaryMarriagePolicy } from './domain/policies/customary-marriage.policy';
 import { DependantIdentificationPolicy } from './domain/policies/dependant-identification.policy';
@@ -30,43 +44,23 @@ import { FamilyTreeIntegrityPolicy } from './domain/policies/family-tree-integri
 import { GuardianEligibilityPolicy } from './domain/policies/guardian-eligibility.policy';
 import { PolygamousFamilyPolicy } from './domain/policies/polygamous-family.policy';
 import { RelationshipValidationPolicy } from './domain/policies/relationship-validation.policy';
-
+import { DependantCalculatorService } from './domain/services/dependant-calculator.service';
+// --- Domain Services ---
+import { FamilyTreeBuilderService } from './domain/services/family-tree-builder.service';
+import { RelationshipIntegrityService } from './domain/services/relationship-integrity.service';
+import { FamilyMemberPrismaRepository } from './infrastructure/persistence/repositories/family-member.prisma-repository';
 // --- Infrastructure (Repositories) ---
 import { FamilyPrismaRepository } from './infrastructure/persistence/repositories/family.prisma-repository';
-import { FamilyMemberPrismaRepository } from './infrastructure/persistence/repositories/family-member.prisma-repository';
+import { GuardianshipPrismaRepository } from './infrastructure/persistence/repositories/guardianship.prisma-repository';
 import { MarriagePrismaRepository } from './infrastructure/persistence/repositories/marriage.prisma-repository';
 import { RelationshipPrismaRepository } from './infrastructure/persistence/repositories/relationship.prisma-repository';
-import { GuardianshipPrismaRepository } from './infrastructure/persistence/repositories/guardianship.prisma-repository';
-
-// --- Command Handlers ---
-import { CreateFamilyHandler } from './application/commands/create-family.command';
-import { UpdateFamilyHandler } from './application/commands/update-family.command';
-import { AddFamilyMemberHandler } from './application/commands/add-family-member.command';
-import { UpdateFamilyMemberHandler } from './application/commands/update-family-member.command';
-import { RemoveFamilyMemberHandler } from './application/commands/remove-family-member.command';
-import { CreateMarriageHandler } from './application/commands/create-marriage.command';
-import { UpdateMarriageHandler } from './application/commands/update-marriage.command';
-import { DissolveMarriageHandler } from './application/commands/dissolve-marriage.command';
-import { CreateRelationshipHandler } from './application/commands/create-relationship.command';
-import { VerifyRelationshipHandler } from './application/commands/verify-relationship.command';
-import { RemoveRelationshipHandler } from './application/commands/remove-relationship.command';
-import { AssignGuardianHandler } from './application/commands/assign-guardian.command';
-import { RemoveGuardianHandler } from './application/commands/remove-guardian.command';
-import { RefreshTreeVisualizationHandler } from './application/commands/refresh-tree-visualization.command';
-
-// --- Query Handlers ---
-import { GetFamilyHandler } from './application/queries/get-family.query';
-import { ListFamiliesHandler } from './application/queries/list-families.query';
-import { GetFamilyTreeHandler } from './application/queries/get-family-tree.query';
-import { GetFamilyMembersHandler } from './application/queries/get-family-members.query';
-import { GetFamilyMemberHandler } from './application/queries/get-family-member.query';
-import { FindPotentialHeirsHandler } from './application/queries/find-potential-heirs.query';
-import { GetMarriagesHandler } from './application/queries/get-marriages.query';
-import { GetMemberMarriagesHandler } from './application/queries/get-member-marriages.query';
-import { GetRelationshipsHandler } from './application/queries/get-relationships.query';
-import { GetChildrenHandler } from './application/queries/get-children.query';
-import { GetGuardianshipsHandler } from './application/queries/get-guardianships.query';
-import { GetDependantsHandler } from './application/queries/get-dependants.query';
+import { CustomaryLawController } from './presentation/controllers/customary-law.controller';
+import { FamilyMemberController } from './presentation/controllers/family-member.controller';
+// --- Controllers (Presentation Layer) ---
+import { FamilyController } from './presentation/controllers/family.controller';
+import { GuardianshipController } from './presentation/controllers/guardianship.controller';
+import { MarriageController } from './presentation/controllers/marriage.controller';
+import { RelationshipController } from './presentation/controllers/relationship.controller';
 
 // Grouping for cleaner providers array
 const CommandHandlers = [

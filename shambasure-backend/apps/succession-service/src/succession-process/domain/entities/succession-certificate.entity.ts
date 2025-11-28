@@ -1,12 +1,13 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { GrantType } from '@prisma/client';
+
 import { SUCCESSION_TIMEFRAMES } from '../../../common/constants/kenyan-law.constants';
-import { GrantIssuedEvent } from '../events/grant-issued.event';
-import { GrantConfirmedEvent } from '../events/grant-confirmed.event';
-import { GrantRevokedEvent } from '../events/grant-revoked.event';
-import { GrantExpiredEvent } from '../events/grant-expired.event';
 import { GrantAmendedEvent } from '../events/grant-amended.event';
+import { GrantConfirmedEvent } from '../events/grant-confirmed.event';
+import { GrantExpiredEvent } from '../events/grant-expired.event';
+import { GrantIssuedEvent } from '../events/grant-issued.event';
 import { GrantReplacedEvent } from '../events/grant-replaced.event';
+import { GrantRevokedEvent } from '../events/grant-revoked.event';
 
 export type GrantStatus = 'ISSUED' | 'CONFIRMED' | 'REVOKED' | 'EXPIRED' | 'AMENDED' | 'REPLACED';
 export type CertificateType =

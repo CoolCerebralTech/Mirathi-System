@@ -1,12 +1,13 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, BadRequestException } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
-import { CreateFamilyDto } from '../dto/request/create-family.dto';
-import type { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
-import type { FamilyMemberRepositoryInterface } from '../../domain/interfaces/family-member.repository.interface';
-import { Family } from '../../domain/entities/family.entity';
-import { FamilyMember } from '../../domain/entities/family-member.entity';
+import { BadRequestException, Inject } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
 import { RelationshipType } from '@prisma/client';
+import { v4 as uuidv4 } from 'uuid';
+
+import { FamilyMember } from '../../domain/entities/family-member.entity';
+import { Family } from '../../domain/entities/family.entity';
+import type { FamilyMemberRepositoryInterface } from '../../domain/interfaces/family-member.repository.interface';
+import type { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
+import { CreateFamilyDto } from '../dto/request/create-family.dto';
 
 export class CreateFamilyCommand {
   constructor(

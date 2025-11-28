@@ -1,22 +1,23 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+
 import {
-  PasswordResetTokenEntity,
-  EmailVerificationTokenEntity,
-  PhoneVerificationTokenEntity,
-  RefreshTokenEntity,
-  LoginSessionEntity,
-  PasswordHistoryEntity,
-  EmailChangeTokenEntity,
-} from '../../infrastructure/persistence/entities/account.entity';
-import {
-  PasswordResetToken,
+  EmailChangeToken,
   EmailVerificationToken,
+  LoginSession,
+  PasswordResetToken,
   PhoneVerificationToken,
   RefreshToken,
-  LoginSession,
-  EmailChangeToken,
 } from '../../domain/models';
-import { Prisma } from '@prisma/client';
+import {
+  EmailChangeTokenEntity,
+  EmailVerificationTokenEntity,
+  LoginSessionEntity,
+  PasswordHistoryEntity,
+  PasswordResetTokenEntity,
+  PhoneVerificationTokenEntity,
+  RefreshTokenEntity,
+} from '../../infrastructure/persistence/entities/account.entity';
 
 export interface IPasswordHistory {
   id: string;

@@ -1,5 +1,6 @@
 // estate-solvency-checked.event.ts
 import { IEvent } from '@nestjs/cqrs';
+
 import { AssetValue } from '../value-objects/asset-value.vo';
 
 /**

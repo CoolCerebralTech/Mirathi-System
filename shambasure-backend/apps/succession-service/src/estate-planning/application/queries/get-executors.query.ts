@@ -1,8 +1,9 @@
+import { ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
+
 import type { ExecutorRepositoryInterface } from '../../domain/interfaces/executor.repository.interface';
+import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
 import { ExecutorResponseDto } from '../dto/response/executor.response.dto';
 
 export class GetExecutorsQuery {

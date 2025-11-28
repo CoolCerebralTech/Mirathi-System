@@ -1,14 +1,15 @@
 import { Prisma } from '@prisma/client';
+
 import { DocumentVerificationAttempt } from '../../domain/models/document-verification.model';
 import {
-  VerificationAttemptId,
   DocumentId,
-  UserId,
   DocumentStatus,
+  UserId,
+  VerificationAttemptId,
 } from '../../domain/value-objects';
 import {
-  DocumentVerificationAttemptEntity,
   CreateDocumentVerificationAttemptEntity,
+  DocumentVerificationAttemptEntity,
 } from '../entities/document-verification.entity';
 
 /**

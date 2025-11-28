@@ -1,14 +1,14 @@
-import {
-  IsString,
-  IsNotEmpty,
-  IsEnum,
-  IsNumber,
-  Min,
-  IsOptional,
-  IsDateString,
-  Matches,
-} from 'class-validator';
 import { DebtType } from '@prisma/client';
+import {
+  IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Matches,
+  Min,
+} from 'class-validator';
 
 export class AddDebtDto {
   @IsEnum(DebtType, { message: 'Invalid Debt Type. Must be one of: MORTGAGE, PERSONAL_LOAN, etc.' })

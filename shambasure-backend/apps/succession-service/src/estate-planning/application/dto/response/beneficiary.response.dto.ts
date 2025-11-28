@@ -1,5 +1,6 @@
+import { BequestConditionType, BequestType, DistributionStatus } from '@prisma/client';
 import { Exclude, Expose, Type } from 'class-transformer';
-import { BequestType, BequestConditionType, DistributionStatus } from '@prisma/client';
+
 import { AssetValueResponse } from './asset.response.dto';
 
 @Exclude()

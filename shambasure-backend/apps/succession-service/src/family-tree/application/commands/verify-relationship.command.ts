@@ -1,7 +1,8 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { VerifyRelationshipDto } from '../dto/request/verify-relationship.dto';
+import { ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
 import { RelationshipRepositoryInterface } from '../../domain/interfaces/relationship.repository.interface';
+import { VerifyRelationshipDto } from '../dto/request/verify-relationship.dto';
 
 export class VerifyRelationshipCommand {
   constructor(

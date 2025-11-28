@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { Witness } from '../entities/witness.entity';
-import { BeneficiaryAssignment } from '../entities/beneficiary.entity';
+
 import { KENYAN_LEGAL_REQUIREMENTS } from '../../../common/constants/kenyan-law.constants';
+import { BeneficiaryAssignment } from '../entities/beneficiary.entity';
+import { Witness } from '../entities/witness.entity';
 
 export interface WitnessPolicyResult {
   isValid: boolean;

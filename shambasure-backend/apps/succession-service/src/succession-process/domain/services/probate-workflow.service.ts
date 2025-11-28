@@ -1,11 +1,11 @@
 // succession-service/src/succession-process/domain/services/probate-workflow.service.ts
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 
-import { Injectable, Inject, BadRequestException } from '@nestjs/common';
-import { ProbateCaseRepositoryInterface } from '../repositories/probate-case.repository.interface';
-import { SuccessionCertificateRepositoryInterface } from '../repositories/succession-certificate.repository.interface';
-import { DistributionTimingPolicy } from '../policies/distribution-timing.policy';
 import { ProbateCase } from '../entities/probate-case.entity';
 import { SuccessionCertificate } from '../entities/succession-certificate.entity';
+import { DistributionTimingPolicy } from '../policies/distribution-timing.policy';
+import { ProbateCaseRepositoryInterface } from '../repositories/probate-case.repository.interface';
+import { SuccessionCertificateRepositoryInterface } from '../repositories/succession-certificate.repository.interface';
 
 @Injectable()
 export class ProbateWorkflowService {

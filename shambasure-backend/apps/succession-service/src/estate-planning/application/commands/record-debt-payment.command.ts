@@ -1,6 +1,7 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { IsNumber, IsString, IsNotEmpty, Min } from 'class-validator';
+import { BadRequestException, ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+import { IsNotEmpty, IsNumber, IsString, Min } from 'class-validator';
+
 import type { DebtRepositoryInterface } from '../../domain/interfaces/debt.repository.interface';
 import { AssetValue } from '../../domain/value-objects/asset-value.vo';
 

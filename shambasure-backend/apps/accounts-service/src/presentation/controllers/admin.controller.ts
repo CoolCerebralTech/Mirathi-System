@@ -1,43 +1,45 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
   Body,
-  Param,
-  Query,
+  Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
-  UseGuards,
+  Param,
   ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
-import { AdminService } from '../../application/services/admin.service';
-import { JwtAuthGuard, RolesGuard, Roles, CurrentUser, type JwtPayload } from '@shamba/auth';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+
+import { CurrentUser, JwtAuthGuard, type JwtPayload, Roles, RolesGuard } from '@shamba/auth';
 import { UserRole } from '@shamba/common';
+
 import {
-  UserQueryDto,
-  AdminUpdateUserRequestDto,
-  UpdateUserRoleRequestDto,
-  LockUserAccountRequestDto,
-  UnlockUserAccountRequestDto,
-  SoftDeleteUserRequestDto,
-  RestoreUserRequestDto,
-  AdminCreateUserRequestDto,
   AdminBulkUpdateUsersRequestDto,
-  AdminUpdateUserResponseDto,
-  UpdateUserRoleResponseDto,
-  LockUserAccountResponseDto,
-  UnlockUserAccountResponseDto,
-  SoftDeleteUserResponseDto,
-  RestoreUserResponseDto,
-  AdminCreateUserResponseDto,
   AdminBulkUpdateUsersResponseDto,
-  PaginatedUsersResponseDto,
-  UserStatsResponseDto,
+  AdminCreateUserRequestDto,
+  AdminCreateUserResponseDto,
+  AdminUpdateUserRequestDto,
+  AdminUpdateUserResponseDto,
   GetUserResponseDto,
+  LockUserAccountRequestDto,
+  LockUserAccountResponseDto,
+  PaginatedUsersResponseDto,
+  RestoreUserRequestDto,
+  RestoreUserResponseDto,
+  SoftDeleteUserRequestDto,
+  SoftDeleteUserResponseDto,
+  UnlockUserAccountRequestDto,
+  UnlockUserAccountResponseDto,
+  UpdateUserRoleRequestDto,
+  UpdateUserRoleResponseDto,
+  UserQueryDto,
+  UserStatsResponseDto,
 } from '../../application/dtos/admin.dto';
+import { AdminService } from '../../application/services/admin.service';
 
 /**
  * AdminController

@@ -1,19 +1,21 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Param,
+  Controller,
   Delete,
-  UseGuards,
-  Req,
+  Get,
   HttpStatus,
+  Param,
+  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { JwtAuthGuard } from '@shamba/auth';
-import { ExecutorService } from '../../application/services/executor.service';
+
 import { NominateExecutorDto } from '../../application/dto/request/nominate-executor.dto';
 import { ExecutorResponseDto } from '../../application/dto/response/executor.response.dto';
+import { ExecutorService } from '../../application/services/executor.service';
 
 interface RequestWithUser extends Request {
   user: { userId: string; email: string; role: string };

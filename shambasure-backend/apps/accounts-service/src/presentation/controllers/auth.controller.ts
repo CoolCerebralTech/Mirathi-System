@@ -1,45 +1,47 @@
 import {
-  Controller,
-  Post,
   Body,
+  Controller,
+  Get,
   HttpCode,
   HttpStatus,
-  UseGuards,
-  Req,
-  Get,
+  Post,
   Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiHeader } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { AuthService } from '../../application/services/auth.service';
-import { JwtAuthGuard, CurrentUser, type JwtPayload } from '@shamba/auth';
+
+import { CurrentUser, JwtAuthGuard, type JwtPayload } from '@shamba/auth';
+
 import {
-  RegisterRequestDto,
-  LoginRequestDto,
-  VerifyEmailRequestDto,
-  ResendVerificationRequestDto,
-  ForgotPasswordRequestDto,
-  ResetPasswordRequestDto,
-  ValidateResetTokenRequestDto,
-  ChangePasswordRequestDto,
-  RefreshTokenRequestDto,
-  LogoutRequestDto,
-  RequestEmailChangeRequestDto,
-  ConfirmEmailChangeRequestDto,
-  AuthResponseDto,
-  RefreshTokenResponseDto,
-  VerifyEmailResponseDto,
-  ResendVerificationResponseDto,
-  ForgotPasswordResponseDto,
-  ValidateResetTokenResponseDto,
-  ResetPasswordResponseDto,
-  ChangePasswordResponseDto,
-  LogoutResponseDto,
-  RequestEmailChangeResponseDto,
-  ConfirmEmailChangeResponseDto,
   AccountLockedResponseDto,
+  AuthResponseDto,
+  ChangePasswordRequestDto,
+  ChangePasswordResponseDto,
+  ConfirmEmailChangeRequestDto,
+  ConfirmEmailChangeResponseDto,
+  ForgotPasswordRequestDto,
+  ForgotPasswordResponseDto,
+  LoginRequestDto,
+  LogoutRequestDto,
+  LogoutResponseDto,
   RateLimitResponseDto,
+  RefreshTokenRequestDto,
+  RefreshTokenResponseDto,
+  RegisterRequestDto,
+  RequestEmailChangeRequestDto,
+  RequestEmailChangeResponseDto,
+  ResendVerificationRequestDto,
+  ResendVerificationResponseDto,
+  ResetPasswordRequestDto,
+  ResetPasswordResponseDto,
+  ValidateResetTokenRequestDto,
+  ValidateResetTokenResponseDto,
+  VerifyEmailRequestDto,
+  VerifyEmailResponseDto,
 } from '../../application/dtos/auth.dto';
+import { AuthService } from '../../application/services/auth.service';
 
 /**
  * AuthController

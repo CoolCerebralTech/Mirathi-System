@@ -1,18 +1,18 @@
 // ============================================================================
 // main.ts - API Gateway Bootstrap
 // ============================================================================
-
+import { ClassSerializerInterceptor, RequestMethod, ValidationPipe } from '@nestjs/common';
+import { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
 import { NestFactory, Reflector } from '@nestjs/core';
-import { ValidationPipe, ClassSerializerInterceptor, RequestMethod } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { Logger } from 'nestjs-pino';
-import { ConfigService } from '@shamba/config';
-import { AppModule as GatewayModule } from './app.module';
-
-import helmet from 'helmet';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
-import { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
+import helmet from 'helmet';
+import { Logger } from 'nestjs-pino';
+
+import { ConfigService } from '@shamba/config';
+
+import { AppModule as GatewayModule } from './app.module';
 
 async function bootstrap() {
   // Create app

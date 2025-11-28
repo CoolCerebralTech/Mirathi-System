@@ -1,59 +1,60 @@
 import {
-  Injectable,
   BadRequestException,
-  NotFoundException,
-  UnauthorizedException,
-  InternalServerErrorException,
-  Logger,
   ConflictException,
   Inject,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
+
+import { DomainEvent } from '../../domain/events';
 import type {
-  IUserRepository,
+  ILoginSessionRepository,
   IPhoneVerificationTokenRepository,
   IRefreshTokenRepository,
-  ILoginSessionRepository,
+  IUserRepository,
 } from '../../domain/interfaces';
 import type {
-  IHashingService,
   IEventPublisher,
+  IHashingService,
   INotificationService,
 } from '../../domain/interfaces';
-import { AccountLockedError, User, UserDomainError } from '../../domain/models/user.model';
-import { Address, NextOfKin } from '../../domain/models/user-profile.model';
 import {
   InvalidOTPError,
   MaxOTPAttemptsExceededError,
   TokenFactory,
 } from '../../domain/models/token.model';
+import { Address, NextOfKin } from '../../domain/models/user-profile.model';
+import { AccountLockedError, User, UserDomainError } from '../../domain/models/user.model';
 import { PhoneNumber } from '../../domain/value-objects';
-import { UserMapper, ProfileMapper } from '../mappers';
 import {
-  UpdateMyUserRequestDto,
-  UpdateMyUserResponseDto,
-  GetMyUserResponseDto,
-  DeactivateMyAccountRequestDto,
-  DeactivateMyAccountResponseDto,
-} from '../dtos/user.dto';
-import {
-  UpdateMyProfileRequestDto,
-  SendPhoneVerificationRequestDto,
-  VerifyPhoneRequestDto,
-  UpdateMarketingPreferencesRequestDto,
-  UpdateMyProfileResponseDto,
   GetMyProfileResponseDto,
-  SendPhoneVerificationResponseDto,
-  VerifyPhoneResponseDto,
-  ResendPhoneVerificationResponseDto,
-  UpdateMarketingPreferencesResponseDto,
-  RemovePhoneNumberResponseDto,
+  ProfileCompletionResponseDto,
   RemoveAddressResponseDto,
   RemoveNextOfKinResponseDto,
+  RemovePhoneNumberResponseDto,
+  ResendPhoneVerificationResponseDto,
+  SendPhoneVerificationRequestDto,
+  SendPhoneVerificationResponseDto,
+  UpdateMarketingPreferencesRequestDto,
+  UpdateMarketingPreferencesResponseDto,
+  UpdateMyProfileRequestDto,
+  UpdateMyProfileResponseDto,
   ValidatePhoneNumberRequestDto,
   ValidatePhoneNumberResponseDto,
-  ProfileCompletionResponseDto,
+  VerifyPhoneRequestDto,
+  VerifyPhoneResponseDto,
 } from '../dtos/profile.dto';
-import { DomainEvent } from '../../domain/events';
+import {
+  DeactivateMyAccountRequestDto,
+  DeactivateMyAccountResponseDto,
+  GetMyUserResponseDto,
+  UpdateMyUserRequestDto,
+  UpdateMyUserResponseDto,
+} from '../dtos/user.dto';
+import { ProfileMapper, UserMapper } from '../mappers';
 
 // Custom exceptions for better error handling
 export class UserServiceError extends Error {

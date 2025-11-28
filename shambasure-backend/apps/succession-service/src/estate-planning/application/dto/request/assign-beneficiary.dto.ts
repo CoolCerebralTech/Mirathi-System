@@ -1,16 +1,16 @@
-import {
-  IsString,
-  IsNotEmpty,
-  IsEnum,
-  IsNumber,
-  Min,
-  Max,
-  IsOptional,
-  ValidateNested,
-  ValidateIf,
-} from 'class-validator';
-import { BequestType, BequestConditionType } from '@prisma/client';
+import { BequestConditionType, BequestType } from '@prisma/client';
 import { Type } from 'class-transformer';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
 
 class SpecificAmountDto {
   @IsNumber()

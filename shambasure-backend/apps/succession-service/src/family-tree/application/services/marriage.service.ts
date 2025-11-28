@@ -5,16 +5,14 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { CreateMarriageCommand } from '../commands/create-marriage.command';
 import { DissolveMarriageCommand } from '../commands/dissolve-marriage.command';
 import { UpdateMarriageCommand } from '../commands/update-marriage.command';
-
+// DTOs
+import { CreateMarriageDto } from '../dto/request/create-marriage.dto';
+import { DissolveMarriageDto } from '../dto/request/dissolve-marriage.dto';
+import { UpdateMarriageDto } from '../dto/request/update-marriage.dto';
+import { MarriageResponseDto } from '../dto/response/marriage.response.dto';
 // Queries
 import { GetMarriagesQuery } from '../queries/get-marriages.query';
 import { GetMemberMarriagesQuery } from '../queries/get-member-marriages.query';
-
-// DTOs
-import { CreateMarriageDto } from '../dto/request/create-marriage.dto';
-import { UpdateMarriageDto } from '../dto/request/update-marriage.dto';
-import { DissolveMarriageDto } from '../dto/request/dissolve-marriage.dto';
-import { MarriageResponseDto } from '../dto/response/marriage.response.dto';
 
 @Injectable()
 export class MarriageService {

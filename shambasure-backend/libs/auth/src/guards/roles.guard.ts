@@ -1,9 +1,11 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ROLES_KEY } from '../decorators/roles.decorator';
-import { UserRole } from '@shamba/common';
-import { JwtPayload } from '../interfaces/auth.interface';
 import { Request } from 'express';
+
+import { UserRole } from '@shamba/common';
+
+import { ROLES_KEY } from '../decorators/roles.decorator';
+import { JwtPayload } from '../interfaces/auth.interface';
 
 interface AuthenticatedRequest extends Request {
   user?: JwtPayload;

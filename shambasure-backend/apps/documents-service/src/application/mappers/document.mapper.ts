@@ -1,23 +1,24 @@
 import { Injectable } from '@nestjs/common';
+
 import { Document } from '../../domain/models';
-import { PaginatedDocumentsResponseDto } from '../dtos/query-documents.dto';
-import { UploadDocumentResponseDto, UploadDocumentDto } from '../dtos/upload-document.dto';
-import { VerifyDocumentResponseDto, VerifyDocumentDto } from '../dtos/verify-document.dto';
-import { UpdateDocumentDto, UpdateDocumentResponseDto } from '../dtos/update-document.dto';
-import { AccessControlResponseDto } from '../dtos/share-document.dto';
-import { DocumentResponseDto } from '../dtos/document-response.dto';
 import {
-  DocumentId,
-  UserId,
-  WillId,
   AssetId,
   DocumentCategory,
+  DocumentId,
   FileName,
   RejectionReason,
   RetentionPolicy,
-  StorageProvider,
   RetentionPolicyType,
+  StorageProvider,
+  UserId,
+  WillId,
 } from '../../domain/value-objects';
+import { DocumentResponseDto } from '../dtos/document-response.dto';
+import { PaginatedDocumentsResponseDto } from '../dtos/query-documents.dto';
+import { AccessControlResponseDto } from '../dtos/share-document.dto';
+import { UpdateDocumentDto, UpdateDocumentResponseDto } from '../dtos/update-document.dto';
+import { UploadDocumentDto, UploadDocumentResponseDto } from '../dtos/upload-document.dto';
+import { VerifyDocumentDto, VerifyDocumentResponseDto } from '../dtos/verify-document.dto';
 
 /**
  * Maps between Document domain objects and various Data Transfer Objects (DTOs).

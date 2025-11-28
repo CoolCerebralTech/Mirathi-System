@@ -1,10 +1,11 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { RelationshipType } from '@prisma/client';
+
 import { FamilyMemberAddedEvent } from '../events/family-member-added.event';
-import { FamilyMemberUpdatedEvent } from '../events/family-member-updated.event';
+import { FamilyMemberGuardianAssignedEvent } from '../events/family-member-guardian-assigned.event';
 import { FamilyMemberMarkedDeceasedEvent } from '../events/family-member-marked-deceased.event';
 import { FamilyMemberRemovedEvent } from '../events/family-member-removed.event';
-import { FamilyMemberGuardianAssignedEvent } from '../events/family-member-guardian-assigned.event';
+import { FamilyMemberUpdatedEvent } from '../events/family-member-updated.event';
 
 export interface MemberContactInfo {
   email?: string;

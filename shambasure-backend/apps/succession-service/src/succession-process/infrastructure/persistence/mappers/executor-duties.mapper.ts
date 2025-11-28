@@ -1,8 +1,8 @@
 // succession-service/src/succession-process/infrastructure/persistence/mappers/executor-duties.mapper.ts
-
 import { DistributionSchedule as PrismaSchedule } from '@prisma/client';
-import { ExecutorDuty, DutyStatus } from '../../../domain/entities/executor-duties.entity';
+
 import { ExecutorDutyType } from '../../../../common/types/kenyan-law.types';
+import { DutyStatus, ExecutorDuty } from '../../../domain/entities/executor-duties.entity';
 
 export class ExecutorDutiesMapper {
   static toPersistence(domain: ExecutorDuty): PrismaSchedule {

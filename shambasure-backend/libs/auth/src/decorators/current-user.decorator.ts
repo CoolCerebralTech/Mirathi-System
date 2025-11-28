@@ -1,8 +1,9 @@
 import {
-  createParamDecorator,
   ExecutionContext,
   InternalServerErrorException,
+  createParamDecorator,
 } from '@nestjs/common';
+
 import { JwtPayload } from '../interfaces/auth.interface';
 
 // Utility type to get the value types of an object.

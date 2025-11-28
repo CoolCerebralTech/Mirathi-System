@@ -1,4 +1,5 @@
 import { DebtType } from '@prisma/client';
+
 import { Debt } from '../entities/debt.entity';
 
 /**

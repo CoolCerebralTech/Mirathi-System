@@ -3,21 +3,19 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 
 // Commands
 import { AddAssetCommand } from '../commands/add-asset.command';
-import { UpdateAssetCommand } from '../commands/update-asset.command';
 import { RemoveAssetCommand } from '../commands/remove-asset.command';
-
-// Queries
-import { GetEstateAssetsQuery } from '../queries/get-estate-assets.query';
-import { GetAssetQuery } from '../queries/get-asset.query';
-import {
-  GetPortfolioValueQuery,
-  PortfolioValueResponse,
-} from '../queries/get-portfolio-value.query';
-
+import { UpdateAssetCommand } from '../commands/update-asset.command';
 // DTOs
 import { AddAssetDto } from '../dto/request/add-asset.dto';
 import { UpdateAssetDto } from '../dto/request/update-asset.dto';
 import { AssetResponseDto } from '../dto/response/asset.response.dto';
+import { GetAssetQuery } from '../queries/get-asset.query';
+// Queries
+import { GetEstateAssetsQuery } from '../queries/get-estate-assets.query';
+import {
+  GetPortfolioValueQuery,
+  PortfolioValueResponse,
+} from '../queries/get-portfolio-value.query';
 
 @Injectable()
 export class AssetService {

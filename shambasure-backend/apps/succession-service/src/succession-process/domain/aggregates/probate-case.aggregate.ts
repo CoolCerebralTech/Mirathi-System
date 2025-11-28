@@ -1,18 +1,19 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { ProbateCase } from '../entities/probate-case.entity';
-import { SuccessionCertificate } from '../entities/succession-certificate.entity';
+import { DisputeType, GrantType } from '@prisma/client';
+import { AssetValue } from 'apps/succession-service/src/estate-planning/domain/value-objects/asset-value.vo';
+
+import { ExecutorDutyType, HearingType, ShareType } from '../../../common/types/kenyan-law.types';
 import { CourtHearing } from '../entities/court-hearing.entity';
 import { Dispute } from '../entities/dispute.entity';
-import { ExecutorDuty } from '../entities/executor-duties.entity';
-import { AssetCategory, EstateInventory, OwnershipType } from '../entities/estate-inventory.entity';
 import { BeneficiaryType, Distribution, TransferMethod } from '../entities/distribution.entity';
-import { ExecutorDutyType, HearingType, ShareType } from '../../../common/types/kenyan-law.types';
-import { DisputeType, GrantType } from '@prisma/client';
-import { ProbateCaseFiledEvent } from '../events/probate-case-filed.event';
-import { GrantIssuedEvent } from '../events/grant-issued.event';
+import { AssetCategory, EstateInventory, OwnershipType } from '../entities/estate-inventory.entity';
+import { ExecutorDuty } from '../entities/executor-duties.entity';
+import { ProbateCase } from '../entities/probate-case.entity';
+import { SuccessionCertificate } from '../entities/succession-certificate.entity';
 import { CaseClosedEvent } from '../events/case-closed.event';
+import { GrantIssuedEvent } from '../events/grant-issued.event';
 import { ObjectionFiledEvent } from '../events/objection-filed.event';
-import { AssetValue } from 'apps/succession-service/src/estate-planning/domain/value-objects/asset-value.vo';
+import { ProbateCaseFiledEvent } from '../events/probate-case-filed.event';
 
 export class ProbateCaseAggregate extends AggregateRoot {
   private probateCase: ProbateCase;

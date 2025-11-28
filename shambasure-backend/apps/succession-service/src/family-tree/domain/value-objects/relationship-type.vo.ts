@@ -1,6 +1,6 @@
 import {
-  RELATIONSHIP_TYPES,
   DEPENDANT_RELATIONSHIPS,
+  RELATIONSHIP_TYPES,
 } from '../../../common/constants/relationship-types.constants';
 
 type RelationshipCode = keyof typeof RELATIONSHIP_TYPES;

@@ -1,4 +1,4 @@
-import { CreditorClaim, ClaimStatus, DebtType } from '../entities/creditor-claim.entity';
+import { ClaimStatus, CreditorClaim, DebtType } from '../entities/creditor-claim.entity';
 
 export interface CreditorClaimRepositoryInterface {
   // Basic CRUD operations

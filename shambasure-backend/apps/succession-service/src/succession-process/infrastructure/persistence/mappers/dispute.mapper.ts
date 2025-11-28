@@ -1,6 +1,6 @@
 // succession-service/src/succession-process/infrastructure/persistence/mappers/dispute.mapper.ts
-
 import { Dispute as PrismaDispute } from '@prisma/client';
+
 import { Dispute } from '../../../domain/entities/dispute.entity';
 
 export class DisputeMapper {

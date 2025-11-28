@@ -1,6 +1,7 @@
-import { All, Controller, Req, Res, Logger } from '@nestjs/common';
-import type { Request, Response } from 'express';
+import { All, Controller, Logger, Req, Res } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
+import type { Request, Response } from 'express';
+
 import { ProxyService } from '../../application/services/proxy.service';
 
 @ApiExcludeController()

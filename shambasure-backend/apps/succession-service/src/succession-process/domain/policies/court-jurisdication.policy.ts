@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { EstateValuation } from '../value-objects/estate-valuation.vo';
-import { KenyanCourtJurisdiction, CourtLevel } from '../value-objects/kenyan-court-jurisdiction.vo';
+
 import { COURT_LOCATIONS } from '../../../common/constants/court-jurisdiction.constants';
+import { EstateValuation } from '../value-objects/estate-valuation.vo';
+import { CourtLevel, KenyanCourtJurisdiction } from '../value-objects/kenyan-court-jurisdiction.vo';
 
 @Injectable()
 export class CourtJurisdictionPolicy {

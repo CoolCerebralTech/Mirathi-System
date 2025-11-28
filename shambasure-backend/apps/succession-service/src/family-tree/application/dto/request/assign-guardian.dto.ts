@@ -1,5 +1,5 @@
-import { IsUUID, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { GuardianType } from '@prisma/client';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class AssignGuardianDto {
   @IsUUID()

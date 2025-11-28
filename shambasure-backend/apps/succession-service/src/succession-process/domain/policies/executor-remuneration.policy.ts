@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+
 import { EstateValuation } from '../value-objects/estate-valuation.vo';
 
 export interface ExecutorWork {

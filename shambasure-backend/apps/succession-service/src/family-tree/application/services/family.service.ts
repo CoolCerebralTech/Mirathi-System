@@ -3,19 +3,17 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 
 // Commands
 import { CreateFamilyCommand } from '../commands/create-family.command';
-import { UpdateFamilyCommand } from '../commands/update-family.command';
 import { RefreshTreeVisualizationCommand } from '../commands/refresh-tree-visualization.command';
-
-// Queries
-import { GetFamilyQuery } from '../queries/get-family.query';
-import { ListFamiliesQuery } from '../queries/list-families.query';
-import { GetFamilyTreeQuery } from '../queries/get-family-tree.query';
-
+import { UpdateFamilyCommand } from '../commands/update-family.command';
 // DTOs
 import { CreateFamilyDto } from '../dto/request/create-family.dto';
 import { UpdateFamilyDto } from '../dto/request/update-family.dto';
-import { FamilyResponseDto } from '../dto/response/family.response.dto';
 import { FamilyTreeResponseDto } from '../dto/response/family-tree.response.dto';
+import { FamilyResponseDto } from '../dto/response/family.response.dto';
+import { GetFamilyTreeQuery } from '../queries/get-family-tree.query';
+// Queries
+import { GetFamilyQuery } from '../queries/get-family.query';
+import { ListFamiliesQuery } from '../queries/list-families.query';
 
 @Injectable()
 export class FamilyService {

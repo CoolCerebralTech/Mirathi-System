@@ -1,17 +1,18 @@
-import {
-  IsString,
-  IsEnum,
-  IsOptional,
-  IsUUID,
-  IsBoolean,
-  IsNumber,
-  IsDateString,
-  Min,
-  Max,
-  IsArray,
-} from 'class-validator';
-import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  Min,
+} from 'class-validator';
+
 import { DocumentCategoryEnum } from '../../domain/value-objects/document-category.vo';
 import { DocumentStatusEnum } from '../../domain/value-objects/document-status.vo';
 

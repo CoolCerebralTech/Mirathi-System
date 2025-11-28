@@ -1,4 +1,5 @@
-import { WillExecutor as PrismaExecutor, Prisma } from '@prisma/client';
+import { Prisma, WillExecutor as PrismaExecutor } from '@prisma/client';
+
 import { Executor, ExecutorReconstituteProps } from '../../../domain/entities/executor.entity';
 
 export class ExecutorMapper {

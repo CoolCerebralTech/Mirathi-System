@@ -1,11 +1,12 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { FamilyCreatedEvent } from '../events/family-created.event';
-import { FamilyMetadataUpdatedEvent } from '../events/family-metadata-updated.event';
-import { FamilyArchivedEvent } from '../events/family-archived.event';
-import { FamilyTreeVisualizationUpdatedEvent } from '../events/family-tree-visualization-updated.event';
+
 import { CustomaryMarriageRegisteredEvent } from '../events/customary-marriage-registered.event';
-import { GuardianAssignedEvent } from '../events/guardian-assigned.event';
+import { FamilyArchivedEvent } from '../events/family-archived.event';
+import { FamilyCreatedEvent } from '../events/family-created.event';
 import { FamilyMemberAddedEvent } from '../events/family-member-added.event';
+import { FamilyMetadataUpdatedEvent } from '../events/family-metadata-updated.event';
+import { FamilyTreeVisualizationUpdatedEvent } from '../events/family-tree-visualization-updated.event';
+import { GuardianAssignedEvent } from '../events/guardian-assigned.event';
 
 export interface TreeVisualizationData {
   nodes: Array<{

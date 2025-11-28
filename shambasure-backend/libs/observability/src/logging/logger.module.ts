@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
-import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
-import { ConfigService } from '@shamba/config';
 import { randomUUID } from 'crypto';
 import { IncomingMessage, ServerResponse } from 'http';
+import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
+
+import { ConfigService } from '@shamba/config';
 
 @Module({
   imports: [

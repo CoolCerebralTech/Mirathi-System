@@ -1,9 +1,10 @@
 import {
-  BeneficiaryAssignment as PrismaBeneficiary,
-  Prisma,
   BequestConditionType,
   BequestType,
+  Prisma,
+  BeneficiaryAssignment as PrismaBeneficiary,
 } from '@prisma/client';
+
 import {
   BeneficiaryAssignment,
   BeneficiaryReconstituteProps,

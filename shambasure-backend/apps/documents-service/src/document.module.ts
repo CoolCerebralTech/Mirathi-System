@@ -1,57 +1,50 @@
 import { Module } from '@nestjs/common';
-import { EventEmitterModule } from '@nestjs/event-emitter';
 import { CqrsModule } from '@nestjs/cqrs';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
+import { AuthModule } from '@shamba/auth';
+import { ConfigModule, ConfigService } from '@shamba/config';
 // Shared Libraries
 import { DatabaseModule } from '@shamba/database';
-import { AuthModule } from '@shamba/auth';
 import { MessagingModule } from '@shamba/messaging';
-import { ObservabilityModule } from '@shamba/observability';
-import { ConfigModule, ConfigService } from '@shamba/config';
 import { NotificationModule } from '@shamba/notification';
+import { ObservabilityModule } from '@shamba/observability';
 
-import {
-  DOCUMENT_REPOSITORY,
-  DOCUMENT_QUERY_REPOSITORY,
-  DOCUMENT_VERSION_QUERY_REPOSITORY,
-  DOCUMENT_VERIFICATION_QUERY_REPOSITORY,
-} from './injection.tokens';
-
-// Infrastructure Layer - Storage Module
-import { StorageModule } from './infrastructure/storage/storage.module';
-
-// Presentation Layer - Controllers
-import { HealthController } from './presentation/health/health.controller';
-import { DocumentController } from './presentation/controllers/document.controller';
-import { DocumentVersionController } from './presentation/controllers/document-version.controller';
-import { DocumentVerificationController } from './presentation/controllers/document-verification.controller';
-import { StatisticsController } from './presentation/controllers/statistics.controller';
-
-// Application Layer - Command Services (Write Operations)
-import { DocumentCommandService } from './application/services/document.command.service';
-import { DocumentVersionCommandService } from './application/services/document-version.command.service';
-import { DocumentVerificationCommandService } from './application/services/document-verification.command.service';
-
-// Application Layer - Query Services (Read Operations)
-import { DocumentQueryService } from './application/services/document.query.service';
-import { DocumentVersionQueryService } from './application/services/document-version.query.service';
-import { DocumentVerificationQueryService } from './application/services/document-verification.query.service';
-import { StatisticsService } from './application/services/statistics.service';
-
+import { BulkOperationsMapper } from './application/mappers/bulk-operations.mapper';
+import { DocumentVerificationAttemptMapper } from './application/mappers/document-verification-attempt.mapper';
+import { DocumentVersionMapper } from './application/mappers/document-version.mapper';
 // Application Layer - Mappers
 import { DocumentMapper } from './application/mappers/document.mapper';
-import { DocumentVersionMapper } from './application/mappers/document-version.mapper';
-import { DocumentVerificationAttemptMapper } from './application/mappers/document-verification-attempt.mapper';
 import { StatisticsMapper } from './application/mappers/statistics.mapper';
-import { BulkOperationsMapper } from './application/mappers/bulk-operations.mapper';
-
-// Infrastructure Layer - Repositories (Command Side)
-import { PrismaDocumentRepository } from './infrastructure/repositories/prisma-document.repository';
-
+import { DocumentVerificationCommandService } from './application/services/document-verification.command.service';
+import { DocumentVerificationQueryService } from './application/services/document-verification.query.service';
+import { DocumentVersionCommandService } from './application/services/document-version.command.service';
+import { DocumentVersionQueryService } from './application/services/document-version.query.service';
+// Application Layer - Command Services (Write Operations)
+import { DocumentCommandService } from './application/services/document.command.service';
+// Application Layer - Query Services (Read Operations)
+import { DocumentQueryService } from './application/services/document.query.service';
+import { StatisticsService } from './application/services/statistics.service';
 // Infrastructure Layer - Query Repositories (Read Side)
 import { PrismaDocumentQueryRepository } from './infrastructure/repositories/prisma-document-query.repository';
-import { PrismaDocumentVersionQueryRepository } from './infrastructure/repositories/prisma-document-version.query.repository';
 import { PrismaDocumentVerificationQueryRepository } from './infrastructure/repositories/prisma-document-verification.query.repository';
+import { PrismaDocumentVersionQueryRepository } from './infrastructure/repositories/prisma-document-version.query.repository';
+// Infrastructure Layer - Repositories (Command Side)
+import { PrismaDocumentRepository } from './infrastructure/repositories/prisma-document.repository';
+// Infrastructure Layer - Storage Module
+import { StorageModule } from './infrastructure/storage/storage.module';
+import {
+  DOCUMENT_QUERY_REPOSITORY,
+  DOCUMENT_REPOSITORY,
+  DOCUMENT_VERIFICATION_QUERY_REPOSITORY,
+  DOCUMENT_VERSION_QUERY_REPOSITORY,
+} from './injection.tokens';
+import { DocumentVerificationController } from './presentation/controllers/document-verification.controller';
+import { DocumentVersionController } from './presentation/controllers/document-version.controller';
+import { DocumentController } from './presentation/controllers/document.controller';
+import { StatisticsController } from './presentation/controllers/statistics.controller';
+// Presentation Layer - Controllers
+import { HealthController } from './presentation/health/health.controller';
 
 @Module({
   imports: [

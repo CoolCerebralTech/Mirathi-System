@@ -1,4 +1,5 @@
 import { UserRole } from '@shamba/common';
+
 import { DomainEvent } from './domain-event.base';
 
 // Define the shape of the data specific to this event

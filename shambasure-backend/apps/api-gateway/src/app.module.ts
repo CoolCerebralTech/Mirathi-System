@@ -1,20 +1,21 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD, APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 
+import { AuthModule, JwtAuthGuard } from '@shamba/auth';
 // --- Shared Libraries (Foundational) ---
 // These provide the core, cross-cutting concerns for the entire service.
 import { ConfigModule } from '@shamba/config';
-import { AuthModule, JwtAuthGuard } from '@shamba/auth';
-import { ObservabilityModule } from '@shamba/observability';
 import { MessagingModule } from '@shamba/messaging';
+import { ObservabilityModule } from '@shamba/observability';
 
+import { ProxyModule } from './application/proxy.module';
 // --- Local Feature & Layer Modules ---
 // These are the encapsulated layers of our API Gateway.
 import { InfrastructureModule } from './infrastructure/infrastructure.module';
-import { ProxyModule } from './application/proxy.module';
-import { GatewayHealthModule } from './presentation/health/gateway-health.module'; // Corrected Path
+// Corrected Path
 import { ProxyController } from './presentation/controller/proxy.controller';
 import { AllExceptionsFilter } from './presentation/filters/all-exceptions.filter';
+import { GatewayHealthModule } from './presentation/health/gateway-health.module';
 
 /**
  * AppModule - The root module for the API Gateway.

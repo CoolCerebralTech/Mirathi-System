@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { Will } from '../entities/will.entity';
+import { BequestConditionType, BequestType } from '@prisma/client';
+
 import { BeneficiaryAssignment } from '../entities/beneficiary.entity';
-import { BequestType, BequestConditionType } from '@prisma/client';
+import { Will } from '../entities/will.entity';
 
 export interface StructureResult {
   isValid: boolean;

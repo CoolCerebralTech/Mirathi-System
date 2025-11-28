@@ -1,6 +1,6 @@
-import { IsString, IsOptional, Min, MaxLength, IsEnum, IsInt, Max } from 'class-validator';
-import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class CreateDocumentVersionDto {
   @ApiPropertyOptional({ description: 'Note describing changes in this version', maxLength: 500 })

@@ -1,16 +1,17 @@
+import { AssetOwnershipType, AssetType } from '@prisma/client';
+import { Type } from 'class-transformer';
 import {
-  IsString,
-  IsNotEmpty,
   IsEnum,
+  IsNotEmpty,
   IsNumber,
-  Min,
-  ValidateNested,
   IsOptional,
+  IsString,
   Matches,
   Max,
+  Min,
+  ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
-import { AssetType, AssetOwnershipType } from '@prisma/client';
+
 import { KENYAN_COUNTIES_LIST } from '../../../../common/constants/kenyan-law.constants';
 
 class AssetValueDto {

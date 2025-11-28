@@ -1,8 +1,9 @@
-import { Injectable, Inject } from '@nestjs/common';
-import type { DisputeRepositoryInterface } from '../repositories/dispute.repository.interface';
-import { DisputeGroundsPolicy } from '../policies/dispute-grounds.policy';
+import { Inject, Injectable } from '@nestjs/common';
+import { DisputeStatus, DisputeType } from '@prisma/client';
+
 import { Dispute } from '../entities/dispute.entity';
-import { DisputeType, DisputeStatus } from '@prisma/client';
+import { DisputeGroundsPolicy } from '../policies/dispute-grounds.policy';
+import type { DisputeRepositoryInterface } from '../repositories/dispute.repository.interface';
 
 interface DisputeResolutionResult {
   success: boolean;

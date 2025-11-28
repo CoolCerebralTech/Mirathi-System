@@ -1,10 +1,10 @@
 // ============================================================================
 // auditing.entity.ts - Audit Log Entities
 // ============================================================================
+import { ApiProperty } from '@nestjs/swagger';
+import { Exclude, Expose } from 'class-transformer';
 
 import { AuditLog as PrismaAuditLog } from '@shamba/database';
-import { Exclude, Expose } from 'class-transformer';
-import { ApiProperty } from '@nestjs/swagger';
 
 /**
  * AuditLogEntity - Serializable audit log for API responses

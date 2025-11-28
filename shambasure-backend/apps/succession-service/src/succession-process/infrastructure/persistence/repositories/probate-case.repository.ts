@@ -1,9 +1,10 @@
 // succession-service/src/succession-process/infrastructure/persistence/repositories/probate-case.prisma-repository.ts
-
 import { Injectable } from '@nestjs/common';
+
 import { PrismaService } from '@shamba/database';
+
+import { CaseStatus, ProbateCase } from '../../../domain/entities/probate-case.entity';
 import { ProbateCaseRepositoryInterface } from '../../../domain/repositories/probate-case.repository.interface';
-import { ProbateCase, CaseStatus } from '../../../domain/entities/probate-case.entity';
 import { ProbateCaseMapper } from '../mappers/probate-case.mapper';
 
 @Injectable()

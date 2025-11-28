@@ -1,11 +1,12 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
 import { v4 as uuidv4 } from 'uuid';
-import { CreateMarriageDto } from '../dto/request/create-marriage.dto';
+
+import { Marriage } from '../../domain/entities/marriage.entity';
 import type { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
 import type { MarriageRepositoryInterface } from '../../domain/interfaces/marriage.repository.interface';
 import { RelationshipIntegrityService } from '../../domain/services/relationship-integrity.service';
-import { Marriage } from '../../domain/entities/marriage.entity';
+import { CreateMarriageDto } from '../dto/request/create-marriage.dto';
 
 export class CreateMarriageCommand {
   constructor(

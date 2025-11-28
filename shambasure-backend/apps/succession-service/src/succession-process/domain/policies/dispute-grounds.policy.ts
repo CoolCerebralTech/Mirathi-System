@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { LegalGrounds } from '../value-objects/legal-grounds.vo';
 import { DisputeType } from '@prisma/client';
+
+import { LegalGrounds } from '../value-objects/legal-grounds.vo';
 
 @Injectable()
 export class DisputeGroundsPolicy {

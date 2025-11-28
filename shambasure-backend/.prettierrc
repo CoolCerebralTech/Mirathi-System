@@ -9,9 +9,19 @@
   "endOfLine": "lf",
   "bracketSpacing": true,
   "bracketSameLine": false,
-  "proseWrap": "preserve",
+  "proseWrap": "always",
   "quoteProps": "as-needed",
   "jsxSingleQuote": false,
+  "plugins": ["@trivago/prettier-plugin-sort-imports"],
+  "importOrder": [
+    "^react(.*)$",
+    "<THIRD_PARTY_MODULES>",
+    "^@shamba/(.*)$",
+    "^[./]"
+  ],
+  "importOrderSeparation": true,
+  "importOrderSortSpecifiers": true,
+  "importOrderParserPlugins": ["typescript", "classProperties", "decorators-legacy"],
   "overrides": [
     {
       "files": "*.json",
@@ -22,8 +32,7 @@
     {
       "files": "*.md",
       "options": {
-        "printWidth": 80,
-        "proseWrap": "always"
+        "printWidth": 80
       }
     }
   ]

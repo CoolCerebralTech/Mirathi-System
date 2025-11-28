@@ -1,18 +1,19 @@
 import {
-  Injectable,
+  BadRequestException,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
-  BadRequestException,
+  Injectable,
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
 import { RelationshipType } from '@prisma/client';
+import { Request } from 'express';
+
 import {
   ALLOWED_RELATIONSHIPS_KEY,
-  RelationshipOptions,
   AllowedRelationshipsConfig,
+  RelationshipOptions,
 } from '../decorators/family-relationship.decorator';
 
 // Extended request type with typed body

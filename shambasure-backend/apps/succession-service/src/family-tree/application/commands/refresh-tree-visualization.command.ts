@@ -1,5 +1,6 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
 import { Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
 import { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
 import { FamilyTreeBuilderService } from '../../domain/services/family-tree-builder.service';
 

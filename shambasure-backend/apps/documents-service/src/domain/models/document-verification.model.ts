@@ -1,8 +1,8 @@
 import {
   DocumentId,
-  UserId,
   DocumentStatus,
   RejectionReason,
+  UserId,
   VerificationAttemptId,
 } from '../value-objects';
 

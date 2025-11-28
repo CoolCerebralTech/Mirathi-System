@@ -1,7 +1,7 @@
 // succession-service/src/succession-process/infrastructure/persistence/mappers/distribution.mapper.ts
-
 import { BeneficiaryEntitlement as PrismaEntitlement } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+
 import { Distribution } from '../../../domain/entities/distribution.entity';
 import { DistributionShare } from '../../../domain/value-objects/distribution-share.vo';
 

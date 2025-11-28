@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import {
-  HealthCheckService,
-  MemoryHealthIndicator,
   DiskHealthIndicator,
   HealthCheckResult,
+  HealthCheckService,
+  MemoryHealthIndicator,
 } from '@nestjs/terminus';
+
 import { ConfigService } from '@shamba/config';
 
 // Custom health indicators

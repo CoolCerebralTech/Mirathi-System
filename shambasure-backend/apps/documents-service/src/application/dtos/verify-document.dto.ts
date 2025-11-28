@@ -1,13 +1,14 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsString,
   IsEnum,
-  IsOptional,
   IsNotEmpty,
   IsObject,
+  IsOptional,
+  IsString,
   MaxLength,
   ValidateIf,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { DocumentStatusEnum } from '../../domain/value-objects/document-status.vo';
 
 export class VerifyDocumentDto {

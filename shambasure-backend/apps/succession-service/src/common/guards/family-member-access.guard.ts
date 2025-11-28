@@ -1,15 +1,17 @@
 import {
-  Injectable,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { PrismaService } from '@shamba/database';
+
 import { JwtPayload } from '@shamba/auth';
+import { PrismaService } from '@shamba/database';
+
 import {
   FAMILY_ACCESS_KEY,
   FamilyAccessOptions,

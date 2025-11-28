@@ -1,5 +1,5 @@
-import { Exclude, Expose, Type } from 'class-transformer';
 import { WitnessStatus } from '@prisma/client';
+import { Exclude, Expose, Type } from 'class-transformer';
 
 @Exclude()
 export class WitnessInfoResponse {

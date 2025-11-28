@@ -1,8 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { legalRulesConfig } from '../config/legal-rules.config';
-import { FamilyTreeBuilder, FamilyTree, FamilyTreeNode } from './family-tree-builder';
 import { RelationshipType } from '@prisma/client';
+
+import { legalRulesConfig } from '../config/legal-rules.config';
+import { FamilyTree, FamilyTreeBuilder, FamilyTreeNode } from './family-tree-builder';
 import { LegalHeirAnalysis } from './family-tree-builder';
 
 interface SerializedIntestateDistribution {

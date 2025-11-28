@@ -1,11 +1,11 @@
 // succession-service/src/succession-process/infrastructure/persistence/mappers/creditor-claim.mapper.ts
-
 import { CreditorClaim as PrismaClaim } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+
+import { AssetValue } from '../../../../estate-planning/domain/value-objects/asset-value.vo';
 // Assuming we are using a generic CreditorClaim entity or Debt entity adaptation
 // Here we assume a specific Entity exists based on previous prompts
 import { CreditorClaim } from '../../../domain/entities/creditor-claim.entity';
-import { AssetValue } from '../../../../estate-planning/domain/value-objects/asset-value.vo';
 
 export class CreditorClaimMapper {
   static toPersistence(domain: CreditorClaim): PrismaClaim {

@@ -1,7 +1,7 @@
 import {
+  AssetCategory,
   EstateInventory,
   InventoryStatus,
-  AssetCategory,
 } from '../entities/estate-inventory.entity';
 
 export interface EstateInventoryRepositoryInterface {

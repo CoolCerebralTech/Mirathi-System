@@ -1,5 +1,5 @@
-import { IsUUID, IsNotEmpty, IsEnum, IsDateString, IsOptional, IsString } from 'class-validator';
 import { MarriageStatus } from '@prisma/client';
+import { IsDateString, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateMarriageDto {
   @IsUUID()

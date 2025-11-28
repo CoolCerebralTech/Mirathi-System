@@ -1,5 +1,6 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
 import { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
 import { RelationshipRepositoryInterface } from '../../domain/interfaces/relationship.repository.interface';
 

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+
 import { InfrastructureModule } from '../infrastructure/infrastructure.module';
 import { ProxyService } from './services/proxy.service';
 

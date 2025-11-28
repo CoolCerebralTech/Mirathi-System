@@ -1,4 +1,5 @@
 import { BequestType, DistributionStatus } from '@prisma/client';
+
 import { BeneficiaryAssignment } from '../entities/beneficiary.entity';
 
 /**

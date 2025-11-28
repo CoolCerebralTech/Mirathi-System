@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsIn, IsOptional } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class VerifyRelationshipDto {
   @IsString()

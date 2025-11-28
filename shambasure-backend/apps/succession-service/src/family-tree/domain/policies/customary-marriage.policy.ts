@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+
 import { CustomaryRites } from '../value-objects/customary-rites.vo';
 
 export interface CustomaryMarriageValidationResult {

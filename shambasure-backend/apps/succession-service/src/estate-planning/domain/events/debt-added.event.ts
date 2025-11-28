@@ -1,4 +1,5 @@
 import { DebtType } from '@prisma/client';
+
 import { AssetValue } from '../value-objects/asset-value.vo';
 
 export class DebtAddedEvent {

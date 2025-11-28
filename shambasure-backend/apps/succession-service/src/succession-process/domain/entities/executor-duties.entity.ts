@@ -1,11 +1,12 @@
 import { AggregateRoot } from '@nestjs/cqrs';
+
 import { ExecutorDutyType } from '../../../common/types/kenyan-law.types';
 import { DutyAssignedEvent } from '../events/duty-assigned.event';
 import { DutyCompletedEvent } from '../events/duty-completed.event';
+import { DutyDeadlineExtendedEvent } from '../events/duty-deadline-extended.event';
+import { DutyInProgressEvent } from '../events/duty-in-progress.event';
 import { DutyOverdueEvent } from '../events/duty-overdue.event';
 import { DutyWaivedEvent } from '../events/duty-waived.event';
-import { DutyInProgressEvent } from '../events/duty-in-progress.event';
-import { DutyDeadlineExtendedEvent } from '../events/duty-deadline-extended.event';
 
 export type DutyStatus =
   | 'PENDING'

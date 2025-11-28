@@ -1,8 +1,9 @@
+import { ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
+
 import type { BeneficiaryRepositoryInterface } from '../../domain/interfaces/beneficiary.repository.interface';
+import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
 import { BeneficiaryResponseDto } from '../dto/response/beneficiary.response.dto';
 
 export class GetBeneficiariesQuery {

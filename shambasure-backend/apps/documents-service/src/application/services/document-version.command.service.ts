@@ -1,30 +1,31 @@
 import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-  Inject,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import * as crypto from 'crypto';
+
 import type { IDocumentRepository, IStorageService } from '../../domain/interfaces';
 import { Document, DocumentVersion } from '../../domain/models';
 import {
   Actor,
+  DocumentChecksum,
   DocumentId,
   FileSize,
   MimeType,
-  DocumentChecksum,
   StoragePath,
 } from '../../domain/value-objects';
-import { DocumentVersionMapper } from '../mappers';
 import { FileValidatorService } from '../../infrastructure/storage/file-validator.service';
+import { DOCUMENT_REPOSITORY, STORAGE_SERVICE } from '../../injection.tokens';
 import {
   CreateDocumentVersionDto,
   CreateDocumentVersionResponseDto,
 } from '../dtos/document-version.dto';
-import * as crypto from 'crypto';
-import { DOCUMENT_REPOSITORY, STORAGE_SERVICE } from '../../injection.tokens';
+import { DocumentVersionMapper } from '../mappers';
 
 @Injectable()
 export class DocumentVersionCommandService {

@@ -1,16 +1,17 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Inject } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+import { DebtType } from '@prisma/client';
 import {
-  IsString,
-  IsNotEmpty,
-  IsEnum,
-  IsNumber,
-  Min,
-  IsOptional,
   IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
 } from 'class-validator';
 import { v4 as uuidv4 } from 'uuid';
-import { DebtType } from '@prisma/client';
+
 import { Debt } from '../../domain/entities/debt.entity';
 import type { DebtRepositoryInterface } from '../../domain/interfaces/debt.repository.interface';
 import { AssetValue } from '../../domain/value-objects/asset-value.vo';

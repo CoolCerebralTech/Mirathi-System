@@ -1,6 +1,7 @@
 import { BequestType } from '@prisma/client';
-import { SharePercentage } from '../value-objects/share-percentage.vo';
+
 import { AssetValue } from '../value-objects/asset-value.vo';
+import { SharePercentage } from '../value-objects/share-percentage.vo';
 
 export class BeneficiaryShareUpdatedEvent {
   constructor(

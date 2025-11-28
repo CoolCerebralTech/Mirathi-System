@@ -1,6 +1,8 @@
-import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+
 import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
+
 // import { NotificationService } from '@shamba/notifications'; // Future integration
 
 export class InviteWitnessCommand {

@@ -1,14 +1,15 @@
 // ============================================================================
 // main.ts - Application Bootstrap
 // ============================================================================
-
+import { ClassSerializerInterceptor, ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { Reflector } from '@nestjs/core';
-import { ValidationPipe, VersioningType, ClassSerializerInterceptor } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { Logger } from 'nestjs-pino';
 import { Transport } from '@nestjs/microservices';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { Logger } from 'nestjs-pino';
+
 import { ConfigService } from '@shamba/config';
+
 import { AuditingModule } from './auditing.module';
 
 async function bootstrap() {

@@ -1,11 +1,11 @@
 import {
+  DocumentChecksum,
   DocumentId,
-  UserId,
-  StoragePath,
+  DocumentVersionId,
   FileSize,
   MimeType,
-  DocumentChecksum,
-  DocumentVersionId,
+  StoragePath,
+  UserId,
 } from '../value-objects';
 
 // ============================================================================

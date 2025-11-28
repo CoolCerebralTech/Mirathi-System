@@ -1,12 +1,13 @@
 import {
-  PipeTransform,
-  Injectable,
-  Inject,
   ArgumentMetadata,
   BadRequestException,
+  Inject,
+  Injectable,
+  PipeTransform,
 } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { RelationshipType, MarriageStatus } from '@prisma/client';
+import { MarriageStatus, RelationshipType } from '@prisma/client';
+
 import { legalRulesConfig } from '../config/legal-rules.config';
 
 export interface RelationshipValidationContext {

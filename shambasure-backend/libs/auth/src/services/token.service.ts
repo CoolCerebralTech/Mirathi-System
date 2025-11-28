@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
+
 import { ConfigService } from '@shamba/config';
+
 import { JwtPayload, RefreshTokenPayload } from '../interfaces/auth.interface';
 
 @Injectable()

@@ -1,8 +1,9 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException, Inject } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+
 import type {
-  IDocumentRepository,
   IDocumentQueryRepository,
+  IDocumentRepository,
   IStorageService,
 } from '../../domain/interfaces';
 import { Document } from '../../domain/models/document.model';
@@ -13,22 +14,22 @@ import {
   DocumentStatus,
   UserId,
 } from '../../domain/value-objects';
-import { DocumentMapper } from '../mappers';
-import { PaginatedDocumentsResponseDto, QueryDocumentsDto } from '../dtos/query-documents.dto';
-import { SearchDocumentsDto } from '../dtos/search-documents.dto';
 import {
-  DocumentAnalyticsResponseDto,
-  StorageAnalyticsResponseDto,
-  VerificationMetricsResponseDto,
-  UploadAnalyticsResponseDto,
-  DashboardAnalyticsResponseDto,
-} from '../dtos/analytics-response.dto';
-import { DocumentResponseDto } from '../dtos/document-response.dto';
-import {
-  DOCUMENT_REPOSITORY,
   DOCUMENT_QUERY_REPOSITORY,
+  DOCUMENT_REPOSITORY,
   STORAGE_SERVICE,
 } from '../../injection.tokens';
+import {
+  DashboardAnalyticsResponseDto,
+  DocumentAnalyticsResponseDto,
+  StorageAnalyticsResponseDto,
+  UploadAnalyticsResponseDto,
+  VerificationMetricsResponseDto,
+} from '../dtos/analytics-response.dto';
+import { DocumentResponseDto } from '../dtos/document-response.dto';
+import { PaginatedDocumentsResponseDto, QueryDocumentsDto } from '../dtos/query-documents.dto';
+import { SearchDocumentsDto } from '../dtos/search-documents.dto';
+import { DocumentMapper } from '../mappers';
 
 @Injectable()
 export class DocumentQueryService {

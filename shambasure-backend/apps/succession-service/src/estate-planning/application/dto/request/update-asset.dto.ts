@@ -1,5 +1,6 @@
-import { IsString, IsOptional } from 'class-validator';
 import { PartialType } from '@nestjs/mapped-types';
+import { IsOptional, IsString } from 'class-validator';
+
 import { AddAssetDto } from './add-asset.dto';
 
 // Create a typed constructor from PartialType

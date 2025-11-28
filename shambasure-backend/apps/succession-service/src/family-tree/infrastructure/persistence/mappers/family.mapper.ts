@@ -1,8 +1,9 @@
-import { Family as PrismaFamily, Prisma } from '@prisma/client';
+import { Prisma, Family as PrismaFamily } from '@prisma/client';
+
 import {
   Family,
-  TreeVisualizationData,
   KenyanFamilyMetadata,
+  TreeVisualizationData,
 } from '../../../domain/entities/family.entity';
 
 export class FamilyMapper {

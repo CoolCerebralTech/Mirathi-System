@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+
 import { ValueObjectError } from '../exceptions/value-object.error';
 
 export class StoragePath {

@@ -1,12 +1,13 @@
 import {
-  Injectable,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Injectable,
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
+
 import {
   KENYAN_LAW_CHECK_KEY,
   KenyanLawCheckOptions,

@@ -1,55 +1,56 @@
 import {
-  Injectable,
-  UnauthorizedException,
   BadRequestException,
   ConflictException,
+  Inject,
+  Injectable,
   InternalServerErrorException,
   Logger,
-  Inject,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+
 import type {
-  IUserRepository,
-  IPasswordResetTokenRepository,
-  IEmailVerificationTokenRepository,
   IEmailChangeTokenRepository,
-  IRefreshTokenRepository,
-  IPasswordHistoryRepository,
-  IHashingService,
-  ITokenService,
+  IEmailVerificationTokenRepository,
   IEventPublisher,
+  IHashingService,
   INotificationService,
+  IPasswordHistoryRepository,
+  IPasswordResetTokenRepository,
+  IRefreshTokenRepository,
+  ITokenService,
+  IUserRepository,
   JWTPayload,
 } from '../../domain/interfaces';
-import { User } from '../../domain/models/user.model';
 import { TokenFactory } from '../../domain/models';
+import { User } from '../../domain/models/user.model';
 import { Email, Password } from '../../domain/value-objects';
-import { AuthMapper } from '../mappers';
 import {
-  RegisterRequestDto,
-  LoginRequestDto,
-  VerifyEmailRequestDto,
-  ResendVerificationRequestDto,
-  ForgotPasswordRequestDto,
-  ResetPasswordRequestDto,
-  ValidateResetTokenRequestDto,
-  ChangePasswordRequestDto,
-  RefreshTokenRequestDto,
-  LogoutRequestDto,
-  RequestEmailChangeRequestDto,
-  ConfirmEmailChangeRequestDto,
   AuthResponseDto,
-  RefreshTokenResponseDto,
-  VerifyEmailResponseDto,
-  ResendVerificationResponseDto,
-  ForgotPasswordResponseDto,
-  ValidateResetTokenResponseDto,
-  ResetPasswordResponseDto,
+  ChangePasswordRequestDto,
   ChangePasswordResponseDto,
-  LogoutResponseDto,
-  RequestEmailChangeResponseDto,
+  ConfirmEmailChangeRequestDto,
   ConfirmEmailChangeResponseDto,
+  ForgotPasswordRequestDto,
+  ForgotPasswordResponseDto,
+  LoginRequestDto,
+  LogoutRequestDto,
+  LogoutResponseDto,
+  RefreshTokenRequestDto,
+  RefreshTokenResponseDto,
+  RegisterRequestDto,
+  RequestEmailChangeRequestDto,
+  RequestEmailChangeResponseDto,
+  ResendVerificationRequestDto,
+  ResendVerificationResponseDto,
+  ResetPasswordRequestDto,
+  ResetPasswordResponseDto,
+  ValidateResetTokenRequestDto,
+  ValidateResetTokenResponseDto,
+  VerifyEmailRequestDto,
+  VerifyEmailResponseDto,
 } from '../dtos/auth.dto';
+import { AuthMapper } from '../mappers';
 
 export interface ValidatableToken {
   validate(): void;

@@ -1,5 +1,6 @@
+import { AssetType, DocumentStatus, UserRole, WillStatus } from '@shamba/database';
+
 import { EventPattern } from '../enums';
-import { UserRole, WillStatus, DocumentStatus, AssetType } from '@shamba/database';
 
 /**
  * The base structure for all events published within the Shamba Sure ecosystem.

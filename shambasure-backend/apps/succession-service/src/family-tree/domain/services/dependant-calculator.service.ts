@@ -1,14 +1,15 @@
-import { Injectable, Inject } from '@nestjs/common';
-import type { FamilyMemberRepositoryInterface } from '../interfaces/family-member.repository.interface';
-import type { RelationshipRepositoryInterface } from '../interfaces/relationship.repository.interface';
-import type { MarriageRepositoryInterface } from '../interfaces/marriage.repository.interface';
-import type { GuardianshipRepositoryInterface } from '../interfaces/guardianship.repository.interface';
-import { DependantIdentificationPolicy } from '../policies/dependant-identification.policy';
-import { RelationshipType, MarriageStatus } from '@prisma/client';
+import { Inject, Injectable } from '@nestjs/common';
+import { MarriageStatus, RelationshipType } from '@prisma/client';
+
 import type { FamilyMember } from '../entities/family-member.entity';
-import type { Relationship } from '../entities/relationship.entity';
-import type { Marriage } from '../entities/marriage.entity';
 import type { Guardianship } from '../entities/guardianship.entity';
+import type { Marriage } from '../entities/marriage.entity';
+import type { Relationship } from '../entities/relationship.entity';
+import type { FamilyMemberRepositoryInterface } from '../interfaces/family-member.repository.interface';
+import type { GuardianshipRepositoryInterface } from '../interfaces/guardianship.repository.interface';
+import type { MarriageRepositoryInterface } from '../interfaces/marriage.repository.interface';
+import type { RelationshipRepositoryInterface } from '../interfaces/relationship.repository.interface';
+import { DependantIdentificationPolicy } from '../policies/dependant-identification.policy';
 
 // ============================================================================
 // TYPE DEFINITIONS FOR GRAPH STRUCTURE

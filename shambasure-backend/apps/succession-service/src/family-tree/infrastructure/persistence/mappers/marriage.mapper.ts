@@ -1,5 +1,6 @@
 import { Marriage as PrismaMarriage } from '@prisma/client';
-import { Marriage, CustomaryMarriageDetails } from '../../../domain/entities/marriage.entity';
+
+import { CustomaryMarriageDetails, Marriage } from '../../../domain/entities/marriage.entity';
 
 /**
  * MarriageMapper

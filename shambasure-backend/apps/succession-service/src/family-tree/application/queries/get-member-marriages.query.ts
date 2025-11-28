@@ -1,8 +1,9 @@
+import { ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
+
 import { FamilyMemberRepositoryInterface } from '../../domain/interfaces/family-member.repository.interface';
+import { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
 import { MarriageRepositoryInterface } from '../../domain/interfaces/marriage.repository.interface';
 import { MarriageResponseDto } from '../dto/response/marriage.response.dto';
 

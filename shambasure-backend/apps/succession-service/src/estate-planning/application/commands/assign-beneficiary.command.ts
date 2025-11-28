@@ -1,15 +1,16 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+import { BequestType } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
-import { AssignBeneficiaryDto } from '../dto/request/assign-beneficiary.dto';
-import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
+
 import {
   BeneficiaryAssignment,
   BeneficiaryIdentity,
 } from '../../domain/entities/beneficiary.entity';
-import { SharePercentage } from '../../domain/value-objects/share-percentage.vo';
+import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
 import { AssetValue } from '../../domain/value-objects/asset-value.vo';
-import { BequestType } from '@prisma/client';
+import { SharePercentage } from '../../domain/value-objects/share-percentage.vo';
+import { AssignBeneficiaryDto } from '../dto/request/assign-beneficiary.dto';
 
 export class AssignBeneficiaryCommand {
   constructor(

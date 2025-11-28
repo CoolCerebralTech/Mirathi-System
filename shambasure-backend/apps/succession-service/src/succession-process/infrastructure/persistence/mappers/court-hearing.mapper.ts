@@ -1,8 +1,8 @@
 // succession-service/src/succession-process/infrastructure/persistence/mappers/court-hearing.mapper.ts
-
 import { CourtHearing as PrismaHearing } from '@prisma/client';
-import { CourtHearing, HearingStatus } from '../../../domain/entities/court-hearing.entity';
+
 import { HearingType } from '../../../../common/types/kenyan-law.types';
+import { CourtHearing, HearingStatus } from '../../../domain/entities/court-hearing.entity';
 
 export class CourtHearingMapper {
   static toPersistence(domain: CourtHearing): PrismaHearing {

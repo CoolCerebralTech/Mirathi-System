@@ -1,13 +1,14 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom, from, timeout } from 'rxjs';
+
+import { IEventPublisher } from './interfaces/event-publisher.interface';
 import {
-  BrokerHealth,
   BaseEvent,
+  BrokerHealth,
   FailedMessage,
   RetryConfig,
 } from './interfaces/messaging.interface';
-import { IEventPublisher } from './interfaces/event-publisher.interface';
-import { timeout, firstValueFrom, from } from 'rxjs';
 
 @Injectable()
 export class MessagingService implements OnModuleInit, OnModuleDestroy, IEventPublisher {

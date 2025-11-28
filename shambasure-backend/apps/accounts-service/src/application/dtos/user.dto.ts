@@ -1,20 +1,21 @@
-import {
-  IsString,
-  IsOptional,
-  MinLength,
-  MaxLength,
-  IsEmail,
-  IsEnum,
-  IsBoolean,
-  IsArray,
-  ValidateNested,
-  IsNumber,
-  IsPositive,
-  IsDateString,
-  IsObject,
-} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, TransformFnParams, Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsEnum,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsPositive,
+  IsString,
+  MaxLength,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
+
 import { UserRole } from '@shamba/common';
 import { BaseResponseDto } from '@shamba/common';
 

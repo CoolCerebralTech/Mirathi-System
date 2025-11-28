@@ -1,18 +1,18 @@
 import { AggregateRoot } from '@nestjs/cqrs';
+
+import { CreditorClaim } from '../entities/creditor-claim.entity';
+import { Distribution, TransferMethod } from '../entities/distribution.entity';
 import { EstateInventory } from '../entities/estate-inventory.entity';
 import { ExecutorDuty } from '../entities/executor-duties.entity';
-import { Distribution, TransferMethod } from '../entities/distribution.entity';
-import { CreditorClaim } from '../entities/creditor-claim.entity';
-import { DebtPriorityPolicy } from '../policies/debt-priority.policy';
-import { DistributionTimingPolicy } from '../policies/distribution-timing.policy';
-import { IntestateSuccessionPolicy } from '../policies/intestate-succession.policy';
-
-// Events
-import { EstateSettlementInitiatedEvent } from '../events/estate-settlement-initiated.event';
 import { EstateDebtsSettledEvent } from '../events/estate-debts-settled.event';
 import { EstateDistributionStartedEvent } from '../events/estate-distribution-started.event';
 import { EstateSettlementCompletedEvent } from '../events/estate-settlement-completed.event';
+// Events
+import { EstateSettlementInitiatedEvent } from '../events/estate-settlement-initiated.event';
 import { EstateSettlementStalledEvent } from '../events/estate-settlement-stalled.event';
+import { DebtPriorityPolicy } from '../policies/debt-priority.policy';
+import { DistributionTimingPolicy } from '../policies/distribution-timing.policy';
+import { IntestateSuccessionPolicy } from '../policies/intestate-succession.policy';
 
 export type SettlementStatus =
   | 'INITIATED'

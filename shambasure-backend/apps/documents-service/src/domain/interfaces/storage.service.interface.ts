@@ -1,4 +1,4 @@
-import { StoragePath, DocumentChecksum, MimeType, FileName, FileSize } from '../value-objects';
+import { DocumentChecksum, FileName, FileSize, MimeType, StoragePath } from '../value-objects';
 
 // ============================================================================
 // Data Transfer Objects (DTOs) for method return types

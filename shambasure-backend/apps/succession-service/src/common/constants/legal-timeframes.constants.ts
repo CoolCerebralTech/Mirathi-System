@@ -6,7 +6,7 @@
  * Includes: severity levels, workflow control flags, extension rules,
  * and cross-referenced sections from Cap 160 (Law of Succession Act).
  */
-import { SUCCESSION_TIMEFRAMES, KENYAN_LEGAL_REQUIREMENTS } from './kenyan-law.constants';
+import { KENYAN_LEGAL_REQUIREMENTS, SUCCESSION_TIMEFRAMES } from './kenyan-law.constants';
 
 export type TimeframeMeta = {
   description: string;

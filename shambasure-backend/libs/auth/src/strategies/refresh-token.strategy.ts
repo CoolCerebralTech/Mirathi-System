@@ -1,8 +1,10 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
-import { ConfigService } from '@shamba/config';
 import { Request } from 'express';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+
+import { ConfigService } from '@shamba/config';
+
 import { RefreshTokenPayload } from '../interfaces/auth.interface';
 
 @Injectable()

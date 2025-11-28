@@ -1,21 +1,21 @@
 import { Controller, Get, Injectable } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import {
+  DiskHealthIndicator,
   HealthCheck,
+  HealthCheckError,
   HealthCheckResult,
   HealthCheckService,
   HealthIndicator,
   HealthIndicatorResult,
-  HealthCheckError,
   MemoryHealthIndicator,
-  DiskHealthIndicator,
 } from '@nestjs/terminus';
-
-// Your actual service that handles routing and can check downstream health
-import { ProxyService } from '../../application/services/proxy.service';
 
 // This decorator should come from your shared @shamba/auth library
 import { Public } from '@shamba/auth';
+
+// Your actual service that handles routing and can check downstream health
+import { ProxyService } from '../../application/services/proxy.service';
 
 /**
  * Gateway-Specific Health Indicator for Downstream Services.

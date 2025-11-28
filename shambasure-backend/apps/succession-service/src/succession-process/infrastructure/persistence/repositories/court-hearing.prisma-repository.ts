@@ -1,9 +1,10 @@
 // succession-service/src/succession-process/infrastructure/persistence/repositories/court-hearing.prisma-repository.ts
-
 import { Injectable } from '@nestjs/common';
+
 import { PrismaService } from '@shamba/database';
-import { CourtHearingRepositoryInterface } from '../../../domain/repositories/court-hearing.repository.interface';
+
 import { CourtHearing } from '../../../domain/entities/court-hearing.entity';
+import { CourtHearingRepositoryInterface } from '../../../domain/repositories/court-hearing.repository.interface';
 import { CourtHearingMapper } from '../mappers/court-hearing.mapper';
 
 @Injectable()

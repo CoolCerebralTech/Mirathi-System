@@ -1,66 +1,67 @@
 import {
+  BadRequestException,
+  Body,
   Controller,
+  Delete,
+  FileTypeValidator,
   Get,
+  HttpCode,
+  HttpStatus,
+  MaxFileSizeValidator,
+  Param,
+  ParseFilePipe,
   Post,
   Put,
-  Delete,
-  Body,
-  Param,
   Query,
-  UseInterceptors,
-  UploadedFile,
-  ParseFilePipe,
-  MaxFileSizeValidator,
-  FileTypeValidator,
-  HttpStatus,
-  HttpCode,
-  UseGuards,
   Req,
   Res,
-  BadRequestException,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Request, Response } from 'express';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiConsumes,
-  ApiBody,
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
   ApiParam,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard, RolesGuard, Roles } from '@shamba/auth';
+import type { Request, Response } from 'express';
 
-import { DocumentCommandService } from '../../application/services/document.command.service';
-import { DocumentQueryService } from '../../application/services/document.query.service';
-import { Actor, DocumentId, UserId } from '../../domain/value-objects';
+import { JwtAuthGuard, Roles, RolesGuard } from '@shamba/auth';
+
 import {
-  UploadDocumentDto,
-  UploadDocumentResponseDto,
-} from '../../application/dtos/upload-document.dto';
+  BulkOperationDto,
+  BulkOperationResponseDto,
+} from '../../application/dtos/bulk-operations.dto';
+import { DocumentResponseDto } from '../../application/dtos/document-response.dto';
 import {
   PaginatedDocumentsResponseDto,
   QueryDocumentsDto,
 } from '../../application/dtos/query-documents.dto';
 import { SearchDocumentsDto } from '../../application/dtos/search-documents.dto';
-import { DocumentResponseDto } from '../../application/dtos/document-response.dto';
-import {
-  VerifyDocumentDto,
-  VerifyDocumentResponseDto,
-} from '../../application/dtos/verify-document.dto';
-import {
-  UpdateDocumentDto,
-  UpdateDocumentResponseDto,
-} from '../../application/dtos/update-document.dto';
 import {
   AccessControlResponseDto,
   UpdateAccessDto,
 } from '../../application/dtos/share-document.dto';
 import {
-  BulkOperationDto,
-  BulkOperationResponseDto,
-} from '../../application/dtos/bulk-operations.dto';
+  UpdateDocumentDto,
+  UpdateDocumentResponseDto,
+} from '../../application/dtos/update-document.dto';
+import {
+  UploadDocumentDto,
+  UploadDocumentResponseDto,
+} from '../../application/dtos/upload-document.dto';
+import {
+  VerifyDocumentDto,
+  VerifyDocumentResponseDto,
+} from '../../application/dtos/verify-document.dto';
+import { DocumentCommandService } from '../../application/services/document.command.service';
+import { DocumentQueryService } from '../../application/services/document.query.service';
+import { Actor, DocumentId, UserId } from '../../domain/value-objects';
 
 interface AuthenticatedRequest extends Request {
   user: {

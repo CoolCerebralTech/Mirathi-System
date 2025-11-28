@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { Asset } from '../entities/asset.entity';
 import { AssetOwnershipType } from '@prisma/client';
+
 import { DOCUMENTATION_REQUIREMENTS } from '../../../common/constants/asset-types.constants';
+import { Asset } from '../entities/asset.entity';
 
 export interface PolicyResult {
   isCompliant: boolean;

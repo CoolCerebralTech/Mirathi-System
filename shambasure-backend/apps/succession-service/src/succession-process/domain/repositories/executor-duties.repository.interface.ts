@@ -1,5 +1,5 @@
-import { ExecutorDuty, DutyStatus } from '../entities/executor-duties.entity';
 import { ExecutorDutyType } from '../../../common/types/kenyan-law.types';
+import { DutyStatus, ExecutorDuty } from '../entities/executor-duties.entity';
 
 export interface ExecutorDutiesRepositoryInterface {
   // Basic CRUD operations

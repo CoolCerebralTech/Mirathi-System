@@ -1,35 +1,38 @@
 import {
+  Body,
   Controller,
   Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  UseGuards,
-  Req,
-  Query,
-  HttpStatus,
   HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
   ApiBearerAuth,
+  ApiOperation,
   ApiParam,
   ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { WillStatus } from '@prisma/client';
-import { JwtAuthGuard } from '@shamba/auth'; // Shared auth library
 
-import { WillService } from '../../application/services/will.service';
+import { JwtAuthGuard } from '@shamba/auth';
+
 import { CreateWillDto } from '../../application/dto/request/create-will.dto';
-import { UpdateWillDto } from '../../application/dto/request/update-will.dto';
-import { SignWillDto } from '../../application/dto/request/sign-will.dto';
 import { RevokeWillDto } from '../../application/dto/request/revoke-will.dto';
+import { SignWillDto } from '../../application/dto/request/sign-will.dto';
+import { UpdateWillDto } from '../../application/dto/request/update-will.dto';
 import { WillResponseDto } from '../../application/dto/response/will.response.dto';
 import { WillCompletenessResponse } from '../../application/queries/get-will-completeness.query';
 import { WillVersionSummary } from '../../application/queries/get-will-versions.query';
+// Shared auth library
+
+import { WillService } from '../../application/services/will.service';
 
 interface RequestWithUser extends Request {
   user: { userId: string; email: string; role: string };

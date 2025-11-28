@@ -1,9 +1,10 @@
 // succession-service/src/succession-process/infrastructure/persistence/repositories/executor-duties.prisma-repository.ts
-
 import { Injectable } from '@nestjs/common';
+
 import { PrismaService } from '@shamba/database';
-import { ExecutorDutiesRepositoryInterface } from '../../../domain/repositories/executor-duties.repository.interface';
+
 import { ExecutorDuty } from '../../../domain/entities/executor-duties.entity';
+import { ExecutorDutiesRepositoryInterface } from '../../../domain/repositories/executor-duties.repository.interface';
 import { ExecutorDutiesMapper } from '../mappers/executor-duties.mapper';
 
 @Injectable()

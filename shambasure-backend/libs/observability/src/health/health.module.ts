@@ -1,18 +1,18 @@
 import { Module } from '@nestjs/common';
-import { TerminusModule, MemoryHealthIndicator, DiskHealthIndicator } from '@nestjs/terminus';
+import { DiskHealthIndicator, MemoryHealthIndicator, TerminusModule } from '@nestjs/terminus';
 import * as checkDiskSpace from 'check-disk-space';
+
 import { ConfigModule } from '@shamba/config';
 import { DatabaseModule } from '@shamba/database';
 import { MessagingModule } from '@shamba/messaging';
 import { NotificationModule } from '@shamba/notification';
 
 import { HealthService } from './health.service';
-
 // Health indicators
 import {
   MessagingHealthIndicator,
-  PrismaHealthIndicator,
   NotificationHealthIndicator,
+  PrismaHealthIndicator,
 } from './indicators';
 
 @Module({

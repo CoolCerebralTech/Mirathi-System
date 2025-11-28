@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { DocumentCategoryEnum } from '../../domain/value-objects/document-category.vo';
 import { DocumentStatusEnum } from '../../domain/value-objects/document-status.vo';
 import { RetentionPolicyType } from '../../domain/value-objects/retention-policy.vo';

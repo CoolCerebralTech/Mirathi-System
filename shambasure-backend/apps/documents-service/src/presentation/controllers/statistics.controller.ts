@@ -1,18 +1,17 @@
 import {
+  BadRequestException,
   Controller,
   Get,
-  Query,
   HttpStatus,
-  UseGuards,
+  Query,
   Req,
-  BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { JwtAuthGuard, RolesGuard, Roles } from '@shamba/auth';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 
-import { StatisticsService } from '../../application/services/statistics.service';
-import { Actor, UserId } from '../../domain/value-objects';
+import { JwtAuthGuard, Roles, RolesGuard } from '@shamba/auth';
+
 import {
   DashboardAnalyticsResponseDto,
   DocumentAnalyticsResponseDto,
@@ -20,6 +19,8 @@ import {
   UploadAnalyticsResponseDto,
   VerificationMetricsResponseDto,
 } from '../../application/dtos/analytics-response.dto';
+import { StatisticsService } from '../../application/services/statistics.service';
+import { Actor, UserId } from '../../domain/value-objects';
 
 interface AuthenticatedRequest extends Request {
   user: {

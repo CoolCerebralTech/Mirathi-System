@@ -4,13 +4,11 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 // Commands
 import { AssignGuardianCommand } from '../commands/assign-guardian.command';
 import { RemoveGuardianCommand } from '../commands/remove-guardian.command';
-
-// Queries
-import { GetGuardianshipsQuery } from '../queries/get-guardianships.query';
-
 // DTOs
 import { AssignGuardianDto } from '../dto/request/assign-guardian.dto';
 import { GuardianshipResponseDto } from '../dto/response/guardianship.response.dto';
+// Queries
+import { GetGuardianshipsQuery } from '../queries/get-guardianships.query';
 
 @Injectable()
 export class GuardianshipService {

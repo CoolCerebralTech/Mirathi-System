@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '@shamba/database';
 import { DebtType } from '@prisma/client';
+
+import { PrismaService } from '@shamba/database';
+
 import { Debt } from '../../../domain/entities/debt.entity';
 import { DebtRepositoryInterface } from '../../../domain/interfaces/debt.repository.interface';
 import { DebtMapper } from '../mappers/debt.mapper';

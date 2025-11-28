@@ -1,10 +1,11 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
 import { v4 as uuidv4 } from 'uuid';
-import { AddWitnessDto } from '../dto/request/add-witness.dto';
-import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
+
 import { Witness } from '../../domain/entities/witness.entity';
+import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
 import { WitnessEligibilityPolicy } from '../../domain/policies/witness-eligibility.policy';
+import { AddWitnessDto } from '../dto/request/add-witness.dto';
 
 export class AddWitnessCommand {
   constructor(

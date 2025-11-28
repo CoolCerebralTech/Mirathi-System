@@ -1,12 +1,13 @@
 import {
-  ExceptionFilter,
-  Catch,
   ArgumentsHost,
+  Catch,
+  ExceptionFilter,
   HttpStatus,
   Injectable,
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+
 import { KenyanLawViolationException } from '../exceptions/kenyan-law-violation.exception';
 
 /**

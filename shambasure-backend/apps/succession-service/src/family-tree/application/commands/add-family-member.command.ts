@@ -1,13 +1,14 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
 import { v4 as uuidv4 } from 'uuid';
-import { AddFamilyMemberDto } from '../dto/request/add-family-member.dto';
-import type { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
-import type { FamilyMemberRepositoryInterface } from '../../domain/interfaces/family-member.repository.interface';
-import type { RelationshipRepositoryInterface } from '../../domain/interfaces/relationship.repository.interface';
+
 import { FamilyMember } from '../../domain/entities/family-member.entity';
 import { Relationship } from '../../domain/entities/relationship.entity';
+import type { FamilyMemberRepositoryInterface } from '../../domain/interfaces/family-member.repository.interface';
+import type { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
+import type { RelationshipRepositoryInterface } from '../../domain/interfaces/relationship.repository.interface';
 import { RelationshipIntegrityService } from '../../domain/services/relationship-integrity.service';
+import { AddFamilyMemberDto } from '../dto/request/add-family-member.dto';
 
 export class AddFamilyMemberCommand {
   constructor(

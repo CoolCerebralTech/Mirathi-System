@@ -1,17 +1,18 @@
 import {
-  Will as PrismaWill,
+  Prisma,
   Asset as PrismaAsset,
   BeneficiaryAssignment as PrismaBeneficiary,
   WillExecutor as PrismaExecutor,
+  Will as PrismaWill,
   WillWitness as PrismaWitness,
-  Prisma,
 } from '@prisma/client';
+
 import { WillAggregate } from '../../../domain/aggregates/will.aggregate';
 import {
+  DigitalAssetInstructions,
+  FuneralWishes,
   Will,
   WillReconstituteProps,
-  FuneralWishes,
-  DigitalAssetInstructions,
 } from '../../../domain/entities/will.entity';
 import { AssetMapper } from './asset.mapper';
 import { BeneficiaryMapper } from './beneficiary.mapper';

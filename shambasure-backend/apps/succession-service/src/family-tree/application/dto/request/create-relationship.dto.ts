@@ -1,5 +1,5 @@
-import { IsUUID, IsEnum, IsNotEmpty, IsOptional, IsBoolean, IsString } from 'class-validator';
 import { RelationshipType } from '@prisma/client';
+import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateRelationshipDto {
   @IsUUID()

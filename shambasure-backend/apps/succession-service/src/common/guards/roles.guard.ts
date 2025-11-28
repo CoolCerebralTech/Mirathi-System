@@ -1,14 +1,16 @@
 import {
-  Injectable,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Injectable,
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
 import { UserRole } from '@prisma/client';
+import { Request } from 'express';
+
 import { JwtPayload } from '@shamba/auth';
+
 import { ROLES_KEY, RolesOptions } from '../decorators/roles.decorator';
 
 // Extended request type with user

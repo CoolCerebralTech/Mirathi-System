@@ -1,17 +1,18 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { Family } from '../entities/family.entity';
+
 import { FamilyMember } from '../entities/family-member.entity';
+import { Family } from '../entities/family.entity';
+import { Guardianship } from '../entities/guardianship.entity';
 import { Marriage } from '../entities/marriage.entity';
 import { Relationship } from '../entities/relationship.entity';
-import { Guardianship } from '../entities/guardianship.entity';
+import { CustomaryMarriageRegisteredEvent } from '../events/customary-marriage-registered.event';
 import { FamilyCreatedEvent } from '../events/family-created.event';
+import { FamilyHeadAppointedEvent } from '../events/family-head-appointed.event';
 import { FamilyMemberAddedEvent } from '../events/family-member-added.event';
+import { FamilyTreeVisualizationUpdatedEvent } from '../events/family-tree-visualization-updated.event';
+import { GuardianAssignedEvent } from '../events/guardian-assigned.event';
 import { MarriageRegisteredEvent } from '../events/marriage-registered.event';
 import { RelationshipCreatedEvent } from '../events/relationship-created.event';
-import { GuardianAssignedEvent } from '../events/guardian-assigned.event';
-import { FamilyTreeVisualizationUpdatedEvent } from '../events/family-tree-visualization-updated.event';
-import { CustomaryMarriageRegisteredEvent } from '../events/customary-marriage-registered.event';
-import { FamilyHeadAppointedEvent } from '../events/family-head-appointed.event';
 
 export interface TreeVisualizationData {
   nodes: any[];

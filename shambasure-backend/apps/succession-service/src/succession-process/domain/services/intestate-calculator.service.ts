@@ -1,14 +1,16 @@
 // succession-service/src/succession-process/domain/services/intestate-calculator.service.ts
+import { Inject, Injectable } from '@nestjs/common';
 
-import { Injectable, Inject } from '@nestjs/common';
-import {
-  IntestateSuccessionPolicy,
-  FamilyUnit,
-  DistributionResult,
-} from '../policies/intestate-succession.policy';
-import { FamilyMemberService } from '../../../family-tree/application/services/family-member.service';
 import { EstateAggregate } from '../../../estate-planning/domain/aggregates/estate.aggregate';
-import { WillRepositoryInterface } from '../../../estate-planning/domain/interfaces/will.repository.interface'; // To check partial intestacy
+import { WillRepositoryInterface } from '../../../estate-planning/domain/interfaces/will.repository.interface';
+import { FamilyMemberService } from '../../../family-tree/application/services/family-member.service';
+import {
+  DistributionResult,
+  FamilyUnit,
+  IntestateSuccessionPolicy,
+} from '../policies/intestate-succession.policy';
+
+// To check partial intestacy
 
 @Injectable()
 export class IntestateCalculatorService {

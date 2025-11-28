@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import { DocumentStatusEnum } from '../../domain/value-objects/document-status.vo';
 
 export class VerificationAttemptDto {

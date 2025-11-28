@@ -1,10 +1,11 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { ExecutorStatus } from '@prisma/client';
-import { AssetValue } from '../value-objects/asset-value.vo';
-import { ExecutorNominatedEvent } from '../events/executor-nominated.event';
+
 import { ExecutorAcceptedEvent } from '../events/executor-accepted.event';
 import { ExecutorDeclinedEvent } from '../events/executor-declined.event';
+import { ExecutorNominatedEvent } from '../events/executor-nominated.event';
 import { ExecutorRemovedEvent } from '../events/executor-removed.event';
+import { AssetValue } from '../value-objects/asset-value.vo';
 
 /**
  * Contact information for executor under Kenyan succession law

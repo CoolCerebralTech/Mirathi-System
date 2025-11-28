@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '@shamba/database';
 import { MarriageStatus } from '@prisma/client';
+
+import { PrismaService } from '@shamba/database';
+
 import { Marriage } from '../../../domain/entities/marriage.entity';
 import { MarriageRepositoryInterface } from '../../../domain/interfaces/marriage.repository.interface';
 import { MarriageMapper } from '../mappers/marriage.mapper';

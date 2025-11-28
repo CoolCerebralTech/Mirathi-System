@@ -1,21 +1,23 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
-  UseGuards,
-  Req,
+  Get,
   HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { JwtAuthGuard } from '@shamba/auth';
-import { BeneficiaryService } from '../../application/services/beneficiary.service';
+
 import { AssignBeneficiaryDto } from '../../application/dto/request/assign-beneficiary.dto';
 import { BeneficiaryResponseDto } from '../../application/dto/response/beneficiary.response.dto';
 import { AssetDistributionSummaryResponse } from '../../application/queries/get-asset-distribution.query';
+import { BeneficiaryService } from '../../application/services/beneficiary.service';
 
 interface RequestWithUser extends Request {
   user: { userId: string; email: string; role: string };

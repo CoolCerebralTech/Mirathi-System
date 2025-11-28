@@ -1,17 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '@shamba/database';
 import { Prisma } from '@prisma/client';
+
+import { PrismaService } from '@shamba/database';
 
 import { IDocumentRepository } from '../../domain/interfaces';
 import { Document } from '../../domain/models';
 import { DocumentId } from '../../domain/value-objects';
-import { DocumentMapper } from '../mappers/document.mapper';
-import { DocumentVersionMapper } from '../mappers/document-version.mapper';
-import { DocumentVerificationAttemptMapper } from '../mappers/document-verification.mapper';
-
-import { DocumentEntity } from '../entities/document.entity';
-import { DocumentVersionEntity } from '../entities/document-version.entity';
 import { DocumentVerificationAttemptEntity } from '../entities/document-verification.entity';
+import { DocumentVersionEntity } from '../entities/document-version.entity';
+import { DocumentEntity } from '../entities/document.entity';
+import { DocumentVerificationAttemptMapper } from '../mappers/document-verification.mapper';
+import { DocumentVersionMapper } from '../mappers/document-version.mapper';
+import { DocumentMapper } from '../mappers/document.mapper';
 
 // This type precisely defines the shape of the data returned by Prisma's `include` query.
 type FullDocumentEntity = DocumentEntity & {

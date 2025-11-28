@@ -1,10 +1,11 @@
 // succession-service/src/succession-process/infrastructure/persistence/repositories/dispute.prisma-repository.ts
-
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '@shamba/database';
 import { DisputeStatus } from '@prisma/client';
-import { DisputeRepositoryInterface } from '../../../domain/repositories/dispute.repository.interface';
+
+import { PrismaService } from '@shamba/database';
+
 import { Dispute } from '../../../domain/entities/dispute.entity';
+import { DisputeRepositoryInterface } from '../../../domain/repositories/dispute.repository.interface';
 import { DisputeMapper } from '../mappers/dispute.mapper';
 
 @Injectable()

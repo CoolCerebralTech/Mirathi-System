@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma, WillStatus } from '@prisma/client';
+
 import { PrismaService } from '@shamba/database';
-import { WillStatus, Prisma } from '@prisma/client';
+
 import { WillAggregate } from '../../../domain/aggregates/will.aggregate';
 import { WillRepositoryInterface } from '../../../domain/interfaces/will.repository.interface';
 import { WillMapper } from '../mappers/will.mapper';

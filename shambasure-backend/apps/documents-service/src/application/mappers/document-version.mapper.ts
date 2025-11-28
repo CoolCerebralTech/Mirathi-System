@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+
 import { DocumentVersion } from '../../domain/models';
 import { DocumentVersionResponseDto } from '../dtos/document-version-response.dto';
 import { CreateDocumentVersionResponseDto } from '../dtos/document-version.dto';

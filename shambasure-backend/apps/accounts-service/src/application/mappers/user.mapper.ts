@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+
 import { RelationshipType, UserRole } from '@shamba/common';
+
 import { PaginatedResult, UserStats } from '../../domain/interfaces';
 import { LoginSession, User } from '../../domain/models';
 import { Address, NextOfKin, UserProfile } from '../../domain/models';
@@ -12,22 +14,22 @@ import {
 import {
   AdminBulkUpdateUsersResponseDto,
   AdminCreateUserResponseDto,
-  AdminUpdateUserResponseDto,
   DetailedUserResponseDto as AdminDetailedUserResponseDto,
+  GetUserResponseDto as AdminGetUserResponseDto,
+  AdminUpdateUserResponseDto,
   LockUserAccountResponseDto,
   PaginatedUsersResponseDto,
   RestoreUserResponseDto,
   SoftDeleteUserResponseDto,
   UnlockUserAccountResponseDto,
   UpdateUserRoleResponseDto,
-  GetUserResponseDto as AdminGetUserResponseDto,
   UserStatsResponseDto,
 } from '../dtos/admin.dto';
 import {
+  DeactivateMyAccountResponseDto,
   GetMyUserResponseDto,
   UpdateMyUserResponseDto,
   UserResponseDto,
-  DeactivateMyAccountResponseDto,
 } from '../dtos/user.dto';
 
 // Type definitions for strongly-typed persistence data.

@@ -1,11 +1,11 @@
 import {
-  DocumentId,
-  UserId,
-  WillId,
   AssetId,
   DocumentCategory,
+  DocumentId,
   DocumentStatus,
   StorageProvider,
+  UserId,
+  WillId,
 } from '../value-objects';
 
 // ============================================================================

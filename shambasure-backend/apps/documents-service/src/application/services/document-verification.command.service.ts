@@ -1,20 +1,21 @@
 import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-  ConflictException,
-  Inject,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+
 import type { IDocumentRepository } from '../../domain/interfaces';
 import { Document } from '../../domain/models';
 import { Actor, DocumentId, RejectionReason, UserId } from '../../domain/value-objects';
 import { DocumentStatusEnum } from '../../domain/value-objects/document-status.vo';
-import { DocumentMapper } from '../mappers';
-import { VerifyDocumentDto, VerifyDocumentResponseDto } from '../dtos/verify-document.dto';
 import { DOCUMENT_REPOSITORY } from '../../injection.tokens';
+import { VerifyDocumentDto, VerifyDocumentResponseDto } from '../dtos/verify-document.dto';
+import { DocumentMapper } from '../mappers';
 
 @Injectable()
 export class DocumentVerificationCommandService {

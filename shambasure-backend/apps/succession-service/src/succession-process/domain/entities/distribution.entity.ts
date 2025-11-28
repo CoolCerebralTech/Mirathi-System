@@ -1,11 +1,12 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { DistributionStatus } from '@prisma/client';
+
 import { ShareType } from '../../../common/types/kenyan-law.types';
-import { EntitlementCreatedEvent } from '../events/entitlement-created.event';
 import { AssetTransferredEvent } from '../events/asset-transferred.event';
+import { DistributionDeferredEvent } from '../events/distribution-deferred.event';
 import { DistributionDisputedEvent } from '../events/distribution-disputed.event';
 import { DistributionStatusChangedEvent } from '../events/distribution-status-changed.event';
-import { DistributionDeferredEvent } from '../events/distribution-deferred.event';
+import { EntitlementCreatedEvent } from '../events/entitlement-created.event';
 import { DistributionShare } from '../value-objects/distribution-share.vo';
 
 export type BeneficiaryType = 'USER' | 'FAMILY_MEMBER' | 'EXTERNAL';

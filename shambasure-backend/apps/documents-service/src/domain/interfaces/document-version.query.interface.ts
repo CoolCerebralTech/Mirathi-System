@@ -1,4 +1,4 @@
-import { DocumentVersionId, DocumentId, UserId } from '../value-objects';
+import { DocumentId, DocumentVersionId, UserId } from '../value-objects';
 
 // ============================================================================
 // Data Transfer Objects (DTOs) and Query Models

@@ -1,4 +1,4 @@
-import { Prisma, DocumentStatus } from '@prisma/client';
+import { DocumentStatus, Prisma } from '@prisma/client';
 
 /**
  * DocumentVerificationAttempt Entity - Persistence Layer

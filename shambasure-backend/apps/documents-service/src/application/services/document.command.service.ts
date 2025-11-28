@@ -1,48 +1,49 @@
 import {
-  Injectable,
-  Logger,
   BadRequestException,
-  NotFoundException,
   ForbiddenException,
   Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { createHash } from 'crypto';
+
 import type { IDocumentRepository, IStorageService } from '../../domain/interfaces';
 import { Document, DocumentVersion } from '../../domain/models';
 import {
   Actor,
+  AssetId,
+  DocumentCategory,
+  DocumentChecksum,
   DocumentId,
+  DocumentStatusEnum,
   FileName,
   FileSize,
   MimeType,
-  DocumentChecksum,
+  RejectionReason,
+  RetentionPolicy,
+  StoragePath,
   StorageProvider,
   UserId,
-  StoragePath,
-  RejectionReason,
-  DocumentCategory,
-  DocumentStatusEnum,
   WillId,
-  AssetId,
-  RetentionPolicy,
 } from '../../domain/value-objects';
-import { DocumentMapper, BulkOperationsMapper, DocumentVersionMapper } from '../mappers';
 import { FileValidatorService } from '../../infrastructure/storage/file-validator.service';
-import { UploadDocumentDto, UploadDocumentResponseDto } from '../dtos/upload-document.dto';
-import { VerifyDocumentDto, VerifyDocumentResponseDto } from '../dtos/verify-document.dto';
-import { UpdateDocumentDto, UpdateDocumentResponseDto } from '../dtos/update-document.dto';
-import { UpdateAccessDto, AccessControlResponseDto } from '../dtos/share-document.dto';
+import { DOCUMENT_REPOSITORY, STORAGE_SERVICE } from '../../injection.tokens';
 import {
-  BulkOperationDto,
   BulkActionType,
+  BulkOperationDto,
   BulkOperationResponseDto,
 } from '../dtos/bulk-operations.dto';
 import {
   CreateDocumentVersionDto,
   CreateDocumentVersionResponseDto,
 } from '../dtos/document-version.dto';
-import { DOCUMENT_REPOSITORY, STORAGE_SERVICE } from '../../injection.tokens';
+import { AccessControlResponseDto, UpdateAccessDto } from '../dtos/share-document.dto';
+import { UpdateDocumentDto, UpdateDocumentResponseDto } from '../dtos/update-document.dto';
+import { UploadDocumentDto, UploadDocumentResponseDto } from '../dtos/upload-document.dto';
+import { VerifyDocumentDto, VerifyDocumentResponseDto } from '../dtos/verify-document.dto';
+import { BulkOperationsMapper, DocumentMapper, DocumentVersionMapper } from '../mappers';
 
 @Injectable()
 export class DocumentCommandService {

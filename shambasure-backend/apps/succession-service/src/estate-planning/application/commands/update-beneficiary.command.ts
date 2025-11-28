@@ -1,10 +1,12 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { AssignBeneficiaryDto } from '../dto/request/assign-beneficiary.dto'; // Reusing or extending
-import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
-import { SharePercentage } from '../../domain/value-objects/share-percentage.vo';
-import { AssetValue } from '../../domain/value-objects/asset-value.vo';
+import { ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
 import { BequestType } from '@prisma/client';
+
+// Reusing or extending
+import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
+import { AssetValue } from '../../domain/value-objects/asset-value.vo';
+import { SharePercentage } from '../../domain/value-objects/share-percentage.vo';
+import { AssignBeneficiaryDto } from '../dto/request/assign-beneficiary.dto';
 
 // Define Command using Partial DTO logic
 export class UpdateBeneficiaryCommand {

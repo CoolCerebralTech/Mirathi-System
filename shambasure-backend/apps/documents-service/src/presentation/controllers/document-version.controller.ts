@@ -1,44 +1,46 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Delete,
-  Param,
-  Query,
-  UseInterceptors,
-  UploadedFile,
-  ParseFilePipe,
-  MaxFileSizeValidator,
-  FileTypeValidator,
-  HttpStatus,
-  UseGuards,
-  Req,
-  Res,
   BadRequestException,
   Body,
+  Controller,
+  Delete,
+  FileTypeValidator,
+  Get,
+  HttpStatus,
+  MaxFileSizeValidator,
+  Param,
+  ParseFilePipe,
+  Post,
+  Query,
+  Req,
+  Res,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Request, Response } from 'express'; // Fixed: Added Request import
+// Fixed: Added Request import
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiConsumes,
-  ApiBody,
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
   ApiParam,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
+import type { Request, Response } from 'express';
+
 import { JwtAuthGuard, RolesGuard } from '@shamba/auth';
 
-import { DocumentVersionCommandService } from '../../application/services/document-version.command.service';
-import { DocumentVersionQueryService } from '../../application/services/document-version.query.service';
-import { Actor, DocumentId, UserId } from '../../domain/value-objects';
 import { DocumentVersionResponseDto } from '../../application/dtos/document-version-response.dto';
 import {
   CreateDocumentVersionDto,
   CreateDocumentVersionResponseDto,
   DocumentVersionQueryDto,
 } from '../../application/dtos/document-version.dto';
+import { DocumentVersionCommandService } from '../../application/services/document-version.command.service';
+import { DocumentVersionQueryService } from '../../application/services/document-version.query.service';
+import { Actor, DocumentId, UserId } from '../../domain/value-objects';
 
 // Define proper types for the authenticated request
 interface AuthenticatedRequest extends Request {

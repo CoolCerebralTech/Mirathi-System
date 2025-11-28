@@ -1,39 +1,41 @@
 import {
-  Controller,
-  Get,
-  Patch,
-  Delete,
-  Post,
   Body,
+  Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Patch,
+  Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { UserService } from '../../application/services/user.service';
-import { JwtAuthGuard, CurrentUser, type JwtPayload } from '@shamba/auth';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+
+import { CurrentUser, JwtAuthGuard, type JwtPayload } from '@shamba/auth';
+
 import {
-  UpdateMyUserRequestDto,
-  UpdateMyUserResponseDto,
-  GetMyUserResponseDto,
-  DeactivateMyAccountRequestDto,
-  DeactivateMyAccountResponseDto,
-} from '../../application/dtos/user.dto';
-import {
-  UpdateMyProfileRequestDto,
-  SendPhoneVerificationRequestDto,
-  VerifyPhoneRequestDto,
-  UpdateMarketingPreferencesRequestDto,
-  UpdateMyProfileResponseDto,
   GetMyProfileResponseDto,
-  SendPhoneVerificationResponseDto,
-  VerifyPhoneResponseDto,
-  ResendPhoneVerificationResponseDto,
-  UpdateMarketingPreferencesResponseDto,
-  RemovePhoneNumberResponseDto,
   RemoveAddressResponseDto,
   RemoveNextOfKinResponseDto,
+  RemovePhoneNumberResponseDto,
+  ResendPhoneVerificationResponseDto,
+  SendPhoneVerificationRequestDto,
+  SendPhoneVerificationResponseDto,
+  UpdateMarketingPreferencesRequestDto,
+  UpdateMarketingPreferencesResponseDto,
+  UpdateMyProfileRequestDto,
+  UpdateMyProfileResponseDto,
+  VerifyPhoneRequestDto,
+  VerifyPhoneResponseDto,
 } from '../../application/dtos/profile.dto';
+import {
+  DeactivateMyAccountRequestDto,
+  DeactivateMyAccountResponseDto,
+  GetMyUserResponseDto,
+  UpdateMyUserRequestDto,
+  UpdateMyUserResponseDto,
+} from '../../application/dtos/user.dto';
+import { UserService } from '../../application/services/user.service';
 
 /**
  * UserController

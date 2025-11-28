@@ -1,10 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-
 // --- IMPROVEMENT 1: Using the Single Source of Truth ---
 // We import the official data models directly from the Prisma Client and our new config.
 // This ensures our logic is always synchronized with our database schema and configuration.
 import { Asset, AssetType } from '@prisma/client';
+
 import valuationConfig from '../config/valuation.config';
 
 /**

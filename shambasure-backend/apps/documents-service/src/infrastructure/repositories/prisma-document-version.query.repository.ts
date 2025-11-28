@@ -1,15 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '@shamba/database';
 import { Prisma } from '@prisma/client';
 
+import { PrismaService } from '@shamba/database';
+
 import {
-  IDocumentVersionQueryRepository,
   DocumentVersionDTO,
   FindDocumentVersionsFilters,
+  IDocumentVersionQueryRepository,
   VersionQueryOptions,
   VersionStorageStats,
 } from '../../domain/interfaces';
-import { DocumentVersionId, DocumentId, UserId } from '../../domain/value-objects';
+import { DocumentId, DocumentVersionId, UserId } from '../../domain/value-objects';
 
 type VersionDtoPayload = Prisma.DocumentVersionGetPayload<{
   select: {

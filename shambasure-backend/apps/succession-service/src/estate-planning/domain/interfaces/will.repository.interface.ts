@@ -1,4 +1,5 @@
 import { WillStatus } from '@prisma/client';
+
 import { WillAggregate } from '../aggregates/will.aggregate';
 
 /**

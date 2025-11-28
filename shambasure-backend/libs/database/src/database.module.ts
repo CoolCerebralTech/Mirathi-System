@@ -1,7 +1,8 @@
-import { Module, Global } from '@nestjs/common';
-import { PrismaService } from './services/prisma.service';
-import { DatabaseService } from './services/database.service';
+import { Global, Module } from '@nestjs/common';
+
 import { HealthController } from './health.controller';
+import { DatabaseService } from './services/database.service';
+import { PrismaService } from './services/prisma.service';
 
 /**
  * Database Module

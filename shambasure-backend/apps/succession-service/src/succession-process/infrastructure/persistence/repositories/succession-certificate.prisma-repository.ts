@@ -1,9 +1,10 @@
 // succession-service/src/succession-process/infrastructure/persistence/repositories/succession-certificate.prisma-repository.ts
-
 import { Injectable } from '@nestjs/common';
+
 import { PrismaService } from '@shamba/database';
-import { SuccessionCertificateRepositoryInterface } from '../../../domain/repositories/succession-certificate.repository.interface';
+
 import { SuccessionCertificate } from '../../../domain/entities/succession-certificate.entity';
+import { SuccessionCertificateRepositoryInterface } from '../../../domain/repositories/succession-certificate.repository.interface';
 import { SuccessionCertificateMapper } from '../mappers/succession-certificate.mapper';
 
 @Injectable()

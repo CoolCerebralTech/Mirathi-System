@@ -1,5 +1,5 @@
-import { Exclude, Expose, Transform } from 'class-transformer';
 import { RelationshipType } from '@prisma/client';
+import { Exclude, Expose, Transform } from 'class-transformer';
 
 @Exclude()
 export class FamilyMemberResponseDto {

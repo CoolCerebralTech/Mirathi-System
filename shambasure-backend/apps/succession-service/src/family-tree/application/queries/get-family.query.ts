@@ -1,6 +1,7 @@
-import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { Inject, NotFoundException } from '@nestjs/common';
+import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { plainToInstance } from 'class-transformer';
+
 import { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
 import { FamilyResponseDto } from '../dto/response/family.response.dto';
 

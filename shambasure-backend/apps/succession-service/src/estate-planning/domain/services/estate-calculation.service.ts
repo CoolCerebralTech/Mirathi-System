@@ -1,5 +1,6 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
+
 import { courtFeesConfig } from '../../../common/config/court-fees.config';
 import { EstateAggregate } from '../aggregates/estate.aggregate';
 

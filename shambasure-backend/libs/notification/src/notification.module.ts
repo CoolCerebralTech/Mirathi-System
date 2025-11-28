@@ -1,6 +1,7 @@
-import { Module, Logger } from '@nestjs/common';
-import { NotificationService } from './notification.service';
+import { Logger, Module } from '@nestjs/common';
+
 import { INotificationService } from './interfaces/notification.interface';
+import { NotificationService } from './notification.service';
 
 @Module({
   providers: [

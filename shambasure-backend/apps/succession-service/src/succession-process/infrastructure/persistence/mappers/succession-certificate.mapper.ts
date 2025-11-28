@@ -1,6 +1,6 @@
 // succession-service/src/succession-process/infrastructure/persistence/mappers/succession-certificate.mapper.ts
-
 import { GrantOfAdministration as PrismaGrant } from '@prisma/client';
+
 import { SuccessionCertificate } from '../../../domain/entities/succession-certificate.entity';
 
 export class SuccessionCertificateMapper {

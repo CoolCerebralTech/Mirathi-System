@@ -1,14 +1,15 @@
 import { UserRole } from '@shamba/common';
-import { User, UserProps } from '../models/user.model';
-import { UserProfile } from '../models/user-profile.model';
+
 import {
-  PasswordResetToken,
-  EmailVerificationToken,
-  PhoneVerificationToken,
   EmailChangeToken,
-  RefreshToken,
+  EmailVerificationToken,
   LoginSession,
+  PasswordResetToken,
+  PhoneVerificationToken,
+  RefreshToken,
 } from '../models/token.model';
+import { UserProfile } from '../models/user-profile.model';
+import { User, UserProps } from '../models/user.model';
 import { Email, PhoneNumber } from '../value-objects';
 
 // ============================================================================

@@ -1,10 +1,11 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
 import { v4 as uuidv4 } from 'uuid';
-import { NominateExecutorDto } from '../dto/request/nominate-executor.dto';
-import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
+
 import { Executor } from '../../domain/entities/executor.entity';
+import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
 import { ExecutorEligibilityPolicy } from '../../domain/policies/executor-eligibility.policy';
+import { NominateExecutorDto } from '../dto/request/nominate-executor.dto';
 
 export class NominateExecutorCommand {
   constructor(

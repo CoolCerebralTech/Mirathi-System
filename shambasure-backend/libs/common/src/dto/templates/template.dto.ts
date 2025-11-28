@@ -1,8 +1,9 @@
-import { IsString, IsEnum, IsOptional, IsArray, MinLength, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsArray, IsBoolean, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+
 import { NotificationChannel } from '../../enums';
-import { PaginationQueryDto } from '../shared/pagination.dto';
 import { BaseResponseDto } from '../shared/base.response.dto';
+import { PaginationQueryDto } from '../shared/pagination.dto';
 
 // ============================================================================
 // REQUEST DTOs (Input Validation)

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { BeneficiaryAssignment } from '../entities/beneficiary.entity';
 import { BequestType } from '@prisma/client';
+
+import { BeneficiaryAssignment } from '../entities/beneficiary.entity';
 
 export interface PotentialDependant {
   id: string;

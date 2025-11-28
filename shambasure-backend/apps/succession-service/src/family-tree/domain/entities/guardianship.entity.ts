@@ -1,5 +1,6 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { GuardianType } from '@prisma/client';
+
 import { GuardianAssignedEvent } from '../events/guardian-assigned.event';
 import { GuardianRemovedEvent } from '../events/guardian-removed.event';
 import { GuardianshipAuthorityUpdatedEvent } from '../events/guardianship-authority-updated.event';

@@ -1,16 +1,18 @@
+import { Prisma } from '@prisma/client';
+
+import { DocumentCategory, DocumentStatus } from '@shamba/common';
+
 import { Document } from '../../domain/models/document.model';
 import {
-  DocumentEntity,
-  CreateDocumentEntity,
-  UpdateDocumentData,
-} from '../entities/document.entity';
-import { DocumentCategory, DocumentStatus } from '@shamba/common';
-import {
-  UserId,
   DocumentStatus as DomainDocumentStatus,
   RejectionReason,
+  UserId,
 } from '../../domain/value-objects';
-import { Prisma } from '@prisma/client';
+import {
+  CreateDocumentEntity,
+  DocumentEntity,
+  UpdateDocumentData,
+} from '../entities/document.entity';
 
 type RawDocumentVersionRow = {
   id: string;

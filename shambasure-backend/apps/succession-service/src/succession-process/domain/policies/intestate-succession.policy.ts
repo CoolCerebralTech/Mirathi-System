@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+
 import { ShareType } from '../../../common/types/kenyan-law.types';
 
 export interface FamilyUnit {

@@ -1,5 +1,5 @@
-import { Exclude, Expose } from 'class-transformer';
 import { MarriageStatus } from '@prisma/client';
+import { Exclude, Expose } from 'class-transformer';
 
 @Exclude()
 export class MarriageResponseDto {

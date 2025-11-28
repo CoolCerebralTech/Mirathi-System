@@ -1,4 +1,5 @@
 import { UserRole } from '@shamba/common';
+
 import { DomainEvent } from '../events';
 
 // ============================================================================

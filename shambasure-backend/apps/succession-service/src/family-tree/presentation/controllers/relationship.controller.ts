@@ -1,21 +1,23 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Param,
+  Controller,
   Delete,
-  UseGuards,
-  Req,
-  HttpStatus,
+  Get,
   HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { JwtAuthGuard } from '@shamba/auth';
-import { RelationshipService } from '../../application/services/relationship.service';
+
 import { CreateRelationshipDto } from '../../application/dto/request/create-relationship.dto';
 import { VerifyRelationshipDto } from '../../application/dto/request/verify-relationship.dto';
 import { RelationshipResponseDto } from '../../application/dto/response/relationship.response.dto';
+import { RelationshipService } from '../../application/services/relationship.service';
 
 interface RequestWithUser extends Request {
   user: { userId: string; email: string; role: string };

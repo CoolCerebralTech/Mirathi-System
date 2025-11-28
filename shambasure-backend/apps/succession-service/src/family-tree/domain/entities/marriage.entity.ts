@@ -1,8 +1,9 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { MarriageStatus } from '@prisma/client';
-import { MarriageRegisteredEvent } from '../events/marriage-registered.event';
-import { MarriageDissolvedEvent } from '../events/marriage-dissolved.event';
+
 import { CustomaryMarriageDetailsUpdatedEvent } from '../events/customary-marriage-details-updated.event';
+import { MarriageDissolvedEvent } from '../events/marriage-dissolved.event';
+import { MarriageRegisteredEvent } from '../events/marriage-registered.event';
 
 export interface CustomaryMarriageDetails {
   bridePricePaid: boolean;

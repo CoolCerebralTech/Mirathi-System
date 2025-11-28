@@ -1,11 +1,12 @@
 import {
-  PipeTransform,
-  Injectable,
-  Inject,
   ArgumentMetadata,
   BadRequestException,
+  Inject,
+  Injectable,
+  PipeTransform,
 } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
+
 import successionConfig from '../config/succession.config';
 
 /**

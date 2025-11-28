@@ -1,5 +1,4 @@
 // succession-service/src/family-tree/domain/events/relationship-created.event.ts
-
 import { RelationshipType } from '@prisma/client';
 
 export class RelationshipCreatedEvent {

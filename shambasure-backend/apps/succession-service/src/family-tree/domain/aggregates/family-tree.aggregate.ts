@@ -1,24 +1,25 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { Family } from '../entities/family.entity';
+
 import {
   FamilyMember,
   KenyanFamilyMemberMetadata,
   KenyanIdentification,
   MemberContactInfo,
 } from '../entities/family-member.entity';
-import { Relationship } from '../entities/relationship.entity';
-import { Marriage } from '../entities/marriage.entity';
+import { Family } from '../entities/family.entity';
 import { Guardianship } from '../entities/guardianship.entity';
-import { RelationshipValidationPolicy } from '../policies/relationship-validation.policy';
-import { FamilyTreeIntegrityPolicy } from '../policies/family-tree-integrity.policy';
-import { PolygamousFamilyPolicy } from '../policies/polygamous-family.policy';
-import { GuardianEligibilityPolicy } from '../policies/guardian-eligibility.policy';
+import { Marriage } from '../entities/marriage.entity';
+import { Relationship } from '../entities/relationship.entity';
 import { FamilyMemberAddedEvent } from '../events/family-member-added.event';
-import { RelationshipCreatedEvent } from '../events/relationship-created.event';
-import { MarriageRegisteredEvent } from '../events/marriage-registered.event';
-import { GuardianAssignedEvent } from '../events/guardian-assigned.event';
 import { FamilyTreeVerifiedEvent } from '../events/family-tree-verified.event';
+import { GuardianAssignedEvent } from '../events/guardian-assigned.event';
+import { MarriageRegisteredEvent } from '../events/marriage-registered.event';
+import { RelationshipCreatedEvent } from '../events/relationship-created.event';
 import { SuccessionAnalysisCompletedEvent } from '../events/succession-analysis-completed.event';
+import { FamilyTreeIntegrityPolicy } from '../policies/family-tree-integrity.policy';
+import { GuardianEligibilityPolicy } from '../policies/guardian-eligibility.policy';
+import { PolygamousFamilyPolicy } from '../policies/polygamous-family.policy';
+import { RelationshipValidationPolicy } from '../policies/relationship-validation.policy';
 
 export interface FamilyTreeSnapshot {
   family: Family;

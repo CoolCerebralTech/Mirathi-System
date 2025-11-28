@@ -1,5 +1,5 @@
+import { AssetOwnershipType, AssetType } from '@prisma/client';
 import { Exclude, Expose, Type } from 'class-transformer';
-import { AssetType, AssetOwnershipType } from '@prisma/client';
 
 // Reusable Value Object DTO
 @Exclude()

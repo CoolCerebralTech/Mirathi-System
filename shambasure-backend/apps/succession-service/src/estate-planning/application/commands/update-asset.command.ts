@@ -1,8 +1,9 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { UpdateAssetDto } from '../dto/request/update-asset.dto';
+import { ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
 import type { AssetRepositoryInterface } from '../../domain/interfaces/asset.repository.interface';
 import { AssetValue } from '../../domain/value-objects/asset-value.vo';
+import { UpdateAssetDto } from '../dto/request/update-asset.dto';
 
 export class UpdateAssetCommand {
   constructor(

@@ -1,5 +1,6 @@
+import { ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
+
 import type { AssetRepositoryInterface } from '../../domain/interfaces/asset.repository.interface';
 import type { BeneficiaryRepositoryInterface } from '../../domain/interfaces/beneficiary.repository.interface';
 

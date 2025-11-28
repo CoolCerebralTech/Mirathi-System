@@ -1,4 +1,5 @@
 import { SetMetadata, UseGuards, applyDecorators } from '@nestjs/common';
+
 import { LegalCapacityGuard } from '../guards/legal-capacity.guard';
 
 /**

@@ -1,7 +1,8 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, NotFoundException, BadRequestException } from '@nestjs/common';
-import type { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
+import { BadRequestException, Inject, NotFoundException } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
 import type { FamilyMemberRepositoryInterface } from '../../domain/interfaces/family-member.repository.interface';
+import type { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
 import type { RelationshipRepositoryInterface } from '../../domain/interfaces/relationship.repository.interface';
 
 export class RemoveFamilyMemberCommand {

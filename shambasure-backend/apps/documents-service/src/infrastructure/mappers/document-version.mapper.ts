@@ -1,7 +1,7 @@
 import { DocumentVersion } from '../../domain/models/document-version.model';
 import {
-  DocumentVersionEntity,
   CreateDocumentVersionEntity,
+  DocumentVersionEntity,
 } from '../entities/document-version.entity';
 
 /**

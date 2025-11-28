@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
-import { Request } from 'express';
-import { ServiceRoute, IHttpClient } from '../../application/interfaces/service-router.interface';
-import { firstValueFrom } from 'rxjs';
+import { Injectable, Logger } from '@nestjs/common';
 import axios, { Method, RawAxiosRequestHeaders } from 'axios';
+import { Request } from 'express';
+import { firstValueFrom } from 'rxjs';
+
+import { IHttpClient, ServiceRoute } from '../../application/interfaces/service-router.interface';
 
 // Define a type for the structured response we'll return
 export interface ProxyResponse {

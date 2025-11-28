@@ -1,5 +1,6 @@
-import { ProbateCase, CaseStatus } from '../entities/probate-case.entity';
 import { GrantType } from '@prisma/client';
+
+import { CaseStatus, ProbateCase } from '../entities/probate-case.entity';
 
 export interface ProbateCaseRepositoryInterface {
   // Basic CRUD operations

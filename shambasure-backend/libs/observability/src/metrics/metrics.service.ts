@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Registry, Counter, Gauge, Histogram } from 'prom-client';
+import { Counter, Gauge, Histogram, Registry } from 'prom-client';
+
 import { MetricDefinition } from '../interfaces/observability.interface';
 
 @Injectable()

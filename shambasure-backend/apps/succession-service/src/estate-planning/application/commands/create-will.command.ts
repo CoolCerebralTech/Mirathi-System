@@ -1,10 +1,11 @@
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { Inject, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Inject } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
 import { v4 as uuidv4 } from 'uuid';
-import { CreateWillDto } from '../dto/request/create-will.dto';
-import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
+
 import { WillAggregate } from '../../domain/aggregates/will.aggregate';
+import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
 import { LegalCapacity } from '../../domain/value-objects/legal-capacity.vo';
+import { CreateWillDto } from '../dto/request/create-will.dto';
 
 export class CreateWillCommand {
   constructor(

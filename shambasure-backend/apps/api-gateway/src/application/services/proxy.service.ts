@@ -1,7 +1,8 @@
-import { Injectable, Inject, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Request } from 'express';
-import type { IHttpClient, IServiceRouter } from '../interfaces/service-router.interface';
+
 import { ProxyResponse } from '../../infrastructure/http/http-client.service';
+import type { IHttpClient, IServiceRouter } from '../interfaces/service-router.interface';
 
 @Injectable()
 export class ProxyService {

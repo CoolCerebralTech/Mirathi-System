@@ -1,9 +1,10 @@
 // succession-service/src/succession-process/infrastructure/persistence/repositories/estate-inventory.prisma-repository.ts
-
 import { Injectable } from '@nestjs/common';
+
 import { PrismaService } from '@shamba/database';
-import { EstateInventoryRepositoryInterface } from '../../../domain/repositories/estate-inventory.repository.interface';
+
 import { EstateInventory } from '../../../domain/entities/estate-inventory.entity';
+import { EstateInventoryRepositoryInterface } from '../../../domain/repositories/estate-inventory.repository.interface';
 import { EstateInventoryMapper } from '../mappers/estate-inventory.mapper';
 
 @Injectable()

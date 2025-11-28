@@ -1,18 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '@shamba/database';
 import { Prisma } from '@prisma/client';
 
+import { PrismaService } from '@shamba/database';
+
 import {
-  IDocumentQueryRepository,
   DocumentDTO,
-  FindDocumentsFilters,
-  PaginationOptions,
-  PaginatedResult,
   DocumentSearchOptions,
   DocumentStats,
   ExpiringDocument,
+  FindDocumentsFilters,
+  IDocumentQueryRepository,
+  PaginatedResult,
+  PaginationOptions,
 } from '../../domain/interfaces';
-import { DocumentId, UserId, WillId, AssetId, DocumentStatus } from '../../domain/value-objects';
+import { AssetId, DocumentId, DocumentStatus, UserId, WillId } from '../../domain/value-objects';
 
 type DocumentDtoPayload = Prisma.DocumentGetPayload<{
   select: {

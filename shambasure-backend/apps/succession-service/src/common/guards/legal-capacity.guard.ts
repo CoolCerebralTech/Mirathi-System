@@ -1,16 +1,18 @@
 import {
-  Injectable,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Injectable,
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
+
 import { JwtPayload } from '@shamba/auth';
+
 import {
-  REQUIRE_LEGAL_CAPACITY_KEY,
   LegalCapacityOptions,
+  REQUIRE_LEGAL_CAPACITY_KEY,
 } from '../decorators/legal-capacity.decorator';
 
 // Extended request type with user and profile data

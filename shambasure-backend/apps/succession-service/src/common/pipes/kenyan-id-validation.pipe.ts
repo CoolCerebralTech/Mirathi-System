@@ -1,11 +1,12 @@
 import {
-  PipeTransform,
-  Injectable,
   ArgumentMetadata,
   BadRequestException,
   Inject,
+  Injectable,
+  PipeTransform,
 } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
+
 import { legalRulesConfig } from '../config/legal-rules.config';
 
 // ============================================================================

@@ -1,9 +1,10 @@
 import { AggregateRoot } from '@nestjs/cqrs';
+
 import { HearingType } from '../../../common/types/kenyan-law.types';
-import { HearingScheduledEvent } from '../events/hearing-scheduled.event';
-import { HearingOutcomeRecordedEvent } from '../events/hearing-outcome-recorded.event';
 import { HearingAdjournedEvent } from '../events/hearing-adjourned.event';
 import { HearingCancelledEvent } from '../events/hearing-cancelled.event';
+import { HearingOutcomeRecordedEvent } from '../events/hearing-outcome-recorded.event';
+import { HearingScheduledEvent } from '../events/hearing-scheduled.event';
 
 export type HearingStatus = 'SCHEDULED' | 'COMPLETED' | 'ADJOURNED' | 'CANCELLED' | 'IN_PROGRESS';
 

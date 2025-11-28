@@ -1,10 +1,11 @@
 import { AggregateRoot } from '@nestjs/cqrs';
+
 import { Distribution, TransferMethod } from '../entities/distribution.entity';
-import { DistributionPlanCreatedEvent } from '../events/distribution-plan-created.event';
+import { DistributionDisputedEvent } from '../events/distribution-disputed.event';
 import { DistributionExecutedEvent } from '../events/distribution-executed.event';
 import { DistributionPlanAmendedEvent } from '../events/distribution-plan-amended.event';
-import { DistributionDisputedEvent } from '../events/distribution-disputed.event';
 import { DistributionPlanCompletedEvent } from '../events/distribution-plan-completed.event';
+import { DistributionPlanCreatedEvent } from '../events/distribution-plan-created.event';
 
 export interface DistributionPlanAmendment {
   amendmentDate: Date;

@@ -1,6 +1,6 @@
-import { DomainEvent } from './base.event';
 import { Uuid } from '../value-objects';
 import { UserId } from '../value-objects/user-id.vo';
+import { DomainEvent } from './base.event';
 
 export class DocumentMetadataUpdatedEvent extends DomainEvent<Uuid> {
   constructor(

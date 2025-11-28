@@ -1,44 +1,45 @@
 import {
+  BadRequestException,
+  Body,
   Controller,
   Get,
+  HttpStatus,
+  Param,
   Post,
   Put,
-  Param,
   Query,
-  Body,
-  HttpStatus,
-  UseGuards,
   Req,
-  BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
   ApiBearerAuth,
+  ApiOperation,
   ApiParam,
   ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard, RolesGuard, Roles } from '@shamba/auth';
 
-import { DocumentVerificationCommandService } from '../../application/services/document-verification.command.service';
-import { DocumentVerificationQueryService } from '../../application/services/document-verification.query.service';
-import {
-  Actor,
-  DocumentId,
-  UserId,
-  VerificationAttemptId,
-  DocumentStatusEnum,
-} from '../../domain/value-objects';
-import {
-  VerifyDocumentDto,
-  VerifyDocumentResponseDto,
-} from '../../application/dtos/verify-document.dto';
+import { JwtAuthGuard, Roles, RolesGuard } from '@shamba/auth';
+
 import {
   DocumentVerificationHistoryResponseDto,
   VerificationAttemptDto,
   VerifierPerformanceResponseDto,
 } from '../../application/dtos/verification-history-response.dto';
+import {
+  VerifyDocumentDto,
+  VerifyDocumentResponseDto,
+} from '../../application/dtos/verify-document.dto';
+import { DocumentVerificationCommandService } from '../../application/services/document-verification.command.service';
+import { DocumentVerificationQueryService } from '../../application/services/document-verification.query.service';
+import {
+  Actor,
+  DocumentId,
+  DocumentStatusEnum,
+  UserId,
+  VerificationAttemptId,
+} from '../../domain/value-objects';
 
 // Define proper types for the authenticated request
 interface AuthenticatedRequest extends Request {

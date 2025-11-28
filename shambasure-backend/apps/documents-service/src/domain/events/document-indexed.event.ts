@@ -1,5 +1,5 @@
-import { DomainEvent } from './base.event';
 import { DocumentId } from '../value-objects';
+import { DomainEvent } from './base.event';
 
 /**
  * Domain Event: DocumentIndexedEvent

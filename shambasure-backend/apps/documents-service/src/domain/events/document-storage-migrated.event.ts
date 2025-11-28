@@ -1,6 +1,6 @@
-import { DomainEvent } from './base.event';
 import { DocumentId } from '../value-objects';
 import { StorageProvider } from '../value-objects';
+import { DomainEvent } from './base.event';
 
 /**
  * Triggered after a document's physical file has been migrated

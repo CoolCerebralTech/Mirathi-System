@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Request } from 'express';
+import { Decode, MatchFunction, match } from 'path-to-regexp';
+
 import {
   IServiceRouter,
   ServiceRoute,
 } from '../../application/interfaces/service-router.interface';
 import { SERVICE_ROUTES } from './service-routes.config';
-import { match, MatchFunction, Decode } from 'path-to-regexp';
 
 @Injectable()
 export class ServiceRouterService implements IServiceRouter {

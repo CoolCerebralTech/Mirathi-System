@@ -1,6 +1,7 @@
 // estate-debt-added.event.ts
 import { IEvent } from '@nestjs/cqrs';
 import { DebtType } from '@prisma/client';
+
 import { AssetValue } from '../value-objects/asset-value.vo';
 
 /**

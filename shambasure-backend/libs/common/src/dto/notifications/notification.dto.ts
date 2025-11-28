@@ -1,6 +1,7 @@
-import { IsEnum, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { NotificationStatus, NotificationChannel } from '../../enums';
+import { IsEnum, IsOptional } from 'class-validator';
+
+import { NotificationChannel, NotificationStatus } from '../../enums';
 import { BaseResponseDto } from '../shared/base.response.dto';
 import { PaginationQueryDto } from '../shared/pagination.dto';
 

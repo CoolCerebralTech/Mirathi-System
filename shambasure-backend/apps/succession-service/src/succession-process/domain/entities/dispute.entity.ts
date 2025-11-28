@@ -1,9 +1,10 @@
 import { AggregateRoot } from '@nestjs/cqrs';
 import { DisputeStatus, DisputeType } from '@prisma/client';
-import { DisputeFiledEvent } from '../events/dispute-filed.event';
-import { DisputeResolvedEvent } from '../events/dispute-resolved.event';
-import { DisputeMediationStartedEvent } from '../events/dispute-mediation-started.event';
+
 import { DisputeCourtFiledEvent } from '../events/dispute-court-filed.event';
+import { DisputeFiledEvent } from '../events/dispute-filed.event';
+import { DisputeMediationStartedEvent } from '../events/dispute-mediation-started.event';
+import { DisputeResolvedEvent } from '../events/dispute-resolved.event';
 import { DisputeStatusChangedEvent } from '../events/dispute-status-changed.event';
 import { LegalGrounds } from '../value-objects/legal-grounds.vo';
 

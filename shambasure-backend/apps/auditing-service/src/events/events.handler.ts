@@ -1,11 +1,12 @@
 // ============================================================================
 // events.handler.ts - Universal Event Consumer
 // ============================================================================
-
 import { Logger as EventLogger } from '@nestjs/common';
-import { EventPattern as EventPatternDecorator } from '@nestjs/microservices';
 import { Controller as EventController } from '@nestjs/common';
+import { EventPattern as EventPatternDecorator } from '@nestjs/microservices';
+
 import * as common from '@shamba/common';
+
 import { AuditingService as EventAuditingService } from '../services/auditing.service';
 
 /**

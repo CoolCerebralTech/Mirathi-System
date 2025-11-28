@@ -1,20 +1,21 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException, Inject } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+
 import type {
   IDocumentRepository,
   IDocumentVerificationAttemptQueryRepository,
 } from '../../domain/interfaces';
-import { Actor, DocumentId, UserId, VerificationAttemptId } from '../../domain/value-objects';
-import { DocumentVerificationAttemptMapper } from '../mappers';
-import {
-  DocumentVerificationHistoryResponseDto,
-  VerifierPerformanceResponseDto,
-  VerificationAttemptDto,
-} from '../dtos/verification-history-response.dto';
 import { DocumentVerificationAttempt } from '../../domain/models/document-verification.model';
+import { Actor, DocumentId, UserId, VerificationAttemptId } from '../../domain/value-objects';
 import {
   DOCUMENT_REPOSITORY,
   DOCUMENT_VERIFICATION_QUERY_REPOSITORY,
 } from '../../injection.tokens';
+import {
+  DocumentVerificationHistoryResponseDto,
+  VerificationAttemptDto,
+  VerifierPerformanceResponseDto,
+} from '../dtos/verification-history-response.dto';
+import { DocumentVerificationAttemptMapper } from '../mappers';
 
 // Define proper types based on the repository interface
 export interface VerificationQueryOptions {

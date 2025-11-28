@@ -1,4 +1,5 @@
-import { FamilyRelationship as PrismaRelationship, Prisma } from '@prisma/client';
+import { Prisma, FamilyRelationship as PrismaRelationship } from '@prisma/client';
+
 import { Relationship, RelationshipMetadata } from '../../../domain/entities/relationship.entity';
 
 /**

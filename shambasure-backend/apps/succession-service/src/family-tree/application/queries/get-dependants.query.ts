@@ -1,7 +1,8 @@
+import { ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
+
 import { FamilyMemberRepositoryInterface } from '../../domain/interfaces/family-member.repository.interface';
+import { FamilyRepositoryInterface } from '../../domain/interfaces/family.repository.interface';
 import {
   DependantCalculatorService,
   IdentifiedDependant,

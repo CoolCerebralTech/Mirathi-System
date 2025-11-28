@@ -1,15 +1,15 @@
+import { RelationshipType } from '@prisma/client';
 import {
-  IsString,
+  IsBoolean,
+  IsDateString,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
-  IsEnum,
-  IsDateString,
-  IsBoolean,
+  IsString,
   IsUUID,
-  ValidateIf,
   Matches,
+  ValidateIf,
 } from 'class-validator';
-import { RelationshipType } from '@prisma/client';
 
 export class AddFamilyMemberDto {
   @IsString()

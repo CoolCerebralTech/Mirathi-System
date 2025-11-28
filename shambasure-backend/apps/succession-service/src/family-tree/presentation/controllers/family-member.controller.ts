@@ -1,23 +1,25 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
-  UseGuards,
-  Req,
+  Get,
   HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { JwtAuthGuard } from '@shamba/auth';
-import { FamilyMemberService } from '../../application/services/family-member.service';
+
 import { AddFamilyMemberDto } from '../../application/dto/request/add-family-member.dto';
 import { UpdateFamilyMemberDto } from '../../application/dto/request/update-family-member.dto';
 import { FamilyMemberResponseDto } from '../../application/dto/response/family-member.response.dto';
 // Import the response type for potential heirs
 import { PotentialHeirResponse } from '../../application/queries/find-potential-heirs.query';
+import { FamilyMemberService } from '../../application/services/family-member.service';
 
 interface RequestWithUser extends Request {
   user: { userId: string; email: string; role: string };

@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+
 import {
-  INotificationService,
   EmailNotification,
+  INotificationService,
   SMSNotification,
 } from './interfaces/notification.interface';
 

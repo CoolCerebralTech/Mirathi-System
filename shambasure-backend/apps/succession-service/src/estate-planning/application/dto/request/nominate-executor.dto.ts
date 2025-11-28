@@ -1,11 +1,11 @@
 import {
-  IsString,
-  IsNotEmpty,
+  IsBoolean,
   IsEmail,
+  IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsPhoneNumber,
-  IsBoolean,
-  IsNumber,
+  IsString,
   Min,
   ValidateIf,
 } from 'class-validator';

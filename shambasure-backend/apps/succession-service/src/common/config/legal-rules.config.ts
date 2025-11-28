@@ -1,27 +1,27 @@
 import { registerAs } from '@nestjs/config';
 
 import {
-  KENYAN_LEGAL_REQUIREMENTS,
-  SUCCESSION_TIMEFRAMES,
-  KENYAN_COURTS,
-  KENYAN_FAMILY_LAW,
-} from '../constants/kenyan-law.constants';
-import {
+  CONDITIONAL_BEQUESTS,
   DEBT_PRIORITY,
+  DEPENDANTS,
   INTESTATE_DISTRIBUTION,
   MINOR_PROTECTION,
-  DEPENDANTS,
-  TESTATE_DISTRIBUTION,
-  CONDITIONAL_BEQUESTS,
-  TAX_CONSIDERATIONS,
   POLYGAMY_DISTRIBUTION,
+  TAX_CONSIDERATIONS,
+  TESTATE_DISTRIBUTION,
 } from '../constants/distribution-rules.constants';
 import {
-  DISPUTE_RULES as DisputeSystemRules,
-  WITNESS_RULES,
-  EXECUTOR_RULES as ExecutorSystemRules,
+  KENYAN_COURTS,
+  KENYAN_FAMILY_LAW,
+  KENYAN_LEGAL_REQUIREMENTS,
+  SUCCESSION_TIMEFRAMES,
+} from '../constants/kenyan-law.constants';
+import {
   BENEFICIARY_RULES,
   DISTRIBUTION_RULES,
+  DISPUTE_RULES as DisputeSystemRules,
+  EXECUTOR_RULES as ExecutorSystemRules,
+  WITNESS_RULES,
 } from '../constants/succession-rules.constants';
 
 /**

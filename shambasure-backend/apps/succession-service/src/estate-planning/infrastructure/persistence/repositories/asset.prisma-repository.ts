@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { AssetOwnershipType, AssetType, Prisma } from '@prisma/client';
+
 import { PrismaService } from '@shamba/database';
-import { AssetType, AssetOwnershipType, Prisma } from '@prisma/client';
+
 import { Asset as AssetEntity } from '../../../domain/entities/asset.entity';
 import { AssetRepositoryInterface } from '../../../domain/interfaces/asset.repository.interface';
 import { AssetMapper } from '../mappers/asset.mapper';

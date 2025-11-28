@@ -1,4 +1,5 @@
 import { WitnessStatus } from '@prisma/client';
+
 import { Witness } from '../entities/witness.entity';
 
 /**

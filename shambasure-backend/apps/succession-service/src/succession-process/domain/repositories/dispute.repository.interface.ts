@@ -1,5 +1,6 @@
+import { DisputeStatus, DisputeType } from '@prisma/client';
+
 import { Dispute } from '../entities/dispute.entity';
-import { DisputeType, DisputeStatus } from '@prisma/client';
 
 export interface DisputeRepositoryInterface {
   // Basic CRUD operations

@@ -1,19 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '@shamba/database';
 import { Prisma } from '@prisma/client';
 
+import { PrismaService } from '@shamba/database';
+
 import {
-  IDocumentVerificationAttemptQueryRepository,
   DocumentVerificationAttemptDTO,
-  FindVerificationAttemptsFilters,
-  VerificationQueryOptions,
-  VerifierPerformance,
   DocumentVerificationHistory,
-  VerificationTimelineEntry,
+  FindVerificationAttemptsFilters,
+  IDocumentVerificationAttemptQueryRepository,
   VerificationComplianceAudit,
   VerificationMetrics,
+  VerificationQueryOptions,
+  VerificationTimelineEntry,
+  VerifierPerformance,
 } from '../../domain/interfaces';
-import { VerificationAttemptId, DocumentId, UserId } from '../../domain/value-objects';
+import { DocumentId, UserId, VerificationAttemptId } from '../../domain/value-objects';
 
 type VerificationDtoPayload = Prisma.DocumentVerificationAttemptGetPayload<{
   select: {

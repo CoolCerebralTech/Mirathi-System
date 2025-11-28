@@ -1,9 +1,11 @@
-import { RelationshipType } from '@shamba/common';
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { UserProfileEntity } from '../../infrastructure/persistence/entities/account.entity';
+
+import { RelationshipType } from '@shamba/common';
+
 import { Address, NextOfKin, UserProfile } from '../../domain/models';
 import { PhoneNumber } from '../../domain/value-objects';
+import { UserProfileEntity } from '../../infrastructure/persistence/entities/account.entity';
 import {
   AddressDto,
   GetMyProfileResponseDto,

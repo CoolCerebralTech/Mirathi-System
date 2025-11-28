@@ -1,8 +1,9 @@
-import { WillWitness as PrismaWitness, Prisma } from '@prisma/client';
+import { Prisma, WillWitness as PrismaWitness } from '@prisma/client';
+
 import {
   Witness,
-  WitnessReconstituteProps,
   WitnessAddress,
+  WitnessReconstituteProps,
 } from '../../../domain/entities/witness.entity';
 
 export class WitnessMapper {

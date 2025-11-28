@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { Executor } from '../entities/executor.entity';
-import { EXECUTOR_RULES } from '../../../common/constants/succession-rules.constants';
+
 import { KENYAN_LEGAL_REQUIREMENTS } from '../../../common/constants/kenyan-law.constants';
+import { EXECUTOR_RULES } from '../../../common/constants/succession-rules.constants';
+import { Executor } from '../entities/executor.entity';
 
 export interface ExecutorPolicyResult {
   isEligible: boolean;

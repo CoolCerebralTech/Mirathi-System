@@ -1,4 +1,4 @@
-import { VerificationAttemptId, DocumentId, UserId, DocumentStatus } from '../value-objects';
+import { DocumentId, DocumentStatus, UserId, VerificationAttemptId } from '../value-objects';
 
 // ============================================================================
 // Data Transfer Objects (DTOs) and Query Models

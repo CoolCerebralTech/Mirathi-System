@@ -1,5 +1,5 @@
-import { IsString, IsNotEmpty, IsBoolean, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsBoolean, IsNotEmpty, IsString, ValidateNested } from 'class-validator';
 
 class CapacityDeclarationDto {
   @IsBoolean()

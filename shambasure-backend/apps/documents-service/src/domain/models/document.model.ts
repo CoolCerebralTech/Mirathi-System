@@ -1,41 +1,42 @@
 import {
+  DocumentDeletedEvent,
+  DocumentDetailsUpdatedEvent,
+  DocumentDownloadedEvent,
+  DocumentExpiredEvent,
+  DocumentIndexedEvent,
+  DocumentMetadataUpdatedEvent,
+  DocumentRejectedEvent,
+  DocumentRestoredEvent,
+  DocumentSharedEvent,
+  DocumentUploadedEvent,
+  DocumentVerifiedEvent,
+  DocumentVersionedEvent,
+  DocumentViewedEvent,
+  DocumentVisibilityChangedEvent,
+  DomainEvent,
+} from '../events';
+import {
   Actor,
-  DocumentId,
-  UserId,
-  WillId,
+  AllowedViewers,
   AssetId,
   DocumentCategory,
+  DocumentChecksum,
+  DocumentId,
   DocumentStatus,
-  RejectionReason,
-  StorageProvider,
-  AllowedViewers,
+  DocumentStatusEnum,
   FileName,
   FileSize,
   MimeType,
-  DocumentChecksum,
-  StoragePath,
-  DocumentStatusEnum,
+  RejectionReason,
   RetentionPolicy,
+  StoragePath,
+  StorageProvider,
+  UserId,
+  WillId,
 } from '../value-objects';
-import {
-  DomainEvent,
-  DocumentUploadedEvent,
-  DocumentVerifiedEvent,
-  DocumentRejectedEvent,
-  DocumentVersionedEvent,
-  DocumentDeletedEvent,
-  DocumentDownloadedEvent,
-  DocumentViewedEvent,
-  DocumentSharedEvent,
-  DocumentRestoredEvent,
-  DocumentMetadataUpdatedEvent,
-  DocumentVisibilityChangedEvent,
-  DocumentExpiredEvent,
-  DocumentIndexedEvent,
-  DocumentDetailsUpdatedEvent,
-} from '../events';
-import { DocumentVersion } from './document-version.model';
 import { DocumentVerificationAttempt } from './document-verification.model';
+import { DocumentVersion } from './document-version.model';
+
 // ============================================================================
 // Custom Domain Errors
 // ============================================================================

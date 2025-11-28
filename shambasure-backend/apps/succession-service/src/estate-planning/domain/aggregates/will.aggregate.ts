@@ -1,13 +1,14 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { WillStatus, BequestType } from '@prisma/client';
-import { Will, FuneralWishes, DigitalAssetInstructions } from '../entities/will.entity';
+import { BequestType, WillStatus } from '@prisma/client';
+
+import { KENYAN_LEGAL_REQUIREMENTS } from '../../../common/constants/kenyan-law.constants';
 import { Asset } from '../entities/asset.entity';
 import { BeneficiaryAssignment } from '../entities/beneficiary.entity';
 import { Executor } from '../entities/executor.entity';
+import { DigitalAssetInstructions, FuneralWishes, Will } from '../entities/will.entity';
 import { Witness } from '../entities/witness.entity';
 import { LegalCapacity } from '../value-objects/legal-capacity.vo';
 import { SharePercentage } from '../value-objects/share-percentage.vo';
-import { KENYAN_LEGAL_REQUIREMENTS } from '../../../common/constants/kenyan-law.constants';
 
 /**
  * Will Aggregate Root - Main Aggregate for Kenyan Succession Law Compliance

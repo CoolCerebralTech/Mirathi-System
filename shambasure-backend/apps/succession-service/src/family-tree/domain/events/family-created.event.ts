@@ -1,4 +1,6 @@
-import { KenyanFamilyMetadata } from '../entities/family.entity'; // Adjust the path if different
+import { KenyanFamilyMetadata } from '../entities/family.entity';
+
+// Adjust the path if different
 
 export class FamilyCreatedEvent {
   constructor(

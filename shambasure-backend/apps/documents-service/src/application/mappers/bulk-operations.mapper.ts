@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { BulkOperationResponseDto } from '../dtos/bulk-operations.dto';
+
 import { DocumentId } from '../../domain/value-objects';
+import { BulkOperationResponseDto } from '../dtos/bulk-operations.dto';
 
 export interface BulkOperationResult {
   successCount: number;

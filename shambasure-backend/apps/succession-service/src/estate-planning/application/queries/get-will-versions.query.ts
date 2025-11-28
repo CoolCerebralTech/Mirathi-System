@@ -1,5 +1,6 @@
+import { ForbiddenException, Inject, NotFoundException } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
+
 import type { WillRepositoryInterface } from '../../domain/interfaces/will.repository.interface';
 
 export class GetWillVersionsQuery {

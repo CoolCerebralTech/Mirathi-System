@@ -2,28 +2,26 @@ import { Injectable } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { WillStatus } from '@prisma/client';
 
+import { ActivateWillCommand } from '../commands/activate-will.command';
 // Commands
 import { CreateWillCommand } from '../commands/create-will.command';
-import { UpdateWillCommand } from '../commands/update-will.command';
-import { ActivateWillCommand } from '../commands/activate-will.command';
 import { RevokeWillCommand } from '../commands/revoke-will.command';
 import { SignWillCommand } from '../commands/sign-will.command';
-
-// Queries
-import { GetWillQuery } from '../queries/get-will.query';
-import { ListWillsQuery } from '../queries/list-wills.query';
+import { UpdateWillCommand } from '../commands/update-will.command';
+// DTOs
+import { CreateWillDto } from '../dto/request/create-will.dto';
+import { RevokeWillDto } from '../dto/request/revoke-will.dto';
+import { SignWillDto } from '../dto/request/sign-will.dto';
+import { UpdateWillDto } from '../dto/request/update-will.dto';
+import { WillResponseDto } from '../dto/response/will.response.dto';
 import {
   GetWillCompletenessQuery,
   WillCompletenessResponse,
 } from '../queries/get-will-completeness.query';
 import { GetWillVersionsQuery, WillVersionSummary } from '../queries/get-will-versions.query';
-
-// DTOs
-import { CreateWillDto } from '../dto/request/create-will.dto';
-import { UpdateWillDto } from '../dto/request/update-will.dto';
-import { RevokeWillDto } from '../dto/request/revoke-will.dto';
-import { SignWillDto } from '../dto/request/sign-will.dto';
-import { WillResponseDto } from '../dto/response/will.response.dto';
+// Queries
+import { GetWillQuery } from '../queries/get-will.query';
+import { ListWillsQuery } from '../queries/list-wills.query';
 
 @Injectable()
 export class WillService {

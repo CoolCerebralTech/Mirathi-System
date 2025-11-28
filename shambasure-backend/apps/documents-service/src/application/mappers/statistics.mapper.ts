@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
+
+import { DocumentStats, VerificationMetrics } from '../../domain/interfaces';
 import {
+  DashboardAnalyticsResponseDto,
   DocumentAnalyticsResponseDto,
   StorageAnalyticsResponseDto,
-  VerificationMetricsResponseDto,
   UploadAnalyticsResponseDto,
-  DashboardAnalyticsResponseDto,
+  VerificationMetricsResponseDto,
 } from '../dtos/analytics-response.dto';
-import { DocumentStats, VerificationMetrics } from '../../domain/interfaces';
 
 /**
  * Maps various raw statistics and analytics data into their respective DTOs.

@@ -1,4 +1,5 @@
-import { Debt as PrismaDebt, Prisma } from '@prisma/client';
+import { Prisma, Debt as PrismaDebt } from '@prisma/client';
+
 import { Debt, DebtReconstituteProps } from '../../../domain/entities/debt.entity';
 
 export class DebtMapper {

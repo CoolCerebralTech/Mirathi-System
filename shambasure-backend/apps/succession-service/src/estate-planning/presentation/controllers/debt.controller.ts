@@ -1,27 +1,29 @@
 import {
+  Body,
   Controller,
   Get,
-  Post,
-  Body,
-  Param,
-  UseGuards,
-  Req,
-  Query,
   HttpStatus,
+  Param,
+  Post,
+  Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
   ApiBearerAuth,
+  ApiOperation,
   ApiParam,
   ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
+
 import { JwtAuthGuard } from '@shamba/auth';
-import { DebtService } from '../../application/services/debt.service';
+
 import { AddDebtDto } from '../../application/dto/request/add-debt.dto';
 import { RecordDebtPaymentDto } from '../../application/dto/request/record-debt-payment.dto';
 import { DebtResponseDto } from '../../application/dto/response/debt.response.dto';
+import { DebtService } from '../../application/services/debt.service';
 
 interface RequestWithUser extends Request {
   user: { userId: string; email: string; role: string };

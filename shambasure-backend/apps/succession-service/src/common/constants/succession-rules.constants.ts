@@ -3,9 +3,9 @@
  * Covers: executors, beneficiaries, witnesses, disputes, and distribution.
  * Based on Kenyan succession practice (Cap 160) + general estate planning standards.
  */
+import { MINOR_PROTECTION } from './distribution-rules.constants';
 import { KENYAN_LEGAL_REQUIREMENTS } from './kenyan-law.constants';
 import { SUCCESSION_TIMEFRAMES } from './kenyan-law.constants';
-import { MINOR_PROTECTION } from './distribution-rules.constants';
 import { INTESTATE_PRIORITY } from './relationship-types.constants';
 
 /* -----------------------------------------------------

@@ -1,12 +1,12 @@
+import axios from 'axios';
 import {
-  registerDecorator,
+  IsStrongPassword,
   ValidationOptions,
   ValidatorConstraint,
   ValidatorConstraintInterface,
-  IsStrongPassword,
+  registerDecorator,
 } from 'class-validator';
 import { createHash } from 'crypto';
-import axios from 'axios';
 
 // ============================================================================
 // CONSTRAINT 1: Check against Have I Been Pwned (HIBP) database
