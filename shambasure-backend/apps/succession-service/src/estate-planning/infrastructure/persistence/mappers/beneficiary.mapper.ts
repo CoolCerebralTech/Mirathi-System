@@ -1,9 +1,4 @@
-import {
-  BequestConditionType,
-  BequestType,
-  Prisma,
-  BeneficiaryAssignment as PrismaBeneficiary,
-} from '@prisma/client';
+import { Prisma, BeneficiaryAssignment as PrismaBeneficiary } from '@prisma/client';
 
 import {
   BeneficiaryAssignment,
@@ -15,53 +10,66 @@ export class BeneficiaryMapper {
    * Converts a Prisma Database Model to a Domain Entity
    */
   static toDomain(raw: PrismaBeneficiary): BeneficiaryAssignment {
-    // 1. Handle Decimal Conversions safely with validation
-    const sharePercentage = raw.sharePercent ? this.safeDecimalToNumber(raw.sharePercent) : null;
-    const specificAmountVal = raw.specificAmount
-      ? this.safeDecimalToNumber(raw.specificAmount)
-      : null;
-    const alternateShare = raw.alternateSharePercent
-      ? this.safeDecimalToNumber(raw.alternateSharePercent)
-      : null;
+    // 1. Safe JSON extraction for external address
+    const externalAddress = this.parseExternalAddress(raw.externalAddress);
 
-    // 2. Construct Specific Amount Object with proper asset value reconstruction
-    const specificAmountData =
-      specificAmountVal !== null
-        ? {
-            amount: specificAmountVal,
-            currency: 'KES', // Kenyan succession law default
-            valuationDate: raw.createdAt,
-          }
-        : null;
-
-    // 3. Construct Reconstruction Props
+    // 2. Construct Reconstruction Props with ALL fields
     const props: BeneficiaryReconstituteProps = {
+      // Core Assignment Properties
       id: raw.id,
       willId: raw.willId,
       assetId: raw.assetId,
 
-      // Identity Flattening
-      userId: raw.beneficiaryId,
+      // Beneficiary Identity
+      beneficiaryType: raw.beneficiaryType,
+      userId: raw.userId,
       familyMemberId: raw.familyMemberId,
-      externalName: raw.externalBeneficiaryName,
-      externalContact: raw.externalBeneficiaryContact,
-      relationship: null, // Remove metadata extraction since field doesn't exist
+      externalName: raw.externalName,
+      externalContact: raw.externalContact,
+      externalIdentification: raw.externalIdentification,
+      externalAddress: externalAddress,
 
+      // Kenyan Relationship Context
+      relationshipCategory: raw.relationshipCategory,
+      specificRelationship: raw.specificRelationship,
+      isDependant: raw.isDependant,
+
+      // Bequest Configuration
       bequestType: raw.bequestType,
-      sharePercentage: sharePercentage,
-      specificAmount: specificAmountData,
+      sharePercent: raw.sharePercent, // Raw number from Prisma
+      specificAmount: raw.specificAmount,
+      currency: raw.currency,
 
+      // Conditions for Kenyan Law
       conditionType: raw.conditionType,
       conditionDetails: raw.conditionDetails,
+      conditionMet: raw.conditionMet,
+      conditionDeadline: raw.conditionDeadline,
 
-      alternateBeneficiaryId: raw.alternateBeneficiaryId,
-      alternateShare: alternateShare,
+      // Life Interest Support
+      hasLifeInterest: raw.hasLifeInterest,
+      lifeInterestDuration: raw.lifeInterestDuration,
+      lifeInterestEndsAt: raw.lifeInterestEndsAt,
 
+      // Alternate Beneficiary
+      alternateAssignmentId: raw.alternateAssignmentId,
+
+      // Distribution Tracking
       distributionStatus: raw.distributionStatus,
       distributedAt: raw.distributedAt,
       distributionNotes: raw.distributionNotes,
+      distributionMethod: raw.distributionMethod,
 
+      // Legal Compliance
+      isSubjectToDependantsProvision: raw.isSubjectToDependantsProvision,
+      courtApprovalRequired: raw.courtApprovalRequired,
+      courtApprovalObtained: raw.courtApprovalObtained,
+
+      // Priority & Order
       priority: raw.priority,
+      bequestPriority: raw.bequestPriority,
+
+      // Audit Trail
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt,
     };
@@ -75,56 +83,70 @@ export class BeneficiaryMapper {
   static toPersistence(
     entity: BeneficiaryAssignment,
   ): Prisma.BeneficiaryAssignmentUncheckedCreateInput {
-    // 1. Extract Value Objects
-    const identity = entity.beneficiaryIdentity;
-    const share = entity.sharePercentage;
-    const specificAmount = entity.specificAmount;
-    const alternateShare = entity.alternateShare;
+    // Prepare JSON objects with proper Prisma null handling
+    const externalAddressJson = entity.externalAddress
+      ? (JSON.parse(JSON.stringify(entity.externalAddress)) as Prisma.JsonObject)
+      : Prisma.JsonNull;
 
-    // 2. Prepare Decimal Values with proper Prisma types
-    const sharePercentDecimal = share
-      ? new Prisma.Decimal(share.getValue())
-      : new Prisma.Decimal(0);
-    const specificAmountDecimal = specificAmount
-      ? new Prisma.Decimal(specificAmount.getAmount())
-      : null;
-    const alternateShareDecimal = alternateShare
-      ? new Prisma.Decimal(alternateShare.getValue())
-      : null;
+    // Convert SharePercentage value object to raw number
+    const sharePercentValue = entity.sharePercent ? entity.sharePercent.getValue() : null;
 
-    // 3. Construct Prisma Object
     return {
+      // Core Assignment Properties
       id: entity.id,
       willId: entity.willId,
       assetId: entity.assetId,
 
-      // Identity Mapping
-      beneficiaryId: identity.userId || null,
-      familyMemberId: identity.familyMemberId || null,
-      externalBeneficiaryName: identity.externalName || null,
-      externalBeneficiaryContact: identity.externalContact || null,
+      // Beneficiary Identity
+      beneficiaryType: entity.beneficiaryType,
+      userId: entity.userId,
+      familyMemberId: entity.familyMemberId,
+      externalName: entity.externalName,
+      externalContact: entity.externalContact,
+      externalIdentification: entity.externalIdentification,
+      externalAddress: externalAddressJson,
 
-      // Bequest Details
+      // Kenyan Relationship Context
+      relationshipCategory: entity.relationshipCategory,
+      specificRelationship: entity.specificRelationship,
+      isDependant: entity.isDependant,
+
+      // Bequest Configuration
       bequestType: entity.bequestType,
-      sharePercent: sharePercentDecimal, // Fixed: Always provide Decimal, never null
-      specificAmount: specificAmountDecimal,
+      sharePercent: sharePercentValue, // Convert to raw number
+      specificAmount: entity.specificAmount,
+      currency: entity.currency,
 
-      // Conditions
-      hasCondition: entity.conditionType !== BequestConditionType.NONE,
+      // Conditions for Kenyan Law
       conditionType: entity.conditionType,
       conditionDetails: entity.conditionDetails,
+      conditionMet: entity.conditionMet,
+      conditionDeadline: entity.conditionDeadline,
 
-      // Alternates
-      alternateBeneficiaryId: entity.alternateBeneficiaryId,
-      alternateSharePercent: alternateShareDecimal,
+      // Life Interest Support
+      hasLifeInterest: entity.hasLifeInterest,
+      lifeInterestDuration: entity.lifeInterestDuration,
+      lifeInterestEndsAt: entity.lifeInterestEndsAt,
 
-      // Status
+      // Alternate Beneficiary
+      alternateAssignmentId: entity.alternateAssignmentId,
+
+      // Distribution Tracking
       distributionStatus: entity.distributionStatus,
       distributedAt: entity.distributedAt,
       distributionNotes: entity.distributionNotes,
+      distributionMethod: entity.distributionMethod,
 
+      // Legal Compliance
+      isSubjectToDependantsProvision: entity.isSubjectToDependantsProvision,
+      courtApprovalRequired: entity.courtApprovalRequired,
+      courtApprovalObtained: entity.courtApprovalObtained,
+
+      // Priority & Order
       priority: entity.priority,
+      bequestPriority: entity.bequestPriority,
 
+      // Audit Trail
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
     };
@@ -138,16 +160,9 @@ export class BeneficiaryMapper {
   ): Prisma.BeneficiaryAssignmentUncheckedUpdateInput {
     const full = this.toPersistence(entity);
 
-    // Omit immutable fields so they are not included in update
     const updatableFields: Omit<
       Prisma.BeneficiaryAssignmentUncheckedCreateInput,
-      | 'id'
-      | 'willId'
-      | 'assetId'
-      | 'beneficiaryId'
-      | 'familyMemberId'
-      | 'externalBeneficiaryName'
-      | 'createdAt'
+      'id' | 'willId' | 'assetId' | 'beneficiaryType' | 'createdAt'
     > = full;
 
     return {
@@ -157,20 +172,16 @@ export class BeneficiaryMapper {
   }
 
   /**
-   * Safe decimal to number conversion with validation
+   * Parse external address from Prisma JSON field
    */
-  private static safeDecimalToNumber(decimal: Prisma.Decimal): number {
-    try {
-      const value = decimal.toNumber();
-      if (isNaN(value) || !isFinite(value)) {
-        throw new Error('Invalid decimal value');
-      }
-      return value;
-    } catch (error) {
-      throw new Error(
-        `Failed to convert decimal to number: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
+  private static parseExternalAddress(
+    externalAddress: Prisma.JsonValue,
+  ): Record<string, any> | null {
+    if (!externalAddress || typeof externalAddress !== 'object' || Array.isArray(externalAddress)) {
+      return null;
     }
+
+    return externalAddress as Record<string, any>;
   }
 
   /**
@@ -187,49 +198,5 @@ export class BeneficiaryMapper {
     entities: BeneficiaryAssignment[],
   ): Prisma.BeneficiaryAssignmentUncheckedCreateInput[] {
     return entities.map((entity) => this.toPersistence(entity));
-  }
-
-  /**
-   * Validate bequest type compatibility for Kenyan law
-   */
-  static validateBequestTypeCompatibility(
-    bequestType: BequestType,
-    hasShare: boolean,
-    hasSpecificAmount: boolean,
-  ): boolean {
-    switch (bequestType) {
-      case BequestType.PERCENTAGE:
-      case BequestType.RESIDUARY:
-        return hasShare && !hasSpecificAmount;
-
-      case BequestType.SPECIFIC:
-        return hasSpecificAmount && !hasShare;
-
-      case BequestType.CONDITIONAL:
-      case BequestType.TRUST:
-        return true; // Can have either or both depending on configuration
-
-      default:
-        return false;
-    }
-  }
-
-  /**
-   * Get display information for beneficiary (useful for UI/API responses)
-   */
-  static getBeneficiaryDisplayInfo(entity: BeneficiaryAssignment): {
-    name: string;
-    type: string;
-    relationship?: string;
-    contact?: string;
-  } {
-    const identity = entity.beneficiaryIdentity;
-
-    return {
-      name: entity.getBeneficiaryName(),
-      type: entity.getBeneficiaryType(),
-      relationship: identity.relationship,
-      contact: identity.externalContact,
-    };
   }
 }

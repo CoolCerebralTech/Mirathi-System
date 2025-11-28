@@ -26,7 +26,7 @@ export class AssetMapper {
       type: raw.type,
       ownerId: raw.ownerId,
       ownershipType: raw.ownershipType,
-      ownershipShare: raw.ownershipShare.toNumber(),
+      ownershipShare: raw.ownershipShare ? Number(raw.ownershipShare) : 100.0, // Default to 100 if null
 
       // Kenyan Location Data
       county: raw.county,
@@ -43,7 +43,7 @@ export class AssetMapper {
       identificationDetails: identificationDetails,
 
       // Valuation
-      currentValue: raw.currentValue ? raw.currentValue.toNumber() : null,
+      currentValue: raw.currentValue ? Number(raw.currentValue) : null,
       currency: raw.currency,
       valuationDate: raw.valuationDate,
       valuationSource: raw.valuationSource,
@@ -53,7 +53,7 @@ export class AssetMapper {
       isEncumbered: raw.isEncumbered,
       encumbranceType: raw.encumbranceType,
       encumbranceDetails: raw.encumbranceDetails,
-      encumbranceAmount: raw.encumbranceAmount ? raw.encumbranceAmount.toNumber() : null,
+      encumbranceAmount: raw.encumbranceAmount ? Number(raw.encumbranceAmount) : null,
 
       // Matrimonial Property Status
       isMatrimonialProperty: raw.isMatrimonialProperty,
@@ -99,7 +99,7 @@ export class AssetMapper {
       type: entity.type,
       ownerId: entity.ownerId,
       ownershipType: entity.ownershipType,
-      ownershipShare: new Prisma.Decimal(entity.ownershipShare),
+      ownershipShare: entity.ownershipShare,
 
       // Kenyan Location Data
       county: entity.county,
@@ -116,7 +116,7 @@ export class AssetMapper {
       identificationDetails: identificationDetailsJson,
 
       // Valuation
-      currentValue: entity.currentValue ? new Prisma.Decimal(entity.currentValue) : null,
+      currentValue: entity.currentValue,
       currency: entity.currency,
       valuationDate: entity.valuationDate,
       valuationSource: entity.valuationSource,
@@ -126,9 +126,7 @@ export class AssetMapper {
       isEncumbered: entity.isEncumbered,
       encumbranceType: entity.encumbranceType,
       encumbranceDetails: entity.encumbranceDetails,
-      encumbranceAmount: entity.encumbranceAmount
-        ? new Prisma.Decimal(entity.encumbranceAmount)
-        : null,
+      encumbranceAmount: entity.encumbranceAmount,
 
       // Matrimonial Property
       isMatrimonialProperty: entity.isMatrimonialProperty,
@@ -156,14 +154,16 @@ export class AssetMapper {
    * Excludes immutable fields and handles partial updates
    */
   static toUpdatePersistence(entity: Asset): Prisma.AssetUncheckedUpdateInput {
-    const persistenceData = this.toPersistence(entity);
+    const full = this.toPersistence(entity);
 
-    // Remove immutable fields for update operations
-    const { id, ownerId, type, createdAt, ...updatableFields } = persistenceData;
+    const updatableFields: Omit<
+      Prisma.AssetUncheckedCreateInput,
+      'id' | 'ownerId' | 'type' | 'createdAt'
+    > = full;
 
     return {
       ...updatableFields,
-      updatedAt: new Date(), // Always update the timestamp
+      updatedAt: new Date(),
     };
   }
 
