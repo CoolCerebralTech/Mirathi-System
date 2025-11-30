@@ -1,8 +1,17 @@
-export class FamilyMemberRemovedEvent {
+import { IEvent } from '@nestjs/cqrs';
+
+/**
+ * Event emitted when a family member is unlinked from a family.
+ *
+ * Triggers:
+ * - Recalculate family statistics
+ * - Update family tree visualization
+ * - Remove member's relationships
+ * - Check if member was in active wills (warning)
+ */
+export class FamilyMemberRemovedEvent implements IEvent {
   constructor(
-    public readonly familyMemberId: string,
     public readonly familyId: string,
-    public readonly reason: string, // Aggregate always provides a fallback string
-    public readonly timestamp: Date = new Date(),
+    public readonly memberId: string,
   ) {}
 }

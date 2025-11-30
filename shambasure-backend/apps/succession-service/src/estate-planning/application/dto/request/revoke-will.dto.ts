@@ -1,17 +1,15 @@
+import { RevocationMethod } from '@prisma/client';
 import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
-
-export enum RevocationMethod {
-  NEW_WILL = 'NEW_WILL',
-  DESTRUCTION = 'DESTRUCTION',
-  WRITTEN_REVOCATION = 'WRITTEN_REVOCATION',
-  MARRIAGE = 'MARRIAGE', // Section 19: Marriage revokes previous will
-}
 
 export class RevokeWillDto {
   @IsString()
   @IsNotEmpty()
-  reason: string;
+  revokedBy: string;
+
+  @IsString()
+  @IsNotEmpty()
+  revocationReason: string;
 
   @IsEnum(RevocationMethod)
-  method: RevocationMethod;
+  revocationMethod: RevocationMethod;
 }

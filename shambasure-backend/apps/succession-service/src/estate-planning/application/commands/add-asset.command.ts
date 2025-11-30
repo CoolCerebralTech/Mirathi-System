@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Asset } from '../../domain/entities/asset.entity';
 import type { AssetRepositoryInterface } from '../../domain/interfaces/asset.repository.interface';
 import { AssetValue } from '../../domain/value-objects/asset-value.vo';
-import { AddAssetDto } from '../dto/request/add-asset.dto';
+import { AddAssetDto } from '../dto/request/create-asset.dto';
 
 export class AddAssetCommand {
   constructor(

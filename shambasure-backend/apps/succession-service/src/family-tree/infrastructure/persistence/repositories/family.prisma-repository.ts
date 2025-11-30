@@ -16,7 +16,6 @@ export class FamilyPrismaRepository implements FamilyRepositoryInterface {
   // ---------------------------------------------------------
 
   async save(family: Family): Promise<void> {
-
     await this.prisma.family.upsert({
       where: { id: family.getId() },
       create: FamilyMapper.toPrismaCreate(family),

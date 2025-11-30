@@ -13,12 +13,7 @@
   "quoteProps": "as-needed",
   "jsxSingleQuote": false,
   "plugins": ["@trivago/prettier-plugin-sort-imports"],
-  "importOrder": [
-    "^react(.*)$",
-    "<THIRD_PARTY_MODULES>",
-    "^@shamba/(.*)$",
-    "^[./]"
-  ],
+  "importOrder": ["^react(.*)$", "<THIRD_PARTY_MODULES>", "^@shamba/(.*)$", "^[./]"],
   "importOrderSeparation": true,
   "importOrderSortSpecifiers": true,
   "importOrderParserPlugins": ["typescript", "classProperties", "decorators-legacy"],

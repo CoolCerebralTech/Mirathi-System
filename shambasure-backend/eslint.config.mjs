@@ -13,7 +13,7 @@ export default tseslint.config(
   // 2. Base Configurations
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
-  
+
   // 3. Prettier Integration (Must be near the end to override other formatting rules)
   eslintPluginPrettierRecommended,
 
@@ -42,22 +42,22 @@ export default tseslint.config(
       // -- TypeScript Specifics --
       '@typescript-eslint/no-explicit-any': 'off', // Pragramatic: sometimes 'any' is necessary
       '@typescript-eslint/explicit-module-boundary-types': 'off', // Inference is usually enough
-      
+
       // Floating promises are dangerous in backends (unhandled rejections crashes servers)
-      '@typescript-eslint/no-floating-promises': 'warn', 
+      '@typescript-eslint/no-floating-promises': 'warn',
 
       // Unused vars: Warn, but ignore vars starting with underscore (_)
       '@typescript-eslint/no-unused-vars': [
         'warn',
-        { 
-          argsIgnorePattern: '^_', 
+        {
+          argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',
-          caughtErrorsIgnorePattern: '^_'
+          caughtErrorsIgnorePattern: '^_',
         },
       ],
 
       // -- Safety vs Decorator Conflicts --
-      // In NestJS/Decorators, strictly typed arguments/returns can be messy. 
+      // In NestJS/Decorators, strictly typed arguments/returns can be messy.
       // We turn these OFF or WARN to prevent false positives in Controllers/DTOS.
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
@@ -72,7 +72,7 @@ export default tseslint.config(
     files: ['**/*.dto.ts'],
     rules: {
       // DTOs often use libraries like class-validator where types are inferred loosely
-      '@typescript-eslint/no-unsafe-assignment': 'off', 
+      '@typescript-eslint/no-unsafe-assignment': 'off',
     },
   },
 );

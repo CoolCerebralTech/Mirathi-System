@@ -1,7 +1,6 @@
 {
   "name": "@shamba/database",
   "version": "0.0.1",
-  
   "scripts": {
     "db:generate": "prisma generate --config ../../prisma.config.ts",
     "db:push": "prisma db push --config ../../prisma.config.ts",

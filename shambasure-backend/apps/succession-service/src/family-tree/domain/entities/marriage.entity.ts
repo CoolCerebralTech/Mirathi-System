@@ -1,798 +1,670 @@
-import { AggregateRoot } from '@nestjs/cqrs';
-import { KenyanCounty, MarriageStatus, Prisma } from '@prisma/client';
+import { KenyanCounty, MarriageType } from '@prisma/client';
 
-import { CustomaryMarriageDetailsUpdatedEvent } from '../events/customary-marriage-details-updated.event';
-import { MarriageDissolvedEvent } from '../events/marriage-dissolved.event';
-import { MarriageRegisteredEvent } from '../events/marriage-registered.event';
-
-// -----------------------------------------------------------------------------
-// VALUE OBJECTS & INTERFACES
-// -----------------------------------------------------------------------------
-
+/**
+ * Kenyan Marriage Certificate Value Object
+ *
+ * Immutable representation of official marriage registration details.
+ * Reference: Marriage Act (2014).
+ */
 export class KenyanMarriageCertificate {
   constructor(
     public readonly registrationNumber: string,
     public readonly issuingAuthority: string,
     public readonly certificateIssueDate: Date,
     public readonly registrationDistrict: string,
-  ) {}
+    public readonly certificateNumber: string,
+  ) {
+    if (!registrationNumber?.trim()) throw new Error('Registration number is required');
+    if (!issuingAuthority?.trim()) throw new Error('Issuing authority is required');
+  }
+
+  equals(other: KenyanMarriageCertificate): boolean {
+    return this.registrationNumber === other.registrationNumber;
+  }
 }
 
+/**
+ * Kenyan Marriage Officer Value Object
+ *
+ * Immutable representation of the officer who solemnized the marriage.
+ * Reference: Marriage Act (2014) - Registered Marriage Officers.
+ */
 export class KenyanMarriageOfficer {
   constructor(
     public readonly name: string,
     public readonly title: string,
     public readonly registrationNumber: string,
-    public readonly religiousDenomination: string,
+    public readonly religiousDenomination: string | null,
     public readonly licenseNumber: string,
-  ) {}
+  ) {
+    if (!name?.trim()) throw new Error('Officer name is required');
+    if (!licenseNumber?.trim()) throw new Error('License number is required');
+  }
 }
 
+/**
+ * Kenyan Marriage Location Value Object
+ *
+ * Immutable representation of marriage ceremony location.
+ */
 export class KenyanMarriageLocation {
   constructor(
     public readonly venue: string,
     public readonly county: KenyanCounty,
-    public readonly subCounty: string,
-    public readonly district: string,
-    public readonly gpsCoordinates: string,
-  ) {}
+    public readonly subCounty: string | null,
+    public readonly district: string | null,
+    public readonly gpsCoordinates: string | null,
+  ) {
+    if (!venue?.trim()) throw new Error('Venue is required');
+  }
 }
 
-// Marriage Reconstitution Interface matching Prisma schema
-export interface MarriageReconstitutionProps {
+/**
+ * Customary Marriage Details Value Object
+ *
+ * Immutable representation of traditional/customary marriage elements.
+ * Reference: Customary law practices across Kenyan communities.
+ */
+export class CustomaryMarriageDetails {
+  constructor(
+    public readonly bridePricePaid: boolean,
+    public readonly bridePriceAmount: number | null,
+    public readonly bridePriceCurrency: string,
+    public readonly elderWitnesses: readonly string[],
+    public readonly ceremonyLocation: string,
+    public readonly traditionalCeremonyType: string | null,
+    public readonly lobolaReceiptNumber: string | null,
+    public readonly marriageElderContact: string | null,
+    public readonly clanApproval: boolean,
+    public readonly familyConsent: boolean,
+    public readonly traditionalRitesPerformed: readonly string[],
+  ) {
+    if (elderWitnesses.length === 0) {
+      throw new Error('Customary marriage requires at least one elder witness');
+    }
+    if (!ceremonyLocation?.trim()) {
+      throw new Error('Ceremony location is required for customary marriage');
+    }
+  }
+
+  isFullyDocumented(): boolean {
+    return (
+      this.bridePricePaid &&
+      this.elderWitnesses.length >= 2 &&
+      this.clanApproval &&
+      this.familyConsent
+    );
+  }
+}
+
+/**
+ * Marriage Reconstitution Props
+ */
+export interface MarriageReconstituteProps {
   id: string;
   familyId: string;
 
-  // Parties
+  // Spouses
   spouse1Id: string;
   spouse2Id: string;
 
-  // Kenyan Marriage Certificate Details
+  // Core Marriage Details
+  marriageDate: Date | string;
+  marriageType: MarriageType; // FIXED: Use correct enum
+
+  // Certificate
+  certificateNumber: string | null;
   registrationNumber: string | null;
   issuingAuthority: string | null;
-  certificateIssueDate: Date | null;
+  certificateIssueDate: Date | string | null;
   registrationDistrict: string | null;
 
-  // Dissolution Details
-  divorceType: string | null;
-
-  // Customary Marriage Details (JSON fields as Prisma.JsonValue)
+  // Customary Marriage (JSON)
   bridePricePaid: boolean;
   bridePriceAmount: number | null;
   bridePriceCurrency: string | null;
-  elderWitnesses: Prisma.JsonValue;
+  elderWitnesses: any; // JSON array
   ceremonyLocation: string | null;
   traditionalCeremonyType: string | null;
   lobolaReceiptNumber: string | null;
   marriageElderContact: string | null;
   clanApproval: boolean;
   familyConsent: boolean;
-  traditionalRitesPerformed: Prisma.JsonValue;
+  traditionalRitesPerformed: any; // JSON array
 
-  // Marriage Officer Details
+  // Marriage Officer
   marriageOfficerName: string | null;
   marriageOfficerTitle: string | null;
   marriageOfficerRegistrationNumber: string | null;
   marriageOfficerReligiousDenomination: string | null;
   marriageOfficerLicenseNumber: string | null;
 
-  // Marriage Location Details
+  // Location
   marriageVenue: string | null;
   marriageCounty: KenyanCounty | null;
   marriageSubCounty: string | null;
   marriageDistrict: string | null;
   marriageGpsCoordinates: string | null;
 
-  // Marriage details
-  marriageDate: Date;
-  marriageType: MarriageStatus;
-  certificateNumber: string | null;
-
   // Dissolution
-  divorceDate: Date | null;
+  divorceDate: Date | string | null;
+  divorceType: string | null;
   divorceCertNumber: string | null;
 
   // Status
   isActive: boolean;
 
   // Timestamps
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
 
-// -----------------------------------------------------------------------------
-// AGGREGATE ROOT: MARRIAGE
-// -----------------------------------------------------------------------------
+/**
+ * Marriage Entity (NOT an Aggregate Root)
+ *
+ * Represents a marriage relationship between two family members.
+ * This is a child entity of the Family aggregate.
+ *
+ * Legal Context:
+ * - Marriage Act (2014): Civil, Christian, Islamic, Hindu marriages
+ * - Customary law: Traditional/customary marriages
+ * - Law of Succession Act, Section 40: Polygamous marriages
+ * - Matrimonial Property Act (2013): Property rights in marriage
+ *
+ * Entity Responsibilities:
+ * - Track marriage type and details
+ * - Store certificate/registration information
+ * - Manage customary marriage specifics
+ * - Validate legal compliance
+ * - Track dissolution details
+ *
+ * Does NOT:
+ * - Emit domain events (Family aggregate does this)
+ * - Validate spouse eligibility (Family validates)
+ * - Create itself (Family aggregate creates via factory)
+ *
+ * Marriage Types (Kenyan Law):
+ * - CUSTOMARY: Traditional marriage (potentially polygamous)
+ * - CHRISTIAN: Church marriage (monogamous)
+ * - CIVIL: Registry marriage (monogamous)
+ * - ISLAMIC: Muslim marriage (potentially polygamous)
+ * - TRADITIONAL: Other traditional forms
+ */
+export class Marriage {
+  // Core Identity
+  private readonly _id: string;
+  private readonly _familyId: string;
 
-export class Marriage extends AggregateRoot {
-  private readonly id: string;
-  private readonly familyId: string;
+  // Spouses (FamilyMember IDs)
+  private readonly _spouse1Id: string;
+  private readonly _spouse2Id: string;
 
-  // Parties
-  private readonly spouse1Id: string;
-  private readonly spouse2Id: string;
+  // Marriage Core Details
+  private readonly _marriageDate: Date;
+  private readonly _marriageType: MarriageType; // FIXED: Correct enum
 
-  // Kenyan Marriage Certificate Details
-  private registrationNumber: string | null;
-  private issuingAuthority: string | null;
-  private certificateIssueDate: Date | null;
-  private registrationDistrict: string | null;
+  // Certificate (Value Object or null)
+  private _certificate: KenyanMarriageCertificate | null;
 
-  // Dissolution Details
-  private divorceType: string | null;
+  // Customary Details (Value Object or null)
+  private _customaryDetails: CustomaryMarriageDetails | null;
 
-  // Customary Marriage Details
-  private bridePricePaid: boolean;
-  private bridePriceAmount: number | null;
-  private bridePriceCurrency: string | null;
-  private elderWitnesses: string[];
-  private ceremonyLocation: string | null;
-  private traditionalCeremonyType: string | null;
-  private lobolaReceiptNumber: string | null;
-  private marriageElderContact: string | null;
-  private clanApproval: boolean;
-  private familyConsent: boolean;
-  private traditionalRitesPerformed: string[];
+  // Marriage Officer (Value Object or null)
+  private _marriageOfficer: KenyanMarriageOfficer | null;
 
-  // Marriage Officer Details
-  private marriageOfficerName: string | null;
-  private marriageOfficerTitle: string | null;
-  private marriageOfficerRegistrationNumber: string | null;
-  private marriageOfficerReligiousDenomination: string | null;
-  private marriageOfficerLicenseNumber: string | null;
-
-  // Marriage Location Details
-  private marriageVenue: string | null;
-  private marriageCounty: KenyanCounty | null;
-  private marriageSubCounty: string | null;
-  private marriageDistrict: string | null;
-  private marriageGpsCoordinates: string | null;
-
-  // Marriage details
-  private readonly marriageDate: Date;
-  private readonly marriageType: MarriageStatus;
-  private certificateNumber: string | null;
+  // Marriage Location (Value Object or null)
+  private _marriageLocation: KenyanMarriageLocation | null;
 
   // Dissolution
-  private divorceDate: Date | null;
-  private divorceCertNumber: string | null;
+  private _divorceDate: Date | null;
+  private _divorceType: string | null; // 'DIVORCE', 'ANNULMENT', 'DEATH', 'CUSTOMARY_DISSOLUTION'
+  private _divorceCertNumber: string | null;
 
   // Status
-  private isActive: boolean;
+  private _isActive: boolean;
 
   // Timestamps
-  private readonly createdAt: Date;
-  private updatedAt: Date;
+  private readonly _createdAt: Date;
+  private _updatedAt: Date;
 
+  // --------------------------------------------------------------------------
+  // CONSTRUCTOR
+  // --------------------------------------------------------------------------
   private constructor(
     id: string,
     familyId: string,
     spouse1Id: string,
     spouse2Id: string,
-    marriageType: MarriageStatus,
+    marriageType: MarriageType,
     marriageDate: Date,
-    // Lifecycle injection for reconstitution
-    createdAt?: Date,
-    updatedAt?: Date,
   ) {
-    super();
+    if (!id?.trim()) throw new Error('Marriage ID is required');
+    if (!familyId?.trim()) throw new Error('Family ID is required');
+    if (!spouse1Id?.trim()) throw new Error('Spouse 1 ID is required');
+    if (!spouse2Id?.trim()) throw new Error('Spouse 2 ID is required');
 
-    // Basic Validation
     if (spouse1Id === spouse2Id) {
-      throw new Error('Cannot marry oneself under Kenyan law.');
-    }
-    if (marriageDate > new Date()) {
-      throw new Error('Marriage date cannot be in the future.');
+      throw new Error('Cannot marry oneself');
     }
 
-    this.id = id;
-    this.familyId = familyId;
-    this.spouse1Id = spouse1Id;
-    this.spouse2Id = spouse2Id;
-    this.marriageType = marriageType;
-    this.marriageDate = marriageDate;
+    if (marriageDate > new Date()) {
+      throw new Error('Marriage date cannot be in the future');
+    }
+
+    this._id = id;
+    this._familyId = familyId;
+    this._spouse1Id = spouse1Id;
+    this._spouse2Id = spouse2Id;
+    this._marriageType = marriageType;
+    this._marriageDate = marriageDate;
 
     // Defaults
-    this.registrationNumber = null;
-    this.issuingAuthority = null;
-    this.certificateIssueDate = null;
-    this.registrationDistrict = null;
-    this.divorceType = null;
-    this.bridePricePaid = false;
-    this.bridePriceAmount = null;
-    this.bridePriceCurrency = 'KES';
-    this.elderWitnesses = [];
-    this.ceremonyLocation = null;
-    this.traditionalCeremonyType = null;
-    this.lobolaReceiptNumber = null;
-    this.marriageElderContact = null;
-    this.clanApproval = false;
-    this.familyConsent = false;
-    this.traditionalRitesPerformed = [];
-    this.marriageOfficerName = null;
-    this.marriageOfficerTitle = null;
-    this.marriageOfficerRegistrationNumber = null;
-    this.marriageOfficerReligiousDenomination = null;
-    this.marriageOfficerLicenseNumber = null;
-    this.marriageVenue = null;
-    this.marriageCounty = null;
-    this.marriageSubCounty = null;
-    this.marriageDistrict = null;
-    this.marriageGpsCoordinates = null;
-    this.certificateNumber = null;
-    this.divorceDate = null;
-    this.divorceCertNumber = null;
-    this.isActive = true;
-
-    // Lifecycle
-    this.createdAt = createdAt ?? new Date();
-    this.updatedAt = updatedAt ?? new Date();
+    this._certificate = null;
+    this._customaryDetails = null;
+    this._marriageOfficer = null;
+    this._marriageLocation = null;
+    this._divorceDate = null;
+    this._divorceType = null;
+    this._divorceCertNumber = null;
+    this._isActive = true;
+    this._createdAt = new Date();
+    this._updatedAt = new Date();
   }
 
   // --------------------------------------------------------------------------
   // FACTORY METHODS
   // --------------------------------------------------------------------------
 
-  static create(
+  /**
+   * Creates a civil/Christian marriage with certificate.
+   */
+  static createCivilMarriage(
     id: string,
     familyId: string,
     spouse1Id: string,
     spouse2Id: string,
-    marriageType: MarriageStatus,
+    marriageType: MarriageType.CIVIL | MarriageType.CHRISTIAN,
     marriageDate: Date,
-    details?: {
-      certificateNumber?: string;
-      registrationNumber?: string;
-      issuingAuthority?: string;
-      certificateIssueDate?: Date;
-      registrationDistrict?: string;
-      marriageOfficerName?: string;
-      marriageOfficerTitle?: string;
-      marriageOfficerRegistrationNumber?: string;
-      marriageOfficerReligiousDenomination?: string;
-      marriageOfficerLicenseNumber?: string;
-      marriageVenue?: string;
-      marriageCounty?: KenyanCounty;
-      marriageSubCounty?: string;
-      marriageDistrict?: string;
-      marriageGpsCoordinates?: string;
-
-      // Customary marriage details
-      bridePricePaid?: boolean;
-      bridePriceAmount?: number;
-      bridePriceCurrency?: string;
-      elderWitnesses?: string[];
-      ceremonyLocation?: string;
-      traditionalCeremonyType?: string;
-      lobolaReceiptNumber?: string;
-      marriageElderContact?: string;
-      clanApproval?: boolean;
-      familyConsent?: boolean;
-      traditionalRitesPerformed?: string[];
-    },
+    certificate: KenyanMarriageCertificate,
+    marriageOfficer: KenyanMarriageOfficer,
+    location: KenyanMarriageLocation,
   ): Marriage {
     const marriage = new Marriage(id, familyId, spouse1Id, spouse2Id, marriageType, marriageDate);
 
-    // Apply details if provided
-    if (details) {
-      if (details.certificateNumber) marriage.certificateNumber = details.certificateNumber;
-      if (details.registrationNumber) marriage.registrationNumber = details.registrationNumber;
-      if (details.issuingAuthority) marriage.issuingAuthority = details.issuingAuthority;
-      if (details.certificateIssueDate)
-        marriage.certificateIssueDate = details.certificateIssueDate;
-      if (details.registrationDistrict)
-        marriage.registrationDistrict = details.registrationDistrict;
-
-      if (details.marriageOfficerName) marriage.marriageOfficerName = details.marriageOfficerName;
-      if (details.marriageOfficerTitle)
-        marriage.marriageOfficerTitle = details.marriageOfficerTitle;
-      if (details.marriageOfficerRegistrationNumber)
-        marriage.marriageOfficerRegistrationNumber = details.marriageOfficerRegistrationNumber;
-      if (details.marriageOfficerReligiousDenomination)
-        marriage.marriageOfficerReligiousDenomination =
-          details.marriageOfficerReligiousDenomination;
-      if (details.marriageOfficerLicenseNumber)
-        marriage.marriageOfficerLicenseNumber = details.marriageOfficerLicenseNumber;
-
-      if (details.marriageVenue) marriage.marriageVenue = details.marriageVenue;
-      if (details.marriageCounty) marriage.marriageCounty = details.marriageCounty;
-      if (details.marriageSubCounty) marriage.marriageSubCounty = details.marriageSubCounty;
-      if (details.marriageDistrict) marriage.marriageDistrict = details.marriageDistrict;
-      if (details.marriageGpsCoordinates)
-        marriage.marriageGpsCoordinates = details.marriageGpsCoordinates;
-
-      if (marriageType === MarriageStatus.CUSTOMARY_MARRIAGE) {
-        marriage.bridePricePaid = details.bridePricePaid ?? false;
-        marriage.bridePriceAmount = details.bridePriceAmount ?? null;
-        marriage.bridePriceCurrency = details.bridePriceCurrency ?? 'KES';
-        marriage.elderWitnesses = details.elderWitnesses ?? [];
-        marriage.ceremonyLocation = details.ceremonyLocation ?? null;
-        marriage.traditionalCeremonyType = details.traditionalCeremonyType ?? null;
-        marriage.lobolaReceiptNumber = details.lobolaReceiptNumber ?? null;
-        marriage.marriageElderContact = details.marriageElderContact ?? null;
-        marriage.clanApproval = details.clanApproval ?? false;
-        marriage.familyConsent = details.familyConsent ?? false;
-        marriage.traditionalRitesPerformed = details.traditionalRitesPerformed ?? [];
-      }
-    }
-
-    marriage.apply(
-      new MarriageRegisteredEvent(id, familyId, spouse1Id, spouse2Id, marriageType, marriageDate),
-    );
-
-    if (marriageType === MarriageStatus.CUSTOMARY_MARRIAGE && details) {
-      marriage.apply(
-        new CustomaryMarriageDetailsUpdatedEvent(id, familyId, {
-          bridePricePaid: marriage.bridePricePaid,
-          bridePriceAmount: marriage.bridePriceAmount,
-          bridePriceCurrency: marriage.bridePriceCurrency,
-          elderWitnesses: marriage.elderWitnesses,
-          ceremonyLocation: marriage.ceremonyLocation,
-          traditionalCeremonyType: marriage.traditionalCeremonyType,
-          lobolaReceiptNumber: marriage.lobolaReceiptNumber,
-          marriageElderContact: marriage.marriageElderContact,
-          clanApproval: marriage.clanApproval,
-          familyConsent: marriage.familyConsent,
-          traditionalRitesPerformed: marriage.traditionalRitesPerformed,
-        }),
-      );
-    }
+    marriage._certificate = certificate;
+    marriage._marriageOfficer = marriageOfficer;
+    marriage._marriageLocation = location;
 
     return marriage;
   }
 
-  static reconstitute(props: MarriageReconstitutionProps): Marriage {
+  /**
+   * Creates a customary marriage.
+   */
+  static createCustomaryMarriage(
+    id: string,
+    familyId: string,
+    spouse1Id: string,
+    spouse2Id: string,
+    marriageDate: Date,
+    customaryDetails: CustomaryMarriageDetails,
+    location: KenyanMarriageLocation,
+  ): Marriage {
+    const marriage = new Marriage(
+      id,
+      familyId,
+      spouse1Id,
+      spouse2Id,
+      MarriageType.CUSTOMARY,
+      marriageDate,
+    );
+
+    marriage._customaryDetails = customaryDetails;
+    marriage._marriageLocation = location;
+
+    return marriage;
+  }
+
+  /**
+   * Creates an Islamic marriage.
+   */
+  static createIslamicMarriage(
+    id: string,
+    familyId: string,
+    spouse1Id: string,
+    spouse2Id: string,
+    marriageDate: Date,
+    location: KenyanMarriageLocation,
+    certificate?: KenyanMarriageCertificate,
+  ): Marriage {
+    const marriage = new Marriage(
+      id,
+      familyId,
+      spouse1Id,
+      spouse2Id,
+      MarriageType.ISLAMIC,
+      marriageDate,
+    );
+
+    marriage._marriageLocation = location;
+    marriage._certificate = certificate || null;
+
+    return marriage;
+  }
+
+  static reconstitute(props: MarriageReconstituteProps): Marriage {
     const marriage = new Marriage(
       props.id,
       props.familyId,
       props.spouse1Id,
       props.spouse2Id,
       props.marriageType,
-      props.marriageDate,
-      props.createdAt,
-      props.updatedAt,
+      new Date(props.marriageDate),
     );
 
-    marriage.registrationNumber = props.registrationNumber;
-    marriage.issuingAuthority = props.issuingAuthority;
-    marriage.certificateIssueDate = props.certificateIssueDate;
-    marriage.registrationDistrict = props.registrationDistrict;
-    marriage.divorceType = props.divorceType;
-    marriage.bridePricePaid = props.bridePricePaid;
-    marriage.bridePriceAmount = props.bridePriceAmount;
-    marriage.bridePriceCurrency = props.bridePriceCurrency;
+    // Reconstitute certificate if present
+    if (
+      props.certificateNumber &&
+      props.registrationNumber &&
+      props.issuingAuthority &&
+      props.certificateIssueDate &&
+      props.registrationDistrict
+    ) {
+      marriage._certificate = new KenyanMarriageCertificate(
+        props.registrationNumber,
+        props.issuingAuthority,
+        new Date(props.certificateIssueDate),
+        props.registrationDistrict,
+        props.certificateNumber,
+      );
+    }
 
-    // JSON Safe Parsing
-    marriage.elderWitnesses = Array.isArray(props.elderWitnesses)
-      ? (props.elderWitnesses as string[])
-      : [];
+    // Reconstitute customary details if present
+    if (props.marriageType === MarriageType.CUSTOMARY && props.ceremonyLocation) {
+      const elderWitnesses = Array.isArray(props.elderWitnesses)
+        ? (props.elderWitnesses as string[])
+        : [];
+      const traditionalRites = Array.isArray(props.traditionalRitesPerformed)
+        ? (props.traditionalRitesPerformed as string[])
+        : [];
 
-    marriage.ceremonyLocation = props.ceremonyLocation;
-    marriage.traditionalCeremonyType = props.traditionalCeremonyType;
-    marriage.lobolaReceiptNumber = props.lobolaReceiptNumber;
-    marriage.marriageElderContact = props.marriageElderContact;
-    marriage.clanApproval = props.clanApproval;
-    marriage.familyConsent = props.familyConsent;
+      marriage._customaryDetails = new CustomaryMarriageDetails(
+        props.bridePricePaid,
+        props.bridePriceAmount,
+        props.bridePriceCurrency || 'KES',
+        elderWitnesses,
+        props.ceremonyLocation,
+        props.traditionalCeremonyType,
+        props.lobolaReceiptNumber,
+        props.marriageElderContact,
+        props.clanApproval,
+        props.familyConsent,
+        traditionalRites,
+      );
+    }
 
-    // JSON Safe Parsing
-    marriage.traditionalRitesPerformed = Array.isArray(props.traditionalRitesPerformed)
-      ? (props.traditionalRitesPerformed as string[])
-      : [];
+    // Reconstitute marriage officer if present
+    if (props.marriageOfficerName && props.marriageOfficerLicenseNumber) {
+      marriage._marriageOfficer = new KenyanMarriageOfficer(
+        props.marriageOfficerName,
+        props.marriageOfficerTitle || '',
+        props.marriageOfficerRegistrationNumber || '',
+        props.marriageOfficerReligiousDenomination,
+        props.marriageOfficerLicenseNumber,
+      );
+    }
 
-    marriage.marriageOfficerName = props.marriageOfficerName;
-    marriage.marriageOfficerTitle = props.marriageOfficerTitle;
-    marriage.marriageOfficerRegistrationNumber = props.marriageOfficerRegistrationNumber;
-    marriage.marriageOfficerReligiousDenomination = props.marriageOfficerReligiousDenomination;
-    marriage.marriageOfficerLicenseNumber = props.marriageOfficerLicenseNumber;
-    marriage.marriageVenue = props.marriageVenue;
-    marriage.marriageCounty = props.marriageCounty;
-    marriage.marriageSubCounty = props.marriageSubCounty;
-    marriage.marriageDistrict = props.marriageDistrict;
-    marriage.marriageGpsCoordinates = props.marriageGpsCoordinates;
-    marriage.certificateNumber = props.certificateNumber;
-    marriage.divorceDate = props.divorceDate;
-    marriage.divorceCertNumber = props.divorceCertNumber;
-    marriage.isActive = props.isActive;
+    // Reconstitute location if present
+    if (props.marriageVenue && props.marriageCounty) {
+      marriage._marriageLocation = new KenyanMarriageLocation(
+        props.marriageVenue,
+        props.marriageCounty,
+        props.marriageSubCounty,
+        props.marriageDistrict,
+        props.marriageGpsCoordinates,
+      );
+    }
+
+    // Dissolution
+    marriage._divorceDate = props.divorceDate ? new Date(props.divorceDate) : null;
+    marriage._divorceType = props.divorceType;
+    marriage._divorceCertNumber = props.divorceCertNumber;
+    marriage._isActive = props.isActive;
+
+    // Timestamps
+    (marriage as any)._createdAt = new Date(props.createdAt);
+    marriage._updatedAt = new Date(props.updatedAt);
 
     return marriage;
   }
 
   // --------------------------------------------------------------------------
-  // BUSINESS LOGIC
+  // DOMAIN OPERATIONS
   // --------------------------------------------------------------------------
 
+  /**
+   * Dissolves the marriage.
+   *
+   * Reference:
+   * - Divorce: Matrimonial Causes Act
+   * - Death: Automatic dissolution
+   * - Customary dissolution: Traditional processes
+   */
   dissolve(
     dissolutionDate: Date,
     dissolutionType: 'DIVORCE' | 'ANNULMENT' | 'DEATH' | 'CUSTOMARY_DISSOLUTION',
     certificateNumber?: string,
-    courtOrderNumber?: string,
   ): void {
-    if (!this.isActive) {
-      throw new Error('Marriage is already inactive/dissolved.');
+    if (!this._isActive) {
+      throw new Error('Marriage already dissolved');
     }
-    if (dissolutionDate < this.marriageDate) {
-      throw new Error('Dissolution date cannot be before marriage date.');
+
+    if (dissolutionDate < this._marriageDate) {
+      throw new Error('Dissolution date cannot be before marriage date');
     }
+
     if (dissolutionDate > new Date()) {
-      throw new Error('Dissolution date cannot be in the future.');
+      throw new Error('Dissolution date cannot be in the future');
     }
 
-    this.isActive = false;
-    this.divorceDate = dissolutionDate;
-    this.divorceType = dissolutionType;
+    this._isActive = false;
+    this._divorceDate = dissolutionDate;
+    this._divorceType = dissolutionType;
+    this._divorceCertNumber = certificateNumber || null;
 
-    if (certificateNumber) {
-      this.divorceCertNumber = certificateNumber;
+    this.markAsUpdated();
+  }
+
+  /**
+   * Registers a marriage certificate (post-marriage registration).
+   */
+  registerCertificate(certificate: KenyanMarriageCertificate): void {
+    if (this._certificate) {
+      throw new Error('Marriage already has a certificate');
     }
 
-    this.updatedAt = new Date();
-
-    this.apply(
-      new MarriageDissolvedEvent(
-        this.id,
-        this.familyId,
-        this.spouse1Id,
-        this.spouse2Id,
-        dissolutionDate,
-        dissolutionType,
-        certificateNumber,
-        courtOrderNumber,
-      ),
-    );
+    this._certificate = certificate;
+    this.markAsUpdated();
   }
 
-  registerCertificate(
-    certNumber: string,
-    registrationNumber?: string,
-    issuingAuthority?: string,
-    certificateIssueDate?: Date,
-    registrationDistrict?: string,
-  ): void {
-    this.certificateNumber = certNumber;
-    if (registrationNumber) this.registrationNumber = registrationNumber;
-    if (issuingAuthority) this.issuingAuthority = issuingAuthority;
-    if (certificateIssueDate) this.certificateIssueDate = certificateIssueDate;
-    if (registrationDistrict) this.registrationDistrict = registrationDistrict;
-    this.updatedAt = new Date();
-  }
-
-  updateCustomaryMarriageDetails(details: {
-    bridePricePaid?: boolean;
-    bridePriceAmount?: number;
-    bridePriceCurrency?: string;
-    elderWitnesses?: string[];
-    ceremonyLocation?: string;
-    traditionalCeremonyType?: string;
-    lobolaReceiptNumber?: string;
-    marriageElderContact?: string;
-    clanApproval?: boolean;
-    familyConsent?: boolean;
-    traditionalRitesPerformed?: string[];
-  }): void {
-    if (this.marriageType !== MarriageStatus.CUSTOMARY_MARRIAGE) {
-      throw new Error('Customary marriage details can only be set for customary marriages.');
+  /**
+   * Updates customary marriage details.
+   */
+  updateCustomaryDetails(details: CustomaryMarriageDetails): void {
+    if (this._marriageType !== MarriageType.CUSTOMARY) {
+      throw new Error('Can only update customary details for customary marriages');
     }
 
-    if (details.elderWitnesses && details.elderWitnesses.length === 0) {
-      throw new Error('Customary marriages require at least one elder witness.');
-    }
-
-    if (details.ceremonyLocation !== undefined)
-      this.ceremonyLocation = details.ceremonyLocation ?? null;
-    if (details.bridePricePaid !== undefined) this.bridePricePaid = details.bridePricePaid ?? false;
-    if (details.bridePriceAmount !== undefined)
-      this.bridePriceAmount = details.bridePriceAmount ?? null;
-    if (details.bridePriceCurrency !== undefined)
-      this.bridePriceCurrency = details.bridePriceCurrency ?? null;
-    if (details.elderWitnesses !== undefined) this.elderWitnesses = details.elderWitnesses ?? [];
-    if (details.traditionalCeremonyType !== undefined)
-      this.traditionalCeremonyType = details.traditionalCeremonyType ?? null;
-    if (details.lobolaReceiptNumber !== undefined)
-      this.lobolaReceiptNumber = details.lobolaReceiptNumber ?? null;
-    if (details.marriageElderContact !== undefined)
-      this.marriageElderContact = details.marriageElderContact ?? null;
-    if (details.clanApproval !== undefined) this.clanApproval = details.clanApproval ?? false;
-    if (details.familyConsent !== undefined) this.familyConsent = details.familyConsent ?? false;
-    if (details.traditionalRitesPerformed !== undefined)
-      this.traditionalRitesPerformed = details.traditionalRitesPerformed ?? [];
-
-    this.updatedAt = new Date();
-
-    this.apply(
-      new CustomaryMarriageDetailsUpdatedEvent(this.id, this.familyId, {
-        bridePricePaid: this.bridePricePaid,
-        bridePriceAmount: this.bridePriceAmount,
-        bridePriceCurrency: this.bridePriceCurrency,
-        elderWitnesses: this.elderWitnesses,
-        ceremonyLocation: this.ceremonyLocation,
-        traditionalCeremonyType: this.traditionalCeremonyType,
-        lobolaReceiptNumber: this.lobolaReceiptNumber,
-        marriageElderContact: this.marriageElderContact,
-        clanApproval: this.clanApproval,
-        familyConsent: this.familyConsent,
-        traditionalRitesPerformed: this.traditionalRitesPerformed,
-      }),
-    );
-  }
-
-  updateMarriageOfficerDetails(details: {
-    name?: string;
-    title?: string;
-    registrationNumber?: string;
-    religiousDenomination?: string;
-    licenseNumber?: string;
-  }): void {
-    if (details.name !== undefined) this.marriageOfficerName = details.name ?? null;
-    if (details.title !== undefined) this.marriageOfficerTitle = details.title ?? null;
-    if (details.registrationNumber !== undefined)
-      this.marriageOfficerRegistrationNumber = details.registrationNumber ?? null;
-    if (details.religiousDenomination !== undefined)
-      this.marriageOfficerReligiousDenomination = details.religiousDenomination ?? null;
-    if (details.licenseNumber !== undefined)
-      this.marriageOfficerLicenseNumber = details.licenseNumber ?? null;
-    this.updatedAt = new Date();
-  }
-
-  updateMarriageLocation(details: {
-    venue?: string;
-    county?: KenyanCounty;
-    subCounty?: string;
-    district?: string;
-    gpsCoordinates?: string;
-  }): void {
-    if (details.venue !== undefined) this.marriageVenue = details.venue ?? null;
-    if (details.county !== undefined) this.marriageCounty = details.county ?? null;
-    if (details.subCounty !== undefined) this.marriageSubCounty = details.subCounty ?? null;
-    if (details.district !== undefined) this.marriageDistrict = details.district ?? null;
-    if (details.gpsCoordinates !== undefined)
-      this.marriageGpsCoordinates = details.gpsCoordinates ?? null;
-    this.updatedAt = new Date();
+    this._customaryDetails = details;
+    this.markAsUpdated();
   }
 
   // --------------------------------------------------------------------------
-  // LEGAL VALIDATION
+  // VALIDATION & BUSINESS RULES
   // --------------------------------------------------------------------------
 
-  isValidUnderKenyanLaw(): { isValid: boolean; errors: string[]; warnings: string[] } {
-    const errors: string[] = [];
-    const warnings: string[] = [];
+  /**
+   * Validates marriage compliance with Kenyan law.
+   */
+  validateLegalCompliance(): { isValid: boolean; issues: string[] } {
+    const issues: string[] = [];
 
-    if (!this.isActive && !this.divorceDate) {
-      errors.push('Inactive marriage must have a dissolution date/record.');
+    // Active marriage validation
+    if (!this._isActive && !this._divorceDate) {
+      issues.push('Inactive marriage must have dissolution date');
     }
 
-    switch (this.marriageType) {
-      case MarriageStatus.CUSTOMARY_MARRIAGE:
-        this.validateCustomaryMarriage(errors, warnings);
+    // Type-specific validation
+    switch (this._marriageType) {
+      case MarriageType.CUSTOMARY:
+        if (!this._customaryDetails) {
+          issues.push('Customary marriage missing customary details');
+        } else if (this._customaryDetails.elderWitnesses.length === 0) {
+          issues.push('Customary marriage requires elder witnesses');
+        }
         break;
-      case MarriageStatus.CIVIL_UNION:
-      case MarriageStatus.MARRIED: // Assuming 'MARRIED' implies statutory marriage
-      case MarriageStatus.CHRISTIAN:
-        this.validateCivilMarriage(errors, warnings);
+
+      case MarriageType.CIVIL:
+      case MarriageType.CHRISTIAN:
+        if (!this._certificate) {
+          issues.push(`${this._marriageType} marriage requires certificate`);
+        }
+        if (!this._marriageOfficer) {
+          issues.push('Marriage officer details missing');
+        }
         break;
-      case MarriageStatus.ISLAMIC:
-        this.validateIslamicMarriage(errors, warnings);
+
+      case MarriageType.ISLAMIC:
+        if (!this._marriageLocation) {
+          issues.push('Islamic marriage requires location details');
+        }
         break;
     }
 
-    // Succession Duration warning (Section 29)
-    if (this.isActive && this.getMarriageDuration() < 1) {
-      warnings.push('Short duration marriage (less than 1 year).');
-    }
-
-    return { isValid: errors.length === 0, errors, warnings };
+    return {
+      isValid: issues.length === 0,
+      issues,
+    };
   }
 
-  private validateCustomaryMarriage(errors: string[], warnings: string[]): void {
-    if (!this.elderWitnesses || this.elderWitnesses.length === 0) {
-      errors.push('Customary marriages require elder witnesses to be valid.');
-    }
-    if (!this.ceremonyLocation) {
-      errors.push('Customary marriages require a ceremony location.');
-    }
-    if (!this.clanApproval) warnings.push('Clan approval is recommended.');
-    if (!this.familyConsent) warnings.push('Family consent is recommended.');
-  }
-
-  private validateCivilMarriage(errors: string[], warnings: string[]): void {
-    if (!this.certificateNumber) {
-      errors.push('Civil/Christian marriages require a Certificate Number.');
-    }
-    if (!this.marriageOfficerName) warnings.push('Marriage officer name missing.');
-  }
-
-  private validateIslamicMarriage(errors: string[], warnings: string[]): void {
-    if (!this.marriageVenue) warnings.push('Venue required for Islamic marriage.');
-  }
-
+  /**
+   * Determines if this marriage type allows polygamy.
+   *
+   * Reference: Law of Succession Act, Section 40
+   * - Customary marriages: Allow polygyny (man with multiple wives)
+   * - Islamic marriages: Allow polygyny (max 4 wives)
+   * - Christian/Civil/Hindu: Strictly monogamous
+   */
   allowsPolygamy(): boolean {
-    // Under Kenyan Law: Customary and Islamic marriages are potentially polygamous.
-    // Christian, Civil, and Hindu marriages are strictly monogamous.
-    const polygamousTypes: MarriageStatus[] = [
-      MarriageStatus.CUSTOMARY_MARRIAGE,
-      MarriageStatus.ISLAMIC,
-    ];
-    return polygamousTypes.includes(this.marriageType);
+    return (
+      this._marriageType === MarriageType.CUSTOMARY || this._marriageType === MarriageType.ISLAMIC
+    );
   }
 
-  getMarriageDuration(): number {
-    const endDate = this.divorceDate || (this.isActive ? new Date() : null);
-    if (!endDate) return 0;
+  /**
+   * Calculates marriage duration in years.
+   */
+  getMarriageDurationYears(): number {
+    const endDate = this._divorceDate || (this._isActive ? new Date() : new Date());
+    let years = endDate.getFullYear() - this._marriageDate.getFullYear();
+    const monthDiff = endDate.getMonth() - this._marriageDate.getMonth();
 
-    const start = this.marriageDate;
-    let years = endDate.getFullYear() - start.getFullYear();
-    const monthDiff = endDate.getMonth() - start.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && endDate.getDate() < start.getDate())) {
+    if (monthDiff < 0 || (monthDiff === 0 && endDate.getDate() < this._marriageDate.getDate())) {
       years--;
     }
+
     return Math.max(0, years);
   }
 
-  getPartnerId(memberId: string): string | null {
-    if (memberId === this.spouse1Id) return this.spouse2Id;
-    if (memberId === this.spouse2Id) return this.spouse1Id;
+  /**
+   * Gets the partner ID for a given member.
+   */
+  getPartnerOf(memberId: string): string | null {
+    if (memberId === this._spouse1Id) return this._spouse2Id;
+    if (memberId === this._spouse2Id) return this._spouse1Id;
     return null;
   }
 
-  canMemberMarry(memberId: string): { canMarry: boolean; reason?: string } {
-    if (!this.isActive) return { canMarry: true }; // Divorced/Widowed can remarry
+  /**
+   * Checks if member is a spouse in this marriage.
+   */
+  involvesSpouse(memberId: string): boolean {
+    return memberId === this._spouse1Id || memberId === this._spouse2Id;
+  }
 
-    // Member is in THIS active marriage
-    if (memberId === this.spouse1Id || memberId === this.spouse2Id) {
-      if (this.allowsPolygamy()) {
-        return { canMarry: true, reason: 'Polygamous marriage allows additional spouses.' };
-      }
-      return { canMarry: false, reason: 'Member is in an active monogamous marriage.' };
-    }
+  // --------------------------------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------------------------------
 
-    // Member is not in this marriage, so this marriage doesn't block them (logic handled by Family aggregate)
-    return { canMarry: true };
+  private markAsUpdated(): void {
+    this._updatedAt = new Date();
   }
 
   // --------------------------------------------------------------------------
   // GETTERS
   // --------------------------------------------------------------------------
 
-  getId(): string {
-    return this.id;
-  }
-  getFamilyId(): string {
-    return this.familyId;
-  }
-  getSpouse1Id(): string {
-    return this.spouse1Id;
-  }
-  getSpouse2Id(): string {
-    return this.spouse2Id;
+  get id(): string {
+    return this._id;
   }
 
-  getRegistrationNumber(): string | null {
-    return this.registrationNumber;
-  }
-  getIssuingAuthority(): string | null {
-    return this.issuingAuthority;
-  }
-  getCertificateIssueDate(): Date | null {
-    return this.certificateIssueDate;
-  }
-  getRegistrationDistrict(): string | null {
-    return this.registrationDistrict;
+  get familyId(): string {
+    return this._familyId;
   }
 
-  getDivorceType(): string | null {
-    return this.divorceType;
+  get spouse1Id(): string {
+    return this._spouse1Id;
   }
 
-  getBridePricePaid(): boolean {
-    return this.bridePricePaid;
-  }
-  getBridePriceAmount(): number | null {
-    return this.bridePriceAmount;
-  }
-  getBridePriceCurrency(): string | null {
-    return this.bridePriceCurrency;
-  }
-  getElderWitnesses(): string[] {
-    return [...this.elderWitnesses];
-  }
-  getCeremonyLocation(): string | null {
-    return this.ceremonyLocation;
-  }
-  getTraditionalCeremonyType(): string | null {
-    return this.traditionalCeremonyType;
-  }
-  getLobolaReceiptNumber(): string | null {
-    return this.lobolaReceiptNumber;
-  }
-  getMarriageElderContact(): string | null {
-    return this.marriageElderContact;
-  }
-  getClanApproval(): boolean {
-    return this.clanApproval;
-  }
-  getFamilyConsent(): boolean {
-    return this.familyConsent;
-  }
-  getTraditionalRitesPerformed(): string[] {
-    return [...this.traditionalRitesPerformed];
+  get spouse2Id(): string {
+    return this._spouse2Id;
   }
 
-  getMarriageOfficerName(): string | null {
-    return this.marriageOfficerName;
-  }
-  getMarriageOfficerTitle(): string | null {
-    return this.marriageOfficerTitle;
-  }
-  getMarriageOfficerRegistrationNumber(): string | null {
-    return this.marriageOfficerRegistrationNumber;
-  }
-  getMarriageOfficerReligiousDenomination(): string | null {
-    return this.marriageOfficerReligiousDenomination;
-  }
-  getMarriageOfficerLicenseNumber(): string | null {
-    return this.marriageOfficerLicenseNumber;
+  get marriageDate(): Date {
+    return new Date(this._marriageDate);
   }
 
-  getMarriageVenue(): string | null {
-    return this.marriageVenue;
-  }
-  getMarriageCounty(): KenyanCounty | null {
-    return this.marriageCounty;
-  }
-  getMarriageSubCounty(): string | null {
-    return this.marriageSubCounty;
-  }
-  getMarriageDistrict(): string | null {
-    return this.marriageDistrict;
-  }
-  getMarriageGpsCoordinates(): string | null {
-    return this.marriageGpsCoordinates;
+  get marriageType(): MarriageType {
+    return this._marriageType;
   }
 
-  getMarriageDate(): Date {
-    return this.marriageDate;
-  }
-  getMarriageType(): MarriageStatus {
-    return this.marriageType;
-  }
-  getCertificateNumber(): string | null {
-    return this.certificateNumber;
-  }
-  getDivorceDate(): Date | null {
-    return this.divorceDate;
-  }
-  getDivorceCertNumber(): string | null {
-    return this.divorceCertNumber;
-  }
-  getIsActive(): boolean {
-    return this.isActive;
-  }
-  getCreatedAt(): Date {
-    return this.createdAt;
-  }
-  getUpdatedAt(): Date {
-    return this.updatedAt;
+  get certificate(): KenyanMarriageCertificate | null {
+    return this._certificate;
   }
 
-  getMarriageSummary() {
-    const validation = this.isValidUnderKenyanLaw();
-    return {
-      id: this.id,
-      familyId: this.familyId,
-      spouse1Id: this.spouse1Id,
-      spouse2Id: this.spouse2Id,
-      marriageType: this.marriageType,
-      marriageDate: this.marriageDate,
-      isActive: this.isActive,
-      durationYears: this.getMarriageDuration(),
-      allowsPolygamy: this.allowsPolygamy(),
-      isValid: validation.isValid,
-      validationErrors: validation.errors,
-      validationWarnings: validation.warnings,
-      hasCustomaryDetails: this.marriageType === MarriageStatus.CUSTOMARY_MARRIAGE,
-      hasCivilRegistration: !!this.certificateNumber,
-      dissolutionType: this.divorceType,
-    };
+  get customaryDetails(): CustomaryMarriageDetails | null {
+    return this._customaryDetails;
+  }
+
+  get marriageOfficer(): KenyanMarriageOfficer | null {
+    return this._marriageOfficer;
+  }
+
+  get marriageLocation(): KenyanMarriageLocation | null {
+    return this._marriageLocation;
+  }
+
+  get divorceDate(): Date | null {
+    return this._divorceDate ? new Date(this._divorceDate) : null;
+  }
+
+  get divorceType(): string | null {
+    return this._divorceType;
+  }
+
+  get divorceCertNumber(): string | null {
+    return this._divorceCertNumber;
+  }
+
+  get isActive(): boolean {
+    return this._isActive;
+  }
+
+  get createdAt(): Date {
+    return new Date(this._createdAt);
+  }
+
+  get updatedAt(): Date {
+    return new Date(this._updatedAt);
   }
 }

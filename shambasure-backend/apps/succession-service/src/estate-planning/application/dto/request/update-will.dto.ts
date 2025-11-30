@@ -1,54 +1,10 @@
-import { Type } from 'class-transformer';
-import { IsOptional, IsString, ValidateNested } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
+import { IsOptional, IsString } from 'class-validator';
 
-class FuneralWishesDto {
+import { CreateWillDto } from './create-will.dto';
+
+export class UpdateWillDto extends PartialType(CreateWillDto) {
   @IsString()
   @IsOptional()
-  burialLocation?: string;
-
-  @IsString()
-  @IsOptional()
-  funeralType?: string; // "Burial", "Cremation"
-
-  @IsString()
-  @IsOptional()
-  specificInstructions?: string;
-}
-
-class DigitalAssetInstructionsDto {
-  @IsString()
-  @IsOptional()
-  socialMediaHandling?: string;
-
-  @IsString()
-  @IsOptional()
-  emailAccountHandling?: string;
-}
-
-export class UpdateWillDto {
-  @IsString()
-  @IsOptional()
-  title?: string;
-
-  @ValidateNested()
-  @Type(() => FuneralWishesDto)
-  @IsOptional()
-  funeralWishes?: FuneralWishesDto;
-
-  @IsString()
-  @IsOptional()
-  burialLocation?: string;
-
-  @IsString()
-  @IsOptional()
-  residuaryClause?: string; // The "Catch-All" clause
-
-  @ValidateNested()
-  @Type(() => DigitalAssetInstructionsDto)
-  @IsOptional()
-  digitalAssetInstructions?: DigitalAssetInstructionsDto;
-
-  @IsString()
-  @IsOptional()
-  specialInstructions?: string;
+  updateReason?: string;
 }

@@ -1,3 +1,6 @@
-The Command (Recommended)
-To Start: Every time you start a new workday, open a terminal in your project's root folder and run docker-compose up -d. If the containers are already running, it will just say they are "up-to-date". If they are stopped, it will start them. This one command is all you need.
-To Stop: At the end of the day, you can open a terminal in the same folder and run docker-compose down. This will gracefully stop the containers.
+The Command (Recommended) To Start: Every time you start a new workday, open a
+terminal in your project's root folder and run docker-compose up -d. If the
+containers are already running, it will just say they are "up-to-date". If they
+are stopped, it will start them. This one command is all you need. To Stop: At
+the end of the day, you can open a terminal in the same folder and run
+docker-compose down. This will gracefully stop the containers.

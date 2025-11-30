@@ -6,7 +6,7 @@ import { AddAssetCommand } from '../commands/add-asset.command';
 import { RemoveAssetCommand } from '../commands/remove-asset.command';
 import { UpdateAssetCommand } from '../commands/update-asset.command';
 // DTOs
-import { AddAssetDto } from '../dto/request/add-asset.dto';
+import { AddAssetDto } from '../dto/request/create-asset.dto';
 import { UpdateAssetDto } from '../dto/request/update-asset.dto';
 import { AssetResponseDto } from '../dto/response/asset.response.dto';
 import { GetAssetQuery } from '../queries/get-asset.query';

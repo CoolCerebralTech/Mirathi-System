@@ -25,48 +25,20 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@shamba/auth": [
-        "libs/auth/src"
-      ],
-      "@shamba/auth/*": [
-        "libs/auth/src/*"
-      ],
-      "@shamba/common": [
-        "libs/common/src"
-      ],
-      "@shamba/common/*": [
-        "libs/common/src/*"
-      ],
-      "@shamba/config": [
-        "libs/config/src"
-      ],
-      "@shamba/config/*": [
-        "libs/config/src/*"
-      ],
-      "@shamba/database": [
-        "libs/database/src"
-      ],
-      "@shamba/database/*": [
-        "libs/database/src/*"
-      ],
-      "@shamba/messaging": [
-        "libs/messaging/src"
-      ],
-      "@shamba/messaging/*": [
-        "libs/messaging/src/*"
-      ],
-      "@shamba/observability": [
-        "libs/observability/src"
-      ],
-      "@shamba/observability/*": [
-        "libs/observability/src/*"
-      ],
-      "@shamba/notification": [
-        "libs/notification/src"
-      ],
-      "@shamba/notification/*": [
-        "libs/notification/src/*"
-      ]
+      "@shamba/auth": ["libs/auth/src"],
+      "@shamba/auth/*": ["libs/auth/src/*"],
+      "@shamba/common": ["libs/common/src"],
+      "@shamba/common/*": ["libs/common/src/*"],
+      "@shamba/config": ["libs/config/src"],
+      "@shamba/config/*": ["libs/config/src/*"],
+      "@shamba/database": ["libs/database/src"],
+      "@shamba/database/*": ["libs/database/src/*"],
+      "@shamba/messaging": ["libs/messaging/src"],
+      "@shamba/messaging/*": ["libs/messaging/src/*"],
+      "@shamba/observability": ["libs/observability/src"],
+      "@shamba/observability/*": ["libs/observability/src/*"],
+      "@shamba/notification": ["libs/notification/src"],
+      "@shamba/notification/*": ["libs/notification/src/*"]
     }
   }
 }

@@ -1,31 +1,39 @@
-import { AggregateRoot } from '@nestjs/cqrs';
-import {
-  DependencyLevel,
-  GuardianAppointmentSource,
-  GuardianType,
-  InheritanceRights,
-  RelationshipType,
-} from '@prisma/client';
+import { DependencyLevel, InheritanceRights, RelationshipType } from '@prisma/client';
 
-import { FamilyMemberAddedEvent } from '../events/family-member-added.event';
-import { FamilyMemberGuardianAssignedEvent } from '../events/family-member-guardian-assigned.event';
-import { FamilyMemberMarkedDeceasedEvent } from '../events/family-member-marked-deceased.event';
-import { FamilyMemberRemovedEvent } from '../events/family-member-removed.event';
-import { FamilyMemberUpdatedEvent } from '../events/family-member-updated.event';
-
-// -----------------------------------------------------------------------------
-// VALUE OBJECTS & INTERFACES
-// -----------------------------------------------------------------------------
-
+/**
+ * Kenyan Dependant Status Value Object
+ *
+ * Immutable representation of a family member's dependant status
+ * under Kenyan Law of Succession Act (Section 29).
+ */
 export class KenyanDependantStatus {
   constructor(
     public readonly isDependant: boolean,
     public readonly dependencyLevel: DependencyLevel,
     public readonly inheritanceRights: InheritanceRights,
     public readonly traditionalInheritanceWeight: number,
-  ) {}
+  ) {
+    if (traditionalInheritanceWeight < 0 || traditionalInheritanceWeight > 1) {
+      throw new Error('Traditional inheritance weight must be between 0 and 1');
+    }
+  }
+
+  equals(other: KenyanDependantStatus): boolean {
+    return (
+      this.isDependant === other.isDependant &&
+      this.dependencyLevel === other.dependencyLevel &&
+      this.inheritanceRights === other.inheritanceRights &&
+      this.traditionalInheritanceWeight === other.traditionalInheritanceWeight
+    );
+  }
 }
 
+/**
+ * Kenyan Relationship Context Value Object
+ *
+ * Immutable representation of adoption/biological status
+ * for inheritance calculations.
+ */
 export class KenyanRelationshipContext {
   constructor(
     public readonly isAdopted: boolean,
@@ -35,19 +43,25 @@ export class KenyanRelationshipContext {
     public readonly adoptionDate?: Date,
     public readonly adoptionOrderNumber?: string,
     public readonly courtOrderNumber?: string,
-  ) {}
+  ) {
+    if (isAdopted && isBiological) {
+      throw new Error('Cannot be both adopted and biological');
+    }
+  }
+
+  equals(other: KenyanRelationshipContext): boolean {
+    return (
+      this.isAdopted === other.isAdopted &&
+      this.isBiological === other.isBiological &&
+      this.bornOutOfWedlock === other.bornOutOfWedlock
+    );
+  }
 }
 
-// Next of Kin matching Prisma schema usage in profiles
-export interface KenyanNextOfKin {
-  name: string;
-  relationship: string;
-  phone: string;
-  email?: string;
-}
-
-// Family Member Reconstitution Interface matching Prisma schema
-export interface FamilyMemberReconstitutionProps {
+/**
+ * Family Member Reconstitution Props
+ */
+export interface FamilyMemberReconstituteProps {
   id: string;
   familyId: string;
 
@@ -57,8 +71,8 @@ export interface FamilyMemberReconstitutionProps {
   lastName: string | null;
   email: string | null;
   phone: string | null;
-  dateOfBirth: Date | null;
-  dateOfDeath: Date | null;
+  dateOfBirth: Date | string | null;
+  dateOfDeath: Date | string | null;
 
   // Relationship context
   relationshipTo: string | null;
@@ -73,103 +87,135 @@ export interface FamilyMemberReconstitutionProps {
   addedBy: string;
 
   // Timestamps
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  deletedAt: Date | string | null;
 }
 
-// -----------------------------------------------------------------------------
-// AGGREGATE ROOT: FAMILY MEMBER
-// -----------------------------------------------------------------------------
-
-export class FamilyMember extends AggregateRoot {
-  private readonly id: string;
-  private readonly familyId: string;
-
+/**
+ * Family Member Entity (NOT an Aggregate Root)
+ *
+ * Represents an individual person within a Family aggregate.
+ * This is a child entity managed by the Family aggregate.
+ *
+ * Legal Context:
+ * - Law of Succession Act (Cap 160), Section 29: Dependants definition
+ * - Section 35-39: Intestate succession for spouses and children
+ * - Children Act (2022): Minor protection and guardianship
+ * - Adoption Act: Legal adoption and inheritance rights
+ *
+ * Entity Responsibilities:
+ * - Maintain person identity (name, contact, dates)
+ * - Track relationship to family (role, deceased status)
+ * - Calculate dependant status per Kenyan law
+ * - Validate member-level invariants
+ *
+ * Does NOT:
+ * - Emit domain events (only aggregates do this)
+ * - Create guardianships (Guardian entity does this)
+ * - Manage relationships (FamilyRelationship entity does this)
+ * - Trigger succession workflows (succession-planning module does this)
+ *
+ * Note: Family aggregate is responsible for:
+ * - Adding/removing members
+ * - Ensuring family-level consistency
+ * - Emitting events about member changes
+ */
+export class FamilyMember {
   // Core Identity
-  private userId: string | null;
-  private firstName: string | null;
-  private lastName: string | null;
-  private email: string | null;
-  private phone: string | null;
-  private dateOfBirth: Date | null;
-  private dateOfDeath: Date | null;
+  private readonly _id: string;
+  private readonly _familyId: string;
 
-  // Relationship context
-  private relationshipTo: string | null;
-  private role: RelationshipType;
+  // Person Identity
+  private _userId: string | null; // Linked registered user
+  private _firstName: string | null;
+  private _lastName: string | null;
+  private _email: string | null;
+  private _phone: string | null;
+  private _dateOfBirth: Date | null;
+  private _dateOfDeath: Date | null;
 
-  // Legal status
-  private isMinor: boolean;
-  private isDeceased: boolean;
+  // Relationship Context
+  private _relationshipTo: string | null; // Descriptive text: "Son of John Kamau"
+  private _role: RelationshipType;
+
+  // Legal Status
+  private _isMinor: boolean;
+  private _isDeceased: boolean;
 
   // Metadata
-  private notes: string | null;
-  private readonly addedBy: string;
+  private _notes: string | null;
+  private readonly _addedBy: string; // User who added this member
+
+  // Kenyan Law Computed Properties (Value Objects)
+  private _dependantStatus: KenyanDependantStatus;
+  private _relationshipContext: KenyanRelationshipContext;
 
   // Timestamps
-  private readonly createdAt: Date; // Immutable
-  private updatedAt: Date;
-  private deletedAt: Date | null;
+  private readonly _createdAt: Date;
+  private _updatedAt: Date;
+  private _deletedAt: Date | null;
 
-  // Kenyan Legal Context
-  private dependantStatus: KenyanDependantStatus;
-  private relationshipContext: KenyanRelationshipContext;
+  // --------------------------------------------------------------------------
+  // CONSTRUCTOR
+  // --------------------------------------------------------------------------
+  private constructor(id: string, familyId: string, role: RelationshipType, addedBy: string) {
+    if (!id?.trim()) throw new Error('Family member ID is required');
+    if (!familyId?.trim()) throw new Error('Family ID is required');
+    if (!addedBy?.trim()) throw new Error('AddedBy user ID is required');
 
-  private constructor(
-    id: string,
-    familyId: string,
-    role: RelationshipType,
-    addedBy: string,
-    // Lifecycle injection for reconstitution
-    createdAt?: Date,
-    updatedAt?: Date,
-    deletedAt?: Date | null,
-  ) {
-    super();
-    this.id = id;
-    this.familyId = familyId;
-    this.role = role;
-    this.addedBy = addedBy;
+    this._id = id;
+    this._familyId = familyId;
+    this._role = role;
+    this._addedBy = addedBy;
 
-    // Initialize fields
-    this.userId = null;
-    this.firstName = null;
-    this.lastName = null;
-    this.email = null;
-    this.phone = null;
-    this.dateOfBirth = null;
-    this.dateOfDeath = null;
-    this.relationshipTo = null;
-    this.isMinor = false;
-    this.isDeceased = false;
-    this.notes = null;
+    // Defaults
+    this._userId = null;
+    this._firstName = null;
+    this._lastName = null;
+    this._email = null;
+    this._phone = null;
+    this._dateOfBirth = null;
+    this._dateOfDeath = null;
+    this._relationshipTo = null;
+    this._isMinor = false;
+    this._isDeceased = false;
+    this._notes = null;
+    this._createdAt = new Date();
+    this._updatedAt = new Date();
+    this._deletedAt = null;
 
-    // Lifecycle
-    this.createdAt = createdAt ?? new Date();
-    this.updatedAt = updatedAt ?? new Date();
-    this.deletedAt = deletedAt ?? null;
-
-    // Initialize Kenyan legal context (defaults)
-    this.dependantStatus = new KenyanDependantStatus(
+    // Initialize value objects with defaults
+    this._dependantStatus = new KenyanDependantStatus(
       false,
       DependencyLevel.NONE,
       InheritanceRights.NONE,
       0.0,
     );
-    this.relationshipContext = new KenyanRelationshipContext(false, true, false, false);
+    this._relationshipContext = new KenyanRelationshipContext(
+      false, // isAdopted
+      true, // isBiological (default assumption)
+      false, // bornOutOfWedlock
+      false, // isCustomaryAdoption
+    );
   }
 
   // --------------------------------------------------------------------------
   // FACTORY METHODS
   // --------------------------------------------------------------------------
 
+  /**
+   * Creates a new family member entity.
+   *
+   * Note: This does NOT emit events. The Family aggregate will emit
+   * FamilyMemberLinkedEvent when this member is linked to the family.
+   */
   static create(
     id: string,
     familyId: string,
     role: RelationshipType,
     addedBy: string,
-    details?: {
+    details: {
       userId?: string;
       firstName?: string;
       lastName?: string;
@@ -177,87 +223,79 @@ export class FamilyMember extends AggregateRoot {
       phone?: string;
       dateOfBirth?: Date;
       relationshipTo?: string;
-      isMinor?: boolean;
       notes?: string;
     },
   ): FamilyMember {
-    // Identity Validation
-    if (!details?.userId && (!details?.firstName || !details?.lastName)) {
-      throw new Error('Family member must have either a linked User ID or First and Last Name.');
+    // Validation: Must have either userId OR name
+    if (!details.userId && (!details.firstName || !details.lastName)) {
+      throw new Error('Family member must have either userId or firstName + lastName');
+    }
+
+    // Validation: Minors must have date of birth (Kenyan law requirement)
+    if (details.dateOfBirth) {
+      const age = FamilyMember.calculateAge(details.dateOfBirth);
+      if (age < 18 && !details.dateOfBirth) {
+        throw new Error('Minors must have a date of birth (Children Act, 2022)');
+      }
     }
 
     const member = new FamilyMember(id, familyId, role, addedBy);
 
-    // Apply Details
-    if (details?.userId) member.userId = details.userId;
-    if (details?.firstName) member.firstName = details.firstName;
-    if (details?.lastName) member.lastName = details.lastName;
-    if (details?.email) member.email = details.email;
-    if (details?.phone) member.phone = details.phone;
+    // Set identity
+    member._userId = details.userId || null;
+    member._firstName = details.firstName?.trim() || null;
+    member._lastName = details.lastName?.trim() || null;
+    member._email = details.email?.trim() || null;
+    member._phone = details.phone?.trim() || null;
+    member._relationshipTo = details.relationshipTo?.trim() || null;
+    member._notes = details.notes?.trim() || null;
 
-    if (details?.dateOfBirth) {
+    // Set date of birth and calculate minor status
+    if (details.dateOfBirth) {
       member.setDateOfBirth(details.dateOfBirth);
-    } else if (details?.isMinor !== undefined) {
-      member.isMinor = details.isMinor;
     }
 
-    if (details?.relationshipTo) member.relationshipTo = details.relationshipTo;
-    if (details?.notes) member.notes = details.notes;
-
-    // Run Initial Computations
-    member.calculateDependantStatus();
-    member.calculateRelationshipContext();
-
-    member.apply(
-      new FamilyMemberAddedEvent(member.familyId, {
-        memberId: member.id,
-        userId: member.userId || undefined,
-        firstName: member.firstName || '',
-        lastName: member.lastName || '',
-        role: member.role,
-        isMinor: member.isMinor,
-        isDeceased: member.isDeceased,
-        dateOfBirth: member.dateOfBirth || new Date(),
-        relationshipTo: member.relationshipTo || undefined,
-      }),
-    );
+    // Calculate Kenyan legal properties
+    member.recalculateDependantStatus();
+    member.recalculateRelationshipContext();
 
     return member;
   }
 
-  static reconstitute(props: FamilyMemberReconstitutionProps): FamilyMember {
-    const member = new FamilyMember(
-      props.id,
-      props.familyId,
-      props.role,
-      props.addedBy,
-      props.createdAt,
-      props.updatedAt,
-      props.deletedAt,
-    );
+  static reconstitute(props: FamilyMemberReconstituteProps): FamilyMember {
+    const member = new FamilyMember(props.id, props.familyId, props.role, props.addedBy);
 
-    member.userId = props.userId;
-    member.firstName = props.firstName;
-    member.lastName = props.lastName;
-    member.email = props.email;
-    member.phone = props.phone;
-    member.dateOfBirth = props.dateOfBirth;
-    member.dateOfDeath = props.dateOfDeath;
-    member.relationshipTo = props.relationshipTo;
-    member.isMinor = props.isMinor;
-    member.isDeceased = props.isDeceased;
-    member.notes = props.notes;
+    member._userId = props.userId;
+    member._firstName = props.firstName;
+    member._lastName = props.lastName;
+    member._email = props.email;
+    member._phone = props.phone;
+    member._dateOfBirth = props.dateOfBirth ? new Date(props.dateOfBirth) : null;
+    member._dateOfDeath = props.dateOfDeath ? new Date(props.dateOfDeath) : null;
+    member._relationshipTo = props.relationshipTo;
+    member._isMinor = props.isMinor;
+    member._isDeceased = props.isDeceased;
+    member._notes = props.notes;
 
-    member.calculateDependantStatus();
-    member.calculateRelationshipContext();
+    // Override constructor dates
+    (member as any)._createdAt = new Date(props.createdAt);
+    member._updatedAt = new Date(props.updatedAt);
+    member._deletedAt = props.deletedAt ? new Date(props.deletedAt) : null;
+
+    // Recalculate computed properties
+    member.recalculateDependantStatus();
+    member.recalculateRelationshipContext();
 
     return member;
   }
 
   // --------------------------------------------------------------------------
-  // BUSINESS LOGIC
+  // DOMAIN OPERATIONS
   // --------------------------------------------------------------------------
 
+  /**
+   * Updates basic member details.
+   */
   updateDetails(updates: {
     firstName?: string;
     lastName?: string;
@@ -266,264 +304,400 @@ export class FamilyMember extends AggregateRoot {
     relationshipTo?: string;
     notes?: string;
   }): void {
+    // Prevent removing required fields for non-user members
     if (updates.firstName !== undefined) {
-      if (!updates.firstName && !this.userId) {
-        throw new Error('First name cannot be removed for non-user family members.');
+      if (!updates.firstName && !this._userId) {
+        throw new Error('First name required for non-user family members');
       }
-      this.firstName = updates.firstName ?? null;
+      this._firstName = updates.firstName?.trim() || null;
     }
 
     if (updates.lastName !== undefined) {
-      if (!updates.lastName && !this.userId) {
-        throw new Error('Last name cannot be removed for non-user family members.');
+      if (!updates.lastName && !this._userId) {
+        throw new Error('Last name required for non-user family members');
       }
-      this.lastName = updates.lastName ?? null;
+      this._lastName = updates.lastName?.trim() || null;
     }
 
-    if (updates.email !== undefined) this.email = updates.email ?? null;
-    if (updates.phone !== undefined) this.phone = updates.phone ?? null;
-    if (updates.relationshipTo !== undefined) this.relationshipTo = updates.relationshipTo ?? null;
-    if (updates.notes !== undefined) this.notes = updates.notes ?? null;
-
-    this.updatedAt = new Date();
-    this.apply(new FamilyMemberUpdatedEvent(this.id, this.familyId, updates));
-  }
-
-  setDateOfBirth(dob: Date): void {
-    if (dob > new Date()) {
-      throw new Error('Date of birth cannot be in the future.');
+    if (updates.email !== undefined) this._email = updates.email?.trim() || null;
+    if (updates.phone !== undefined) this._phone = updates.phone?.trim() || null;
+    if (updates.relationshipTo !== undefined) {
+      this._relationshipTo = updates.relationshipTo?.trim() || null;
     }
-    this.dateOfBirth = dob;
-    this.isMinor = this.calculateAge(dob) < 18;
-    this.updatedAt = new Date();
-    this.calculateDependantStatus();
+    if (updates.notes !== undefined) this._notes = updates.notes?.trim() || null;
+
+    this.markAsUpdated();
   }
 
-  markAsDeceased(dateOfDeath: Date, markedBy: string, deathCertificateNumber?: string): void {
-    if (isNaN(dateOfDeath.getTime())) throw new Error('Invalid date of death.');
-    if (dateOfDeath > new Date()) throw new Error('Date of death cannot be in the future.');
-    if (this.isDeceased) throw new Error('Family member is already marked as deceased.');
+  /**
+   * Sets or updates date of birth.
+   * Automatically calculates minor status.
+   */
+  setDateOfBirth(dateOfBirth: Date): void {
+    if (dateOfBirth > new Date()) {
+      throw new Error('Date of birth cannot be in the future');
+    }
 
-    this.isDeceased = true;
-    this.dateOfDeath = dateOfDeath;
-    this.updatedAt = new Date();
+    this._dateOfBirth = dateOfBirth;
+    this._isMinor = FamilyMember.calculateAge(dateOfBirth) < 18;
 
-    this.calculateDependantStatus();
-
-    this.apply(
-      new FamilyMemberMarkedDeceasedEvent(
-        this.id,
-        this.familyId,
-        dateOfDeath,
-        markedBy,
-        deathCertificateNumber,
-      ),
-    );
+    this.recalculateDependantStatus();
+    this.markAsUpdated();
   }
 
+  /**
+   * Marks member as deceased.
+   *
+   * Legal Context:
+   * - Section 45: Death triggers estate administration
+   * - This method only records death in family context
+   * - Estate opening happens in succession-planning module
+   */
+  markAsDeceased(dateOfDeath: Date): void {
+    if (dateOfDeath > new Date()) {
+      throw new Error('Date of death cannot be in the future');
+    }
+
+    if (this._dateOfBirth && dateOfDeath < this._dateOfBirth) {
+      throw new Error('Date of death cannot be before date of birth');
+    }
+
+    if (this._isDeceased) {
+      throw new Error('Member already marked as deceased');
+    }
+
+    this._isDeceased = true;
+    this._dateOfDeath = dateOfDeath;
+
+    // Deceased persons lose dependant status
+    this.recalculateDependantStatus();
+    this.markAsUpdated();
+  }
+
+  /**
+   * Links this member to a registered user account.
+   */
   linkToUser(userId: string): void {
-    if (this.userId) throw new Error('Family member is already linked to a user.');
-    this.userId = userId;
-    this.updatedAt = new Date();
-    this.apply(new FamilyMemberUpdatedEvent(this.id, this.familyId, { linkedUserId: userId }));
+    if (!userId?.trim()) {
+      throw new Error('User ID is required');
+    }
+
+    if (this._userId) {
+      throw new Error('Member already linked to a user');
+    }
+
+    this._userId = userId;
+    this.markAsUpdated();
   }
 
+  /**
+   * Updates the relationship role.
+   */
   updateRelationship(role: RelationshipType, relationshipTo?: string): void {
-    const oldRole = this.role;
-    this.role = role;
-    if (relationshipTo !== undefined) this.relationshipTo = relationshipTo;
+    this._role = role;
 
-    this.updatedAt = new Date();
-    this.calculateDependantStatus();
-    this.calculateRelationshipContext();
-
-    this.apply(
-      new FamilyMemberUpdatedEvent(this.id, this.familyId, {
-        previousRole: oldRole,
-        newRole: role,
-        relationshipTo,
-      }),
-    );
-  }
-
-  assignAsGuardian(guardianDetails: {
-    guardianType: GuardianType;
-    appointedBy: GuardianAppointmentSource;
-    appointmentDate: Date;
-    courtOrderNumber?: string;
-  }): void {
-    if (this.isDeceased) throw new Error('Cannot assign a deceased person as a guardian.');
-    if (this.isMinor) throw new Error('A minor cannot act as a guardian.');
-
-    this.updatedAt = new Date();
-    this.apply(new FamilyMemberGuardianAssignedEvent(this.id, this.familyId, guardianDetails));
-  }
-
-  remove(reason?: string): void {
-    if (this.isDependantUnderKenyanLaw() && !this.deletedAt) {
-      // Warning logic handled by service
+    if (relationshipTo !== undefined) {
+      this._relationshipTo = relationshipTo.trim() || null;
     }
 
-    this.deletedAt = new Date();
-    this.updatedAt = new Date();
-    this.apply(new FamilyMemberRemovedEvent(this.id, this.familyId, reason ?? 'removed'));
+    // Recalculate legal status based on new role
+    this.recalculateDependantStatus();
+    this.recalculateRelationshipContext();
+    this.markAsUpdated();
+  }
+
+  /**
+   * Marks member for removal (soft delete).
+   */
+  markForRemoval(): void {
+    this._deletedAt = new Date();
+    this.markAsUpdated();
+  }
+
+  /**
+   * Restores a removed member.
+   */
+  restore(): void {
+    this._deletedAt = null;
+    this.markAsUpdated();
   }
 
   // --------------------------------------------------------------------------
-  // KENYAN SUCCESSION RULES & CALCULATIONS
+  // KENYAN LAW CALCULATIONS (Section 29 - Dependants)
   // --------------------------------------------------------------------------
 
-  private calculateAge(dob: Date): number {
-    const today = new Date();
-    let age = today.getFullYear() - dob.getFullYear();
-    const monthDiff = today.getMonth() - dob.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-      age--;
-    }
-    return age;
-  }
-
+  /**
+   * Determines if member is a dependant under Kenyan Law.
+   *
+   * Reference: Section 29 - Dependants include:
+   * - Wife or wives (or former wives)
+   * - Children (including adopted/step-children treated as family)
+   * - Any person being maintained by deceased immediately before death
+   */
   isDependantUnderKenyanLaw(): boolean {
-    if (this.isDeceased) return false;
-    // Primary Dependants (Section 29)
-    if (
-      this.role === RelationshipType.SPOUSE ||
-      this.role === RelationshipType.CHILD ||
-      this.role === RelationshipType.ADOPTED_CHILD
-    ) {
-      return true;
-    }
-    return false;
+    if (this._isDeceased) return false;
+
+    // Primary dependants (Section 29)
+    const dependantRoles = [
+      RelationshipType.SPOUSE,
+      RelationshipType.EX_SPOUSE,
+      RelationshipType.CHILD,
+      RelationshipType.ADOPTED_CHILD,
+      RelationshipType.STEPCHILD,
+    ];
+
+    return dependantRoles.includes(this._role);
   }
 
-  private calculateDependantStatus(): void {
+  /**
+   * Recalculates dependant status based on role, age, and deceased status.
+   */
+  private recalculateDependantStatus(): void {
     const isDependant = this.isDependantUnderKenyanLaw();
 
-    // Explicit Typing fixes "Type not assignable" errors
-    let dependencyLevel: DependencyLevel = DependencyLevel.NONE;
-    let inheritanceRights: InheritanceRights = InheritanceRights.NONE;
-    let traditionalWeight = 0.0;
-
-    if (this.isDeceased) {
-      inheritanceRights = InheritanceRights.NONE;
-    } else {
-      if (this.role === RelationshipType.SPOUSE) {
-        dependencyLevel = DependencyLevel.FULL;
-        inheritanceRights = InheritanceRights.FULL;
-        traditionalWeight = 1.0;
-      } else if (
-        this.role === RelationshipType.CHILD ||
-        this.role === RelationshipType.ADOPTED_CHILD
-      ) {
-        dependencyLevel = this.isMinor ? DependencyLevel.FULL : DependencyLevel.PARTIAL;
-        inheritanceRights = InheritanceRights.FULL;
-        traditionalWeight = 1.0;
-      } else if (this.role === RelationshipType.PARENT) {
-        inheritanceRights = InheritanceRights.PARTIAL;
-        traditionalWeight = 0.5;
-      } else {
-        inheritanceRights = InheritanceRights.CUSTOMARY;
-      }
+    if (this._isDeceased) {
+      // Deceased persons have no inheritance rights
+      this._dependantStatus = new KenyanDependantStatus(
+        false,
+        DependencyLevel.NONE,
+        InheritanceRights.NONE,
+        0.0,
+      );
+      return;
     }
 
-    this.dependantStatus = new KenyanDependantStatus(
+    let dependencyLevel: DependencyLevel;
+    let inheritanceRights: InheritanceRights;
+    let weight: number;
+
+    // Calculate based on role (Sections 35-39 - Intestacy rules)
+    switch (this._role) {
+      case RelationshipType.SPOUSE:
+      case RelationshipType.EX_SPOUSE:
+        dependencyLevel = DependencyLevel.FULL;
+        inheritanceRights = InheritanceRights.FULL;
+        weight = 1.0; // Equal share with children
+        break;
+
+      case RelationshipType.CHILD:
+      case RelationshipType.ADOPTED_CHILD:
+        dependencyLevel = this._isMinor ? DependencyLevel.FULL : DependencyLevel.PARTIAL;
+        inheritanceRights = InheritanceRights.FULL;
+        weight = 1.0; // Equal share
+        break;
+
+      case RelationshipType.STEPCHILD:
+        dependencyLevel = this._isMinor ? DependencyLevel.FULL : DependencyLevel.PARTIAL;
+        inheritanceRights = InheritanceRights.PARTIAL;
+        weight = 0.5; // Reduced share (customary law)
+        break;
+
+      case RelationshipType.PARENT:
+        dependencyLevel = DependencyLevel.PARTIAL;
+        inheritanceRights = InheritanceRights.PARTIAL;
+        weight = 0.5; // Parents inherit if no spouse/children
+        break;
+
+      case RelationshipType.SIBLING:
+      case RelationshipType.HALF_SIBLING:
+        dependencyLevel = DependencyLevel.NONE;
+        inheritanceRights = InheritanceRights.CUSTOMARY;
+        weight = 0.25; // Customary inheritance only
+        break;
+
+      default:
+        dependencyLevel = DependencyLevel.NONE;
+        inheritanceRights = InheritanceRights.CUSTOMARY;
+        weight = 0.0;
+    }
+
+    this._dependantStatus = new KenyanDependantStatus(
       isDependant,
       dependencyLevel,
       inheritanceRights,
-      traditionalWeight,
+      weight,
     );
   }
 
-  private calculateRelationshipContext(): void {
-    const isAdopted = this.role === RelationshipType.ADOPTED_CHILD;
+  /**
+   * Recalculates relationship context (adoption/biological status).
+   */
+  private recalculateRelationshipContext(): void {
+    const isAdopted = this._role === RelationshipType.ADOPTED_CHILD;
     const isBiological =
       !isAdopted &&
-      this.role !== RelationshipType.STEPCHILD &&
-      this.role !== RelationshipType.SPOUSE;
+      this._role !== RelationshipType.STEPCHILD &&
+      this._role !== RelationshipType.SPOUSE;
 
-    this.relationshipContext = new KenyanRelationshipContext(isAdopted, isBiological, false, false);
+    this._relationshipContext = new KenyanRelationshipContext(
+      isAdopted,
+      isBiological,
+      false, // bornOutOfWedlock - would be set via separate method
+      false, // isCustomaryAdoption - would be set via separate method
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // VALIDATION & BUSINESS RULES
+  // --------------------------------------------------------------------------
+
+  /**
+   * Validates if member can act as a guardian.
+   *
+   * Reference: Children Act (2022) - Guardian eligibility
+   */
+  canBeGuardian(): { canBeGuardian: boolean; reason?: string } {
+    if (this._isDeceased) {
+      return { canBeGuardian: false, reason: 'Deceased persons cannot be guardians' };
+    }
+
+    if (this._isMinor) {
+      return { canBeGuardian: false, reason: 'Minors cannot be guardians' };
+    }
+
+    return { canBeGuardian: true };
+  }
+
+  /**
+   * Validates if member can be a witness to a will.
+   *
+   * Reference: Section 13 - Witness requirements
+   */
+  canBeWillWitness(): { canBeWitness: boolean; reason?: string } {
+    if (this._isDeceased) {
+      return { canBeWitness: false, reason: 'Deceased persons cannot witness wills' };
+    }
+
+    if (this._isMinor) {
+      return { canBeWitness: false, reason: 'Minors cannot witness wills (must be 18+)' };
+    }
+
+    return { canBeWitness: true };
+  }
+
+  // --------------------------------------------------------------------------
+  // QUERIES & HELPERS
+  // --------------------------------------------------------------------------
+
+  /**
+   * Calculates age from date of birth.
+   */
+  static calculateAge(dateOfBirth: Date): number {
+    const today = new Date();
+    let age = today.getFullYear() - dateOfBirth.getFullYear();
+    const monthDiff = today.getMonth() - dateOfBirth.getMonth();
+
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dateOfBirth.getDate())) {
+      age--;
+    }
+
+    return Math.max(0, age);
+  }
+
+  getAge(): number | null {
+    return this._dateOfBirth ? FamilyMember.calculateAge(this._dateOfBirth) : null;
+  }
+
+  getFullName(): string {
+    if (this._firstName && this._lastName) {
+      return `${this._firstName} ${this._lastName}`;
+    }
+
+    if (this._firstName) return this._firstName;
+    if (this._userId) return `User ${this._userId}`;
+
+    return 'Unknown Member';
+  }
+
+  isRemoved(): boolean {
+    return this._deletedAt !== null;
+  }
+
+  private markAsUpdated(): void {
+    this._updatedAt = new Date();
   }
 
   // --------------------------------------------------------------------------
   // GETTERS
   // --------------------------------------------------------------------------
 
-  getId(): string {
-    return this.id;
-  }
-  getFamilyId(): string {
-    return this.familyId;
-  }
-  getUserId(): string | null {
-    return this.userId;
-  }
-  getFirstName(): string | null {
-    return this.firstName;
-  }
-  getLastName(): string | null {
-    return this.lastName;
-  }
-  getEmail(): string | null {
-    return this.email;
-  }
-  getPhone(): string | null {
-    return this.phone;
-  }
-  getDateOfBirth(): Date | null {
-    return this.dateOfBirth;
-  }
-  getDateOfDeath(): Date | null {
-    return this.dateOfDeath;
-  }
-  getRelationshipTo(): string | null {
-    return this.relationshipTo;
-  }
-  getRole(): RelationshipType {
-    return this.role;
-  }
-  getIsMinor(): boolean {
-    return this.isMinor;
-  }
-  getIsDeceased(): boolean {
-    return this.isDeceased;
-  }
-  getNotes(): string | null {
-    return this.notes;
-  }
-  getAddedBy(): string {
-    return this.addedBy;
-  }
-  getCreatedAt(): Date {
-    return this.createdAt;
-  }
-  getUpdatedAt(): Date {
-    return this.updatedAt;
-  }
-  getDeletedAt(): Date | null {
-    return this.deletedAt;
+  get id(): string {
+    return this._id;
   }
 
-  getDependantStatus(): KenyanDependantStatus {
-    return this.dependantStatus;
-  }
-  getRelationshipContext(): KenyanRelationshipContext {
-    return this.relationshipContext;
+  get familyId(): string {
+    return this._familyId;
   }
 
-  getFullName(): string {
-    if (this.firstName && this.lastName) return `${this.firstName} ${this.lastName}`;
-    return this.userId ? `User ${this.userId}` : 'Unknown Member';
+  get userId(): string | null {
+    return this._userId;
   }
 
-  // Added to ensure private fields are accessed and provide comprehensive data to consumers
-  getSuccessionProfile() {
-    return {
-      id: this.id,
-      fullName: this.getFullName(),
-      isDependant: this.isDependantUnderKenyanLaw(),
-      dependantStatus: this.dependantStatus,
-      relationshipContext: this.relationshipContext, // Solves unused property error
-      inheritanceRights: this.dependantStatus.inheritanceRights,
-    };
+  get firstName(): string | null {
+    return this._firstName;
+  }
+
+  get lastName(): string | null {
+    return this._lastName;
+  }
+
+  get email(): string | null {
+    return this._email;
+  }
+
+  get phone(): string | null {
+    return this._phone;
+  }
+
+  get dateOfBirth(): Date | null {
+    return this._dateOfBirth;
+  }
+
+  get dateOfDeath(): Date | null {
+    return this._dateOfDeath;
+  }
+
+  get relationshipTo(): string | null {
+    return this._relationshipTo;
+  }
+
+  get role(): RelationshipType {
+    return this._role;
+  }
+
+  get isMinor(): boolean {
+    return this._isMinor;
+  }
+
+  get isDeceased(): boolean {
+    return this._isDeceased;
+  }
+
+  get notes(): string | null {
+    return this._notes;
+  }
+
+  get addedBy(): string {
+    return this._addedBy;
+  }
+
+  get dependantStatus(): KenyanDependantStatus {
+    return this._dependantStatus;
+  }
+
+  get relationshipContext(): KenyanRelationshipContext {
+    return this._relationshipContext;
+  }
+
+  get createdAt(): Date {
+    return new Date(this._createdAt);
+  }
+
+  get updatedAt(): Date {
+    return new Date(this._updatedAt);
+  }
+
+  get deletedAt(): Date | null {
+    return this._deletedAt ? new Date(this._deletedAt) : null;
   }
 }

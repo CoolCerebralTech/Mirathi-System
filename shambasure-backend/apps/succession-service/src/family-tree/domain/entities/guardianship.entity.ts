@@ -1,14 +1,11 @@
-import { AggregateRoot } from '@nestjs/cqrs';
-import { GuardianAppointmentSource, GuardianType, Prisma } from '@prisma/client';
+import { GuardianType, Prisma } from '@prisma/client';
 
-import { GuardianAssignedEvent } from '../events/guardian-assigned.event';
-import { GuardianRemovedEvent } from '../events/guardian-removed.event';
-import { GuardianshipAuthorityUpdatedEvent } from '../events/guardianship-authority-updated.event';
-
-// -----------------------------------------------------------------------------
-// VALUE OBJECTS & INTERFACES
-// -----------------------------------------------------------------------------
-
+/**
+ * Kenyan Court Order Value Object
+ *
+ * Immutable representation of a court order appointing a guardian.
+ * Reference: Children Act (2022), High Court Rules.
+ */
 export class KenyanCourtOrder {
   constructor(
     public readonly courtOrderNumber: string,
@@ -16,31 +13,60 @@ export class KenyanCourtOrder {
     public readonly caseNumber: string,
     public readonly issuingJudge: string,
     public readonly courtStation: string,
-  ) {}
+  ) {
+    if (!courtOrderNumber?.trim()) throw new Error('Court order number is required');
+    if (!courtName?.trim()) throw new Error('Court name is required');
+    if (!courtStation?.trim()) throw new Error('Court station is required');
+  }
+
+  equals(other: KenyanCourtOrder): boolean {
+    return this.courtOrderNumber === other.courtOrderNumber;
+  }
 }
 
+/**
+ * Guardianship Conditions Value Object
+ *
+ * Immutable representation of conditions, powers, and reporting requirements
+ * attached to a guardianship by court order or will.
+ */
 export class GuardianshipConditions {
   constructor(
-    public readonly conditions: string[],
-    public readonly reportingRequirements: string[],
-    public readonly restrictedPowers: string[],
-    public readonly specialInstructions: string[],
+    public readonly conditions: readonly string[],
+    public readonly reportingRequirements: readonly string[],
+    public readonly restrictedPowers: readonly string[],
+    public readonly specialInstructions: readonly string[],
   ) {}
+
+  hasConditions(): boolean {
+    return this.conditions.length > 0;
+  }
+
+  hasReportingRequirements(): boolean {
+    return this.reportingRequirements.length > 0;
+  }
+
+  hasRestrictedPowers(): boolean {
+    return this.restrictedPowers.length > 0;
+  }
 }
 
-// Guardianship Reconstitution Interface matching Prisma schema
-export interface GuardianshipReconstitutionProps {
+/**
+ * Guardian Reconstitution Props
+ */
+export interface GuardianReconstituteProps {
   id: string;
+  familyId: string; // ADDED - missing from original
 
   // Core relationships
-  guardianId: string;
-  wardId: string;
-  type: GuardianType;
+  guardianId: string; // FamilyMember ID acting as guardian
+  wardId: string; // FamilyMember ID being guarded
 
-  // Legal appointment
-  appointedBy: string | null;
-  appointmentDate: Date;
-  validUntil: Date | null;
+  // Guardian configuration
+  type: GuardianType;
+  appointedBy: string | null; // Reference to Will ID or Court Order
+  appointmentDate: Date | string;
+  validUntil: Date | string | null;
 
   // Kenyan Court Order Fields
   courtOrderNumber: string | null;
@@ -49,7 +75,7 @@ export interface GuardianshipReconstitutionProps {
   issuingJudge: string | null;
   courtStation: string | null;
 
-  // Guardianship Conditions (Prisma Json Types)
+  // Guardianship Conditions (JSON arrays)
   conditions: Prisma.JsonValue;
   reportingRequirements: Prisma.JsonValue;
   restrictedPowers: Prisma.JsonValue;
@@ -57,532 +83,546 @@ export interface GuardianshipReconstitutionProps {
 
   // Status & Review
   isTemporary: boolean;
-  reviewDate: Date | null;
+  reviewDate: Date | string | null;
 
   // Status
   isActive: boolean;
   notes: string | null;
 
   // Timestamps
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
 
-// -----------------------------------------------------------------------------
-// AGGREGATE ROOT: GUARDIANSHIP
-// -----------------------------------------------------------------------------
+/**
+ * Guardian Entity (NOT an Aggregate Root)
+ *
+ * Represents a guardianship relationship between two family members.
+ * This is a child entity of the Family aggregate.
+ *
+ * Legal Context:
+ * - Children Act (2022): Guardian appointment and duties
+ * - Law of Succession Act, Section 57-61: Guardianship of minors' property
+ * - Kenyan High Court Rules: Court-appointed guardianship procedures
+ *
+ * Entity Responsibilities:
+ * - Track guardian-ward relationship
+ * - Store court order details (if court-appointed)
+ * - Manage guardianship conditions and restrictions
+ * - Validate legal compliance
+ * - Track review dates and expiry
+ *
+ * Does NOT:
+ * - Emit domain events (Family aggregate does this)
+ * - Validate guardian/ward eligibility (FamilyMember validates)
+ * - Create itself (Family aggregate creates via factory)
+ *
+ * Guardian Types (from Children Act):
+ * - LEGAL_GUARDIAN: Full custody by court order
+ * - FINANCIAL_GUARDIAN: Manages minor's inheritance only
+ * - PROPERTY_GUARDIAN: Manages property until age of majority
+ * - TESTAMENTARY: Appointed via will
+ */
+export class Guardian {
+  // Core Identity
+  private readonly _id: string;
+  private readonly _familyId: string;
 
-export class Guardianship extends AggregateRoot {
-  private readonly id: string;
+  // Guardian-Ward Relationship
+  private readonly _guardianId: string; // FamilyMember acting as guardian
+  private readonly _wardId: string; // FamilyMember being guarded (minor/dependent)
 
-  // Core relationships
-  private readonly guardianId: string;
-  private readonly wardId: string;
-  private readonly type: GuardianType;
+  // Guardian Configuration
+  private readonly _type: GuardianType;
+  private _appointedBy: string | null; // Will ID, Court Order number, or User ID
+  private readonly _appointmentDate: Date;
+  private _validUntil: Date | null;
 
-  // Legal appointment
-  private appointedBy: string | null;
-  private readonly appointmentDate: Date;
-  private validUntil: Date | null;
+  // Kenyan Court Order Details (for court-appointed guardians)
+  private _courtOrder: KenyanCourtOrder | null;
 
-  // Kenyan Court Order Fields
-  private courtOrderNumber: string | null;
-  private courtName: string | null;
-  private caseNumber: string | null;
-  private issuingJudge: string | null;
-  private courtStation: string | null;
+  // Guardianship Conditions (immutable value object)
+  private _guardianshipConditions: GuardianshipConditions;
 
-  // Guardianship Conditions
-  private conditions: string[];
-  private reportingRequirements: string[];
-  private restrictedPowers: string[];
-  private specialInstructions: string[];
-
-  // Status & Review
-  private isTemporary: boolean;
-  private reviewDate: Date | null;
-
-  // Status
-  private isActive: boolean;
-  private notes: string | null;
+  // Review & Status
+  private _isTemporary: boolean;
+  private _reviewDate: Date | null;
+  private _isActive: boolean;
+  private _notes: string | null;
 
   // Timestamps
-  private readonly createdAt: Date;
-  private updatedAt: Date;
+  private readonly _createdAt: Date;
+  private _updatedAt: Date;
 
+  // --------------------------------------------------------------------------
+  // CONSTRUCTOR
+  // --------------------------------------------------------------------------
   private constructor(
     id: string,
+    familyId: string,
     guardianId: string,
     wardId: string,
     type: GuardianType,
     appointmentDate: Date,
-    // Lifecycle injection for reconstitution
-    createdAt?: Date,
-    updatedAt?: Date,
   ) {
-    super();
+    if (!id?.trim()) throw new Error('Guardian ID is required');
+    if (!familyId?.trim()) throw new Error('Family ID is required');
+    if (!guardianId?.trim()) throw new Error('Guardian member ID is required');
+    if (!wardId?.trim()) throw new Error('Ward member ID is required');
 
-    // Basic Validation
     if (guardianId === wardId) {
-      throw new Error('A person cannot be their own guardian under Kenyan law.');
+      throw new Error('A person cannot be their own guardian');
     }
 
-    this.id = id;
-    this.guardianId = guardianId;
-    this.wardId = wardId;
-    this.type = type;
-    this.appointmentDate = appointmentDate;
+    this._id = id;
+    this._familyId = familyId;
+    this._guardianId = guardianId;
+    this._wardId = wardId;
+    this._type = type;
+    this._appointmentDate = appointmentDate;
 
     // Defaults
-    this.appointedBy = null;
-    this.validUntil = null;
-    this.courtOrderNumber = null;
-    this.courtName = null;
-    this.caseNumber = null;
-    this.issuingJudge = null;
-    this.courtStation = null;
-    this.conditions = [];
-    this.reportingRequirements = [];
-    this.restrictedPowers = [];
-    this.specialInstructions = [];
-    this.isTemporary = false;
-    this.reviewDate = null;
-    this.isActive = true;
-    this.notes = null;
-
-    // Lifecycle
-    this.createdAt = createdAt ?? new Date();
-    this.updatedAt = updatedAt ?? new Date();
+    this._appointedBy = null;
+    this._validUntil = null;
+    this._courtOrder = null;
+    this._guardianshipConditions = new GuardianshipConditions([], [], [], []);
+    this._isTemporary = false;
+    this._reviewDate = null;
+    this._isActive = true;
+    this._notes = null;
+    this._createdAt = new Date();
+    this._updatedAt = new Date();
   }
 
   // --------------------------------------------------------------------------
   // FACTORY METHODS
   // --------------------------------------------------------------------------
 
-  static create(
+  /**
+   * Creates a court-appointed guardian.
+   * Reference: Children Act (2022) - Court appointment procedures.
+   */
+  static createCourtAppointed(
     id: string,
+    familyId: string,
     guardianId: string,
     wardId: string,
     type: GuardianType,
-    appointmentSource: GuardianAppointmentSource,
-    details?: {
-      appointedBy?: string;
-      validUntil?: Date;
-      courtOrderNumber?: string;
-      courtName?: string;
-      caseNumber?: string;
-      issuingJudge?: string;
-      courtStation?: string;
-      conditions?: string[];
-      reportingRequirements?: string[];
-      restrictedPowers?: string[];
-      specialInstructions?: string[];
-      isTemporary?: boolean;
-      reviewDate?: Date;
-      notes?: string;
-    },
-  ): Guardianship {
-    const guardianship = new Guardianship(id, guardianId, wardId, type, new Date());
+    courtOrder: KenyanCourtOrder,
+    appointmentDate: Date,
+    validUntil?: Date,
+    isTemporary: boolean = false,
+  ): Guardian {
+    const guardian = new Guardian(id, familyId, guardianId, wardId, type, appointmentDate);
 
-    guardianship.appointedBy = details?.appointedBy || null;
+    guardian._courtOrder = courtOrder;
+    guardian._appointedBy = courtOrder.courtOrderNumber; // Reference to court order
+    guardian._validUntil = validUntil || null;
+    guardian._isTemporary = isTemporary;
 
-    if (details?.validUntil) {
-      guardianship.validUntil = details.validUntil;
-    }
-
-    // Kenyan Court Order Fields Logic
-    if (appointmentSource === GuardianAppointmentSource.COURT) {
-      if (!details?.courtOrderNumber) {
-        throw new Error('Court-appointed guardianships require a court order number.');
-      }
-      guardianship.courtOrderNumber = details.courtOrderNumber;
-      guardianship.courtName = details.courtName || null;
-      guardianship.caseNumber = details.caseNumber || null;
-      guardianship.issuingJudge = details.issuingJudge || null;
-      guardianship.courtStation = details.courtStation || null;
-    }
-
-    guardianship.conditions = details?.conditions || [];
-    guardianship.reportingRequirements = details?.reportingRequirements || [];
-    guardianship.restrictedPowers = details?.restrictedPowers || [];
-    guardianship.specialInstructions = details?.specialInstructions || [];
-
-    guardianship.isTemporary = details?.isTemporary || false;
-    if (details?.reviewDate) {
-      guardianship.reviewDate = details.reviewDate;
-    }
-
-    guardianship.notes = details?.notes || null;
-
-    guardianship.apply(
-      new GuardianAssignedEvent(guardianship.id, {
-        // Passed as args to match Event constructor
-        guardianId: guardianship.guardianId,
-        wardId: guardianship.wardId,
-        type: guardianship.type,
-        appointedBy: appointmentSource, // Use the Source Enum passed in
-        appointmentDate: guardianship.appointmentDate,
-        validUntil: guardianship.validUntil || undefined,
-        courtOrderNumber: guardianship.courtOrderNumber || undefined,
-        isTemporary: guardianship.isTemporary,
-        notes: guardianship.notes || undefined,
-      }),
-    );
-
-    return guardianship;
+    return guardian;
   }
 
-  static reconstitute(props: GuardianshipReconstitutionProps): Guardianship {
-    const guardianship = new Guardianship(
+  /**
+   * Creates a testamentary guardian (appointed via will).
+   * Reference: Law of Succession Act, Section 58.
+   */
+  static createTestamentary(
+    id: string,
+    familyId: string,
+    guardianId: string,
+    wardId: string,
+    willId: string,
+    appointmentDate: Date,
+    validUntil?: Date,
+  ): Guardian {
+    const guardian = new Guardian(
+      id,
+      familyId,
+      guardianId,
+      wardId,
+      GuardianType.TESTAMENTARY,
+      appointmentDate,
+    );
+
+    guardian._appointedBy = willId; // Reference to will
+    guardian._validUntil = validUntil || null;
+
+    return guardian;
+  }
+
+  /**
+   * Creates a family-appointed guardian (informal/customary).
+   * Reference: Customary law practices.
+   */
+  static createFamilyAppointed(
+    id: string,
+    familyId: string,
+    guardianId: string,
+    wardId: string,
+    type: GuardianType,
+    appointedByUserId: string,
+    appointmentDate: Date,
+    validUntil?: Date,
+  ): Guardian {
+    const guardian = new Guardian(id, familyId, guardianId, wardId, type, appointmentDate);
+
+    guardian._appointedBy = appointedByUserId; // User who designated guardian
+    guardian._validUntil = validUntil || null;
+
+    return guardian;
+  }
+
+  static reconstitute(props: GuardianReconstituteProps): Guardian {
+    const guardian = new Guardian(
       props.id,
+      props.familyId,
       props.guardianId,
       props.wardId,
       props.type,
-      props.appointmentDate,
-      props.createdAt,
-      props.updatedAt,
+      new Date(props.appointmentDate),
     );
 
-    guardianship.appointedBy = props.appointedBy;
-    guardianship.validUntil = props.validUntil;
-    guardianship.courtOrderNumber = props.courtOrderNumber;
-    guardianship.courtName = props.courtName;
-    guardianship.caseNumber = props.caseNumber;
-    guardianship.issuingJudge = props.issuingJudge;
-    guardianship.courtStation = props.courtStation;
+    guardian._appointedBy = props.appointedBy;
+    guardian._validUntil = props.validUntil ? new Date(props.validUntil) : null;
 
-    // Safe JSON Parsing for Arrays
-    guardianship.conditions = Array.isArray(props.conditions) ? (props.conditions as string[]) : [];
-    guardianship.reportingRequirements = Array.isArray(props.reportingRequirements)
+    // Reconstitute court order if present
+    if (
+      props.courtOrderNumber &&
+      props.courtName &&
+      props.caseNumber &&
+      props.issuingJudge &&
+      props.courtStation
+    ) {
+      guardian._courtOrder = new KenyanCourtOrder(
+        props.courtOrderNumber,
+        props.courtName,
+        props.caseNumber,
+        props.issuingJudge,
+        props.courtStation,
+      );
+    }
+
+    // Reconstitute conditions (safe JSON parsing)
+    const conditions = Array.isArray(props.conditions) ? (props.conditions as string[]) : [];
+    const reportingReqs = Array.isArray(props.reportingRequirements)
       ? (props.reportingRequirements as string[])
       : [];
-    guardianship.restrictedPowers = Array.isArray(props.restrictedPowers)
+    const restrictedPowers = Array.isArray(props.restrictedPowers)
       ? (props.restrictedPowers as string[])
       : [];
-    guardianship.specialInstructions = Array.isArray(props.specialInstructions)
+    const specialInstructions = Array.isArray(props.specialInstructions)
       ? (props.specialInstructions as string[])
       : [];
 
-    guardianship.isTemporary = props.isTemporary;
-    guardianship.reviewDate = props.reviewDate;
-    guardianship.isActive = props.isActive;
-    guardianship.notes = props.notes;
-
-    return guardianship;
-  }
-
-  // --------------------------------------------------------------------------
-  // BUSINESS LOGIC
-  // --------------------------------------------------------------------------
-
-  revoke(reason: string, revokedBy: string, courtOrderNumber?: string): void {
-    if (!this.isActive) {
-      throw new Error('Guardianship is already inactive.');
-    }
-
-    // Children's Act: Court-appointed guardians must be removed by court
-    if (this.type === GuardianType.LEGAL_GUARDIAN && !courtOrderNumber) {
-      throw new Error('Legal guardianship revocation requires a court order number.');
-    }
-
-    this.isActive = false;
-    this.updatedAt = new Date();
-
-    if (courtOrderNumber) {
-      this.courtOrderNumber = courtOrderNumber;
-    }
-
-    this.apply(
-      new GuardianRemovedEvent(
-        this.id,
-        this.guardianId,
-        this.wardId,
-        reason,
-        revokedBy,
-        courtOrderNumber,
-      ),
+    guardian._guardianshipConditions = new GuardianshipConditions(
+      conditions,
+      reportingReqs,
+      restrictedPowers,
+      specialInstructions,
     );
+
+    guardian._isTemporary = props.isTemporary;
+    guardian._reviewDate = props.reviewDate ? new Date(props.reviewDate) : null;
+    guardian._isActive = props.isActive;
+    guardian._notes = props.notes;
+
+    // Override constructor dates
+    (guardian as any)._createdAt = new Date(props.createdAt);
+    guardian._updatedAt = new Date(props.updatedAt);
+
+    return guardian;
   }
 
-  extendGuardianship(
-    newExpiryDate: Date,
-    extensionReason: string,
-    authorizedBy: string,
-    courtOrderNumber?: string,
-  ): void {
-    if (!this.isActive) {
-      throw new Error('Cannot extend an inactive guardianship.');
+  // --------------------------------------------------------------------------
+  // DOMAIN OPERATIONS
+  // --------------------------------------------------------------------------
+
+  /**
+   * Revokes the guardianship.
+   * Legal guardians can only be revoked by court order.
+   */
+  revoke(reason: string, courtOrderNumber?: string): void {
+    if (!this._isActive) {
+      throw new Error('Guardianship already inactive');
     }
 
-    const currentExpiry = this.validUntil || new Date();
+    // Children Act: Legal guardians must be removed by court
+    if (this._type === GuardianType.LEGAL_GUARDIAN && !courtOrderNumber) {
+      throw new Error('Legal guardian revocation requires court order (Children Act, 2022)');
+    }
+
+    this._isActive = false;
+    this.markAsUpdated();
+  }
+
+  /**
+   * Extends the guardianship validity period.
+   * Requires court order for legal guardians.
+   */
+  extendValidity(newExpiryDate: Date, reason: string, courtOrderNumber?: string): void {
+    if (!this._isActive) {
+      throw new Error('Cannot extend inactive guardianship');
+    }
+
+    const currentExpiry = this._validUntil || new Date();
     if (newExpiryDate <= currentExpiry) {
-      throw new Error('New expiry date must be after current expiry date.');
+      throw new Error('New expiry must be after current expiry');
     }
 
-    const previousExpiry = this.validUntil;
-    this.validUntil = newExpiryDate;
-    this.updatedAt = new Date();
-
-    this.conditions.push(
-      `Extended until ${newExpiryDate.toLocaleDateString()} - ${extensionReason} (Authorized by: ${authorizedBy})`,
-    );
-
-    if (this.type === GuardianType.LEGAL_GUARDIAN && courtOrderNumber) {
-      this.courtOrderNumber = courtOrderNumber;
+    if (this._type === GuardianType.LEGAL_GUARDIAN && !courtOrderNumber) {
+      throw new Error('Legal guardian extension requires court order');
     }
 
-    this.apply(
-      new GuardianshipAuthorityUpdatedEvent(this.id, {
-        previousExpiry: previousExpiry || undefined,
-        newExpiry: newExpiryDate,
-        reason: extensionReason,
-        authorizedBy,
-        courtOrderNumber,
-      }),
-    );
+    this._validUntil = newExpiryDate;
+    this.markAsUpdated();
   }
 
-  updateConditions(conditions: string[]): void {
+  /**
+   * Sets guardianship conditions.
+   * Validates conditions don't violate inheritance rights.
+   */
+  setConditions(
+    conditions: string[],
+    reportingRequirements: string[],
+    restrictedPowers: string[],
+    specialInstructions: string[],
+  ): void {
+    // Validate conditions don't restrict inheritance rights
     this.validateConditions(conditions);
-    this.conditions = conditions;
-    this.updatedAt = new Date();
-  }
 
-  addReportingRequirement(requirement: string): void {
-    this.reportingRequirements.push(requirement);
-    this.updatedAt = new Date();
-  }
-
-  restrictPowers(powers: string[]): void {
-    this.restrictedPowers.push(...powers);
-    this.updatedAt = new Date();
-  }
-
-  addSpecialInstruction(instruction: string): void {
-    this.specialInstructions.push(instruction);
-    this.updatedAt = new Date();
-  }
-
-  scheduleReview(reviewDate: Date): void {
-    if (!this.isTemporary) {
-      throw new Error('Review dates are only required for temporary guardianships.');
-    }
-    if (reviewDate <= new Date()) {
-      throw new Error('Review date must be in the future.');
-    }
-
-    this.reviewDate = reviewDate;
-    this.updatedAt = new Date();
-  }
-
-  updateNotes(notes: string): void {
-    this.notes = notes;
-    this.updatedAt = new Date();
-  }
-
-  // --------------------------------------------------------------------------
-  // LEGAL VALIDATION
-  // --------------------------------------------------------------------------
-
-  validateLegalCompliance(): { isValid: boolean; errors: string[]; warnings: string[] } {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    if (!this.isActive) errors.push('Guardianship is not active.');
-
-    if (this.validUntil && new Date() > this.validUntil) {
-      errors.push('Guardianship has expired.');
-    }
-
-    if (this.type === GuardianType.LEGAL_GUARDIAN) {
-      if (!this.courtOrderNumber) {
-        errors.push('Legal guardianships require a court order number.');
-      }
-      if (!this.courtName) {
-        warnings.push('Court name is recommended for legal guardianships.');
-      }
-    }
-
-    if (this.type === GuardianType.TESTAMENTARY && !this.appointedBy) {
-      warnings.push('Testamentary guardianships should reference the appointing will.');
-    }
-
-    if (this.isTemporary) {
-      if (!this.reviewDate) {
-        errors.push('Temporary guardianships require a review date.');
-      } else if (this.reviewDate < new Date()) {
-        warnings.push('Temporary guardianship review date has passed.');
-      }
-    }
-
-    if (this.validUntil) {
-      const yearsUntilExpiry =
-        (this.validUntil.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24 * 365);
-      if (yearsUntilExpiry > 5) {
-        warnings.push('Long-term guardianship detected - consider periodic court reviews.');
-      }
-    }
-
-    return { isValid: errors.length === 0, errors, warnings };
-  }
-
-  isValid(): boolean {
-    const compliance = this.validateLegalCompliance();
-    return compliance.isValid && this.isActive;
-  }
-
-  getRemainingDuration(): number | null {
-    if (!this.validUntil || !this.isActive) return null;
-    const now = new Date();
-    if (this.validUntil <= now) return 0;
-    const diffTime = this.validUntil.getTime() - now.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30)); // months
-  }
-
-  isReviewOverdue(): boolean {
-    if (!this.isTemporary || !this.reviewDate) return false;
-    return new Date() > this.reviewDate;
-  }
-
-  private validateConditions(conditions: string[]): void {
-    const illegalConditions = conditions.filter(
-      (c) =>
-        c.toLowerCase().includes('disinherit') || c.toLowerCase().includes('prevent inheritance'),
+    this._guardianshipConditions = new GuardianshipConditions(
+      conditions,
+      reportingRequirements,
+      restrictedPowers,
+      specialInstructions,
     );
-    if (illegalConditions.length > 0) {
-      throw new Error(
-        'Guardianship conditions cannot restrict inheritance rights under Kenyan law.',
-      );
+
+    this.markAsUpdated();
+  }
+
+  /**
+   * Adds a single condition to existing conditions.
+   */
+  addCondition(condition: string): void {
+    if (!condition?.trim()) throw new Error('Condition cannot be empty');
+
+    this.validateConditions([condition]);
+
+    const currentConditions = this._guardianshipConditions.conditions;
+    const newConditions = [...currentConditions, condition.trim()];
+
+    this._guardianshipConditions = new GuardianshipConditions(
+      newConditions,
+      this._guardianshipConditions.reportingRequirements,
+      this._guardianshipConditions.restrictedPowers,
+      this._guardianshipConditions.specialInstructions,
+    );
+
+    this.markAsUpdated();
+  }
+
+  /**
+   * Schedules a review date for temporary guardianships.
+   */
+  scheduleReview(reviewDate: Date): void {
+    if (!this._isTemporary) {
+      throw new Error('Review dates only apply to temporary guardianships');
     }
+
+    if (reviewDate <= new Date()) {
+      throw new Error('Review date must be in the future');
+    }
+
+    this._reviewDate = reviewDate;
+    this.markAsUpdated();
+  }
+
+  /**
+   * Updates guardian notes.
+   */
+  updateNotes(notes: string): void {
+    this._notes = notes?.trim() || null;
+    this.markAsUpdated();
+  }
+
+  // --------------------------------------------------------------------------
+  // VALIDATION & BUSINESS RULES
+  // --------------------------------------------------------------------------
+
+  /**
+   * Validates guardianship legal compliance.
+   * Reference: Children Act (2022), Law of Succession Act.
+   */
+  validateLegalCompliance(): { isValid: boolean; issues: string[] } {
+    const issues: string[] = [];
+
+    if (!this._isActive) {
+      issues.push('Guardianship is not active');
+    }
+
+    // Check expiry
+    if (this._validUntil && new Date() > this._validUntil) {
+      issues.push('Guardianship has expired');
+    }
+
+    // Legal guardian requires court order
+    if (this._type === GuardianType.LEGAL_GUARDIAN && !this._courtOrder) {
+      issues.push('Legal guardianship requires court order (Children Act)');
+    }
+
+    // Testamentary guardian requires will reference
+    if (this._type === GuardianType.TESTAMENTARY && !this._appointedBy) {
+      issues.push('Testamentary guardianship requires will reference (Section 58)');
+    }
+
+    // Temporary guardianship requires review date
+    if (this._isTemporary && !this._reviewDate) {
+      issues.push('Temporary guardianship requires review date');
+    }
+
+    // Review overdue warning
+    if (this._reviewDate && new Date() > this._reviewDate) {
+      issues.push('Guardianship review is overdue');
+    }
+
+    return {
+      isValid: issues.length === 0,
+      issues,
+    };
+  }
+
+  /**
+   * Checks if guardianship is currently valid and active.
+   */
+  isCurrentlyValid(): boolean {
+    if (!this._isActive) return false;
+    if (this._validUntil && new Date() > this._validUntil) return false;
+
+    return true;
+  }
+
+  /**
+   * Checks if review is overdue.
+   */
+  isReviewOverdue(): boolean {
+    if (!this._isTemporary || !this._reviewDate) return false;
+    return new Date() > this._reviewDate;
+  }
+
+  /**
+   * Calculates remaining duration in months.
+   */
+  getRemainingMonths(): number | null {
+    if (!this._validUntil || !this._isActive) return null;
+
+    const now = new Date();
+    if (this._validUntil <= now) return 0;
+
+    const diffMs = this._validUntil.getTime() - now.getTime();
+    const months = diffMs / (1000 * 60 * 60 * 24 * 30);
+
+    return Math.ceil(months);
+  }
+
+  /**
+   * Validates conditions don't violate Kenyan inheritance law.
+   */
+  private validateConditions(conditions: string[]): void {
+    // Kenyan Law: Guardianship conditions cannot restrict inheritance rights
+    const prohibitedTerms = [
+      'disinherit',
+      'prevent inheritance',
+      'deny inheritance',
+      'forfeit inheritance',
+      'waive inheritance',
+    ];
+
+    for (const condition of conditions) {
+      const lowerCondition = condition.toLowerCase();
+      for (const term of prohibitedTerms) {
+        if (lowerCondition.includes(term)) {
+          throw new Error(
+            `Guardianship condition cannot restrict inheritance rights: "${condition}" (Law of Succession Act)`,
+          );
+        }
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------------------------------
+
+  private markAsUpdated(): void {
+    this._updatedAt = new Date();
   }
 
   // --------------------------------------------------------------------------
   // GETTERS
   // --------------------------------------------------------------------------
 
-  getId(): string {
-    return this.id;
-  }
-  getGuardianId(): string {
-    return this.guardianId;
-  }
-  getWardId(): string {
-    return this.wardId;
-  }
-  getType(): GuardianType {
-    return this.type;
-  }
-  getAppointedBy(): string | null {
-    return this.appointedBy;
-  }
-  getAppointmentDate(): Date {
-    return this.appointmentDate;
-  }
-  getValidUntil(): Date | null {
-    return this.validUntil;
+  get id(): string {
+    return this._id;
   }
 
-  getCourtOrderNumber(): string | null {
-    return this.courtOrderNumber;
-  }
-  getCourtName(): string | null {
-    return this.courtName;
-  }
-  getCaseNumber(): string | null {
-    return this.caseNumber;
-  }
-  getIssuingJudge(): string | null {
-    return this.issuingJudge;
-  }
-  getCourtStation(): string | null {
-    return this.courtStation;
+  get familyId(): string {
+    return this._familyId;
   }
 
-  getConditions(): string[] {
-    return [...this.conditions];
-  }
-  getReportingRequirements(): string[] {
-    return [...this.reportingRequirements];
-  }
-  getRestrictedPowers(): string[] {
-    return [...this.restrictedPowers];
-  }
-  getSpecialInstructions(): string[] {
-    return [...this.specialInstructions];
+  get guardianId(): string {
+    return this._guardianId;
   }
 
-  getIsTemporary(): boolean {
-    return this.isTemporary;
-  }
-  getReviewDate(): Date | null {
-    return this.reviewDate;
-  }
-  getIsActive(): boolean {
-    return this.isActive;
-  }
-  getNotes(): string | null {
-    return this.notes;
+  get wardId(): string {
+    return this._wardId;
   }
 
-  getCreatedAt(): Date {
-    return this.createdAt;
-  }
-  getUpdatedAt(): Date {
-    return this.updatedAt;
+  get type(): GuardianType {
+    return this._type;
   }
 
-  getGuardianshipSummary() {
-    const compliance = this.validateLegalCompliance();
-    return {
-      id: this.id,
-      guardianId: this.guardianId,
-      wardId: this.wardId,
-      type: this.type,
-      isActive: this.isActive,
-      isValid: compliance.isValid,
-      legalIssues: compliance.errors,
-      warnings: compliance.warnings,
-      appointmentDate: this.appointmentDate,
-      validUntil: this.validUntil,
-      remainingMonths: this.getRemainingDuration(),
-      courtOrder: this.getKenyanCourtOrder(),
-      conditions: this.conditions,
-      reportingRequirements: this.reportingRequirements,
-      restrictedPowers: this.restrictedPowers,
-      specialInstructions: this.specialInstructions,
-      isTemporary: this.isTemporary,
-      reviewDate: this.reviewDate,
-      isReviewOverdue: this.isReviewOverdue(),
-      notes: this.notes,
-      appointedBy: this.appointedBy,
-    };
+  get appointedBy(): string | null {
+    return this._appointedBy;
   }
 
-  getKenyanCourtOrder(): KenyanCourtOrder | null {
-    if (
-      !this.courtOrderNumber ||
-      !this.courtName ||
-      !this.caseNumber ||
-      !this.issuingJudge ||
-      !this.courtStation
-    ) {
-      return null;
-    }
-    return new KenyanCourtOrder(
-      this.courtOrderNumber,
-      this.courtName,
-      this.caseNumber,
-      this.issuingJudge,
-      this.courtStation,
-    );
+  get appointmentDate(): Date {
+    return new Date(this._appointmentDate);
   }
 
-  getGuardianshipConditions(): GuardianshipConditions {
-    return new GuardianshipConditions(
-      this.conditions,
-      this.reportingRequirements,
-      this.restrictedPowers,
-      this.specialInstructions,
-    );
+  get validUntil(): Date | null {
+    return this._validUntil ? new Date(this._validUntil) : null;
+  }
+
+  get courtOrder(): KenyanCourtOrder | null {
+    return this._courtOrder;
+  }
+
+  get guardianshipConditions(): GuardianshipConditions {
+    return this._guardianshipConditions;
+  }
+
+  get isTemporary(): boolean {
+    return this._isTemporary;
+  }
+
+  get reviewDate(): Date | null {
+    return this._reviewDate ? new Date(this._reviewDate) : null;
+  }
+
+  get isActive(): boolean {
+    return this._isActive;
+  }
+
+  get notes(): string | null {
+    return this._notes;
+  }
+
+  get createdAt(): Date {
+    return new Date(this._createdAt);
+  }
+
+  get updatedAt(): Date {
+    return new Date(this._updatedAt);
   }
 }

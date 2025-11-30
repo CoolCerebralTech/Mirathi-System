@@ -1,13 +1,18 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsOptional, IsString } from 'class-validator';
+import { AssetOwnershipType } from '@prisma/client';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 
-import { AddAssetDto } from './add-asset.dto';
+import { CreateAssetDto } from './create-asset.dto';
 
-// Create a typed constructor from PartialType
-const AddAssetDtoPartial = PartialType(AddAssetDto) satisfies new () => Partial<AddAssetDto>;
-
-export class UpdateAssetDto extends AddAssetDtoPartial {
+export class UpdateAssetDto extends PartialType(CreateAssetDto) {
   @IsString()
   @IsOptional()
-  updateReason?: string; // e.g., "Annual Market Appraisal"
+  updateReason?: string;
+
+  @IsEnum(AssetOwnershipType)
+  @IsOptional()
+  ownershipType?: AssetOwnershipType;
+
+  @IsOptional()
+  ownershipShare?: number;
 }
