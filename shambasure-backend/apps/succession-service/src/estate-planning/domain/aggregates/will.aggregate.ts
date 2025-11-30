@@ -1,140 +1,118 @@
 import { AggregateRoot } from '@nestjs/cqrs';
-import { BequestType, WillStatus } from '@prisma/client';
+import { WillStatus } from '@prisma/client';
 
-import { KENYAN_LEGAL_REQUIREMENTS } from '../../../common/constants/kenyan-law.constants';
-import { Asset } from '../entities/asset.entity';
-import { BeneficiaryAssignment } from '../entities/beneficiary.entity';
-import { Executor } from '../entities/executor.entity';
 import { DigitalAssetInstructions, FuneralWishes, Will } from '../entities/will.entity';
-import { Witness } from '../entities/witness.entity';
-import { LegalCapacity } from '../value-objects/legal-capacity.vo';
-import { SharePercentage } from '../value-objects/share-percentage.vo';
 
 /**
- * Will Aggregate Root - Main Aggregate for Kenyan Succession Law Compliance
+ * Will Aggregate Root (Estate Planning - Pre-Death)
  *
- * Orchestrates the complete will creation and management process including:
- * - Asset inventory management and validation
- * - Beneficiary assignment with percentage validation
- * - Executor nomination with Kenyan legal limits
- * - Witness management with eligibility checks
- * - Comprehensive legal compliance validation
- * - Will lifecycle state transitions
+ * Manages the lifecycle of a Will and its components during the planning phase.
+ * This aggregate is active while the testator is ALIVE and planning their estate.
  *
- * @class WillAggregate
- * @extends {AggregateRoot}
+ * Legal Context:
+ * - Law of Succession Act (Cap 160)
+ * - Section 5: Testamentary Capacity
+ * - Section 11: Formalities of Execution
+ * - Section 13: Witness Requirements & Conflicts
+ * - Section 26-29: Dependants' Provision
+ *
+ * Lifecycle: DRAFT → PENDING_WITNESS → WITNESSED → ACTIVE
+ *
+ * Once testator dies, this Will becomes input to EstateAggregate.
  */
 export class WillAggregate extends AggregateRoot {
   // Root Entity
   private _will: Will;
 
-  // Aggregate Children (Entities within the Aggregate boundary)
-  private _assets: Map<string, Asset> = new Map();
-  private _beneficiaries: Map<string, BeneficiaryAssignment> = new Map();
-  private _executors: Map<string, Executor> = new Map();
-  private _witnesses: Map<string, Witness> = new Map();
+  // Aggregate Children (NOT the actual entities, just their IDs for consistency boundary)
+  // The actual entities are managed separately but validated here
+  private _assetIds: Set<string> = new Set();
+  private _beneficiaryIds: Set<string> = new Set();
+  private _executorIds: Set<string> = new Set();
+  private _witnessIds: Set<string> = new Set();
 
   // --------------------------------------------------------------------------
-  // PRIVATE CONSTRUCTOR - Enforces use of factory methods
+  // CONSTRUCTOR
   // --------------------------------------------------------------------------
   private constructor(will: Will) {
     super();
+    if (!will) throw new Error('Will entity is required');
     this._will = will;
   }
 
   // --------------------------------------------------------------------------
-  // FACTORY METHODS - Aggregate Lifecycle Management
+  // FACTORY METHODS
   // --------------------------------------------------------------------------
 
-  /**
-   * Creates a new Will Aggregate with legal capacity validation
-   *
-   * @static
-   * @param {string} willId - Unique will identifier
-   * @param {string} title - Descriptive title of the will
-   * @param {string} testatorId - ID of the testator (will creator)
-   * @param {LegalCapacity} legalCapacity - Legal capacity assessment
-   * @returns {WillAggregate} Newly created will aggregate
-   */
-  static create(
-    willId: string,
-    title: string,
-    testatorId: string,
-    legalCapacity: LegalCapacity,
-  ): WillAggregate {
-    const will = Will.create(willId, title, testatorId, legalCapacity);
-    return new WillAggregate(will);
+  static create(willId: string, title: string, testatorId: string): WillAggregate {
+    const will = Will.create(willId, title, testatorId);
+    const aggregate = new WillAggregate(will);
+
+    // Events are emitted by the Will entity itself
+    return aggregate;
   }
 
-  /**
-   * Reconstructs Will Aggregate from persistence layer data
-   *
-   * @static
-   * @param {Will} will - Root will entity
-   * @param {Asset[]} assets - Associated assets
-   * @param {BeneficiaryAssignment[]} beneficiaries - Beneficiary assignments
-   * @param {Executor[]} executors - Nominated executors
-   * @param {Witness[]} witnesses - Will witnesses
-   * @returns {WillAggregate} Rehydrated will aggregate
-   */
   static reconstitute(
     will: Will,
-    assets: Asset[],
-    beneficiaries: BeneficiaryAssignment[],
-    executors: Executor[],
-    witnesses: Witness[],
+    assetIds: string[],
+    beneficiaryIds: string[],
+    executorIds: string[],
+    witnessIds: string[],
   ): WillAggregate {
     const aggregate = new WillAggregate(will);
 
-    // Hydrate aggregate children with validation
-    assets.forEach((asset) => aggregate._assets.set(asset.id, asset));
-    beneficiaries.forEach((beneficiary) =>
-      aggregate._beneficiaries.set(beneficiary.id, beneficiary),
-    );
-    executors.forEach((executor) => aggregate._executors.set(executor.id, executor));
-    witnesses.forEach((witness) => aggregate._witnesses.set(witness.id, witness));
+    aggregate._assetIds = new Set(assetIds);
+    aggregate._beneficiaryIds = new Set(beneficiaryIds);
+    aggregate._executorIds = new Set(executorIds);
+    aggregate._witnessIds = new Set(witnessIds);
 
     return aggregate;
   }
 
   // --------------------------------------------------------------------------
-  // ROOT ENTITY ACCESS & MANAGEMENT
+  // ROOT ENTITY ACCESS
   // --------------------------------------------------------------------------
 
-  /**
-   * Gets the root Will entity (read-only)
-   *
-   * @returns {Will} Root will entity
-   */
   getWill(): Will {
     return this._will;
   }
 
-  /**
-   * Updates will details with comprehensive validation
-   *
-   * @param {string} title - Updated will title
-   * @param {FuneralWishes} [funeralWishes] - Funeral and burial instructions
-   * @param {string} [burialLocation] - Preferred burial location
-   * @param {string} [residuaryClause] - Residuary estate instructions
-   * @param {DigitalAssetInstructions} [digitalAssetInstructions] - Digital asset handling
-   * @param {string} [specialInstructions] - Special testamentary instructions
-   * @throws {Error} When will is not in editable state
-   */
+  get willId(): string {
+    return this._will.id;
+  }
+
+  get testatorId(): string {
+    return this._will.testatorId;
+  }
+
+  get status(): WillStatus {
+    return this._will.status;
+  }
+
+  // --------------------------------------------------------------------------
+  // WILL METADATA OPERATIONS
+  // --------------------------------------------------------------------------
+
+  updateTitle(title: string): void {
+    this._will.updateTitle(title);
+  }
+
   updateWillDetails(
-    title: string,
     funeralWishes?: FuneralWishes,
     burialLocation?: string,
+    cremationInstructions?: string,
+    organDonation?: boolean,
+    organDonationDetails?: string,
     residuaryClause?: string,
     digitalAssetInstructions?: DigitalAssetInstructions,
     specialInstructions?: string,
   ): void {
-    this.validateAggregateModificationAllowed();
-
-    this._will.updateTitle(title);
     this._will.updateDetails(
       funeralWishes,
       burialLocation,
+      cremationInstructions,
+      organDonation,
+      organDonationDetails,
       residuaryClause,
       digitalAssetInstructions,
       specialInstructions,
@@ -142,383 +120,228 @@ export class WillAggregate extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // AGGREGATE CHILDREN ACCESSORS (Read-Only)
+  // ASSET ASSIGNMENT (Aggregate Consistency Boundary)
   // --------------------------------------------------------------------------
 
   /**
-   * Gets all assets in the will (read-only)
-   *
-   * @returns {Asset[]} Array of asset entities
+   * Links an asset to this will for distribution planning.
+   * Note: Asset entity itself is managed by EstatePlanningAggregate.
+   * This aggregate just tracks which assets are referenced in the will.
    */
-  getAssets(): Asset[] {
-    return Array.from(this._assets.values());
-  }
-
-  /**
-   * Gets all beneficiary assignments (read-only)
-   *
-   * @returns {BeneficiaryAssignment[]} Array of beneficiary assignment entities
-   */
-  getBeneficiaries(): BeneficiaryAssignment[] {
-    return Array.from(this._beneficiaries.values());
-  }
-
-  /**
-   * Gets all nominated executors (read-only)
-   *
-   * @returns {Executor[]} Array of executor entities
-   */
-  getExecutors(): Executor[] {
-    return Array.from(this._executors.values());
-  }
-
-  /**
-   * Gets all witnesses (read-only)
-   *
-   * @returns {Witness[]} Array of witness entities
-   */
-  getWitnesses(): Witness[] {
-    return Array.from(this._witnesses.values());
-  }
-
-  // --------------------------------------------------------------------------
-  // ASSET MANAGEMENT - Domain Logic
-  // --------------------------------------------------------------------------
-
-  /**
-   * Adds asset to will with ownership validation
-   *
-   * @param {Asset} asset - Asset entity to add
-   * @throws {Error} When asset already exists or ownership doesn't match testator
-   */
-  addAsset(asset: Asset): void {
-    this.validateAggregateModificationAllowed();
-
-    if (this._assets.has(asset.id)) {
-      throw new Error(`Asset ${asset.id} already exists in this will`);
+  addAssetReference(assetId: string, assetOwnerId: string): void {
+    if (!this._will.isEditable()) {
+      throw new Error('Will is not editable in current status');
     }
 
-    // Ownership consistency validation
-    if (asset.ownerId !== this._will.testatorId) {
-      throw new Error('Asset owner does not match testator');
+    if (assetOwnerId !== this.testatorId) {
+      throw new Error('Cannot reference asset not owned by testator');
     }
 
-    this._assets.set(asset.id, asset);
+    if (this._assetIds.has(assetId)) {
+      return; // Idempotent
+    }
+
+    this._assetIds.add(assetId);
+    this._will.addAsset(assetId); // Sync with root entity
   }
 
-  /**
-   * Removes asset from will with dependency validation
-   *
-   * @param {string} assetId - Unique identifier of asset to remove
-   * @throws {Error} When asset not found or has beneficiary assignments
-   */
-  removeAsset(assetId: string): void {
-    this.validateAggregateModificationAllowed();
-
-    if (!this._assets.has(assetId)) {
-      throw new Error(`Asset ${assetId} not found in this will`);
+  removeAssetReference(assetId: string): void {
+    if (!this._will.isEditable()) {
+      throw new Error('Will is not editable in current status');
     }
 
-    // Consistency validation: Cannot remove asset with beneficiary assignments
-    const assetBeneficiaries = Array.from(this._beneficiaries.values()).filter(
-      (beneficiary) => beneficiary.assetId === assetId,
-    );
-
-    if (assetBeneficiaries.length > 0) {
+    // Prevent removal if beneficiaries depend on this asset
+    const dependentBeneficiaries = Array.from(this._beneficiaryIds);
+    if (dependentBeneficiaries.length > 0) {
+      // Note: We can't check BeneficiaryAssignment entities here without loading them
+      // This validation should happen at application service level
       throw new Error(
-        `Cannot remove asset ${assetId} because it has ${assetBeneficiaries.length} beneficiary assignments. Remove assignments first.`,
+        'Cannot remove asset reference with existing beneficiary assignments. Remove beneficiaries first.',
       );
     }
 
-    this._assets.delete(assetId);
+    this._assetIds.delete(assetId);
+    this._will.removeAsset(assetId);
+  }
+
+  hasAssetReference(assetId: string): boolean {
+    return this._assetIds.has(assetId);
+  }
+
+  getAssetReferences(): string[] {
+    return Array.from(this._assetIds);
+  }
+
+  getAssetCount(): number {
+    return this._assetIds.size;
   }
 
   // --------------------------------------------------------------------------
-  // BENEFICIARY MANAGEMENT - Domain Logic
+  // BENEFICIARY ASSIGNMENT (Aggregate Consistency)
   // --------------------------------------------------------------------------
 
   /**
-   * Assigns beneficiary to asset with comprehensive validation
-   *
-   * @param {BeneficiaryAssignment} assignment - Beneficiary assignment to add
-   * @throws {Error} When asset not found, assignment exists, or percentage invalid
+   * Registers a beneficiary assignment.
+   * Actual BeneficiaryAssignment entity is managed separately.
    */
-  assignBeneficiary(assignment: BeneficiaryAssignment): void {
-    this.validateAggregateModificationAllowed();
-
-    const assetId = assignment.assetId;
-
-    if (!this._assets.has(assetId)) {
-      throw new Error(`Asset ${assetId} not found in this will. Cannot assign beneficiary`);
+  addBeneficiaryAssignment(assignmentId: string, assetId: string): void {
+    if (!this._will.isEditable()) {
+      throw new Error('Will is not editable in current status');
     }
 
-    if (this._beneficiaries.has(assignment.id)) {
-      throw new Error(`Beneficiary Assignment ${assignment.id} already exists`);
+    if (!this._assetIds.has(assetId)) {
+      throw new Error('Asset not referenced in will. Add asset reference first.');
     }
 
-    // Percentage allocation validation for percentage-based bequests
-    const sharePercentage = assignment.sharePercentage;
-    if (assignment.bequestType === BequestType.PERCENTAGE && sharePercentage) {
-      this.validateTotalPercentageAllocation(assetId, sharePercentage);
+    if (this._beneficiaryIds.has(assignmentId)) {
+      return; // Idempotent
     }
 
-    this._beneficiaries.set(assignment.id, assignment);
+    this._beneficiaryIds.add(assignmentId);
+    this._will.addBeneficiary(assignmentId);
   }
 
-  /**
-   * Removes beneficiary assignment from will
-   *
-   * @param {string} assignmentId - Unique identifier of assignment to remove
-   * @throws {Error} When assignment not found
-   */
-  removeBeneficiary(assignmentId: string): void {
-    this.validateAggregateModificationAllowed();
-
-    if (!this._beneficiaries.has(assignmentId)) {
-      throw new Error(`Beneficiary assignment ${assignmentId} not found`);
+  removeBeneficiaryAssignment(assignmentId: string): void {
+    if (!this._will.isEditable()) {
+      throw new Error('Will is not editable in current status');
     }
 
-    this._beneficiaries.delete(assignmentId);
+    this._beneficiaryIds.delete(assignmentId);
+    this._will.removeBeneficiary(assignmentId);
   }
 
-  /**
-   * Updates beneficiary share percentage with validation
-   *
-   * @param {string} assignmentId - Unique identifier of beneficiary assignment
-   * @param {SharePercentage} newShare - New share percentage value
-   * @throws {Error} When assignment not found or validation fails
-   */
-  updateBeneficiaryShare(assignmentId: string, newShare: SharePercentage): void {
-    this.validateAggregateModificationAllowed();
+  getBeneficiaryAssignmentIds(): string[] {
+    return Array.from(this._beneficiaryIds);
+  }
 
-    const assignment = this._beneficiaries.get(assignmentId);
-    if (!assignment) {
-      throw new Error(`Beneficiary assignment ${assignmentId} not found`);
-    }
-
-    if (assignment.bequestType !== BequestType.PERCENTAGE) {
-      throw new Error('Cannot update share percentage for non-percentage bequest type');
-    }
-
-    // Validate total percentage doesn't exceed 100%
-    this.validateTotalPercentageAllocation(assignment.assetId, newShare, assignmentId);
-
-    // Update the assignment
-    assignment.updateShare(newShare);
+  getBeneficiaryCount(): number {
+    return this._beneficiaryIds.size;
   }
 
   // --------------------------------------------------------------------------
-  // EXECUTOR MANAGEMENT - Domain Logic
+  // EXECUTOR NOMINATION (Kenyan Law - Section 51)
   // --------------------------------------------------------------------------
 
-  /**
-   * Nominates executor with Kenyan legal compliance validation
-   *
-   * @param {Executor} executor - Executor entity to nominate
-   * @throws {Error} When executor limit exceeded or primary executor conflict
-   */
-  nominateExecutor(executor: Executor): void {
-    this.validateAggregateModificationAllowed();
-
-    if (this._executors.has(executor.id)) {
-      throw new Error(`Executor ${executor.id} already nominated`);
+  nominateExecutor(executorId: string): void {
+    if (!this._will.isEditable()) {
+      throw new Error('Will is not editable in current status');
     }
 
-    // Kenyan legal requirement: Maximum executor limit
-    if (this._executors.size >= KENYAN_LEGAL_REQUIREMENTS.EXECUTOR_REQUIREMENTS.MAX_EXECUTORS) {
-      throw new Error(
-        `Cannot nominate more than ${KENYAN_LEGAL_REQUIREMENTS.EXECUTOR_REQUIREMENTS.MAX_EXECUTORS} executors under Kenyan law`,
-      );
+    if (this._executorIds.has(executorId)) {
+      return; // Idempotent
     }
 
-    // Business Rule: Single primary executor
-    if (executor.isPrimary) {
-      const existingPrimary = Array.from(this._executors.values()).find((exec) => exec.isPrimary);
-      if (existingPrimary) {
-        throw new Error('There can only be one primary executor per will');
-      }
+    // Kenyan Law: Maximum 4 executors (Section 51(1))
+    if (this._executorIds.size >= 4) {
+      throw new Error('Maximum 4 executors allowed (Law of Succession Act, Section 51)');
     }
 
-    this._executors.set(executor.id, executor);
+    // Primary executor validation happens at Executor entity level
+    this._executorIds.add(executorId);
+    this._will.addExecutor(executorId);
+  }
+
+  removeExecutor(executorId: string): void {
+    if (!this._will.isEditable()) {
+      throw new Error('Will is not editable in current status');
+    }
+
+    this._executorIds.delete(executorId);
+    this._will.removeExecutor(executorId);
+  }
+
+  getExecutorIds(): string[] {
+    return Array.from(this._executorIds);
+  }
+
+  getExecutorCount(): number {
+    return this._executorIds.size;
+  }
+
+  hasMinimumExecutors(): boolean {
+    return this._executorIds.size >= 1;
   }
 
   // --------------------------------------------------------------------------
-  // WITNESS MANAGEMENT - Domain Logic
+  // WITNESS MANAGEMENT (Kenyan Law - Section 13)
   // --------------------------------------------------------------------------
 
-  /**
-   * Adds witness to will with basic validation
-   *
-   * @param {Witness} witness - Witness entity to add
-   * @throws {Error} When witness already exists or validation fails
-   */
-  addWitness(witness: Witness): void {
-    this.validateAggregateModificationAllowed();
-
-    if (this._witnesses.has(witness.id)) {
-      throw new Error(`Witness ${witness.id} already added`);
+  addWitness(witnessId: string): void {
+    if (!this._will.canAddWitnesses()) {
+      throw new Error('Cannot add witnesses in current will status');
     }
 
-    // Basic witness validation
-    if (!witness.witnessInfo.fullName?.trim()) {
-      throw new Error('Witness must have a valid full name');
+    if (this._witnessIds.has(witnessId)) {
+      return; // Idempotent
     }
 
-    this._witnesses.set(witness.id, witness);
-
-    // Update root entity state
-    this._will.addWitness(witness.id);
+    this._witnessIds.add(witnessId);
+    this._will.addWitness(witnessId);
   }
 
-  /**
-   * Removes witness from will with signing validation
-   *
-   * @param {string} witnessId - Unique identifier of witness to remove
-   * @throws {Error} When witness not found or has already signed
-   */
   removeWitness(witnessId: string): void {
-    this.validateAggregateModificationAllowed();
-
-    if (!this._witnesses.has(witnessId)) {
-      throw new Error(`Witness ${witnessId} not found`);
+    if (!this._will.isEditable()) {
+      throw new Error('Will is not editable in current status');
     }
 
-    const witness = this._witnesses.get(witnessId);
-    if (witness?.hasSigned()) {
-      throw new Error('Cannot remove a witness who has already signed the will');
-    }
-
-    this._witnesses.delete(witnessId);
+    this._witnessIds.delete(witnessId);
     this._will.removeWitness(witnessId);
   }
 
-  // --------------------------------------------------------------------------
-  // DOMAIN VALIDATION & BUSINESS RULES
-  // --------------------------------------------------------------------------
-
-  /**
-   * Validates total percentage allocation for an asset
-   *
-   * @private
-   * @param {string} assetId - Asset identifier to validate
-   * @param {SharePercentage} newShare - New share percentage being added
-   * @param {string} [excludeAssignmentId] - Assignment ID to exclude from calculation
-   * @throws {Error} When total percentage exceeds 100%
-   */
-  private validateTotalPercentageAllocation(
-    assetId: string,
-    newShare: SharePercentage,
-    excludeAssignmentId?: string,
-  ): void {
-    const assetAssignments = Array.from(this._beneficiaries.values()).filter(
-      (assignment) => assignment.assetId === assetId && assignment.id !== excludeAssignmentId,
-    );
-
-    const existingShares = assetAssignments
-      .filter(
-        (assignment) =>
-          assignment.bequestType === BequestType.PERCENTAGE && assignment.sharePercentage,
-      )
-      .map((assignment) => assignment.sharePercentage!);
-
-    const allShares = [...existingShares, newShare];
-
-    // Use Value Object's static validation method
-    if (!SharePercentage.totalIsValid(allShares)) {
-      const total = allShares.reduce((sum, share) => sum + share.getValue(), 0);
-      throw new Error(
-        `Total percentage allocation for asset ${assetId} exceeds 100% (Current: ${total.toFixed(2)}%)`,
-      );
-    }
+  getWitnessIds(): string[] {
+    return Array.from(this._witnessIds);
   }
 
-  /**
-   * Validates that aggregate modification is allowed in current state
-   *
-   * @private
-   * @throws {Error} When aggregate is not in modifiable state
-   */
-  private validateAggregateModificationAllowed(): void {
-    if (!this._will.isEditable()) {
-      throw new Error(`Cannot modify will aggregate in current status: ${this._will.status}`);
-    }
+  getWitnessCount(): number {
+    return this._witnessIds.size;
   }
 
+  hasMinimumWitnesses(): boolean {
+    return this._will.hasMinimumWitnesses();
+  }
+
+  // --------------------------------------------------------------------------
+  // VALIDATION & BUSINESS RULES
+  // --------------------------------------------------------------------------
+
   /**
-   * Comprehensive validation of will completeness for activation
-   *
-   * @returns {{ isValid: boolean; issues: string[] }} Validation result with detailed issues
+   * Validates will completeness for activation.
+   * This is the aggregate-level validation that checks ALL components.
    */
-  validateWillCompleteness(): { isValid: boolean; issues: string[] } {
+  validateForActivation(): { isValid: boolean; issues: string[] } {
     const issues: string[] = [];
 
-    // 1. Testator Legal Capacity Validation (Section 7)
-    if (!this._will.legalCapacity?.hasLegalCapacity()) {
-      issues.push('Testator does not have verified legal capacity to create a valid will');
+    // 1. Legal Capacity (Section 5)
+    if (!this._will.hasLegalCapacity()) {
+      issues.push('Testator legal capacity not assessed as competent (Section 5)');
     }
 
-    // 2. Core Content Validation
-    if (this._assets.size === 0) {
-      issues.push('Will has no assets assigned for distribution');
+    // 2. Formalities (Section 11)
+    if (!this._will.meetsKenyanLegalRequirements()) {
+      issues.push('Will does not meet Kenyan legal formalities (Section 11)');
     }
 
-    if (this._beneficiaries.size === 0) {
-      issues.push('Will has no beneficiaries assigned to receive assets');
+    // 3. Content Requirements
+    if (this._assetIds.size === 0) {
+      issues.push('No assets assigned to will');
     }
 
-    if (this._executors.size === 0) {
-      issues.push('Will has no executors nominated to administer the estate');
+    if (this._beneficiaryIds.size === 0) {
+      issues.push('No beneficiaries assigned');
     }
 
-    // 3. Kenyan Witness Requirements Validation
-    if (this._will.status === WillStatus.WITNESSED || this._will.status === WillStatus.ACTIVE) {
-      const signedWitnessCount = Array.from(this._witnesses.values()).filter((witness) =>
-        witness.hasSigned(),
-      ).length;
-
-      if (signedWitnessCount < KENYAN_LEGAL_REQUIREMENTS.MINIMUM_WITNESSES) {
-        issues.push(
-          `Kenyan law requires at least ${KENYAN_LEGAL_REQUIREMENTS.MINIMUM_WITNESSES} signed witnesses, but only ${signedWitnessCount} have signed`,
-        );
-      }
+    if (this._executorIds.size === 0) {
+      issues.push('At least one executor required');
     }
 
-    // 4. Asset Allocation Integrity Validation
-    for (const asset of this._assets.values()) {
-      const assetAssignments = Array.from(this._beneficiaries.values()).filter(
-        (assignment) => assignment.assetId === asset.id,
-      );
-
-      if (assetAssignments.length === 0) {
-        issues.push(`Asset '${asset.name}' has no beneficiaries assigned`);
-        continue;
-      }
-
-      // Percentage allocation validation
-      const percentageAssignments = assetAssignments.filter(
-        (assignment) => assignment.bequestType === BequestType.PERCENTAGE,
-      );
-
-      if (percentageAssignments.length > 0) {
-        const totalPercentage = percentageAssignments.reduce(
-          (sum, assignment) => sum + (assignment.sharePercentage?.getValue() || 0),
-          0,
-        );
-
-        // Allow for small floating-point precision differences
-        if (Math.abs(totalPercentage - 100) > 0.01) {
-          issues.push(
-            `Asset '${asset.name}' percentage allocation is ${totalPercentage.toFixed(2)}%, but must total exactly 100%`,
-          );
-        }
-      }
+    // 4. Witness Requirements (Section 13)
+    if (!this.hasMinimumWitnesses()) {
+      issues.push('Minimum 2 witnesses required (Section 13)');
     }
 
-    // 5. Witness-Beneficiary Conflict Validation
-    if (this.hasWitnessBeneficiaryConflicts()) {
-      issues.push(
-        'Witnesses cannot also be beneficiaries due to conflict of interest under Kenyan law',
-      );
+    // 5. Status Check
+    if (this._will.status !== WillStatus.WITNESSED) {
+      issues.push(`Will must be in WITNESSED status to activate (current: ${this._will.status})`);
     }
 
     return {
@@ -527,145 +350,122 @@ export class WillAggregate extends AggregateRoot {
     };
   }
 
-  // --------------------------------------------------------------------------
-  // AGGREGATE STATE TRANSITIONS & LIFECYCLE MANAGEMENT
-  // --------------------------------------------------------------------------
+  /**
+   * Validates will completeness for witnessing.
+   */
+  validateForWitnessing(): { isValid: boolean; issues: string[] } {
+    const issues: string[] = [];
+
+    if (this._assetIds.size === 0) {
+      issues.push('No assets assigned');
+    }
+
+    if (this._beneficiaryIds.size === 0) {
+      issues.push('No beneficiaries assigned');
+    }
+
+    if (this._executorIds.size === 0) {
+      issues.push('No executors nominated');
+    }
+
+    if (!this.hasMinimumWitnesses()) {
+      issues.push('Minimum 2 witnesses required');
+    }
+
+    return {
+      isValid: issues.length === 0,
+      issues,
+    };
+  }
 
   /**
-   * Activates the will making it the current valid will
-   *
-   * @param {string} activatedBy - ID of user/admin activating the will
-   * @throws {Error} When will completeness validation fails
+   * Marks will as witnessed after all witnesses have signed.
+   * Section 13(c): Witnesses must attest in presence of testator.
+   */
+  markAsWitnessed(): void {
+    const validation = this.validateForWitnessing();
+    if (!validation.isValid) {
+      throw new Error(`Cannot mark as witnessed: ${validation.issues.join(', ')}`);
+    }
+
+    this._will.markAsWitnessed();
+  }
+
+  /**
+   * Activates the will, making it the current valid will.
+   * Section 11: Will must be properly executed to be valid.
    */
   activate(activatedBy: string): void {
-    const validationResult = this.validateWillCompleteness();
-    if (!validationResult.isValid) {
-      throw new Error(
-        `Cannot activate will. Validation issues: ${validationResult.issues.join('; ')}`,
-      );
+    const validation = this.validateForActivation();
+    if (!validation.isValid) {
+      throw new Error(`Cannot activate will: ${validation.issues.join(', ')}`);
     }
 
     this._will.activate(activatedBy);
   }
 
+  /**
+   * Revokes the will per Section 16.
+   */
+  revoke(revokedBy: string, reason: string, method: any): void {
+    this._will.revoke(revokedBy, reason, method);
+  }
+
+  /**
+   * Supersedes this will with a newer one.
+   */
+  supersede(newWillId: string): void {
+    this._will.supersede(newWillId);
+  }
+
   // --------------------------------------------------------------------------
-  // DOMAIN CALCULATIONS & BUSINESS LOGIC QUERIES
+  // AGGREGATE STATE QUERIES
   // --------------------------------------------------------------------------
 
-  /**
-   * Calculates total estate value across all assets
-   *
-   * @returns {number} Total estate value in default currency
-   */
-  getTotalEstateValue(): number {
-    return Array.from(this._assets.values()).reduce((total, asset) => {
-      return total + asset.currentValue.getAmount();
-    }, 0);
+  isEditable(): boolean {
+    return this._will.isEditable();
+  }
+
+  isActive(): boolean {
+    return this._will.status === WillStatus.ACTIVE;
+  }
+
+  isRevoked(): boolean {
+    return this._will.isRevoked;
+  }
+
+  canBeExecuted(): boolean {
+    return this._will.status === WillStatus.ACTIVE && !this._will.isRevoked;
   }
 
   /**
-   * Determines if will is ready for witnessing process
-   *
-   * @returns {boolean} True if ready for witnessing
+   * Summary for display purposes.
    */
-  isReadyForWitnessing(): boolean {
-    const validation = this.validateWillCompleteness();
-    return validation.isValid && this._will.isDraft();
-  }
+  getSummary(): {
+    willId: string;
+    title: string;
+    status: WillStatus;
+    testatorId: string;
+    assetCount: number;
+    beneficiaryCount: number;
+    executorCount: number;
+    witnessCount: number;
+    isComplete: boolean;
+    canActivate: boolean;
+  } {
+    const validation = this.validateForActivation();
 
-  /**
-   * Determines if will is ready for activation
-   *
-   * @returns {boolean} True if ready for activation
-   */
-  isReadyForActivation(): boolean {
-    const validation = this.validateWillCompleteness();
-    return validation.isValid && this._will.isWitnessed() && this._will.canBeActivated();
-  }
-
-  /**
-   * Finds the primary executor for the will
-   *
-   * @returns {Executor | null} Primary executor or null if not found
-   */
-  getPrimaryExecutor(): Executor | null {
-    return Array.from(this._executors.values()).find((executor) => executor.isPrimary) || null;
-  }
-
-  /**
-   * Gets all witnesses who have signed the will
-   *
-   * @returns {Witness[]} Array of signed witness entities
-   */
-  getSignedWitnesses(): Witness[] {
-    return Array.from(this._witnesses.values()).filter((witness) => witness.hasSigned());
-  }
-
-  /**
-   * Checks for witness-beneficiary conflicts under Kenyan law
-   *
-   * @returns {boolean} True if conflicts exist
-   */
-  hasWitnessBeneficiaryConflicts(): boolean {
-    const witnesses = Array.from(this._witnesses.values());
-    const beneficiaries = Array.from(this._beneficiaries.values());
-
-    for (const witness of witnesses) {
-      const witnessInfo = witness.witnessInfo;
-
-      for (const beneficiary of beneficiaries) {
-        const beneficiaryIdentity = beneficiary.beneficiaryIdentity;
-
-        // Check for user ID match
-        if (
-          witnessInfo.userId &&
-          beneficiaryIdentity.userId &&
-          witnessInfo.userId === beneficiaryIdentity.userId
-        ) {
-          return true;
-        }
-
-        // Check for family member ID match
-        if (
-          witnessInfo.userId &&
-          beneficiaryIdentity.familyMemberId &&
-          witnessInfo.userId === beneficiaryIdentity.familyMemberId
-        )
-          return true;
-
-        // Check for external name match (case-insensitive)
-        if (
-          witnessInfo.fullName &&
-          beneficiaryIdentity.externalName &&
-          witnessInfo.fullName.toLowerCase() === beneficiaryIdentity.externalName.toLowerCase()
-        ) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  /**
-   * Gets specific asset by ID
-   *
-   * @param {string} assetId - Unique asset identifier
-   * @returns {Asset | null} Asset entity or null if not found
-   */
-  getAsset(assetId: string): Asset | null {
-    return this._assets.get(assetId) || null;
-  }
-
-  /**
-   * Gets all beneficiary assignments for a specific asset
-   *
-   * @param {string} assetId - Unique asset identifier
-   * @returns {BeneficiaryAssignment[]} Array of beneficiary assignments
-   */
-  getBeneficiariesForAsset(assetId: string): BeneficiaryAssignment[] {
-    return Array.from(this._beneficiaries.values()).filter(
-      (beneficiary) => beneficiary.assetId === assetId,
-    );
+    return {
+      willId: this._will.id,
+      title: this._will.title,
+      status: this._will.status,
+      testatorId: this._will.testatorId,
+      assetCount: this._assetIds.size,
+      beneficiaryCount: this._beneficiaryIds.size,
+      executorCount: this._executorIds.size,
+      witnessCount: this._witnessIds.size,
+      isComplete: validation.isValid,
+      canActivate: validation.isValid && this._will.status === WillStatus.WITNESSED,
+    };
   }
 }

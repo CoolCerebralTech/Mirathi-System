@@ -13,7 +13,6 @@ import { BeneficiaryConditionAddedEvent } from '../events/beneficiary-condition-
 import { BeneficiaryDistributedEvent } from '../events/beneficiary-distributed.event';
 import { BeneficiaryRemovedEvent } from '../events/beneficiary-removed.event';
 import { BeneficiaryShareUpdatedEvent } from '../events/beneficiary-share-updated.event';
-import { SharePercentage } from '../value-objects/share-percentage.vo';
 
 /**
  * Properties required for entity reconstitution from persistence
@@ -49,11 +48,6 @@ export interface BeneficiaryReconstituteProps {
   conditionDetails: string | null;
   conditionMet: boolean | null;
   conditionDeadline: Date | string | null;
-
-  // Life Interest Support (Kenyan Succession)
-  hasLifeInterest: boolean;
-  lifeInterestDuration: number | null; // Years
-  lifeInterestEndsAt: Date | string | null;
 
   // Alternate Beneficiary
   alternateAssignmentId: string | null;
@@ -95,7 +89,7 @@ export class BeneficiaryAssignment extends AggregateRoot {
   private readonly _assetId: string;
 
   // Beneficiary Identity
-  private _beneficiaryType: BeneficiaryType;
+  private readonly _beneficiaryType: BeneficiaryType;
   private _userId: string | null;
   private _familyMemberId: string | null;
   private _externalName: string | null;
@@ -110,22 +104,17 @@ export class BeneficiaryAssignment extends AggregateRoot {
 
   // Bequest Configuration
   private _bequestType: BequestType;
-  private _sharePercent: SharePercentage | null;
+  private _sharePercent: number | null;
   private _specificAmount: number | null;
-  private _currency: string;
+  private readonly _currency: string;
 
-  // Conditions
+  // Conditions (Section 11 - Law of Succession Act)
   private _conditionType: BequestConditionType;
   private _conditionDetails: string | null;
   private _conditionMet: boolean | null;
   private _conditionDeadline: Date | null;
 
-  // Life Interest Support
-  private _hasLifeInterest: boolean;
-  private _lifeInterestDuration: number | null;
-  private _lifeInterestEndsAt: Date | null;
-
-  // Alternate Beneficiary
+  // Alternate Beneficiary (Section 13 - Lapse provisions)
   private _alternateAssignmentId: string | null;
 
   // Distribution Tracking
@@ -134,7 +123,7 @@ export class BeneficiaryAssignment extends AggregateRoot {
   private _distributionNotes: string | null;
   private _distributionMethod: string | null;
 
-  // Legal Compliance
+  // Legal Compliance (Section 26-29 - Dependants' Provision)
   private _isSubjectToDependantsProvision: boolean;
   private _courtApprovalRequired: boolean;
   private _courtApprovalObtained: boolean;
@@ -191,10 +180,6 @@ export class BeneficiaryAssignment extends AggregateRoot {
     this._conditionMet = null;
     this._conditionDeadline = null;
 
-    this._hasLifeInterest = false;
-    this._lifeInterestDuration = null;
-    this._lifeInterestEndsAt = null;
-
     this._alternateAssignmentId = null;
 
     this._distributionStatus = DistributionStatus.PENDING;
@@ -239,6 +224,11 @@ export class BeneficiaryAssignment extends AggregateRoot {
     assignment._specificRelationship = specificRelationship || null;
     assignment._isDependant = isDependant;
 
+    // Dependants automatically subject to Section 26-29 protections
+    if (isDependant) {
+      assignment._isSubjectToDependantsProvision = true;
+    }
+
     assignment.apply(
       new BeneficiaryAssignedEvent(
         assignment._id,
@@ -274,6 +264,11 @@ export class BeneficiaryAssignment extends AggregateRoot {
     assignment._specificRelationship = specificRelationship || null;
     assignment._isDependant = isDependant;
 
+    // Dependants automatically subject to Section 26-29 protections
+    if (isDependant) {
+      assignment._isSubjectToDependantsProvision = true;
+    }
+
     assignment.apply(
       new BeneficiaryAssignedEvent(
         assignment._id,
@@ -306,9 +301,9 @@ export class BeneficiaryAssignment extends AggregateRoot {
       BeneficiaryType.EXTERNAL,
       relationshipCategory,
     );
-    assignment._externalName = externalName;
-    assignment._externalContact = externalContact || null;
-    assignment._externalIdentification = externalIdentification || null;
+    assignment._externalName = externalName.trim();
+    assignment._externalContact = externalContact?.trim() || null;
+    assignment._externalIdentification = externalIdentification?.trim() || null;
     assignment._externalAddress = externalAddress || null;
 
     assignment.apply(
@@ -323,7 +318,6 @@ export class BeneficiaryAssignment extends AggregateRoot {
     );
     return assignment;
   }
-
   static createForCharity(
     id: string,
     willId: string,
@@ -379,9 +373,7 @@ export class BeneficiaryAssignment extends AggregateRoot {
     assignment._isDependant = props.isDependant;
 
     // Bequest Config
-    if (props.sharePercent !== null) {
-      assignment._sharePercent = new SharePercentage(props.sharePercent);
-    }
+    assignment._sharePercent = props.sharePercent;
     assignment._specificAmount = props.specificAmount;
 
     // Conditions
@@ -390,13 +382,6 @@ export class BeneficiaryAssignment extends AggregateRoot {
     assignment._conditionMet = props.conditionMet;
     assignment._conditionDeadline = props.conditionDeadline
       ? new Date(props.conditionDeadline)
-      : null;
-
-    // Life Interest
-    assignment._hasLifeInterest = props.hasLifeInterest;
-    assignment._lifeInterestDuration = props.lifeInterestDuration;
-    assignment._lifeInterestEndsAt = props.lifeInterestEndsAt
-      ? new Date(props.lifeInterestEndsAt)
       : null;
 
     // Alternate
@@ -427,7 +412,7 @@ export class BeneficiaryAssignment extends AggregateRoot {
   // BUSINESS LOGIC & DOMAIN OPERATIONS
   // --------------------------------------------------------------------------
 
-  public updateSharePercentage(sharePercent: SharePercentage): void {
+  public updateSharePercentage(sharePercent: number): void {
     if (
       this._bequestType !== BequestType.PERCENTAGE &&
       this._bequestType !== BequestType.RESIDUARY
@@ -440,7 +425,9 @@ export class BeneficiaryAssignment extends AggregateRoot {
     // Assuming this entity manages the "Will Planning" phase (pre-death), we allow modification but warn.
     // If this entity manages "Estate Administration" (post-death), then yes, court orders are needed.
     // Given this is likely "Will Writing", we allow it but maybe flag it.
-
+    if (sharePercent < 0 || sharePercent > 100) {
+      throw new Error('Share percentage must be between 0 and 100');
+    }
     this._sharePercent = sharePercent;
     this._specificAmount = null;
     this._updatedAt = new Date();
@@ -450,7 +437,7 @@ export class BeneficiaryAssignment extends AggregateRoot {
         this._id,
         this._willId,
         this._bequestType,
-        sharePercent.getValue(), // Pass value, not object, to event
+        sharePercent,
         null,
       ),
     );
@@ -477,16 +464,6 @@ export class BeneficiaryAssignment extends AggregateRoot {
     this._isSubjectToDependantsProvision = true;
     // Note: 'courtApprovalRequired' usually applies to *distribution* deviations, not just being a dependant.
     // However, if we mean "distributing to this person is mandatory", we flag it.
-    this._updatedAt = new Date();
-  }
-
-  public setLifeInterest(durationYears: number, endsAt: Date): void {
-    if (durationYears < 1) throw new Error('Duration must be at least 1 year');
-    if (endsAt <= new Date()) throw new Error('End date must be in the future');
-
-    this._hasLifeInterest = true;
-    this._lifeInterestDuration = durationYears;
-    this._lifeInterestEndsAt = endsAt;
     this._updatedAt = new Date();
   }
 
@@ -538,21 +515,25 @@ export class BeneficiaryAssignment extends AggregateRoot {
   }
 
   public markAsDistributed(method: string, notes?: string): void {
-    if (this._distributionStatus === DistributionStatus.COMPLETED) return;
+    if (this._distributionStatus === DistributionStatus.COMPLETED) {
+      throw new Error('Bequest already distributed');
+    }
 
     if (this._courtApprovalRequired && !this._courtApprovalObtained) {
-      throw new Error('Court approval required before distribution (Law of Succession Act)');
+      throw new Error(
+        'Court approval required before distribution (Law of Succession Act, Section 26)',
+      );
     }
 
-    // You cannot "Distribute" (transfer ownership) if there is a Life Interest currently active.
-    // The asset is held in trust, not transferred to the remainderman yet.
-    if (this.hasActiveLifeInterest()) {
-      throw new Error('Cannot absolutely distribute asset with active life interest');
+    if (this.isConditional() && !this.isConditionMet()) {
+      throw new Error('Condition must be met before distribution');
     }
+
+    if (!method?.trim()) throw new Error('Distribution method is required');
 
     this._distributionStatus = DistributionStatus.COMPLETED;
     this._distributedAt = new Date();
-    this._distributionMethod = method;
+    this._distributionMethod = method.trim();
     this._distributionNotes = notes?.trim() || null;
     this._updatedAt = new Date();
 
@@ -566,16 +547,29 @@ export class BeneficiaryAssignment extends AggregateRoot {
       ),
     );
   }
+  public obtainCourtApproval(approvalDate: Date, courtOrderNumber?: string): void {
+    if (!this._courtApprovalRequired) {
+      throw new Error('Court approval not required for this beneficiary');
+    }
 
-  public obtainCourtApproval(approvalDate: Date, approvalDetails?: string): void {
     this._courtApprovalObtained = true;
     this._updatedAt = new Date();
-    if (approvalDetails) {
-      this._distributionNotes =
-        (this._distributionNotes || '') + ` Court approval: ${approvalDetails}`;
+
+    if (courtOrderNumber) {
+      const approvalNote = `Court Order ${courtOrderNumber} dated ${approvalDate.toISOString().split('T')[0]}`;
+      this._distributionNotes = this._distributionNotes
+        ? `${this._distributionNotes}; ${approvalNote}`
+        : approvalNote;
     }
   }
-
+  public requireCourtApproval(reason: string): void {
+    if (!reason?.trim()) throw new Error('Reason for court approval required');
+    this._courtApprovalRequired = true;
+    this._distributionNotes = this._distributionNotes
+      ? `${this._distributionNotes}; Court approval required: ${reason.trim()}`
+      : `Court approval required: ${reason.trim()}`;
+    this._updatedAt = new Date();
+  }
   public remove(reason?: string): void {
     // If this is a Post-Probate entity, removing a dependant is illegal without court order.
     // If Pre-Probate (Will Writing), the Testator can do what they want (though it may be contested later).
@@ -596,26 +590,29 @@ export class BeneficiaryAssignment extends AggregateRoot {
   }
 
   public isConditionMet(): boolean {
+    if (!this.isConditional()) return true; // No condition = automatically met
     return this._conditionMet === true;
   }
 
-  public hasActiveLifeInterest(): boolean {
-    if (!this._hasLifeInterest || !this._lifeInterestEndsAt) return false;
-    return this._lifeInterestEndsAt > new Date();
+  public isConditionExpired(): boolean {
+    if (!this.isConditional() || !this._conditionDeadline) return false;
+    return this._conditionDeadline < new Date();
   }
 
   public canBeDistributed(): boolean {
     if (this._distributionStatus === DistributionStatus.COMPLETED) return false;
     if (this._courtApprovalRequired && !this._courtApprovalObtained) return false;
-    // If active life interest exists, we cannot distribute full title yet
-    if (this.hasActiveLifeInterest()) return false;
+
     // Condition checks
     if (this.isConditional()) {
+      // If condition met, can distribute
       if (this.isConditionMet()) return true;
-      // If deadline passed and not met, we cannot distribute to THIS beneficiary
-      if (this._conditionDeadline && this._conditionDeadline < new Date()) return false;
+      // If deadline passed and not met, cannot distribute to this beneficiary
+      if (this.isConditionExpired()) return false;
+      // Condition pending, cannot distribute yet
       return false;
     }
+
     return this.hasValidAllocation();
   }
 
@@ -624,7 +621,7 @@ export class BeneficiaryAssignment extends AggregateRoot {
       this._bequestType === BequestType.PERCENTAGE ||
       this._bequestType === BequestType.RESIDUARY
     ) {
-      return Boolean(this._sharePercent && this._sharePercent.getValue() > 0);
+      return Boolean(this._sharePercent && this._sharePercent > 0);
     } else if (this._bequestType === BequestType.SPECIFIC) {
       return Boolean(this._specificAmount && this._specificAmount > 0);
     } else if (this._bequestType === BequestType.CONDITIONAL) {
@@ -632,7 +629,20 @@ export class BeneficiaryAssignment extends AggregateRoot {
     }
     return false;
   }
-
+  public getBeneficiaryIdentifier(): string {
+    switch (this._beneficiaryType) {
+      case BeneficiaryType.USER:
+        return this._userId || 'INVALID_USER';
+      case BeneficiaryType.FAMILY_MEMBER:
+        return this._familyMemberId || 'INVALID_FAMILY_MEMBER';
+      case BeneficiaryType.EXTERNAL:
+      case BeneficiaryType.CHARITY:
+      case BeneficiaryType.ORGANIZATION:
+        return this._externalName || 'INVALID_EXTERNAL';
+      default:
+        throw new Error('Invalid beneficiary type');
+    }
+  }
   public getBeneficiaryName(): string {
     switch (this._beneficiaryType) {
       case BeneficiaryType.USER:
@@ -642,9 +652,9 @@ export class BeneficiaryAssignment extends AggregateRoot {
       case BeneficiaryType.EXTERNAL:
       case BeneficiaryType.CHARITY:
       case BeneficiaryType.ORGANIZATION:
-        return this._externalName || 'Unknown';
+        return this._externalName || '';
       default:
-        return 'Unknown';
+        throw new Error('Invalid beneficiary type');
     }
   }
 
@@ -696,7 +706,7 @@ export class BeneficiaryAssignment extends AggregateRoot {
   get bequestType(): BequestType {
     return this._bequestType;
   }
-  get sharePercent(): SharePercentage | null {
+  get sharePercent(): number | null {
     return this._sharePercent;
   }
   get specificAmount(): number | null {
@@ -717,16 +727,6 @@ export class BeneficiaryAssignment extends AggregateRoot {
   }
   get conditionDeadline(): Date | null {
     return this._conditionDeadline;
-  }
-
-  get hasLifeInterest(): boolean {
-    return this._hasLifeInterest;
-  }
-  get lifeInterestDuration(): number | null {
-    return this._lifeInterestDuration;
-  }
-  get lifeInterestEndsAt(): Date | null {
-    return this._lifeInterestEndsAt;
   }
 
   get alternateAssignmentId(): string | null {

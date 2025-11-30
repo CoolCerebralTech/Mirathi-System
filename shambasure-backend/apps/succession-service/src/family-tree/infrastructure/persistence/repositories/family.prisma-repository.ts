@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MarriageStatus, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '@shamba/database';
 
@@ -7,13 +7,6 @@ import { Family } from '../../../domain/entities/family.entity';
 import { FamilyRepositoryInterface } from '../../../domain/interfaces/family.repository.interface';
 import { FamilyMapper } from '../mappers/family.mapper';
 
-/**
- * Prisma Implementation of the Family Repository
- *
- * Handles persistence for the HeirLink™ family tree module.
- * Leverages Relational Filtering for queries about minors and marriages.
- * Uses JSONB queries for metadata stored in treeData.
- */
 @Injectable()
 export class FamilyPrismaRepository implements FamilyRepositoryInterface {
   constructor(private readonly prisma: PrismaService) {}
@@ -23,31 +16,11 @@ export class FamilyPrismaRepository implements FamilyRepositoryInterface {
   // ---------------------------------------------------------
 
   async save(family: Family): Promise<void> {
-    const persistenceData = FamilyMapper.toPersistence(family);
 
-    // We explicitly map fields to satisfy Prisma Input types
-    // and handle the JsonNull logic for treeData.
     await this.prisma.family.upsert({
       where: { id: family.getId() },
-      create: {
-        id: persistenceData.id,
-        creatorId: persistenceData.creatorId,
-        name: persistenceData.name,
-        description: persistenceData.description,
-        // Handle JSON nullability for CreateInput
-        treeData: persistenceData.treeData === null ? Prisma.JsonNull : persistenceData.treeData,
-        createdAt: persistenceData.createdAt,
-        updatedAt: persistenceData.updatedAt,
-        deletedAt: persistenceData.deletedAt,
-      },
-      update: {
-        name: persistenceData.name,
-        description: persistenceData.description,
-        // Handle JSON nullability for UpdateInput
-        treeData: persistenceData.treeData === null ? Prisma.JsonNull : persistenceData.treeData,
-        updatedAt: persistenceData.updatedAt,
-        deletedAt: persistenceData.deletedAt,
-      },
+      create: FamilyMapper.toPrismaCreate(family),
+      update: FamilyMapper.toPrismaUpdate(family),
     });
   }
 
@@ -87,10 +60,10 @@ export class FamilyPrismaRepository implements FamilyRepositoryInterface {
   // DOMAIN LOOKUPS
   // ---------------------------------------------------------
 
-  async findByOwnerId(ownerId: string): Promise<Family[]> {
+  async findByCreatorId(creatorId: string): Promise<Family[]> {
     const records = await this.prisma.family.findMany({
       where: {
-        creatorId: ownerId,
+        creatorId,
         deletedAt: null,
       },
       orderBy: { createdAt: 'desc' },
@@ -99,13 +72,13 @@ export class FamilyPrismaRepository implements FamilyRepositoryInterface {
     return records.map((record) => FamilyMapper.toDomain(record));
   }
 
-  async findByName(ownerId: string, name: string): Promise<Family | null> {
+  async findByName(creatorId: string, name: string): Promise<Family | null> {
     const record = await this.prisma.family.findFirst({
       where: {
-        creatorId: ownerId,
+        creatorId,
         name: {
           equals: name,
-          mode: 'insensitive', // Case-insensitive search
+          mode: 'insensitive',
         },
         deletedAt: null,
       },
@@ -119,16 +92,10 @@ export class FamilyPrismaRepository implements FamilyRepositoryInterface {
   // ---------------------------------------------------------
 
   async findFamiliesWithCustomaryMarriages(): Promise<Family[]> {
-    // Uses Relation Filtering: Find families that have at least one CUSTOMARY_MARRIAGE
     const records = await this.prisma.family.findMany({
       where: {
         deletedAt: null,
-        marriages: {
-          some: {
-            marriageType: MarriageStatus.CUSTOMARY_MARRIAGE,
-            isActive: true,
-          },
-        },
+        hasCustomaryMarriage: true,
       },
     });
 
@@ -136,16 +103,10 @@ export class FamilyPrismaRepository implements FamilyRepositoryInterface {
   }
 
   async findFamiliesWithPolygamousMarriages(): Promise<Family[]> {
-    // Since 'isPolygamous' isn't a direct column, we check the metadata in JSON
-    // OR we could check families with > 1 active marriage (naive approach).
-    // Here we query the JSON metadata path.
     const records = await this.prisma.family.findMany({
       where: {
         deletedAt: null,
-        treeData: {
-          path: ['metadata', 'hasPolygamousMarriage'],
-          equals: true,
-        },
+        hasPolygamousMarriage: true,
       },
     });
 
@@ -153,15 +114,11 @@ export class FamilyPrismaRepository implements FamilyRepositoryInterface {
   }
 
   async findFamiliesWithMinors(): Promise<Family[]> {
-    // Relation Filtering: Find families with at least one active Minor member
     const records = await this.prisma.family.findMany({
       where: {
         deletedAt: null,
-        members: {
-          some: {
-            isMinor: true,
-            isDeceased: false,
-          },
+        minorCount: {
+          gt: 0,
         },
       },
     });
@@ -170,32 +127,23 @@ export class FamilyPrismaRepository implements FamilyRepositoryInterface {
   }
 
   async findByClan(clanName: string, subClan?: string): Promise<Family[]> {
-    // 1. Define the base filters list using strict Prisma types
-    const conditions: Prisma.FamilyWhereInput[] = [
-      {
-        treeData: {
-          path: ['metadata', 'clanName'],
-          string_contains: clanName,
-        },
+    const whereClause: Prisma.FamilyWhereInput = {
+      deletedAt: null,
+      clanName: {
+        contains: clanName,
+        mode: 'insensitive',
       },
-    ];
+    };
 
-    // 2. Conditionally add the subClan filter if provided
     if (subClan) {
-      conditions.push({
-        treeData: {
-          path: ['metadata', 'subClan'],
-          string_contains: subClan,
-        },
-      });
+      whereClause.subClan = {
+        contains: subClan,
+        mode: 'insensitive',
+      };
     }
 
-    // 3. Execute query using the AND operator
     const records = await this.prisma.family.findMany({
-      where: {
-        deletedAt: null,
-        AND: conditions,
-      },
+      where: whereClause,
     });
 
     return records.map((record) => FamilyMapper.toDomain(record));
@@ -206,54 +154,111 @@ export class FamilyPrismaRepository implements FamilyRepositoryInterface {
   // ---------------------------------------------------------
 
   async getFamilyStatistics(familyId: string): Promise<{
-    totalMembers: number;
-    livingMembers: number;
-    deceasedMembers: number;
+    memberCount: number;
+    livingMemberCount: number;
     minorCount: number;
-    marriageCount: number;
     customaryMarriageCount: number;
+    polygamousMarriageCount: number;
   }> {
-    // Execute counts in parallel for performance
-    const [
-      totalMembers,
-      livingMembers,
-      deceasedMembers,
-      minorCount,
-      marriageCount,
-      customaryMarriageCount,
-    ] = await Promise.all([
-      // Total
-      this.prisma.familyMember.count({ where: { familyId } }),
-      // Living
-      this.prisma.familyMember.count({ where: { familyId, isDeceased: false } }),
-      // Deceased
-      this.prisma.familyMember.count({ where: { familyId, isDeceased: true } }),
-      // Minors
-      this.prisma.familyMember.count({ where: { familyId, isMinor: true } }),
-      // Total Marriages
-      this.prisma.marriage.count({ where: { familyId } }),
-      // Customary Marriages
-      this.prisma.marriage.count({
-        where: { familyId, marriageType: MarriageStatus.CUSTOMARY_MARRIAGE },
-      }),
-    ]);
+    const family = await this.prisma.family.findUnique({
+      where: { id: familyId },
+      select: {
+        memberCount: true,
+        livingMemberCount: true,
+        minorCount: true,
+        customaryMarriageCount: true,
+        polygamousMarriageCount: true,
+      },
+    });
+
+    if (!family) {
+      return {
+        memberCount: 0,
+        livingMemberCount: 0,
+        minorCount: 0,
+        customaryMarriageCount: 0,
+        polygamousMarriageCount: 0,
+      };
+    }
 
     return {
-      totalMembers,
-      livingMembers,
-      deceasedMembers,
-      minorCount,
-      marriageCount,
-      customaryMarriageCount,
+      memberCount: family.memberCount,
+      livingMemberCount: family.livingMemberCount,
+      minorCount: family.minorCount,
+      customaryMarriageCount: family.customaryMarriageCount,
+      polygamousMarriageCount: family.polygamousMarriageCount,
     };
   }
 
-  async countByOwner(ownerId: string): Promise<number> {
+  async countByCreator(creatorId: string): Promise<number> {
     return this.prisma.family.count({
       where: {
-        creatorId: ownerId,
+        creatorId,
         deletedAt: null,
       },
     });
+  }
+
+  // ---------------------------------------------------------
+  // ADDITIONAL QUERIES FOR COMPREHENSIVE FAMILY MANAGEMENT
+  // ---------------------------------------------------------
+
+  async findFamiliesWithFamilyHead(familyHeadId: string): Promise<Family[]> {
+    const records = await this.prisma.family.findMany({
+      where: {
+        familyHeadId,
+        deletedAt: null,
+      },
+    });
+
+    return records.map((record) => FamilyMapper.toDomain(record));
+  }
+
+  async findFamiliesByAncestralHome(ancestralHome: string): Promise<Family[]> {
+    const records = await this.prisma.family.findMany({
+      where: {
+        ancestralHome: {
+          contains: ancestralHome,
+          mode: 'insensitive',
+        },
+        deletedAt: null,
+      },
+    });
+
+    return records.map((record) => FamilyMapper.toDomain(record));
+  }
+
+  async findActiveFamilies(): Promise<Family[]> {
+    const records = await this.prisma.family.findMany({
+      where: {
+        deletedAt: null,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return records.map((record) => FamilyMapper.toDomain(record));
+  }
+
+  async findFamiliesWithDeceasedMembers(): Promise<Family[]> {
+    const records = await this.prisma.family.findMany({
+      where: {
+        deletedAt: null,
+        OR: [
+          {
+            memberCount: {
+              gt: this.prisma.family.fields.livingMemberCount,
+            },
+          },
+          {
+            livingMemberCount: 0,
+            memberCount: {
+              gt: 0,
+            },
+          },
+        ],
+      },
+    });
+
+    return records.map((record) => FamilyMapper.toDomain(record));
   }
 }

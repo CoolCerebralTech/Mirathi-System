@@ -7,56 +7,66 @@ import { WillAggregate } from '../../../domain/aggregates/will.aggregate';
 import { WillRepositoryInterface } from '../../../domain/interfaces/will.repository.interface';
 import { WillMapper } from '../mappers/will.mapper';
 
-// Utility type guard to remove undefined values from arrays
-const notUndefined = <T>(value: T | undefined): value is T => value !== undefined;
-
 @Injectable()
 export class WillPrismaRepository implements WillRepositoryInterface {
   constructor(private readonly prisma: PrismaService) {}
 
+  // ---------------------------------------------------------
+  // BASIC PERSISTENCE OPERATIONS
+  // ---------------------------------------------------------
+
   async save(aggregate: WillAggregate): Promise<void> {
     const persistenceData = WillMapper.toPersistence(aggregate);
 
-    await this.prisma.will.upsert({
-      where: { id: aggregate.getWill().id },
-      create: persistenceData,
-      update: WillMapper.toUpdatePersistence(aggregate),
+    await this.prisma.$transaction(async (tx) => {
+      await tx.will.upsert({
+        where: { id: aggregate.getWill().id },
+        create: persistenceData,
+        update: WillMapper.toUpdatePersistence(aggregate),
+      });
+
+      // TODO: Handle child entity updates (executors, witnesses, beneficiaries)
+      // This would require additional transaction logic for the full aggregate
     });
   }
 
   async findById(id: string): Promise<WillAggregate | null> {
     const record = await this.prisma.will.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
       include: {
-        beneficiaryAssignments: true,
+        // Include beneficiary assignments with their related assets
+        beneficiaryAssignments: {
+          where: { asset: { deletedAt: null } }, // Only include non-deleted assets
+          include: {
+            asset: true,
+            familyMember: true,
+            beneficiary: true,
+          },
+        },
         executors: true,
-        witnesses: true,
+        witnesses: {
+          include: {
+            identityDocuments: true,
+          },
+        },
+        disputes: {
+          where: {
+            status: { in: ['FILED', 'UNDER_REVIEW', 'MEDIATION', 'COURT_PROCEEDING'] },
+          },
+        },
       },
     });
 
     if (!record) return null;
 
-    const assetIds = [
-      ...new Set(record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean)),
-    ] as string[];
-
-    const assets =
-      assetIds.length > 0
-        ? await this.prisma.asset.findMany({
-            where: {
-              id: { in: assetIds },
-              deletedAt: null,
-            },
-          })
-        : [];
-
-    const assetMap = new Map(assets.map((asset) => [asset.id, asset]));
-
-    const resolvedAssets = assetIds.map((assetId) => assetMap.get(assetId)).filter(notUndefined);
+    // Extract assets from beneficiary assignments
+    const assets = record.beneficiaryAssignments
+      .map((assignment) => assignment.asset)
+      .filter((asset) => asset !== null);
 
     return WillMapper.toDomain({
       ...record,
-      assets: resolvedAssets,
+      assets,
       beneficiaries: record.beneficiaryAssignments,
       executors: record.executors,
       witnesses: record.witnesses,
@@ -65,45 +75,32 @@ export class WillPrismaRepository implements WillRepositoryInterface {
 
   async findByTestatorId(testatorId: string): Promise<WillAggregate[]> {
     const records = await this.prisma.will.findMany({
-      where: { testatorId, deletedAt: null },
+      where: {
+        testatorId,
+        deletedAt: null,
+        isActiveRecord: true,
+      },
       orderBy: { willDate: 'desc' },
       include: {
-        beneficiaryAssignments: true,
+        beneficiaryAssignments: {
+          where: { asset: { deletedAt: null } },
+          include: {
+            asset: true,
+          },
+        },
         executors: true,
         witnesses: true,
       },
     });
 
-    const allAssetIds = [
-      ...new Set(
-        records.flatMap((record) =>
-          record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean),
-        ),
-      ),
-    ] as string[];
-
-    const allAssets =
-      allAssetIds.length > 0
-        ? await this.prisma.asset.findMany({
-            where: {
-              id: { in: allAssetIds },
-              deletedAt: null,
-            },
-          })
-        : [];
-
-    const assetMap = new Map(allAssets.map((asset) => [asset.id, asset]));
-
     return records.map((record) => {
-      const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
-
-      const resolvedAssets = recordAssetIds
-        .map((assetId) => assetMap.get(assetId))
-        .filter(notUndefined);
+      const assets = record.beneficiaryAssignments
+        .map((assignment) => assignment.asset)
+        .filter((asset) => asset !== null);
 
       return WillMapper.toDomain({
         ...record,
-        assets: resolvedAssets,
+        assets,
         beneficiaries: record.beneficiaryAssignments,
         executors: record.executors,
         witnesses: record.witnesses,
@@ -126,52 +123,44 @@ export class WillPrismaRepository implements WillRepositoryInterface {
     await this.prisma.will.update({
       where: { id },
       data: {
-        isActive: false,
+        isActiveRecord: false,
         deletedAt: new Date(),
         updatedAt: new Date(),
       },
     });
   }
 
+  // ---------------------------------------------------------
+  // DOMAIN-SPECIFIC LOOKUP OPERATIONS
+  // ---------------------------------------------------------
+
   async findByStatus(status: WillStatus): Promise<WillAggregate[]> {
     const records = await this.prisma.will.findMany({
-      where: { status, deletedAt: null },
+      where: {
+        status,
+        deletedAt: null,
+        isActiveRecord: true,
+      },
       include: {
-        beneficiaryAssignments: true,
+        beneficiaryAssignments: {
+          where: { asset: { deletedAt: null } },
+          include: {
+            asset: true,
+          },
+        },
         executors: true,
         witnesses: true,
       },
     });
 
-    const allAssetIds = [
-      ...new Set(
-        records.flatMap((record) =>
-          record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean),
-        ),
-      ),
-    ] as string[];
-
-    const allAssets =
-      allAssetIds.length > 0
-        ? await this.prisma.asset.findMany({
-            where: {
-              id: { in: allAssetIds },
-              deletedAt: null,
-            },
-          })
-        : [];
-
-    const assetMap = new Map(allAssets.map((asset) => [asset.id, asset]));
-
     return records.map((record) => {
-      const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
-      const resolvedAssets = recordAssetIds
-        .map((assetId) => assetMap.get(assetId))
-        .filter(notUndefined);
+      const assets = record.beneficiaryAssignments
+        .map((assignment) => assignment.asset)
+        .filter((asset) => asset !== null);
 
       return WillMapper.toDomain({
         ...record,
-        assets: resolvedAssets,
+        assets,
         beneficiaries: record.beneficiaryAssignments,
         executors: record.executors,
         witnesses: record.witnesses,
@@ -185,9 +174,15 @@ export class WillPrismaRepository implements WillRepositoryInterface {
         testatorId,
         status: WillStatus.ACTIVE,
         deletedAt: null,
+        isActiveRecord: true,
       },
       include: {
-        beneficiaryAssignments: true,
+        beneficiaryAssignments: {
+          where: { asset: { deletedAt: null } },
+          include: {
+            asset: true,
+          },
+        },
         executors: true,
         witnesses: true,
       },
@@ -195,24 +190,13 @@ export class WillPrismaRepository implements WillRepositoryInterface {
 
     if (!record) return null;
 
-    const assetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
-
-    const assets =
-      assetIds.length > 0
-        ? await this.prisma.asset.findMany({
-            where: {
-              id: { in: assetIds },
-              deletedAt: null,
-            },
-          })
-        : [];
-
-    const assetMap = new Map(assets.map((asset) => [asset.id, asset]));
-    const resolvedAssets = assetIds.map((id) => assetMap.get(id)).filter(notUndefined);
+    const assets = record.beneficiaryAssignments
+      .map((assignment) => assignment.asset)
+      .filter((asset) => asset !== null);
 
     return WillMapper.toDomain({
       ...record,
-      assets: resolvedAssets,
+      assets,
       beneficiaries: record.beneficiaryAssignments,
       executors: record.executors,
       witnesses: record.witnesses,
@@ -221,50 +205,79 @@ export class WillPrismaRepository implements WillRepositoryInterface {
 
   async findSupersededWills(originalWillId: string): Promise<WillAggregate[]> {
     const records = await this.prisma.will.findMany({
-      where: { supersedes: originalWillId },
+      where: {
+        supersedes: originalWillId,
+        deletedAt: null,
+      },
       include: {
-        beneficiaryAssignments: true,
+        beneficiaryAssignments: {
+          where: { asset: { deletedAt: null } },
+          include: {
+            asset: true,
+          },
+        },
         executors: true,
         witnesses: true,
       },
     });
 
-    const allAssetIds = [
-      ...new Set(
-        records.flatMap((record) =>
-          record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean),
-        ),
-      ),
-    ] as string[];
-
-    const allAssets =
-      allAssetIds.length > 0
-        ? await this.prisma.asset.findMany({
-            where: {
-              id: { in: allAssetIds },
-              deletedAt: null,
-            },
-          })
-        : [];
-
-    const assetMap = new Map(allAssets.map((asset) => [asset.id, asset]));
-
     return records.map((record) => {
-      const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
-
-      const resolvedAssets = recordAssetIds
-        .map((assetId) => assetMap.get(assetId))
-        .filter(notUndefined);
+      const assets = record.beneficiaryAssignments
+        .map((assignment) => assignment.asset)
+        .filter((asset) => asset !== null);
 
       return WillMapper.toDomain({
         ...record,
-        assets: resolvedAssets,
+        assets,
         beneficiaries: record.beneficiaryAssignments,
         executors: record.executors,
         witnesses: record.witnesses,
       });
     });
   }
+
+  async findContestedWills(): Promise<WillAggregate[]> {
+    const records = await this.prisma.will.findMany({
+      where: {
+        deletedAt: null,
+        isActiveRecord: true,
+        disputes: {
+          some: {
+            status: { in: ['FILED', 'UNDER_REVIEW', 'MEDIATION', 'COURT_PROCEEDING'] },
+          },
+        },
+      },
+      include: {
+        beneficiaryAssignments: {
+          where: { asset: { deletedAt: null } },
+          include: {
+            asset: true,
+          },
+        },
+        executors: true,
+        witnesses: true,
+        disputes: true,
+      },
+    });
+
+    return records.map((record) => {
+      const assets = record.beneficiaryAssignments
+        .map((assignment) => assignment.asset)
+        .filter((asset) => asset !== null);
+
+      return WillMapper.toDomain({
+        ...record,
+        assets,
+        beneficiaries: record.beneficiaryAssignments,
+        executors: record.executors,
+        witnesses: record.witnesses,
+      });
+    });
+  }
+
+  // ---------------------------------------------------------
+  // WORKFLOW & LIFECYCLE QUERIES
+  // ---------------------------------------------------------
 
   async findWillsRequiringWitnesses(): Promise<WillAggregate[]> {
     const records = await this.prisma.will.findMany({
@@ -273,44 +286,28 @@ export class WillPrismaRepository implements WillRepositoryInterface {
         requiresWitnesses: true,
         hasAllWitnesses: false,
         deletedAt: null,
+        isActiveRecord: true,
       },
       include: {
-        beneficiaryAssignments: true,
+        beneficiaryAssignments: {
+          where: { asset: { deletedAt: null } },
+          include: {
+            asset: true,
+          },
+        },
         executors: true,
         witnesses: true,
       },
     });
 
-    const allAssetIds = [
-      ...new Set(
-        records.flatMap((record) =>
-          record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean),
-        ),
-      ),
-    ] as string[];
-
-    const allAssets =
-      allAssetIds.length > 0
-        ? await this.prisma.asset.findMany({
-            where: {
-              id: { in: allAssetIds },
-              deletedAt: null,
-            },
-          })
-        : [];
-
-    const assetMap = new Map(allAssets.map((asset) => [asset.id, asset]));
-
     return records.map((record) => {
-      const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
-
-      const resolvedAssets = recordAssetIds
-        .map((assetId) => assetMap.get(assetId))
-        .filter(notUndefined);
+      const assets = record.beneficiaryAssignments
+        .map((assignment) => assignment.asset)
+        .filter((asset) => asset !== null);
 
       return WillMapper.toDomain({
         ...record,
-        assets: resolvedAssets,
+        assets,
         beneficiaries: record.beneficiaryAssignments,
         executors: record.executors,
         witnesses: record.witnesses,
@@ -323,50 +320,87 @@ export class WillPrismaRepository implements WillRepositoryInterface {
       where: {
         status: WillStatus.WITNESSED,
         deletedAt: null,
+        isActiveRecord: true,
       },
       include: {
-        beneficiaryAssignments: true,
+        beneficiaryAssignments: {
+          where: { asset: { deletedAt: null } },
+          include: {
+            asset: true,
+          },
+        },
         executors: true,
         witnesses: true,
       },
     });
 
-    const allAssetIds = [
-      ...new Set(
-        records.flatMap((record) =>
-          record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean),
-        ),
-      ),
-    ] as string[];
-
-    const allAssets =
-      allAssetIds.length > 0
-        ? await this.prisma.asset.findMany({
-            where: {
-              id: { in: allAssetIds },
-              deletedAt: null,
-            },
-          })
-        : [];
-
-    const assetMap = new Map(allAssets.map((asset) => [asset.id, asset]));
-
     return records.map((record) => {
-      const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
-
-      const resolvedAssets = recordAssetIds
-        .map((assetId) => assetMap.get(assetId))
-        .filter(notUndefined);
+      const assets = record.beneficiaryAssignments
+        .map((assignment) => assignment.asset)
+        .filter((asset) => asset !== null);
 
       return WillMapper.toDomain({
         ...record,
-        assets: resolvedAssets,
+        assets,
         beneficiaries: record.beneficiaryAssignments,
         executors: record.executors,
         witnesses: record.witnesses,
       });
     });
   }
+
+  async findWillsReadyForProbate(): Promise<WillAggregate[]> {
+    const records = await this.prisma.will.findMany({
+      where: {
+        status: WillStatus.ACTIVE,
+        grantOfProbateIssued: false,
+        deletedAt: null,
+        isActiveRecord: true,
+        // Additional Kenyan probate readiness criteria
+        legalCapacityStatus: 'ASSESSED_COMPETENT',
+        hasTestatorSignature: true,
+        signatureWitnessed: true,
+        meetsKenyanFormalities: true,
+      },
+      include: {
+        beneficiaryAssignments: {
+          where: { asset: { deletedAt: null } },
+          include: {
+            asset: true,
+          },
+        },
+        executors: {
+          where: {
+            status: { in: ['NOMINATED', 'ACTIVE'] },
+            eligibilityStatus: 'ELIGIBLE',
+          },
+        },
+        witnesses: {
+          where: {
+            status: { in: ['SIGNED', 'VERIFIED'] },
+          },
+        },
+      },
+    });
+
+    return records.map((record) => {
+      const assets = record.beneficiaryAssignments
+        .map((assignment) => assignment.asset)
+        .filter((asset) => asset !== null);
+
+      return WillMapper.toDomain({
+        ...record,
+        assets,
+        beneficiaries: record.beneficiaryAssignments,
+        executors: record.executors,
+        witnesses: record.witnesses,
+      });
+    });
+  }
+
+  // ---------------------------------------------------------
+  // VERSIONING & AUDIT TRAIL OPERATIONS
+  // ---------------------------------------------------------
 
   async saveVersion(
     willId: string,
@@ -378,8 +412,9 @@ export class WillPrismaRepository implements WillRepositoryInterface {
         willId,
         versionNumber,
         snapshot: versionData as Prisma.InputJsonValue,
-        changeLog: `Version ${versionNumber}`,
+        changeLog: `Version ${versionNumber} saved`,
         changedBy: 'SYSTEM',
+        isLegallySignificant: false,
       },
     });
   }
@@ -389,6 +424,7 @@ export class WillPrismaRepository implements WillRepositoryInterface {
       where: { willId },
       orderBy: { versionNumber: 'desc' },
     });
+
     return versions.map((v) => ({
       version: v.versionNumber,
       data: v.snapshot,
@@ -396,11 +432,16 @@ export class WillPrismaRepository implements WillRepositoryInterface {
     }));
   }
 
+  // ---------------------------------------------------------
+  // ANALYTICS & BULK OPERATION QUERIES
+  // ---------------------------------------------------------
+
   async countByTestatorId(testatorId: string): Promise<number> {
     return this.prisma.will.count({
       where: {
         testatorId,
         deletedAt: null,
+        isActiveRecord: true,
       },
     });
   }
@@ -413,44 +454,100 @@ export class WillPrismaRepository implements WillRepositoryInterface {
       where: {
         updatedAt: { gte: thresholdDate },
         deletedAt: null,
+        isActiveRecord: true,
       },
       include: {
-        beneficiaryAssignments: true,
+        beneficiaryAssignments: {
+          where: { asset: { deletedAt: null } },
+          include: {
+            asset: true,
+          },
+        },
         executors: true,
         witnesses: true,
       },
     });
 
-    const allAssetIds = [
-      ...new Set(
-        records.flatMap((record) =>
-          record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean),
-        ),
-      ),
-    ] as string[];
-
-    const allAssets =
-      allAssetIds.length > 0
-        ? await this.prisma.asset.findMany({
-            where: {
-              id: { in: allAssetIds },
-              deletedAt: null,
-            },
-          })
-        : [];
-
-    const assetMap = new Map(allAssets.map((asset) => [asset.id, asset]));
-
     return records.map((record) => {
-      const recordAssetIds = record.beneficiaryAssignments.map((ba) => ba.assetId).filter(Boolean);
-
-      const resolvedAssets = recordAssetIds
-        .map((assetId) => assetMap.get(assetId))
-        .filter(notUndefined);
+      const assets = record.beneficiaryAssignments
+        .map((assignment) => assignment.asset)
+        .filter((asset) => asset !== null);
 
       return WillMapper.toDomain({
         ...record,
-        assets: resolvedAssets,
+        assets,
+        beneficiaries: record.beneficiaryAssignments,
+        executors: record.executors,
+        witnesses: record.witnesses,
+      });
+    });
+  }
+
+  // ---------------------------------------------------------
+  // ADDITIONAL KENYAN LEGAL QUERIES
+  // ---------------------------------------------------------
+
+  async findWillsWithDependantProvision(): Promise<WillAggregate[]> {
+    const records = await this.prisma.will.findMany({
+      where: {
+        hasDependantProvision: true,
+        deletedAt: null,
+        isActiveRecord: true,
+      },
+      include: {
+        beneficiaryAssignments: {
+          where: { asset: { deletedAt: null } },
+          include: {
+            asset: true,
+          },
+        },
+        executors: true,
+        witnesses: true,
+      },
+    });
+
+    return records.map((record) => {
+      const assets = record.beneficiaryAssignments
+        .map((assignment) => assignment.asset)
+        .filter((asset) => asset !== null);
+
+      return WillMapper.toDomain({
+        ...record,
+        assets,
+        beneficiaries: record.beneficiaryAssignments,
+        executors: record.executors,
+        witnesses: record.witnesses,
+      });
+    });
+  }
+
+  async findRevokedWillsByTestator(testatorId: string): Promise<WillAggregate[]> {
+    const records = await this.prisma.will.findMany({
+      where: {
+        testatorId,
+        isRevoked: true,
+        deletedAt: null,
+      },
+      include: {
+        beneficiaryAssignments: {
+          where: { asset: { deletedAt: null } },
+          include: {
+            asset: true,
+          },
+        },
+        executors: true,
+        witnesses: true,
+      },
+    });
+
+    return records.map((record) => {
+      const assets = record.beneficiaryAssignments
+        .map((assignment) => assignment.asset)
+        .filter((asset) => asset !== null);
+
+      return WillMapper.toDomain({
+        ...record,
+        assets,
         beneficiaries: record.beneficiaryAssignments,
         executors: record.executors,
         witnesses: record.witnesses,

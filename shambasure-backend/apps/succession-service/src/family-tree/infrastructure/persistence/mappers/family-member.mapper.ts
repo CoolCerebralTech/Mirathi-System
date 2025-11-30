@@ -2,88 +2,139 @@ import { FamilyMember as PrismaFamilyMember } from '@prisma/client';
 
 import {
   FamilyMember,
-  KenyanFamilyMemberMetadata,
-  KenyanIdentification,
-  MemberContactInfo,
+  FamilyMemberReconstitutionProps,
 } from '../../../domain/entities/family-member.entity';
 
 export class FamilyMemberMapper {
   static toDomain(raw: PrismaFamilyMember): FamilyMember {
-    // Construct defaults for missing schema columns
-    const contactInfo: MemberContactInfo = {
-      email: raw.email || undefined,
-      phone: raw.phone || undefined,
-    };
-
-    const kenyanId: KenyanIdentification = {};
-    const metadata: KenyanFamilyMemberMetadata = {
-      isFamilyHead: false,
-      isElder: false,
-      dependencyStatus: 'INDEPENDENT',
-    };
-
-    const gender = 'OTHER';
-
-    return FamilyMember.reconstitute({
+    const reconstitutionProps: FamilyMemberReconstitutionProps = {
       id: raw.id,
       familyId: raw.familyId,
-      firstName: raw.firstName || 'Unknown',
-      lastName: raw.lastName || 'Member',
 
-      // FIX: Direct assignment since Entity uses the same Prisma Enum
-      role: raw.role,
-
-      addedBy: raw.addedBy,
+      // Core Identity
       userId: raw.userId,
-
+      firstName: raw.firstName,
+      lastName: raw.lastName,
+      email: raw.email,
+      phone: raw.phone,
       dateOfBirth: raw.dateOfBirth,
       dateOfDeath: raw.dateOfDeath,
-      isDeceased: raw.isDeceased,
+
+      // Relationship context
+      relationshipTo: raw.relationshipTo,
+      role: raw.role,
+
+      // Legal status
       isMinor: raw.isMinor,
+      isDeceased: raw.isDeceased,
 
-      contactInfo: contactInfo,
+      // Metadata
       notes: raw.notes,
+      addedBy: raw.addedBy,
 
+      // Timestamps
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt,
       deletedAt: raw.deletedAt,
+    };
 
-      kenyanIdentification: kenyanId,
-      metadata: metadata,
-      gender: gender,
-      middleName: undefined,
-    });
+    return FamilyMember.reconstitute(reconstitutionProps);
   }
 
   static toPersistence(entity: FamilyMember): PrismaFamilyMember {
-    const contact = entity.getContactInfo();
-
     return {
       id: entity.getId(),
       familyId: entity.getFamilyId(),
-      userId: entity.getUserId() || null,
 
+      // Core Identity
+      userId: entity.getUserId(),
       firstName: entity.getFirstName(),
       lastName: entity.getLastName(),
-
-      email: contact.email || null,
-      phone: contact.phone || null,
-
+      email: entity.getEmail(),
+      phone: entity.getPhone(),
       dateOfBirth: entity.getDateOfBirth(),
       dateOfDeath: entity.getDateOfDeath(),
 
-      relationshipTo: null,
-
-      // FIX: Direct assignment
+      // Relationship context
+      relationshipTo: entity.getRelationshipTo(),
       role: entity.getRole(),
 
+      // Legal status
       isMinor: entity.getIsMinor(),
       isDeceased: entity.getIsDeceased(),
 
-      notes: entity.getNotes() || null,
+      // Metadata
+      notes: entity.getNotes(),
       addedBy: entity.getAddedBy(),
 
+      // Timestamps
       createdAt: entity.getCreatedAt(),
+      updatedAt: entity.getUpdatedAt(),
+      deletedAt: entity.getDeletedAt(),
+    } as PrismaFamilyMember;
+  }
+
+  /**
+   * Converts Domain Entity to Prisma Create input
+   */
+  static toPrismaCreate(entity: FamilyMember, familyId: string): any {
+    return {
+      id: entity.getId(),
+      family: {
+        connect: { id: familyId },
+      },
+
+      // Core Identity
+      userId: entity.getUserId() ? { connect: { id: entity.getUserId() } } : undefined,
+      firstName: entity.getFirstName(),
+      lastName: entity.getLastName(),
+      email: entity.getEmail(),
+      phone: entity.getPhone(),
+      dateOfBirth: entity.getDateOfBirth(),
+      dateOfDeath: entity.getDateOfDeath(),
+
+      // Relationship context
+      relationshipTo: entity.getRelationshipTo(),
+      role: entity.getRole(),
+
+      // Legal status
+      isMinor: entity.getIsMinor(),
+      isDeceased: entity.getIsDeceased(),
+
+      // Metadata
+      notes: entity.getNotes(),
+      addedBy: entity.getAddedBy(),
+
+      // Timestamps - Prisma will handle createdAt/updatedAt
+      deletedAt: entity.getDeletedAt(),
+    };
+  }
+
+  /**
+   * Converts Domain Entity to Prisma Update input
+   */
+  static toPrismaUpdate(entity: FamilyMember): any {
+    return {
+      // Core Identity
+      firstName: entity.getFirstName(),
+      lastName: entity.getLastName(),
+      email: entity.getEmail(),
+      phone: entity.getPhone(),
+      dateOfBirth: entity.getDateOfBirth(),
+      dateOfDeath: entity.getDateOfDeath(),
+
+      // Relationship context
+      relationshipTo: entity.getRelationshipTo(),
+      role: entity.getRole(),
+
+      // Legal status
+      isMinor: entity.getIsMinor(),
+      isDeceased: entity.getIsDeceased(),
+
+      // Metadata
+      notes: entity.getNotes(),
+
+      // Timestamps
       updatedAt: entity.getUpdatedAt(),
       deletedAt: entity.getDeletedAt(),
     };

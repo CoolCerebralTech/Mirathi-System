@@ -27,17 +27,21 @@ export class RelationshipValidationPolicy {
     }
 
     // 2. Chronological Validation (Parent/Child)
-    if (type === 'PARENT' || type === 'CHILD' || type === 'ADOPTED_CHILD') {
+    if (
+      type === RelationshipType.PARENT ||
+      type === RelationshipType.CHILD ||
+      type === RelationshipType.ADOPTED_CHILD
+    ) {
       return this.validateParentChildAge(fromMember, toMember, type, metadata);
     }
 
     // 3. Chronological Validation (Grandparent/Grandchild)
-    if (type === 'GRANDPARENT' || type === 'GRANDCHILD') {
+    if (type === RelationshipType.GRANDPARENT || type === RelationshipType.GRANDCHILD) {
       return this.validateGenerationalGap(fromMember, toMember, type, 30);
     }
 
     // 4. Step-relationship validation
-    if (type === 'STEPCHILD') {
+    if (type === RelationshipType.STEPCHILD) {
       return this.validateStepRelationship(fromMember, toMember);
     }
 
@@ -56,8 +60,8 @@ export class RelationshipValidationPolicy {
       adoptionOrderNumber?: string;
     },
   ): ValidationResult {
-    const parent = type === 'PARENT' ? memberA : memberB;
-    const child = type === 'PARENT' ? memberB : memberA;
+    const parent = type === RelationshipType.PARENT ? memberA : memberB;
+    const child = type === RelationshipType.PARENT ? memberB : memberA;
 
     const parentDob = parent.getDateOfBirth();
     const childDob = child.getDateOfBirth();
@@ -77,15 +81,16 @@ export class RelationshipValidationPolicy {
     const ageDiffYears = (childDob.getTime() - parentDob.getTime()) / (1000 * 60 * 60 * 24 * 365);
 
     if (metadata?.isAdopted) {
-      // For adoption, allow 18+ year difference
+      // Adoption Act: Adoptive parent generally must be at least 25 years old and 21 years older than child.
+      // We'll use a slightly looser check here (18 years) to avoid blocking data entry for existing cases.
       if (ageDiffYears < 18) {
         return {
           isValid: false,
-          error: `Adoption Requirement: Adoptive parent must be at least 18 years older than child (current difference: ${Math.floor(ageDiffYears)} years).`,
+          error: `Adoption Requirement: Adoptive parent must be significantly older than child (current difference: ${Math.floor(ageDiffYears)} years).`,
         };
       }
     } else {
-      // For biological relationships, use stricter rule
+      // For biological relationships, strict biological limits
       if (ageDiffYears < 12) {
         return {
           isValid: false,
@@ -103,7 +108,10 @@ export class RelationshipValidationPolicy {
     type: RelationshipType,
     minYears: number,
   ): ValidationResult {
-    const older = type === 'GRANDPARENT' || type === 'AUNT_UNCLE' ? memberA : memberB;
+    const older =
+      type === RelationshipType.GRANDPARENT || type === RelationshipType.AUNT_UNCLE
+        ? memberA
+        : memberB;
     const younger = older === memberA ? memberB : memberA;
 
     const olderDob = older.getDateOfBirth();
@@ -129,20 +137,23 @@ export class RelationshipValidationPolicy {
     return { isValid: true };
   }
 
-  private validateStepRelationship(
-    stepParent: FamilyMember,
-    stepChild: FamilyMember,
-  ): ValidationResult {
-    const parentDob = stepParent.getDateOfBirth();
-    const childDob = stepChild.getDateOfBirth();
+  private validateStepRelationship(memberA: FamilyMember, memberB: FamilyMember): ValidationResult {
+    // In Relationship type 'STEPCHILD', A is usually Step-Parent, B is Step-Child (or vice versa depending on direction).
+    // The previous implementation assumed fixed arguments. We need to check direction carefully in service layer.
+    // Assuming here: memberA is FROM (Parent), memberB is TO (Child) for standard flow.
+
+    // We will assume simpler check: just ensure reasonable age gap if dates exist.
+    const parentDob = memberA.getDateOfBirth();
+    const childDob = memberB.getDateOfBirth();
 
     if (parentDob && childDob) {
       const ageDiffYears = (childDob.getTime() - parentDob.getTime()) / (1000 * 60 * 60 * 24 * 365);
 
-      if (ageDiffYears < 15) {
+      // Step-parents can be closer in age than biological parents, but typically still older.
+      if (ageDiffYears < 10) {
         return {
           isValid: false,
-          error: `Step-parent must be at least 15 years older than step-child (current difference: ${Math.floor(ageDiffYears)} years).`,
+          error: `Step-parent must be reasonably older than step-child (current difference: ${Math.floor(ageDiffYears)} years).`,
         };
       }
     }

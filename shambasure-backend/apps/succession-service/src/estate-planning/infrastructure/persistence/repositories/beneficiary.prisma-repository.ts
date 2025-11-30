@@ -11,6 +11,10 @@ import { BeneficiaryMapper } from '../mappers/beneficiary.mapper';
 export class BeneficiaryPrismaRepository implements BeneficiaryRepositoryInterface {
   constructor(private readonly prisma: PrismaService) {}
 
+  // ---------------------------------------------------------
+  // BASIC PERSISTENCE OPERATIONS
+  // ---------------------------------------------------------
+
   async save(assignment: BeneficiaryAssignment): Promise<void> {
     const persistenceData = BeneficiaryMapper.toPersistence(assignment);
 
@@ -35,6 +39,10 @@ export class BeneficiaryPrismaRepository implements BeneficiaryRepositoryInterfa
     });
   }
 
+  // ---------------------------------------------------------
+  // STANDARD LOOKUP OPERATIONS
+  // ---------------------------------------------------------
+
   async findByWillId(willId: string): Promise<BeneficiaryAssignment[]> {
     const records = await this.prisma.beneficiaryAssignment.findMany({
       where: { willId },
@@ -55,7 +63,12 @@ export class BeneficiaryPrismaRepository implements BeneficiaryRepositoryInterfa
 
   async findByBeneficiaryUserId(userId: string): Promise<BeneficiaryAssignment[]> {
     const records = await this.prisma.beneficiaryAssignment.findMany({
-      where: { beneficiaryId: userId },
+      where: {
+        userId,
+        // Only include active assignments (not deleted/removed)
+        asset: { deletedAt: null },
+        will: { deletedAt: null, isActiveRecord: true },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -64,18 +77,72 @@ export class BeneficiaryPrismaRepository implements BeneficiaryRepositoryInterfa
 
   async findByBeneficiaryFamilyMemberId(familyMemberId: string): Promise<BeneficiaryAssignment[]> {
     const records = await this.prisma.beneficiaryAssignment.findMany({
-      where: { familyMemberId },
+      where: {
+        familyMemberId,
+        // Only include active assignments
+        asset: { deletedAt: null },
+        will: { deletedAt: null, isActiveRecord: true },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
     return records.map((record) => BeneficiaryMapper.toDomain(record));
   }
 
+  async findByExternalIdentity(willId: string, name: string): Promise<BeneficiaryAssignment[]> {
+    const records = await this.prisma.beneficiaryAssignment.findMany({
+      where: {
+        willId,
+        beneficiaryType: 'EXTERNAL',
+        externalName: {
+          contains: name,
+          mode: 'insensitive',
+        },
+      },
+      orderBy: { priority: 'asc' },
+    });
+
+    return records.map((record) => BeneficiaryMapper.toDomain(record));
+  }
+
+  // ---------------------------------------------------------
+  // LEGAL COMPLIANCE QUERIES (Kenyan Law)
+  // ---------------------------------------------------------
+
+  async findDependantAssignments(willId: string): Promise<BeneficiaryAssignment[]> {
+    const records = await this.prisma.beneficiaryAssignment.findMany({
+      where: {
+        willId,
+        isDependant: true,
+      },
+      orderBy: { priority: 'asc' },
+    });
+
+    return records.map((record) => BeneficiaryMapper.toDomain(record));
+  }
+
+  async findLifeInterestAssignments(willId: string): Promise<BeneficiaryAssignment[]> {
+    const records = await this.prisma.beneficiaryAssignment.findMany({
+      where: {
+        willId,
+        hasLifeInterest: true,
+        OR: [{ lifeInterestEndsAt: null }, { lifeInterestEndsAt: { gt: new Date() } }],
+      },
+      orderBy: { priority: 'asc' },
+    });
+
+    return records.map((record) => BeneficiaryMapper.toDomain(record));
+  }
+
+  // ---------------------------------------------------------
+  // STATUS & DISTRIBUTION LOGIC QUERIES
+  // ---------------------------------------------------------
+
   async findConditionalBequests(willId: string): Promise<BeneficiaryAssignment[]> {
     const records = await this.prisma.beneficiaryAssignment.findMany({
       where: {
         willId,
-        hasCondition: true,
+        conditionType: { not: 'NONE' },
       },
     });
 
@@ -107,13 +174,22 @@ export class BeneficiaryPrismaRepository implements BeneficiaryRepositoryInterfa
     return records.map((record) => BeneficiaryMapper.toDomain(record));
   }
 
+  // ---------------------------------------------------------
+  // ANALYTICAL SUMMARIES & VALIDATION
+  // ---------------------------------------------------------
+
   async getAssetDistributionSummary(assetId: string): Promise<{
     totalAllocatedPercent: number;
     beneficiaryCount: number;
     hasResiduary: boolean;
   }> {
     const aggregation = await this.prisma.beneficiaryAssignment.aggregate({
-      where: { assetId },
+      where: {
+        assetId,
+        // Only count active assignments
+        asset: { deletedAt: null },
+        will: { deletedAt: null, isActiveRecord: true },
+      },
       _sum: { sharePercent: true },
       _count: { id: true },
     });
@@ -122,11 +198,14 @@ export class BeneficiaryPrismaRepository implements BeneficiaryRepositoryInterfa
       where: {
         assetId,
         bequestType: BequestType.RESIDUARY,
+        // Only count active assignments
+        asset: { deletedAt: null },
+        will: { deletedAt: null, isActiveRecord: true },
       },
     });
 
     return {
-      totalAllocatedPercent: aggregation._sum.sharePercent?.toNumber() || 0,
+      totalAllocatedPercent: aggregation._sum.sharePercent || 0,
       beneficiaryCount: aggregation._count.id,
       hasResiduary: residuaryCount > 0,
     };
@@ -155,6 +234,7 @@ export class BeneficiaryPrismaRepository implements BeneficiaryRepositoryInterfa
       {} as Record<BequestType, number>,
     );
 
+    // Ensure all bequest types are represented
     Object.values(BequestType).forEach((type) => {
       if (!byBequestType[type]) byBequestType[type] = 0;
     });
@@ -162,7 +242,7 @@ export class BeneficiaryPrismaRepository implements BeneficiaryRepositoryInterfa
     const totalConditional = await this.prisma.beneficiaryAssignment.count({
       where: {
         willId,
-        hasCondition: true,
+        conditionType: { not: 'NONE' },
       },
     });
 
@@ -175,10 +255,74 @@ export class BeneficiaryPrismaRepository implements BeneficiaryRepositoryInterfa
 
   async getTotalPercentageAllocation(assetId: string): Promise<number> {
     const result = await this.prisma.beneficiaryAssignment.aggregate({
-      where: { assetId },
+      where: {
+        assetId,
+        // Only count active assignments
+        asset: { deletedAt: null },
+        will: { deletedAt: null, isActiveRecord: true },
+      },
       _sum: { sharePercent: true },
     });
 
-    return result._sum.sharePercent?.toNumber() || 0;
+    return result._sum.sharePercent || 0;
+  }
+
+  // ---------------------------------------------------------
+  // ADDITIONAL BUSINESS LOGIC QUERIES
+  // ---------------------------------------------------------
+
+  async findActiveLifeInterestAssignments(): Promise<BeneficiaryAssignment[]> {
+    const records = await this.prisma.beneficiaryAssignment.findMany({
+      where: {
+        hasLifeInterest: true,
+        OR: [{ lifeInterestEndsAt: null }, { lifeInterestEndsAt: { gt: new Date() } }],
+        // Only active wills and assets
+        asset: { deletedAt: null },
+        will: { deletedAt: null, isActiveRecord: true },
+      },
+      include: {
+        asset: true,
+        will: true,
+      },
+    });
+
+    return records.map((record) => BeneficiaryMapper.toDomain(record));
+  }
+
+  async findPendingConditionalBequests(): Promise<BeneficiaryAssignment[]> {
+    const records = await this.prisma.beneficiaryAssignment.findMany({
+      where: {
+        conditionType: { not: 'NONE' },
+        conditionMet: false,
+        OR: [{ conditionDeadline: null }, { conditionDeadline: { gt: new Date() } }],
+        // Only active assignments
+        asset: { deletedAt: null },
+        will: { deletedAt: null, isActiveRecord: true },
+      },
+    });
+
+    return records.map((record) => BeneficiaryMapper.toDomain(record));
+  }
+
+  async findAssignmentsRequiringCourtApproval(): Promise<BeneficiaryAssignment[]> {
+    const records = await this.prisma.beneficiaryAssignment.findMany({
+      where: {
+        courtApprovalRequired: true,
+        courtApprovalObtained: false,
+        // Only active assignments
+        asset: { deletedAt: null },
+        will: { deletedAt: null, isActiveRecord: true },
+      },
+      include: {
+        will: {
+          select: {
+            probateCaseNumber: true,
+            courtRegistry: true,
+          },
+        },
+      },
+    });
+
+    return records.map((record) => BeneficiaryMapper.toDomain(record));
   }
 }

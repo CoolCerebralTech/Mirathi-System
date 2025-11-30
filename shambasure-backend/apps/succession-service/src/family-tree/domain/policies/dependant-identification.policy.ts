@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { DependencyLevel, RelationshipType } from '@prisma/client';
 
 /**
  * Node representation matching the LegalGraphNode from dependant-calculator service
@@ -7,48 +8,25 @@ export interface Node {
   id: string;
   isMinor: boolean;
   isDeceased: boolean;
-  isDisabled: boolean;
-  dependencyLevel: 'INDEPENDENT' | 'PARTIAL' | 'FULL';
-  gender: string;
+  dependencyLevel: DependencyLevel;
+  gender?: string;
   age: number | null;
   relationships: Array<{
-    type: string;
+    type: RelationshipType;
     targetId: string;
     metadata?: {
       isVerified?: boolean;
-      isBiological?: boolean;
-      isAdopted?: boolean;
-      bornOutOfWedlock?: boolean;
-      adoptionOrderNumber?: string;
-      marriageType?: string;
       isActive?: boolean;
-      marriageDate?: Date;
-      divorceDate?: Date | null;
-      isCustomary?: boolean;
-      guardianType?: string;
-      appointmentDate?: Date;
-      validUntil?: Date | null;
     };
   }>;
-  metadata: {
-    clan?: string;
-    subClan?: string;
-    birthOrder?: number;
-    isFamilyHead: boolean;
-    isElder: boolean;
-    traditionalTitle?: string;
-    educationLevel?: 'NONE' | 'PRIMARY' | 'SECONDARY' | 'COLLEGE' | 'UNIVERSITY';
-    occupation?: string;
-    disabilityStatus?: 'NONE' | 'PHYSICAL' | 'MENTAL' | 'VISUAL' | 'HEARING';
-    dependencyStatus: 'INDEPENDENT' | 'PARTIAL' | 'FULL';
-  };
+  metadata?: any;
 }
 
 @Injectable()
 export class DependantIdentificationPolicy {
   /**
    * Identifies who in the family tree qualifies as a "Dependant" of the Target Member
-   * based on Section 29 of the Law of Succession Act.
+   * based on Section 29 of the Law of Succession Act (Cap 160).
    *
    * @param targetId - ID of the deceased or estate owner
    * @param familyNodes - Array of family nodes representing relationships
@@ -60,63 +38,77 @@ export class DependantIdentificationPolicy {
     const targetNode = familyNodes.find((n) => n.id === targetId);
     if (!targetNode) return [];
 
-    // Outgoing relationships from Target
+    // 1. Analyze Outgoing relationships from Target (Target -> Others)
     for (const rel of targetNode.relationships) {
+      const relatedNode = familyNodes.find((n) => n.id === rel.targetId);
+      if (!relatedNode) continue;
+
       switch (rel.type) {
-        case 'SPOUSE':
-          // Active spouses are always dependants
+        case RelationshipType.SPOUSE:
+          // Section 29(a): Wife/Wives (or Husband) are dependants
           if (rel.metadata?.isActive !== false) {
             dependants.add(rel.targetId);
           }
           break;
 
-        case 'CHILD':
-        case 'ADOPTED_CHILD':
+        case RelationshipType.CHILD:
+        case RelationshipType.ADOPTED_CHILD:
+          // Section 29(a): Children (irrespective of age/gender per current interpretation,
+          // though technically "maintenance" often required for adults)
+          // For safety, we include all children, logic downstream filters by need.
           dependants.add(rel.targetId);
           break;
 
-        case 'STEPCHILD': {
-          // Step-children who are minors or dependent
-          const stepChild = familyNodes.find((n) => n.id === rel.targetId);
-          if (stepChild && (stepChild.isMinor || stepChild.dependencyLevel !== 'INDEPENDENT')) {
+        case RelationshipType.STEPCHILD:
+          // Section 29(b): Step-children who were being maintained by deceased
+          if (relatedNode.isMinor || relatedNode.dependencyLevel !== DependencyLevel.NONE) {
             dependants.add(rel.targetId);
           }
           break;
-        }
-
-        case 'EX_SPOUSE':
-          // Ex-spouses usually not dependants unless specified in maintenance orders
-          break;
       }
     }
 
-    // Incoming relationships to Target (reverse perspective)
+    // 2. Analyze Incoming relationships to Target (Others -> Target)
+    // "My parent is Target" => "I am Target's child"
     for (const node of familyNodes) {
+      // Find relationship FROM Node TO Target
       const link = node.relationships.find((r) => r.targetId === targetId);
       if (!link) continue;
 
-      // Inverse mapping: if node has PARENT relationship pointing to target,
-      // then node is a child of target
-      if (link.type === 'PARENT') {
+      // Logic: If 'node' says 'target' is their PARENT => 'node' is a CHILD
+      if (link.type === RelationshipType.PARENT) {
+        // 'node' is the child
         dependants.add(node.id);
       }
 
-      // Parents who are dependent (Section 29(1)(c))
-      if (link.type === 'CHILD') {
-        if (node.dependencyLevel !== 'INDEPENDENT' || (node.age !== null && node.age > 65)) {
+      // Logic: If 'node' says 'target' is their SPOUSE => 'node' is a SPOUSE
+      if (link.type === RelationshipType.SPOUSE) {
+        if (link.metadata?.isActive !== false) {
           dependants.add(node.id);
         }
       }
 
-      // Siblings who are dependent (Section 29(1)(e))
-      if (link.type === 'SIBLING' || link.type === 'HALF_SIBLING') {
-        if (node.isMinor || node.dependencyLevel !== 'INDEPENDENT') {
+      // Section 29(c): Parents, Step-parents, Grandparents, etc.
+      // IF they were being maintained by the deceased.
+      // Logic: If 'node' says 'target' is their CHILD => 'node' is a PARENT
+      if (link.type === RelationshipType.CHILD || link.type === RelationshipType.ADOPTED_CHILD) {
+        // 'node' is the parent
+        if (node.dependencyLevel !== DependencyLevel.NONE) {
+          dependants.add(node.id);
+        }
+      }
+
+      // Section 29(c): Brothers and Sisters
+      // IF they were being maintained by the deceased.
+      // Logic: If 'node' says 'target' is their SIBLING
+      if (link.type === RelationshipType.SIBLING || link.type === RelationshipType.HALF_SIBLING) {
+        if (node.isMinor || node.dependencyLevel !== DependencyLevel.NONE) {
           dependants.add(node.id);
         }
       }
     }
 
-    // Filter out deceased members (they cannot be dependants)
+    // Filter out deceased members (Deceased persons cannot inherit/be dependants)
     const livingDependants = Array.from(dependants).filter((id) => {
       const member = familyNodes.find((n) => n.id === id);
       return member && !member.isDeceased;

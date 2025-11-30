@@ -89,7 +89,7 @@ CREATE TYPE "DebtType" AS ENUM ('MORTGAGE', 'PERSONAL_LOAN', 'CREDIT_CARD', 'BUS
 CREATE TYPE "GrantType" AS ENUM ('PROBATE', 'LETTERS_OF_ADMINISTRATION', 'LETTERS_OF_ADMINISTRATION_WITH_WILL', 'LIMITED_GRANT', 'SPECIAL_GRANT');
 
 -- CreateEnum
-CREATE TYPE "MarriageStatus" AS ENUM ('SINGLE', 'MARRIED', 'DIVORCED', 'WIDOWED', 'SEPARATED', 'CUSTOMARY_MARRIAGE', 'CIVIL_UNION');
+CREATE TYPE "MarriageStatus" AS ENUM ('SINGLE', 'MARRIED', 'DIVORCED', 'WIDOWED', 'SEPARATED', 'CUSTOMARY_MARRIAGE', 'CIVIL_UNION', 'ISLAMIC', 'CHRISTIAN');
 
 -- CreateEnum
 CREATE TYPE "KenyanCounty" AS ENUM ('BARINGO', 'BOMET', 'BUNGOMA', 'BUSIA', 'ELGEYO_MARAKWET', 'EMBU', 'GARISSA', 'HOMA_BAY', 'ISIOLO', 'KAJIADO', 'KAKAMEGA', 'KERICHO', 'KIAMBU', 'KILIFI', 'KIRINYAGA', 'KISII', 'KISUMU', 'KITUI', 'KWALE', 'LAIKIPIA', 'LAMU', 'MACHAKOS', 'MAKUENI', 'MANDERA', 'MARSABIT', 'MERU', 'MIGORI', 'MOMBASA', 'MURANGA', 'NAIROBI', 'NAKURU', 'NANDI', 'NAROK', 'NYAMIRA', 'NYANDARUA', 'NYERI', 'SAMBURU', 'SIAYA', 'TAITA_TAVETA', 'TANA_RIVER', 'THARAKA_NITHI', 'TRANS_NZOIA', 'TURKANA', 'UASIN_GISHU', 'VIHIGA', 'WAJIR', 'WEST_POKOT');
@@ -853,7 +853,6 @@ CREATE TABLE "beneficiary_assignments" (
     "lifeInterestDuration" INTEGER,
     "lifeInterestEndsAt" TIMESTAMP(3),
     "alternateAssignmentId" TEXT,
-    "alternateAssignmentid" TEXT,
     "distributionStatus" "DistributionStatus" NOT NULL DEFAULT 'PENDING',
     "distributedAt" TIMESTAMP(3),
     "distributionNotes" TEXT,
@@ -919,6 +918,21 @@ CREATE TABLE "estates" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "closedAt" TIMESTAMP(3),
+    "deceasedDateOfBirth" TIMESTAMP(3),
+    "deceasedIdNumber" TEXT,
+    "deceasedKraPin" TEXT,
+    "placeOfDeath" TEXT,
+    "deathCertificateNumber" TEXT,
+    "burialPermitNumber" TEXT,
+    "administrationStartedAt" TIMESTAMP(3),
+    "administrationCompletedAt" TIMESTAMP(3),
+    "estimatedCompletionDate" TIMESTAMP(3),
+    "taxComplianceCertificateNumber" TEXT,
+    "taxComplianceCertificateDate" TIMESTAMP(3),
+    "estateDutyPaid" BOOLEAN NOT NULL DEFAULT false,
+    "estateDutyAmount" DOUBLE PRECISION,
+    "primaryCourtStation" TEXT,
+    "courtFileReference" TEXT,
 
     CONSTRAINT "estates_pkey" PRIMARY KEY ("id")
 );
@@ -1332,14 +1346,6 @@ CREATE TABLE "_EstateWills" (
 );
 
 -- CreateTable
-CREATE TABLE "_EstateToWillExecutor" (
-    "A" TEXT NOT NULL,
-    "B" TEXT NOT NULL,
-
-    CONSTRAINT "_EstateToWillExecutor_AB_pkey" PRIMARY KEY ("A","B")
-);
-
--- CreateTable
 CREATE TABLE "_WitnessIdentityDocuments" (
     "A" TEXT NOT NULL,
     "B" TEXT NOT NULL,
@@ -1447,6 +1453,15 @@ CREATE INDEX "family_members_isMinor_isDeceased_idx" ON "family_members"("isMino
 CREATE INDEX "family_members_deletedAt_idx" ON "family_members"("deletedAt");
 
 -- CreateIndex
+CREATE INDEX "family_members_dateOfBirth_isDeceased_idx" ON "family_members"("dateOfBirth", "isDeceased");
+
+-- CreateIndex
+CREATE INDEX "family_members_firstName_lastName_idx" ON "family_members"("firstName", "lastName");
+
+-- CreateIndex
+CREATE INDEX "family_members_dateOfDeath_idx" ON "family_members"("dateOfDeath");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "family_members_userId_familyId_key" ON "family_members"("userId", "familyId");
 
 -- CreateIndex
@@ -1501,6 +1516,15 @@ CREATE INDEX "assets_requiresProbate_idx" ON "assets"("requiresProbate");
 CREATE INDEX "assets_deletedAt_idx" ON "assets"("deletedAt");
 
 -- CreateIndex
+CREATE INDEX "assets_currentValue_idx" ON "assets"("currentValue");
+
+-- CreateIndex
+CREATE INDEX "assets_createdAt_ownerId_idx" ON "assets"("createdAt", "ownerId");
+
+-- CreateIndex
+CREATE INDEX "assets_verificationStatus_createdAt_idx" ON "assets"("verificationStatus", "createdAt");
+
+-- CreateIndex
 CREATE INDEX "asset_co_owners_assetId_idx" ON "asset_co_owners"("assetId");
 
 -- CreateIndex
@@ -1540,10 +1564,10 @@ CREATE INDEX "debt_payments_debtId_paymentDate_idx" ON "debt_payments"("debtId",
 CREATE INDEX "debt_payments_paymentDate_idx" ON "debt_payments"("paymentDate");
 
 -- CreateIndex
-CREATE INDEX "wills_testatorId_status_idx" ON "wills"("testatorId", "status");
+CREATE INDEX "wills_testatorId_status_createdAt_idx" ON "wills"("testatorId", "status", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "wills_status_activatedAt_idx" ON "wills"("status", "activatedAt");
+CREATE INDEX "wills_status_isRevoked_deletedAt_idx" ON "wills"("status", "isRevoked", "deletedAt");
 
 -- CreateIndex
 CREATE INDEX "wills_type_idx" ON "wills"("type");
@@ -1664,6 +1688,24 @@ CREATE INDEX "estates_deceasedUserId_idx" ON "estates"("deceasedUserId");
 
 -- CreateIndex
 CREATE INDEX "estates_probateCaseNumber_idx" ON "estates"("probateCaseNumber");
+
+-- CreateIndex
+CREATE INDEX "estates_status_createdAt_idx" ON "estates"("status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "estates_administrationType_status_idx" ON "estates"("administrationType", "status");
+
+-- CreateIndex
+CREATE INDEX "estates_dateOfDeath_idx" ON "estates"("dateOfDeath");
+
+-- CreateIndex
+CREATE INDEX "estates_estateValue_idx" ON "estates"("estateValue");
+
+-- CreateIndex
+CREATE INDEX "estates_createdAt_closedAt_idx" ON "estates"("createdAt", "closedAt");
+
+-- CreateIndex
+CREATE INDEX "estates_deceasedIdNumber_idx" ON "estates"("deceasedIdNumber");
 
 -- CreateIndex
 CREATE INDEX "estate_inventories_estateId_assetId_idx" ON "estate_inventories"("estateId", "assetId");
@@ -1846,9 +1888,6 @@ CREATE INDEX "AuditLog_action_timestamp_idx" ON "AuditLog"("action", "timestamp"
 CREATE INDEX "_EstateWills_B_index" ON "_EstateWills"("B");
 
 -- CreateIndex
-CREATE INDEX "_EstateToWillExecutor_B_index" ON "_EstateToWillExecutor"("B");
-
--- CreateIndex
 CREATE INDEX "_WitnessIdentityDocuments_B_index" ON "_WitnessIdentityDocuments"("B");
 
 -- AddForeignKey
@@ -1972,7 +2011,7 @@ ALTER TABLE "beneficiary_assignments" ADD CONSTRAINT "beneficiary_assignments_us
 ALTER TABLE "beneficiary_assignments" ADD CONSTRAINT "beneficiary_assignments_familyMemberId_fkey" FOREIGN KEY ("familyMemberId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "beneficiary_assignments" ADD CONSTRAINT "beneficiary_assignments_alternateAssignmentid_fkey" FOREIGN KEY ("alternateAssignmentid") REFERENCES "beneficiary_assignments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "beneficiary_assignments" ADD CONSTRAINT "beneficiary_assignments_alternateAssignmentId_fkey" FOREIGN KEY ("alternateAssignmentId") REFERENCES "beneficiary_assignments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "disinheritance_records" ADD CONSTRAINT "disinheritance_records_willId_fkey" FOREIGN KEY ("willId") REFERENCES "wills"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -2000,9 +2039,6 @@ ALTER TABLE "grants_of_administration" ADD CONSTRAINT "grants_of_administration_
 
 -- AddForeignKey
 ALTER TABLE "probate_cases" ADD CONSTRAINT "probate_cases_estateId_fkey" FOREIGN KEY ("estateId") REFERENCES "estates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "probate_cases" ADD CONSTRAINT "probate_cases_grantId_fkey" FOREIGN KEY ("grantId") REFERENCES "grants_of_administration"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "probate_cases" ADD CONSTRAINT "probate_cases_inventoryId_fkey" FOREIGN KEY ("inventoryId") REFERENCES "estate_inventories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -2078,12 +2114,6 @@ ALTER TABLE "_EstateWills" ADD CONSTRAINT "_EstateWills_A_fkey" FOREIGN KEY ("A"
 
 -- AddForeignKey
 ALTER TABLE "_EstateWills" ADD CONSTRAINT "_EstateWills_B_fkey" FOREIGN KEY ("B") REFERENCES "wills"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_EstateToWillExecutor" ADD CONSTRAINT "_EstateToWillExecutor_A_fkey" FOREIGN KEY ("A") REFERENCES "estates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "_EstateToWillExecutor" ADD CONSTRAINT "_EstateToWillExecutor_B_fkey" FOREIGN KEY ("B") REFERENCES "will_executors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_WitnessIdentityDocuments" ADD CONSTRAINT "_WitnessIdentityDocuments_A_fkey" FOREIGN KEY ("A") REFERENCES "documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;

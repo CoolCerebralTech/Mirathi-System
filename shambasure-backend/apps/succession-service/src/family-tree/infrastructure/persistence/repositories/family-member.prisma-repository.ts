@@ -7,15 +7,6 @@ import { FamilyMember } from '../../../domain/entities/family-member.entity';
 import { FamilyMemberRepositoryInterface } from '../../../domain/interfaces/family-member.repository.interface';
 import { FamilyMemberMapper } from '../mappers/family-member.mapper';
 
-/**
- * Prisma Implementation of the Family Member Repository
- *
- * Handles persistence for individual nodes in the HeirLink™ family graph.
- * Implements Kenyan Succession Law specific lookups (Dependants, Heirs).
- *
- * NOTE: Some queries rely on In-Memory filtering because the current Prisma Schema
- * does not yet have dedicated columns for all Domain Metadata (e.g., disabilityStatus).
- */
 @Injectable()
 export class FamilyMemberPrismaRepository implements FamilyMemberRepositoryInterface {
   constructor(private readonly prisma: PrismaService) {}
@@ -63,9 +54,21 @@ export class FamilyMemberPrismaRepository implements FamilyMemberRepositoryInter
         notes: persistenceData.notes,
         updatedAt: persistenceData.updatedAt,
         deletedAt: persistenceData.deletedAt,
-        // familyId, id, addedBy are immutable
       },
     });
+  }
+
+  async saveMany(members: FamilyMember[]): Promise<void> {
+    const operations = members.map((member) => {
+      const data = FamilyMemberMapper.toPersistence(member);
+      return this.prisma.familyMember.upsert({
+        where: { id: data.id },
+        create: data as Prisma.FamilyMemberUncheckedCreateInput,
+        update: data as Prisma.FamilyMemberUncheckedUpdateInput,
+      });
+    });
+
+    await this.prisma.$transaction(operations);
   }
 
   async findById(id: string): Promise<FamilyMember | null> {
@@ -82,22 +85,8 @@ export class FamilyMemberPrismaRepository implements FamilyMemberRepositoryInter
     });
   }
 
-  async saveMany(members: FamilyMember[]): Promise<void> {
-    // Execute multiple upserts in a transaction to ensure data integrity
-    const operations = members.map((member) => {
-      const data = FamilyMemberMapper.toPersistence(member);
-      return this.prisma.familyMember.upsert({
-        where: { id: data.id },
-        create: data as Prisma.FamilyMemberUncheckedCreateInput,
-        update: data as Prisma.FamilyMemberUncheckedUpdateInput,
-      });
-    });
-
-    await this.prisma.$transaction(operations);
-  }
-
   // ---------------------------------------------------------
-  // GRAPH QUERIES
+  // GRAPH & CONTEXT QUERIES
   // ---------------------------------------------------------
 
   async findByFamilyId(familyId: string): Promise<FamilyMember[]> {
@@ -142,6 +131,18 @@ export class FamilyMemberPrismaRepository implements FamilyMemberRepositoryInter
     return records.map((record) => FamilyMemberMapper.toDomain(record));
   }
 
+  async findLivingMembers(familyId: string): Promise<FamilyMember[]> {
+    const records = await this.prisma.familyMember.findMany({
+      where: {
+        familyId,
+        isDeceased: false,
+        deletedAt: null,
+      },
+    });
+
+    return records.map((record) => FamilyMemberMapper.toDomain(record));
+  }
+
   async countByFamilyId(familyId: string): Promise<number> {
     return this.prisma.familyMember.count({
       where: { familyId, deletedAt: null },
@@ -152,38 +153,20 @@ export class FamilyMemberPrismaRepository implements FamilyMemberRepositoryInter
   // KENYAN SUCCESSION LAW SPECIFIC QUERIES
   // ---------------------------------------------------------
 
-  async findPotentialHeirs(familyId: string, excludeDeceasedId?: string): Promise<FamilyMember[]> {
+  async findDependants(familyId: string): Promise<FamilyMember[]> {
+    // Section 29 Dependants: Spouses, Children, and sometimes Parents
     const records = await this.prisma.familyMember.findMany({
       where: {
         familyId,
-        id: excludeDeceasedId ? { not: excludeDeceasedId } : undefined,
-        isDeceased: false, // Generally heirs must be alive (or represented)
-        deletedAt: null,
-      },
-    });
-
-    return records.map((record) => FamilyMemberMapper.toDomain(record));
-  }
-
-  async findDependants(familyId: string, deceasedMemberId: string): Promise<FamilyMember[]> {
-    // Law of Succession Act Section 29 Dependants:
-    // Spouses, Children, and sometimes Parents/Grandparents.
-    // We filter by Role here. Logic for "dependency" status is usually domain-level,
-    // but we can narrow the search by relationship type.
-    const records = await this.prisma.familyMember.findMany({
-      where: {
-        familyId,
-        id: { not: deceasedMemberId },
+        isDeceased: false,
         deletedAt: null,
         role: {
           in: [
             RelationshipType.SPOUSE,
-            RelationshipType.EX_SPOUSE,
             RelationshipType.CHILD,
             RelationshipType.ADOPTED_CHILD,
             RelationshipType.STEPCHILD,
             RelationshipType.PARENT,
-            RelationshipType.GRANDPARENT,
           ],
         },
       },
@@ -192,17 +175,11 @@ export class FamilyMemberPrismaRepository implements FamilyMemberRepositoryInter
     return records.map((record) => FamilyMemberMapper.toDomain(record));
   }
 
-  async findByRelationshipType(
-    familyId: string,
-    relationshipType: string,
-  ): Promise<FamilyMember[]> {
-    // Need to cast string to Enum, assuming validation happened in service
-    const roleEnum = relationshipType as RelationshipType;
-
+  async findByRole(familyId: string, role: RelationshipType): Promise<FamilyMember[]> {
     const records = await this.prisma.familyMember.findMany({
       where: {
         familyId,
-        role: roleEnum,
+        role,
         deletedAt: null,
       },
     });
@@ -211,59 +188,28 @@ export class FamilyMemberPrismaRepository implements FamilyMemberRepositoryInter
   }
 
   async findFamilyHeads(familyId: string): Promise<FamilyMember[]> {
-    // LIMITATION: 'isFamilyHead' is inside Domain Metadata, not a DB column.
-    // STRATEGY: Fetch all family members and filter in-memory.
-    const allMembers = await this.findByFamilyId(familyId);
-    return allMembers.filter((m) => m.getMetadata().isFamilyHead);
-  }
-
-  async findMembersWithDisabilities(familyId: string): Promise<FamilyMember[]> {
-    // LIMITATION: 'disabilityStatus' is inside Domain Metadata.
-    // STRATEGY: Fetch all family members and filter in-memory.
-    const allMembers = await this.findByFamilyId(familyId);
-    return allMembers.filter((m) => {
-      const status = m.getMetadata().disabilityStatus;
-      return status && status !== 'NONE';
+    // This requires joining with Family table to check familyHeadId
+    const family = await this.prisma.family.findUnique({
+      where: { id: familyId },
+      select: { familyHeadId: true },
     });
+
+    if (!family || !family.familyHeadId) {
+      return [];
+    }
+
+    const headMember = await this.findById(family.familyHeadId);
+    return headMember ? [headMember] : [];
   }
 
   // ---------------------------------------------------------
   // SEARCH & IDENTIFICATION
   // ---------------------------------------------------------
 
-  async findByNationalId(nationalId: string): Promise<FamilyMember | null> {
-    // LIMITATION: No nationalId column.
-    // STRATEGY: If nationalId is vital, we assume it might be stored in 'notes' as JSON or text
-    // for now, or this method returns null until schema update.
-    // Ideally, we would perform a global search.
-    // Optimization: Check if we have userId linked (Users usually have National IDs).
-
-    // 1. Try finding by User who has this National ID (Cross-service check? No, stay in boundary)
-    // 2. Scan notes (expensive, but necessary if not columnized)
+  async searchByName(query: string, familyId: string): Promise<FamilyMember[]> {
     const records = await this.prisma.familyMember.findMany({
       where: {
-        notes: {
-          contains: nationalId,
-        },
-        deletedAt: null,
-      },
-    });
-
-    // We must verify the hit in Domain to ensure it wasn't just a random number in notes
-    for (const record of records) {
-      const entity = FamilyMemberMapper.toDomain(record);
-      if (entity.getKenyanIdentification().nationalId === nationalId) {
-        return entity;
-      }
-    }
-
-    return null;
-  }
-
-  async searchByName(query: string, familyId?: string): Promise<FamilyMember[]> {
-    const records = await this.prisma.familyMember.findMany({
-      where: {
-        familyId: familyId, // Optional filter
+        familyId,
         deletedAt: null,
         OR: [
           { firstName: { contains: query, mode: 'insensitive' } },
@@ -280,15 +226,20 @@ export class FamilyMemberPrismaRepository implements FamilyMemberRepositoryInter
     endDate: Date,
     familyId?: string,
   ): Promise<FamilyMember[]> {
-    const records = await this.prisma.familyMember.findMany({
-      where: {
-        familyId,
-        deletedAt: null,
-        dateOfBirth: {
-          gte: startDate,
-          lte: endDate,
-        },
+    const whereClause: Prisma.FamilyMemberWhereInput = {
+      deletedAt: null,
+      dateOfBirth: {
+        gte: startDate,
+        lte: endDate,
       },
+    };
+
+    if (familyId) {
+      whereClause.familyId = familyId;
+    }
+
+    const records = await this.prisma.familyMember.findMany({
+      where: whereClause,
     });
 
     return records.map((record) => FamilyMemberMapper.toDomain(record));
@@ -299,7 +250,6 @@ export class FamilyMemberPrismaRepository implements FamilyMemberRepositoryInter
   // ---------------------------------------------------------
 
   async updateMany(members: FamilyMember[]): Promise<void> {
-    // Reuse saveMany transaction logic
     await this.saveMany(members);
   }
 
@@ -312,5 +262,63 @@ export class FamilyMemberPrismaRepository implements FamilyMemberRepositoryInter
         deletedAt: new Date(),
       },
     });
+  }
+
+  // ---------------------------------------------------------
+  // ADDITIONAL UTILITY METHODS
+  // ---------------------------------------------------------
+
+  async findMembersByAgeRange(
+    familyId: string,
+    minAge: number,
+    maxAge: number,
+  ): Promise<FamilyMember[]> {
+    const today = new Date();
+    const maxBirthDate = new Date(today.getFullYear() - minAge, today.getMonth(), today.getDate());
+    const minBirthDate = new Date(today.getFullYear() - maxAge, today.getMonth(), today.getDate());
+
+    const records = await this.prisma.familyMember.findMany({
+      where: {
+        familyId,
+        isDeceased: false,
+        deletedAt: null,
+        dateOfBirth: {
+          gte: minBirthDate,
+          lte: maxBirthDate,
+        },
+      },
+    });
+
+    return records.map((record) => FamilyMemberMapper.toDomain(record));
+  }
+
+  async findMembersWithoutUserAccounts(familyId: string): Promise<FamilyMember[]> {
+    const records = await this.prisma.familyMember.findMany({
+      where: {
+        familyId,
+        userId: null,
+        deletedAt: null,
+      },
+    });
+
+    return records.map((record) => FamilyMemberMapper.toDomain(record));
+  }
+
+  async findRecentMembers(familyId: string, days: number = 30): Promise<FamilyMember[]> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+
+    const records = await this.prisma.familyMember.findMany({
+      where: {
+        familyId,
+        createdAt: {
+          gte: cutoffDate,
+        },
+        deletedAt: null,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return records.map((record) => FamilyMemberMapper.toDomain(record));
   }
 }

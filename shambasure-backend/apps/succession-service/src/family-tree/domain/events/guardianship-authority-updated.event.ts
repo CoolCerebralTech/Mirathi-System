@@ -1,21 +1,13 @@
 export class GuardianshipAuthorityUpdatedEvent {
   constructor(
     public readonly guardianshipId: string,
-    public readonly familyId: string,
     public readonly updateDetails: {
-      previousExpiry: Date | null;
+      previousExpiry?: Date;
       newExpiry: Date;
       reason: string;
       authorizedBy: string;
       courtOrderNumber?: string;
     },
+    public readonly timestamp: Date = new Date(),
   ) {}
-
-  getEventType(): string {
-    return 'GuardianshipAuthorityUpdatedEvent';
-  }
-
-  getEventVersion(): number {
-    return 1;
-  }
 }

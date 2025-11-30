@@ -1,12 +1,12 @@
-import { AssetOwnershipType, AssetType } from '@prisma/client';
+import { AssetOwnershipType, AssetType, KenyanCounty } from '@prisma/client';
 
 import { Asset } from '../entities/asset.entity';
 
 /**
  * Repository Interface for Asset Aggregate Root
  *
- * Defines the contract for Asset data persistence following Kenyan succession law requirements
- * Includes specialized queries for asset management, valuation, and legal compliance
+ * Defines the contract for Asset data persistence following Kenyan succession law requirements.
+ * This interface allows the domain layer to remain agnostic of the underlying database (Prisma).
  *
  * @interface AssetRepositoryInterface
  */
@@ -16,7 +16,8 @@ export interface AssetRepositoryInterface {
   // ---------------------------------------------------------
 
   /**
-   * Persists an Asset entity to the data store
+   * Persists an Asset entity to the data store.
+   * Handles both creation (if new) and updates (if existing).
    *
    * @param {Asset} asset - The Asset entity to save
    * @returns {Promise<void>}
@@ -24,7 +25,7 @@ export interface AssetRepositoryInterface {
   save(asset: Asset): Promise<void>;
 
   /**
-   * Retrieves an Asset by its unique identifier
+   * Retrieves an Asset by its unique identifier.
    *
    * @param {string} id - Unique Asset identifier
    * @returns {Promise<Asset | null>} Asset entity or null if not found
@@ -32,7 +33,8 @@ export interface AssetRepositoryInterface {
   findById(id: string): Promise<Asset | null>;
 
   /**
-   * Permanently deletes an Asset from the data store
+   * Permanently deletes an Asset from the data store.
+   * WARNING: This removes data physically. For logical deletion, use softDelete or update isActive.
    *
    * @param {string} id - Unique Asset identifier to delete
    * @returns {Promise<void>}
@@ -40,7 +42,7 @@ export interface AssetRepositoryInterface {
   delete(id: string): Promise<void>;
 
   /**
-   * Performs soft deletion of an Asset (marks as inactive)
+   * Performs soft deletion of an Asset (sets deletedAt timestamp).
    *
    * @param {string} id - Unique Asset identifier to soft delete
    * @returns {Promise<void>}
@@ -52,7 +54,7 @@ export interface AssetRepositoryInterface {
   // ---------------------------------------------------------
 
   /**
-   * Finds all Assets owned by a specific user
+   * Finds all Assets owned by a specific user.
    *
    * @param {string} ownerId - Unique identifier of the asset owner
    * @returns {Promise<Asset[]>} Array of Asset entities
@@ -60,7 +62,7 @@ export interface AssetRepositoryInterface {
   findByOwnerId(ownerId: string): Promise<Asset[]>;
 
   /**
-   * Finds Assets by type for a specific owner
+   * Finds Assets by type for a specific owner.
    *
    * @param {string} ownerId - Unique identifier of the asset owner
    * @param {AssetType} type - Classification of assets to find
@@ -73,8 +75,8 @@ export interface AssetRepositoryInterface {
   // ---------------------------------------------------------
 
   /**
-   * Finds assets eligible for legal transfer under Kenyan succession law
-   * Criteria: Active, Unencumbered/Solvent, Verified Documentation
+   * Finds assets eligible for legal transfer under Kenyan succession law.
+   * Criteria: Active, Verification Status = VERIFIED, No blocking Court Orders.
    *
    * @param {string} ownerId - Unique identifier of the asset owner
    * @returns {Promise<Asset[]>} Array of transferable Asset entities
@@ -82,7 +84,8 @@ export interface AssetRepositoryInterface {
   findTransferableAssets(ownerId: string): Promise<Asset[]>;
 
   /**
-   * Finds assets with existing encumbrances (mortgages, liens)
+   * Finds assets with existing encumbrances (mortgages, charges, liens).
+   * Important for determining Net Estate Value.
    *
    * @param {string} ownerId - Unique identifier of the asset owner
    * @returns {Promise<Asset[]>} Array of encumbered Asset entities
@@ -90,7 +93,25 @@ export interface AssetRepositoryInterface {
   findEncumberedAssets(ownerId: string): Promise<Asset[]>;
 
   /**
-   * Finds assets with verified legal documentation
+   * Finds assets designated as Matrimonial Property.
+   * Critical for enforcing spousal consent under Matrimonial Property Act.
+   *
+   * @param {string} ownerId - Unique identifier of the asset owner
+   * @returns {Promise<Asset[]>} Array of matrimonial assets
+   */
+  findMatrimonialAssets(ownerId: string): Promise<Asset[]>;
+
+  /**
+   * Finds assets currently subject to a Life Interest.
+   * These assets cannot be distributed absolutely until the interest determines.
+   *
+   * @param {string} ownerId - Unique identifier of the asset owner
+   * @returns {Promise<Asset[]>} Array of assets with active life interests
+   */
+  findAssetsWithActiveLifeInterest(ownerId: string): Promise<Asset[]>;
+
+  /**
+   * Finds assets with verified legal documentation.
    *
    * @param {string} ownerId - Unique identifier of the asset owner
    * @returns {Promise<Asset[]>} Array of verified Asset entities
@@ -98,7 +119,7 @@ export interface AssetRepositoryInterface {
   findAssetsWithVerifiedDocuments(ownerId: string): Promise<Asset[]>;
 
   /**
-   * Finds assets by ownership structure type
+   * Finds assets by ownership structure type.
    *
    * @param {string} ownerId - Unique identifier of the asset owner
    * @param {AssetOwnershipType} ownershipType - Type of ownership structure
@@ -107,21 +128,21 @@ export interface AssetRepositoryInterface {
   findAssetsByOwnershipType(ownerId: string, ownershipType: AssetOwnershipType): Promise<Asset[]>;
 
   /**
-   * Finds assets in a specific Kenyan geographical location
-   * Used for Ministry of Lands integration and location-based searches
+   * Finds assets in a specific Kenyan geographical location.
+   * Used for Land Registry integration and location-based searches.
    *
    * @param {string} ownerId - Unique identifier of the asset owner
-   * @param {string} county - Kenyan county for location filtering
+   * @param {KenyanCounty} county - Kenyan county for location filtering
    * @returns {Promise<Asset[]>} Array of Asset entities in specified location
    */
-  findAssetsByLocation(ownerId: string, county: string): Promise<Asset[]>;
+  findAssetsByLocation(ownerId: string, county: KenyanCounty): Promise<Asset[]>;
 
   // ---------------------------------------------------------
   // FINANCIAL ANALYSIS & VALUATION QUERIES
   // ---------------------------------------------------------
 
   /**
-   * Finds assets valued above a specified minimum threshold
+   * Finds assets valued above a specified minimum threshold.
    *
    * @param {string} ownerId - Unique identifier of the asset owner
    * @param {number} minValue - Minimum valuation threshold
@@ -131,8 +152,8 @@ export interface AssetRepositoryInterface {
   findAssetsAboveValue(ownerId: string, minValue: number, currency?: string): Promise<Asset[]>;
 
   /**
-   * Calculates total portfolio value grouped by currency
-   * Prevents currency mixing for accurate financial reporting
+   * Calculates total portfolio value grouped by currency.
+   * Prevents currency mixing for accurate financial reporting.
    *
    * @param {string} ownerId - Unique identifier of the asset owner
    * @returns {Promise<Array<{ currency: string; amount: number }>>} Portfolio summary by currency
@@ -144,7 +165,7 @@ export interface AssetRepositoryInterface {
   // ---------------------------------------------------------
 
   /**
-   * Performs text-based search across asset properties
+   * Performs text-based search across asset properties (Name, Description, L.R. No).
    *
    * @param {string} ownerId - Unique identifier of the asset owner
    * @param {string} query - Search query string
@@ -157,7 +178,7 @@ export interface AssetRepositoryInterface {
   // ---------------------------------------------------------
 
   /**
-   * Finds assets where user has co-ownership rights
+   * Finds assets where user has co-ownership rights.
    *
    * @param {string} userId - Unique identifier of the co-owner
    * @returns {Promise<Asset[]>} Array of co-owned Asset entities

@@ -265,6 +265,8 @@ enum MarriageStatus {
   SEPARATED
   CUSTOMARY_MARRIAGE // Traditional African marriage
   CIVIL_UNION
+  ISLAMIC
+  CHRISTIAN
 }
 enum KenyanCounty {
   BARINGO

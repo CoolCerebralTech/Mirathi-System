@@ -20,35 +20,43 @@ export class FamilyTreeIntegrityPolicy {
   ): { hasCycle: boolean; details?: string } {
     // Only hierarchical relationships (ancestry) can form cycles
     const hierarchyTypes: RelationshipType[] = [
-      'PARENT',
-      'CHILD',
-      'GRANDPARENT',
-      'GRANDCHILD',
-      'ADOPTED_CHILD',
+      RelationshipType.PARENT,
+      RelationshipType.CHILD,
+      RelationshipType.GRANDPARENT,
+      RelationshipType.GRANDCHILD,
+      RelationshipType.ADOPTED_CHILD,
     ];
 
     if (!hierarchyTypes.includes(type)) {
       return { hasCycle: false };
     }
 
-    // Normalize direction to "ancestor -> descendant"
+    // Determine direction of flow: Ancestor -> Descendant
     let ancestorId: string;
     let descendantId: string;
 
-    if (type === 'CHILD' || type === 'GRANDCHILD') {
+    if (
+      type === RelationshipType.CHILD ||
+      type === RelationshipType.GRANDCHILD ||
+      type === RelationshipType.ADOPTED_CHILD
+    ) {
+      // If "from" is CHILD of "to" => "to" is Ancestor
       ancestorId = toId;
       descendantId = fromId;
     } else {
+      // If "from" is PARENT of "to" => "from" is Ancestor
       ancestorId = fromId;
       descendantId = toId;
     }
 
+    // Check: Does a path already exist from Descendant -> Ancestor?
+    // If so, making Ancestor a parent of Descendant creates a loop.
     const hasCycle = this.pathExists(descendantId, ancestorId, existingRelationships);
 
     if (hasCycle) {
       return {
         hasCycle: true,
-        details: `Adding this ${type} relationship would create a circular reference in the family tree`,
+        details: `Adding this ${type} relationship would create a circular reference (Time Paradox) in the family tree.`,
       };
     }
 
@@ -57,7 +65,7 @@ export class FamilyTreeIntegrityPolicy {
 
   /**
    * Depth-First Search (DFS) to detect if a path exists from startId -> targetId.
-   * Prevents cycles by checking all hierarchical connections.
+   * "Path" implies genetic/legal descent.
    */
   private pathExists(
     startId: string,
@@ -70,28 +78,30 @@ export class FamilyTreeIntegrityPolicy {
 
     visited.add(startId);
 
-    // Outgoing hierarchical edges (startId is parent/grandparent)
+    // Find children of 'startId'
+    // 1. Where 'startId' is PARENT/GRANDPARENT of 'X'
     const outgoing = allRelationships.filter(
       (r) =>
         r.getFromMemberId() === startId &&
-        (r.getType() === 'PARENT' ||
-          r.getType() === 'GRANDPARENT' ||
-          r.getType() === 'ADOPTED_CHILD'),
+        (r.getType() === RelationshipType.PARENT || r.getType() === RelationshipType.GRANDPARENT),
     );
 
-    // Incoming hierarchical edges (startId is child/grandchild)
+    // 2. Where 'X' is CHILD/GRANDCHILD/ADOPTED of 'startId'
     const incoming = allRelationships.filter(
       (r) =>
-        r.getToMemberId() === startId && (r.getType() === 'CHILD' || r.getType() === 'GRANDCHILD'),
+        r.getToMemberId() === startId &&
+        (r.getType() === RelationshipType.CHILD ||
+          r.getType() === RelationshipType.GRANDCHILD ||
+          r.getType() === RelationshipType.ADOPTED_CHILD),
     );
 
-    const nextNodes = [
+    const childrenIds = [
       ...outgoing.map((r) => r.getToMemberId()),
       ...incoming.map((r) => r.getFromMemberId()),
     ];
 
-    for (const nextId of nextNodes) {
-      if (this.pathExists(nextId, targetId, allRelationships, visited)) {
+    for (const childId of childrenIds) {
+      if (this.pathExists(childId, targetId, allRelationships, visited)) {
         return true;
       }
     }
@@ -107,13 +117,16 @@ export class FamilyTreeIntegrityPolicy {
       new Set(relationships.flatMap((r) => [r.getFromMemberId(), r.getToMemberId()])),
     );
 
+    // Naive O(N^2) check, acceptable for typical family sizes < 500
     for (const fromId of ids) {
       for (const toId of ids) {
-        // Skip same member
         if (fromId === toId) continue;
 
-        const result = this.checkCycle(fromId, toId, 'PARENT', relationships);
-        if (result.hasCycle) {
+        // Check if there is a path from A -> B AND B -> A
+        if (
+          this.pathExists(fromId, toId, relationships) &&
+          this.pathExists(toId, fromId, relationships)
+        ) {
           return { hasCircular: true };
         }
       }

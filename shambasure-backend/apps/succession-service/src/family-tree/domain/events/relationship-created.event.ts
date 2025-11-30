@@ -1,4 +1,3 @@
-// succession-service/src/family-tree/domain/events/relationship-created.event.ts
 import { RelationshipType } from '@prisma/client';
 
 export class RelationshipCreatedEvent {
@@ -8,7 +7,8 @@ export class RelationshipCreatedEvent {
     public readonly fromMemberId: string,
     public readonly toMemberId: string,
     public readonly type: RelationshipType,
-    public readonly metadata?: Record<string, any>, // e.g. { isBiological: true }
+    // Contains the initial Kenyan metadata snapshot
+    public readonly metadata?: Record<string, any>,
     public readonly timestamp: Date = new Date(),
   ) {}
 }

@@ -1,21 +1,24 @@
+import { GuardianAppointmentSource, GuardianType } from '@prisma/client';
+
 export class FamilyMemberGuardianAssignedEvent {
   constructor(
     public readonly familyMemberId: string,
     public readonly familyId: string,
     public readonly guardianDetails: {
-      guardianType: string;
-      appointedBy: string;
+      guardianType: GuardianType;
+      appointedBy: GuardianAppointmentSource;
+      appointmentDate: Date;
       validUntil?: Date;
       courtOrderNumber?: string;
-      appointmentDate: Date;
+
+      // Additional context passed from Aggregate
+      courtName?: string;
+      caseNumber?: string;
+      issuingJudge?: string;
+      courtStation?: string;
+      conditions?: string[];
+      notes?: string;
     },
+    public readonly timestamp: Date = new Date(),
   ) {}
-
-  getEventType(): string {
-    return 'FamilyMemberGuardianAssignedEvent';
-  }
-
-  getEventVersion(): number {
-    return 1;
-  }
 }

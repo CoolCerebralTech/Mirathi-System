@@ -4,13 +4,6 @@ export class FamilyHeadAppointedEvent {
     public readonly familyHeadId: string,
     public readonly appointedBy: string,
     public readonly familyHeadName: string,
+    public readonly timestamp: Date = new Date(),
   ) {}
-
-  getEventType(): string {
-    return 'FamilyHeadAppointedEvent';
-  }
-
-  getEventVersion(): number {
-    return 1;
-  }
 }

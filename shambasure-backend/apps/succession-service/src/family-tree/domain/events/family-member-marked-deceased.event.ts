@@ -4,7 +4,7 @@ export class FamilyMemberMarkedDeceasedEvent {
     public readonly familyId: string,
     public readonly dateOfDeath: Date,
     public readonly markedBy: string,
-    public readonly deathCertificateNumber?: string, // optional string
+    public readonly deathCertificateNumber?: string,
     public readonly timestamp: Date = new Date(),
   ) {}
 }

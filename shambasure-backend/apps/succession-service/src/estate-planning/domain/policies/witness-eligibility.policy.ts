@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { WitnessStatus, WitnessType } from '@prisma/client';
 
-import { KENYAN_LEGAL_REQUIREMENTS } from '../../../common/constants/kenyan-law.constants';
 import { BeneficiaryAssignment } from '../entities/beneficiary.entity';
 import { Witness } from '../entities/witness.entity';
 
@@ -21,6 +21,10 @@ export interface WitnessCandidate {
 
 @Injectable()
 export class WitnessEligibilityPolicy {
+  // Kenyan Law Constants
+  private readonly MINIMUM_TESTATOR_AGE = 18;
+  private readonly MINIMUM_WITNESSES = 2;
+
   /**
    * Validates a single witness candidate's basic eligibility (Age, Capacity).
    */
@@ -32,12 +36,9 @@ export class WitnessEligibilityPolicy {
     };
 
     // 1. Age Check (Must be of age to sign legal documents)
-    if (
-      candidate.age !== undefined &&
-      candidate.age < KENYAN_LEGAL_REQUIREMENTS.MINIMUM_TESTATOR_AGE
-    ) {
+    if (candidate.age !== undefined && candidate.age < this.MINIMUM_TESTATOR_AGE) {
       result.isValid = false;
-      result.errors.push('Witness must be at least 18 years old.');
+      result.errors.push(`Witness must be at least ${this.MINIMUM_TESTATOR_AGE} years old.`);
     }
 
     // 2. Mental Capacity (Assumed true unless flagged)
@@ -47,6 +48,7 @@ export class WitnessEligibilityPolicy {
     }
 
     // 3. Relationship Warning (Spouse or close relatives)
+    // While legally valid to be a relative (unless a beneficiary), close ties weaken independence.
     if (this.isProhibitedRelationship(candidate.relationshipToTestator)) {
       result.warnings.push(
         `Witness "${candidate.fullName}" has a close relationship (${candidate.relationshipToTestator}) to the testator. This may raise questions about independence.`,
@@ -70,30 +72,22 @@ export class WitnessEligibilityPolicy {
       warnings: [],
     };
 
-    const witnessInfo = witness.getWitnessInfo();
-
     for (const beneficiary of beneficiaries) {
-      const beneficiaryIdentity = beneficiary.getIdentity();
       let matchFound = false;
 
       // A. Direct User ID Match (100% accuracy)
-      if (
-        witnessInfo.userId &&
-        beneficiaryIdentity.userId &&
-        witnessInfo.userId === beneficiaryIdentity.userId
-      ) {
+      if (witness.witnessId && beneficiary.userId && witness.witnessId === beneficiary.userId) {
         matchFound = true;
       }
 
       // B. Name Match Check (For external users)
       if (!matchFound) {
-        const nameMatch =
-          witnessInfo.fullName.trim().toLowerCase() ===
-          (beneficiaryIdentity.externalName || '').trim().toLowerCase();
+        const witnessName = witness.fullName.trim().toLowerCase();
+        const beneficiaryName = (beneficiary.externalName || '').trim().toLowerCase();
 
-        if (nameMatch) {
+        if (witnessName === beneficiaryName) {
           result.warnings.push(
-            `Potential Conflict: Witness "${witnessInfo.fullName}" shares a name with a Beneficiary. Ensure they are different people.`,
+            `Potential Conflict: Witness "${witness.fullName}" shares a name with a Beneficiary. Ensure they are different people.`,
           );
         }
       }
@@ -102,7 +96,7 @@ export class WitnessEligibilityPolicy {
         // Section 13 violation
         result.isValid = false;
         result.errors.push(
-          `CRITICAL: Witness "${witnessInfo.fullName}" is also listed as a Beneficiary. Under Section 13 of the Law of Succession Act, witnessing the will would VOID their inheritance. Please choose a different witness.`,
+          `CRITICAL: Witness "${witness.fullName}" is also listed as a Beneficiary. Under Section 13 of the Law of Succession Act, witnessing the will would VOID their inheritance. Please choose a different witness.`,
         );
         break; // Stop checking this witness
       }
@@ -122,12 +116,14 @@ export class WitnessEligibilityPolicy {
     };
 
     // Filter for valid witnesses (Signed/Verified)
-    const signedWitnesses = witnesses.filter((w) => w.hasSigned());
+    const signedWitnesses = witnesses.filter(
+      (w) => w.status === WitnessStatus.SIGNED || w.status === WitnessStatus.VERIFIED,
+    );
 
-    if (signedWitnesses.length < KENYAN_LEGAL_REQUIREMENTS.MINIMUM_WITNESSES) {
+    if (signedWitnesses.length < this.MINIMUM_WITNESSES) {
       result.isValid = false;
       result.errors.push(
-        `Insufficient witnesses. Kenyan law requires at least ${KENYAN_LEGAL_REQUIREMENTS.MINIMUM_WITNESSES} witnesses to sign in the presence of the testator.`,
+        `Insufficient witnesses. Kenyan law requires at least ${this.MINIMUM_WITNESSES} witnesses to sign in the presence of the testator.`,
       );
     }
 
@@ -203,21 +199,21 @@ export class WitnessEligibilityPolicy {
   private areAllWitnessesSameType(witnesses: Witness[]): boolean {
     if (witnesses.length <= 1) return false;
 
-    const firstType = witnesses[0].isRegisteredUser();
-    return witnesses.every((witness) => witness.isRegisteredUser() === firstType);
+    const firstType = witnesses[0].witnessType === WitnessType.REGISTERED_USER;
+    return witnesses.every(
+      (witness) => (witness.witnessType === WitnessType.REGISTERED_USER) === firstType,
+    );
   }
 
   /**
    * Check eligibility for an existing Witness entity (not just candidate)
    */
   private checkWitnessEligibility(witness: Witness): WitnessPolicyResult {
-    const witnessInfo = witness.getWitnessInfo();
-
     const candidate: WitnessCandidate = {
-      userId: witnessInfo.userId,
-      fullName: witnessInfo.fullName || 'Unknown',
-      email: witnessInfo.email,
-      relationshipToTestator: witnessInfo.relationship,
+      userId: witness.witnessId || undefined,
+      fullName: witness.fullName || 'Unknown',
+      email: witness.email || undefined,
+      relationshipToTestator: witness.relationship || undefined,
     };
 
     return this.checkCandidateEligibility(candidate);
@@ -246,7 +242,11 @@ export class WitnessEligibilityPolicy {
     recommendations: string[];
   } {
     const validation = this.comprehensiveWitnessValidation(witnesses, beneficiaries);
-    const signedWitnesses = witnesses.filter((w) => w.hasSigned());
+
+    const signedWitnesses = witnesses.filter(
+      (w) => w.status === WitnessStatus.SIGNED || w.status === WitnessStatus.VERIFIED,
+    );
+
     const eligibleWitnesses = validation.individualResults.filter(
       (result) => result.eligibility.isValid && result.conflicts.isValid,
     ).length;
@@ -260,14 +260,12 @@ export class WitnessEligibilityPolicy {
 
     // Collect all errors and warnings
     validation.individualResults.forEach((result) => {
-      const witnessInfo = result.witness.getWitnessInfo();
-
       result.eligibility.errors.forEach((error) => {
         issues.push({
           type: 'ERROR',
           message: error,
-          witnessId: result.witness.getId(),
-          witnessName: witnessInfo.fullName,
+          witnessId: result.witness.id,
+          witnessName: result.witness.fullName,
         });
       });
 
@@ -275,8 +273,8 @@ export class WitnessEligibilityPolicy {
         issues.push({
           type: 'WARNING',
           message: warning,
-          witnessId: result.witness.getId(),
-          witnessName: witnessInfo.fullName,
+          witnessId: result.witness.id,
+          witnessName: result.witness.fullName,
         });
       });
 
@@ -284,8 +282,8 @@ export class WitnessEligibilityPolicy {
         issues.push({
           type: 'ERROR',
           message: error,
-          witnessId: result.witness.getId(),
-          witnessName: witnessInfo.fullName,
+          witnessId: result.witness.id,
+          witnessName: result.witness.fullName,
         });
       });
 
@@ -293,8 +291,8 @@ export class WitnessEligibilityPolicy {
         issues.push({
           type: 'WARNING',
           message: warning,
-          witnessId: result.witness.getId(),
-          witnessName: witnessInfo.fullName,
+          witnessId: result.witness.id,
+          witnessName: result.witness.fullName,
         });
       });
     });
@@ -310,9 +308,9 @@ export class WitnessEligibilityPolicy {
     // Generate recommendations
     const recommendations: string[] = [];
 
-    if (signedWitnesses.length < KENYAN_LEGAL_REQUIREMENTS.MINIMUM_WITNESSES) {
+    if (signedWitnesses.length < this.MINIMUM_WITNESSES) {
       recommendations.push(
-        `Add ${KENYAN_LEGAL_REQUIREMENTS.MINIMUM_WITNESSES - signedWitnesses.length} more witness(es) to meet legal requirements.`,
+        `Add ${this.MINIMUM_WITNESSES - signedWitnesses.length} more witness(es) to meet legal requirements.`,
       );
     }
 
@@ -332,7 +330,7 @@ export class WitnessEligibilityPolicy {
         signedWitnesses: signedWitnesses.length,
         eligibleWitnesses,
         hasConflicts: issues.some((issue) => issue.type === 'ERROR'),
-        meetsLegalMinimum: signedWitnesses.length >= KENYAN_LEGAL_REQUIREMENTS.MINIMUM_WITNESSES,
+        meetsLegalMinimum: signedWitnesses.length >= this.MINIMUM_WITNESSES,
       },
       issues,
       recommendations,

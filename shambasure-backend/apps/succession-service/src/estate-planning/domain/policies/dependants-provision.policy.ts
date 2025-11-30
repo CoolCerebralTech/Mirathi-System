@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { BequestType } from '@prisma/client';
+import { BequestType, RelationshipType } from '@prisma/client';
 
 import { BeneficiaryAssignment } from '../entities/beneficiary.entity';
 
+/**
+ * Interface representing a potential dependant for analysis.
+ * Usually mapped from FamilyMember entity.
+ */
 export interface PotentialDependant {
   id: string;
   fullName: string;
-  relationshipToTestator: string; // CODE from RELATIONSHIP_TYPES
+  relationshipToTestator: string; // Mapped from RelationshipType enum or custom string
   isMinor: boolean;
   isIncapacitated?: boolean;
   wasMaintainedByTestator?: boolean;
@@ -30,6 +34,7 @@ export interface DistributionValidationResult {
 export class DependantsProvisionPolicy {
   /**
    * Validates provision for Section 29 dependants.
+   * Checks if all mandatory dependants have been adequately provided for.
    */
   validateProvision(
     dependants: PotentialDependant[],
@@ -59,7 +64,7 @@ export class DependantsProvisionPolicy {
       ) {
         mediumRiskCount++;
         result.issues.push(
-          `Provision for ${dependant.fullName} (${dependant.relationshipToTestator}) may be inadequate.`,
+          `Provision for ${dependant.fullName} (${dependant.relationshipToTestator}) may be inadequate (<5% of estate).`,
         );
       }
     }
@@ -68,7 +73,7 @@ export class DependantsProvisionPolicy {
       result.isSafe = false;
       result.riskLevel = 'HIGH';
       result.issues.unshift(
-        'CRITICAL: One or more primary dependants are fully excluded. High risk of contestation.',
+        'CRITICAL: One or more primary dependants are fully excluded. High risk of contestation under Section 26.',
       );
     } else if (mediumRiskCount > 0) {
       result.isSafe = false;
@@ -78,19 +83,40 @@ export class DependantsProvisionPolicy {
     return result;
   }
 
+  /**
+   * Determines if a person qualifies as a Dependant under Section 29 of the Law of Succession Act.
+   */
   private isSection29Dependant(person: PotentialDependant): boolean {
-    if (
-      ['SPOUSE', 'CHILD', 'ADOPTED_CHILD', 'CHILD_OUT_OF_WEDLOCK'].includes(
-        person.relationshipToTestator,
-      )
-    ) {
+    const rel = person.relationshipToTestator;
+
+    // Category 1: Spouse & Children (Always dependants)
+    // Note: Kenyan law treats 'Child' broadly (biological, adopted, out of wedlock, unborn)
+    // We type this as string[] to allow mixing Enum values and custom strings
+    const mandatoryDependants: string[] = [
+      RelationshipType.SPOUSE,
+      RelationshipType.CHILD,
+      RelationshipType.ADOPTED_CHILD,
+      'CHILD_OUT_OF_WEDLOCK',
+    ];
+
+    if (mandatoryDependants.includes(rel)) {
       return true;
     }
-    if (
-      ['PARENT', 'STEPCHILD', 'SIBLING', 'HALF_SIBLING'].includes(person.relationshipToTestator)
-    ) {
+
+    // Category 2: Parents, Step-children, Siblings, etc. (Dependants ONLY if maintained)
+    // Explicitly typed as string[] to prevent TS strictness error when checking generic string
+    const conditionalDependants: string[] = [
+      RelationshipType.PARENT,
+      RelationshipType.STEPCHILD,
+      RelationshipType.SIBLING,
+      RelationshipType.HALF_SIBLING,
+      RelationshipType.GRANDCHILD,
+    ];
+
+    if (conditionalDependants.includes(rel)) {
       return person.wasMaintainedByTestator === true;
     }
+
     return false;
   }
 
@@ -99,12 +125,15 @@ export class DependantsProvisionPolicy {
     assignments: BeneficiaryAssignment[],
   ): BeneficiaryAssignment[] {
     return assignments.filter((assignment) => {
-      const identity = assignment.getIdentity();
-      return (
-        identity.familyMemberId === person.id ||
-        (identity.externalName &&
-          identity.externalName.toLowerCase() === person.fullName.toLowerCase())
-      );
+      // Check for direct FamilyMember link
+      if (assignment.familyMemberId === person.id) return true;
+
+      // Check for external name match (fallback)
+      if (assignment.externalName && person.fullName) {
+        return assignment.externalName.toLowerCase() === person.fullName.toLowerCase();
+      }
+
+      return false;
     });
   }
 
@@ -114,8 +143,8 @@ export class DependantsProvisionPolicy {
     if (person.isMinor) {
       result.issues.push(`${baseMsg} MINOR children must be provided for.`);
       result.suggestions.push(`Set up a Testamentary Trust for ${person.fullName}.`);
-    } else if (person.relationshipToTestator === 'SPOUSE') {
-      result.issues.push(`${baseMsg} Spouse claims are strong.`);
+    } else if (person.relationshipToTestator === RelationshipType.SPOUSE) {
+      result.issues.push(`${baseMsg} Spouse claims are very strong under Kenyan law.`);
     } else {
       result.issues.push(baseMsg);
       result.suggestions.push('Record Disinheritance Reason formally if exclusion is intentional.');
@@ -127,20 +156,30 @@ export class DependantsProvisionPolicy {
     assignments: BeneficiaryAssignment[],
     totalEstateValue: number,
   ): 'ADEQUATE' | 'INADEQUATE' | 'UNKNOWN' {
+    // If total estate value is unknown or zero, we can't calculate percentage
     if (totalEstateValue <= 0) return 'UNKNOWN';
 
     let totalAssignedValue = 0;
+
     for (const assignment of assignments) {
-      const percentage = assignment.getSharePercentage();
-      if (percentage) totalAssignedValue += totalEstateValue * (percentage.getValue() / 100);
+      // 1. Check for Residuary
+      // Residuary beneficiaries essentially get "everything else", which is usually adequate
+      if (assignment.bequestType === BequestType.RESIDUARY) return 'ADEQUATE';
 
-      const specificAmount = assignment.getSpecificAmount();
-      if (specificAmount) totalAssignedValue += specificAmount.getAmount();
+      // 2. Check for Percentage
+      if (assignment.sharePercent !== null) {
+        totalAssignedValue += totalEstateValue * (assignment.sharePercent / 100);
+      }
 
-      if (assignment.getBequestType() === BequestType.RESIDUARY) return 'ADEQUATE';
+      // 3. Check for Specific Amount
+      if (assignment.specificAmount !== null) {
+        totalAssignedValue += assignment.specificAmount;
+      }
     }
 
     const sharePercentage = (totalAssignedValue / totalEstateValue) * 100;
+
+    // Heuristic: Less than 5% for a primary dependant might be argued as inadequate
     if (sharePercentage < 5) return 'INADEQUATE';
 
     return 'ADEQUATE';
@@ -155,10 +194,12 @@ export class DependantsProvisionPolicy {
     let totalAssignedValue = 0;
 
     for (const assignment of dependantAssignments) {
-      const percentage = assignment.getSharePercentage();
-      if (percentage) totalAssignedValue += totalEstateValue * (percentage.getValue() / 100);
-      const specificAmount = assignment.getSpecificAmount();
-      if (specificAmount) totalAssignedValue += specificAmount.getAmount();
+      if (assignment.sharePercent !== null) {
+        totalAssignedValue += totalEstateValue * (assignment.sharePercent / 100);
+      }
+      if (assignment.specificAmount !== null) {
+        totalAssignedValue += assignment.specificAmount;
+      }
     }
 
     const percentageOfEstate =
@@ -171,13 +212,20 @@ export class DependantsProvisionPolicy {
   getProvisionRecommendations(dependant: PotentialDependant, currentPercentage: number): string[] {
     const recs: string[] = [];
     if (dependant.isMinor) recs.push(`Set up a testamentary trust for ${dependant.fullName}.`);
-    if (dependant.relationshipToTestator === 'SPOUSE') {
+
+    if (dependant.relationshipToTestator === RelationshipType.SPOUSE) {
       if (currentPercentage < 30) recs.push(`Increase spouse's share to at least 30% of estate.`);
       recs.push('Consider life interest in matrimonial home.');
-    } else if (dependant.relationshipToTestator === 'CHILD' && currentPercentage < 10)
+    } else if (
+      dependant.relationshipToTestator === RelationshipType.CHILD &&
+      currentPercentage < 10
+    ) {
       recs.push(`Allocate at least 10% to ${dependant.fullName}.`);
-    if (dependant.isIncapacitated)
+    }
+
+    if (dependant.isIncapacitated) {
       recs.push(`Establish a special needs trust for ${dependant.fullName}.`);
+    }
     return recs;
   }
 
@@ -205,14 +253,17 @@ export class DependantsProvisionPolicy {
     result.percentageToDependants =
       totalEstateValue > 0 ? (totalDependantValue / totalEstateValue) * 100 : 0;
 
+    // Warning: If dependants (Spouse + Kids) get less than half the estate, it's highly contestable
     if (legalDependants.length > 0 && result.percentageToDependants < 50) {
       result.warnings.push(
-        'Dependants receive less than 50% of estate. Consider increasing provision.',
+        'Dependants receive less than 50% of estate. High risk of contestation.',
       );
-      result.isValid = false;
+      result.isValid = false; // Soft validation failure
     }
 
-    const spouse = legalDependants.find((d) => d.relationshipToTestator === 'SPOUSE');
+    const spouse = legalDependants.find(
+      (d) => d.relationshipToTestator === RelationshipType.SPOUSE,
+    );
     if (spouse) {
       const spouseProvision = this.getDependantProvisionDetail(
         spouse,

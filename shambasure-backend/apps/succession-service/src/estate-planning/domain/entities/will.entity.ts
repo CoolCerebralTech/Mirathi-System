@@ -26,6 +26,16 @@ export interface FuneralWishes {
   traditionalRites?: string[];
   clanInvolvement?: string;
 }
+/**
+ * Digital asset management instructions
+ */
+export interface DigitalAssetInstructions {
+  socialMediaHandling?: string;
+  emailAccountHandling?: string;
+  cryptocurrencyInstructions?: string;
+  onlineAccountClosure?: string;
+  digitalLegacyContacts?: string[];
+}
 
 /**
  * Legal capacity assessment data under Kenyan Law of Succession Act Section 7
@@ -401,7 +411,53 @@ export class Will extends AggregateRoot {
   // --------------------------------------------------------------------------
   // DOMAIN OPERATIONS
   // --------------------------------------------------------------------------
+  // Sync methods for Aggregate Children
+  public addAsset(assetId: string): void {
+    if (!this._assetIds.includes(assetId)) {
+      this._assetIds.push(assetId);
+      this.markAsModified();
+    }
+  }
+  public removeAsset(assetId: string): void {
+    this._assetIds = this._assetIds.filter((id) => id !== assetId);
+    this.markAsModified();
+  }
 
+  public addBeneficiary(beneficiaryId: string): void {
+    if (!this._beneficiaryIds.includes(beneficiaryId)) {
+      this._beneficiaryIds.push(beneficiaryId);
+      this.markAsModified();
+    }
+  }
+
+  public removeBeneficiary(beneficiaryId: string): void {
+    this._beneficiaryIds = this._beneficiaryIds.filter((id) => id !== beneficiaryId);
+    this.markAsModified();
+  }
+
+  public addExecutor(executorId: string): void {
+    if (!this._executorIds.includes(executorId)) {
+      this._executorIds.push(executorId);
+      this.markAsModified();
+    }
+  }
+
+  public removeExecutor(executorId: string): void {
+    this._executorIds = this._executorIds.filter((id) => id !== executorId);
+    this.markAsModified();
+  }
+
+  public removeWitness(witnessId: string): void {
+    this._witnessIds = this._witnessIds.filter((id) => id !== witnessId);
+    this._witnessCount = this._witnessIds.length;
+    this.markAsModified();
+  }
+
+  public updateTitle(title: string): void {
+    if (!this.isEditable()) throw new Error('Will is not editable');
+    this._title = title;
+    this.markAsModified();
+  }
   public assessLegalCapacity(
     assessment: LegalCapacityAssessment,
     assessedBy: string,

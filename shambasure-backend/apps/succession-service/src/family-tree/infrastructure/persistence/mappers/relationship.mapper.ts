@@ -1,75 +1,169 @@
 import { Prisma, FamilyRelationship as PrismaRelationship } from '@prisma/client';
 
-import { Relationship, RelationshipMetadata } from '../../../domain/entities/relationship.entity';
+import {
+  Relationship,
+  RelationshipReconstitutionProps,
+} from '../../../domain/entities/relationship.entity';
 
-/**
- * RelationshipMapper
- *
- * Transforms the Relationship Aggregate Root between Domain and Persistence layers.
- * Handles metadata JSON serialization for adoption/biology details.
- */
 export class RelationshipMapper {
   /**
    * Converts a Prisma Database Model to a Domain Entity
    */
   static toDomain(raw: PrismaRelationship): Relationship {
-    // 1. Safe JSON extraction for Metadata
-    let metadata: RelationshipMetadata = {};
-
-    if (raw.metadata && typeof raw.metadata === 'object' && !Array.isArray(raw.metadata)) {
-      metadata = raw.metadata as unknown as RelationshipMetadata;
-    }
-
-    return Relationship.reconstitute({
+    const reconstitutionProps: RelationshipReconstitutionProps = {
       id: raw.id,
       familyId: raw.familyId,
       fromMemberId: raw.fromMemberId,
       toMemberId: raw.toMemberId,
-
-      // Strict Enum Cast
       type: raw.type,
 
-      metadata: metadata,
+      // Kenyan Metadata
+      isAdopted: raw.isAdopted,
+      adoptionOrderNumber: raw.adoptionOrderNumber,
+      isBiological: raw.isBiological,
+      bornOutOfWedlock: raw.bornOutOfWedlock,
+      clanRelationship: raw.clanRelationship,
+      traditionalRole: raw.traditionalRole,
+      isCustomaryAdoption: raw.isCustomaryAdoption,
+      adoptionDate: raw.adoptionDate,
+      guardianshipType: raw.guardianshipType,
+      courtOrderNumber: raw.courtOrderNumber,
+      dependencyLevel: raw.dependencyLevel,
+      inheritanceRights: raw.inheritanceRights,
+      traditionalInheritanceWeight: raw.traditionalInheritanceWeight,
 
+      // Verification
       isVerified: raw.isVerified,
       verificationMethod: raw.verificationMethod,
+      verifiedAt: raw.verifiedAt,
+      verifiedBy: raw.verifiedBy,
+      verificationNotes: raw.verificationNotes,
+      verificationDocuments: raw.verificationDocuments,
 
+      // Timestamps
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt,
+    };
 
-      // Optional fields not in Schema (but Entity supports them)
-      verifiedAt: null,
-      verifiedBy: null,
-    });
+    return Relationship.reconstitute(reconstitutionProps);
   }
 
   /**
    * Converts a Domain Entity to a Prisma Persistence format
    */
   static toPersistence(entity: Relationship): PrismaRelationship {
-    const metadata = entity.getMetadata();
-
-    // Prepare JSON for persistence
-    // Ensure we don't save empty objects if not needed, but Prisma handles it fine.
-    const metadataJson = metadata
-      ? (JSON.parse(JSON.stringify(metadata)) as Prisma.JsonObject)
-      : Prisma.JsonNull;
-
     return {
       id: entity.getId(),
       familyId: entity.getFamilyId(),
       fromMemberId: entity.getFromMemberId(),
       toMemberId: entity.getToMemberId(),
-
       type: entity.getType(),
 
-      // Map strict JSON
-      metadata: metadataJson,
+      // Kenyan Metadata
+      isAdopted: entity.getIsAdopted(),
+      adoptionOrderNumber: entity.getAdoptionOrderNumber(),
+      isBiological: entity.getIsBiological(),
+      bornOutOfWedlock: entity.getBornOutOfWedlock(),
+      clanRelationship: entity.getClanRelationship(),
+      traditionalRole: entity.getTraditionalRole(),
+      isCustomaryAdoption: entity.getIsCustomaryAdoption(),
+      adoptionDate: entity.getAdoptionDate(),
+      guardianshipType: entity.getGuardianshipType(),
+      courtOrderNumber: entity.getCourtOrderNumber(),
+      dependencyLevel: entity.getDependencyLevel(),
+      inheritanceRights: entity.getInheritanceRights(),
+      traditionalInheritanceWeight: entity.getTraditionalInheritanceWeight(),
 
+      // Verification
       isVerified: entity.getIsVerified(),
-      verificationMethod: entity.getVerificationMethod() || null,
+      verificationMethod: entity.getVerificationMethod(),
+      verifiedAt: entity.getVerifiedAt(),
+      verifiedBy: entity.getVerifiedBy(),
+      verificationNotes: entity.getVerificationNotes(),
+      verificationDocuments: entity.getVerificationDocuments(),
 
+      // Timestamps
       createdAt: entity.getCreatedAt(),
+      updatedAt: entity.getUpdatedAt(),
+    } as PrismaRelationship;
+  }
+
+  /**
+   * Converts Domain Entity to Prisma Create input
+   */
+  static toPrismaCreate(
+    entity: Relationship,
+    familyId: string,
+  ): Prisma.FamilyRelationshipCreateInput {
+    return {
+      id: entity.getId(),
+      family: {
+        connect: { id: familyId },
+      },
+      fromMember: {
+        connect: { id: entity.getFromMemberId() },
+      },
+      toMember: {
+        connect: { id: entity.getToMemberId() },
+      },
+      type: entity.getType(),
+
+      // Kenyan Metadata
+      isAdopted: entity.getIsAdopted(),
+      adoptionOrderNumber: entity.getAdoptionOrderNumber(),
+      isBiological: entity.getIsBiological(),
+      bornOutOfWedlock: entity.getBornOutOfWedlock(),
+      clanRelationship: entity.getClanRelationship(),
+      traditionalRole: entity.getTraditionalRole(),
+      isCustomaryAdoption: entity.getIsCustomaryAdoption(),
+      adoptionDate: entity.getAdoptionDate(),
+      guardianshipType: entity.getGuardianshipType(),
+      courtOrderNumber: entity.getCourtOrderNumber(),
+      dependencyLevel: entity.getDependencyLevel(),
+      inheritanceRights: entity.getInheritanceRights(),
+      traditionalInheritanceWeight: entity.getTraditionalInheritanceWeight(),
+
+      // Verification
+      isVerified: entity.getIsVerified(),
+      verificationMethod: entity.getVerificationMethod(),
+      verifiedAt: entity.getVerifiedAt(),
+      verifiedBy: entity.getVerifiedBy(),
+      verificationNotes: entity.getVerificationNotes(),
+      verificationDocuments: entity.getVerificationDocuments(),
+
+      // Timestamps - Prisma will handle createdAt/updatedAt
+    };
+  }
+
+  /**
+   * Converts Domain Entity to Prisma Update input
+   */
+  static toPrismaUpdate(entity: Relationship): Prisma.FamilyRelationshipUpdateInput {
+    return {
+      // Kenyan Metadata
+      isAdopted: entity.getIsAdopted(),
+      adoptionOrderNumber: entity.getAdoptionOrderNumber(),
+      isBiological: entity.getIsBiological(),
+      bornOutOfWedlock: entity.getBornOutOfWedlock(),
+      clanRelationship: entity.getClanRelationship(),
+      traditionalRole: entity.getTraditionalRole(),
+      isCustomaryAdoption: entity.getIsCustomaryAdoption(),
+      adoptionDate: entity.getAdoptionDate(),
+      guardianshipType: entity.getGuardianshipType(),
+      courtOrderNumber: entity.getCourtOrderNumber(),
+      dependencyLevel: entity.getDependencyLevel(),
+      inheritanceRights: entity.getInheritanceRights(),
+      traditionalInheritanceWeight: entity.getTraditionalInheritanceWeight(),
+
+      // Verification
+      isVerified: entity.getIsVerified(),
+      verificationMethod: entity.getVerificationMethod(),
+      verifiedAt: entity.getVerifiedAt(),
+      verifiedBy: entity.getVerifiedBy(),
+      verificationNotes: entity.getVerificationNotes(),
+      verificationDocuments: entity.getVerificationDocuments(),
+
+      // Timestamps
       updatedAt: entity.getUpdatedAt(),
     };
   }

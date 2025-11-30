@@ -1,11 +1,16 @@
 import { AggregateRoot } from '@nestjs/cqrs';
+import {
+  GuardianAppointmentSource,
+  MarriageStatus,
+  Prisma,
+  RelationshipType,
+} from '@prisma/client';
 
 import { FamilyMember } from '../entities/family-member.entity';
 import { Family } from '../entities/family.entity';
 import { Guardianship } from '../entities/guardianship.entity';
 import { Marriage } from '../entities/marriage.entity';
 import { Relationship } from '../entities/relationship.entity';
-import { CustomaryMarriageRegisteredEvent } from '../events/customary-marriage-registered.event';
 import { FamilyCreatedEvent } from '../events/family-created.event';
 import { FamilyHeadAppointedEvent } from '../events/family-head-appointed.event';
 import { FamilyMemberAddedEvent } from '../events/family-member-added.event';
@@ -13,6 +18,10 @@ import { FamilyTreeVisualizationUpdatedEvent } from '../events/family-tree-visua
 import { GuardianAssignedEvent } from '../events/guardian-assigned.event';
 import { MarriageRegisteredEvent } from '../events/marriage-registered.event';
 import { RelationshipCreatedEvent } from '../events/relationship-created.event';
+
+// -----------------------------------------------------------------------------
+// INTERFACES
+// -----------------------------------------------------------------------------
 
 export interface TreeVisualizationData {
   nodes: any[];
@@ -25,6 +34,7 @@ export interface TreeVisualizationData {
     lastCalculated: string;
     familyHeadId?: string;
     customaryMarriages: number;
+    polygamousMarriages: number;
   };
 }
 
@@ -37,6 +47,10 @@ export interface KenyanFamilyMetadata {
   ancestralHome?: string;
   familyTotem?: string;
 }
+
+// -----------------------------------------------------------------------------
+// AGGREGATE ROOT: FAMILY AGGREGATE
+// -----------------------------------------------------------------------------
 
 export class FamilyAggregate extends AggregateRoot {
   private family: Family;
@@ -56,26 +70,28 @@ export class FamilyAggregate extends AggregateRoot {
 
   static create(
     id: string,
-    ownerId: string,
+    creatorId: string,
     name: string,
     description?: string,
     metadata?: Partial<KenyanFamilyMetadata>,
   ): FamilyAggregate {
-    const family = Family.create(id, ownerId, name, description, metadata);
+    const family = Family.create(id, creatorId, name, description);
     const aggregate = new FamilyAggregate(family);
 
-    aggregate.apply(
-      new FamilyCreatedEvent(id, ownerId, name, {
-        hasCustomaryMarriage: false,
-        hasPolygamousMarriage: false,
-        familyHeadId: undefined,
-        clanName: undefined,
-        subClan: undefined,
-        ancestralHome: undefined,
-        familyTotem: undefined,
-        ...(metadata ?? {}),
-      }),
-    );
+    // Apply metadata to the Family Entity if provided
+    if (metadata) {
+      aggregate.family.updateKenyanIdentity({
+        clanName: metadata.clanName,
+        subClan: metadata.subClan,
+        ancestralHome: metadata.ancestralHome,
+        familyTotem: metadata.familyTotem,
+      });
+      if (metadata.familyHeadId) aggregate.family.appointFamilyHead(metadata.familyHeadId);
+      if (metadata.hasPolygamousMarriage) aggregate.family.registerPolygamousMarriage();
+    }
+
+    // The Entity emits specific events, but the Aggregate emits the coarse-grained creation event
+    aggregate.apply(new FamilyCreatedEvent(id, creatorId, name, new Date()));
 
     return aggregate;
   }
@@ -112,31 +128,32 @@ export class FamilyAggregate extends AggregateRoot {
 
     this.members.set(member.getId(), member);
 
-    // Delegate to root entity to update counters (memberCount, livingCount, etc.)
+    // Update Root Entity Counters
     this.family.addFamilyMember({
       memberId: member.getId(),
-      firstName: member.getFirstName(),
-      lastName: member.getLastName(),
-      dateOfBirth: member.getDateOfBirth(),
+      firstName: member.getFirstName() || '',
+      lastName: member.getLastName() || '',
+      dateOfBirth: member.getDateOfBirth() || new Date(),
       isDeceased: member.getIsDeceased(),
       dateOfDeath: member.getDateOfDeath() || undefined,
       isMinor: member.getIsMinor(),
+      role: member.getRole(),
     });
 
-    const gender = member.getGender();
-    const memberDetails = {
-      memberId: member.getId(),
-      firstName: member.getFirstName(),
-      lastName: member.getLastName(),
-      dateOfBirth: member.getDateOfBirth(),
-      isDeceased: member.getIsDeceased(),
-      dateOfDeath: member.getDateOfDeath() ?? undefined,
-      isMinor: member.getIsMinor(),
-      gender: gender === 'MALE' || gender === 'FEMALE' ? gender : undefined,
-      nationalId: member.getKenyanIdentification()?.nationalId ?? undefined,
-    };
-
-    this.apply(new FamilyMemberAddedEvent(this.family.getId(), memberDetails));
+    // Emit Event
+    this.apply(
+      new FamilyMemberAddedEvent(this.family.getId(), {
+        memberId: member.getId(),
+        userId: member.getUserId() || undefined,
+        firstName: member.getFirstName() || '',
+        lastName: member.getLastName() || '',
+        dateOfBirth: member.getDateOfBirth() || new Date(),
+        isDeceased: member.getIsDeceased(),
+        isMinor: member.getIsMinor(),
+        role: member.getRole(),
+        relationshipTo: member.getRelationshipTo() || undefined,
+      }),
+    );
   }
 
   removeFamilyMember(memberId: string): void {
@@ -145,16 +162,19 @@ export class FamilyAggregate extends AggregateRoot {
       throw new Error(`Family member ${memberId} not found.`);
     }
 
+    // Validations handled by Member Entity (e.g. Dependant checks)
+    member.remove('Removed from Aggregate');
+
     this.members.delete(memberId);
 
-    // Delegate to root entity to update counters
-    this.family.removeFamilyMember({
+    // Update Root Entity Counters
+    this.family.updateMemberStatus({
       memberId,
-      wasDeceased: member.getIsDeceased(),
-      wasMinor: member.getIsMinor(),
+      becameDeceased: member.getIsDeceased(), // If they were alive, count drops
+      // Counters are handled, simple logic here for aggregate consistency
     });
 
-    // Remove relationships involving this member
+    // Cascade: Remove relationships involving this member
     this.relationships.forEach((relationship, relationshipId) => {
       if (
         relationship.getFromMemberId() === memberId ||
@@ -170,10 +190,10 @@ export class FamilyAggregate extends AggregateRoot {
     updates: {
       firstName?: string;
       lastName?: string;
-      middleName?: string;
-      contactInfo?: any;
+      email?: string;
+      phone?: string;
+      relationshipTo?: string;
       notes?: string;
-      gender?: 'MALE' | 'FEMALE' | 'OTHER';
     },
   ): void {
     const member = this.members.get(memberId);
@@ -188,11 +208,25 @@ export class FamilyAggregate extends AggregateRoot {
   registerMarriage(marriage: Marriage): void {
     if (this.marriages.has(marriage.getId()))
       throw new Error(`Marriage ${marriage.getId()} already exists.`);
+
+    // Integrity Check
     if (!this.members.has(marriage.getSpouse1Id()) || !this.members.has(marriage.getSpouse2Id())) {
-      throw new Error('Both spouses must be family members.');
+      throw new Error('Both spouses must be existing family members in this aggregate.');
     }
 
     this.marriages.set(marriage.getId(), marriage);
+
+    // Update Root Entity Status (e.g. polygamy flags)
+    if (marriage.getMarriageType() === MarriageStatus.CUSTOMARY_MARRIAGE) {
+      this.family.registerCustomaryMarriage({
+        spouse1Id: marriage.getSpouse1Id(),
+        spouse2Id: marriage.getSpouse2Id(),
+        marriageDate: marriage.getMarriageDate(),
+        elderWitnesses: marriage.getElderWitnesses(),
+        bridePricePaid: marriage.getBridePricePaid(),
+        ceremonyLocation: marriage.getCeremonyLocation() || '',
+      });
+    }
 
     this.apply(
       new MarriageRegisteredEvent(
@@ -204,42 +238,17 @@ export class FamilyAggregate extends AggregateRoot {
         marriage.getMarriageDate(),
       ),
     );
-
-    if (marriage.getMarriageType() === 'CUSTOMARY_MARRIAGE') {
-      this.family.registerCustomaryMarriage({
-        spouse1Id: marriage.getSpouse1Id(),
-        spouse2Id: marriage.getSpouse2Id(),
-        marriageDate: marriage.getMarriageDate(),
-        elderWitnesses: marriage.getCustomaryMarriageDetails()?.elderWitnesses || [],
-        bridePricePaid: marriage.getCustomaryMarriageDetails()?.bridePricePaid || false,
-        ceremonyLocation: marriage.getCustomaryMarriageDetails()?.ceremonyLocation || '',
-      });
-    }
   }
 
-  registerCustomaryMarriage(marriageDetails: {
-    spouse1Id: string;
-    spouse2Id: string;
-    marriageDate: Date;
-    elderWitnesses: string[];
-    bridePricePaid: boolean;
-    ceremonyLocation: string;
-    marriageType?: 'CUSTOMARY' | 'CHRISTIAN' | 'CIVIL' | 'ISLAMIC';
-    lobolaAmount?: number;
-    traditionalCeremonyType?: string;
-  }): void {
-    const detailsWithType = {
-      ...marriageDetails,
-      marriageType: marriageDetails.marriageType ?? 'CUSTOMARY',
-    };
-    this.family.registerCustomaryMarriage(detailsWithType);
-    this.apply(new CustomaryMarriageRegisteredEvent(this.family.getId(), detailsWithType));
-  }
-
-  dissolveMarriage(marriageId: string, dissolutionDate: Date, certificateNumber: string): void {
+  dissolveMarriage(
+    marriageId: string,
+    dissolutionDate: Date,
+    type: 'DIVORCE' | 'ANNULMENT' | 'DEATH' | 'CUSTOMARY_DISSOLUTION',
+    certificateNumber?: string,
+  ): void {
     const marriage = this.marriages.get(marriageId);
     if (!marriage) throw new Error(`Marriage ${marriageId} not found.`);
-    marriage.dissolve(dissolutionDate, certificateNumber);
+    marriage.dissolve(dissolutionDate, type, certificateNumber);
   }
 
   // --------------------------------------------------------------------------
@@ -249,6 +258,7 @@ export class FamilyAggregate extends AggregateRoot {
   createRelationship(relationship: Relationship): void {
     if (this.relationships.has(relationship.getId()))
       throw new Error(`Relationship ${relationship.getId()} already exists.`);
+
     if (
       !this.members.has(relationship.getFromMemberId()) ||
       !this.members.has(relationship.getToMemberId())
@@ -265,29 +275,22 @@ export class FamilyAggregate extends AggregateRoot {
         relationship.getFromMemberId(),
         relationship.getToMemberId(),
         relationship.getType(),
-        relationship.getMetadata(),
+        relationship.getKenyanMetadata(),
       ),
     );
   }
 
-  verifyRelationship(
-    relationshipId: string,
-    method:
-      | 'BIRTH_CERTIFICATE'
-      | 'AFFIDAVIT'
-      | 'DNA_TEST'
-      | 'COMMUNITY_RECOGNITION'
-      | 'COURT_ORDER',
-    verifiedBy: string,
-  ): void {
+  verifyRelationship(relationshipId: string, method: string, verifiedBy: string): void {
     const relationship = this.relationships.get(relationshipId);
     if (!relationship) throw new Error(`Relationship ${relationshipId} not found.`);
     relationship.verify(method, verifiedBy);
   }
 
-  removeRelationship(relationshipId: string): void {
-    if (!this.relationships.has(relationshipId))
-      throw new Error(`Relationship ${relationshipId} not found.`);
+  removeRelationship(relationshipId: string, removedBy: string): void {
+    const relationship = this.relationships.get(relationshipId);
+    if (!relationship) throw new Error(`Relationship ${relationshipId} not found.`);
+
+    relationship.remove('Removed via Aggregate', removedBy);
     this.relationships.delete(relationshipId);
   }
 
@@ -298,6 +301,7 @@ export class FamilyAggregate extends AggregateRoot {
   assignGuardian(guardianship: Guardianship): void {
     if (this.guardianships.has(guardianship.getId()))
       throw new Error(`Guardianship ${guardianship.getId()} already exists.`);
+
     if (
       !this.members.has(guardianship.getGuardianId()) ||
       !this.members.has(guardianship.getWardId())
@@ -307,15 +311,24 @@ export class FamilyAggregate extends AggregateRoot {
 
     this.guardianships.set(guardianship.getId(), guardianship);
 
+    // Update Root Entity
+    this.family.assignGuardian({
+      guardianId: guardianship.getGuardianId(),
+      wardId: guardianship.getWardId(),
+      type: guardianship.getType(),
+      appointedBy: GuardianAppointmentSource.FAMILY, // Default context
+      appointmentDate: guardianship.getAppointmentDate(),
+    });
+
     this.apply(
       new GuardianAssignedEvent(this.family.getId(), {
         guardianId: guardianship.getGuardianId(),
         wardId: guardianship.getWardId(),
-        guardianType: guardianship.getType(),
-        appointedBy: 'family',
+        type: guardianship.getType(),
+        appointedBy: GuardianAppointmentSource.FAMILY,
         appointmentDate: guardianship.getAppointmentDate(),
         validUntil: guardianship.getValidUntil() || undefined,
-        notes: guardianship.getNotes?.() || undefined,
+        notes: guardianship.getNotes() || undefined,
       }),
     );
   }
@@ -324,9 +337,9 @@ export class FamilyAggregate extends AggregateRoot {
     const guardianship = this.guardianships.get(guardianshipId);
     if (!guardianship) throw new Error(`Guardianship ${guardianshipId} not found.`);
 
-    // FIX: Remove incorrect first argument. revoke(reason, revokedBy, courtOrder?)
     guardianship.revoke(reason, revokedBy);
-    this.guardianships.delete(guardianshipId);
+    // We keep revoked records in history usually, but removing from Active Map is fine for Aggregate state
+    // The entity state 'isActive' is false now.
   }
 
   // --------------------------------------------------------------------------
@@ -338,7 +351,6 @@ export class FamilyAggregate extends AggregateRoot {
     if (!member) throw new Error(`Family member ${memberId} not found.`);
 
     this.family.appointFamilyHead(memberId);
-    member.assignAsFamilyHead();
 
     this.apply(
       new FamilyHeadAppointedEvent(
@@ -351,14 +363,19 @@ export class FamilyAggregate extends AggregateRoot {
   }
 
   updateKenyanMetadata(metadata: Partial<KenyanFamilyMetadata>): void {
-    this.family.updateKenyanMetadata(metadata);
+    this.family.updateKenyanIdentity({
+      clanName: metadata.clanName,
+      subClan: metadata.subClan,
+      ancestralHome: metadata.ancestralHome,
+      familyTotem: metadata.familyTotem,
+    });
   }
 
   registerPolygamousMarriage(): void {
     this.family.registerPolygamousMarriage();
   }
 
-  updateTreeVisualization(treeData: TreeVisualizationData): void {
+  updateTreeVisualization(treeData: Prisma.JsonValue): void {
     this.family.updateTreeVisualization(treeData);
     this.apply(new FamilyTreeVisualizationUpdatedEvent(this.family.getId()));
   }
@@ -378,13 +395,13 @@ export class FamilyAggregate extends AggregateRoot {
     const deceased = members.filter((m) => m.getIsDeceased() === true);
     const activeMarriages = marriages.filter((m) => m.getIsActive() === true);
     const customaryMarriages = marriages.filter(
-      (m) => m.getMarriageType() === 'CUSTOMARY_MARRIAGE',
+      (m) => m.getMarriageType() === MarriageStatus.CUSTOMARY_MARRIAGE,
     );
     const verifiedRelationships = relationships.filter((r) => r.getIsVerified() === true);
-    const activeGuardianships = guardianships.filter((g) => g.getIsActiveRecord() === true);
+    const activeGuardianships = guardianships.filter((g) => g.getIsActive() === true);
 
     let familyHeadName = 'Not appointed';
-    const headId = this.family.getMetadata().familyHeadId;
+    const headId = this.family.getFamilyHeadId();
     if (headId) {
       const headMember = this.members.get(headId);
       if (headMember) familyHeadName = headMember.getFullName();
@@ -407,7 +424,7 @@ export class FamilyAggregate extends AggregateRoot {
   }
 
   // --------------------------------------------------------------------------
-  // VALIDATION
+  // VALIDATION & SUCCESSION READINESS
   // --------------------------------------------------------------------------
 
   validateForSuccession(): { isValid: boolean; errors: string[]; warnings: string[] } {
@@ -418,22 +435,27 @@ export class FamilyAggregate extends AggregateRoot {
       errors.push('Family must have at least one member for succession purposes.');
 
     const minors = Array.from(this.members.values()).filter((m) => m.getIsMinor());
-    if (minors.length > 0 && !this.family.getMetadata().familyHeadId) {
+    if (minors.length > 0 && !this.family.getFamilyHeadId()) {
       warnings.push(
         'Family with minors should have an appointed family head for guardianship decisions.',
       );
     }
 
     const criticalRelationships = Array.from(this.relationships.values()).filter(
-      (r) => ['PARENT', 'CHILD', 'SPOUSE'].includes(r.getType()) && !r.getIsVerified(),
+      (r) =>
+        [RelationshipType.PARENT, RelationshipType.CHILD, RelationshipType.SPOUSE].includes(
+          r.getType(),
+        ) && !r.getIsVerified(),
     );
     if (criticalRelationships.length > 0) {
-      warnings.push(`${criticalRelationships.length} critical relationships are not verified.`);
+      warnings.push(
+        `${criticalRelationships.length} critical relationships (Spouse/Child/Parent) are not verified.`,
+      );
     }
 
     const minorsWithoutGuardians = minors.filter((minor) => {
       const hasGuardian = Array.from(this.guardianships.values()).some(
-        (g) => g.getWardId() === minor.getId() && g.getIsActiveRecord(),
+        (g) => g.getWardId() === minor.getId() && g.getIsActive(),
       );
       return !hasGuardian;
     });
@@ -458,11 +480,11 @@ export class FamilyAggregate extends AggregateRoot {
     score = Math.max(0, score);
 
     const recommendations: string[] = [];
-    if (!this.family.getMetadata().familyHeadId) recommendations.push('Appoint a family head.');
-    const unverifiedRelationships = Array.from(this.relationships.values()).filter(
-      (r) => ['PARENT', 'CHILD', 'SPOUSE'].includes(r.getType()) && !r.getIsVerified(),
-    );
-    if (unverifiedRelationships.length > 0) recommendations.push('Verify critical relationships.');
+    if (!this.family.getFamilyHeadId()) recommendations.push('Appoint a family head.');
+
+    if (validation.warnings.some((w) => w.includes('critical relationships'))) {
+      recommendations.push('Verify critical relationships (Birth Certs/Marriage Certs).');
+    }
 
     return {
       isReady: validation.isValid && score >= 70,

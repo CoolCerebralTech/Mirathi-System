@@ -1,24 +1,20 @@
+import { RelationshipType } from '@prisma/client';
+
 export class FamilyMemberAddedEvent {
   constructor(
     public readonly familyId: string,
     public readonly memberDetails: {
-      memberId: string;
+      memberId: string; // The UUID of the FamilyMember entity
+      userId?: string; // Optional: If linked to a registered User
       firstName: string;
       lastName: string;
       dateOfBirth: Date;
-      isDeceased?: boolean;
+      isDeceased: boolean;
       dateOfDeath?: Date;
       isMinor: boolean;
-      gender?: 'MALE' | 'FEMALE';
-      nationalId?: string;
+      role: RelationshipType; // Strict Enum
+      relationshipTo?: string; // Descriptive text (e.g. "Father of John")
     },
+    public readonly timestamp: Date = new Date(),
   ) {}
-
-  getEventType(): string {
-    return 'FamilyMemberAddedEvent';
-  }
-
-  getEventVersion(): number {
-    return 1;
-  }
 }

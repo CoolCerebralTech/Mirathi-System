@@ -8,18 +8,11 @@ export class CustomaryMarriageRegisteredEvent {
       elderWitnesses: string[];
       bridePricePaid: boolean;
       ceremonyLocation: string;
-      marriageType: 'CUSTOMARY' | 'CHRISTIAN' | 'CIVIL' | 'ISLAMIC';
-      lobolaAmount?: number;
-      lobolaCurrency?: string;
-      traditionalCeremonyType?: string; // e.g., 'Kikuyu', 'Luo', 'Kalenjin'
+      // Optional details useful for the Read Model
+      bridePriceAmount?: number;
+      traditionalCeremonyType?: string;
+      clanApproval?: boolean;
     },
+    public readonly timestamp: Date = new Date(),
   ) {}
-
-  getEventType(): string {
-    return 'CustomaryMarriageRegisteredEvent';
-  }
-
-  getEventVersion(): number {
-    return 1;
-  }
 }

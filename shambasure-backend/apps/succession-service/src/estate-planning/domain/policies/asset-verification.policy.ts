@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AssetOwnershipType } from '@prisma/client';
+import { AssetOwnershipType, AssetType, AssetVerificationStatus } from '@prisma/client';
 
 import { DOCUMENTATION_REQUIREMENTS } from '../../../common/constants/asset-types.constants';
 import { Asset } from '../entities/asset.entity';
@@ -8,14 +8,24 @@ export interface PolicyResult {
   isCompliant: boolean;
   errors: string[];
   warnings: string[];
-  highRisk?: boolean; // Flag for assets that could cause legal disputes
+  highRisk: boolean;
 }
 
+/**
+ * Asset Verification Policy
+ *
+ * Enforces Kenyan Succession Law and Property Law constraints regarding
+ * what assets can validly be included in a testamentary disposition.
+ */
 @Injectable()
 export class AssetVerificationPolicy {
   /**
-   * Verifies if an asset is legally eligible to be included in a Will
-   * based on Kenyan Succession Law.
+   * Verifies if an asset is legally eligible to be included in a Will.
+   *
+   * Legal Basis:
+   * - Law of Succession Act (Cap 160)
+   * - Land Registration Act (Joint Tenancy rules)
+   * - Matrimonial Property Act (Spousal consent)
    */
   checkTestamentaryCapacity(asset: Asset): PolicyResult {
     const result: PolicyResult = {
@@ -26,7 +36,8 @@ export class AssetVerificationPolicy {
     };
 
     // 1. Joint Tenancy Rule (Right of Survivorship)
-    if (asset.getOwnershipType() === AssetOwnershipType.JOINT_TENANCY) {
+    // Assets held in Joint Tenancy pass automatically to the survivor, bypassing the Will.
+    if (asset.ownershipType === AssetOwnershipType.JOINT_TENANCY) {
       result.isCompliant = false;
       result.errors.push(
         'Assets held in Joint Tenancy cannot be bequeathed in a Will. They pass automatically to the surviving owner (Right of Survivorship).',
@@ -34,41 +45,65 @@ export class AssetVerificationPolicy {
     }
 
     // 2. Active Status Check
-    if (!asset.getIsActive()) {
+    if (!asset.isActive) {
       result.isCompliant = false;
-      result.errors.push('Asset is marked as inactive or deleted.');
+      result.errors.push('Asset is marked as inactive, sold, or deleted.');
     }
 
-    // 3. Encumbrance Check (Debt/Liability)
-    if (asset.getIsEncumbered()) {
-      const netValue = asset.getTransferableValue();
-      if (netValue.getAmount() <= 0) {
-        result.warnings.push(
-          `Asset is heavily encumbered. Liability (${asset.getEncumbranceAmount()}) exceeds or matches share value.`,
-        );
+    // 3. Matrimonial Property Check (Matrimonial Property Act, 2013)
+    // Alienation of matrimonial property requires spousal consent.
+    if (asset.isMatrimonialProperty && asset.spouseConsentRequired) {
+      result.highRisk = true;
+      result.warnings.push(
+        'Asset is marked as Matrimonial Property. Ensure spousal consent is documented to prevent the Will being contested.',
+      );
+    }
+
+    // 4. Life Interest Check (Cap 160, Section 37)
+    // If the asset is currently held subject to a life interest, it cannot be distributed absolutely.
+    if (asset.hasActiveLifeInterest()) {
+      result.isCompliant = false; // Usually requires termination of life interest first
+      result.errors.push(
+        'Asset is currently subject to an active Life Interest and cannot be bequeathed absolutely until the life interest determines.',
+      );
+    }
+
+    // 5. Encumbrance & Solvency Check
+    if (asset.isEncumbered) {
+      const netEquity = asset.getNetEquityValue(); // Returns number
+      const debtAmount = asset.encumbranceAmount || 0;
+
+      if (netEquity <= 0) {
         result.highRisk = true;
+        result.warnings.push(
+          `Asset is insolvent/heavily encumbered. Debt (${debtAmount} ${asset.currency}) exceeds or equals estimated value.`,
+        );
       } else {
         result.warnings.push(
-          `Asset is encumbered. Beneficiary will inherit the asset subject to the debt of ${asset.getEncumbranceAmount()}.`,
+          `Asset is encumbered. Beneficiary will inherit the asset subject to the debt of ${debtAmount} ${asset.currency}.`,
         );
       }
     }
 
-    // 4. Verification Status
-    if (!asset.getHasVerifiedDocument()) {
-      result.warnings.push(
-        'Asset documentation has not been verified. This increases the risk of disputes.',
-      );
+    // 6. Verification Status
+    // Unverified assets are valid in a Will but pose high probate risk.
+    if (asset.verificationStatus !== AssetVerificationStatus.VERIFIED) {
       result.highRisk = true;
+      result.warnings.push(
+        `Asset verification status is ${asset.verificationStatus}. Unverified assets increase the risk of probate delays or disputes.`,
+      );
     }
 
-    // 5. Additional checks: Land/Property specific
-    if (['LAND_PARCEL', 'PROPERTY'].includes(asset.getType())) {
+    // 7. Land/Property Specific Checks
+    // FIX: Explicitly type the array to allow checking against generic AssetType
+    const landTypes: AssetType[] = [AssetType.LAND_PARCEL, AssetType.PROPERTY];
+
+    if (landTypes.includes(asset.type)) {
       if (!this.checkLandSearchReadiness(asset)) {
-        result.warnings.push(
-          'Asset lacks sufficient location or registration details for a land/property search. Risk of legal disputes.',
-        );
         result.highRisk = true;
+        result.warnings.push(
+          'Asset lacks sufficient Title Deed or L.R. Number details for a valid Land Search.',
+        );
       }
     }
 
@@ -76,7 +111,7 @@ export class AssetVerificationPolicy {
   }
 
   /**
-   * Checks if the asset has all the required documents defined in Kenyan constants.
+   * Checks if the asset has all the required documents defined in constants.
    */
   checkDocumentationCompleteness(asset: Asset, uploadedDocumentTypes: string[]): PolicyResult {
     const result: PolicyResult = {
@@ -86,18 +121,18 @@ export class AssetVerificationPolicy {
       highRisk: false,
     };
 
-    const assetType = asset.getType();
     const requiredDocs =
-      DOCUMENTATION_REQUIREMENTS[assetType as keyof typeof DOCUMENTATION_REQUIREMENTS];
+      DOCUMENTATION_REQUIREMENTS[asset.type as keyof typeof DOCUMENTATION_REQUIREMENTS];
 
     if (!requiredDocs) return result;
 
-    const missingDocs = requiredDocs.filter((req) => !uploadedDocumentTypes.includes(req));
+    const missingDocs = requiredDocs.filter((req: string) => !uploadedDocumentTypes.includes(req));
 
     if (missingDocs.length > 0) {
-      result.isCompliant = false; // Consider marking as non-compliant if critical docs are missing
+      // In Kenya, missing a Title Deed doesn't make the Will invalid,
+      // but it makes Administration difficult. Hence, warning, not error.
       result.warnings.push(
-        `Missing recommended documentation for ${assetType}: ${missingDocs.join(', ')}`,
+        `Missing recommended documentation for ${asset.type}: ${missingDocs.join(', ')}`,
       );
       result.highRisk = true;
     }
@@ -106,14 +141,18 @@ export class AssetVerificationPolicy {
   }
 
   /**
-   * Validates if the asset location data is sufficient for a Land Search
+   * Validates if the asset location data is sufficient for a Kenyan Land Search.
+   * Requires either a Land Reference Number (L.R. No) or a Title Deed Number.
    */
-  checkLandSearchReadiness(asset: Asset): boolean {
-    if (asset.getType() !== 'LAND_PARCEL' && asset.getType() !== 'PROPERTY') {
+  private checkLandSearchReadiness(asset: Asset): boolean {
+    if (asset.type !== AssetType.LAND_PARCEL && asset.type !== AssetType.PROPERTY) {
       return true;
     }
 
-    const id = asset.getIdentification();
-    return !!(id?.parcelNumber || id?.registrationNumber);
+    // Check specific Kenyan land identifiers
+    const hasLrNumber = !!asset.landReferenceNumber && asset.landReferenceNumber.length > 0;
+    const hasTitleNumber = !!asset.titleDeedNumber && asset.titleDeedNumber.length > 0;
+
+    return hasLrNumber || hasTitleNumber;
   }
 }

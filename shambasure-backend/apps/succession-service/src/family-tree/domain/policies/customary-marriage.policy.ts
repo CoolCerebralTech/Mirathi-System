@@ -17,6 +17,7 @@ export interface CustomaryMarriageValidationResult {
 export class CustomaryMarriagePolicy {
   /**
    * Evaluates a customary union based on Kenyan case law and community practices.
+   * References: Marriage Act 2014, Customary Marriage Rules.
    */
   validate(rites: CustomaryRites): CustomaryMarriageValidationResult {
     const score = rites.calculateLegitimacyScore();
@@ -30,7 +31,7 @@ export class CustomaryMarriagePolicy {
         missingRequirements,
         errors: [],
         requirements: [
-          'Registration with Registrar of Marriages recommended',
+          'Registration with Registrar of Marriages recommended (Section 55)',
           'Maintain documentation of customary ceremony',
         ],
         legalRisk:
@@ -103,12 +104,13 @@ export class CustomaryMarriagePolicy {
       return { isValid: false, errors, requirements };
     }
 
+    // Note: Bride Price is NOT strictly mandatory for legality under recent rulings, but highly evidentiary.
     if (!customaryDetails.bridePricePaid) {
-      requirements.push('Complete bride price payment for full legal recognition');
+      requirements.push('Complete bride price payment for full legal evidentiary weight');
     }
 
     if (!customaryDetails.elderWitnesses || customaryDetails.elderWitnesses.length === 0) {
-      errors.push('Elder witnesses are required for customary marriage');
+      errors.push('Elder witnesses are required for customary marriage validity');
       requirements.push('Obtain at least 2 elder witnesses from both families');
     }
 

@@ -25,21 +25,19 @@ export class EstateCalculationService {
    * Note: Currently assumes a single dominant currency (KES) for court fee calculation.
    */
   public calculateEstateFinancials(estate: EstateAggregate): FinancialSnapshot {
-    // 1. Get Basic Summary
-    const summary = estate.getEstateSummary('KES'); // Force KES for Kenyan Legal Context
-
-    const grossAssets = summary.totalAssets.getAmount();
-    const totalLiabilities = summary.totalDebts.getAmount();
-    const netValue = summary.netValue.getAmount();
+    // 1. Get Basic Summary from Aggregate
+    // The aggregate now returns primitives (number), ensuring we don't rely on obsolete VOs.
+    const summary = estate.getEstateSummary('KES');
 
     // 2. Calculate Estimated Court Fees
-    const courtFees = this.calculateProbateFees(grossAssets);
+    // In Kenya, court fees (Ad Valorem) are calculated on the Gross Estate Value, not Net.
+    const courtFees = this.calculateProbateFees(summary.totalAssets);
 
     return {
-      grossAssets,
-      totalLiabilities,
-      netEstateValue: netValue,
-      isSolvent: netValue >= 0,
+      grossAssets: summary.totalAssets,
+      totalLiabilities: summary.totalDebts,
+      netEstateValue: summary.netValue,
+      isSolvent: summary.netValue >= 0,
       estimatedCourtFees: courtFees,
       currency: 'KES',
     };
@@ -50,37 +48,30 @@ export class EstateCalculationService {
    * Source: Judiciary Fee Schedule (Defined in court-fees.config)
    */
   public calculateProbateFees(grossEstateValue: number): number {
-    const filingFee = this.feesConfig.probateFees.filingFee.highCourt; // Assume High Court for safety
+    const filingFee = this.feesConfig.probateFees.filingFee.highCourt; // Default to High Court
 
     // Find the correct Ad Valorem band
     const bands = this.feesConfig.probateFees.adValorem.tiers;
     let adValoremFee = 0;
 
     for (const band of bands) {
-      if (grossEstateValue >= band.range.min && grossEstateValue <= band.range.max) {
+      const min = band.range.min;
+      const max = band.range.max ?? Infinity;
+
+      if (grossEstateValue >= min && grossEstateValue <= max) {
         if (band.rate > 0) {
           adValoremFee = grossEstateValue * band.rate;
         }
 
-        // Apply Min/Max caps
+        // Apply Min/Max caps defined in the fee schedule
         if (band.minFee && adValoremFee < band.minFee) adValoremFee = band.minFee;
         if (band.maxFee && adValoremFee > band.maxFee) adValoremFee = band.maxFee;
 
         break;
       }
-
-      // Handle the "Infinity" case (last band)
-      if (band.range.max === null || band.range.max === Infinity) {
-        if (grossEstateValue >= band.range.min) {
-          adValoremFee = grossEstateValue * band.rate;
-          if (band.minFee && adValoremFee < band.minFee) adValoremFee = band.minFee;
-          // No max fee usually for top tier
-          break;
-        }
-      }
     }
 
-    // Miscellaneous costs (gazette notice, etc.) - conservative estimate
+    // Miscellaneous costs (gazette notice, certificates, etc.)
     const misc =
       this.feesConfig.probateFees.miscellaneous.serviceFees.gazetteNotice +
       this.feesConfig.probateFees.miscellaneous.certificateFees.grantOfProbate;
@@ -89,15 +80,17 @@ export class EstateCalculationService {
   }
 
   /**
-   * Projections for Tax Liability (Capital Gains, etc.)
-   * Placeholder for complex tax logic.
+   * Projections for Tax Liability.
+   *
+   * Legal Context:
+   * - Estate Duty: Abolished in Kenya (Cap 483 suspended).
+   * - Capital Gains Tax (CGT): Applicable on transfer of property, BUT transfers to
+   *   Spouses are typically exempt under the Income Tax Act.
    */
   public estimateTaxLiability(): number {
-    // In Kenya, there is NO Inheritance Tax (Estate Duty was abolished).
-    // However, Capital Gains Tax (CGT) might apply on transfer of property
-    // depending on the relationship (Spouse is exempt).
-
-    // For now, return 0 as safe default for Inheritance Tax.
+    // TODO: Integrate with Asset types to determine CGT applicability.
+    // For now, we return 0 as Estate Duty is 0.
+    // Real implementation would sum (Asset Value - Base Cost) * 15% for non-exempt transfers.
     return 0;
   }
 }

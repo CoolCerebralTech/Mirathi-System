@@ -5,8 +5,9 @@ import { BeneficiaryAssignment } from '../entities/beneficiary.entity';
 /**
  * Repository Interface for Beneficiary Assignment Aggregate Root
  *
- * Defines the contract for Beneficiary Assignment data persistence
- * Includes specialized queries for inheritance planning and distribution tracking
+ * Defines the contract for Beneficiary Assignment data persistence.
+ * Includes specialized queries for inheritance planning, distribution tracking,
+ * and Kenyan legal compliance (dependants, life interests).
  *
  * @interface BeneficiaryRepositoryInterface
  */
@@ -16,25 +17,25 @@ export interface BeneficiaryRepositoryInterface {
   // ---------------------------------------------------------
 
   /**
-   * Persists a Beneficiary Assignment entity to the data store
+   * Persists a Beneficiary Assignment entity to the data store.
    *
-   * @param {BeneficiaryAssignment} assignment - The Beneficiary Assignment entity to save
+   * @param {BeneficiaryAssignment} assignment - The entity to save
    * @returns {Promise<void>}
    */
   save(assignment: BeneficiaryAssignment): Promise<void>;
 
   /**
-   * Retrieves a Beneficiary Assignment by its unique identifier
+   * Retrieves a Beneficiary Assignment by its unique identifier.
    *
-   * @param {string} id - Unique Beneficiary Assignment identifier
-   * @returns {Promise<BeneficiaryAssignment | null>} Beneficiary Assignment or null if not found
+   * @param {string} id - Unique identifier
+   * @returns {Promise<BeneficiaryAssignment | null>} Entity or null
    */
   findById(id: string): Promise<BeneficiaryAssignment | null>;
 
   /**
-   * Permanently deletes a Beneficiary Assignment from the data store
+   * Permanently deletes a Beneficiary Assignment.
    *
-   * @param {string} id - Unique Beneficiary Assignment identifier to delete
+   * @param {string} id - Unique identifier to delete
    * @returns {Promise<void>}
    */
   delete(id: string): Promise<void>;
@@ -44,63 +45,88 @@ export interface BeneficiaryRepositoryInterface {
   // ---------------------------------------------------------
 
   /**
-   * Finds all Beneficiary Assignments for a specific will
+   * Finds all assignments for a specific Will.
    *
-   * @param {string} willId - Unique identifier of the will
-   * @returns {Promise<BeneficiaryAssignment[]>} Array of Beneficiary Assignment entities
+   * @param {string} willId - Will ID
+   * @returns {Promise<BeneficiaryAssignment[]>}
    */
   findByWillId(willId: string): Promise<BeneficiaryAssignment[]>;
 
   /**
-   * Finds all Beneficiary Assignments for a specific asset
+   * Finds all assignments for a specific Asset.
+   * Useful for validating 100% distribution.
    *
-   * @param {string} assetId - Unique identifier of the asset
-   * @returns {Promise<BeneficiaryAssignment[]>} Array of Beneficiary Assignment entities
+   * @param {string} assetId - Asset ID
+   * @returns {Promise<BeneficiaryAssignment[]>}
    */
   findByAssetId(assetId: string): Promise<BeneficiaryAssignment[]>;
 
   /**
-   * Finds all assignments given to a specific User across different Wills
+   * Finds all assignments given to a specific User.
    *
-   * @param {string} userId - Unique identifier of the beneficiary user
-   * @returns {Promise<BeneficiaryAssignment[]>} Array of Beneficiary Assignment entities
+   * @param {string} userId - User ID
+   * @returns {Promise<BeneficiaryAssignment[]>}
    */
   findByBeneficiaryUserId(userId: string): Promise<BeneficiaryAssignment[]>;
 
   /**
-   * Finds all assignments given to a Family Member node (HeirLink integration)
+   * Finds all assignments linked to a Family Member profile.
    *
-   * @param {string} familyMemberId - Unique identifier of the family member
-   * @returns {Promise<BeneficiaryAssignment[]>} Array of Beneficiary Assignment entities
+   * @param {string} familyMemberId - Family Member ID
+   * @returns {Promise<BeneficiaryAssignment[]>}
    */
   findByBeneficiaryFamilyMemberId(familyMemberId: string): Promise<BeneficiaryAssignment[]>;
+
+  /**
+   * Finds assignments for external beneficiaries by name (case-insensitive search).
+   * Critical for checking Witness-Beneficiary conflicts (Section 13).
+   *
+   * @param {string} willId - Context Will ID
+   * @param {string} name - External name to search
+   * @returns {Promise<BeneficiaryAssignment[]>}
+   */
+  findByExternalIdentity(willId: string, name: string): Promise<BeneficiaryAssignment[]>;
+
+  // ---------------------------------------------------------
+  // LEGAL COMPLIANCE QUERIES (Kenyan Law)
+  // ---------------------------------------------------------
+
+  /**
+   * Finds assignments explicitly marked as Dependant Provisions.
+   * Used for Section 26 (Adequate Provision) validation.
+   *
+   * @param {string} willId - Will ID
+   * @returns {Promise<BeneficiaryAssignment[]>}
+   */
+  findDependantAssignments(willId: string): Promise<BeneficiaryAssignment[]>;
+
+  /**
+   * Finds assignments subject to a Life Interest.
+   * Used for Section 37 (Spousal Life Interest) compliance.
+   *
+   * @param {string} willId - Will ID
+   * @returns {Promise<BeneficiaryAssignment[]>}
+   */
+  findLifeInterestAssignments(willId: string): Promise<BeneficiaryAssignment[]>;
 
   // ---------------------------------------------------------
   // STATUS & DISTRIBUTION LOGIC QUERIES
   // ---------------------------------------------------------
 
   /**
-   * Finds conditional bequests requiring special handling
+   * Finds conditional bequests requiring special handling.
    *
-   * @param {string} willId - Unique identifier of the will
-   * @returns {Promise<BeneficiaryAssignment[]>} Array of conditional Beneficiary Assignment entities
+   * @param {string} willId - Will ID
+   * @returns {Promise<BeneficiaryAssignment[]>}
    */
   findConditionalBequests(willId: string): Promise<BeneficiaryAssignment[]>;
 
   /**
-   * Finds bequests that have been fully distributed
+   * Finds bequests by distribution status.
    *
-   * @param {string} willId - Unique identifier of the will
-   * @returns {Promise<BeneficiaryAssignment[]>} Array of distributed Beneficiary Assignment entities
-   */
-  findDistributedBequests(willId: string): Promise<BeneficiaryAssignment[]>;
-
-  /**
-   * Finds bequests by distribution status
-   *
-   * @param {string} willId - Unique identifier of the will
-   * @param {DistributionStatus} status - Distribution status to filter by
-   * @returns {Promise<BeneficiaryAssignment[]>} Array of Beneficiary Assignment entities with specified status
+   * @param {string} willId - Will ID
+   * @param {DistributionStatus} status - Status enum
+   * @returns {Promise<BeneficiaryAssignment[]>}
    */
   findByDistributionStatus(
     willId: string,
@@ -108,14 +134,14 @@ export interface BeneficiaryRepositoryInterface {
   ): Promise<BeneficiaryAssignment[]>;
 
   // ---------------------------------------------------------
-  // ANALYTICAL SUMMARIES & DASHBOARD QUERIES
+  // ANALYTICAL SUMMARIES & VALIDATION
   // ---------------------------------------------------------
 
   /**
-   * Provides comprehensive summary of asset distribution
+   * Provides summary of asset distribution to ensure full allocation.
    *
-   * @param {string} assetId - Unique identifier of the asset
-   * @returns {Promise<{ totalAllocatedPercent: number; beneficiaryCount: number; hasResiduary: boolean }>} Asset distribution summary
+   * @param {string} assetId - Asset ID
+   * @returns {Promise<{ totalAllocatedPercent: number; beneficiaryCount: number; hasResiduary: boolean }>}
    */
   getAssetDistributionSummary(assetId: string): Promise<{
     totalAllocatedPercent: number;
@@ -124,10 +150,10 @@ export interface BeneficiaryRepositoryInterface {
   }>;
 
   /**
-   * Provides comprehensive summary of will beneficiaries
+   * Provides summary of will beneficiaries for dashboards.
    *
-   * @param {string} willId - Unique identifier of the will
-   * @returns {Promise<{ totalBeneficiaries: number; byBequestType: Record<BequestType, number>; totalConditional: number }>} Will beneficiary summary
+   * @param {string} willId - Will ID
+   * @returns {Promise<{ totalBeneficiaries: number; byBequestType: Record<BequestType, number> }>}
    */
   getWillBeneficiarySummary(willId: string): Promise<{
     totalBeneficiaries: number;
@@ -135,16 +161,12 @@ export interface BeneficiaryRepositoryInterface {
     totalConditional: number;
   }>;
 
-  // ---------------------------------------------------------
-  // VALIDATION & INTEGRITY QUERIES
-  // ---------------------------------------------------------
-
   /**
-   * Fast calculation of total percentage allocation for an asset
-   * Ensures allocations don't exceed 100% during will creation
+   * Calculates total percentage allocation for an asset.
+   * Used by WillStructurePolicy.
    *
-   * @param {string} assetId - Unique identifier of the asset
-   * @returns {Promise<number>} Total percentage allocated (0-100)
+   * @param {string} assetId - Asset ID
+   * @returns {Promise<number>} Total percentage (0-100)
    */
   getTotalPercentageAllocation(assetId: string): Promise<number>;
 }

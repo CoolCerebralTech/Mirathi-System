@@ -1,3 +1,5 @@
+import { DependencyLevel, InheritanceRights, RelationshipGuardianshipType } from '@prisma/client';
+
 export class RelationshipMetadataUpdatedEvent {
   constructor(
     public readonly relationshipId: string,
@@ -7,26 +9,17 @@ export class RelationshipMetadataUpdatedEvent {
       adoptionOrderNumber?: string;
       isBiological?: boolean;
       bornOutOfWedlock?: boolean;
+      clanRelationship?: string;
+      traditionalRole?: string;
       isCustomaryAdoption?: boolean;
-      guardianshipType?: 'TEMPORARY' | 'PERMANENT' | 'TESTAMENTARY';
+      adoptionDate?: Date;
+      guardianshipType?: RelationshipGuardianshipType;
       courtOrderNumber?: string;
+      dependencyLevel?: DependencyLevel;
+      inheritanceRights?: InheritanceRights;
+      traditionalInheritanceWeight?: number;
     }>,
-    public readonly previousMetadata: {
-      isAdopted?: boolean;
-      adoptionOrderNumber?: string;
-      isBiological?: boolean;
-      bornOutOfWedlock?: boolean;
-      isCustomaryAdoption?: boolean;
-      guardianshipType?: 'TEMPORARY' | 'PERMANENT' | 'TESTAMENTARY';
-      courtOrderNumber?: string;
-    },
+    public readonly previousMetadata: Record<string, any>,
+    public readonly timestamp: Date = new Date(),
   ) {}
-
-  getEventType(): string {
-    return 'RelationshipMetadataUpdatedEvent';
-  }
-
-  getEventVersion(): number {
-    return 1;
-  }
 }

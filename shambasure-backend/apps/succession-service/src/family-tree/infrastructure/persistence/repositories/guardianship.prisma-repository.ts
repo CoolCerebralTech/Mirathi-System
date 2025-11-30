@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { GuardianType } from '@prisma/client';
+import { GuardianType, Prisma } from '@prisma/client';
 
 import { PrismaService } from '@shamba/database';
 
@@ -16,40 +16,16 @@ export class GuardianshipPrismaRepository implements GuardianshipRepositoryInter
   // ---------------------------------------------------------
 
   async save(guardianship: Guardianship): Promise<void> {
-    const data = GuardianshipMapper.toPersistence(guardianship);
-
     await this.prisma.guardian.upsert({
       where: { id: guardianship.getId() },
-      create: {
-        id: data.id,
-        guardianId: data.guardianId,
-        wardId: data.wardId,
-        type: data.type,
-        appointedBy: data.appointedBy,
-        appointmentDate: data.appointmentDate,
-        validUntil: data.validUntil,
-        isActive: data.isActive,
-        notes: data.notes,
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt,
-      },
-      update: {
-        type: data.type,
-        appointedBy: data.appointedBy,
-        validUntil: data.validUntil,
-        isActive: data.isActive,
-        notes: data.notes,
-        updatedAt: data.updatedAt,
-      },
+      create: GuardianshipMapper.toPrismaCreate(guardianship),
+      update: GuardianshipMapper.toPrismaUpdate(guardianship),
     });
   }
 
   async findById(id: string): Promise<Guardianship | null> {
     const record = await this.prisma.guardian.findUnique({
       where: { id },
-      include: {
-        ward: { select: { familyId: true } }, // Fetch Family ID for Entity context
-      },
     });
 
     return record ? GuardianshipMapper.toDomain(record) : null;
@@ -68,7 +44,6 @@ export class GuardianshipPrismaRepository implements GuardianshipRepositoryInter
   async findByWardId(wardId: string): Promise<Guardianship[]> {
     const records = await this.prisma.guardian.findMany({
       where: { wardId },
-      include: { ward: { select: { familyId: true } } },
     });
     return records.map((record) => GuardianshipMapper.toDomain(record));
   }
@@ -76,13 +51,11 @@ export class GuardianshipPrismaRepository implements GuardianshipRepositoryInter
   async findByGuardianId(guardianId: string): Promise<Guardianship[]> {
     const records = await this.prisma.guardian.findMany({
       where: { guardianId },
-      include: { ward: { select: { familyId: true } } },
     });
     return records.map((record) => GuardianshipMapper.toDomain(record));
   }
 
   async findActiveByFamilyId(familyId: string): Promise<Guardianship[]> {
-    // Relational filtering: Find guardianships where the Ward belongs to this family
     const records = await this.prisma.guardian.findMany({
       where: {
         isActive: true,
@@ -90,7 +63,6 @@ export class GuardianshipPrismaRepository implements GuardianshipRepositoryInter
           familyId: familyId,
         },
       },
-      include: { ward: { select: { familyId: true } } },
     });
     return records.map((record) => GuardianshipMapper.toDomain(record));
   }
@@ -112,23 +84,16 @@ export class GuardianshipPrismaRepository implements GuardianshipRepositoryInter
           lte: futureThreshold,
         },
       },
-      include: { ward: { select: { familyId: true } } },
     });
 
     return records.map((record) => GuardianshipMapper.toDomain(record));
   }
 
   async findByCourtOrder(courtOrderNumber: string): Promise<Guardianship | null> {
-    // LIMITATION: Schema lacks 'courtOrderNumber'.
-    // FALLBACK: Search in notes or appointedBy fields.
     const record = await this.prisma.guardian.findFirst({
       where: {
-        OR: [
-          { notes: { contains: courtOrderNumber } },
-          { appointedBy: { contains: courtOrderNumber } },
-        ],
+        courtOrderNumber,
       },
-      include: { ward: { select: { familyId: true } } },
     });
 
     return record ? GuardianshipMapper.toDomain(record) : null;
@@ -140,22 +105,24 @@ export class GuardianshipPrismaRepository implements GuardianshipRepositoryInter
         type: GuardianType.TESTAMENTARY,
         ward: { familyId },
       },
-      include: { ward: { select: { familyId: true } } },
     });
     return records.map((record) => GuardianshipMapper.toDomain(record));
   }
 
   async findTemporaryGuardianshipsRequiringReview(): Promise<Guardianship[]> {
-    // LIMITATION: Schema lacks 'isTemporary' or 'reviewDate'.
-    // STRATEGY: Fetch all property guardians (often temporary) or check notes.
-    // Ideally, we filter in-memory if not supported by DB.
-    // Here we query generic active records and filter in Domain if possible,
-    // or rely on 'notes' tagging (e.g. "#TEMPORARY").
+    const today = new Date();
 
-    // For production safety without column support, we return an empty array
-    // or search specifically tagged notes if that convention exists.
-    // Returning empty to prevent false positives until schema update.
-    return [];
+    const records = await this.prisma.guardian.findMany({
+      where: {
+        isActive: true,
+        isTemporary: true,
+        reviewDate: {
+          lte: today,
+        },
+      },
+    });
+
+    return records.map((record) => GuardianshipMapper.toDomain(record));
   }
 
   // ---------------------------------------------------------
@@ -181,20 +148,6 @@ export class GuardianshipPrismaRepository implements GuardianshipRepositoryInter
     });
   }
 
-  async findGuardianshipsRequiringReporting(): Promise<Guardianship[]> {
-    // Usually Legal and Financial guardianships require reporting.
-    const records = await this.prisma.guardian.findMany({
-      where: {
-        isActive: true,
-        type: {
-          in: [GuardianType.LEGAL_GUARDIAN, GuardianType.FINANCIAL_GUARDIAN],
-        },
-      },
-      include: { ward: { select: { familyId: true } } },
-    });
-    return records.map((record) => GuardianshipMapper.toDomain(record));
-  }
-
   // ---------------------------------------------------------
   // ANALYTICS
   // ---------------------------------------------------------
@@ -210,7 +163,6 @@ export class GuardianshipPrismaRepository implements GuardianshipRepositoryInter
     const nextMonth = new Date();
     nextMonth.setMonth(today.getMonth() + 1);
 
-    // Run aggregations in parallel
     const [total, active, testamentary, courtOrdered, expiringSoon] = await Promise.all([
       // Total
       this.prisma.guardian.count({
@@ -218,20 +170,26 @@ export class GuardianshipPrismaRepository implements GuardianshipRepositoryInter
       }),
       // Active
       this.prisma.guardian.count({
-        where: { ward: { familyId }, isActive: true },
+        where: {
+          ward: { familyId },
+          isActive: true,
+        },
       }),
       // Testamentary
       this.prisma.guardian.count({
-        where: { ward: { familyId }, type: GuardianType.TESTAMENTARY },
+        where: {
+          ward: { familyId },
+          type: GuardianType.TESTAMENTARY,
+        },
       }),
-      // Court Ordered (Inferred from Legal/Financial types usually appointed by court)
+      // Court Ordered
       this.prisma.guardian.count({
         where: {
           ward: { familyId },
-          type: { in: [GuardianType.LEGAL_GUARDIAN, GuardianType.FINANCIAL_GUARDIAN] },
+          type: GuardianType.LEGAL_GUARDIAN,
         },
       }),
-      // Expiring Soon (Active + expires within 30 days)
+      // Expiring Soon
       this.prisma.guardian.count({
         where: {
           ward: { familyId },
@@ -251,5 +209,55 @@ export class GuardianshipPrismaRepository implements GuardianshipRepositoryInter
       courtOrdered,
       expiringSoon,
     };
+  }
+
+  // ---------------------------------------------------------
+  // ADDITIONAL UTILITY METHODS
+  // ---------------------------------------------------------
+
+  async findLegalGuardianships(familyId: string): Promise<Guardianship[]> {
+    const records = await this.prisma.guardian.findMany({
+      where: {
+        type: GuardianType.LEGAL_GUARDIAN,
+        ward: { familyId },
+      },
+    });
+    return records.map((record) => GuardianshipMapper.toDomain(record));
+  }
+
+  async findGuardianshipsByCourtStation(courtStation: string): Promise<Guardianship[]> {
+    const records = await this.prisma.guardian.findMany({
+      where: {
+        courtStation,
+      },
+    });
+    return records.map((record) => GuardianshipMapper.toDomain(record));
+  }
+
+  async findOverdueGuardianships(): Promise<Guardianship[]> {
+    const today = new Date();
+
+    const records = await this.prisma.guardian.findMany({
+      where: {
+        isActive: true,
+        validUntil: {
+          lt: today,
+        },
+      },
+    });
+
+    return records.map((record) => GuardianshipMapper.toDomain(record));
+  }
+
+  async findGuardianshipsWithConditions(): Promise<Guardianship[]> {
+    const records = await this.prisma.guardian.findMany({
+      where: {
+        conditions: {
+          not: Prisma.JsonNull,
+        },
+      },
+    });
+
+    return records.map((record) => GuardianshipMapper.toDomain(record));
   }
 }

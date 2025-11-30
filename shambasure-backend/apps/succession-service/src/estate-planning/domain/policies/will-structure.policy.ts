@@ -10,6 +10,22 @@ export interface StructureResult {
   warnings: string[];
 }
 
+export interface AssetCoverageResult {
+  assetId: string;
+  totalPercentage: number;
+  hasSpecificAssignments: boolean;
+  hasResiduary: boolean;
+  isFullyAllocated: boolean;
+  beneficiaryCount: number;
+}
+
+// Helper interface for local logic
+interface LocalBeneficiaryIdentity {
+  userId?: string;
+  familyMemberId?: string;
+  externalName?: string;
+}
+
 @Injectable()
 export class WillStructurePolicy {
   /**
@@ -25,9 +41,9 @@ export class WillStructurePolicy {
 
     // 1. Validate Residuary Clause (The "Safety Net")
     // A Will should either have a residuary text clause OR a specific residuary beneficiary assignment.
-    const hasResiduaryText = !!will.getResiduaryClause();
+    const hasResiduaryText = !!will.residuaryClause;
     const hasResiduaryBeneficiary = assignments.some(
-      (assignment) => assignment.getBequestType() === BequestType.RESIDUARY,
+      (assignment) => assignment.bequestType === BequestType.RESIDUARY,
     );
 
     if (!hasResiduaryText && !hasResiduaryBeneficiary) {
@@ -37,11 +53,10 @@ export class WillStructurePolicy {
     }
 
     // 2. Validate Share Totals per Asset
-    // Group assignments by Asset ID
     const assetMap = new Map<string, BeneficiaryAssignment[]>();
 
     assignments.forEach((assignment) => {
-      const assetId = assignment.getAssetId();
+      const assetId = assignment.assetId;
       if (!assetMap.has(assetId)) {
         assetMap.set(assetId, []);
       }
@@ -50,15 +65,14 @@ export class WillStructurePolicy {
 
     assetMap.forEach((assetAssignments, assetId) => {
       const percentageAssignments = assetAssignments.filter(
-        (assignment) => assignment.getBequestType() === BequestType.PERCENTAGE,
+        (assignment) => assignment.bequestType === BequestType.PERCENTAGE,
       );
 
       if (percentageAssignments.length > 0) {
         let totalPercent = 0;
         percentageAssignments.forEach((assignment) => {
-          const sharePercentage = assignment.getSharePercentage();
-          if (sharePercentage) {
-            totalPercent += sharePercentage.getValue();
+          if (assignment.sharePercent !== null) {
+            totalPercent += assignment.sharePercent;
           }
         });
 
@@ -73,12 +87,11 @@ export class WillStructurePolicy {
     });
 
     // 3. Check for Duplicate/Conflicting Assignments
-    // Example: Giving the same "Specific" asset to two different people without splitting it
     assetMap.forEach((assetAssignments, assetId) => {
       const specificAssignments = assetAssignments.filter(
         (assignment) =>
-          assignment.getBequestType() === BequestType.SPECIFIC ||
-          assignment.getBequestType() === BequestType.CONDITIONAL,
+          assignment.bequestType === BequestType.SPECIFIC ||
+          assignment.bequestType === BequestType.CONDITIONAL,
       );
 
       if (specificAssignments.length > 1) {
@@ -124,7 +137,7 @@ export class WillStructurePolicy {
 
     // First pass: collect all assets and their assignments
     assignments.forEach((assignment) => {
-      const assetId = assignment.getAssetId();
+      const assetId = assignment.assetId;
       if (!assetMap.has(assetId)) {
         assetMap.set(assetId, {
           assetId,
@@ -139,16 +152,15 @@ export class WillStructurePolicy {
       const coverage = assetMap.get(assetId)!;
       coverage.beneficiaryCount++;
 
-      const sharePercentage = assignment.getSharePercentage();
-      if (sharePercentage) {
-        coverage.totalPercentage += sharePercentage.getValue();
+      if (assignment.sharePercent !== null) {
+        coverage.totalPercentage += assignment.sharePercent;
       }
 
-      if (assignment.getBequestType() === BequestType.SPECIFIC) {
+      if (assignment.bequestType === BequestType.SPECIFIC) {
         coverage.hasSpecificAssignments = true;
       }
 
-      if (assignment.getBequestType() === BequestType.RESIDUARY) {
+      if (assignment.bequestType === BequestType.RESIDUARY) {
         coverage.hasResiduary = true;
       }
     });
@@ -173,13 +185,13 @@ export class WillStructurePolicy {
     };
 
     const conditionalAssignments = assignments.filter(
-      (assignment) => assignment.getBequestType() === BequestType.CONDITIONAL,
+      (assignment) => assignment.bequestType === BequestType.CONDITIONAL,
     );
 
     conditionalAssignments.forEach((assignment) => {
-      const hasAlternate = assignment.hasAlternate();
-      const conditionType = assignment.getConditionType();
-      const conditionDetails = assignment.getConditionDetails();
+      const hasAlternate = !!assignment.alternateAssignmentId;
+      const conditionType = assignment.conditionType;
+      const conditionDetails = assignment.conditionDetails;
 
       if (!conditionDetails) {
         result.errors.push(
@@ -190,15 +202,17 @@ export class WillStructurePolicy {
 
       if (!hasAlternate) {
         result.warnings.push(
-          `Conditional bequest for beneficiary ${assignment.getBeneficiaryName()} has no alternate beneficiary specified. If the condition fails, this gift may fail.`,
+          `Conditional bequest for beneficiary ${assignment.getBeneficiaryName()} has no alternate beneficiary specified. If the condition fails, this gift may fail (Intestacy risk).`,
         );
       }
 
-      // Validate specific condition types - FIXED: Use actual BequestConditionType enum values
+      // Validate specific condition types
       if (conditionType && conditionType !== BequestConditionType.NONE) {
+        const detailsLower = conditionDetails?.toLowerCase() || '';
+
         if (
           conditionType === BequestConditionType.AGE_REQUIREMENT &&
-          !conditionDetails?.toLowerCase().includes('age')
+          !detailsLower.includes('age')
         ) {
           result.warnings.push(
             `Age condition for ${assignment.getBeneficiaryName()} should specify the exact age requirement.`,
@@ -207,28 +221,22 @@ export class WillStructurePolicy {
 
         if (
           conditionType === BequestConditionType.EDUCATION &&
-          !conditionDetails?.toLowerCase().includes('education')
+          !detailsLower.includes('education')
         ) {
           result.warnings.push(
             `Education condition for ${assignment.getBeneficiaryName()} should specify the educational requirement.`,
           );
         }
 
-        if (
-          conditionType === BequestConditionType.MARRIAGE &&
-          !conditionDetails?.toLowerCase().includes('marriage')
-        ) {
+        if (conditionType === BequestConditionType.MARRIAGE && !detailsLower.includes('marriage')) {
           result.warnings.push(
             `Marriage condition for ${assignment.getBeneficiaryName()} should specify the marriage requirement.`,
           );
         }
 
-        if (
-          conditionType === BequestConditionType.SURVIVAL &&
-          !conditionDetails?.toLowerCase().includes('survive')
-        ) {
+        if (conditionType === BequestConditionType.SURVIVAL && !detailsLower.includes('survive')) {
           result.warnings.push(
-            `Survival condition for ${assignment.getBeneficiaryName()} should specify the survival period.`,
+            `Survival condition for ${assignment.getBeneficiaryName()} should specify the survival period (e.g. 30 days).`,
           );
         }
       }
@@ -247,11 +255,17 @@ export class WillStructurePolicy {
       warnings: [],
     };
 
+    // Helper to get identity from assignment
+    const getIdentity = (a: BeneficiaryAssignment): LocalBeneficiaryIdentity => ({
+      userId: a.userId || undefined,
+      familyMemberId: a.familyMemberId || undefined,
+      externalName: a.externalName || undefined,
+    });
+
     const beneficiaryMap = new Map<string, BeneficiaryAssignment[]>();
 
-    // Group assignments by beneficiary identity
     assignments.forEach((assignment) => {
-      const identity = assignment.getIdentity();
+      const identity = getIdentity(assignment);
       const key = this.getBeneficiaryKey(identity);
 
       if (!beneficiaryMap.has(key)) {
@@ -264,8 +278,8 @@ export class WillStructurePolicy {
     const assetBeneficiaryMap = new Map<string, Set<string>>();
 
     assignments.forEach((assignment) => {
-      const assetId = assignment.getAssetId();
-      const beneficiaryKey = this.getBeneficiaryKey(assignment.getIdentity());
+      const assetId = assignment.assetId;
+      const beneficiaryKey = this.getBeneficiaryKey(getIdentity(assignment));
 
       if (!assetBeneficiaryMap.has(assetId)) {
         assetBeneficiaryMap.set(assetId, new Set());
@@ -284,10 +298,7 @@ export class WillStructurePolicy {
     return result;
   }
 
-  /**
-   * Generates a unique key for a beneficiary based on their identity
-   */
-  private getBeneficiaryKey(identity: BeneficiaryIdentity): string {
+  private getBeneficiaryKey(identity: LocalBeneficiaryIdentity): string {
     if (identity.userId) {
       return `USER_${identity.userId}`;
     } else if (identity.familyMemberId) {
@@ -330,9 +341,6 @@ export class WillStructurePolicy {
     };
   }
 
-  /**
-   * Generate recommendations based on validation results
-   */
   private generateRecommendations(
     comprehensive: ReturnType<typeof this.comprehensiveStructureValidation>,
     conditional: StructureResult,
@@ -371,10 +379,7 @@ export class WillStructurePolicy {
     return recommendations;
   }
 
-  /**
-   * Validates that the will has proper executor appointments
-   */
-  validateExecutorAppointments(will: Will, hasActiveExecutors: boolean): StructureResult {
+  validateExecutorAppointments(hasActiveExecutors: boolean): StructureResult {
     const result: StructureResult = {
       isValid: true,
       errors: [],
@@ -390,9 +395,6 @@ export class WillStructurePolicy {
     return result;
   }
 
-  /**
-   * Validates funeral wishes and special instructions
-   */
   validateSpecialInstructions(will: Will): StructureResult {
     const result: StructureResult = {
       isValid: true,
@@ -400,8 +402,8 @@ export class WillStructurePolicy {
       warnings: [],
     };
 
-    const funeralWishes = will.getFuneralWishes();
-    const specialInstructions = will.getSpecialInstructions();
+    const funeralWishes = will.funeralWishes;
+    const specialInstructions = will.specialInstructions;
 
     if (!funeralWishes && !specialInstructions) {
       result.warnings.push(
@@ -409,7 +411,6 @@ export class WillStructurePolicy {
       );
     }
 
-    // Check if funeral wishes are specific enough
     if (funeralWishes) {
       const hasBurialLocation = !!funeralWishes.burialLocation;
       const hasFuneralType = !!funeralWishes.funeralType;
@@ -424,21 +425,4 @@ export class WillStructurePolicy {
 
     return result;
   }
-}
-
-export interface AssetCoverageResult {
-  assetId: string;
-  totalPercentage: number;
-  hasSpecificAssignments: boolean;
-  hasResiduary: boolean;
-  isFullyAllocated: boolean;
-  beneficiaryCount: number;
-}
-
-export interface BeneficiaryIdentity {
-  userId?: string;
-  familyMemberId?: string;
-  externalName?: string;
-  externalContact?: string;
-  relationship?: string;
 }

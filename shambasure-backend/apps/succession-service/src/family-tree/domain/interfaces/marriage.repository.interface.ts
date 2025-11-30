@@ -14,65 +14,51 @@ export interface MarriageRepositoryInterface {
   // Domain Lookups
   // ---------------------------------------------------------
   findByFamilyId(familyId: string): Promise<Marriage[]>;
+
+  /**
+   * Find all marriages (active and dissolved) involving a member.
+   */
   findByMemberId(memberId: string): Promise<Marriage[]>;
+
+  /**
+   * Check for existing marriage between two people.
+   */
   findActiveBetween(spouse1Id: string, spouse2Id: string): Promise<Marriage | null>;
+
+  /**
+   * Find currently active marriages for a member.
+   */
   findActiveMarriages(memberId: string): Promise<Marriage[]>;
 
   // ---------------------------------------------------------
   // Kenyan Marriage Law Specific Queries
   // ---------------------------------------------------------
   /**
-   * Find customary marriages for traditional succession rules
+   * Find customary marriages.
+   * Critical for customary law succession rules.
    */
   findCustomaryMarriages(familyId: string): Promise<Marriage[]>;
 
   /**
-   * Find polygamous marriages for complex succession calculations
-   */
-  findPolygamousMarriages(familyId: string): Promise<Marriage[]>;
-
-  /**
-   * Find marriages by certificate number for legal verification
+   * Find marriages by certificate number.
+   * Used for Civil/Christian marriage verification.
    */
   findByCertificateNumber(certificateNumber: string): Promise<Marriage | null>;
 
   /**
-   * Find dissolved marriages that may affect inheritance
+   * Find dissolved marriages.
+   * Important for determining Ex-Spouse rights (if any).
    */
   findDissolvedMarriages(familyId: string): Promise<Marriage[]>;
-
-  /**
-   * Find marriages within date range for legal reporting
-   */
-  findByMarriageDateRange(startDate: Date, endDate: Date, familyId?: string): Promise<Marriage[]>;
 
   // ---------------------------------------------------------
   // Validation & Business Rules
   // ---------------------------------------------------------
   /**
-   * Check if member can enter another marriage (polygamy rules)
+   * Check if member can enter another marriage based on existing records.
+   * Implementation checks if existing marriages are Monogamous (Civil/Christian).
    */
-  canMemberMarry(
-    memberId: string,
-    proposedMarriageType: MarriageStatus,
-  ): Promise<{
-    canMarry: boolean;
-    reason?: string;
-    existingMarriages: Marriage[];
-  }>;
-
-  /**
-   * Validate marriage eligibility under Kenyan law
-   */
-  validateMarriageEligibility(
-    spouse1Id: string,
-    spouse2Id: string,
-    marriageType: MarriageStatus,
-  ): Promise<{
-    isValid: boolean;
-    errors: string[];
-    warnings: string[];
-  }>;
+  canMemberMarry(memberId: string, proposedMarriageType: MarriageStatus): Promise<boolean>;
 
   // ---------------------------------------------------------
   // Analytics
@@ -83,6 +69,6 @@ export interface MarriageRepositoryInterface {
     dissolved: number;
     customary: number;
     civil: number;
-    averageDuration: number;
+    averageDurationYears: number;
   }>;
 }

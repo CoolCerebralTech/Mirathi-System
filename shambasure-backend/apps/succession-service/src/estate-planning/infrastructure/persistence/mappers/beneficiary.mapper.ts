@@ -88,9 +88,6 @@ export class BeneficiaryMapper {
       ? (JSON.parse(JSON.stringify(entity.externalAddress)) as Prisma.JsonObject)
       : Prisma.JsonNull;
 
-    // Convert SharePercentage value object to raw number
-    const sharePercentValue = entity.sharePercent ? entity.sharePercent.getValue() : null;
-
     return {
       // Core Assignment Properties
       id: entity.id,
@@ -113,7 +110,7 @@ export class BeneficiaryMapper {
 
       // Bequest Configuration
       bequestType: entity.bequestType,
-      sharePercent: sharePercentValue, // Convert to raw number
+      sharePercent: entity.sharePercent,
       specificAmount: entity.specificAmount,
       currency: entity.currency,
 

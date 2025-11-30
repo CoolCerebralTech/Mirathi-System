@@ -9,10 +9,6 @@ import {
 
 import { WillAggregate } from '../../../domain/aggregates/will.aggregate';
 import { Will, WillReconstituteProps } from '../../../domain/entities/will.entity';
-import { AssetMapper } from './asset.mapper';
-import { BeneficiaryMapper } from './beneficiary.mapper';
-import { ExecutorMapper } from './executor.mapper';
-import { WitnessMapper } from './witness.mapper';
 
 type WillWithRelations = PrismaWill & {
   assets?: PrismaAsset[];
@@ -131,19 +127,13 @@ export class WillMapper {
 
     const rootWill = Will.reconstitute(rootProps);
 
-    // Map child entities for the aggregate
-    const assets = raw.assets ? raw.assets.map((asset) => AssetMapper.toDomain(asset)) : [];
-    const beneficiaries = raw.beneficiaries
-      ? raw.beneficiaries.map((beneficiary) => BeneficiaryMapper.toDomain(beneficiary))
-      : [];
-    const executors = raw.executors
-      ? raw.executors.map((executor) => ExecutorMapper.toDomain(executor))
-      : [];
-    const witnesses = raw.witnesses
-      ? raw.witnesses.map((witness) => WitnessMapper.toDomain(witness))
-      : [];
+    // Extract IDs for aggregate reconstitution (not the full entities)
+    const assetIds = rootWill.assetIds;
+    const beneficiaryIds = rootWill.beneficiaryIds;
+    const executorIds = rootWill.executorIds;
+    const witnessIds = rootWill.witnessIds;
 
-    return WillAggregate.reconstitute(rootWill, assets, beneficiaries, executors, witnesses);
+    return WillAggregate.reconstitute(rootWill, assetIds, beneficiaryIds, executorIds, witnessIds);
   }
 
   /**

@@ -13,59 +13,89 @@ export interface PolygamyCheckResult {
 export class PolygamousFamilyPolicy {
   /**
    * Validates if a member can enter into a NEW marriage given their existing marriages.
+   * Based on Kenyan Marriage Act 2014 sections regarding Monogamy vs Polygamy.
    */
   checkMarriageEligibility(
     memberId: string,
     existingMarriages: Marriage[],
     newMarriageType: MarriageStatus,
   ): PolygamyCheckResult {
-    // Filter active marriages
-    const activeMarriages = existingMarriages.filter((m) => m.getIsActive());
+    // Filter active marriages for this specific member
+    const activeMarriages = existingMarriages.filter(
+      (m) => m.getIsActive() && (m.getSpouse1Id() === memberId || m.getSpouse2Id() === memberId),
+    );
 
     if (activeMarriages.length === 0) {
       return { isAllowed: true };
     }
 
     // 1. Check Existing Monogamous Regimes
+    // If the person is already in a Monogamous marriage, they cannot marry again (Polyandry/Polygyny restrictions apply to Monogamous unions).
     for (const marriage of activeMarriages) {
-      const marriageType = marriage.getMarriageType();
+      const type = marriage.getMarriageType();
 
-      if (marriageType === 'CIVIL_UNION' || marriageType === 'MARRIED') {
+      // Christian, Civil, and Hindu marriages are strictly Monogamous
+      if (
+        type === MarriageStatus.CIVIL_UNION ||
+        type === MarriageStatus.MARRIED || // Assumed Statutory/Monogamous
+        type === MarriageStatus.CHRISTIAN // If Enum exists in your schema
+      ) {
         return {
           isAllowed: false,
           error:
-            'Existing Civil Union or statutory monogamous marriage. Must dissolve before remarrying.',
+            'Existing Civil/Christian/Statutory monogamous marriage. Must dissolve before remarrying.',
         };
       }
     }
 
     // 2. Check New Marriage Type Compatibility
-    if (newMarriageType === 'CIVIL_UNION' || newMarriageType === 'MARRIED') {
-      return {
-        isAllowed: false,
-        error:
-          'Cannot contract a Civil Union or statutory marriage while other customary marriages exist.',
-      };
-    }
-
-    // 3. Polygamy Rules for Customary Marriages
-    if (newMarriageType === 'CUSTOMARY_MARRIAGE') {
-      const customaryCount = activeMarriages.filter(
-        (m) => m.getMarriageType() === 'CUSTOMARY_MARRIAGE',
-      ).length;
-
-      if (customaryCount >= 4) {
+    // Cannot enter a Monogamous marriage if already in a Customary (potentially polygamous) one
+    // unless converting the ONE existing customary marriage (Section 6(2) Marriage Act).
+    if (
+      newMarriageType === MarriageStatus.CIVIL_UNION ||
+      newMarriageType === MarriageStatus.MARRIED ||
+      newMarriageType === MarriageStatus.CHRISTIAN
+    ) {
+      if (activeMarriages.length > 1) {
         return {
           isAllowed: false,
-          error: 'Maximum 4 customary spouses allowed under Kenyan law.',
+          error: 'Cannot contract a Monogamous marriage while multiple Customary marriages exist.',
         };
-      }
-
-      if (customaryCount >= 2) {
+      } else if (activeMarriages.length === 1) {
         return {
           isAllowed: true,
           warning:
-            'Polygamous marriage structure - ensure clear succession provisions for all spouses and children.',
+            'Contracting a Monogamous marriage will convert the existing Customary union. Ensure legal procedures are followed.',
+        };
+      }
+    }
+
+    // 3. Polygamy Rules for ISLAMIC Marriages
+    if (newMarriageType === MarriageStatus.ISLAMIC) {
+      const islamicCount = activeMarriages.filter(
+        (m) => m.getMarriageType() === MarriageStatus.ISLAMIC,
+      ).length;
+
+      // Strict limit of 4 under Islamic Law
+      if (islamicCount >= 4) {
+        return {
+          isAllowed: false,
+          error: 'Maximum 4 spouses allowed under Islamic Law.',
+        };
+      }
+    }
+
+    // 4. Polygamy Rules for CUSTOMARY Marriages
+    if (newMarriageType === MarriageStatus.CUSTOMARY_MARRIAGE) {
+      const totalSpouses = activeMarriages.length;
+
+      // Note: Kenyan Customary Law does not have a strict numeric limit like Islamic law.
+      // However, managing complex estates is difficult.
+      if (totalSpouses >= 2) {
+        return {
+          isAllowed: true,
+          warning:
+            'Polygamous marriage structure - ensure clear succession provisions for all spouses and children (Section 40 Law of Succession).',
         };
       }
     }

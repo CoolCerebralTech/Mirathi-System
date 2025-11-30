@@ -5,8 +5,8 @@ import { WillAggregate } from '../aggregates/will.aggregate';
 /**
  * Repository Interface for Will Aggregate Root
  *
- * Defines the contract for Will data persistence following Kenyan succession law
- * Includes specialized queries for will lifecycle management and legal compliance
+ * Defines the contract for Will data persistence following Kenyan succession law.
+ * Handles the storage of the entire Aggregate boundary (Will Root + Assets + Beneficiaries + Executors + Witnesses).
  *
  * @interface WillRepositoryInterface
  */
@@ -16,7 +16,9 @@ export interface WillRepositoryInterface {
   // ---------------------------------------------------------
 
   /**
-   * Persists a Will Aggregate to the data store
+   * Persists a Will Aggregate to the data store.
+   * MUST handle transactional consistency: saving the Root Entity and
+   * reconciling all child entities (Assets, Beneficiaries, Executors, Witnesses).
    *
    * @param {WillAggregate} will - The Will Aggregate to save
    * @returns {Promise<void>}
@@ -24,7 +26,8 @@ export interface WillRepositoryInterface {
   save(will: WillAggregate): Promise<void>;
 
   /**
-   * Retrieves a Will Aggregate by its unique identifier
+   * Retrieves a Will Aggregate by its unique identifier.
+   * Must rehydrate the full aggregate graph.
    *
    * @param {string} id - Unique Will identifier
    * @returns {Promise<WillAggregate | null>} Will Aggregate or null if not found
@@ -32,7 +35,7 @@ export interface WillRepositoryInterface {
   findById(id: string): Promise<WillAggregate | null>;
 
   /**
-   * Checks if a Will exists with the given identifier
+   * Checks if a Will exists with the given identifier.
    *
    * @param {string} id - Unique Will identifier to check
    * @returns {Promise<boolean>} True if Will exists
@@ -40,7 +43,7 @@ export interface WillRepositoryInterface {
   exists(id: string): Promise<boolean>;
 
   /**
-   * Permanently deletes a Will from the data store
+   * Permanently deletes a Will from the data store.
    *
    * @param {string} id - Unique Will identifier to delete
    * @returns {Promise<void>}
@@ -48,7 +51,7 @@ export interface WillRepositoryInterface {
   delete(id: string): Promise<void>;
 
   /**
-   * Performs soft deletion of a Will (marks as inactive)
+   * Performs soft deletion of a Will (sets deletedAt).
    *
    * @param {string} id - Unique Will identifier to soft delete
    * @returns {Promise<void>}
@@ -60,7 +63,7 @@ export interface WillRepositoryInterface {
   // ---------------------------------------------------------
 
   /**
-   * Finds all Wills created by a specific testator
+   * Finds all Wills created by a specific testator.
    *
    * @param {string} testatorId - Unique identifier of the testator
    * @returns {Promise<WillAggregate[]>} Array of Will Aggregates
@@ -68,7 +71,7 @@ export interface WillRepositoryInterface {
   findByTestatorId(testatorId: string): Promise<WillAggregate[]>;
 
   /**
-   * Finds Wills by specific status
+   * Finds Wills by specific status.
    *
    * @param {WillStatus} status - Status to filter by
    * @returns {Promise<WillAggregate[]>} Array of Will Aggregates with specified status
@@ -76,45 +79,64 @@ export interface WillRepositoryInterface {
   findByStatus(status: WillStatus): Promise<WillAggregate[]>;
 
   /**
-   * Returns the single, legally valid Will for a testator (if any)
+   * Returns the single, legally valid ACTIVE Will for a testator.
+   * Used during the "Testamentary Search" phase of probate.
    *
    * @param {string} testatorId - Unique identifier of the testator
-   * @returns {Promise<WillAggregate | null>} Active Will Aggregate or null if not found
+   * @returns {Promise<WillAggregate | null>} Active Will Aggregate or null if intestate/draft only
    */
   findActiveWillByTestatorId(testatorId: string): Promise<WillAggregate | null>;
 
   /**
-   * Finds wills that supersede a specific will (newer versions)
+   * Finds wills that supersede a specific will (newer versions).
+   * Useful for tracing revocation history (Section 16).
    *
    * @param {string} originalWillId - Unique identifier of the original will
    * @returns {Promise<WillAggregate[]>} Array of superseding Will Aggregates
    */
   findSupersededWills(originalWillId: string): Promise<WillAggregate[]>;
 
+  /**
+   * Finds wills currently under contestation (Disputes).
+   * These block the grant of probate.
+   *
+   * @returns {Promise<WillAggregate[]>} Array of contested wills
+   */
+  findContestedWills(): Promise<WillAggregate[]>;
+
   // ---------------------------------------------------------
   // WORKFLOW & LIFECYCLE QUERIES
   // ---------------------------------------------------------
 
   /**
-   * Finds wills requiring witness completion
+   * Finds wills requiring witness completion (Status: PENDING_WITNESS).
    *
    * @returns {Promise<WillAggregate[]>} Array of Will Aggregates needing witnesses
    */
   findWillsRequiringWitnesses(): Promise<WillAggregate[]>;
 
   /**
-   * Finds wills pending activation (witnessed but not yet active)
+   * Finds wills pending activation (witnessed but not yet active).
    *
    * @returns {Promise<WillAggregate[]>} Array of Will Aggregates pending activation
    */
   findWillsPendingActivation(): Promise<WillAggregate[]>;
+
+  /**
+   * Finds wills that are Active and ready for Probate application.
+   * (Testator deceased + Will valid + Not yet applied for grant).
+   *
+   * @returns {Promise<WillAggregate[]>} Array of wills ready for court filing
+   */
+  findWillsReadyForProbate(): Promise<WillAggregate[]>;
 
   // ---------------------------------------------------------
   // VERSIONING & AUDIT TRAIL OPERATIONS
   // ---------------------------------------------------------
 
   /**
-   * Saves a version snapshot of the Will state for audit trail
+   * Saves a version snapshot of the Will state for audit trail.
+   * Critical for defending against Undue Influence claims.
    *
    * @param {string} willId - Unique identifier of the will
    * @param {number} versionNumber - Version number for this snapshot
@@ -128,7 +150,7 @@ export interface WillRepositoryInterface {
   ): Promise<void>;
 
   /**
-   * Retrieves version history for a will
+   * Retrieves version history for a will.
    *
    * @param {string} willId - Unique identifier of the will
    * @returns {Promise<Array<{ version: number; data: any; createdAt: Date }>>} Array of version snapshots
@@ -140,7 +162,7 @@ export interface WillRepositoryInterface {
   // ---------------------------------------------------------
 
   /**
-   * Counts wills created by a specific testator
+   * Counts wills created by a specific testator.
    *
    * @param {string} testatorId - Unique identifier of the testator
    * @returns {Promise<number>} Count of wills
@@ -148,7 +170,7 @@ export interface WillRepositoryInterface {
   countByTestatorId(testatorId: string): Promise<number>;
 
   /**
-   * Finds recently created or modified wills
+   * Finds recently created or modified wills.
    *
    * @param {number} days - Number of days to look back
    * @returns {Promise<WillAggregate[]>} Array of recent Will Aggregates

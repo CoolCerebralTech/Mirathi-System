@@ -6,7 +6,7 @@ export class MarriageRegisteredEvent {
     public readonly familyId: string,
     public readonly spouse1Id: string,
     public readonly spouse2Id: string,
-    public readonly type: MarriageStatus, // e.g., CUSTOMARY_MARRIAGE, CIVIL_UNION
+    public readonly type: MarriageStatus, // Strict Enum
     public readonly marriageDate: Date,
     public readonly timestamp: Date = new Date(),
   ) {}

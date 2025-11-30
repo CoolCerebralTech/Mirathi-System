@@ -1,10 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { MarriageStatus, RelationshipType } from '@prisma/client';
+import { GuardianType, MarriageStatus, RelationshipType } from '@prisma/client';
 
-import type { FamilyMember } from '../entities/family-member.entity';
-import type { Guardianship } from '../entities/guardianship.entity';
-import type { Marriage } from '../entities/marriage.entity';
-import type { Relationship } from '../entities/relationship.entity';
+import { FamilyMember } from '../entities/family-member.entity';
+import { Guardianship } from '../entities/guardianship.entity';
+import { Marriage } from '../entities/marriage.entity';
+import { Relationship } from '../entities/relationship.entity';
 import type { FamilyMemberRepositoryInterface } from '../interfaces/family-member.repository.interface';
 import type { GuardianshipRepositoryInterface } from '../interfaces/guardianship.repository.interface';
 import type { MarriageRepositoryInterface } from '../interfaces/marriage.repository.interface';
@@ -21,13 +21,15 @@ type RelationshipMetadata = {
   bornOutOfWedlock?: boolean;
   adoptionOrderNumber?: string;
 };
+
 type MarriageDetails = {
   customaryDetails?: {
-    bridePrice?: number;
-    witnesses?: string[];
-    ceremonyDate?: Date;
+    bridePricePaid: boolean;
+    elderWitnesses: string[];
+    ceremonyLocation: string;
     [key: string]: unknown;
   };
+  marriageDate?: Date;
   [key: string]: unknown;
 };
 
@@ -81,12 +83,7 @@ export class RelationshipIntegrityService {
     fromMemberId: string,
     toMemberId: string,
     type: RelationshipType,
-    metadata?: {
-      isAdopted?: boolean;
-      isBiological?: boolean;
-      bornOutOfWedlock?: boolean;
-      adoptionOrderNumber?: string;
-    },
+    metadata?: RelationshipMetadata,
   ): Promise<RelationshipValidationResult> {
     const result: RelationshipValidationResult = {
       isValid: true,
@@ -146,7 +143,6 @@ export class RelationshipIntegrityService {
       this.analyzeSuccessionImplications(fromMember!, toMember!, type, metadata, result);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown validation error';
-
       result.isValid = false;
       result.errors.push(`Validation error: ${message}`);
     }
@@ -163,14 +159,7 @@ export class RelationshipIntegrityService {
     spouse1Id: string,
     spouse2Id: string,
     marriageType: MarriageStatus,
-    marriageDetails?: {
-      marriageDate?: Date;
-      customaryDetails?: {
-        bridePricePaid: boolean;
-        elderWitnesses: string[];
-        ceremonyLocation: string;
-      };
-    },
+    marriageDetails?: MarriageDetails,
   ): Promise<MarriageValidationResult> {
     const result: MarriageValidationResult = {
       isValid: true,
@@ -236,7 +225,7 @@ export class RelationshipIntegrityService {
       }
 
       // 8. Customary Marriage Specific Validation
-      if (marriageType === 'CUSTOMARY_MARRIAGE') {
+      if (marriageType === MarriageStatus.CUSTOMARY_MARRIAGE) {
         const customaryValidation = this.customaryPolicy.validateCustomaryMarriage(
           marriageDetails?.customaryDetails,
         );
@@ -257,7 +246,6 @@ export class RelationshipIntegrityService {
       this.generateLegalRequirements(marriageType, spouse1!, spouse2!, result);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown marriage validation error';
-
       result.isValid = false;
       result.errors.push(`Marriage validation error: ${message}`);
     }
@@ -273,7 +261,7 @@ export class RelationshipIntegrityService {
     familyId: string,
     guardianId: string,
     wardId: string,
-    guardianType: string,
+    guardianType: GuardianType,
     appointmentDetails?: {
       appointedBy?: string;
       courtOrderNumber?: string;
@@ -322,14 +310,14 @@ export class RelationshipIntegrityService {
       result.restrictions.push(...eligibility.restrictions);
 
       // 5. Ward Status Validation
-      if (!ward!.getIsMinor()) {
+      if (!ward!.getIsMinor() && guardianType !== GuardianType.FINANCIAL_GUARDIAN) {
         result.warnings.push(
-          'Guardianship typically applies to minors. Ensure this is a special case.',
+          'Guardianship typically applies to minors. Ensure this is a special case (e.g. Financial).',
         );
       }
 
       // 6. Existing Guardianship Check
-      const activeGuardianships = existingGuardianships.filter((g) => g.getIsActiveRecord());
+      const activeGuardianships = existingGuardianships.filter((g) => g.getIsActive());
       if (activeGuardianships.length > 0) {
         result.warnings.push(
           'Ward already has active guardianship(s). Multiple guardianships may require court approval.',
@@ -338,7 +326,7 @@ export class RelationshipIntegrityService {
 
       // 7. Capacity Check (Guardian Workload)
       const guardianWorkload = await this.guardianshipRepo.findByGuardianId(guardianId);
-      const activeGuardianCount = guardianWorkload.filter((g) => g.getIsActiveRecord()).length;
+      const activeGuardianCount = guardianWorkload.filter((g) => g.getIsActive()).length;
       if (activeGuardianCount >= 3) {
         result.warnings.push(
           'Guardian has multiple active guardianships. Consider capacity limitations.',
@@ -346,7 +334,7 @@ export class RelationshipIntegrityService {
       }
 
       // 8. Court Requirements for Legal Guardianship
-      if (guardianType === 'LEGAL_GUARDIAN') {
+      if (guardianType === GuardianType.LEGAL_GUARDIAN) {
         result.courtRequirements.push(
           'Court order required for legal guardianship',
           'Background check and home study recommended',
@@ -359,7 +347,7 @@ export class RelationshipIntegrityService {
       }
 
       // 9. Testamentary Guardianship Validation
-      if (guardianType === 'TESTAMENTARY' && !appointmentDetails?.appointedBy) {
+      if (guardianType === GuardianType.TESTAMENTARY && !appointmentDetails?.appointedBy) {
         result.errors.push('Testamentary guardianship requires reference to the appointing will.');
       }
 
@@ -368,7 +356,6 @@ export class RelationshipIntegrityService {
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : 'Unknown guardianship validation error';
-
       result.isValid = false;
       result.errors.push(`Guardianship validation error: ${message}`);
     }
@@ -505,7 +492,7 @@ export class RelationshipIntegrityService {
   }
 
   // --------------------------------------------------------------------------
-  // PRIVATE IMPLEMENTATION - KENYAN LEGAL COMPLIANCE
+  // PRIVATE IMPLEMENTATION
   // --------------------------------------------------------------------------
 
   private async validateBasicEntities(
@@ -542,22 +529,17 @@ export class RelationshipIntegrityService {
     metadata: RelationshipMetadata | null | undefined,
     result: RelationshipValidationResult,
   ): Promise<void> {
-    // Safely extract metadata fields
     const isAdopted = metadata?.isAdopted === true;
     const bornOutOfWedlock = metadata?.bornOutOfWedlock === true;
+    const adoptionOrderNumber = metadata?.adoptionOrderNumber;
 
-    const adoptionOrderNumber =
-      typeof metadata?.adoptionOrderNumber === 'string' ? metadata.adoptionOrderNumber : undefined;
-
-    // Adoption validation
     if (isAdopted && !adoptionOrderNumber) {
       result.warnings.push(
         'Legal adoption should have an adoption order number for full inheritance rights.',
       );
     }
 
-    // Born out of wedlock validation
-    if (bornOutOfWedlock && type === 'CHILD') {
+    if (bornOutOfWedlock && type === RelationshipType.CHILD) {
       result.warnings.push(
         'Children born out of wedlock should have verified relationships for inheritance claims.',
       );
@@ -566,29 +548,23 @@ export class RelationshipIntegrityService {
       );
     }
 
-    // Age validation
-    if (type === 'PARENT' || type === 'CHILD') {
+    if (type === RelationshipType.PARENT || type === RelationshipType.CHILD) {
       const fromAge = fromMember.getAge();
       const toAge = toMember.getAge();
 
       if (fromAge !== null && toAge !== null) {
         const ageDifference = Math.abs(fromAge - toAge);
-
         if (ageDifference < 15) {
           result.warnings.push('Unusual age difference for parent-child relationship.');
         }
       }
     }
 
-    // Customary adoption recognition
     if (isAdopted && !adoptionOrderNumber) {
       result.recommendations.push(
         'Consider formalizing customary adoption through legal channels for full inheritance rights.',
       );
     }
-
-    // Satisfy eslint `require-await`
-    await Promise.resolve();
   }
 
   private async validateMarriageEntities(
@@ -624,7 +600,6 @@ export class RelationshipIntegrityService {
     const age1 = spouse1.getAge();
     const age2 = spouse2.getAge();
 
-    // Kenyan legal marriage age is 18
     if (age1 !== null && age1 < 18) {
       result.errors.push(`Spouse 1 is under the legal marriage age of 18 (age: ${age1}).`);
     }
@@ -633,7 +608,6 @@ export class RelationshipIntegrityService {
       result.errors.push(`Spouse 2 is under the legal marriage age of 18 (age: ${age2}).`);
     }
 
-    // Warning for large age differences
     if (age1 !== null && age2 !== null) {
       const ageDifference = Math.abs(age1 - age2);
       if (ageDifference > 25) {
@@ -650,7 +624,7 @@ export class RelationshipIntegrityService {
     result: MarriageValidationResult,
   ): void {
     switch (marriageType) {
-      case 'CUSTOMARY_MARRIAGE':
+      case MarriageStatus.CUSTOMARY_MARRIAGE:
         if (!marriageDetails?.customaryDetails) {
           result.errors.push(
             'Customary marriages require customary details (bride price, elder witnesses, etc.).',
@@ -659,14 +633,15 @@ export class RelationshipIntegrityService {
         result.legalRequirements.push('Registration with Registrar of Marriages recommended');
         break;
 
-      case 'CIVIL_UNION':
+      case MarriageStatus.CIVIL_UNION:
         result.legalRequirements.push(
           'Marriage certificate required',
           'Registration with civil registry',
         );
         break;
 
-      case 'MARRIED': // Assuming Christian/church marriage
+      case MarriageStatus.MARRIED: // Statutory/Christian
+      case MarriageStatus.CHRISTIAN:
         result.legalRequirements.push('Marriage certificate required', 'Church registration');
         break;
     }
@@ -700,11 +675,10 @@ export class RelationshipIntegrityService {
   private validateKenyanGuardianshipLaws(
     guardian: FamilyMember,
     ward: FamilyMember,
-    guardianType: string,
+    guardianType: GuardianType,
     result: GuardianshipValidationResult,
   ): void {
-    // Kenyan Children's Act considerations
-    if (guardianType === 'LEGAL_GUARDIAN') {
+    if (guardianType === GuardianType.LEGAL_GUARDIAN) {
       result.courtRequirements.push(
         'Best interests of the child must be paramount',
         'Guardian must be fit and proper person',
@@ -712,8 +686,7 @@ export class RelationshipIntegrityService {
       );
     }
 
-    // Financial guardianship restrictions
-    if (guardianType === 'FINANCIAL_GUARDIAN') {
+    if (guardianType === GuardianType.FINANCIAL_GUARDIAN) {
       result.restrictions.push(
         "Separate accounting for ward's assets required",
         'Court approval for major financial decisions',
@@ -727,12 +700,9 @@ export class RelationshipIntegrityService {
     person2Id: string,
     familyId: string,
   ): Promise<{ areBloodRelatives: boolean; relationship?: string }> {
-    // Implementation of blood relative detection
-    // This would involve graph traversal to find common ancestors
-    // For now, return a simplified check
     const relationships = await this.relationshipRepo.findByFamilyId(familyId);
 
-    // Check for direct parent-child or sibling relationships
+    // Direct Check
     const directRelationship = relationships.find(
       (rel) =>
         (rel.getFromMemberId() === person1Id && rel.getToMemberId() === person2Id) ||
@@ -746,7 +716,6 @@ export class RelationshipIntegrityService {
       };
     }
 
-    // More complex relationship detection would go here
     return { areBloodRelatives: false };
   }
 
@@ -769,13 +738,13 @@ export class RelationshipIntegrityService {
       );
     }
 
-    if (type === 'CHILD' && metadata.bornOutOfWedlock) {
+    if (type === RelationshipType.CHILD && metadata.bornOutOfWedlock) {
       result.recommendations.push(
         'Consider formal recognition for full succession rights under Section 29.',
       );
     }
 
-    if (type === 'ADOPTED_CHILD' && !metadata.adoptionOrderNumber) {
+    if (type === RelationshipType.ADOPTED_CHILD && !metadata.adoptionOrderNumber) {
       result.recommendations.push(
         'Legal adoption order recommended for unambiguous succession rights.',
       );
@@ -786,16 +755,12 @@ export class RelationshipIntegrityService {
     type: RelationshipType,
     metadata: RelationshipMetadata = {},
   ): 'STRONG' | 'MEDIUM' | 'WEAK' {
-    if (type === 'SPOUSE') return 'STRONG';
-
-    if (type === 'CHILD' && metadata.isBiological && !metadata.bornOutOfWedlock) return 'STRONG';
-
-    if (type === 'ADOPTED_CHILD' && metadata.adoptionOrderNumber) return 'STRONG';
-
-    if (type === 'CHILD' && metadata.bornOutOfWedlock) return 'MEDIUM';
-
-    if (type === 'PARENT') return 'MEDIUM';
-
+    if (type === RelationshipType.SPOUSE) return 'STRONG';
+    if (type === RelationshipType.CHILD && metadata.isBiological && !metadata.bornOutOfWedlock)
+      return 'STRONG';
+    if (type === RelationshipType.ADOPTED_CHILD && metadata.adoptionOrderNumber) return 'STRONG';
+    if (type === RelationshipType.CHILD && metadata.bornOutOfWedlock) return 'MEDIUM';
+    if (type === RelationshipType.PARENT) return 'MEDIUM';
     return 'WEAK';
   }
 
@@ -807,7 +772,7 @@ export class RelationshipIntegrityService {
   ): void {
     result.legalRequirements.push('Both spouses must consent to the marriage');
 
-    if (marriageType === 'CUSTOMARY_MARRIAGE') {
+    if (marriageType === MarriageStatus.CUSTOMARY_MARRIAGE) {
       result.legalRequirements.push(
         'Bride price negotiation and payment',
         'Elder witnesses from both families',
@@ -815,7 +780,6 @@ export class RelationshipIntegrityService {
       );
     }
 
-    // Age-specific requirements
     const age1 = spouse1.getAge();
     const age2 = spouse2.getAge();
 
@@ -855,7 +819,7 @@ export class RelationshipIntegrityService {
   ): string[] {
     const minors = members.filter((m) => m.getIsMinor() && !m.getIsDeceased());
     const wardsWithGuardians = new Set(
-      guardianships.filter((g) => g.getIsActiveRecord()).map((g) => g.getWardId()),
+      guardianships.filter((g) => g.getIsActive()).map((g) => g.getWardId()),
     );
 
     return minors
@@ -864,7 +828,12 @@ export class RelationshipIntegrityService {
   }
 
   private findUnverifiedCriticalRelationships(relationships: Relationship[]): Relationship[] {
-    const criticalTypes: RelationshipType[] = ['PARENT', 'CHILD', 'SPOUSE', 'ADOPTED_CHILD'];
+    const criticalTypes: RelationshipType[] = [
+      RelationshipType.PARENT,
+      RelationshipType.CHILD,
+      RelationshipType.SPOUSE,
+      RelationshipType.ADOPTED_CHILD,
+    ];
 
     return relationships.filter(
       (rel) => criticalTypes.includes(rel.getType()) && !rel.getIsVerified(),
@@ -888,9 +857,10 @@ export class RelationshipIntegrityService {
       recommendation?: string;
     }> = [];
 
-    // Check for unverified parent-child relationships
     const unverifiedParentChild = relationships.filter(
-      (rel) => (rel.getType() === 'PARENT' || rel.getType() === 'CHILD') && !rel.getIsVerified(),
+      (rel) =>
+        (rel.getType() === RelationshipType.PARENT || rel.getType() === RelationshipType.CHILD) &&
+        !rel.getIsVerified(),
     );
     if (unverifiedParentChild.length > 0) {
       issues.push({
@@ -901,7 +871,6 @@ export class RelationshipIntegrityService {
       });
     }
 
-    // Check for minors in the family
     const minors = members.filter((m) => m.getIsMinor() && !m.getIsDeceased());
     if (minors.length > 0) {
       issues.push({
@@ -911,7 +880,6 @@ export class RelationshipIntegrityService {
       });
     }
 
-    // Check for complex marriage structures
     const polygamousMarriages = marriages.filter((m) => m.allowsPolygamy() && m.getIsActive());
     if (polygamousMarriages.length > 1) {
       issues.push({

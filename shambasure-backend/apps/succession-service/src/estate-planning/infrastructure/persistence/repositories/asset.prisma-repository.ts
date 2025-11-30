@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AssetOwnershipType, AssetType, Prisma } from '@prisma/client';
+import { AssetOwnershipType, AssetType, KenyanCounty } from '@prisma/client';
 
 import { PrismaService } from '@shamba/database';
 
@@ -20,56 +20,8 @@ export class AssetPrismaRepository implements AssetRepositoryInterface {
 
     await this.prisma.asset.upsert({
       where: { id: asset.id },
-      create: {
-        id: persistenceData.id,
-        name: persistenceData.name,
-        description: persistenceData.description,
-        type: persistenceData.type,
-        ownerId: persistenceData.ownerId,
-        ownershipType: persistenceData.ownershipType,
-        ownershipShare: persistenceData.ownershipShare,
-        estimatedValue: persistenceData.estimatedValue,
-        currency: persistenceData.currency,
-        valuationDate: persistenceData.valuationDate,
-        valuationSource: persistenceData.valuationSource,
-        location: persistenceData.location === null ? Prisma.JsonNull : persistenceData.location,
-        identificationDetails:
-          persistenceData.identificationDetails === null
-            ? Prisma.JsonNull
-            : persistenceData.identificationDetails,
-        registrationNumber: persistenceData.registrationNumber,
-        hasVerifiedDocument: persistenceData.hasVerifiedDocument,
-        isEncumbered: persistenceData.isEncumbered,
-        encumbranceDetails: persistenceData.encumbranceDetails,
-        metadata: persistenceData.metadata === null ? Prisma.JsonNull : persistenceData.metadata,
-        isActive: persistenceData.isActive,
-        createdAt: persistenceData.createdAt,
-        updatedAt: persistenceData.updatedAt,
-        deletedAt: persistenceData.deletedAt,
-      },
-      update: {
-        name: persistenceData.name,
-        description: persistenceData.description,
-        ownershipType: persistenceData.ownershipType,
-        ownershipShare: persistenceData.ownershipShare,
-        estimatedValue: persistenceData.estimatedValue,
-        currency: persistenceData.currency,
-        valuationDate: persistenceData.valuationDate,
-        valuationSource: persistenceData.valuationSource,
-        location: persistenceData.location === null ? Prisma.JsonNull : persistenceData.location,
-        identificationDetails:
-          persistenceData.identificationDetails === null
-            ? Prisma.JsonNull
-            : persistenceData.identificationDetails,
-        registrationNumber: persistenceData.registrationNumber,
-        hasVerifiedDocument: persistenceData.hasVerifiedDocument,
-        isEncumbered: persistenceData.isEncumbered,
-        encumbranceDetails: persistenceData.encumbranceDetails,
-        metadata: persistenceData.metadata === null ? Prisma.JsonNull : persistenceData.metadata,
-        isActive: persistenceData.isActive,
-        updatedAt: persistenceData.updatedAt,
-        deletedAt: persistenceData.deletedAt,
-      },
+      create: persistenceData,
+      update: AssetMapper.toUpdatePersistence(asset),
     });
   }
 
@@ -127,7 +79,7 @@ export class AssetPrismaRepository implements AssetRepositoryInterface {
   }
 
   // ---------------------------------------------------------
-  // BUSINESS LOGIC QUERIES
+  // BUSINESS LOGIC & LEGAL COMPLIANCE QUERIES
   // ---------------------------------------------------------
 
   async findTransferableAssets(ownerId: string): Promise<AssetEntity[]> {
@@ -135,7 +87,7 @@ export class AssetPrismaRepository implements AssetRepositoryInterface {
       where: {
         ownerId,
         isActive: true,
-        hasVerifiedDocument: true,
+        verificationStatus: 'VERIFIED',
         isEncumbered: false,
         deletedAt: null,
       },
@@ -156,11 +108,36 @@ export class AssetPrismaRepository implements AssetRepositoryInterface {
     return records.map((record) => AssetMapper.toDomain(record));
   }
 
+  async findMatrimonialAssets(ownerId: string): Promise<AssetEntity[]> {
+    const records = await this.prisma.asset.findMany({
+      where: {
+        ownerId,
+        isMatrimonialProperty: true,
+        deletedAt: null,
+      },
+    });
+
+    return records.map((record) => AssetMapper.toDomain(record));
+  }
+
+  async findAssetsWithActiveLifeInterest(ownerId: string): Promise<AssetEntity[]> {
+    const records = await this.prisma.asset.findMany({
+      where: {
+        ownerId,
+        hasLifeInterest: true,
+        deletedAt: null,
+        OR: [{ lifeInterestEndsAt: null }, { lifeInterestEndsAt: { gt: new Date() } }],
+      },
+    });
+
+    return records.map((record) => AssetMapper.toDomain(record));
+  }
+
   async findAssetsWithVerifiedDocuments(ownerId: string): Promise<AssetEntity[]> {
     const records = await this.prisma.asset.findMany({
       where: {
         ownerId,
-        hasVerifiedDocument: true,
+        verificationStatus: 'VERIFIED',
         deletedAt: null,
       },
     });
@@ -183,20 +160,21 @@ export class AssetPrismaRepository implements AssetRepositoryInterface {
     return records.map((record) => AssetMapper.toDomain(record));
   }
 
-  async findAssetsByLocation(ownerId: string, county: string): Promise<AssetEntity[]> {
+  async findAssetsByLocation(ownerId: string, county: KenyanCounty): Promise<AssetEntity[]> {
     const records = await this.prisma.asset.findMany({
       where: {
         ownerId,
+        county,
         deletedAt: null,
-        location: {
-          path: ['county'],
-          equals: county.toUpperCase(),
-        },
       },
     });
 
     return records.map((record) => AssetMapper.toDomain(record));
   }
+
+  // ---------------------------------------------------------
+  // FINANCIAL ANALYSIS & VALUATION QUERIES
+  // ---------------------------------------------------------
 
   async findAssetsAboveValue(
     ownerId: string,
@@ -207,12 +185,12 @@ export class AssetPrismaRepository implements AssetRepositoryInterface {
       where: {
         ownerId,
         currency,
-        estimatedValue: {
-          gte: new Prisma.Decimal(minValue),
+        currentValue: {
+          gte: minValue,
         },
         deletedAt: null,
       },
-      orderBy: { estimatedValue: 'desc' },
+      orderBy: { currentValue: 'desc' },
     });
 
     return records.map((record) => AssetMapper.toDomain(record));
@@ -227,15 +205,19 @@ export class AssetPrismaRepository implements AssetRepositoryInterface {
         deletedAt: null,
       },
       _sum: {
-        estimatedValue: true,
+        currentValue: true,
       },
     });
 
     return aggregations.map((agg) => ({
       currency: agg.currency,
-      amount: agg._sum.estimatedValue?.toNumber() || 0,
+      amount: agg._sum.currentValue || 0,
     }));
   }
+
+  // ---------------------------------------------------------
+  // SEARCH & DISCOVERY OPERATIONS
+  // ---------------------------------------------------------
 
   async searchAssets(ownerId: string, query: string): Promise<AssetEntity[]> {
     const records = await this.prisma.asset.findMany({
@@ -246,12 +228,18 @@ export class AssetPrismaRepository implements AssetRepositoryInterface {
           { name: { contains: query, mode: 'insensitive' } },
           { description: { contains: query, mode: 'insensitive' } },
           { registrationNumber: { contains: query, mode: 'insensitive' } },
+          { titleDeedNumber: { contains: query, mode: 'insensitive' } },
+          { landReferenceNumber: { contains: query, mode: 'insensitive' } },
         ],
       },
     });
 
     return records.map((record) => AssetMapper.toDomain(record));
   }
+
+  // ---------------------------------------------------------
+  // CO-OWNERSHIP & COMPLEX OWNERSHIP QUERIES
+  // ---------------------------------------------------------
 
   async findCoOwnedAssets(userId: string): Promise<AssetEntity[]> {
     const records = await this.prisma.asset.findMany({

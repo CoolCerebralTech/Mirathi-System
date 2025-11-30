@@ -48,6 +48,7 @@ export class WillValidationService {
     };
 
     // 1. Structure & Distribution Logic
+    // Validates math (percentages add up) and logic (residuary clause exists)
     const structureCheck = this.structurePolicy.validateDistributionStructure(
       aggregate.getWill(),
       aggregate.getBeneficiaries(),
@@ -55,31 +56,45 @@ export class WillValidationService {
     this.mergeResult(result, structureCheck.errors, structureCheck.warnings, [], true);
 
     // 2. Asset Verification (Testamentary Capacity)
+    // Validates if assets can legally be willed (e.g. Joint Tenancy vs Tenancy in Common)
     for (const asset of aggregate.getAssets()) {
       const assetCheck = this.assetPolicy.checkTestamentaryCapacity(asset);
+
+      // Handle non-compliance (Critical Errors)
       if (!assetCheck.isCompliant) {
-        // Use the 'name' property instead of getName()
-        const assetName = 'name' in asset && asset.name ? asset.name : 'Unnamed Asset';
         this.mergeResult(
           result,
-          assetCheck.errors.map((e) => `Asset '${assetName}': ${e}`),
-          assetCheck.warnings.map((w) => `Asset '${assetName}': ${w}`),
+          assetCheck.errors.map((e) => `Asset '${asset.name}': ${e}`),
+          assetCheck.warnings.map((w) => `Asset '${asset.name}': ${w}`),
           [],
-          true,
+          true, // Critical because invalid assets can't be willed
+        );
+      }
+      // Handle warnings for compliant assets (e.g. Unverified)
+      else if (assetCheck.warnings.length > 0) {
+        this.mergeResult(
+          result,
+          [],
+          assetCheck.warnings.map((w) => `Asset '${asset.name}': ${w}`),
+          [],
+          false, // Not critical, just risky
         );
       }
     }
 
     // 3. Executor Eligibility
+    // Validates number of executors (max 4) and basics
     const executorCheck = this.executorPolicy.checkExecutorComposition(aggregate.getExecutors());
     this.mergeResult(result, executorCheck.errors, executorCheck.warnings, [], true);
 
     // 4. Witness Eligibility (Section 11 & 13)
     const witnesses = aggregate.getWitnesses();
     if (witnesses.length > 0) {
+      // A. Composition Check (Min 2 witnesses)
       const witnessCompCheck = this.witnessPolicy.validateWitnessComposition(witnesses);
       this.mergeResult(result, witnessCompCheck.errors, witnessCompCheck.warnings, [], true);
 
+      // B. Conflict of Interest Check (Witness != Beneficiary)
       for (const witness of witnesses) {
         const conflictCheck = this.witnessPolicy.checkConflictOfInterest(
           witness,
@@ -90,13 +105,19 @@ export class WillValidationService {
     }
 
     // 5. Dependant Provision (Section 26)
+    // Validates if Spouse/Children are adequately provided for
     if (familyMembers.length > 0) {
+      // Calculate real value for adequacy check
+      const totalEstateValue = aggregate.getTotalEstateValue();
+
       const provisionCheck = this.dependantsPolicy.validateProvision(
         familyMembers,
         aggregate.getBeneficiaries(),
-        0,
+        totalEstateValue,
       );
 
+      // Section 26 issues typically lead to contestation, not invalidity.
+      // We reduce the score and add warnings, but don't mark 'isValid=false' unless strictly required.
       if (provisionCheck.riskLevel === 'HIGH' || provisionCheck.riskLevel === 'CRITICAL') {
         this.mergeResult(result, [], provisionCheck.issues, provisionCheck.suggestions, false);
         result.complianceScore -= 20;
