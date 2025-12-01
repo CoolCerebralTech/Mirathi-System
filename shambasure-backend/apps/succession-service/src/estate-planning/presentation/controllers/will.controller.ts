@@ -23,11 +23,11 @@ import { WillStatus } from '@prisma/client';
 
 import { JwtAuthGuard } from '@shamba/auth';
 
-import { CreateWillDto } from '../../application/dtos/requests/create-will.dto';
-import { RevokeWillDto } from '../../application/dtos/requests/revoke-will.dto';
-import { SignWillDto } from '../../application/dtos/requests/sign-will.dto';
-import { UpdateWillDto } from '../../application/dtos/requests/update-will.dto';
-import { WillResponseDto } from '../../application/dtos/responses/will.response.dto';
+import { CreateWillDto } from '../../application/dto/requests/create-will.dto';
+import { RevokeWillDto } from '../../application/dto/requests/revoke-will.dto';
+import { SignWillDto } from '../../application/dto/requests/sign-will.dto';
+import { UpdateWillDto } from '../../application/dto/requests/update-will.dto';
+import { WillResponseDto } from '../../application/dto/responses/will.response.dto';
 import { WillCompletenessResponse } from '../../application/queries/get-will-completeness.query';
 import { WillVersionSummary } from '../../application/queries/get-will-versions.query';
 // Shared auth library

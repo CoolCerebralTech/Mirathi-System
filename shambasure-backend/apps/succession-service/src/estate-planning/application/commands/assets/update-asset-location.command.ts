@@ -2,7 +2,7 @@
 import { ICommand } from '@nestjs/cqrs';
 import { KenyanCounty } from '@prisma/client';
 
-import { GPSCoordinatesDto } from '../../dtos/requests/create-asset.dto';
+import { GPSCoordinatesDto } from '../../dto/requests/create-asset.dto';
 
 export class UpdateAssetLocationCommand implements ICommand {
   constructor(

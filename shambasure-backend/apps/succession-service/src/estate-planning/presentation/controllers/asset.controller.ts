@@ -14,9 +14,9 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@ne
 
 import { JwtAuthGuard } from '@shamba/auth';
 
-import { AddAssetDto } from '../../application/dtos/requests/create-asset.dto';
-import { UpdateAssetDto } from '../../application/dtos/requests/update-asset.dto';
-import { AssetResponseDto } from '../../application/dtos/responses/asset.response.dto';
+import { AddAssetDto } from '../../application/dto/requests/create-asset.dto';
+import { UpdateAssetDto } from '../../application/dto/requests/update-asset.dto';
+import { AssetResponseDto } from '../../application/dto/responses/asset.response.dto';
 import { AssetService } from '../../application/services/asset.service';
 
 // Helper type for authenticated requests

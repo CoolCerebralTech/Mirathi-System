@@ -20,9 +20,9 @@ import {
 
 import { JwtAuthGuard } from '@shamba/auth';
 
-import { AddDebtDto } from '../../application/dtos/requests/add-debt.dto';
-import { RecordDebtPaymentDto } from '../../application/dtos/requests/record-debt-payment.dto';
-import { DebtResponseDto } from '../../application/dtos/responses/debt.response.dto';
+import { AddDebtDto } from '../../application/dto/requests/add-debt.dto';
+import { RecordDebtPaymentDto } from '../../application/dto/requests/record-debt-payment.dto';
+import { DebtResponseDto } from '../../application/dto/responses/debt.response.dto';
 import { DebtService } from '../../application/services/debt.service';
 
 interface RequestWithUser extends Request {

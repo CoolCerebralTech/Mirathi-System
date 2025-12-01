@@ -14,8 +14,8 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@ne
 
 import { JwtAuthGuard } from '@shamba/auth';
 
-import { AddWitnessDto } from '../../application/dtos/requests/add-witness.dto';
-import { WitnessResponseDto } from '../../application/dtos/responses/witness.response.dto';
+import { AddWitnessDto } from '../../application/dto/requests/add-witness.dto';
+import { WitnessResponseDto } from '../../application/dto/responses/witness.response.dto';
 import { WitnessService } from '../../application/services/witness.service';
 
 interface RequestWithUser extends Request {

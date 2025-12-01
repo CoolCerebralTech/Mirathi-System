@@ -1,7 +1,7 @@
 // commands/assets/set-asset-encumbrance.command.ts
 import { ICommand } from '@nestjs/cqrs';
 
-import { SetAssetEncumbranceDto } from '../../dtos/requests/set-asset-encumbrance.dto';
+import { SetAssetEncumbranceDto } from '../../dto/requests/set-asset-encumbrance.dto';
 
 export class SetAssetEncumbranceCommand implements ICommand {
   constructor(

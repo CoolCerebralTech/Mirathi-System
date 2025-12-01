@@ -33,9 +33,9 @@ import {
   UpdateAssetDto,
   UpdateAssetValuationDto,
   VerifyAssetDto,
-} from '../dtos/requests';
-import { GPSCoordinatesDto } from '../dtos/requests/create-asset.dto';
-import { AssetResponseDto, AssetSummaryResponseDto } from '../dtos/responses';
+} from '../dto/requests';
+import { GPSCoordinatesDto } from '../dto/requests/create-asset.dto';
+import { AssetResponseDto, AssetSummaryResponseDto } from '../dto/responses';
 import {
   CheckAssetTransferabilityQuery,
   GetAssetEncumbrancesQuery,

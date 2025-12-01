@@ -95,6 +95,54 @@ export class CustomaryMarriageDetails {
       this.familyConsent
     );
   }
+
+  /**
+   * Calculates bride price remaining balance.
+   * Useful for tracking partial payments.
+   */
+  getBridePriceBalance(amountPaid: number): number {
+    if (!this.bridePriceAmount) return 0;
+    return Math.max(0, this.bridePriceAmount - amountPaid);
+  }
+
+  /**
+   * Creates a new instance with updated bride price amount.
+   * Used for tracking installment payments.
+   */
+  withUpdatedBridePriceAmount(newAmount: number): CustomaryMarriageDetails {
+    return new CustomaryMarriageDetails(
+      this.bridePricePaid,
+      newAmount,
+      this.bridePriceCurrency,
+      this.elderWitnesses,
+      this.ceremonyLocation,
+      this.traditionalCeremonyType,
+      this.lobolaReceiptNumber,
+      this.marriageElderContact,
+      this.clanApproval,
+      this.familyConsent,
+      this.traditionalRitesPerformed,
+    );
+  }
+
+  /**
+   * Creates a new instance marking bride price as fully paid.
+   */
+  withBridePricePaid(): CustomaryMarriageDetails {
+    return new CustomaryMarriageDetails(
+      true, // bridePricePaid
+      this.bridePriceAmount,
+      this.bridePriceCurrency,
+      this.elderWitnesses,
+      this.ceremonyLocation,
+      this.traditionalCeremonyType,
+      this.lobolaReceiptNumber,
+      this.marriageElderContact,
+      this.clanApproval,
+      this.familyConsent,
+      this.traditionalRitesPerformed,
+    );
+  }
 }
 
 /**
@@ -110,7 +158,7 @@ export interface MarriageReconstituteProps {
 
   // Core Marriage Details
   marriageDate: Date | string;
-  marriageType: MarriageType; // FIXED: Use correct enum
+  marriageType: MarriageType;
 
   // Certificate
   certificateNumber: string | null;
@@ -187,7 +235,7 @@ export interface MarriageReconstituteProps {
  * - CUSTOMARY: Traditional marriage (potentially polygamous)
  * - CHRISTIAN: Church marriage (monogamous)
  * - CIVIL: Registry marriage (monogamous)
- * - ISLAMIC: Muslim marriage (potentially polygamous)
+ * - ISLAMIC: Muslim marriage (potentially polygamous, max 4 wives)
  * - TRADITIONAL: Other traditional forms
  */
 export class Marriage {
@@ -201,7 +249,7 @@ export class Marriage {
 
   // Marriage Core Details
   private readonly _marriageDate: Date;
-  private readonly _marriageType: MarriageType; // FIXED: Correct enum
+  private readonly _marriageType: MarriageType;
 
   // Certificate (Value Object or null)
   private _certificate: KenyanMarriageCertificate | null;
@@ -476,11 +524,55 @@ export class Marriage {
   }
 
   /**
+   * Restores a dissolved marriage.
+   * Typically used when annulment is overturned on appeal.
+   *
+   * Reference: Matrimonial Causes Act - Appeals process
+   */
+  restore(reason: string): void {
+    if (this._isActive) {
+      throw new Error('Marriage is already active');
+    }
+
+    // Only annulments can be restored (appeals process)
+    if (this._divorceType !== 'ANNULMENT') {
+      throw new Error('Only annulled marriages can be restored through appeals');
+    }
+
+    if (!reason?.trim()) {
+      throw new Error('Reason for restoration is required');
+    }
+
+    this._isActive = true;
+    // Keep dissolution details for audit trail but mark as active
+    // Application service should log the restoration reason
+
+    this.markAsUpdated();
+  }
+
+  /**
    * Registers a marriage certificate (post-marriage registration).
    */
   registerCertificate(certificate: KenyanMarriageCertificate): void {
     if (this._certificate) {
       throw new Error('Marriage already has a certificate');
+    }
+
+    this._certificate = certificate;
+    this.markAsUpdated();
+  }
+
+  /**
+   * Updates marriage certificate (for corrections/amendments).
+   * Reference: Marriage Act (2014) - Certificate amendments.
+   */
+  updateCertificate(certificate: KenyanMarriageCertificate, reason: string): void {
+    if (!this._certificate) {
+      throw new Error('Cannot update certificate: marriage has no existing certificate');
+    }
+
+    if (!reason?.trim()) {
+      throw new Error('Reason for certificate update is required');
     }
 
     this._certificate = certificate;
@@ -496,6 +588,53 @@ export class Marriage {
     }
 
     this._customaryDetails = details;
+    this.markAsUpdated();
+  }
+
+  /**
+   * Records bride price payment (installment or full).
+   * Reference: Customary law - Bride price payment tracking.
+   */
+  recordBridePricePayment(amountPaid: number): void {
+    if (this._marriageType !== MarriageType.CUSTOMARY) {
+      throw new Error('Bride price only applies to customary marriages');
+    }
+
+    if (!this._customaryDetails) {
+      throw new Error('Customary marriage must have customary details to record bride price');
+    }
+
+    if (amountPaid <= 0) {
+      throw new Error('Bride price payment must be positive');
+    }
+
+    const currentAmount = this._customaryDetails.bridePriceAmount || 0;
+    const newTotal = currentAmount + amountPaid;
+
+    // Update customary details with new total
+    this._customaryDetails = this._customaryDetails.withUpdatedBridePriceAmount(newTotal);
+
+    this.markAsUpdated();
+  }
+
+  /**
+   * Marks bride price as fully paid.
+   * Reference: Customary law - Completion of bride price obligation.
+   */
+  markBridePriceAsPaid(): void {
+    if (this._marriageType !== MarriageType.CUSTOMARY) {
+      throw new Error('Bride price only applies to customary marriages');
+    }
+
+    if (!this._customaryDetails) {
+      throw new Error('Customary marriage must have customary details');
+    }
+
+    if (this._customaryDetails.bridePricePaid) {
+      throw new Error('Bride price already marked as paid');
+    }
+
+    this._customaryDetails = this._customaryDetails.withBridePricePaid();
     this.markAsUpdated();
   }
 
@@ -519,8 +658,16 @@ export class Marriage {
       case MarriageType.CUSTOMARY:
         if (!this._customaryDetails) {
           issues.push('Customary marriage missing customary details');
-        } else if (this._customaryDetails.elderWitnesses.length === 0) {
-          issues.push('Customary marriage requires elder witnesses');
+        } else {
+          if (this._customaryDetails.elderWitnesses.length === 0) {
+            issues.push('Customary marriage requires elder witnesses');
+          }
+          if (!this._customaryDetails.clanApproval) {
+            issues.push('Customary marriage requires clan approval');
+          }
+          if (!this._customaryDetails.familyConsent) {
+            issues.push('Customary marriage requires family consent');
+          }
         }
         break;
 
@@ -552,13 +699,38 @@ export class Marriage {
    *
    * Reference: Law of Succession Act, Section 40
    * - Customary marriages: Allow polygyny (man with multiple wives)
-   * - Islamic marriages: Allow polygyny (max 4 wives)
+   * - Islamic marriages: Allow polygyny (max 4 wives per Sharia law)
    * - Christian/Civil/Hindu: Strictly monogamous
    */
   allowsPolygamy(): boolean {
     return (
       this._marriageType === MarriageType.CUSTOMARY || this._marriageType === MarriageType.ISLAMIC
     );
+  }
+
+  /**
+   * Validates if husband can take additional wife (polygamy limits).
+   * Reference: Islamic law - Maximum 4 wives.
+   *
+   * @param currentWivesCount - Number of existing wives
+   */
+  canAddAdditionalWife(currentWivesCount: number): { allowed: boolean; reason?: string } {
+    if (!this.allowsPolygamy()) {
+      return {
+        allowed: false,
+        reason: `${this._marriageType} marriages are strictly monogamous`,
+      };
+    }
+
+    if (this._marriageType === MarriageType.ISLAMIC && currentWivesCount >= 4) {
+      return {
+        allowed: false,
+        reason: 'Islamic law limits polygyny to maximum 4 wives (Quran 4:3)',
+      };
+    }
+
+    // Customary marriages have no fixed limit
+    return { allowed: true };
   }
 
   /**
@@ -577,6 +749,16 @@ export class Marriage {
   }
 
   /**
+   * Calculates marriage duration in days.
+   * Useful for short-duration marriages or legal waiting periods.
+   */
+  getMarriageDurationDays(): number {
+    const endDate = this._divorceDate || (this._isActive ? new Date() : this._marriageDate);
+    const diffMs = endDate.getTime() - this._marriageDate.getTime();
+    return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  }
+
+  /**
    * Gets the partner ID for a given member.
    */
   getPartnerOf(memberId: string): string | null {
@@ -590,6 +772,21 @@ export class Marriage {
    */
   involvesSpouse(memberId: string): boolean {
     return memberId === this._spouse1Id || memberId === this._spouse2Id;
+  }
+
+  /**
+   * Determines if marriage qualifies for matrimonial property split.
+   * Reference: Matrimonial Property Act (2013) - Property acquired during marriage.
+   */
+  qualifiesForMatrimonialPropertySplit(): boolean {
+    // Must be active or recently dissolved
+    if (!this._isActive && this._divorceType === 'DEATH') {
+      return false; // Death follows succession law, not property split
+    }
+
+    // Minimum duration requirement (typically 6 months in Kenyan law)
+    const durationMonths = this.getMarriageDurationYears() * 12;
+    return durationMonths >= 6;
   }
 
   // --------------------------------------------------------------------------

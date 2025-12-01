@@ -14,8 +14,8 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@ne
 
 import { JwtAuthGuard } from '@shamba/auth';
 
-import { AssignBeneficiaryDto } from '../../application/dtos/requests/assign-beneficiary.dto';
-import { BeneficiaryResponseDto } from '../../application/dtos/responses/beneficiary.response.dto';
+import { AssignBeneficiaryDto } from '../../application/dto/requests/assign-beneficiary.dto';
+import { BeneficiaryResponseDto } from '../../application/dto/responses/beneficiary.response.dto';
 import { AssetDistributionSummaryResponse } from '../../application/queries/get-asset-distribution.query';
 import { BeneficiaryService } from '../../application/services/beneficiary.service';
 

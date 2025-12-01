@@ -9,13 +9,16 @@ import {
 
 import { RelationshipCreatedEvent } from '../events/relationship-created.event';
 import { RelationshipMetadataUpdatedEvent } from '../events/relationship-metadata-updated.event';
-import { RelationshipRemovedEvent } from '../events/relationship-removed.event';
+import { RelationshipVerificationRevokedEvent } from '../events/relationship-verification-revoked.event';
 import { RelationshipVerifiedEvent } from '../events/relationship-verified.event';
 
 // -----------------------------------------------------------------------------
 // VALUE OBJECTS & INTERFACES
 // -----------------------------------------------------------------------------
 
+/**
+ * Kenyan Relationship Verification Details
+ */
 export class KenyanRelationshipVerification {
   constructor(
     public readonly isVerified: boolean,
@@ -23,20 +26,43 @@ export class KenyanRelationshipVerification {
     public readonly verifiedAt: Date | null,
     public readonly verifiedBy: string | null,
     public readonly verificationNotes: string | null,
-    public readonly verificationDocuments: string[], // Document IDs
+    public readonly verificationDocuments: string[],
   ) {}
+
+  static unverified(): KenyanRelationshipVerification {
+    return new KenyanRelationshipVerification(false, null, null, null, null, []);
+  }
 }
 
+/**
+ * Kenyan Inheritance Context
+ */
 export class KenyanInheritanceContext {
   constructor(
     public readonly dependencyLevel: DependencyLevel,
     public readonly inheritanceRights: InheritanceRights,
     public readonly traditionalInheritanceWeight: number,
   ) {}
+
+  static none(): KenyanInheritanceContext {
+    return new KenyanInheritanceContext(DependencyLevel.NONE, InheritanceRights.NONE, 0.0);
+  }
 }
 
-// Relationship Reconstitution Interface matching Prisma schema
-export interface RelationshipReconstitutionProps {
+/**
+ * Adoption Details (Kenyan Children Act, 2022)
+ */
+export interface AdoptionDetails {
+  adoptionOrderNumber: string;
+  adoptionDate: Date;
+  courtOrderNumber?: string;
+  isCustomaryAdoption: boolean;
+}
+
+/**
+ * Relationship Reconstitution Props
+ */
+export interface RelationshipReconstituteProps {
   id: string;
   familyId: string;
   fromMemberId: string;
@@ -51,7 +77,7 @@ export interface RelationshipReconstitutionProps {
   clanRelationship: string | null;
   traditionalRole: string | null;
   isCustomaryAdoption: boolean;
-  adoptionDate: Date | null;
+  adoptionDate: Date | string | null;
   guardianshipType: RelationshipGuardianshipType | null;
   courtOrderNumber: string | null;
   dependencyLevel: DependencyLevel;
@@ -61,460 +87,720 @@ export interface RelationshipReconstitutionProps {
   // Verification
   isVerified: boolean;
   verificationMethod: string | null;
-  verifiedAt: Date | null;
+  verifiedAt: Date | string | null;
   verifiedBy: string | null;
   verificationNotes: string | null;
   verificationDocuments: Prisma.JsonValue;
 
+  // Metadata
+  metadata: Prisma.JsonValue;
+
   // Timestamps
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
 
 // -----------------------------------------------------------------------------
-// AGGREGATE ROOT: RELATIONSHIP
+// ENTITY: FAMILY RELATIONSHIP
 // -----------------------------------------------------------------------------
 
-export class Relationship extends AggregateRoot {
-  private readonly id: string;
-  private readonly familyId: string;
-  private readonly fromMemberId: string;
-  private readonly toMemberId: string;
-  private readonly type: RelationshipType;
+/**
+ * Family Relationship Entity
+ *
+ * Represents a legal/biological relationship between two family members.
+ * Forms the "edges" in the family tree graph.
+ *
+ * Legal Context:
+ * - Law of Succession Act (Cap 160): Defines inheritance based on relationships
+ * - Children Act (2022): Adoption and guardianship relationships
+ * - Kenyan Customary Law: Traditional relationships and clan connections
+ * - Section 3 (Legitimacy): Children born out of wedlock
+ * - Section 40: Customary succession rules
+ *
+ * Entity Responsibilities:
+ * - Define relationship type between two members
+ * - Track adoption/biological status
+ * - Verify relationships for legal validity
+ * - Calculate inheritance rights based on relationship
+ * - Support customary law relationships (clan, traditional roles)
+ *
+ * Invariants:
+ * - Cannot create self-relationship
+ * - Relationships must be verified for succession
+ * - Adoption requires court order or customary verification
+ * - Biological relationships have priority over step-relationships
+ */
+export class FamilyRelationship extends AggregateRoot {
+  // Core Identity
+  private readonly _id: string;
+  private readonly _familyId: string;
+  private readonly _fromMemberId: string;
+  private readonly _toMemberId: string;
+  private readonly _type: RelationshipType;
 
-  // Kenyan Metadata
-  private isAdopted: boolean;
-  private adoptionOrderNumber: string | null;
-  private isBiological: boolean;
-  private bornOutOfWedlock: boolean;
-  private clanRelationship: string | null;
-  private traditionalRole: string | null;
-  private isCustomaryAdoption: boolean;
-  private adoptionDate: Date | null;
-  private guardianshipType: RelationshipGuardianshipType | null;
-  private courtOrderNumber: string | null;
-  private dependencyLevel: DependencyLevel;
-  private inheritanceRights: InheritanceRights;
-  private traditionalInheritanceWeight: number | null;
+  // Adoption Details (Children Act, 2022)
+  private _isAdopted: boolean;
+  private _adoptionOrderNumber: string | null;
+  private _adoptionDate: Date | null;
+  private _isCustomaryAdoption: boolean;
+  private _courtOrderNumber: string | null;
 
-  // Verification
-  private isVerified: boolean;
-  private verificationMethod: string | null;
-  private verifiedAt: Date | null;
-  private verifiedBy: string | null;
-  private verificationNotes: string | null;
-  private verificationDocuments: string[];
+  // Biological Details
+  private _isBiological: boolean;
+  private _bornOutOfWedlock: boolean;
+
+  // Kenyan Customary Law
+  private _clanRelationship: string | null; // e.g., "Same clan", "Cross-clan marriage"
+  private _traditionalRole: string | null; // e.g., "Eldest son", "Family head heir"
+
+  // Guardianship Context (if applicable)
+  private _guardianshipType: RelationshipGuardianshipType | null;
+
+  // Inheritance Calculation (Section 40)
+  private _dependencyLevel: DependencyLevel;
+  private _inheritanceRights: InheritanceRights;
+  private _traditionalInheritanceWeight: number;
+
+  // Verification (Critical for Legal Validity)
+  private _isVerified: boolean;
+  private _verificationMethod: string | null;
+  private _verifiedAt: Date | null;
+  private _verifiedBy: string | null;
+  private _verificationNotes: string | null;
+  private _verificationDocuments: string[];
+
+  // Flexible Metadata
+  private _metadata: Prisma.JsonValue;
 
   // Timestamps
-  private readonly createdAt: Date;
-  private updatedAt: Date;
+  private readonly _createdAt: Date;
+  private _updatedAt: Date;
 
+  // --------------------------------------------------------------------------
+  // CONSTRUCTOR
+  // --------------------------------------------------------------------------
   private constructor(
     id: string,
     familyId: string,
     fromMemberId: string,
     toMemberId: string,
     type: RelationshipType,
-    // Lifecycle injection for reconstitution
-    createdAt?: Date,
-    updatedAt?: Date,
   ) {
     super();
 
-    // Basic Validation
+    if (!id?.trim()) throw new Error('Relationship ID is required');
+    if (!familyId?.trim()) throw new Error('Family ID is required');
+    if (!fromMemberId?.trim()) throw new Error('From member ID is required');
+    if (!toMemberId?.trim()) throw new Error('To member ID is required');
+
     if (fromMemberId === toMemberId) {
-      throw new Error(
-        'A family member cannot have a relationship with themselves under Kenyan law.',
-      );
+      throw new Error('Cannot create self-relationship (Kenyan law)');
     }
 
-    this.id = id;
-    this.familyId = familyId;
-    this.fromMemberId = fromMemberId;
-    this.toMemberId = toMemberId;
-    this.type = type;
+    this._id = id;
+    this._familyId = familyId;
+    this._fromMemberId = fromMemberId;
+    this._toMemberId = toMemberId;
+    this._type = type;
 
-    // Defaults
-    this.isAdopted = false;
-    this.adoptionOrderNumber = null;
-    this.isBiological = true;
-    this.bornOutOfWedlock = false;
-    this.clanRelationship = null;
-    this.traditionalRole = null;
-    this.isCustomaryAdoption = false;
-    this.adoptionDate = null;
-    this.guardianshipType = null;
-    this.courtOrderNumber = null;
-    this.dependencyLevel = DependencyLevel.NONE;
-    this.inheritanceRights = InheritanceRights.FULL;
-    this.traditionalInheritanceWeight = 1.0;
+    // Adoption Defaults
+    this._isAdopted = false;
+    this._adoptionOrderNumber = null;
+    this._adoptionDate = null;
+    this._isCustomaryAdoption = false;
+    this._courtOrderNumber = null;
 
-    this.isVerified = false;
-    this.verificationMethod = null;
-    this.verifiedAt = null;
-    this.verifiedBy = null;
-    this.verificationNotes = null;
-    this.verificationDocuments = [];
+    // Biological Defaults
+    this._isBiological = true; // Default assumption
+    this._bornOutOfWedlock = false;
 
-    // Lifecycle
-    this.createdAt = createdAt ?? new Date();
-    this.updatedAt = updatedAt ?? new Date();
+    // Customary Defaults
+    this._clanRelationship = null;
+    this._traditionalRole = null;
+
+    // Guardianship Default
+    this._guardianshipType = null;
+
+    // Inheritance Defaults (will be calculated)
+    this._dependencyLevel = DependencyLevel.NONE;
+    this._inheritanceRights = InheritanceRights.FULL;
+    this._traditionalInheritanceWeight = 1.0;
+
+    // Verification Defaults
+    this._isVerified = false;
+    this._verificationMethod = null;
+    this._verifiedAt = null;
+    this._verifiedBy = null;
+    this._verificationNotes = null;
+    this._verificationDocuments = [];
+
+    // Metadata
+    this._metadata = null;
+
+    // Timestamps
+    this._createdAt = new Date();
+    this._updatedAt = new Date();
   }
 
   // --------------------------------------------------------------------------
   // FACTORY METHODS
   // --------------------------------------------------------------------------
 
-  static create(
+  /**
+   * Creates a biological relationship.
+   */
+  static createBiological(
     id: string,
     familyId: string,
     fromMemberId: string,
     toMemberId: string,
     type: RelationshipType,
     details?: {
-      isAdopted?: boolean;
-      adoptionOrderNumber?: string;
-      isBiological?: boolean;
       bornOutOfWedlock?: boolean;
       clanRelationship?: string;
       traditionalRole?: string;
-      isCustomaryAdoption?: boolean;
-      adoptionDate?: Date;
-      guardianshipType?: RelationshipGuardianshipType;
-      courtOrderNumber?: string;
-      dependencyLevel?: DependencyLevel;
-      inheritanceRights?: InheritanceRights;
-      traditionalInheritanceWeight?: number;
     },
-  ): Relationship {
-    const relationship = new Relationship(id, familyId, fromMemberId, toMemberId, type);
+  ): FamilyRelationship {
+    const relationship = new FamilyRelationship(id, familyId, fromMemberId, toMemberId, type);
 
-    // Apply details
+    relationship._isBiological = true;
+    relationship._isAdopted = false;
+
     if (details) {
-      if (details.isAdopted !== undefined) relationship.isAdopted = details.isAdopted;
-      if (details.adoptionOrderNumber)
-        relationship.adoptionOrderNumber = details.adoptionOrderNumber;
-      if (details.isBiological !== undefined) relationship.isBiological = details.isBiological;
       if (details.bornOutOfWedlock !== undefined)
-        relationship.bornOutOfWedlock = details.bornOutOfWedlock;
-      if (details.clanRelationship) relationship.clanRelationship = details.clanRelationship;
-      if (details.traditionalRole) relationship.traditionalRole = details.traditionalRole;
-      if (details.isCustomaryAdoption !== undefined)
-        relationship.isCustomaryAdoption = details.isCustomaryAdoption;
-      if (details.adoptionDate) relationship.adoptionDate = details.adoptionDate;
-      if (details.guardianshipType) relationship.guardianshipType = details.guardianshipType;
-      if (details.courtOrderNumber) relationship.courtOrderNumber = details.courtOrderNumber;
-      if (details.dependencyLevel) relationship.dependencyLevel = details.dependencyLevel;
-      if (details.inheritanceRights) relationship.inheritanceRights = details.inheritanceRights;
-      if (details.traditionalInheritanceWeight !== undefined)
-        relationship.traditionalInheritanceWeight = details.traditionalInheritanceWeight;
+        relationship._bornOutOfWedlock = details.bornOutOfWedlock;
+      if (details.clanRelationship) relationship._clanRelationship = details.clanRelationship;
+      if (details.traditionalRole) relationship._traditionalRole = details.traditionalRole;
     }
 
     relationship.calculateInheritanceContext();
 
     relationship.apply(
       new RelationshipCreatedEvent(
-        id,
-        familyId,
-        fromMemberId,
-        toMemberId,
-        type,
-        relationship.getKenyanMetadata(),
+        relationship._id,
+        relationship._familyId,
+        relationship._fromMemberId,
+        relationship._toMemberId,
+        relationship._type,
+        {
+          isBiological: true,
+          isAdopted: false,
+          bornOutOfWedlock: relationship._bornOutOfWedlock,
+        },
       ),
     );
 
     return relationship;
   }
 
-  static reconstitute(props: RelationshipReconstitutionProps): Relationship {
-    const relationship = new Relationship(
+  /**
+   * Creates an adopted relationship (Children Act, 2022).
+   */
+  static createAdopted(
+    id: string,
+    familyId: string,
+    fromMemberId: string,
+    toMemberId: string,
+    adoptionDetails: AdoptionDetails,
+    traditionalRole?: string,
+  ): FamilyRelationship {
+    if (adoptionDetails.isCustomaryAdoption && !adoptionDetails.adoptionOrderNumber) {
+      // Customary adoption may not have formal court order
+    } else if (!adoptionDetails.isCustomaryAdoption && !adoptionDetails.adoptionOrderNumber) {
+      throw new Error('Legal adoption requires adoption order number (Children Act, 2022)');
+    }
+
+    const relationship = new FamilyRelationship(
+      id,
+      familyId,
+      fromMemberId,
+      toMemberId,
+      RelationshipType.ADOPTED_CHILD,
+    );
+
+    relationship._isAdopted = true;
+    relationship._isBiological = false;
+    relationship._adoptionOrderNumber = adoptionDetails.adoptionOrderNumber;
+    relationship._adoptionDate = adoptionDetails.adoptionDate;
+    relationship._isCustomaryAdoption = adoptionDetails.isCustomaryAdoption;
+    relationship._courtOrderNumber = adoptionDetails.courtOrderNumber || null;
+    relationship._traditionalRole = traditionalRole || null;
+
+    relationship.calculateInheritanceContext();
+
+    relationship.apply(
+      new RelationshipCreatedEvent(
+        relationship._id,
+        relationship._familyId,
+        relationship._fromMemberId,
+        relationship._toMemberId,
+        relationship._type,
+        {
+          isAdopted: true,
+          isBiological: false,
+          adoptionOrderNumber: relationship._adoptionOrderNumber,
+          adoptionDate: relationship._adoptionDate,
+          isCustomaryAdoption: relationship._isCustomaryAdoption,
+        },
+      ),
+    );
+
+    return relationship;
+  }
+
+  /**
+   * Creates a step-relationship.
+   */
+  static createStep(
+    id: string,
+    familyId: string,
+    fromMemberId: string,
+    toMemberId: string,
+    traditionalRole?: string,
+  ): FamilyRelationship {
+    const relationship = new FamilyRelationship(
+      id,
+      familyId,
+      fromMemberId,
+      toMemberId,
+      RelationshipType.STEPCHILD,
+    );
+
+    relationship._isBiological = false;
+    relationship._isAdopted = false;
+    relationship._traditionalRole = traditionalRole || null;
+
+    relationship.calculateInheritanceContext();
+
+    relationship.apply(
+      new RelationshipCreatedEvent(
+        relationship._id,
+        relationship._familyId,
+        relationship._fromMemberId,
+        relationship._toMemberId,
+        relationship._type,
+        {
+          isAdopted: false,
+          isBiological: false,
+          isStepRelationship: true,
+        },
+      ),
+    );
+
+    return relationship;
+  }
+
+  /**
+   * Creates a marriage relationship.
+   */
+  static createMarriage(
+    id: string,
+    familyId: string,
+    spouse1Id: string,
+    spouse2Id: string,
+    clanRelationship?: string,
+  ): FamilyRelationship {
+    const relationship = new FamilyRelationship(
+      id,
+      familyId,
+      spouse1Id,
+      spouse2Id,
+      RelationshipType.SPOUSE,
+    );
+
+    relationship._isBiological = false; // Marriage is not biological
+    relationship._clanRelationship = clanRelationship || null;
+
+    relationship.calculateInheritanceContext();
+
+    relationship.apply(
+      new RelationshipCreatedEvent(
+        relationship._id,
+        relationship._familyId,
+        relationship._fromMemberId,
+        relationship._toMemberId,
+        relationship._type,
+        {
+          isMarriage: true,
+          clanRelationship: relationship._clanRelationship,
+        },
+      ),
+    );
+
+    return relationship;
+  }
+
+  static reconstitute(props: RelationshipReconstituteProps): FamilyRelationship {
+    const relationship = new FamilyRelationship(
       props.id,
       props.familyId,
       props.fromMemberId,
       props.toMemberId,
       props.type,
-      props.createdAt,
-      props.updatedAt,
     );
 
-    relationship.isAdopted = props.isAdopted;
-    relationship.adoptionOrderNumber = props.adoptionOrderNumber;
-    relationship.isBiological = props.isBiological;
-    relationship.bornOutOfWedlock = props.bornOutOfWedlock;
-    relationship.clanRelationship = props.clanRelationship;
-    relationship.traditionalRole = props.traditionalRole;
-    relationship.isCustomaryAdoption = props.isCustomaryAdoption;
-    relationship.adoptionDate = props.adoptionDate;
-    relationship.guardianshipType = props.guardianshipType;
-    relationship.courtOrderNumber = props.courtOrderNumber;
-    relationship.dependencyLevel = props.dependencyLevel;
-    relationship.inheritanceRights = props.inheritanceRights;
-    relationship.traditionalInheritanceWeight = props.traditionalInheritanceWeight;
+    // Adoption
+    relationship._isAdopted = props.isAdopted;
+    relationship._adoptionOrderNumber = props.adoptionOrderNumber;
+    relationship._adoptionDate = props.adoptionDate ? new Date(props.adoptionDate) : null;
+    relationship._isCustomaryAdoption = props.isCustomaryAdoption;
+    relationship._courtOrderNumber = props.courtOrderNumber;
 
-    relationship.isVerified = props.isVerified;
-    relationship.verificationMethod = props.verificationMethod;
-    relationship.verifiedAt = props.verifiedAt;
-    relationship.verifiedBy = props.verifiedBy;
-    relationship.verificationNotes = props.verificationNotes;
+    // Biological
+    relationship._isBiological = props.isBiological;
+    relationship._bornOutOfWedlock = props.bornOutOfWedlock;
 
-    // JSON Parsing
-    relationship.verificationDocuments = Array.isArray(props.verificationDocuments)
+    // Customary
+    relationship._clanRelationship = props.clanRelationship;
+    relationship._traditionalRole = props.traditionalRole;
+
+    // Guardianship
+    relationship._guardianshipType = props.guardianshipType;
+
+    // Inheritance
+    relationship._dependencyLevel = props.dependencyLevel;
+    relationship._inheritanceRights = props.inheritanceRights;
+    relationship._traditionalInheritanceWeight = props.traditionalInheritanceWeight || 1.0;
+
+    // Verification
+    relationship._isVerified = props.isVerified;
+    relationship._verificationMethod = props.verificationMethod;
+    relationship._verifiedAt = props.verifiedAt ? new Date(props.verifiedAt) : null;
+    relationship._verifiedBy = props.verifiedBy;
+    relationship._verificationNotes = props.verificationNotes;
+    relationship._verificationDocuments = Array.isArray(props.verificationDocuments)
       ? (props.verificationDocuments as string[])
       : [];
+
+    // Metadata
+    relationship._metadata = props.metadata;
+
+    // Timestamps
+    (relationship as any)._createdAt = new Date(props.createdAt);
+    relationship._updatedAt = new Date(props.updatedAt);
 
     return relationship;
   }
 
   // --------------------------------------------------------------------------
-  // BUSINESS LOGIC
+  // VERIFICATION (Critical for Legal Validity)
   // --------------------------------------------------------------------------
 
+  /**
+   * Verifies relationship with supporting evidence.
+   *
+   * Valid Methods:
+   * - BIRTH_CERTIFICATE
+   * - DEATH_CERTIFICATE (for inheritance)
+   * - MARRIAGE_CERTIFICATE
+   * - ADOPTION_ORDER
+   * - COURT_ORDER
+   * - DNA_TEST
+   * - AFFIDAVIT
+   * - COMMUNITY_ELDER_ATTESTATION (customary)
+   * - NATIONAL_ID
+   */
   verify(
     method: string,
     verifiedBy: string,
     verificationNotes?: string,
-    verificationDocuments?: string[],
+    documentIds?: string[],
   ): void {
-    if (this.isVerified) {
-      throw new Error('Relationship is already verified.');
+    if (this._isVerified) {
+      throw new Error('Relationship already verified');
     }
 
-    // This could be moved to an Enum or Constant, but strict checking here is good
+    if (!method?.trim()) {
+      throw new Error('Verification method is required');
+    }
+
+    if (!verifiedBy?.trim()) {
+      throw new Error('Verifier ID is required');
+    }
+
     const validMethods = [
       'BIRTH_CERTIFICATE',
-      'AFFIDAVIT',
-      'DNA_TEST',
-      'COMMUNITY_RECOGNITION',
+      'DEATH_CERTIFICATE',
+      'MARRIAGE_CERTIFICATE',
+      'ADOPTION_ORDER',
       'COURT_ORDER',
+      'DNA_TEST',
+      'AFFIDAVIT',
+      'COMMUNITY_ELDER_ATTESTATION',
       'NATIONAL_ID',
       'PASSPORT',
-      'DRIVERS_LICENSE',
       'OTHER',
     ];
 
-    // Using partial includes to allow "OTHER: description"
-    const isValid = validMethods.some(
-      (m) => method === m || (method.startsWith('OTHER') && m === 'OTHER'),
-    );
+    const methodUpper = method.toUpperCase();
+    const isValid = validMethods.includes(methodUpper) || methodUpper.startsWith('OTHER:');
 
     if (!isValid) {
       throw new Error(`Invalid verification method: ${method}`);
     }
 
-    this.isVerified = true;
-    this.verificationMethod = method;
-    this.verifiedAt = new Date();
-    this.verifiedBy = verifiedBy;
-    this.verificationNotes = verificationNotes ?? null;
+    this._isVerified = true;
+    this._verificationMethod = method;
+    this._verifiedAt = new Date();
+    this._verifiedBy = verifiedBy;
+    this._verificationNotes = verificationNotes?.trim() || null;
 
-    if (verificationDocuments) {
-      this.verificationDocuments = verificationDocuments;
+    if (documentIds && documentIds.length > 0) {
+      this._verificationDocuments = documentIds;
     }
 
-    this.updatedAt = new Date();
+    this.markAsUpdated();
     this.calculateInheritanceContext();
 
     this.apply(
       new RelationshipVerifiedEvent(
-        this.id,
+        this._id,
+        this._familyId,
         verifiedBy,
         method,
-        verificationNotes,
-        verificationDocuments,
+        this._verifiedAt,
+        verificationNotes || null,
+        documentIds || [],
       ),
     );
   }
 
+  /**
+   * Revokes verification (e.g., if documents found fraudulent).
+   */
   revokeVerification(reason: string, revokedBy: string): void {
-    if (!this.isVerified) {
-      throw new Error('Relationship is not verified.');
+    if (!this._isVerified) {
+      throw new Error('Relationship is not verified');
     }
 
-    this.isVerified = false;
-    this.verificationMethod = null;
-    this.verifiedAt = null;
-    this.verifiedBy = null;
-    this.verificationNotes = `Verification revoked: ${reason} (by ${revokedBy})`;
-    this.updatedAt = new Date();
+    if (!reason?.trim()) {
+      throw new Error('Revocation reason is required');
+    }
 
+    const previousMethod = this._verificationMethod;
+    const previousVerifier = this._verifiedBy;
+
+    this._isVerified = false;
+    this._verificationMethod = null;
+    this._verifiedAt = null;
+    this._verifiedBy = null;
+    this._verificationNotes = `REVOKED: ${reason.trim()}`;
+
+    this.markAsUpdated();
     this.calculateInheritanceContext();
+
+    this.apply(
+      new RelationshipVerificationRevokedEvent(
+        this._id,
+        this._familyId,
+        reason,
+        revokedBy,
+        previousMethod,
+        previousVerifier,
+      ),
+    );
   }
 
-  updateKenyanMetadata(updates: {
-    isAdopted?: boolean;
-    adoptionOrderNumber?: string;
-    isBiological?: boolean;
-    bornOutOfWedlock?: boolean;
+  /**
+   * Adds supporting verification documents.
+   */
+  addVerificationDocuments(documentIds: string[]): void {
+    if (!documentIds || documentIds.length === 0) {
+      throw new Error('At least one document ID is required');
+    }
+
+    this._verificationDocuments.push(...documentIds);
+    this.markAsUpdated();
+  }
+
+  // --------------------------------------------------------------------------
+  // METADATA UPDATES
+  // --------------------------------------------------------------------------
+
+  /**
+   * Updates Kenyan-specific relationship metadata.
+   */
+  updateMetadata(updates: {
     clanRelationship?: string;
     traditionalRole?: string;
-    isCustomaryAdoption?: boolean;
-    adoptionDate?: Date;
     guardianshipType?: RelationshipGuardianshipType;
-    courtOrderNumber?: string;
     dependencyLevel?: DependencyLevel;
-    inheritanceRights?: InheritanceRights;
-    traditionalInheritanceWeight?: number;
+    customData?: Record<string, any>;
   }): void {
-    const previousMetadata = this.getKenyanMetadata();
+    const previousMetadata = this.getMetadataSummary();
 
-    if (updates.isAdopted !== undefined) this.isAdopted = updates.isAdopted;
-    if (updates.adoptionOrderNumber !== undefined)
-      this.adoptionOrderNumber = updates.adoptionOrderNumber;
-    if (updates.isBiological !== undefined) this.isBiological = updates.isBiological;
-    if (updates.bornOutOfWedlock !== undefined) this.bornOutOfWedlock = updates.bornOutOfWedlock;
-    if (updates.clanRelationship !== undefined) this.clanRelationship = updates.clanRelationship;
-    if (updates.traditionalRole !== undefined) this.traditionalRole = updates.traditionalRole;
-    if (updates.isCustomaryAdoption !== undefined)
-      this.isCustomaryAdoption = updates.isCustomaryAdoption;
-    if (updates.adoptionDate !== undefined) this.adoptionDate = updates.adoptionDate;
-    if (updates.guardianshipType !== undefined) this.guardianshipType = updates.guardianshipType;
-    if (updates.courtOrderNumber !== undefined) this.courtOrderNumber = updates.courtOrderNumber;
-    if (updates.dependencyLevel !== undefined) this.dependencyLevel = updates.dependencyLevel;
-    if (updates.inheritanceRights !== undefined) this.inheritanceRights = updates.inheritanceRights;
-    if (updates.traditionalInheritanceWeight !== undefined)
-      this.traditionalInheritanceWeight = updates.traditionalInheritanceWeight;
+    if (updates.clanRelationship !== undefined)
+      this._clanRelationship = updates.clanRelationship?.trim() || null;
 
-    this.updatedAt = new Date();
+    if (updates.traditionalRole !== undefined)
+      this._traditionalRole = updates.traditionalRole?.trim() || null;
+
+    if (updates.guardianshipType !== undefined)
+      this._guardianshipType = updates.guardianshipType || null;
+
+    if (updates.dependencyLevel !== undefined) {
+      this._dependencyLevel = updates.dependencyLevel;
+    }
+
+    if (updates.customData) {
+      this._metadata = updates.customData as Prisma.JsonValue;
+    }
+
+    this.markAsUpdated();
     this.calculateInheritanceContext();
 
     this.apply(
-      new RelationshipMetadataUpdatedEvent(this.id, this.familyId, updates, previousMetadata),
+      new RelationshipMetadataUpdatedEvent(this._id, this._familyId, updates, previousMetadata),
     );
   }
 
-  addVerificationDocuments(documentIds: string[]): void {
-    this.verificationDocuments.push(...documentIds);
-    this.updatedAt = new Date();
-  }
+  // --------------------------------------------------------------------------
+  // INHERITANCE CALCULATIONS (Section 40 - Customary Law)
+  // --------------------------------------------------------------------------
 
-  remove(reason?: string, removedBy?: string): void {
-    if (this.isDependantRelationship() && this.isVerified) {
-      // In a real application, this should probably soft-delete or trigger a review workflow
-      // rather than erroring out if it's an admin action.
-      // But for strict safety per rules:
-      // throw new Error('Cannot remove verified dependant relationships under Kenyan succession law.');
+  /**
+   * Calculates inheritance context based on relationship type and verification.
+   *
+   * Rules (Law of Succession Act, Section 40):
+   * - Spouse: Full rights
+   * - Biological children: Full rights
+   * - Adopted children (legal): Full rights
+   * - Adopted children (customary, verified): Full rights, lower weight
+   * - Children born out of wedlock (verified): Full rights (Section 3)
+   * - Step-children: Partial rights
+   * - Unverified relationships: Reduced/no rights
+   */
+  private calculateInheritanceContext(): void {
+    let inheritanceRights: InheritanceRights = InheritanceRights.FULL;
+    let traditionalWeight: number = 1.0;
+    let dependencyLevel: DependencyLevel = this._dependencyLevel;
+
+    switch (this._type) {
+      case RelationshipType.SPOUSE:
+        inheritanceRights = InheritanceRights.FULL;
+        traditionalWeight = 1.0;
+        dependencyLevel = DependencyLevel.FULL;
+        break;
+
+      case RelationshipType.CHILD:
+        if (this._isBiological) {
+          inheritanceRights = InheritanceRights.FULL;
+          traditionalWeight = 1.0;
+        } else if (this._bornOutOfWedlock && this._isVerified) {
+          // Section 3: Legitimacy - equal rights when verified
+          inheritanceRights = InheritanceRights.FULL;
+          traditionalWeight = 1.0;
+        } else if (!this._isVerified) {
+          inheritanceRights = InheritanceRights.PARTIAL;
+          traditionalWeight = 0.7;
+        }
+        break;
+
+      case RelationshipType.ADOPTED_CHILD:
+        if (this._adoptionOrderNumber && !this._isCustomaryAdoption) {
+          // Legal adoption: full rights (Children Act, 2022)
+          inheritanceRights = InheritanceRights.FULL;
+          traditionalWeight = 1.0;
+        } else if (this._isCustomaryAdoption && this._isVerified) {
+          // Customary adoption: full rights, lower traditional weight
+          inheritanceRights = InheritanceRights.FULL;
+          traditionalWeight = 0.8;
+        } else {
+          inheritanceRights = InheritanceRights.PARTIAL;
+          traditionalWeight = 0.5;
+        }
+        break;
+
+      case RelationshipType.STEPCHILD:
+        inheritanceRights = InheritanceRights.PARTIAL;
+        traditionalWeight = 0.5;
+        dependencyLevel = DependencyLevel.PARTIAL;
+        break;
+
+      case RelationshipType.PARENT:
+        inheritanceRights =
+          dependencyLevel !== DependencyLevel.NONE
+            ? InheritanceRights.PARTIAL
+            : InheritanceRights.NONE;
+        traditionalWeight = dependencyLevel !== DependencyLevel.NONE ? 0.5 : 0.0;
+        break;
+
+      case RelationshipType.SIBLING:
+      case RelationshipType.HALF_SIBLING:
+        inheritanceRights = InheritanceRights.CUSTOMARY;
+        traditionalWeight = 0.3;
+        break;
+
+      default:
+        inheritanceRights = InheritanceRights.CUSTOMARY;
+        traditionalWeight = 0.2;
+        dependencyLevel = DependencyLevel.NONE;
     }
 
-    this.apply(
-      new RelationshipRemovedEvent(
-        this.id,
-        this.familyId,
-        this.fromMemberId,
-        this.toMemberId,
-        reason || 'No reason provided',
-        removedBy || 'Unknown',
-      ),
-    );
+    // Verification penalty
+    if (!this._isVerified && this._type !== RelationshipType.SPOUSE) {
+      traditionalWeight *= 0.7; // 30% penalty for unverified
+    }
+
+    this._inheritanceRights = inheritanceRights;
+    this._traditionalInheritanceWeight = traditionalWeight;
+    this._dependencyLevel = dependencyLevel;
   }
 
   // --------------------------------------------------------------------------
-  // LEGAL VALIDATION
+  // VALIDATION & QUERIES
   // --------------------------------------------------------------------------
 
+  /**
+   * Validates relationship for succession purposes.
+   */
   validateForSuccession(): { isValid: boolean; errors: string[]; warnings: string[] } {
     const errors: string[] = [];
     const warnings: string[] = [];
 
-    switch (this.type) {
-      case RelationshipType.CHILD:
-        this.validateChildRelationship(errors, warnings);
-        break;
-      case RelationshipType.SPOUSE:
-        this.validateSpousalRelationship(errors, warnings);
-        break;
-      case RelationshipType.PARENT:
-        this.validateParentRelationship(errors, warnings);
-        break;
-      case RelationshipType.ADOPTED_CHILD:
-        this.validateAdoptedChildRelationship(errors, warnings);
-        break;
-      case RelationshipType.STEPCHILD:
-        this.validateStepchildRelationship(errors, warnings);
-        break;
+    // Critical validations
+    if (this._isAdopted && !this._isCustomaryAdoption && !this._adoptionOrderNumber) {
+      errors.push('Legal adoption requires adoption order number (Children Act, 2022)');
     }
 
-    if (this.inheritanceRights === InheritanceRights.NONE && this.isDependantRelationship()) {
-      warnings.push('Dependant relationship has no inheritance rights - may require court review.');
+    if (
+      this._type === RelationshipType.ADOPTED_CHILD &&
+      !this._isVerified &&
+      !this._adoptionOrderNumber
+    ) {
+      errors.push('Adopted children must be verified for inheritance rights');
     }
 
-    return { isValid: errors.length === 0, errors, warnings };
+    // Warnings
+    if (!this._isVerified && this.isDependantRelationship()) {
+      warnings.push('Dependant relationships should be verified for succession');
+    }
+
+    if (this._bornOutOfWedlock && !this._isVerified && this._type === RelationshipType.CHILD) {
+      warnings.push('Children born out of wedlock require verification (Section 3)');
+    }
+
+    if (this._isCustomaryAdoption && !this._isVerified) {
+      warnings.push('Customary adoptions should be verified by community elders');
+    }
+
+    if (
+      this._type === RelationshipType.STEPCHILD &&
+      this._inheritanceRights === InheritanceRights.FULL
+    ) {
+      warnings.push('Step-children typically have partial rights unless formally adopted');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+    };
   }
 
-  private validateChildRelationship(errors: string[], warnings: string[]): void {
-    if (this.isAdopted && !this.adoptionOrderNumber && !this.isCustomaryAdoption) {
-      warnings.push(
-        'Legal adoption should have an adoption order number for full inheritance rights.',
-      );
-    }
-    if (this.bornOutOfWedlock && !this.isVerified) {
-      warnings.push(
-        'Children born out of wedlock should have verified relationships for inheritance claims.',
-      );
-    }
-    if (this.isCustomaryAdoption && !this.isVerified) {
-      warnings.push('Customary adoptions should be verified for inheritance purposes.');
-    }
-    if (!this.isBiological && !this.isAdopted && !this.isCustomaryAdoption) {
-      warnings.push(
-        'Non-biological children may have limited inheritance rights without legal adoption.',
-      );
-    }
-  }
-
-  private validateSpousalRelationship(errors: string[], warnings: string[]): void {
-    if (!this.isVerified) {
-      warnings.push('Spousal relationships should be verified for inheritance rights.');
-    }
-    if (this.inheritanceRights !== InheritanceRights.FULL) {
-      warnings.push('Spouses typically have full inheritance rights under Kenyan law.');
-    }
-  }
-
-  private validateParentRelationship(errors: string[], warnings: string[]): void {
-    if (this.dependencyLevel === DependencyLevel.FULL && !this.isVerified) {
-      warnings.push('Dependent parent relationships should be verified for inheritance claims.');
-    }
-  }
-
-  private validateAdoptedChildRelationship(errors: string[], warnings: string[]): void {
-    if (!this.adoptionOrderNumber && !this.isCustomaryAdoption) {
-      errors.push(
-        'Adopted children require either adoption order number or customary adoption verification.',
-      );
-    }
-    if (this.isCustomaryAdoption && !this.isVerified) {
-      warnings.push('Customary adoptions should be verified for equal inheritance rights.');
-    }
-  }
-
-  private validateStepchildRelationship(errors: string[], warnings: string[]): void {
-    if (this.inheritanceRights === InheritanceRights.FULL && !this.isVerified) {
-      warnings.push(
-        'Stepchildren typically have partial inheritance rights unless formally adopted.',
-      );
-    }
-  }
-
-  getInheritanceStrength(): 'STRONG' | 'MEDIUM' | 'WEAK' | 'NONE' {
-    switch (this.type) {
-      case RelationshipType.SPOUSE:
-        return this.isVerified ? 'STRONG' : 'MEDIUM';
-      case RelationshipType.CHILD:
-      case RelationshipType.ADOPTED_CHILD:
-        if (this.isVerified) return 'STRONG';
-        return this.isBiological ? 'MEDIUM' : 'WEAK';
-      case RelationshipType.PARENT:
-        return this.isVerified ? 'MEDIUM' : 'WEAK';
-      case RelationshipType.SIBLING:
-      case RelationshipType.GRANDCHILD:
-        return this.isVerified ? 'WEAK' : 'NONE';
-      case RelationshipType.STEPCHILD:
-        return this.isVerified && this.isAdopted ? 'MEDIUM' : 'WEAK';
-      default:
-        return 'NONE';
-    }
-  }
-
+  /**
+   * Checks if this is a dependant relationship under Section 29.
+   */
   isDependantRelationship(): boolean {
     const dependantTypes: RelationshipType[] = [
       RelationshipType.SPOUSE,
@@ -524,225 +810,218 @@ export class Relationship extends AggregateRoot {
       RelationshipType.PARENT,
     ];
 
-    if (!dependantTypes.includes(this.type)) return false;
+    if (!dependantTypes.includes(this._type)) return false;
 
-    if (this.type === RelationshipType.STEPCHILD) {
-      return this.dependencyLevel !== DependencyLevel.NONE;
+    // Parents only dependants if they have dependency level
+    if (this._type === RelationshipType.PARENT) {
+      return this._dependencyLevel !== DependencyLevel.NONE;
     }
-    if (this.type === RelationshipType.PARENT) {
-      return (
-        this.dependencyLevel === DependencyLevel.FULL ||
-        this.dependencyLevel === DependencyLevel.PARTIAL
-      );
+
+    // Step-children only if dependency exists
+    if (this._type === RelationshipType.STEPCHILD) {
+      return this._dependencyLevel !== DependencyLevel.NONE;
     }
+
     return true;
   }
 
-  private calculateInheritanceContext(): void {
-    let inheritanceRights: InheritanceRights = InheritanceRights.FULL;
-    let traditionalWeight: number = 1.0;
+  /**
+   * Gets inheritance strength classification.
+   */
+  getInheritanceStrength(): 'STRONG' | 'MEDIUM' | 'WEAK' | 'NONE' {
+    if (this._inheritanceRights === InheritanceRights.NONE) return 'NONE';
 
-    switch (this.type) {
-      case RelationshipType.SPOUSE:
-        inheritanceRights = InheritanceRights.FULL;
-        traditionalWeight = 1.0;
-        break;
-      case RelationshipType.CHILD:
-      case RelationshipType.ADOPTED_CHILD:
-        if (this.isAdopted && this.adoptionOrderNumber) {
-          inheritanceRights = InheritanceRights.FULL;
-        } else if (this.isCustomaryAdoption && this.isVerified) {
-          inheritanceRights = InheritanceRights.FULL;
-          traditionalWeight = 0.8;
-        } else if (this.bornOutOfWedlock && this.isVerified) {
-          inheritanceRights = InheritanceRights.FULL;
-        } else if (!this.isVerified) {
-          inheritanceRights = InheritanceRights.PARTIAL;
-        }
-        break;
-      case RelationshipType.STEPCHILD:
-        inheritanceRights = InheritanceRights.PARTIAL;
-        traditionalWeight = 0.5;
-        break;
-      case RelationshipType.PARENT:
-        inheritanceRights =
-          this.dependencyLevel !== DependencyLevel.NONE
-            ? InheritanceRights.PARTIAL
-            : InheritanceRights.NONE;
-        break;
-      default:
-        inheritanceRights = InheritanceRights.NONE;
-        traditionalWeight = 0.0;
-    }
+    const weight = this._traditionalInheritanceWeight;
 
-    this.inheritanceRights = inheritanceRights;
-    this.traditionalInheritanceWeight = traditionalWeight;
+    if (weight >= 0.9 && this._isVerified) return 'STRONG';
+    if (weight >= 0.7 || (weight >= 0.5 && this._isVerified)) return 'MEDIUM';
+    if (weight > 0) return 'WEAK';
+
+    return 'NONE';
   }
 
-  // --------------------------------------------------------------------------
-  // GETTERS
-  // --------------------------------------------------------------------------
-
-  getId(): string {
-    return this.id;
-  }
-  getFamilyId(): string {
-    return this.familyId;
-  }
-  getFromMemberId(): string {
-    return this.fromMemberId;
-  }
-  getToMemberId(): string {
-    return this.toMemberId;
-  }
-  getType(): RelationshipType {
-    return this.type;
-  }
-
-  getIsAdopted(): boolean {
-    return this.isAdopted;
-  }
-  getAdoptionOrderNumber(): string | null {
-    return this.adoptionOrderNumber;
-  }
-  getIsBiological(): boolean {
-    return this.isBiological;
-  }
-  getBornOutOfWedlock(): boolean {
-    return this.bornOutOfWedlock;
-  }
-  getClanRelationship(): string | null {
-    return this.clanRelationship;
-  }
-  getTraditionalRole(): string | null {
-    return this.traditionalRole;
-  }
-  getIsCustomaryAdoption(): boolean {
-    return this.isCustomaryAdoption;
-  }
-  getAdoptionDate(): Date | null {
-    return this.adoptionDate;
-  }
-  getGuardianshipType(): RelationshipGuardianshipType | null {
-    return this.guardianshipType;
-  }
-  getCourtOrderNumber(): string | null {
-    return this.courtOrderNumber;
-  }
-  getDependencyLevel(): DependencyLevel {
-    return this.dependencyLevel;
-  }
-  getInheritanceRights(): InheritanceRights {
-    return this.inheritanceRights;
-  }
-  getTraditionalInheritanceWeight(): number | null {
-    return this.traditionalInheritanceWeight;
-  }
-
-  getIsVerified(): boolean {
-    return this.isVerified;
-  }
-  getVerificationMethod(): string | null {
-    return this.verificationMethod;
-  }
-  getVerifiedAt(): Date | null {
-    return this.verifiedAt;
-  }
-  getVerifiedBy(): string | null {
-    return this.verifiedBy;
-  }
-  getVerificationNotes(): string | null {
-    return this.verificationNotes;
-  }
-  getVerificationDocuments(): string[] {
-    return [...this.verificationDocuments];
-  }
-
-  getCreatedAt(): Date {
-    return this.createdAt;
-  }
-  getUpdatedAt(): Date {
-    return this.updatedAt;
-  }
-
-  getKenyanMetadata() {
-    return {
-      isAdopted: this.isAdopted,
-      adoptionOrderNumber: this.adoptionOrderNumber,
-      isBiological: this.isBiological,
-      bornOutOfWedlock: this.bornOutOfWedlock,
-      clanRelationship: this.clanRelationship,
-      traditionalRole: this.traditionalRole,
-      isCustomaryAdoption: this.isCustomaryAdoption,
-      adoptionDate: this.adoptionDate,
-      guardianshipType: this.guardianshipType,
-      courtOrderNumber: this.courtOrderNumber,
-      dependencyLevel: this.dependencyLevel,
-      inheritanceRights: this.inheritanceRights,
-      traditionalInheritanceWeight: this.traditionalInheritanceWeight,
-    };
-  }
-
-  getVerificationDetails(): KenyanRelationshipVerification {
-    return new KenyanRelationshipVerification(
-      this.isVerified,
-      this.verificationMethod,
-      this.verifiedAt,
-      this.verifiedBy,
-      this.verificationNotes,
-      this.verificationDocuments,
-    );
-  }
-
-  getInheritanceContext(): KenyanInheritanceContext {
-    return new KenyanInheritanceContext(
-      this.dependencyLevel,
-      this.inheritanceRights,
-      this.traditionalInheritanceWeight || 1.0,
-    );
-  }
-
-  getRelationshipSummary() {
-    const validation = this.validateForSuccession();
-    return {
-      id: this.id,
-      familyId: this.familyId,
-      fromMemberId: this.fromMemberId,
-      toMemberId: this.toMemberId,
-      type: this.type,
-      isVerified: this.isVerified,
-      verificationMethod: this.verificationMethod,
-      inheritanceStrength: this.getInheritanceStrength(),
-      isDependant: this.isDependantRelationship(),
-      kenyanMetadata: this.getKenyanMetadata(),
-      inheritanceContext: this.getInheritanceContext(),
-      verificationDetails: this.getVerificationDetails(),
-      isValid: validation.isValid,
-      validationErrors: validation.errors,
-      validationWarnings: validation.warnings,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt,
-    };
-  }
-
+  /**
+   * Gets the inverse relationship type.
+   * Useful for creating bidirectional relationships.
+   */
   getInverseType(): RelationshipType | null {
-    const inverseMap: Record<RelationshipType, RelationshipType | null> = {
+    const inverseMap: Partial<Record<RelationshipType, RelationshipType>> = {
       [RelationshipType.SPOUSE]: RelationshipType.SPOUSE,
       [RelationshipType.CHILD]: RelationshipType.PARENT,
       [RelationshipType.PARENT]: RelationshipType.CHILD,
+      [RelationshipType.ADOPTED_CHILD]: RelationshipType.PARENT,
+      [RelationshipType.STEPCHILD]: RelationshipType.PARENT,
       [RelationshipType.SIBLING]: RelationshipType.SIBLING,
+      [RelationshipType.HALF_SIBLING]: RelationshipType.HALF_SIBLING,
       [RelationshipType.GRANDCHILD]: RelationshipType.GRANDPARENT,
       [RelationshipType.GRANDPARENT]: RelationshipType.GRANDCHILD,
       [RelationshipType.NIECE_NEPHEW]: RelationshipType.AUNT_UNCLE,
       [RelationshipType.AUNT_UNCLE]: RelationshipType.NIECE_NEPHEW,
       [RelationshipType.COUSIN]: RelationshipType.COUSIN,
-      [RelationshipType.GUARDIAN]: null, // Guardian/Ward is handled by the Guardianship Entity, not Relationship
-      [RelationshipType.OTHER]: RelationshipType.OTHER,
       [RelationshipType.EX_SPOUSE]: RelationshipType.EX_SPOUSE,
-      [RelationshipType.ADOPTED_CHILD]: RelationshipType.PARENT,
-      [RelationshipType.STEPCHILD]: RelationshipType.PARENT,
-      [RelationshipType.HALF_SIBLING]: RelationshipType.HALF_SIBLING,
     };
-    return inverseMap[this.type] || null;
+
+    return inverseMap[this._type] || null;
+  }
+
+  // --------------------------------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------------------------------
+
+  private markAsUpdated(): void {
+    this._updatedAt = new Date();
+  }
+
+  private getMetadataSummary(): Record<string, any> {
+    return {
+      clanRelationship: this._clanRelationship,
+      traditionalRole: this._traditionalRole,
+      guardianshipType: this._guardianshipType,
+      dependencyLevel: this._dependencyLevel,
+      inheritanceRights: this._inheritanceRights,
+      traditionalInheritanceWeight: this._traditionalInheritanceWeight,
+    };
+  }
+
+  /**
+   * Complete relationship summary for UI/reporting.
+   */
+  getSummary(): {
+    id: string;
+    familyId: string;
+    fromMemberId: string;
+    toMemberId: string;
+    type: RelationshipType;
+    isVerified: boolean;
+    verificationMethod: string | null;
+    inheritanceStrength: 'STRONG' | 'MEDIUM' | 'WEAK' | 'NONE';
+    isDependant: boolean;
+    isAdopted: boolean;
+    isBiological: boolean;
+    bornOutOfWedlock: boolean;
+    inheritanceContext: KenyanInheritanceContext;
+    verificationDetails: KenyanRelationshipVerification;
+    validation: { isValid: boolean; errors: string[]; warnings: string[] };
+  } {
+    const validation = this.validateForSuccession();
+
+    return {
+      id: this._id,
+      familyId: this._familyId,
+      fromMemberId: this._fromMemberId,
+      toMemberId: this._toMemberId,
+      type: this._type,
+      isVerified: this._isVerified,
+      verificationMethod: this._verificationMethod,
+      inheritanceStrength: this.getInheritanceStrength(),
+      isDependant: this.isDependantRelationship(),
+      isAdopted: this._isAdopted,
+      isBiological: this._isBiological,
+      bornOutOfWedlock: this._bornOutOfWedlock,
+      inheritanceContext: this.getInheritanceContext(),
+      verificationDetails: this.getVerificationDetails(),
+      validation,
+    };
+  }
+  // --------------------------------------------------------------------------
+  // GETTERS
+  // --------------------------------------------------------------------------
+  get id(): string {
+    return this._id;
+  }
+  get familyId(): string {
+    return this._familyId;
+  }
+  get fromMemberId(): string {
+    return this._fromMemberId;
+  }
+  get toMemberId(): string {
+    return this._toMemberId;
+  }
+  get type(): RelationshipType {
+    return this._type;
+  }
+  get isAdopted(): boolean {
+    return this._isAdopted;
+  }
+  get adoptionOrderNumber(): string | null {
+    return this._adoptionOrderNumber;
+  }
+  get isBiological(): boolean {
+    return this._isBiological;
+  }
+  get bornOutOfWedlock(): boolean {
+    return this._bornOutOfWedlock;
+  }
+  get clanRelationship(): string | null {
+    return this._clanRelationship;
+  }
+  get traditionalRole(): string | null {
+    return this._traditionalRole;
+  }
+  get isCustomaryAdoption(): boolean {
+    return this._isCustomaryAdoption;
+  }
+  get adoptionDate(): Date | null {
+    return this._adoptionDate;
+  }
+  get guardianshipType(): RelationshipGuardianshipType | null {
+    return this._guardianshipType;
+  }
+  get courtOrderNumber(): string | null {
+    return this._courtOrderNumber;
+  }
+  get dependencyLevel(): DependencyLevel {
+    return this._dependencyLevel;
+  }
+  get inheritanceRights(): InheritanceRights {
+    return this._inheritanceRights;
+  }
+  get traditionalInheritanceWeight(): number {
+    return this._traditionalInheritanceWeight;
+  }
+  get isVerified(): boolean {
+    return this._isVerified;
+  }
+  get verificationMethod(): string | null {
+    return this._verificationMethod;
+  }
+  get verifiedAt(): Date | null {
+    return this._verifiedAt;
+  }
+  get verifiedBy(): string | null {
+    return this._verifiedBy;
+  }
+  get verificationNotes(): string | null {
+    return this._verificationNotes;
+  }
+  get verificationDocuments(): string[] {
+    return [...this._verificationDocuments];
+  }
+  get metadata(): Prisma.JsonValue {
+    return this._metadata;
+  }
+  get createdAt(): Date {
+    return new Date(this._createdAt);
+  }
+  get updatedAt(): Date {
+    return new Date(this._updatedAt);
+  }
+  getVerificationDetails(): KenyanRelationshipVerification {
+    return new KenyanRelationshipVerification(
+      this._isVerified,
+      this._verificationMethod,
+      this._verifiedAt,
+      this._verifiedBy,
+      this._verificationNotes,
+      this._verificationDocuments,
+    );
+  }
+  getInheritanceContext(): KenyanInheritanceContext {
+    return new KenyanInheritanceContext(
+      this._dependencyLevel,
+      this._inheritanceRights,
+      this._traditionalInheritanceWeight,
+    );
   }
 }

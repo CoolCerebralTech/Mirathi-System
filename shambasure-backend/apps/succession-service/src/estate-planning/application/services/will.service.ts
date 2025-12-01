@@ -9,11 +9,11 @@ import { RevokeWillCommand } from '../commands/revoke-will.command';
 import { SignWillCommand } from '../commands/sign-will.command';
 import { UpdateWillCommand } from '../commands/update-will.command';
 // DTOs
-import { CreateWillDto } from '../dtos/requests/create-will.dto';
-import { RevokeWillDto } from '../dtos/requests/revoke-will.dto';
-import { SignWillDto } from '../dtos/requests/sign-will.dto';
-import { UpdateWillDto } from '../dtos/requests/update-will.dto';
-import { WillResponseDto } from '../dtos/responses/will.response.dto';
+import { CreateWillDto } from '../dto/requests/create-will.dto';
+import { RevokeWillDto } from '../dto/requests/revoke-will.dto';
+import { SignWillDto } from '../dto/requests/sign-will.dto';
+import { UpdateWillDto } from '../dto/requests/update-will.dto';
+import { WillResponseDto } from '../dto/responses/will.response.dto';
 import {
   GetWillCompletenessQuery,
   WillCompletenessResponse,

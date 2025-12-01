@@ -53,7 +53,8 @@ export class KenyanRelationshipContext {
     return (
       this.isAdopted === other.isAdopted &&
       this.isBiological === other.isBiological &&
-      this.bornOutOfWedlock === other.bornOutOfWedlock
+      this.bornOutOfWedlock === other.bornOutOfWedlock &&
+      this.isCustomaryAdoption === other.isCustomaryAdoption
     );
   }
 }
@@ -407,6 +408,79 @@ export class FamilyMember {
   }
 
   /**
+   * Sets adoption details for adopted children.
+   * Reference: Adoption Act - Legal adoption inheritance rights
+   */
+  setAdoptionDetails(details: {
+    adoptionOrderNumber: string;
+    adoptionDate: Date;
+    isCustomaryAdoption: boolean;
+    courtOrderNumber?: string;
+  }): void {
+    if (this._role !== RelationshipType.ADOPTED_CHILD) {
+      throw new Error('Can only set adoption details for adopted children');
+    }
+
+    if (!details.adoptionOrderNumber?.trim()) {
+      throw new Error('Adoption order number is required');
+    }
+
+    if (details.adoptionDate > new Date()) {
+      throw new Error('Adoption date cannot be in the future');
+    }
+
+    this._relationshipContext = new KenyanRelationshipContext(
+      true, // isAdopted
+      false, // isBiological (adopted children are not biological)
+      false, // bornOutOfWedlock (not relevant for adopted)
+      details.isCustomaryAdoption,
+      details.adoptionDate,
+      details.adoptionOrderNumber.trim(),
+      details.courtOrderNumber?.trim(),
+    );
+
+    this.recalculateDependantStatus();
+    this.markAsUpdated();
+  }
+
+  /**
+   * Marks child as born out of wedlock.
+   * Reference: Section 39 - All children inherit equally regardless of wedlock status
+   */
+  markBornOutOfWedlock(): void {
+    if (this._role !== RelationshipType.CHILD) {
+      throw new Error('Only biological children can be marked as born out of wedlock');
+    }
+
+    this._relationshipContext = new KenyanRelationshipContext(
+      false, // isAdopted
+      true, // isBiological
+      true, // bornOutOfWedlock
+      false, // isCustomaryAdoption
+    );
+
+    this.markAsUpdated();
+  }
+
+  /**
+   * Recalculates minor status based on current age.
+   * Should be called periodically (e.g., on birthdays via scheduled job).
+   */
+  recalculateMinorStatus(): void {
+    if (!this._dateOfBirth || this._isDeceased) return;
+
+    const previousMinorStatus = this._isMinor;
+    const currentAge = FamilyMember.calculateAge(this._dateOfBirth);
+    this._isMinor = currentAge < 18;
+
+    // If minor status changed, recalculate dependant status
+    if (previousMinorStatus !== this._isMinor) {
+      this.recalculateDependantStatus();
+      this.markAsUpdated();
+    }
+  }
+
+  /**
    * Marks member for removal (soft delete).
    */
   markForRemoval(): void {
@@ -529,11 +603,16 @@ export class FamilyMember {
       this._role !== RelationshipType.STEPCHILD &&
       this._role !== RelationshipType.SPOUSE;
 
+    // Preserve existing context if already set (e.g., via setAdoptionDetails)
+    if (this._relationshipContext.isAdopted === isAdopted) {
+      return; // Keep existing context
+    }
+
     this._relationshipContext = new KenyanRelationshipContext(
       isAdopted,
       isBiological,
-      false, // bornOutOfWedlock - would be set via separate method
-      false, // isCustomaryAdoption - would be set via separate method
+      false, // bornOutOfWedlock - set via markBornOutOfWedlock()
+      false, // isCustomaryAdoption - set via setAdoptionDetails()
     );
   }
 
@@ -573,6 +652,23 @@ export class FamilyMember {
     }
 
     return { canBeWitness: true };
+  }
+
+  /**
+   * Validates if member can be an executor of a will.
+   *
+   * Reference: Section 55 - Executor eligibility
+   */
+  canBeExecutor(): { canBeExecutor: boolean; reason?: string } {
+    if (this._isDeceased) {
+      return { canBeExecutor: false, reason: 'Deceased persons cannot be executors' };
+    }
+
+    if (this._isMinor) {
+      return { canBeExecutor: false, reason: 'Minors cannot be executors (must be 18+)' };
+    }
+
+    return { canBeExecutor: true };
   }
 
   // --------------------------------------------------------------------------

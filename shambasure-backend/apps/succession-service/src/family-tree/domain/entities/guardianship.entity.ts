@@ -49,6 +49,10 @@ export class GuardianshipConditions {
   hasRestrictedPowers(): boolean {
     return this.restrictedPowers.length > 0;
   }
+
+  hasSpecialInstructions(): boolean {
+    return this.specialInstructions.length > 0;
+  }
 }
 
 /**
@@ -56,7 +60,7 @@ export class GuardianshipConditions {
  */
 export interface GuardianReconstituteProps {
   id: string;
-  familyId: string; // ADDED - missing from original
+  familyId: string;
 
   // Core relationships
   guardianId: string; // FamilyMember ID acting as guardian
@@ -353,6 +357,41 @@ export class Guardian {
     }
 
     this._isActive = false;
+
+    // Store revocation details in notes
+    const revocationNote = `Revoked: ${reason}${courtOrderNumber ? ` (Court Order: ${courtOrderNumber})` : ''} on ${new Date().toISOString()}`;
+    this._notes = this._notes ? `${this._notes}\n${revocationNote}` : revocationNote;
+
+    this.markAsUpdated();
+  }
+
+  /**
+   * Restores a revoked guardianship.
+   * Legal guardians require court order for restoration.
+   *
+   * Reference: Children Act (2022) - Court can reinstate guardians
+   */
+  restore(reason: string, courtOrderNumber?: string): void {
+    if (this._isActive) {
+      throw new Error('Guardianship is already active');
+    }
+
+    // Legal guardians require court order for restoration
+    if (this._type === GuardianType.LEGAL_GUARDIAN && !courtOrderNumber) {
+      throw new Error('Legal guardian restoration requires court order (Children Act, 2022)');
+    }
+
+    // Cannot restore if expired
+    if (this._validUntil && new Date() > this._validUntil) {
+      throw new Error('Cannot restore expired guardianship. Extend validity first.');
+    }
+
+    this._isActive = true;
+
+    // Store restoration details in notes
+    const restorationNote = `Restored: ${reason}${courtOrderNumber ? ` (Court Order: ${courtOrderNumber})` : ''} on ${new Date().toISOString()}`;
+    this._notes = this._notes ? `${this._notes}\n${restorationNote}` : restorationNote;
+
     this.markAsUpdated();
   }
 
@@ -362,7 +401,7 @@ export class Guardian {
    */
   extendValidity(newExpiryDate: Date, reason: string, courtOrderNumber?: string): void {
     if (!this._isActive) {
-      throw new Error('Cannot extend inactive guardianship');
+      throw new Error('Cannot extend inactive guardianship. Restore it first.');
     }
 
     const currentExpiry = this._validUntil || new Date();
@@ -375,7 +414,60 @@ export class Guardian {
     }
 
     this._validUntil = newExpiryDate;
+
+    // Store extension details in notes
+    const extensionNote = `Extended until ${newExpiryDate.toISOString()}: ${reason}${courtOrderNumber ? ` (Court Order: ${courtOrderNumber})` : ''} on ${new Date().toISOString()}`;
+    this._notes = this._notes ? `${this._notes}\n${extensionNote}` : extensionNote;
+
     this.markAsUpdated();
+  }
+
+  /**
+   * Updates court order details (for amended court orders).
+   * Reference: High Court Rules - Court orders can be amended.
+   */
+  updateCourtOrder(courtOrder: KenyanCourtOrder, reason: string): void {
+    if (this._type !== GuardianType.LEGAL_GUARDIAN) {
+      throw new Error('Only legal guardians have court orders');
+    }
+
+    if (!this._isActive) {
+      throw new Error('Cannot update court order for inactive guardianship');
+    }
+
+    const previousOrderNumber = this._courtOrder?.courtOrderNumber || 'None';
+    this._courtOrder = courtOrder;
+    this._appointedBy = courtOrder.courtOrderNumber;
+
+    // Store court order update in notes
+    const updateNote = `Court order updated from ${previousOrderNumber} to ${courtOrder.courtOrderNumber}: ${reason} on ${new Date().toISOString()}`;
+    this._notes = this._notes ? `${this._notes}\n${updateNote}` : updateNote;
+
+    this.markAsUpdated();
+  }
+
+  /**
+   * Checks and auto-expires guardianship if past validity date.
+   * Should be called periodically via scheduled jobs.
+   *
+   * Returns true if guardianship was expired, false otherwise.
+   */
+  checkAndAutoExpire(): boolean {
+    if (!this._isActive) return false;
+    if (!this._validUntil) return false;
+
+    if (new Date() > this._validUntil) {
+      this._isActive = false;
+
+      // Store auto-expiry note
+      const expiryNote = `Auto-expired on ${new Date().toISOString()} (validity ended ${this._validUntil.toISOString()})`;
+      this._notes = this._notes ? `${this._notes}\n${expiryNote}` : expiryNote;
+
+      this.markAsUpdated();
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -508,6 +600,35 @@ export class Guardian {
   isReviewOverdue(): boolean {
     if (!this._isTemporary || !this._reviewDate) return false;
     return new Date() > this._reviewDate;
+  }
+
+  /**
+   * Checks if guardianship is approaching expiry (within specified days).
+   * Useful for sending expiry notifications.
+   */
+  isApproachingExpiry(daysThreshold: number = 30): boolean {
+    if (!this._validUntil || !this._isActive) return false;
+
+    const now = new Date();
+    const thresholdDate = new Date(now.getTime() + daysThreshold * 24 * 60 * 60 * 1000);
+
+    return this._validUntil <= thresholdDate && this._validUntil > now;
+  }
+
+  /**
+   * Calculates days until expiry.
+   * Returns null if no expiry date or already expired.
+   */
+  getDaysUntilExpiry(): number | null {
+    if (!this._validUntil || !this._isActive) return null;
+
+    const now = new Date();
+    if (this._validUntil <= now) return 0;
+
+    const diffMs = this._validUntil.getTime() - now.getTime();
+    const days = diffMs / (1000 * 60 * 60 * 24);
+
+    return Math.ceil(days);
   }
 
   /**

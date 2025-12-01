@@ -6,8 +6,8 @@ import { AssignBeneficiaryCommand } from '../commands/assign-beneficiary.command
 import { RemoveBeneficiaryCommand } from '../commands/remove-beneficiary.command';
 import { UpdateBeneficiaryCommand } from '../commands/update-beneficiary.command';
 // DTOs
-import { AssignBeneficiaryDto } from '../dtos/requests/assign-beneficiary.dto';
-import { BeneficiaryResponseDto } from '../dtos/responses/beneficiary.response.dto';
+import { AssignBeneficiaryDto } from '../dto/requests/assign-beneficiary.dto';
+import { BeneficiaryResponseDto } from '../dto/responses/beneficiary.response.dto';
 import {
   AssetDistributionSummaryResponse,
   GetAssetDistributionQuery,

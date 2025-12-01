@@ -1,7 +1,7 @@
 // commands/assets/update-asset-valuation.command.ts
 import { ICommand } from '@nestjs/cqrs';
 
-import { UpdateAssetValuationDto } from '../../dtos/requests/update-asset-valuation.dto';
+import { UpdateAssetValuationDto } from '../../dto/requests/update-asset-valuation.dto';
 
 export class UpdateAssetValuationCommand implements ICommand {
   constructor(

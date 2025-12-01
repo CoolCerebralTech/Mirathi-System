@@ -3,7 +3,7 @@ import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { GetAssetQuery } from '../../queries/assets/get-asset.query';
 import { AssetRepository } from '../../../infrastructure/repositories/asset.repository';
 import { EstatePlanningRepository } from '../../../infrastructure/repositories/estate-planning.repository';
-import { AssetResponseDto } from '../../../application/dtos/responses/asset.response.dto';
+import { AssetResponseDto } from '../../dto/responses/asset.response.dto';
 import { AssetNotFoundException } from '../../../domain/exceptions/asset-not-found.exception';
 import { EstatePlanningNotFoundException } from '../../../domain/exceptions/estate-planning-not-found.exception';
 import { AssetMapper } from '../../../infrastructure/mappers/asset.mapper';

@@ -5,9 +5,9 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { AddDebtCommand } from '../commands/add-debt.command';
 import { RecordDebtPaymentCommand } from '../commands/record-debt-payment.command';
 // DTOs
-import { AddDebtDto } from '../dtos/requests/add-debt.dto';
-import { RecordDebtPaymentDto } from '../dtos/requests/record-debt-payment.dto';
-import { DebtResponseDto } from '../dtos/responses/debt.response.dto';
+import { AddDebtDto } from '../dto/requests/add-debt.dto';
+import { RecordDebtPaymentDto } from '../dto/requests/record-debt-payment.dto';
+import { DebtResponseDto } from '../dto/responses/debt.response.dto';
 import { GetDebtQuery } from '../queries/get-debt.query';
 // Queries
 import { GetDebtsQuery } from '../queries/get-debts.query';

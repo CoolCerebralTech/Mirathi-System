@@ -6,8 +6,8 @@ import { AddWitnessCommand } from '../commands/add-witness.command';
 import { InviteWitnessCommand } from '../commands/invite-witness.command';
 import { RemoveWitnessCommand } from '../commands/remove-witness.command';
 // DTOs
-import { AddWitnessDto } from '../dtos/requests/add-witness.dto';
-import { WitnessResponseDto } from '../dtos/responses/witness.response.dto';
+import { AddWitnessDto } from '../dto/requests/add-witness.dto';
+import { WitnessResponseDto } from '../dto/responses/witness.response.dto';
 import { GetWitnessQuery } from '../queries/get-witness.query';
 // Queries
 import { GetWitnessesQuery } from '../queries/get-witnesses.query';
