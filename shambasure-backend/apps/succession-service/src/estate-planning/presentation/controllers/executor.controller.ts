@@ -13,8 +13,8 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@ne
 
 import { JwtAuthGuard } from '@shamba/auth';
 
-import { NominateExecutorDto } from '../../application/dto/request/nominate-executor.dto';
-import { ExecutorResponseDto } from '../../application/dto/response/executor.response.dto';
+import { NominateExecutorDto } from '../../application/dtos/requests/nominate-executor.dto';
+import { ExecutorResponseDto } from '../../application/dtos/responses/executor.response.dto';
 import { ExecutorService } from '../../application/services/executor.service';
 
 interface RequestWithUser extends Request {

@@ -5,8 +5,8 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { NominateExecutorCommand } from '../commands/nominate-executor.command';
 import { RemoveExecutorCommand } from '../commands/remove-executor.command';
 // DTOs
-import { NominateExecutorDto } from '../dto/request/nominate-executor.dto';
-import { ExecutorResponseDto } from '../dto/response/executor.response.dto';
+import { NominateExecutorDto } from '../dtos/requests/nominate-executor.dto';
+import { ExecutorResponseDto } from '../dtos/responses/executor.response.dto';
 import { GetExecutorQuery } from '../queries/get-executor.query';
 // Queries
 import { GetExecutorsQuery } from '../queries/get-executors.query';
