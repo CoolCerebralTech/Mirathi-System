@@ -1,7 +1,7 @@
 // FILE: src/types/families.schemas.ts
 
 import { z } from 'zod';
-import { UserSchema } from './user.types';
+import { UserResponseSchema } from './user.types';
 
 // ============================================================================
 // SHARED ENUMS AND REUSABLE SCHEMAS
@@ -53,10 +53,10 @@ export const RelationshipSchema = z.object({
   id: z.string().uuid(),
   // The user who defined the relationship
   sourceUserId: z.string().uuid(),
-  sourceUser: UserSchema.optional(),
+  sourceUser: UserResponseSchema.optional(),
   // The user who is being related to
   targetUserId: z.string().uuid(),
-  targetUser: UserSchema.optional(),
+  targetUser: UserResponseSchema.optional(),
   // How the target is related to the source
   type: RelationshipTypeSchema,
   createdAt: z.string().datetime().transform((val) => new Date(val)),
@@ -68,7 +68,7 @@ export const RelationshipSchema = z.object({
 export const FamilyInvitationSchema = z.object({
   id: z.string().uuid(),
   inviterId: z.string().uuid(),
-  inviter: UserSchema.optional(),
+  inviter: UserResponseSchema.optional(),
   inviteeEmail: z.string().email(),
   // The proposed relationship of the invitee to the inviter
   relationshipType: RelationshipTypeSchema,
@@ -83,7 +83,7 @@ export const FamilyInvitationSchema = z.object({
  * that connect them.
  */
 export const FamilyTreeSchema = z.object({
-  nodes: z.array(UserSchema),
+  nodes: z.array(UserResponseSchema),
   edges: z.array(RelationshipSchema),
 });
 

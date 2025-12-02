@@ -1,12 +1,13 @@
 // query-handlers/assets/search-assets.handler.ts
+import { Logger } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { SearchAssetsQuery } from '../../queries/assets/search-assets.query';
+
+import { EstatePlanningNotFoundException } from '../../../domain/exceptions/estate-planning-not-found.exception';
+import { AssetMapper } from '../../../infrastructure/mappers/asset.mapper';
 import { AssetRepository } from '../../../infrastructure/repositories/asset.repository';
 import { EstatePlanningRepository } from '../../../infrastructure/repositories/estate-planning.repository';
 import { AssetSummaryResponseDto } from '../../dto/responses/asset-summary.response.dto';
-import { EstatePlanningNotFoundException } from '../../../domain/exceptions/estate-planning-not-found.exception';
-import { AssetMapper } from '../../../infrastructure/mappers/asset.mapper';
-import { Logger } from '@nestjs/common';
+import { SearchAssetsQuery } from '../../queries/assets/search-assets.query';
 
 @QueryHandler(SearchAssetsQuery)
 export class SearchAssetsHandler implements IQueryHandler<SearchAssetsQuery> {
@@ -45,6 +46,6 @@ export class SearchAssetsHandler implements IQueryHandler<SearchAssetsQuery> {
     });
 
     // Map to summary DTOs
-    return assets.map(asset => this.assetMapper.toSummaryResponseDto(asset));
+    return assets.map((asset) => this.assetMapper.toSummaryResponseDto(asset));
   }
 }

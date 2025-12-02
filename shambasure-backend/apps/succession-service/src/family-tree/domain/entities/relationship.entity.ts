@@ -101,11 +101,11 @@ export interface RelationshipReconstituteProps {
 }
 
 // -----------------------------------------------------------------------------
-// ENTITY: FAMILY RELATIONSHIP
+// AGGREGATE: FAMILY RELATIONSHIP
 // -----------------------------------------------------------------------------
 
 /**
- * Family Relationship Entity
+ * Family Relationship Aggregate Root
  *
  * Represents a legal/biological relationship between two family members.
  * Forms the "edges" in the family tree graph.
@@ -117,18 +117,20 @@ export interface RelationshipReconstituteProps {
  * - Section 3 (Legitimacy): Children born out of wedlock
  * - Section 40: Customary succession rules
  *
- * Entity Responsibilities:
+ * Aggregate Responsibilities:
  * - Define relationship type between two members
  * - Track adoption/biological status
  * - Verify relationships for legal validity
  * - Calculate inheritance rights based on relationship
  * - Support customary law relationships (clan, traditional roles)
+ * - Emit domain events for relationship lifecycle
  *
  * Invariants:
  * - Cannot create self-relationship
  * - Relationships must be verified for succession
- * - Adoption requires court order or customary verification
+ * - Legal adoption requires court order or adoption order number
  * - Biological relationships have priority over step-relationships
+ * - Inheritance rights recalculated on verification changes
  */
 export class FamilyRelationship extends AggregateRoot {
   // Core Identity
@@ -304,10 +306,21 @@ export class FamilyRelationship extends AggregateRoot {
     adoptionDetails: AdoptionDetails,
     traditionalRole?: string,
   ): FamilyRelationship {
-    if (adoptionDetails.isCustomaryAdoption && !adoptionDetails.adoptionOrderNumber) {
-      // Customary adoption may not have formal court order
-    } else if (!adoptionDetails.isCustomaryAdoption && !adoptionDetails.adoptionOrderNumber) {
-      throw new Error('Legal adoption requires adoption order number (Children Act, 2022)');
+    // Enhanced validation for legal adoptions
+    if (!adoptionDetails.isCustomaryAdoption) {
+      if (!adoptionDetails.adoptionOrderNumber?.trim()) {
+        throw new Error('Legal adoption requires adoption order number (Children Act, 2022)');
+      }
+      if (!adoptionDetails.courtOrderNumber?.trim()) {
+        throw new Error('Legal adoption requires court order number (Children Act, 2022)');
+      }
+    } else {
+      // Customary adoption - must have adoption order number OR court order
+      if (!adoptionDetails.adoptionOrderNumber && !adoptionDetails.courtOrderNumber) {
+        throw new Error(
+          'Customary adoption requires at least adoption order number or court order',
+        );
+      }
     }
 
     const relationship = new FamilyRelationship(
@@ -499,6 +512,7 @@ export class FamilyRelationship extends AggregateRoot {
    * - AFFIDAVIT
    * - COMMUNITY_ELDER_ATTESTATION (customary)
    * - NATIONAL_ID
+   * - PASSPORT
    */
   verify(
     method: string,
@@ -577,6 +591,10 @@ export class FamilyRelationship extends AggregateRoot {
       throw new Error('Revocation reason is required');
     }
 
+    if (!revokedBy?.trim()) {
+      throw new Error('RevokedBy user ID is required');
+    }
+
     const previousMethod = this._verificationMethod;
     const previousVerifier = this._verifiedBy;
 
@@ -610,6 +628,34 @@ export class FamilyRelationship extends AggregateRoot {
     }
 
     this._verificationDocuments.push(...documentIds);
+    this.markAsUpdated();
+  }
+
+  /**
+   * Replaces all verification documents.
+   * Useful for bulk updates or corrections.
+   */
+  replaceVerificationDocuments(documentIds: string[]): void {
+    if (!documentIds || documentIds.length === 0) {
+      throw new Error('At least one document ID is required');
+    }
+
+    this._verificationDocuments = [...documentIds];
+    this.markAsUpdated();
+  }
+
+  /**
+   * Removes specific verification documents.
+   */
+  removeVerificationDocuments(documentIds: string[]): void {
+    if (!documentIds || documentIds.length === 0) {
+      throw new Error('At least one document ID is required');
+    }
+
+    this._verificationDocuments = this._verificationDocuments.filter(
+      (id) => !documentIds.includes(id),
+    );
+
     this.markAsUpdated();
   }
 
@@ -652,6 +698,15 @@ export class FamilyRelationship extends AggregateRoot {
     this.apply(
       new RelationshipMetadataUpdatedEvent(this._id, this._familyId, updates, previousMetadata),
     );
+  }
+
+  /**
+   * Manually triggers inheritance context recalculation.
+   * Useful after external changes (e.g., member age change, verification updates).
+   */
+  recalculateInheritance(): void {
+    this.calculateInheritanceContext();
+    this.markAsUpdated();
   }
 
   // --------------------------------------------------------------------------
@@ -759,8 +814,13 @@ export class FamilyRelationship extends AggregateRoot {
     const warnings: string[] = [];
 
     // Critical validations
-    if (this._isAdopted && !this._isCustomaryAdoption && !this._adoptionOrderNumber) {
-      errors.push('Legal adoption requires adoption order number (Children Act, 2022)');
+    if (this._isAdopted && !this._isCustomaryAdoption) {
+      if (!this._adoptionOrderNumber) {
+        errors.push('Legal adoption requires adoption order number (Children Act, 2022)');
+      }
+      if (!this._courtOrderNumber) {
+        errors.push('Legal adoption requires court order number (Children Act, 2022)');
+      }
     }
 
     if (
@@ -860,18 +920,14 @@ export class FamilyRelationship extends AggregateRoot {
       [RelationshipType.COUSIN]: RelationshipType.COUSIN,
       [RelationshipType.EX_SPOUSE]: RelationshipType.EX_SPOUSE,
     };
-
     return inverseMap[this._type] || null;
   }
-
   // --------------------------------------------------------------------------
   // HELPERS
   // --------------------------------------------------------------------------
-
   private markAsUpdated(): void {
     this._updatedAt = new Date();
   }
-
   private getMetadataSummary(): Record<string, any> {
     return {
       clanRelationship: this._clanRelationship,
@@ -882,10 +938,10 @@ export class FamilyRelationship extends AggregateRoot {
       traditionalInheritanceWeight: this._traditionalInheritanceWeight,
     };
   }
-
   /**
-   * Complete relationship summary for UI/reporting.
-   */
+
+Complete relationship summary for UI/reporting.
+*/
   getSummary(): {
     id: string;
     familyId: string;

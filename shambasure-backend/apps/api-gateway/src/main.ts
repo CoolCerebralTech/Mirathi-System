@@ -75,7 +75,7 @@ async function bootstrap() {
   const corsOrigins =
     typeof corsOriginsRaw === 'string'
       ? corsOriginsRaw.split(',').map((o) => o.trim())
-      : ['http://localhost:3000']; // safe default
+      : ['http://localhost:5173']; // safe default
   app.enableCors({
     origin: (
       origin: string | undefined,

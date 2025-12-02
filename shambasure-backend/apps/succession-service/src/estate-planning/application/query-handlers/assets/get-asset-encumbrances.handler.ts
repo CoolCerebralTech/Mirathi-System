@@ -1,11 +1,12 @@
 // query-handlers/assets/get-asset-encumbrances.handler.ts
+import { Logger } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { GetAssetEncumbrancesQuery } from '../../queries/assets/get-asset-encumbrances.query';
-import { AssetRepository } from '../../../infrastructure/repositories/asset.repository';
-import { EstatePlanningRepository } from '../../../infrastructure/repositories/estate-planning.repository';
+
 import { AssetNotFoundException } from '../../../domain/exceptions/asset-not-found.exception';
 import { EstatePlanningNotFoundException } from '../../../domain/exceptions/estate-planning-not-found.exception';
-import { Logger } from '@nestjs/common';
+import { AssetRepository } from '../../../infrastructure/repositories/asset.repository';
+import { EstatePlanningRepository } from '../../../infrastructure/repositories/estate-planning.repository';
+import { GetAssetEncumbrancesQuery } from '../../queries/assets/get-asset-encumbrances.query';
 
 export interface AssetEncumbranceDetails {
   isEncumbered: boolean;

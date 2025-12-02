@@ -1,7 +1,7 @@
 // FILE: src/types/auditing.schemas.ts
 
 import { z } from 'zod';
-import { UserSchema } from './user.types';
+import { UserResponseSchema } from './user.types';
 
 // ============================================================================
 // SHARED ENUMS
@@ -69,7 +69,7 @@ export const AuditLogSchema = z.object({
   // --- Actor ---
   // The user who performed the action. Can be null for system-initiated actions.
   actorId: z.string().uuid().nullable(),
-  actor: UserSchema.nullable(),
+  actor: UserResponseSchema.nullable(),
 
   // --- Target ---
   // The entity that was affected by the action.

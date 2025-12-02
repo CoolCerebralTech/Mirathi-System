@@ -1,8 +1,7 @@
-// ============================================================================
-// RegisterForm.tsx - Registration Form
-// ============================================================================
+// FILE: src/pages/auth/components/RegisterForm.tsx
 
-import { useForm, type SubmitHandler } from 'react-hook-form';
+// 1. ADD 'Controller' to the import
+import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +13,8 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Info,
-  UserPlus} from 'lucide-react';
+  UserPlus
+} from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 
 import {
@@ -28,10 +28,7 @@ import { Label } from '../../../components/ui/Label';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import { PasswordStrengthIndicator } from '../../../components/auth/PasswordStrengthIndicator';
 
-// ============================================================================
-// PASSWORD REQUIREMENTS CHECKLIST
-// ============================================================================
-
+// ... PasswordRequirements component remains the same ...
 interface PasswordRequirementsProps {
   password: string;
   show: boolean;
@@ -93,7 +90,7 @@ function PasswordRequirements({ password, show }: PasswordRequirementsProps) {
 }
 
 // ============================================================================
-// MAIN REGISTRATION FORM - FUNCTIONAL FIXES
+// MAIN REGISTRATION FORM
 // ============================================================================
 
 export function RegisterForm() {
@@ -102,7 +99,6 @@ export function RegisterForm() {
   const { mutate: registerUser, isPending } = useRegister();
   const [showPasswordRequirements, setShowPasswordRequirements] = useState(false);
 
-  // More efficient deviceId handling
   const deviceIdRef = useRef<string | null>(null);
   useEffect(() => {
     const getDeviceId = () => {
@@ -120,6 +116,7 @@ export function RegisterForm() {
     register,
     handleSubmit,
     watch,
+    control, // <--- 2. GET CONTROL HERE
     formState: { errors },
   } = useForm<RegisterInput>({
     resolver: zodResolver(RegisterRequestSchema),
@@ -135,7 +132,7 @@ export function RegisterForm() {
     },
   });
 
-  const watchedPassword = watch('password', ''); // Watch password for strength indicator
+  const watchedPassword = watch('password', '');
 
   const onSubmit: SubmitHandler<RegisterInput> = (formData) => {
     registerUser(
@@ -144,13 +141,10 @@ export function RegisterForm() {
           ...formData,
           deviceId: deviceIdRef.current || undefined,
         },
-        rememberMe: true, // Automatically remember user on registration
+        rememberMe: true,
       },
       {
         onSuccess: () => {
-          // --- THIS IS THE CHANGE ---
-          // Navigate to the pending verification page instead of the dashboard.
-          // Pass the email in the route state so the page can display it.
           navigate('/pending-verification', {
             replace: true,
             state: { email: formData.email },
@@ -165,7 +159,7 @@ export function RegisterForm() {
 
   return (
     <div className="w-full space-y-8">
-       <div className="space-y-4 text-center">
+      <div className="space-y-4 text-center">
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-primary/20 bg-primary/5 shadow-soft">
           <UserPlus className="h-8 w-8 text-primary" />
         </div>
@@ -182,7 +176,9 @@ export function RegisterForm() {
           <span>{t('auth:secure_registration', 'Secure Registration')}</span>
         </div>
       </div>
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+        {/* Name Fields */}
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="space-y-2">
                 <Label htmlFor="firstName" className="font-serif text-sm font-semibold text-text">
@@ -221,6 +217,8 @@ export function RegisterForm() {
                 {errors.lastName && <p className="flex items-center gap-1.5 text-sm text-danger"><AlertCircle size={14} /><span>{errors.lastName.message}</span></p>}
             </div>
         </div>
+
+        {/* Email Field */}
         <div className="space-y-2">
             <Label htmlFor="email" className="font-serif text-sm font-semibold text-text">
                 {t('auth:email', 'Email Address')}<span className="ml-1 text-danger">*</span>
@@ -239,6 +237,8 @@ export function RegisterForm() {
             </div>
             {errors.email && <p className="flex items-center gap-1.5 text-sm text-danger"><AlertCircle size={14} /><span>{errors.email.message}</span></p>}
         </div>
+
+        {/* Password Fields */}
         <div className="space-y-2">
             <Label htmlFor="password" className="font-serif text-sm font-semibold text-text">
                 {t('auth:password', 'Password')}<span className="ml-1 text-danger">*</span>
@@ -278,13 +278,22 @@ export function RegisterForm() {
             </div>
             {errors.passwordConfirmation && <p className="flex items-center gap-1.5 text-sm text-danger"><AlertCircle size={14} /><span>{errors.passwordConfirmation.message}</span></p>}
         </div>
+
+        {/* --- FIXED: Terms Checkbox using Controller --- */}
         <div className="space-y-3">
           <div className="flex items-start space-x-2">
-            <Checkbox
-              id="acceptedTerms"
-              disabled={isPending}
-              className="mt-0.5 border-neutral-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-              {...register('acceptedTerms')}
+            <Controller
+              name="acceptedTerms"
+              control={control}
+              render={({ field }) => (
+                <Checkbox
+                  id="acceptedTerms"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  disabled={isPending}
+                  className="mt-0.5 border-neutral-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                />
+              )}
             />
             <Label htmlFor="acceptedTerms" className="cursor-pointer select-none text-sm font-normal leading-relaxed text-text peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
               {t('auth:accept_terms_prefix', 'I agree to the')}{' '}
@@ -297,17 +306,27 @@ export function RegisterForm() {
           </div>
           {errors.acceptedTerms && <p className="flex items-center gap-1.5 text-sm text-danger"><AlertCircle size={14} /><span>{errors.acceptedTerms.message}</span></p>}
         </div>
+
+        {/* --- FIXED: Marketing Checkbox using Controller --- */}
         <div className="flex items-start space-x-2">
-          <Checkbox
-            id="marketingOptIn"
-            disabled={isPending}
-            className="mt-0.5 border-neutral-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-            {...register('marketingOptIn')}
+          <Controller
+            name="marketingOptIn"
+            control={control}
+            render={({ field }) => (
+              <Checkbox
+                id="marketingOptIn"
+                checked={field.value}
+                onCheckedChange={field.onChange}
+                disabled={isPending}
+                className="mt-0.5 border-neutral-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+              />
+            )}
           />
           <Label htmlFor="marketingOptIn" className="cursor-pointer select-none text-sm font-normal leading-relaxed text-text-subtle peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
             {t('auth:marketing_opt_in', 'Yes, I would like to receive marketing communications about new features, updates, and special offers. I can unsubscribe at any time.')}
           </Label>
         </div>
+
         <Button
           type="submit"
           className="w-full bg-primary font-sans text-base font-semibold text-primary-foreground shadow-soft transition-all duration-300 hover:bg-primary-hover hover:shadow-lifted"
@@ -318,6 +337,7 @@ export function RegisterForm() {
           {isPending ? t('auth:creating_account', 'Creating Account...') : t('auth:create_account', 'Create Account')}
         </Button>
       </form>
+
       <div className="relative">
         <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-neutral-200" /></div>
         <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-3 font-medium text-text-muted">{t('common:or', 'Or')}</span></div>
@@ -328,7 +348,7 @@ export function RegisterForm() {
           {t('auth:sign_in_now', 'Sign In to Your Account')}
         </Link>
       </div>
-       <div className="rounded-elegant border border-secondary/20 bg-secondary/5 p-4">
+      <div className="rounded-elegant border border-secondary/20 bg-secondary/5 p-4">
         <p className="flex items-start gap-3 text-xs leading-relaxed text-text-subtle">
           <Shield size={16} className="mt-0.5 flex-shrink-0 text-secondary" />
           <span>{t('auth:security_notice_registration', 'Your data is protected with enterprise-grade security. We use device tracking for enhanced security and comply with GDPR and KDPA requirements. Marketing communications are optional and can be managed in your account settings.')}</span>

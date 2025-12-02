@@ -1,10 +1,11 @@
 // query-handlers/assets/get-estate-assets-summary.handler.ts
+import { Logger } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { GetEstateAssetsSummaryQuery } from '../../queries/assets/get-estate-assets-summary.query';
+
+import { EstatePlanningNotFoundException } from '../../../domain/exceptions/estate-planning-not-found.exception';
 import { AssetRepository } from '../../../infrastructure/repositories/asset.repository';
 import { EstatePlanningRepository } from '../../../infrastructure/repositories/estate-planning.repository';
-import { EstatePlanningNotFoundException } from '../../../domain/exceptions/estate-planning-not-found.exception';
-import { Logger } from '@nestjs/common';
+import { GetEstateAssetsSummaryQuery } from '../../queries/assets/get-estate-assets-summary.query';
 
 export interface EstateAssetsSummary {
   totalAssets: number;
@@ -28,7 +29,9 @@ export class GetEstateAssetsSummaryHandler implements IQueryHandler<GetEstateAss
 
   async execute(query: GetEstateAssetsSummaryQuery): Promise<EstateAssetsSummary> {
     const { estatePlanningId } = query;
-    this.logger.debug(`Executing GetEstateAssetsSummaryQuery for estate planning: ${estatePlanningId}`);
+    this.logger.debug(
+      `Executing GetEstateAssetsSummaryQuery for estate planning: ${estatePlanningId}`,
+    );
 
     // Validate estate planning exists
     const estatePlanning = await this.estatePlanningRepository.findById(estatePlanningId);
@@ -64,7 +67,7 @@ export class GetEstateAssetsSummaryHandler implements IQueryHandler<GetEstateAss
     let matrimonialAssets = 0;
     let assetsWithLifeInterest = 0;
 
-    assets.forEach(asset => {
+    assets.forEach((asset) => {
       const value = asset.currentValue || 0;
       totalValue += value;
 

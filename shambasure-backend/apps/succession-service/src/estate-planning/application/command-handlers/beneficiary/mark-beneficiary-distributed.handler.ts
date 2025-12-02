@@ -1,12 +1,13 @@
 // command-handlers/beneficiary/mark-beneficiary-distributed.handler.ts
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { MarkBeneficiaryDistributedCommand } from '../../commands/beneficiary/mark-beneficiary-distributed.command';
+import { Logger } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
+import { BeneficiaryAssignmentNotFoundException } from '../../../domain/exceptions/beneficiary-assignment-not-found.exception';
+import { BeneficiaryCannotBeDistributedException } from '../../../domain/exceptions/beneficiary-cannot-be-distributed.exception';
+import { EstateNotFoundException } from '../../../domain/exceptions/estate-not-found.exception';
 import { BeneficiaryAssignmentRepository } from '../../../infrastructure/repositories/beneficiary-assignment.repository';
 import { EstateRepository } from '../../../infrastructure/repositories/estate.repository';
-import { BeneficiaryAssignmentNotFoundException } from '../../../domain/exceptions/beneficiary-assignment-not-found.exception';
-import { EstateNotFoundException } from '../../../domain/exceptions/estate-not-found.exception';
-import { BeneficiaryCannotBeDistributedException } from '../../../domain/exceptions/beneficiary-cannot-be-distributed.exception';
-import { Logger } from '@nestjs/common';
+import { MarkBeneficiaryDistributedCommand } from '../../commands/beneficiary/mark-beneficiary-distributed.command';
 
 @CommandHandler(MarkBeneficiaryDistributedCommand)
 export class MarkBeneficiaryDistributedHandler implements ICommandHandler<MarkBeneficiaryDistributedCommand> {
@@ -23,7 +24,8 @@ export class MarkBeneficiaryDistributedHandler implements ICommandHandler<MarkBe
     this.logger.debug(`Executing MarkBeneficiaryDistributedCommand: ${correlationId}`);
 
     // 1. Load beneficiary assignment
-    const beneficiaryAssignment = await this.beneficiaryAssignmentRepository.findById(beneficiaryAssignmentId);
+    const beneficiaryAssignment =
+      await this.beneficiaryAssignmentRepository.findById(beneficiaryAssignmentId);
     if (!beneficiaryAssignment) {
       throw new BeneficiaryAssignmentNotFoundException(beneficiaryAssignmentId);
     }
@@ -39,7 +41,10 @@ export class MarkBeneficiaryDistributedHandler implements ICommandHandler<MarkBe
     }
 
     // 4. Check court approval if required
-    if (beneficiaryAssignment.courtApprovalRequired && !beneficiaryAssignment.courtApprovalObtained) {
+    if (
+      beneficiaryAssignment.courtApprovalRequired &&
+      !beneficiaryAssignment.courtApprovalObtained
+    ) {
       throw new Error('Court approval required before distribution');
     }
 

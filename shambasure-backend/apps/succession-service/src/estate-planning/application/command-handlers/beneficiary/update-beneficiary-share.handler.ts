@@ -1,12 +1,13 @@
 // command-handlers/beneficiary/update-beneficiary-share.handler.ts
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { UpdateBeneficiaryShareCommand } from '../../commands/beneficiary/update-beneficiary-share.command';
+import { Logger } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
+import { BeneficiaryAssignmentNotFoundException } from '../../../domain/exceptions/beneficiary-assignment-not-found.exception';
+import { BeneficiaryNotEditableException } from '../../../domain/exceptions/beneficiary-not-editable.exception';
+import { WillNotFoundException } from '../../../domain/exceptions/will-not-found.exception';
 import { BeneficiaryAssignmentRepository } from '../../../infrastructure/repositories/beneficiary-assignment.repository';
 import { WillRepository } from '../../../infrastructure/repositories/will.repository';
-import { BeneficiaryAssignmentNotFoundException } from '../../../domain/exceptions/beneficiary-assignment-not-found.exception';
-import { WillNotFoundException } from '../../../domain/exceptions/will-not-found.exception';
-import { BeneficiaryNotEditableException } from '../../../domain/exceptions/beneficiary-not-editable.exception';
-import { Logger } from '@nestjs/common';
+import { UpdateBeneficiaryShareCommand } from '../../commands/beneficiary/update-beneficiary-share.command';
 
 @CommandHandler(UpdateBeneficiaryShareCommand)
 export class UpdateBeneficiaryShareHandler implements ICommandHandler<UpdateBeneficiaryShareCommand> {
@@ -38,7 +39,8 @@ export class UpdateBeneficiaryShareHandler implements ICommandHandler<UpdateBene
     }
 
     // 3. Load beneficiary assignment
-    const beneficiaryAssignment = await this.beneficiaryAssignmentRepository.findById(beneficiaryAssignmentId);
+    const beneficiaryAssignment =
+      await this.beneficiaryAssignmentRepository.findById(beneficiaryAssignmentId);
     if (!beneficiaryAssignment) {
       throw new BeneficiaryAssignmentNotFoundException(beneficiaryAssignmentId);
     }

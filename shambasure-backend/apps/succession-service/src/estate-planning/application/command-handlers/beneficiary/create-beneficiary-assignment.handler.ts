@@ -1,15 +1,16 @@
 // command-handlers/beneficiary/create-beneficiary-assignment.handler.ts
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { CreateBeneficiaryAssignmentCommand } from '../../commands/beneficiary/create-beneficiary-assignment.command';
-import { BeneficiaryAssignmentRepository } from '../../../infrastructure/repositories/beneficiary-assignment.repository';
-import { WillRepository } from '../../../infrastructure/repositories/will.repository';
-import { AssetRepository } from '../../../infrastructure/repositories/asset.repository';
+import { Logger } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
 import { BeneficiaryAssignment } from '../../../domain/entities/beneficiary-assignment.entity';
-import { WillNotFoundException } from '../../../domain/exceptions/will-not-found.exception';
 import { AssetNotFoundException } from '../../../domain/exceptions/asset-not-found.exception';
 import { BeneficiaryAlreadyExistsException } from '../../../domain/exceptions/beneficiary-already-exists.exception';
 import { BeneficiaryEligibilityException } from '../../../domain/exceptions/beneficiary-eligibility.exception';
-import { Logger } from '@nestjs/common';
+import { WillNotFoundException } from '../../../domain/exceptions/will-not-found.exception';
+import { AssetRepository } from '../../../infrastructure/repositories/asset.repository';
+import { BeneficiaryAssignmentRepository } from '../../../infrastructure/repositories/beneficiary-assignment.repository';
+import { WillRepository } from '../../../infrastructure/repositories/will.repository';
+import { CreateBeneficiaryAssignmentCommand } from '../../commands/beneficiary/create-beneficiary-assignment.command';
 
 @CommandHandler(CreateBeneficiaryAssignmentCommand)
 export class CreateBeneficiaryAssignmentHandler implements ICommandHandler<CreateBeneficiaryAssignmentCommand> {

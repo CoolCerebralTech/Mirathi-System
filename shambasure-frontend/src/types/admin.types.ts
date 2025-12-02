@@ -1,23 +1,22 @@
-// ============================================================================
-// admin.schemas.ts - Admin Management Validation Schemas
-// ============================================================================
-// Admin-only operations with sensitive user data and system management
-// ============================================================================
+// FILE: src/types/admin.types.ts
 
 import { z } from 'zod';
+import { UserRoleSchema, type UserRole } from './shared.types'; 
+import { PaginationQuerySchema, PaginationMetaSchema } from './common.types';
 
 // ============================================================================
-// ENUMS AND CONSTANTS
+// CONSTANTS
 // ============================================================================
 
-/**
- * User roles from Prisma schema
- */
-export const UserRoleSchema = z.enum(['USER', 'ADMIN', 'VERIFIER', 'AUDITOR']);
+// Type for the action data
+type AdminActionData = {
+  oldRole?: string;
+  newRole?: string;
+  duration?: number;
+  permanent?: boolean;
+  [key: string]: unknown; 
+};
 
-/**
- * Notification types for admin notifications
- */
 export const AdminNotificationTypeSchema = z.enum([
   'system_announcement',
   'security_alert', 
@@ -25,9 +24,6 @@ export const AdminNotificationTypeSchema = z.enum([
   'general'
 ]);
 
-/**
- * System health status
- */
 export const SystemHealthStatusSchema = z.enum(['healthy', 'degraded', 'unhealthy']);
 
 // ============================================================================
@@ -35,18 +31,11 @@ export const SystemHealthStatusSchema = z.enum(['healthy', 'degraded', 'unhealth
 // ============================================================================
 
 /**
- * Base pagination query schema
- */
-export const PaginationQuerySchema = z.object({
-  page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().max(100).default(20),
-  search: z.string().optional(),
-});
-
-/**
  * User query schema for admin user listing
+ * Extends the Common Pagination Schema
  */
 export const UserQuerySchema = PaginationQuerySchema.extend({
+  search: z.string().optional(), // Explicitly adding search back if needed
   role: UserRoleSchema.optional(),
   isActive: z.coerce.boolean().optional(),
   emailVerified: z.coerce.boolean().optional(),
@@ -63,6 +52,7 @@ export const UserQuerySchema = PaginationQuerySchema.extend({
  * Role change query schema
  */
 export const RoleChangeQuerySchema = PaginationQuerySchema.extend({
+  search: z.string().optional(),
   userId: z.string().uuid().optional(),
   changedBy: z.string().uuid().optional(),
   oldRole: UserRoleSchema.optional(),
@@ -75,6 +65,7 @@ export const RoleChangeQuerySchema = PaginationQuerySchema.extend({
  * Admin audit log query schema
  */
 export const AdminAuditLogQuerySchema = PaginationQuerySchema.extend({
+  search: z.string().optional(),
   adminId: z.string().uuid().optional(),
   targetUserId: z.string().uuid().optional(),
   action: z.string().optional(),
@@ -96,24 +87,10 @@ export const SystemStatsQuerySchema = z.object({
 // REQUEST SCHEMAS (Admin Actions)
 // ============================================================================
 
-/**
- * Admin update user request schema
- */
 export const AdminUpdateUserRequestSchema = z.object({
-  firstName: z
-    .string()
-    .min(2, 'First name must be at least 2 characters')
-    .max(50, 'First name cannot exceed 50 characters')
-    .optional(),
-  lastName: z
-    .string()
-    .min(2, 'Last name must be at least 2 characters')
-    .max(50, 'Last name cannot exceed 50 characters')
-    .optional(),
-  email: z
-    .string()
-    .email('Please provide a valid email address')
-    .optional(),
+  firstName: z.string().min(2).max(50).optional(),
+  lastName: z.string().min(2).max(50).optional(),
+  email: z.string().email().optional(),
   isActive: z.boolean().optional(),
   emailVerified: z.boolean().optional(),
   phoneVerified: z.boolean().optional(),
@@ -122,56 +99,38 @@ export const AdminUpdateUserRequestSchema = z.object({
   marketingOptIn: z.boolean().optional(),
 });
 
-/**
- * Update user role request schema
- */
 export const UpdateUserRoleRequestSchema = z.object({
   newRole: UserRoleSchema,
-  reason: z.string().max(500, 'Reason cannot exceed 500 characters').optional(),
+  reason: z.string().max(500).optional(),
   notifyUser: z.boolean().default(true),
 });
 
-/**
- * Lock user account request schema
- */
 export const LockUserAccountRequestSchema = z.object({
   durationMinutes: z.coerce.number().int().min(1).optional(),
-  reason: z.string().min(1, 'Reason is required').max(500, 'Reason cannot exceed 500 characters'),
+  reason: z.string().min(1).max(500),
   notifyUser: z.boolean().default(true),
 });
 
-/**
- * Unlock user account request schema
- */
 export const UnlockUserAccountRequestSchema = z.object({
-  reason: z.string().max(500, 'Reason cannot exceed 500 characters').optional(),
+  reason: z.string().max(500).optional(),
   notifyUser: z.boolean().default(true),
 });
 
-/**
- * Soft delete user request schema
- */
 export const SoftDeleteUserRequestSchema = z.object({
-  reason: z.string().min(1, 'Reason is required').max(500, 'Reason cannot exceed 500 characters'),
+  reason: z.string().min(1).max(500),
   permanent: z.boolean().default(false),
   notifyUser: z.boolean().default(true),
 });
 
-/**
- * Restore user request schema
- */
 export const RestoreUserRequestSchema = z.object({
-  reason: z.string().max(500, 'Reason cannot exceed 500 characters').optional(),
+  reason: z.string().max(500).optional(),
   reactivate: z.boolean().default(true),
 });
 
-/**
- * Admin create user request schema
- */
 export const AdminCreateUserRequestSchema = z.object({
-  firstName: z.string().min(2, 'First name must be at least 2 characters').max(50, 'First name cannot exceed 50 characters'),
-  lastName: z.string().min(2, 'Last name must be at least 2 characters').max(50, 'Last name cannot exceed 50 characters'),
-  email: z.string().email('Please provide a valid email address'),
+  firstName: z.string().min(2).max(50),
+  lastName: z.string().min(2).max(50),
+  email: z.string().email(),
   role: UserRoleSchema.default('USER'),
   sendWelcomeEmail: z.boolean().default(true),
   emailVerified: z.boolean().default(false),
@@ -179,69 +138,42 @@ export const AdminCreateUserRequestSchema = z.object({
   marketingOptIn: z.boolean().default(false),
 });
 
-/**
- * Admin bulk update users request schema
- */
 export const AdminBulkUpdateUsersRequestSchema = z.object({
-  userIds: z.array(z.string().uuid()).min(1, 'At least one user ID is required'),
+  userIds: z.array(z.string().uuid()).min(1),
   role: UserRoleSchema.optional(),
   isActive: z.boolean().optional(),
   emailVerified: z.boolean().optional(),
   lockedUntil: z.string().datetime().optional(),
   loginAttempts: z.coerce.number().int().min(0).optional(),
-  reason: z.string().max(500, 'Reason cannot exceed 500 characters').optional(),
+  reason: z.string().max(500).optional(),
 });
 
-/**
- * Admin send notification request schema
- */
 export const AdminSendNotificationRequestSchema = z.object({
-  userIds: z.array(z.string().uuid()).min(1, 'At least one user ID is required'),
-  subject: z.string().min(1, 'Subject is required').max(200, 'Subject cannot exceed 200 characters'),
-  message: z.string().min(1, 'Message is required').max(2000, 'Message cannot exceed 2000 characters'),
+  userIds: z.array(z.string().uuid()).min(1),
+  subject: z.string().min(1).max(200),
+  message: z.string().min(1).max(2000),
   type: AdminNotificationTypeSchema.default('system_announcement'),
   sendEmail: z.boolean().default(true),
   sendInApp: z.boolean().default(true),
 });
 
-/**
- * Admin system maintenance request schema
- */
 export const AdminSystemMaintenanceRequestSchema = z.object({
   enabled: z.boolean(),
-  message: z.string().max(1000, 'Message cannot exceed 1000 characters').optional(),
+  message: z.string().max(1000).optional(),
   estimatedCompletion: z.string().datetime().optional(),
   allowAdminAccess: z.boolean().default(true),
 });
 
 // ============================================================================
-// RESPONSE SCHEMAS (Admin Outputs)
+// RESPONSE SCHEMAS
 // ============================================================================
 
-/**
- * Base response schema with common fields
- */
 export const BaseResponseSchema = z.object({
   id: z.string().uuid(),
   createdAt: z.string().datetime().transform((val) => new Date(val)),
   updatedAt: z.string().datetime().transform((val) => new Date(val)),
 });
 
-/**
- * Pagination meta schema
- */
-export const PaginationMetaSchema = z.object({
-  total: z.number(),
-  page: z.number(),
-  limit: z.number(),
-  totalPages: z.number(),
-  hasNext: z.boolean(),
-  hasPrevious: z.boolean(),
-});
-
-/**
- * Detailed user response schema with admin-only fields
- */
 export const DetailedUserResponseSchema = BaseResponseSchema.extend({
   email: z.string().email(),
   firstName: z.string(),
@@ -261,18 +193,12 @@ export const DetailedUserResponseSchema = BaseResponseSchema.extend({
   isDeleted: z.boolean(),
 });
 
-/**
- * Admin update user response schema
- */
 export const AdminUpdateUserResponseSchema = z.object({
   message: z.string(),
   user: DetailedUserResponseSchema,
   updatedFields: z.array(z.string()),
 });
 
-/**
- * Update user role response schema
- */
 export const UpdateUserRoleResponseSchema = z.object({
   message: z.string(),
   user: DetailedUserResponseSchema,
@@ -283,9 +209,6 @@ export const UpdateUserRoleResponseSchema = z.object({
   userNotified: z.boolean(),
 });
 
-/**
- * Lock user account response schema
- */
 export const LockUserAccountResponseSchema = z.object({
   message: z.string(),
   userId: z.string().uuid(),
@@ -296,9 +219,6 @@ export const LockUserAccountResponseSchema = z.object({
   sessionsTerminated: z.number(),
 });
 
-/**
- * Unlock user account response schema
- */
 export const UnlockUserAccountResponseSchema = z.object({
   message: z.string(),
   userId: z.string().uuid(),
@@ -308,9 +228,6 @@ export const UnlockUserAccountResponseSchema = z.object({
   userNotified: z.boolean(),
 });
 
-/**
- * Soft delete user response schema
- */
 export const SoftDeleteUserResponseSchema = z.object({
   message: z.string(),
   userId: z.string().uuid(),
@@ -323,9 +240,6 @@ export const SoftDeleteUserResponseSchema = z.object({
   dataScheduledForDeletion: z.array(z.string()),
 });
 
-/**
- * Restore user response schema
- */
 export const RestoreUserResponseSchema = z.object({
   message: z.string(),
   user: DetailedUserResponseSchema,
@@ -334,9 +248,6 @@ export const RestoreUserResponseSchema = z.object({
   reactivated: z.boolean(),
 });
 
-/**
- * Admin create user response schema
- */
 export const AdminCreateUserResponseSchema = z.object({
   message: z.string(),
   user: DetailedUserResponseSchema,
@@ -346,9 +257,6 @@ export const AdminCreateUserResponseSchema = z.object({
   emailVerified: z.boolean(),
 });
 
-/**
- * Admin bulk update users response schema
- */
 export const AdminBulkUpdateUsersResponseSchema = z.object({
   message: z.string(),
   usersUpdated: z.number().positive(),
@@ -361,17 +269,12 @@ export const AdminBulkUpdateUsersResponseSchema = z.object({
   reason: z.string().optional(),
 });
 
-/**
- * Paginated users response schema
- */
+// Using PaginationMetaSchema from common
 export const PaginatedUsersResponseSchema = z.object({
   data: z.array(DetailedUserResponseSchema),
   meta: PaginationMetaSchema,
 });
 
-/**
- * Role change response schema
- */
 export const RoleChangeResponseSchema = BaseResponseSchema.extend({
   userId: z.string().uuid(),
   userEmail: z.string().email(),
@@ -382,17 +285,11 @@ export const RoleChangeResponseSchema = BaseResponseSchema.extend({
   reason: z.string().optional(),
 });
 
-/**
- * Paginated role changes response schema
- */
 export const PaginatedRoleChangesResponseSchema = z.object({
   data: z.array(RoleChangeResponseSchema),
   meta: PaginationMetaSchema,
 });
 
-/**
- * User stats response schema
- */
 export const UserStatsResponseSchema = z.object({
   total: z.number().positive(),
   active: z.number().positive(),
@@ -408,9 +305,6 @@ export const UserStatsResponseSchema = z.object({
   growthRate: z.number(),
 });
 
-/**
- * Get user response schema with extended data
- */
 export const GetUserResponseSchema = DetailedUserResponseSchema.extend({
   sessions: z.array(z.object({
     id: z.string().uuid(),
@@ -430,9 +324,6 @@ export const GetUserResponseSchema = DetailedUserResponseSchema.extend({
   })).optional(),
 });
 
-/**
- * Admin audit log response schema
- */
 export const AdminAuditLogResponseSchema = BaseResponseSchema.extend({
   adminId: z.string().uuid(),
   adminEmail: z.string().email(),
@@ -442,20 +333,14 @@ export const AdminAuditLogResponseSchema = BaseResponseSchema.extend({
   description: z.string(),
   ipAddress: z.string().optional(),
   userAgent: z.string().optional(),
-  metadata: z.record(z.any()),
+  metadata: z.record(z.string(), z.any()), 
 });
 
-/**
- * Paginated audit log response schema
- */
 export const PaginatedAuditLogResponseSchema = z.object({
   data: z.array(AdminAuditLogResponseSchema),
   meta: PaginationMetaSchema,
 });
 
-/**
- * Admin send notification response schema
- */
 export const AdminSendNotificationResponseSchema = z.object({
   message: z.string(),
   usersNotified: z.number().positive(),
@@ -464,9 +349,6 @@ export const AdminSendNotificationResponseSchema = z.object({
   failedUsers: z.array(z.string().uuid()).optional(),
 });
 
-/**
- * System maintenance response schema
- */
 export const SystemMaintenanceResponseSchema = z.object({
   enabled: z.boolean(),
   message: z.string().optional(),
@@ -476,9 +358,6 @@ export const SystemMaintenanceResponseSchema = z.object({
   enabledBy: z.string(),
 });
 
-/**
- * System health response schema
- */
 export const SystemHealthResponseSchema = z.object({
   status: SystemHealthStatusSchema,
   database: z.boolean(),
@@ -497,7 +376,6 @@ export const SystemHealthResponseSchema = z.object({
 // INFERRED TYPES
 // ============================================================================
 
-export type UserRole = z.infer<typeof UserRoleSchema>;
 export type AdminNotificationType = z.infer<typeof AdminNotificationTypeSchema>;
 export type SystemHealthStatus = z.infer<typeof SystemHealthStatusSchema>;
 
@@ -538,27 +416,17 @@ export type SystemMaintenanceResponse = z.infer<typeof SystemMaintenanceResponse
 export type SystemHealthResponse = z.infer<typeof SystemHealthResponseSchema>;
 
 // ============================================================================
-// UTILITY FUNCTIONS AND CONSTANTS
+// UTILITY FUNCTIONS
 // ============================================================================
 
-/**
- * Check if a user has admin privileges
- */
 export const isAdminUser = (user: { role: UserRole }): boolean => {
   return user.role === 'ADMIN';
 };
 
-/**
- * Check if a user can be managed by admin (not another admin)
- */
 export const isManageableUser = (targetUser: { role: UserRole }, currentUser: { role: UserRole }): boolean => {
-  // Admins can only manage non-admin users, unless it's self-management for certain operations
   return targetUser.role !== 'ADMIN' || targetUser.role === currentUser.role;
 };
 
-/**
- * Get user status for display in admin interfaces
- */
 export const getUserStatus = (user: DetailedUserResponse): string => {
   if (user.isDeleted) return 'Deleted';
   if (user.isLocked) return 'Locked';
@@ -566,9 +434,6 @@ export const getUserStatus = (user: DetailedUserResponse): string => {
   return 'Active';
 };
 
-/**
- * Get status badge color for admin UI
- */
 export const getUserStatusColor = (user: DetailedUserResponse): string => {
   if (user.isDeleted) return 'red';
   if (user.isLocked) return 'orange';
@@ -576,9 +441,6 @@ export const getUserStatusColor = (user: DetailedUserResponse): string => {
   return 'green';
 };
 
-/**
- * Format user data for admin display
- */
 export const formatUserForAdmin = (user: DetailedUserResponse) => {
   return {
     ...user,
@@ -589,9 +451,6 @@ export const formatUserForAdmin = (user: DetailedUserResponse) => {
   };
 };
 
-/**
- * Calculate lock duration in minutes
- */
 export const calculateLockDuration = (lockedUntil?: Date): number | null => {
   if (!lockedUntil) return null;
   const now = new Date();
@@ -599,20 +458,13 @@ export const calculateLockDuration = (lockedUntil?: Date): number | null => {
   return Math.max(0, Math.ceil(diffMs / (1000 * 60)));
 };
 
-/**
- * Check if a lock is permanent
- */
 export const isPermanentLock = (lockedUntil?: Date): boolean => {
   if (!lockedUntil) return false;
-  // Consider locks more than 1 year as permanent
   const oneYearFromNow = new Date();
   oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
   return lockedUntil > oneYearFromNow;
 };
 
-/**
- * Validate admin action reason
- */
 export const validateAdminActionReason = (reason: string, action: string): string | null => {
   if (!reason && action !== 'unlock') {
     return 'Reason is required for this action';
@@ -623,21 +475,22 @@ export const validateAdminActionReason = (reason: string, action: string): strin
   return null;
 };
 
-/**
- * Get admin action description for audit logs
- */
-export const getAdminActionDescription = (action: string, targetUser: DetailedUserResponse, data?: any): string => {
+export const getAdminActionDescription = (
+  action: string, 
+  targetUser: DetailedUserResponse, 
+  data?: AdminActionData
+): string => {
   const userName = `${targetUser.firstName} ${targetUser.lastName}`;
   
   switch (action) {
     case 'role_change':
-      return `Changed ${userName}'s role from ${data.oldRole} to ${data.newRole}`;
+      return `Changed ${userName}'s role from ${data?.oldRole} to ${data?.newRole}`;
     case 'lock_account':
-      return `Locked ${userName}'s account${data.duration ? ` for ${data.duration} minutes` : ''}`;
+      return `Locked ${userName}'s account${data?.duration ? ` for ${data.duration} minutes` : ''}`;
     case 'unlock_account':
       return `Unlocked ${userName}'s account`;
     case 'delete_account':
-      return `${data.permanent ? 'Permanently deleted' : 'Soft deleted'} ${userName}'s account`;
+      return `${data?.permanent ? 'Permanently deleted' : 'Soft deleted'} ${userName}'s account`;
     case 'restore_account':
       return `Restored ${userName}'s account`;
     case 'update_user':

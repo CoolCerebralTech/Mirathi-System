@@ -1,10 +1,11 @@
 // command-handlers/beneficiary/obtain-court-approval.handler.ts
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { ObtainCourtApprovalCommand } from '../../commands/beneficiary/obtain-court-approval.command';
-import { BeneficiaryAssignmentRepository } from '../../../infrastructure/repositories/beneficiary-assignment.repository';
+import { Logger } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
 import { BeneficiaryAssignmentNotFoundException } from '../../../domain/exceptions/beneficiary-assignment-not-found.exception';
 import { CourtApprovalNotRequiredException } from '../../../domain/exceptions/court-approval-not-required.exception';
-import { Logger } from '@nestjs/common';
+import { BeneficiaryAssignmentRepository } from '../../../infrastructure/repositories/beneficiary-assignment.repository';
+import { ObtainCourtApprovalCommand } from '../../commands/beneficiary/obtain-court-approval.command';
 
 @CommandHandler(ObtainCourtApprovalCommand)
 export class ObtainCourtApprovalHandler implements ICommandHandler<ObtainCourtApprovalCommand> {
@@ -20,7 +21,8 @@ export class ObtainCourtApprovalHandler implements ICommandHandler<ObtainCourtAp
     this.logger.debug(`Executing ObtainCourtApprovalCommand: ${correlationId}`);
 
     // 1. Load beneficiary assignment
-    const beneficiaryAssignment = await this.beneficiaryAssignmentRepository.findById(beneficiaryAssignmentId);
+    const beneficiaryAssignment =
+      await this.beneficiaryAssignmentRepository.findById(beneficiaryAssignmentId);
     if (!beneficiaryAssignment) {
       throw new BeneficiaryAssignmentNotFoundException(beneficiaryAssignmentId);
     }

@@ -1,11 +1,12 @@
 // query-handlers/assets/check-asset-transferability.handler.ts
+import { Logger } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CheckAssetTransferabilityQuery } from '../../queries/assets/check-asset-transferability.query';
-import { AssetRepository } from '../../../infrastructure/repositories/asset.repository';
-import { EstatePlanningRepository } from '../../../infrastructure/repositories/estate-planning.repository';
+
 import { AssetNotFoundException } from '../../../domain/exceptions/asset-not-found.exception';
 import { EstatePlanningNotFoundException } from '../../../domain/exceptions/estate-planning-not-found.exception';
-import { Logger } from '@nestjs/common';
+import { AssetRepository } from '../../../infrastructure/repositories/asset.repository';
+import { EstatePlanningRepository } from '../../../infrastructure/repositories/estate-planning.repository';
+import { CheckAssetTransferabilityQuery } from '../../queries/assets/check-asset-transferability.query';
 
 export interface AssetTransferabilityResult {
   canBeTransferred: boolean;
@@ -44,7 +45,8 @@ export class CheckAssetTransferabilityHandler implements IQueryHandler<CheckAsse
     if (!asset.isActive) reasons.push('Asset is not active');
     if (asset.verificationStatus !== 'VERIFIED') reasons.push('Asset is not verified');
     if (asset.hasActiveLifeInterest()) reasons.push('Asset has active life interest');
-    if (asset.isEncumbered && asset.encumbranceType === 'COURT_ORDER') reasons.push('Asset is under court order');
+    if (asset.isEncumbered && asset.encumbranceType === 'COURT_ORDER')
+      reasons.push('Asset is under court order');
 
     return {
       canBeTransferred,

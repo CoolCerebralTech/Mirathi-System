@@ -2,10 +2,10 @@
 import { Logger } from '@nestjs/common';
 import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
 
+import { AssetNotFoundException } from '../../../domain/exceptions/asset-not-found.exception';
 import { AssetRepository } from '../../../infrastructure/repositories/asset.repository';
 import { EstatePlanningRepository } from '../../../infrastructure/repositories/estate-planning.repository';
 import { UpdateAssetValuationCommand } from '../../commands/assets/update-asset-valuation.command';
-import { AssetNotFoundException } from '../../../domain/exceptions/asset-not-found.exception';
 import { AssetNotOwnedException } from '../../domain/exceptions/asset-not-owned.exception';
 import { EstatePlanningNotFoundException } from '../../domain/exceptions/estate-planning-not-found.exception';
 

@@ -1,12 +1,13 @@
 // query-handlers/assets/list-assets.handler.ts
+import { Logger } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { ListAssetsQuery } from '../../queries/assets/list-assets.query';
+
+import { EstatePlanningNotFoundException } from '../../../domain/exceptions/estate-planning-not-found.exception';
+import { AssetMapper } from '../../../infrastructure/mappers/asset.mapper';
 import { AssetRepository } from '../../../infrastructure/repositories/asset.repository';
 import { EstatePlanningRepository } from '../../../infrastructure/repositories/estate-planning.repository';
 import { AssetSummaryResponseDto } from '../../dto/responses/asset-summary.response.dto';
-import { EstatePlanningNotFoundException } from '../../../domain/exceptions/estate-planning-not-found.exception';
-import { AssetMapper } from '../../../infrastructure/mappers/asset.mapper';
-import { Logger } from '@nestjs/common';
+import { ListAssetsQuery } from '../../queries/assets/list-assets.query';
 
 @QueryHandler(ListAssetsQuery)
 export class ListAssetsHandler implements IQueryHandler<ListAssetsQuery> {
@@ -58,7 +59,7 @@ export class ListAssetsHandler implements IQueryHandler<ListAssetsQuery> {
     const { assets, total } = await this.assetRepository.findByQuery(repositoryQuery);
 
     // Map to summary DTOs
-    const data = assets.map(asset => this.assetMapper.toSummaryResponseDto(asset));
+    const data = assets.map((asset) => this.assetMapper.toSummaryResponseDto(asset));
 
     return {
       data,

@@ -1,7 +1,7 @@
 // FILE: src/types/assets.schemas.ts
 
 import { z } from 'zod';
-import { UserSchema } from './user.types';
+import { UserResponseSchema } from './user.types';
 
 // ============================================================================
 // SHARED ENUMS AND REUSABLE SCHEMAS
@@ -77,7 +77,7 @@ const BaseAssetSchema = z.object({
   description: z.string().max(1000).nullable(),
   ownerId: z.string().uuid(),
   // For performance, the API may optionally include the full owner object
-  owner: UserSchema.optional(),
+  owner: UserResponseSchema.optional(),
   createdAt: z.string().datetime().transform((val) => new Date(val)),
   updatedAt: z.string().datetime().transform((val) => new Date(val)),
 });

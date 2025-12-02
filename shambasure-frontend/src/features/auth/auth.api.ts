@@ -623,7 +623,6 @@ export const useRefreshToken = () => {
     },
   });
 };
-
 /**
  * Hook for email verification
  */
@@ -637,8 +636,19 @@ export const useVerifyEmail = (options?: { onSuccess?: (data: VerifyEmailRespons
 
     onSuccess: (data) => {
       if (data.authData) {
-        queryClient.setQueryData(userKeys.profile(), data.authData.user);
-        setUser(data.authData.user);
+        const storeUser = {
+          ...data.authData.user,
+          loginAttempts: 0,
+          isLocked: false,
+          isDeleted: false,
+          lockedUntil: null,
+          deletedAt: null,
+        };
+
+        queryClient.setQueryData(userKeys.profile(), storeUser);
+        
+        // Now 'storeUser' matches the type expected by setUser
+        setUser(storeUser);
       }
 
       toast.success('Email verified successfully!', {

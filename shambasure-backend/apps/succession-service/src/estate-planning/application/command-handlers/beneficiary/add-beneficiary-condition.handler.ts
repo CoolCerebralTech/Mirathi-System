@@ -1,11 +1,12 @@
 // command-handlers/beneficiary/add-beneficiary-condition.handler.ts
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { AddBeneficiaryConditionCommand } from '../../commands/beneficiary/add-beneficiary-condition.command';
-import { BeneficiaryAssignmentRepository } from '../../../infrastructure/repositories/beneficiary-assignment.repository';
-import { WillRepository } from '../../../infrastructure/repositories/will.repository';
+import { Logger } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
 import { BeneficiaryAssignmentNotFoundException } from '../../../domain/exceptions/beneficiary-assignment-not-found.exception';
 import { WillNotFoundException } from '../../../domain/exceptions/will-not-found.exception';
-import { Logger } from '@nestjs/common';
+import { BeneficiaryAssignmentRepository } from '../../../infrastructure/repositories/beneficiary-assignment.repository';
+import { WillRepository } from '../../../infrastructure/repositories/will.repository';
+import { AddBeneficiaryConditionCommand } from '../../commands/beneficiary/add-beneficiary-condition.command';
 
 @CommandHandler(AddBeneficiaryConditionCommand)
 export class AddBeneficiaryConditionHandler implements ICommandHandler<AddBeneficiaryConditionCommand> {
@@ -37,7 +38,8 @@ export class AddBeneficiaryConditionHandler implements ICommandHandler<AddBenefi
     }
 
     // 3. Load beneficiary assignment
-    const beneficiaryAssignment = await this.beneficiaryAssignmentRepository.findById(beneficiaryAssignmentId);
+    const beneficiaryAssignment =
+      await this.beneficiaryAssignmentRepository.findById(beneficiaryAssignmentId);
     if (!beneficiaryAssignment) {
       throw new BeneficiaryAssignmentNotFoundException(beneficiaryAssignmentId);
     }

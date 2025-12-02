@@ -1,7 +1,7 @@
 // FILE: src/types/wills.schemas.ts
 
 import { z } from 'zod';
-import { UserSchema } from './user.types';
+import { UserResponseSchema } from './user.types';
 import { AssetSchema } from './assets.schemas';
 
 // ============================================================================
@@ -27,7 +27,7 @@ export const ExecutorSchema = z.object({
   // The user appointed as the executor
   executorUserId: z.string().uuid(),
   // Optionally include the full user object in API responses
-  executorUser: UserSchema.optional(),
+  executorUser: UserResponseSchema.optional(),
 });
 
 /**
@@ -55,7 +55,7 @@ export const BeneficiaryAssignmentSchema = z.object({
     .max(100, 'Share cannot exceed 100%'),
   // Optionally include full objects in API responses for easier display
   asset: AssetSchema.optional(),
-  beneficiary: UserSchema.optional(),
+  beneficiary: UserResponseSchema.optional(),
 });
 
 // ============================================================================
@@ -67,7 +67,7 @@ export const WillSchema = z.object({
   title: z.string(),
   status: WillStatusSchema,
   testatorId: z.string().uuid(),
-  testator: UserSchema.optional(),
+  testator: UserResponseSchema.optional(),
   executor: ExecutorSchema.nullable(),
   witnesses: z.array(WitnessSchema),
   assignments: z.array(BeneficiaryAssignmentSchema),

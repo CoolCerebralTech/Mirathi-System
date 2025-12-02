@@ -1,11 +1,12 @@
 // command-handlers/beneficiary/remove-beneficiary.handler.ts
-import { CommandHandler, ICommandHandler, EventPublisher } from '@nestjs/cqrs';
-import { RemoveBeneficiaryCommand } from '../../commands/beneficiary/remove-beneficiary.command';
-import { BeneficiaryAssignmentRepository } from '../../../infrastructure/repositories/beneficiary-assignment.repository';
-import { WillRepository } from '../../../infrastructure/repositories/will.repository';
+import { Logger } from '@nestjs/common';
+import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+
 import { BeneficiaryAssignmentNotFoundException } from '../../../domain/exceptions/beneficiary-assignment-not-found.exception';
 import { WillNotFoundException } from '../../../domain/exceptions/will-not-found.exception';
-import { Logger } from '@nestjs/common';
+import { BeneficiaryAssignmentRepository } from '../../../infrastructure/repositories/beneficiary-assignment.repository';
+import { WillRepository } from '../../../infrastructure/repositories/will.repository';
+import { RemoveBeneficiaryCommand } from '../../commands/beneficiary/remove-beneficiary.command';
 
 @CommandHandler(RemoveBeneficiaryCommand)
 export class RemoveBeneficiaryHandler implements ICommandHandler<RemoveBeneficiaryCommand> {
@@ -37,7 +38,8 @@ export class RemoveBeneficiaryHandler implements ICommandHandler<RemoveBeneficia
     }
 
     // 3. Load beneficiary assignment
-    const beneficiaryAssignment = await this.beneficiaryAssignmentRepository.findById(beneficiaryAssignmentId);
+    const beneficiaryAssignment =
+      await this.beneficiaryAssignmentRepository.findById(beneficiaryAssignmentId);
     if (!beneficiaryAssignment) {
       throw new BeneficiaryAssignmentNotFoundException(beneficiaryAssignmentId);
     }

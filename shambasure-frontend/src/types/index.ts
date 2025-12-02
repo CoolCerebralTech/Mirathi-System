@@ -11,3 +11,5 @@ export * from './families.schemas';
 export * from './wills.schemas';
 export * from './notifications.schemas';
 export * from './templates.schemas';
+export * from './common.types';
+

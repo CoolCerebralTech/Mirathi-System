@@ -6,7 +6,6 @@ import { Routes, Route } from 'react-router-dom';
 import { PublicLayout } from './components/layout/PublicLayout';
 import { AuthLayout } from './components/layout/AuthLayout';
 import { DashboardLayout } from './components/layout/DashboardLayout';
-import { AdminLayout } from './components/layout/AdminLayout';
 
 // Route Guards
 import { ProtectedRoute, GuestRoute } from './router/ProtectedRoute';
@@ -26,21 +25,11 @@ import { PendingVerificationPage } from './pages/auth/PendingVerificationPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 // Dashboard
-import { DashboardHomePage } from './pages/DashboardHomePage';
 import { ProfilePage } from './pages/users/ProfilePage';
 import { SettingsPage } from './pages/users/SettingsPage';
 import { AssetsPage } from './pages/assets/AssetsPage';
 import { DocumentsPage } from './pages/documents/DocumentsPage';
 import { DocumentDetailPage } from './pages/documents/DocumentDetailPage';
-import { FamiliesPage } from './pages/families/FamiliesPage';
-import { WillsPage } from './pages/wills/WillsPage';
-import { WillDetailPage } from './pages/wills/WillDetailPage';
-// Admin
-import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
-import { AdminUsersPage } from './pages/admin/AdminUsersPage';
-import { AdminDocumentsPage } from './pages/admin/AdminDocumentsPage';
-import { AdminTemplatesPage } from './pages/admin/AdminTemplatesPage';
-import { AdminAuditLogsPage } from './pages/admin/AdminAuditLogsPage';
 // Not Found
 import { NotFoundPage } from './pages/NotFoundPage';
 
@@ -71,7 +60,6 @@ function App() {
       {/* --- Dashboard / Protected Routes --- */}
       <Route path="/dashboard" element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
-          <Route index element={<DashboardHomePage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="assets" element={<AssetsPage />} />
@@ -79,22 +67,6 @@ function App() {
             <Route index element={<DocumentsPage />} />
             <Route path=":id" element={<DocumentDetailPage />} />
           </Route>
-          <Route path="families" element={<FamiliesPage />} />
-          <Route path="wills">
-            <Route index element={<WillsPage />} />
-            <Route path=":id" element={<WillDetailPage />} />
-          </Route>
-        </Route>
-      </Route>
-
-      {/* --- Admin Routes --- */}
-      <Route path="/admin" element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-        <Route element={<AdminLayout />}>
-          <Route index element={<AdminDashboardPage />} />
-          <Route path="users" element={<AdminUsersPage />} />
-          <Route path="documents" element={<AdminDocumentsPage />} />
-          <Route path="templates" element={<AdminTemplatesPage />} />
-          <Route path="auditing" element={<AdminAuditLogsPage />} />
         </Route>
       </Route>
 
