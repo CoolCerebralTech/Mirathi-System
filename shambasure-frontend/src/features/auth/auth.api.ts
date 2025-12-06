@@ -50,20 +50,21 @@ import { toast } from 'sonner';
 
 /**
  * API endpoint configuration for authentication operations
+ * Prefix: /accounts (to route through Gateway to Accounts Service)
  */
 const API_ENDPOINTS = {
-  REGISTER: '/auth/register',
-  LOGIN: '/auth/login',
-  LOGOUT: '/auth/logout',
-  REFRESH: '/auth/refresh',
-  VERIFY_EMAIL: '/auth/verify-email',
-  RESEND_VERIFICATION: '/auth/resend-verification',
-  FORGOT_PASSWORD: '/auth/forgot-password',
-  VALIDATE_RESET_TOKEN: '/auth/validate-reset-token',
-  RESET_PASSWORD: '/auth/reset-password',
-  CHANGE_PASSWORD: '/auth/change-password',
-  REQUEST_EMAIL_CHANGE: '/auth/request-email-change',
-  CONFIRM_EMAIL_CHANGE: '/auth/confirm-email-change',
+  REGISTER: '/accounts/auth/register',
+  LOGIN: '/accounts/auth/login',
+  LOGOUT: '/accounts/auth/logout',
+  REFRESH: '/accounts/auth/refresh',
+  VERIFY_EMAIL: '/accounts/auth/verify-email',
+  RESEND_VERIFICATION: '/accounts/auth/resend-verification',
+  FORGOT_PASSWORD: '/accounts/auth/forgot-password',
+  VALIDATE_RESET_TOKEN: '/accounts/auth/validate-reset-token',
+  RESET_PASSWORD: '/accounts/auth/reset-password',
+  CHANGE_PASSWORD: '/accounts/auth/change-password',
+  REQUEST_EMAIL_CHANGE: '/accounts/auth/request-email-change',
+  CONFIRM_EMAIL_CHANGE: '/accounts/auth/confirm-email-change',
 } as const;
 
 /**

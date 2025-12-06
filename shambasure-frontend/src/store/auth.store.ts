@@ -145,3 +145,11 @@ export const useAuthActions = () => useAuthStore((state) => ({
   setLoading: state.setLoading,
   hydrate: state.hydrate
 }));
+
+export const getAccessToken = () => {
+  return usePersistentAuthStore.getState().accessToken || useSessionAuthStore.getState().accessToken;
+};
+
+export const getRefreshToken = () => {
+  return usePersistentAuthStore.getState().refreshToken || useSessionAuthStore.getState().refreshToken;
+};

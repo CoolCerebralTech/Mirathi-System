@@ -47,21 +47,22 @@ import {
 
 /**
  * API endpoint configuration for user operations
+ * Prefix: /accounts (to route through Gateway to Accounts Service)
  */
 const API_ENDPOINTS = {
   // Current user endpoints
-  ME: '/me',
-  DEACTIVATE_ACCOUNT: '/me/deactivate',
+  ME: '/accounts/me',
+  DEACTIVATE_ACCOUNT: '/accounts/me/deactivate',
   
   // Profile endpoints
-  PROFILE: '/me/profile',
-  PHONE_SEND_VERIFICATION: '/me/phone/send-verification',
-  PHONE_VERIFY: '/me/phone/verify',
-  PHONE_RESEND_VERIFICATION: '/me/phone/resend-verification',
-  PHONE_REMOVE: '/me/phone',
-  MARKETING_PREFERENCES: '/me/marketing-preferences',
-  ADDRESS_REMOVE: '/me/address',
-  NEXT_OF_KIN_REMOVE: '/me/next-of-kin',
+  PROFILE: '/accounts/me/profile',
+  PHONE_SEND_VERIFICATION: '/accounts/me/phone/send-verification',
+  PHONE_VERIFY: '/accounts/me/phone/verify',
+  PHONE_RESEND_VERIFICATION: '/accounts/me/phone/resend-verification',
+  PHONE_REMOVE: '/accounts/me/phone',
+  MARKETING_PREFERENCES: '/accounts/me/marketing-preferences',
+  ADDRESS_REMOVE: '/accounts/me/address',
+  NEXT_OF_KIN_REMOVE: '/accounts/me/next-of-kin',
 } as const;
 
 /**

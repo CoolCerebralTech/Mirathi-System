@@ -5,8 +5,26 @@ import axios, {
   type InternalAxiosRequestConfig,
   type AxiosInstance,
 } from 'axios';
-import { useAuthStore } from '../store/auth.store';
-import { AuthResponseSchema } from '../types';
+import { 
+  getAccessToken, 
+  getRefreshToken, 
+  useAuthStore 
+} from '../store/auth.store'; 
+
+interface GenericAuthResponse {
+  // Shape A: Flat tokens (sometimes used in refresh endpoints)
+  accessToken?: string;
+  refreshToken?: string;
+  
+  // Shape B: Nested tokens (used in login/register endpoints)
+  tokens?: {
+    accessToken: string;
+    refreshToken: string;
+  };
+  
+  // Allow other properties (user, metadata, etc.)
+  [key: string]: unknown; 
+}
 
 // ============================================================================
 // CONFIGURATION
@@ -22,11 +40,15 @@ if (!VITE_API_BASE_URL) {
   throw new Error('VITE_API_BASE_URL is not defined. Please check your .env file.');
 }
 
-// CRITICAL FIX: Removed '/v1' prefix here because it is already in VITE_API_BASE_URL
+// ✅ CRITICAL UPDATE: 
+// The Gateway Base URL is: http://localhost:3000/api
+// The Gateway maps: /accounts -> Accounts Service
+// The Accounts Service has: /auth/login
+// Therefore, the path here must be: /accounts/auth/login
 const ApiEndpoints = {
-  REFRESH_TOKEN: '/auth/refresh',
-  LOGIN: '/auth/login',
-  REGISTER: '/auth/register',
+  LOGIN: '/accounts/auth/login',
+  REGISTER: '/accounts/auth/register',
+  REFRESH_TOKEN: '/accounts/auth/refresh',
 };
 
 // ============================================================================
@@ -37,35 +59,12 @@ const validateTokenStructure = (token: string | null): boolean => {
   if (!token) return false;
   if (typeof token !== 'string' || token.trim().length === 0) return false;
 
+  // Basic JWT structure check (header.payload.signature)
   if (token.includes('.')) {
     const parts = token.split('.');
     if (parts.length !== 3) return false;
-    if (parts.some((p) => p.trim().length === 0)) return false;
-    try {
-      atob(parts[1]);
-    } catch {
-      return false;
-    }
   }
-  return token.length >= 10;
-};
-
-// ============================================================================
-// ERROR HELPER
-// ============================================================================
-
-export const extractErrorMessage = (error: unknown): string => {
-  if (axios.isAxiosError(error)) {
-    if (error.response?.data?.message) return error.response.data.message;
-    if (error.response?.data?.error) return error.response.data.error;
-    if (error.response?.data?.detail) return error.response.data.detail; // FastAPI/Python style, keeping just in case
-    if (error.response?.statusText) return error.response.statusText;
-    if (error.request && !error.response) return 'Network error. Please check your connection.';
-  }
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  
-  return 'An unexpected error occurred';
+  return true;
 };
 
 // ============================================================================
@@ -87,10 +86,10 @@ export const apiClient: AxiosInstance = axios.create({
 
 apiClient.interceptors.request.use(
   async (config) => {
-    const { accessToken } = useAuthStore.getState();
+    // ✅ Use the helper function to get token from either LocalStorage OR Session
+    const accessToken = getAccessToken();
 
     // --- SKIP AUTH for public endpoints ---
-    // We check if the URL contains the endpoint string to handle potential query params
     if (
       config.url?.includes(ApiEndpoints.LOGIN) ||
       config.url?.includes(ApiEndpoints.REGISTER) ||
@@ -107,12 +106,6 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
 
-    // PRODUCTION NOTE: 
-    // We REMOVED the "Proactive Token Expiry Check" here.
-    // Why? It causes race conditions when multiple API calls fire at once.
-    // Instead, we let the 401 happen, and the Response Interceptor handles the 
-    // queueing and refreshing safely.
-
     return config;
   },
   (error) => Promise.reject(error),
@@ -127,7 +120,6 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as CustomAxiosRequestConfig;
 
-    // Safety check: if request was explicitly marked to skip auth logic
     if (originalRequest?._skipAuth) return Promise.reject(error);
 
     // Identify if the error came FROM an auth endpoint
@@ -136,7 +128,7 @@ apiClient.interceptors.response.use(
       originalRequest?.url?.includes(ApiEndpoints.REGISTER) ||
       originalRequest?.url?.includes(ApiEndpoints.REFRESH_TOKEN);
 
-    // If login failed, don't try to refresh. Just fail.
+    // If login/register/refresh failed, do not retry.
     if (error.response?.status === 401 && isAuthEndpoint) {
       return Promise.reject(error);
     }
@@ -155,7 +147,7 @@ apiClient.interceptors.response.use(
 );
 
 // ============================================================================
-// TOKEN REFRESH LOGIC (Queue-based to prevent race conditions)
+// TOKEN REFRESH LOGIC
 // ============================================================================
 
 let isRefreshing = false;
@@ -171,16 +163,18 @@ const processQueue = (error: Error | null, token: string | null = null) => {
 
 async function handle401Error(originalRequest: CustomAxiosRequestConfig) {
   originalRequest._retry = true;
-  const { refreshToken, logout, setTokens } = useAuthStore.getState();
+  
+  const refreshToken = getRefreshToken();
+  const { logout, setTokens } = useAuthStore.getState();
 
   // 1. Basic Validation
   if (!refreshToken || !validateTokenStructure(refreshToken)) {
-    console.log('[Auth] No valid refresh token available. Logging out.');
+    console.warn('[Auth] No valid refresh token available. Logging out.');
     logout();
     return Promise.reject(new Error('Session expired'));
   }
 
-  // 2. If already refreshing, queue this request
+  // 2. Queueing logic
   if (isRefreshing) {
     return new Promise<string>((resolve, reject) => {
       failedQueue.push({ resolve, reject });
@@ -198,31 +192,41 @@ async function handle401Error(originalRequest: CustomAxiosRequestConfig) {
   isRefreshing = true;
 
   try {
-    // Create a fresh axios instance for the refresh call to avoid interceptor loops
     const refreshClient = axios.create({ 
       baseURL: VITE_API_BASE_URL, 
       timeout: 15000 
     });
     
+    // Call: http://localhost:3000/api/accounts/auth/refresh
     const { data } = await refreshClient.post(ApiEndpoints.REFRESH_TOKEN, { refreshToken });
     
-    // Validate response shape
-    const parsed = AuthResponseSchema.parse(data);
+    // ✅ FIX: Use the typed interface instead of 'any'
+    const responseData = data as GenericAuthResponse;
+
+    // Safely extract tokens from either structure
+    const newAccessToken = responseData.tokens?.accessToken || responseData.accessToken;
+    const newRefreshToken = responseData.tokens?.refreshToken || responseData.refreshToken;
+
+    if (!newAccessToken || !newRefreshToken) {
+      throw new Error('Invalid token response structure');
+    }
 
     // Update Store
-    setTokens(parsed);
+    setTokens({
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken
+    });
 
-    // Process all queued requests with the new token
-    processQueue(null, parsed.accessToken);
+    // Process queue
+    processQueue(null, newAccessToken);
 
-    // Retry the original request
+    // Retry original request
     if (originalRequest.headers) {
-      originalRequest.headers.Authorization = `Bearer ${parsed.accessToken}`;
+      originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
     }
     return apiClient(originalRequest);
 
   } catch (err) {
-    // If refresh fails, kill the session
     console.error('[Auth] Refresh failed', err);
     processQueue(err as Error, null);
     logout();
@@ -231,3 +235,21 @@ async function handle401Error(originalRequest: CustomAxiosRequestConfig) {
     isRefreshing = false;
   }
 }
+
+// ============================================================================
+// ERROR HELPER (Exported for UI components)
+// ============================================================================
+export const extractErrorMessage = (error: unknown): string => {
+    if (axios.isAxiosError(error)) {
+      if (error.response?.data?.message) {
+        // Handle array of messages (Class Validator)
+        if (Array.isArray(error.response.data.message)) {
+            return error.response.data.message[0];
+        }
+        return error.response.data.message;
+      }
+      if (error.response?.data?.error) return error.response.data.error;
+    }
+    if (error instanceof Error) return error.message;
+    return 'An unexpected error occurred';
+  };

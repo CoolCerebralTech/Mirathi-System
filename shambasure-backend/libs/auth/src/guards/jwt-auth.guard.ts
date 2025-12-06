@@ -24,7 +24,11 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     '/auth/refresh', // Refresh token endpoint handles its own validation
     '/health', // Health checks
     '/docs', // Swagger
+    '/api-json', // Swagger JSON
   ];
+
+  // Patterns for matching public path prefixes
+  private readonly publicPathPrefixes = ['/auth/', '/health', '/docs', '/api-json'];
 
   constructor(private readonly reflector: Reflector) {
     super();
@@ -37,18 +41,30 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
     const request = context.switchToHttp().getRequest<{ method: string; url: string }>();
 
-    // 1. Check Global Public Paths (URL Check)
-    // We use .includes() to handle prefixes like /api/v1/auth/login automatically
-    const isPathPublic = this.globalPublicPaths.some((path) => request.url.includes(path));
+    // Get the clean path without query parameters
+    const cleanPath = request.url.split('?')[0];
 
-    if (isPathPublic) {
+    // 1. Check Global Public Paths (Exact Match)
+    const isExactMatch = this.globalPublicPaths.some((path) => cleanPath === path);
+
+    if (isExactMatch) {
       if (process.env.NODE_ENV !== 'production') {
-        this.logger.debug(`🔓 Allowing Public Path: ${request.url}`);
+        this.logger.debug(`🔓 Allowing Public Path (Exact): ${cleanPath}`);
       }
       return true;
     }
 
-    // 2. Check @Public() Decorator (Reflection Check)
+    // 2. Check Public Path Prefixes (Prefix Match)
+    const isPrefixMatch = this.publicPathPrefixes.some((prefix) => cleanPath.startsWith(prefix));
+
+    if (isPrefixMatch) {
+      if (process.env.NODE_ENV !== 'production') {
+        this.logger.debug(`🔓 Allowing Public Path (Prefix): ${cleanPath}`);
+      }
+      return true;
+    }
+
+    // 3. Check @Public() Decorator (Reflection Check)
     // This is still useful if the Guard is used locally within a Microservice
     const isDecoratorPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
@@ -56,15 +72,18 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     ]);
 
     if (isDecoratorPublic) {
+      if (process.env.NODE_ENV !== 'production') {
+        this.logger.debug(`🔓 Allowing Public Route (Decorator): ${cleanPath}`);
+      }
       return true;
     }
 
     // Debugging logs for development
     if (process.env.NODE_ENV !== 'production') {
-      this.logger.debug(`🔒 Checking Token for: ${request.method} ${request.url}`);
+      this.logger.debug(`🔒 Checking Token for: ${request.method} ${cleanPath}`);
     }
 
-    // 3. Proceed with standard JWT authentication flow
+    // 4. Proceed with standard JWT authentication flow
     return super.canActivate(context);
   }
 

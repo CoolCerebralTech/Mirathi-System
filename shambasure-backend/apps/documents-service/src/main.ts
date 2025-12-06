@@ -1,5 +1,5 @@
 // apps/documents-service/src/main.ts
-import { ClassSerializerInterceptor, ValidationPipe, VersioningType } from '@nestjs/common';
+import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { Reflector } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
@@ -80,11 +80,6 @@ async function bootstrap() {
   // ============================================================================
   const globalPrefix = configService.get('GLOBAL_PREFIX') || 'api';
   app.setGlobalPrefix(globalPrefix);
-
-  app.enableVersioning({
-    type: VersioningType.URI,
-    defaultVersion: '1',
-  });
 
   // ============================================================================
   // SWAGGER DOCUMENTATION
