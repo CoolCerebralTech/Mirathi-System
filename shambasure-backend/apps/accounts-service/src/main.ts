@@ -1,6 +1,7 @@
 import { ClassSerializerInterceptor, ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { Reflector } from '@nestjs/core';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 
@@ -19,6 +20,24 @@ async function bootstrap() {
 
   app.useLogger(logger);
   app.enableShutdownHooks();
+
+  // 2. Connect the Microservice Strategy (RabbitMQ)
+  // This allows the service to LISTEN to events like 'user.created'
+  const rmqUrl = configService.get('RABBITMQ_URL');
+  if (rmqUrl) {
+    app.connectMicroservice<MicroserviceOptions>({
+      transport: Transport.RMQ,
+      options: {
+        urls: [rmqUrl],
+        queue: 'accounts_queue', // <--- UNIQUE QUEUE NAME PER SERVICE
+        queueOptions: {
+          durable: true,
+        },
+      },
+    });
+  } else {
+    logger.warn('⚠️ RABBITMQ_URL not found. Microservice listeners will not start.');
+  }
 
   // ============================================================================
   // GLOBAL VALIDATION
@@ -45,16 +64,10 @@ async function bootstrap() {
   // CORS CONFIGURATION
   // ============================================================================
 
-  const rawCorsOrigins = configService.get('CORS_ORIGINS');
+  const corsOriginsRaw = configService.get('CORS_ORIGINS');
 
   const corsOrigins =
-    rawCorsOrigins === '*'
-      ? '*'
-      : Array.isArray(rawCorsOrigins)
-        ? rawCorsOrigins
-        : typeof rawCorsOrigins === 'string'
-          ? rawCorsOrigins.split(',').map((o) => o.trim())
-          : [];
+    corsOriginsRaw.length === 1 && corsOriginsRaw[0] === '*' ? '*' : corsOriginsRaw;
 
   app.enableCors({
     origin: corsOrigins,
@@ -160,6 +173,8 @@ async function bootstrap() {
   const host = configService.get('HOST', '0.0.0.0');
   const nodeEnv = configService.get('NODE_ENV', 'development');
 
+  // 3. Start both HTTP and Microservices
+  await app.startAllMicroservices();
   await app.listen(port, host);
 
   // ============================================================================
@@ -176,7 +191,7 @@ async function bootstrap() {
   logger.log(`✅ Readiness:       http://localhost:${port}/${globalPrefix}/health/readiness`);
   logger.log('─'.repeat(70));
   logger.log(`🌍 Environment:     ${nodeEnv}`);
-  logger.log(`🔒 CORS Origins:    ${rawCorsOrigins}`);
+  logger.log(`🔒 CORS Origins:    ${corsOriginsRaw.join(', ')}`);
   logger.log(`📦 API Version:     v1`);
   logger.log(`🏷️  Global Prefix:   /${globalPrefix}`);
   logger.log(`🏗️  Architecture:    Clean Architecture (4 Layers)`);

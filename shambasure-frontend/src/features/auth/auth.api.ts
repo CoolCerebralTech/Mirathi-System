@@ -4,7 +4,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, extractErrorMessage } from '../../api/client';
-import { useAuthStore } from '../../store/auth.store';
+import { useAuthStore, useRefreshToken as useStoredRefreshToken } from '../../store/auth.store';
 import { userKeys } from '../user/user.api';
 import {
   type LoginInput,
@@ -547,12 +547,20 @@ export const useRegister = (options?: AuthMutationOptions) => {
  * Hook for user logout
  */
 export const useLogout = (options?: { onSuccess?: () => void }) => {
-  const { logout: logoutAction, refreshToken: storedRefreshToken } = useAuthStore();
+  // 1. Get the action from the Store Manager
+  const { logout: logoutAction } = useAuthStore();
+  
+  // 2. Get the data using the Unified Selector Hook
+  // (This automatically finds the token whether it's in localStorage or Session)
+  const storedRefreshToken = useStoredRefreshToken(); 
+  
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (logoutData?: LogoutInput | void) => {
+      // Use the value retrieved from the hook
       const finalRefreshToken = logoutData?.refreshToken || storedRefreshToken;
+      
       if (!finalRefreshToken) {
         return Promise.resolve({
           message: 'Logged out locally.',

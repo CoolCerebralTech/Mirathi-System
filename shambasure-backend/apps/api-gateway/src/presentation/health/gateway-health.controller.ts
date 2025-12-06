@@ -55,7 +55,12 @@ export class DownstreamServicesHealthIndicator extends HealthIndicator {
           return [name, value as ServiceHealth];
         }
         // fallback: wrap boolean/unknown into { status: string }
-        return [name, { status: String(value) }];
+        return [
+          name,
+          {
+            status: typeof value === 'object' ? 'unknown' : String(value),
+          },
+        ];
       }),
     );
 

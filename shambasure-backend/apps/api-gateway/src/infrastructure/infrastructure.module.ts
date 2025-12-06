@@ -1,55 +1,37 @@
+// apps/api-gateway/src/infrastructure/infrastructure.module.ts
 import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 
 import { ConfigModule, ConfigService } from '@shamba/config';
 
-// Import the interfaces that will be used as injection tokens
-
-// Import the concrete implementations of our services
 import { HttpClientService } from './http/http-client.service';
-import { ServiceRouterService } from './routing/service-router.service';
+import { RoutingService } from './routing/routing.service';
 
 /**
  * InfrastructureModule
  *
- * This module encapsulates all external-facing concerns of the API Gateway,
- * such as making HTTP calls and handling route configurations. It provides
- * concrete implementations for the application layer's interfaces.
- *
- * By providing interfaces and exporting them, we ensure that the rest of the
- * application depends on abstractions, not on concrete implementations,
- * following the Dependency Inversion Principle.
+ * This module encapsulates the HTTP client infrastructure for proxying
+ * requests to microservices. It uses http-proxy-middleware for efficient
+ * and reliable request forwarding.
  */
 @Module({
   imports: [
-    // Import HttpModule to make Nest's HttpService available for injection.
-    // We can configure it with default timeouts, etc.
+    // Configure HttpModule with proper settings
     HttpModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
-        timeout: Number(configService.get('HTTP_TIMEOUT' as any) ?? 30000),
+        timeout: parseInt(configService.get('HTTP_TIMEOUT') || '30000'),
         maxRedirects: 5,
+        maxContentLength: parseInt(configService.get('HTTP_MAX_CONTENT_LENGTH') || '52428800'), // 50MB
+        headers: {
+          'User-Agent': `ShambaSure-API-Gateway/${process.env.npm_package_version || '1.0.0'}`,
+        },
       }),
       inject: [ConfigService],
     }),
-    ConfigModule, // Needed for configuration values
+    ConfigModule,
   ],
-  providers: [
-    // Here, we tell NestJS's dependency injection system how to resolve our interfaces.
-    {
-      provide: 'IHttpClient', // When a service asks for 'IHttpClient'...
-      useClass: HttpClientService, // ...provide an instance of HttpClientService.
-    },
-    {
-      provide: 'IServiceRouter', // When a service asks for 'IServiceRouter'...
-      useClass: ServiceRouterService, // ...provide an instance of ServiceRouterService.
-    },
-  ],
-  exports: [
-    // We export the interfaces so that other modules that import InfrastructureModule
-    // can inject services based on these tokens.
-    'IHttpClient',
-    'IServiceRouter',
-  ],
+  providers: [HttpClientService, RoutingService],
+  exports: [HttpClientService, RoutingService],
 })
 export class InfrastructureModule {}

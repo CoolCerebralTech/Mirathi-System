@@ -11,7 +11,7 @@ export interface AppConfig {
   HOST: string;
   GLOBAL_PREFIX: string;
   /** Comma-separated list of allowed origins (parsed into array) */
-  CORS_ORIGINS: string;
+  CORS_ORIGINS: string[];
   RATE_LIMIT_TTL: number;
   RATE_LIMIT_LIMIT: number;
   HEALTH_MEMORY_HEAP_THRESHOLD_MB: number;
@@ -30,7 +30,9 @@ export interface AuthConfig {
 }
 
 export interface MessagingConfig {
+  RABBITMQ_URI: string;
   RABBITMQ_URL: string;
+  RABBITMQ_EXCHANGE: string;
 }
 
 // ============================================================================
@@ -132,6 +134,7 @@ export interface ServiceConfig {
 }
 
 export interface ServicePortsConfig {
+  GATEWAY_PORT: number;
   ACCOUNTS_SERVICE_PORT: number;
   DOCUMENTS_SERVICE_PORT: number;
   SUCCESSION_SERVICE_PORT: number;
@@ -140,7 +143,6 @@ export interface ServicePortsConfig {
 }
 
 export interface ServiceUrlsConfig {
-  GATEWAY_PORT: number; // For the gateway itself
   ACCOUNTS_SERVICE_URL: string;
   DOCUMENTS_SERVICE_URL: string;
   SUCCESSION_SERVICE_URL: string;

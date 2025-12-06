@@ -12,7 +12,7 @@ import {
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 
-import { CurrentUser, JwtAuthGuard, type JwtPayload } from '@shamba/auth';
+import { CurrentUser, JwtAuthGuard, type JwtPayload, Public } from '@shamba/auth';
 
 import {
   AccountLockedResponseDto,
@@ -61,7 +61,7 @@ export class AuthController {
   // ==========================================================================
   // REGISTRATION & LOGIN
   // ==========================================================================
-
+  @Public()
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -85,6 +85,7 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
+  @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -146,6 +147,7 @@ export class AuthController {
     return this.authService.logout(dto, user.sub);
   }
 
+  @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -174,6 +176,7 @@ export class AuthController {
   // EMAIL VERIFICATION
   // ==========================================================================
 
+  @Public()
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -193,6 +196,7 @@ export class AuthController {
     return this.authService.verifyEmail(dto);
   }
 
+  @Public()
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -222,7 +226,7 @@ export class AuthController {
   // ==========================================================================
   // PASSWORD RESET
   // ==========================================================================
-
+  @Public()
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -242,7 +246,7 @@ export class AuthController {
   async forgotPassword(@Body() dto: ForgotPasswordRequestDto): Promise<ForgotPasswordResponseDto> {
     return this.authService.forgotPassword(dto);
   }
-
+  @Public()
   @Get('validate-reset-token')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -259,7 +263,7 @@ export class AuthController {
   ): Promise<ValidateResetTokenResponseDto> {
     return this.authService.validateResetToken(dto);
   }
-
+  @Public()
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -342,7 +346,7 @@ export class AuthController {
   ): Promise<RequestEmailChangeResponseDto> {
     return this.authService.requestEmailChange(dto, user.sub);
   }
-
+  @Public()
   @Post('confirm-email-change')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

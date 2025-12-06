@@ -1,17 +1,27 @@
+// apps/api-gateway/src/application/proxy.module.ts
 import { Module } from '@nestjs/common';
 
 import { InfrastructureModule } from '../infrastructure/infrastructure.module';
 import { ProxyService } from './services/proxy.service';
 
+/**
+ * ProxyModule - Application layer module
+ *
+ * This module encapsulates the core business logic of the API Gateway:
+ * routing and proxying requests to microservices.
+ *
+ * It imports InfrastructureModule to get access to HttpClientService,
+ * and exports ProxyService for use in the presentation layer.
+ */
 @Module({
   imports: [
-    InfrastructureModule, // Imports the providers for 'IHttpClient' and 'IServiceRouter'
+    InfrastructureModule, // Provides HttpClientService
   ],
   providers: [
-    ProxyService, // Provides the main application service
+    ProxyService, // Main application service
   ],
   exports: [
-    ProxyService, // Exports the service so the Presentation layer can use it
+    ProxyService, // Export for presentation layer
   ],
 })
 export class ProxyModule {}

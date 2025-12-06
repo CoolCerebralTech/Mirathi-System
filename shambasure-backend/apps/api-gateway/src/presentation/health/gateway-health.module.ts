@@ -5,7 +5,7 @@ import { ConfigModule } from '@shamba/config';
 import { ObservabilityModule } from '@shamba/observability';
 
 import { ProxyModule } from '../../app.module';
-import { DownstreamServicesHealthIndicator, HealthController } from './health.controller';
+import { DownstreamServicesHealthIndicator, HealthController } from './gateway-health.controller';
 
 @Module({
   imports: [TerminusModule, ObservabilityModule, ConfigModule, ProxyModule],

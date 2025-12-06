@@ -45,13 +45,10 @@ export function PublicHeader() {
           
           {/* Logo Section */}
           <div className="flex items-center">
-            <Link 
-              to="/" 
-              className="transition-transform duration-300 hover:scale-105"
-              aria-label="Shamba Sure Home"
-            >
-              <Logo />
-            </Link>
+              <Logo 
+                className="transition-transform duration-300 hover:scale-105"
+                aria-label="Shamba Sure Home"
+              />
           </div>
           
           {/* Desktop Navigation */}

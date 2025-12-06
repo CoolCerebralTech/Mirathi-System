@@ -35,13 +35,11 @@ export function AuthLayout() {
       <div className="flex flex-col">
         {/* Mobile Logo Header */}
         <div className="flex items-center justify-between border-b border-neutral-200 p-6 lg:hidden">
-          <Link 
-            to="/" 
+
+          <Logo 
             className="transition-opacity hover:opacity-80"
             aria-label="Return to home"
-          >
-            <Logo />
-          </Link>
+          />
         </div>
 
         {/* Form Container */}
@@ -49,13 +47,10 @@ export function AuthLayout() {
           <div className="w-full max-w-md animate-fade-in">
             {/* Desktop Logo - Above Form */}
             <div className="mb-8 hidden lg:block">
-              <Link 
-                to="/" 
-                className="inline-block transition-opacity hover:opacity-80"
+              <Logo 
+                className="inline-flex transition-opacity hover:opacity-80"
                 aria-label="Return to home"
-              >
-                <Logo />
-              </Link>
+              />
             </div>
 
             {/* Form Content (Outlet) */}
@@ -108,13 +103,11 @@ export function AuthLayout() {
 
         {/* Top Logo (Desktop) */}
         <div className="relative flex h-20 items-center border-b border-neutral-200/50 px-12">
-          <Link 
-            to="/" 
+
+          <Logo 
             className="transition-opacity hover:opacity-80"
             aria-label="Return to home"
-          >
-            <Logo />
-          </Link>
+          />
         </div>
 
         {/* Main Content - Centered */}
