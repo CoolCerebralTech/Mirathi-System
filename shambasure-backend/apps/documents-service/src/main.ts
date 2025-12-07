@@ -23,7 +23,7 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   // ============================================================================
-  // MICROSERVICE CONNECTION (RabbitMQ) - ADDED
+  // MICROSERVICE CONNECTION (RabbitMQ)
   // ============================================================================
   const rmqUrl = configService.get('RABBITMQ_URL');
   if (rmqUrl) {
@@ -31,10 +31,8 @@ async function bootstrap() {
       transport: Transport.RMQ,
       options: {
         urls: [rmqUrl],
-        queue: 'documents_queue', // Unique queue for this service
-        queueOptions: {
-          durable: true,
-        },
+        queue: 'documents_queue',
+        queueOptions: { durable: true },
       },
     });
   } else {
@@ -49,9 +47,7 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 
@@ -61,10 +57,9 @@ async function bootstrap() {
   app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
 
   // ============================================================================
-  // CORS CONFIGURATION (FIXED)
+  // CORS CONFIGURATION
   // ============================================================================
   const corsOriginsRaw = configService.get('CORS_ORIGINS');
-
   const corsOrigins =
     corsOriginsRaw.length === 1 && corsOriginsRaw[0] === '*' ? '*' : corsOriginsRaw;
 
@@ -76,23 +71,15 @@ async function bootstrap() {
   });
 
   // ============================================================================
-  // API CONFIGURATION
-  // ============================================================================
-  const globalPrefix = configService.get('GLOBAL_PREFIX') || 'api';
-  app.setGlobalPrefix(globalPrefix);
-
-  // ============================================================================
   // SWAGGER DOCUMENTATION
   // ============================================================================
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Shamba Sure - Documents Service')
-    .setDescription('Manages document lifecycle...') // (Shortened for brevity)
+    .setDescription('Manages document lifecycle, uploads, and verification.')
     .setVersion('1.0.0')
-    .addBearerAuth(
-      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', in: 'header', name: 'Authorization' },
-      'JWT',
-    )
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
     .addTag('Documents')
+    .addTag('Health')
     .addServer(
       `http://localhost:${configService.get('DOCUMENTS_SERVICE_PORT', 3002)}`,
       'Local Development',
@@ -100,7 +87,10 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup(`${globalPrefix}/docs`, app, document);
+  // Setup at root /docs
+  SwaggerModule.setup('docs', app, document, {
+    swaggerOptions: { persistAuthorization: true },
+  });
 
   // ============================================================================
   // START SERVER
@@ -108,12 +98,21 @@ async function bootstrap() {
   const port = configService.get('DOCUMENTS_SERVICE_PORT', 3002);
   const host = configService.get('HOST', '0.0.0.0');
 
-  // Start BOTH Microservices and HTTP Server
   await app.startAllMicroservices();
   await app.listen(port, host);
 
-  // ... (Logs remain the same)
-  logger.log(`🚀 Shamba Sure - Documents Service is running`);
+  // ============================================================================
+  // LOGS
+  // ============================================================================
+  logger.log('='.repeat(70));
+  logger.log('🚀 Shamba Sure - Documents Service (Ready for Gateway)');
+  logger.log('='.repeat(70));
+  logger.log(`📍 Service URL:     http://localhost:${port}`);
+  logger.log(`📚 API Docs:        http://localhost:${port}/docs`);
+  logger.log(`💚 Health Check:    http://localhost:${port}/health`);
+  logger.log('─'.repeat(70));
+  logger.log(`🔗 Gateway Path:    /api/documents/*  -->  /*`);
+  logger.log('='.repeat(70));
 }
 
 bootstrap().catch((error) => {

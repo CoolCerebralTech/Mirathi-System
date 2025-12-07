@@ -32,7 +32,8 @@ import {
 // CONFIGURATION
 // ============================================================================
 
-const API_BASE = '/documents';
+// Prefix: /documents (Gateway) + /documents (Controller)
+const API_BASE = '/documents/documents';
 
 const ENDPOINTS = {
   DOCUMENTS: API_BASE,

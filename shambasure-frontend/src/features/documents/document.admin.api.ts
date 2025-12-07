@@ -37,31 +37,33 @@ import { documentKeys } from './document.api';
 // ============================================================================
 
 const ENDPOINTS = {
-  VERIFY: (id: string) => `/documents/${id}/verification`,
-  VERIFY_HISTORY: (id: string) => `/documents/${id}/verification/history`,
-  VERIFY_BULK: '/documents/verification/bulk',
-  REVERIFY: (id: string) => `/documents/${id}/verification/reverify`,
-  VERIFICATION_ATTEMPTS: '/documents/verification/attempts',
-  VERIFICATION_ATTEMPT: (attemptId: string) => `/documents/verification/attempts/${attemptId}`,
-  VERIFICATION_LATEST: (id: string) => `/documents/${id}/verification/latest`,
-  VERIFICATION_PERFORMANCE: '/documents/verification/performance',
-  VERIFICATION_METRICS: '/documents/verification/metrics',
-  VERIFICATION_COMPLIANCE: '/documents/verification/compliance',
+  // Verification Endpoints (Gateway: /documents -> Service: /documents/...)
+  VERIFY: (id: string) => `/documents/documents/${id}/verification`,
+  VERIFY_HISTORY: (id: string) => `/documents/documents/${id}/verification/history`,
+  VERIFY_BULK: '/documents/documents/verification/bulk',
+  REVERIFY: (id: string) => `/documents/documents/${id}/verification/reverify`,
+  VERIFICATION_ATTEMPTS: '/documents/documents/verification/attempts',
+  VERIFICATION_ATTEMPT: (attemptId: string) => `/documents/documents/verification/attempts/${attemptId}`,
+  VERIFICATION_LATEST: (id: string) => `/documents/documents/${id}/verification/latest`,
+  VERIFICATION_PERFORMANCE: '/documents/documents/verification/performance',
+  VERIFICATION_METRICS: '/documents/documents/verification/metrics',
+  VERIFICATION_COMPLIANCE: '/documents/documents/verification/compliance',
   
-  BULK_OPERATIONS: '/documents/bulk',
-  PENDING_VERIFICATION: '/documents/pending-verification',
+  BULK_OPERATIONS: '/documents/documents/bulk',
+  PENDING_VERIFICATION: '/documents/documents/pending-verification',
   
-  DASHBOARD_ANALYTICS: '/statistics/dashboard',
-  DASHBOARD_SUMMARY: '/statistics/summary',
-  DOCUMENT_ANALYTICS: '/statistics/documents',
-  STORAGE_ANALYTICS: '/statistics/storage',
-  VERIFICATION_STATS: '/statistics/verification',
-  UPLOAD_ANALYTICS: '/statistics/uploads',
-  SYSTEM_HEALTH: '/statistics/system-health',
-  DOCUMENT_TRENDS: '/statistics/trends',
-  STORAGE_BY_CATEGORY: '/statistics/storage/category-usage',
-  VERIFIER_PERFORMANCE: '/statistics/verification/performance',
-  COMPLIANCE_ANALYTICS: '/statistics/compliance',
+  // Statistics Endpoints (Gateway: /documents -> Service: /statistics/...)
+  DASHBOARD_ANALYTICS: '/documents/statistics/dashboard',
+  DASHBOARD_SUMMARY: '/documents/statistics/summary',
+  DOCUMENT_ANALYTICS: '/documents/statistics/documents',
+  STORAGE_ANALYTICS: '/documents/statistics/storage',
+  VERIFICATION_STATS: '/documents/statistics/verification',
+  UPLOAD_ANALYTICS: '/documents/statistics/uploads',
+  SYSTEM_HEALTH: '/documents/statistics/system-health',
+  DOCUMENT_TRENDS: '/documents/statistics/trends',
+  STORAGE_BY_CATEGORY: '/documents/statistics/storage/category-usage',
+  VERIFIER_PERFORMANCE: '/documents/statistics/verification/performance',
+  COMPLIANCE_ANALYTICS: '/documents/statistics/compliance',
 } as const;
 
 const MUTATION_CONFIG = {
