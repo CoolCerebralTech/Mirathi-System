@@ -8,6 +8,8 @@ export * from './beneficiary-removed.event';
 export * from './beneficiary-condition-added.event';
 export * from './beneficiary-share-updated.event';
 export * from './beneficiary-distributed.event';
+export * from './beneficiary-life-interest-set.event';
+export * from './beneficiary-life-interest-terminated.event';
 export * from './debt-added.event';
 export * from './debt-payment-made.event';
 export * from './debt-cleared.event';

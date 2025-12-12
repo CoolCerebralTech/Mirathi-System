@@ -5,15 +5,6 @@
   "monorepo": true,
   "root": "apps/api-gateway",
   "projects": {
-    "notification": {
-      "type": "library",
-      "root": "libs/notification",
-      "entryFile": "index",
-      "sourceRoot": "libs/notification/src",
-      "compilerOptions": {
-        "tsConfigPath": "libs/notification/tsconfig.lib.json"
-      }
-    },
     "accounts-service": {
       "type": "application",
       "root": "apps/accounts-service",
@@ -86,6 +77,24 @@
         "tsConfigPath": "apps/documents-service/tsconfig.app.json"
       }
     },
+    "estate-service": {
+      "type": "application",
+      "root": "apps/estate-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/estate-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/estate-service/tsconfig.app.json"
+      }
+    },
+    "family-service": {
+      "type": "application",
+      "root": "apps/family-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/family-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/family-service/tsconfig.app.json"
+      }
+    },
     "messaging": {
       "type": "library",
       "root": "libs/messaging",
@@ -93,6 +102,15 @@
       "sourceRoot": "libs/messaging/src",
       "compilerOptions": {
         "tsConfigPath": "libs/messaging/tsconfig.lib.json"
+      }
+    },
+    "notification": {
+      "type": "library",
+      "root": "libs/notification",
+      "entryFile": "index",
+      "sourceRoot": "libs/notification/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/notification/tsconfig.lib.json"
       }
     },
     "notifications-service": {
@@ -111,6 +129,15 @@
       "sourceRoot": "libs/observability/src",
       "compilerOptions": {
         "tsConfigPath": "libs/observability/tsconfig.lib.json"
+      }
+    },
+    "succession-process-service": {
+      "type": "application",
+      "root": "apps/succession-process-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/succession-process-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/succession-process-service/tsconfig.app.json"
       }
     },
     "succession-service": {
