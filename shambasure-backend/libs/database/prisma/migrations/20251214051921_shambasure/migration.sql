@@ -32,6 +32,9 @@ CREATE TYPE "KenyanRelationshipCategory" AS ENUM ('SPOUSE', 'CHILDREN', 'PARENTS
 CREATE TYPE "DependencyLevel" AS ENUM ('NONE', 'PARTIAL', 'FULL');
 
 -- CreateEnum
+CREATE TYPE "KenyanLawSection" AS ENUM ('S26_DEPENDANT_PROVISION', 'S29_DEPENDANTS', 'S35_SPOUSAL_CHILDS_SHARE', 'S40_POLY_GAMY', 'S45_DEBT_PRIORITY', 'S70_TESTAMENTARY_GUARDIAN', 'S71_COURT_GUARDIAN', 'S72_GUARDIAN_BOND', 'S73_GUARDIAN_ACCOUNTS', 'S83_EXECUTOR_DUTIES');
+
+-- CreateEnum
 CREATE TYPE "GuardianType" AS ENUM ('TESTAMENTARY', 'COURT_APPOINTED', 'NATURAL_PARENT', 'DE_FACTO');
 
 -- CreateEnum
@@ -96,6 +99,9 @@ CREATE TYPE "BequestPriority" AS ENUM ('PRIMARY', 'ALTERNATE', 'CONTINGENT');
 
 -- CreateEnum
 CREATE TYPE "DebtType" AS ENUM ('MORTGAGE', 'PERSONAL_LOAN', 'CREDIT_CARD', 'BUSINESS_DEBT', 'TAX_OBLIGATION', 'FUNERAL_EXPENSE', 'MEDICAL_BILL', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "DebtTier" AS ENUM ('FUNERAL_EXPENSES', 'TESTAMENTARY_EXPENSES', 'SECURED_DEBTS', 'TAXES_RATES_WAGES', 'UNSECURED_GENERAL');
 
 -- CreateEnum
 CREATE TYPE "DebtPriority" AS ENUM ('HIGHEST', 'HIGH', 'MEDIUM', 'LOW');
@@ -174,6 +180,24 @@ CREATE TYPE "DistributionStatus" AS ENUM ('PENDING', 'IN_PROGRESS', 'COMPLETED',
 
 -- CreateEnum
 CREATE TYPE "TransmissionStatus" AS ENUM ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED', 'REJECTED');
+
+-- CreateEnum
+CREATE TYPE "CourtLevel" AS ENUM ('HIGH_COURT', 'MAGISTRATE_COURT', 'KADHI_COURT');
+
+-- CreateEnum
+CREATE TYPE "CaseClosureReason" AS ENUM ('GRANT_ISSUED', 'WITHDRAWN', 'DISMISSED', 'APPEALED', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "ComplianceStatus" AS ENUM ('PENDING', 'COMPLIED', 'EXEMPTED', 'OVERDUE');
+
+-- CreateEnum
+CREATE TYPE "TransmissionMethod" AS ENUM ('LAND_REGISTRY', 'MOTOR_VEHICLE_REGISTRATION', 'FINANCIAL_INSTRUMENT_TRANSFER', 'COURT_ORDER', 'MANUAL_TRANSFER');
+
+-- CreateEnum
+CREATE TYPE "CourtOrderType" AS ENUM ('GRANT_CONFIRMATION', 'DEBT_PAYMENT_APPROVAL', 'DEPENDANT_PROVISION', 'ASSET_PRESERVATION', 'EXECUTOR_REMOVAL', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "Section45Tier" AS ENUM ('S45_A_FUNERAL_TESTAMENTARY', 'S45_B_SECURED', 'S45_C_TAXES_RATES_WAGES', 'S45_D_UNSECURED_GENERAL');
 
 -- CreateEnum
 CREATE TYPE "KenyanCounty" AS ENUM ('BARINGO', 'BOMET', 'BUNGOMA', 'BUSIA', 'ELGEYO_MARAKWET', 'EMBU', 'GARISSA', 'HOMA_BAY', 'ISIOLO', 'KAJIADO', 'KAKAMEGA', 'KERICHO', 'KIAMBU', 'KILIFI', 'KIRINYAGA', 'KISII', 'KISUMU', 'KITUI', 'KWALE', 'LAIKIPIA', 'LAMU', 'MACHAKOS', 'MAKUENI', 'MANDERA', 'MARSABIT', 'MERU', 'MIGORI', 'MOMBASA', 'MURANGA', 'NAIROBI', 'NAKURU', 'NANDI', 'NAROK', 'NYAMIRA', 'NYANDARUA', 'NYERI', 'SAMBURU', 'SIAYA', 'TAITA_TAVETA', 'TANA_RIVER', 'THARAKA_NITHI', 'TRANS_NZOIA', 'TURKANA', 'UASIN_GISHU', 'VIHIGA', 'WAJIR', 'WEST_POKOT');
@@ -409,6 +433,8 @@ CREATE TABLE "families" (
     "dependantCount" INTEGER NOT NULL DEFAULT 0,
     "isPolygamous" BOOLEAN NOT NULL DEFAULT false,
     "polygamousHouseCount" INTEGER NOT NULL DEFAULT 0,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),
@@ -426,8 +452,25 @@ CREATE TABLE "family_members" (
     "middleName" VARCHAR(100),
     "nationalId" VARCHAR(20),
     "kraPin" VARCHAR(20),
+    "religion" VARCHAR(50),
+    "citizenship" VARCHAR(50) NOT NULL DEFAULT 'KENYAN',
+    "occupation" VARCHAR(100),
+    "maidenName" VARCHAR(100),
+    "disabilityStatus" VARCHAR(50),
+    "disabilityCertificate" UUID,
+    "requiresSupportedDecisionMaking" BOOLEAN NOT NULL DEFAULT false,
+    "nationalIdVerified" BOOLEAN NOT NULL DEFAULT false,
+    "nationalIdVerifiedAt" TIMESTAMP(3),
+    "kraPinVerified" BOOLEAN NOT NULL DEFAULT false,
+    "presumedAlive" BOOLEAN NOT NULL DEFAULT true,
+    "missingSince" TIMESTAMP(3),
+    "deathCertificateIssued" BOOLEAN NOT NULL DEFAULT false,
+    "customaryEthnicGroup" VARCHAR(50),
+    "customaryClan" VARCHAR(100),
     "phoneNumber" VARCHAR(20),
     "email" VARCHAR(255),
+    "alternativePhone" VARCHAR(20),
+    "emergencyContact" JSONB,
     "dateOfBirth" TIMESTAMP(3),
     "gender" VARCHAR(20),
     "placeOfBirth" VARCHAR(100),
@@ -438,10 +481,15 @@ CREATE TABLE "family_members" (
     "ageAtDeath" INTEGER,
     "currentAge" INTEGER,
     "isMinor" BOOLEAN NOT NULL DEFAULT false,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "polygamousHouseId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),
+    "deletedBy" UUID,
+    "deletionReason" TEXT,
+    "isArchived" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "family_members_pkey" PRIMARY KEY ("id")
 );
@@ -475,6 +523,26 @@ CREATE TABLE "marriages" (
     "polygamousHouseId" UUID,
     "isMatrimonialPropertyRegime" BOOLEAN NOT NULL DEFAULT true,
     "matrimonialPropertySettled" BOOLEAN NOT NULL DEFAULT false,
+    "isPolygamousUnderS40" BOOLEAN NOT NULL DEFAULT false,
+    "s40CertificateNumber" VARCHAR(100),
+    "isIslamicUnion" BOOLEAN NOT NULL DEFAULT false,
+    "nikahDate" TIMESTAMP(3),
+    "waliName" VARCHAR(200),
+    "mahrAmount" DOUBLE PRECISION,
+    "mahrCurrency" VARCHAR(10) DEFAULT 'KES',
+    "talaqIssued" BOOLEAN NOT NULL DEFAULT false,
+    "customaryType" VARCHAR(100),
+    "elderCouncilMembers" JSONB,
+    "spouse1MaritalStatusAtMarriage" "MarriageStatus",
+    "spouse2MaritalStatusAtMarriage" "MarriageStatus",
+    "separationDate" TIMESTAMP(3),
+    "separationReason" TEXT,
+    "maintenanceOrderIssued" BOOLEAN NOT NULL DEFAULT false,
+    "maintenanceOrderNumber" VARCHAR(100),
+    "courtValidationDate" TIMESTAMP(3),
+    "isValidUnderKenyanLaw" BOOLEAN NOT NULL DEFAULT true,
+    "invalidityReason" TEXT,
+    "matrimonialRegime" VARCHAR(50) NOT NULL DEFAULT 'MONOGAMOUS',
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -500,6 +568,17 @@ CREATE TABLE "family_relationships" (
     "verificationDocuments" JSONB,
     "verifiedAt" TIMESTAMP(3),
     "verifiedBy" UUID,
+    "strength" VARCHAR(20) NOT NULL DEFAULT 'FULL',
+    "relationshipStartDate" TIMESTAMP(3),
+    "relationshipEndDate" TIMESTAMP(3),
+    "endReason" TEXT,
+    "isNextOfKin" BOOLEAN NOT NULL DEFAULT false,
+    "nextOfKinPriority" INTEGER NOT NULL DEFAULT 1,
+    "recognizedUnderCustomaryLaw" BOOLEAN NOT NULL DEFAULT true,
+    "customaryCeremonyDetails" JSONB,
+    "isContested" BOOLEAN NOT NULL DEFAULT false,
+    "contestationCaseNumber" VARCHAR(100),
+    "courtValidated" BOOLEAN NOT NULL DEFAULT false,
     "inheritanceRights" "InheritanceRights" NOT NULL DEFAULT 'FULL',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -522,6 +601,19 @@ CREATE TABLE "guardians" (
     "canConsentToMarriage" BOOLEAN NOT NULL DEFAULT false,
     "restrictions" JSONB,
     "specialInstructions" TEXT,
+    "guardianIdNumber" VARCHAR(20),
+    "courtCaseNumber" VARCHAR(100),
+    "interimOrderId" UUID,
+    "bondRequired" BOOLEAN NOT NULL DEFAULT false,
+    "bondAmountKES" DOUBLE PRECISION,
+    "bondProvider" VARCHAR(100),
+    "bondPolicyNumber" VARCHAR(100),
+    "bondExpiry" TIMESTAMP(3),
+    "lastReportDate" TIMESTAMP(3),
+    "nextReportDue" TIMESTAMP(3),
+    "reportStatus" VARCHAR(50) DEFAULT 'PENDING',
+    "annualAllowanceKES" DOUBLE PRECISION,
+    "allowanceApprovedBy" UUID,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "terminationDate" TIMESTAMP(3),
     "terminationReason" TEXT,
@@ -542,6 +634,18 @@ CREATE TABLE "polygamous_houses" (
     "courtRecognized" BOOLEAN NOT NULL DEFAULT false,
     "courtOrderNumber" VARCHAR(100),
     "houseSharePercentage" DOUBLE PRECISION,
+    "houseDissolvedAt" TIMESTAMP(3),
+    "houseAssetsFrozen" BOOLEAN NOT NULL DEFAULT false,
+    "s40CertificateNumber" VARCHAR(100),
+    "certificateIssuedDate" TIMESTAMP(3),
+    "certificateIssuingCourt" VARCHAR(100),
+    "houseBusinessName" VARCHAR(200),
+    "houseBusinessKraPin" VARCHAR(20),
+    "separateProperty" BOOLEAN NOT NULL DEFAULT false,
+    "wivesConsentObtained" BOOLEAN NOT NULL DEFAULT false,
+    "wivesConsentDocument" UUID,
+    "wivesAgreementDetails" JSONB,
+    "successionInstructions" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -551,6 +655,7 @@ CREATE TABLE "polygamous_houses" (
 -- CreateTable
 CREATE TABLE "legal_dependants" (
     "id" UUID NOT NULL,
+    "basisSection" "KenyanLawSection",
     "deceasedId" UUID NOT NULL,
     "dependantId" UUID NOT NULL,
     "dependencyBasis" VARCHAR(100) NOT NULL,
@@ -565,6 +670,18 @@ CREATE TABLE "legal_dependants" (
     "monthlySupport" DOUBLE PRECISION,
     "supportStartDate" TIMESTAMP(3),
     "supportEndDate" TIMESTAMP(3),
+    "assessmentDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "assessmentMethod" VARCHAR(100),
+    "dependencyPercentage" DOUBLE PRECISION NOT NULL DEFAULT 100,
+    "ageLimit" INTEGER,
+    "isStudent" BOOLEAN NOT NULL DEFAULT false,
+    "studentUntil" TIMESTAMP(3),
+    "custodialParentId" UUID,
+    "provisionOrderIssued" BOOLEAN NOT NULL DEFAULT false,
+    "provisionOrderNumber" VARCHAR(100),
+    "courtApprovedAmount" DOUBLE PRECISION,
+    "monthlySupportEvidence" DOUBLE PRECISION,
+    "dependencyRatio" DOUBLE PRECISION,
     "hasPhysicalDisability" BOOLEAN NOT NULL DEFAULT false,
     "hasMentalDisability" BOOLEAN NOT NULL DEFAULT false,
     "requiresOngoingCare" BOOLEAN NOT NULL DEFAULT false,
@@ -588,6 +705,54 @@ CREATE TABLE "dependant_evidence" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "dependant_evidence_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "CohabitationRecord" (
+    "id" UUID NOT NULL,
+    "familyId" UUID NOT NULL,
+    "partner1Id" UUID NOT NULL,
+    "partner2Id" UUID NOT NULL,
+    "startDate" TIMESTAMP(3) NOT NULL,
+    "endDate" TIMESTAMP(3),
+    "durationYears" INTEGER NOT NULL,
+    "isAcknowledged" BOOLEAN NOT NULL,
+    "hasChildren" BOOLEAN NOT NULL DEFAULT false,
+    "childrenCount" INTEGER NOT NULL DEFAULT 0,
+    "isRegistered" BOOLEAN NOT NULL DEFAULT false,
+    "rejectionReason" TEXT,
+
+    CONSTRAINT "CohabitationRecord_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "NextOfKinDesignation" (
+    "id" UUID NOT NULL,
+    "familyId" UUID NOT NULL,
+    "memberId" UUID NOT NULL,
+    "designationLevel" INTEGER NOT NULL DEFAULT 1,
+    "legalBasis" TEXT,
+    "documentReference" TEXT,
+
+    CONSTRAINT "NextOfKinDesignation_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AdoptionOrder" (
+    "id" UUID NOT NULL,
+    "familyId" UUID NOT NULL,
+    "adopteeId" UUID NOT NULL,
+    "adopterId" UUID NOT NULL,
+    "adoptionType" TEXT NOT NULL,
+    "courtOrderNumber" TEXT,
+    "adoptionDate" TIMESTAMP(3) NOT NULL,
+    "registrationDate" TIMESTAMP(3),
+    "hasConsents" JSONB NOT NULL,
+    "consentDocuments" TEXT[],
+    "childWelfareReport" UUID,
+    "suitabilityReport" UUID,
+
+    CONSTRAINT "AdoptionOrder_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -809,6 +974,33 @@ CREATE TABLE "will_witnesses" (
 );
 
 -- CreateTable
+CREATE TABLE "WitnessSignature" (
+    "id" UUID NOT NULL,
+    "witnessId" UUID NOT NULL,
+    "encryptedData" TEXT NOT NULL,
+    "encryptionKeyId" VARCHAR(100) NOT NULL,
+    "iv" VARCHAR(100) NOT NULL,
+    "retainedUntil" TIMESTAMP(3) NOT NULL,
+    "purpose" VARCHAR(100) NOT NULL,
+
+    CONSTRAINT "WitnessSignature_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "WillFraudCheck" (
+    "id" UUID NOT NULL,
+    "willId" UUID NOT NULL,
+    "checkType" VARCHAR(50) NOT NULL,
+    "riskScore" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "beneficiaryCountThreshold" BOOLEAN NOT NULL DEFAULT false,
+    "executorIsBeneficiary" BOOLEAN NOT NULL DEFAULT false,
+    "flaggedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "requiresManualReview" BOOLEAN NOT NULL DEFAULT false,
+
+    CONSTRAINT "WillFraudCheck_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "assets" (
     "id" UUID NOT NULL,
     "estateId" UUID NOT NULL,
@@ -921,6 +1113,20 @@ CREATE TABLE "business_asset_details" (
 );
 
 -- CreateTable
+CREATE TABLE "DigitalAssetCredential" (
+    "id" UUID NOT NULL,
+    "assetId" UUID NOT NULL,
+    "credentialType" VARCHAR(50) NOT NULL,
+    "encryptedValue" TEXT NOT NULL,
+    "requiresBeneficiaryKyc" BOOLEAN NOT NULL DEFAULT true,
+    "beneficiaryMustProvideDeathCert" BOOLEAN NOT NULL DEFAULT true,
+    "escrowActivatedAt" TIMESTAMP(3),
+    "escrowReleasedTo" UUID,
+
+    CONSTRAINT "DigitalAssetCredential_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "asset_co_owners" (
     "id" UUID NOT NULL,
     "assetId" UUID NOT NULL,
@@ -962,6 +1168,9 @@ CREATE TABLE "debts" (
     "estateId" UUID NOT NULL,
     "type" "DebtType" NOT NULL,
     "description" TEXT NOT NULL,
+    "debtTier" "DebtTier" NOT NULL DEFAULT 'UNSECURED_GENERAL',
+    "tierFullyPaidBefore" TIMESTAMP(3),
+    "tierRequiresReceipt" BOOLEAN NOT NULL DEFAULT true,
     "principalAmount" DOUBLE PRECISION NOT NULL,
     "outstandingBalance" DOUBLE PRECISION NOT NULL,
     "currency" VARCHAR(10) NOT NULL DEFAULT 'KES',
@@ -1069,6 +1278,12 @@ CREATE TABLE "gifts_inter_vivos" (
     "isSubjectToHotchpot" BOOLEAN NOT NULL DEFAULT true,
     "giftDeedReference" VARCHAR(100),
     "witnessDetails" TEXT,
+    "inflationAdjustedValueKES" DOUBLE PRECISION,
+    "reconciliationDate" TIMESTAMP(3) NOT NULL,
+    "conditionMet" BOOLEAN,
+    "conditionMetDate" TIMESTAMP(3),
+    "revertsToEstate" BOOLEAN NOT NULL DEFAULT false,
+    "customaryLawExemption" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -1156,6 +1371,33 @@ CREATE TABLE "asset_liquidations" (
 );
 
 -- CreateTable
+CREATE TABLE "PolygamousEstateDistribution" (
+    "id" UUID NOT NULL,
+    "estateId" UUID NOT NULL,
+    "totalHouses" INTEGER NOT NULL,
+    "perHouseShareKES" DOUBLE PRECISION NOT NULL,
+    "unallocatedSurplusKES" DOUBLE PRECISION,
+    "houseAllocations" JSONB NOT NULL,
+
+    CONSTRAINT "PolygamousEstateDistribution_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "LegalDomainEvent" (
+    "id" UUID NOT NULL,
+    "aggregateId" UUID NOT NULL,
+    "aggregateType" VARCHAR(50) NOT NULL,
+    "eventType" VARCHAR(100) NOT NULL,
+    "eventVersion" INTEGER NOT NULL DEFAULT 1,
+    "payload" JSONB NOT NULL,
+    "legalEffectDate" TIMESTAMP(3) NOT NULL,
+    "recordedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "recordedBy" UUID,
+
+    CONSTRAINT "LegalDomainEvent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "succession_cases" (
     "id" UUID NOT NULL,
     "estateId" UUID NOT NULL,
@@ -1181,17 +1423,18 @@ CREATE TABLE "succession_cases" (
     "lawyerFirm" VARCHAR(200),
     "lawyerContactInfo" VARCHAR(255),
     "lawyerLicenseNumber" VARCHAR(100),
-    "estimatedEstateValue" DOUBLE PRECISION,
-    "totalAssetsCount" INTEGER NOT NULL DEFAULT 0,
-    "totalCreditorClaims" INTEGER NOT NULL DEFAULT 0,
-    "totalBeneficiaries" INTEGER NOT NULL DEFAULT 0,
+    "isPreservationOrderIssued" BOOLEAN NOT NULL DEFAULT false,
+    "preservationOrderExpiry" TIMESTAMP(3),
     "isExpedited" BOOLEAN NOT NULL DEFAULT false,
     "requiresConfirmationHearing" BOOLEAN NOT NULL DEFAULT false,
     "confirmationHearingDate" TIMESTAMP(3),
     "closureReason" TEXT,
     "closedBy" UUID,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "succession_cases_pkey" PRIMARY KEY ("id")
 );
@@ -1228,8 +1471,13 @@ CREATE TABLE "grants" (
     "replacedByGrantId" UUID,
     "replacementReason" TEXT,
     "conditions" JSONB,
+    "section45Compliant" BOOLEAN NOT NULL DEFAULT false,
+    "section45VerifiedAt" TIMESTAMP(3),
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "grants_pkey" PRIMARY KEY ("id")
 );
@@ -1247,7 +1495,10 @@ CREATE TABLE "gazette_notices" (
     "objectionPeriodDays" INTEGER NOT NULL DEFAULT 30,
     "publicationReference" VARCHAR(100),
     "noticeText" TEXT,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "gazette_notices_pkey" PRIMARY KEY ("id")
 );
@@ -1264,7 +1515,7 @@ CREATE TABLE "objections" (
     "grounds" JSONB,
     "groundsDescription" TEXT NOT NULL,
     "supportingEvidence" TEXT,
-    "reason" TEXT NOT NULL,
+    "resolutionHearingId" UUID,
     "status" "ObjectionStatus" NOT NULL DEFAULT 'PENDING',
     "filedDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "hearingDate" TIMESTAMP(3),
@@ -1279,8 +1530,11 @@ CREATE TABLE "objections" (
     "dismissedAt" TIMESTAMP(3),
     "dismissalReason" TEXT,
     "upheldAt" TIMESTAMP(3),
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "objections_pkey" PRIMARY KEY ("id")
 );
@@ -1311,9 +1565,13 @@ CREATE TABLE "hearings" (
     "outcome" JSONB,
     "partiesPresent" JSONB,
     "complianceDeadline" TIMESTAMP(3),
+    "complianceStatus" "ComplianceStatus" NOT NULL DEFAULT 'PENDING',
     "notes" TEXT,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "hearings_pkey" PRIMARY KEY ("id")
 );
@@ -1324,7 +1582,7 @@ CREATE TABLE "court_orders" (
     "caseId" UUID NOT NULL,
     "orderDate" TIMESTAMP(3) NOT NULL,
     "orderReference" VARCHAR(100) NOT NULL,
-    "orderType" VARCHAR(100),
+    "orderType" "CourtOrderType" NOT NULL,
     "summary" TEXT NOT NULL,
     "fullText" TEXT,
     "fullDocumentUrl" TEXT,
@@ -1332,9 +1590,12 @@ CREATE TABLE "court_orders" (
     "courtStation" VARCHAR(100),
     "requiresCompliance" BOOLEAN NOT NULL DEFAULT false,
     "complianceDeadline" TIMESTAMP(3),
-    "complianceStatus" VARCHAR(50),
+    "complianceStatus" "ComplianceStatus" NOT NULL DEFAULT 'PENDING',
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "court_orders_pkey" PRIMARY KEY ("id")
 );
@@ -1346,13 +1607,17 @@ CREATE TABLE "court_filings" (
     "formType" VARCHAR(50) NOT NULL,
     "formTitle" VARCHAR(200),
     "filingDate" TIMESTAMP(3) NOT NULL,
-    "filedBy" VARCHAR(200),
+    "filedBy" UUID,
     "documentUrl" TEXT,
-    "filingFee" DOUBLE PRECISION,
+    "filingFee" DECIMAL(15,2),
     "feeReceipt" VARCHAR(100),
     "isAccepted" BOOLEAN NOT NULL DEFAULT false,
     "rejectionReason" TEXT,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "court_filings_pkey" PRIMARY KEY ("id")
 );
@@ -1365,6 +1630,7 @@ CREATE TABLE "disputes" (
     "type" "DisputeType" NOT NULL,
     "status" "DisputeStatus" NOT NULL DEFAULT 'FILED',
     "description" TEXT NOT NULL,
+    "resolutionHearingId" UUID,
     "lawyerName" VARCHAR(200),
     "lawyerFirm" VARCHAR(200),
     "lawyerContact" VARCHAR(255),
@@ -1373,8 +1639,11 @@ CREATE TABLE "disputes" (
     "filedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "resolvedAt" TIMESTAMP(3),
     "resolution" TEXT,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "disputes_pkey" PRIMARY KEY ("id")
 );
@@ -1391,7 +1660,7 @@ CREATE TABLE "creditor_claims" (
     "claimType" VARCHAR(100) NOT NULL,
     "description" TEXT NOT NULL,
     "priority" "ClaimPriority" NOT NULL,
-    "amountClaimed" DOUBLE PRECISION NOT NULL,
+    "amountClaimed" DECIMAL(15,2) NOT NULL,
     "currency" VARCHAR(10) NOT NULL DEFAULT 'KES',
     "interestRate" DOUBLE PRECISION,
     "interestType" VARCHAR(50),
@@ -1416,7 +1685,7 @@ CREATE TABLE "creditor_claims" (
     "isDisputed" BOOLEAN NOT NULL DEFAULT false,
     "disputeReason" TEXT,
     "disputeResolvedAt" TIMESTAMP(3),
-    "paidAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "paidAmount" DECIMAL(15,2) NOT NULL DEFAULT 0,
     "paymentDate" TIMESTAMP(3),
     "paymentMethod" VARCHAR(50),
     "transactionReference" VARCHAR(100),
@@ -1425,9 +1694,15 @@ CREATE TABLE "creditor_claims" (
     "courtApprovalObtained" BOOLEAN NOT NULL DEFAULT false,
     "courtApprovalDate" TIMESTAMP(3),
     "courtOrderReference" VARCHAR(100),
+    "section45Tier" "Section45Tier" NOT NULL,
+    "tierFullyPaidBefore" TIMESTAMP(3),
+    "tierRequiresReceipt" BOOLEAN NOT NULL DEFAULT true,
     "resolvedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
+    "debtPriorityScheduleId" UUID,
 
     CONSTRAINT "creditor_claims_pkey" PRIMARY KEY ("id")
 );
@@ -1437,7 +1712,7 @@ CREATE TABLE "claim_payments" (
     "id" UUID NOT NULL,
     "creditorClaimId" UUID NOT NULL,
     "paymentDate" TIMESTAMP(3) NOT NULL,
-    "amount" DOUBLE PRECISION NOT NULL,
+    "amount" DECIMAL(15,2) NOT NULL,
     "currency" VARCHAR(10) NOT NULL DEFAULT 'KES',
     "paymentMethod" VARCHAR(50) NOT NULL,
     "transactionReference" VARCHAR(100),
@@ -1450,51 +1725,30 @@ CREATE TABLE "claim_payments" (
     "mpesaReference" VARCHAR(100),
     "receiptNumber" VARCHAR(100),
     "receiptUrl" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "claim_payments_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "estate_inventories" (
-    "id" UUID NOT NULL,
-    "caseId" UUID NOT NULL,
-    "inventoryDate" TIMESTAMP(3) NOT NULL,
-    "preparedBy" UUID,
-    "assetId" UUID NOT NULL,
-    "description" TEXT NOT NULL,
-    "estimatedValue" DOUBLE PRECISION NOT NULL,
-    "currency" VARCHAR(10) NOT NULL DEFAULT 'KES',
-    "isVerified" BOOLEAN NOT NULL DEFAULT false,
-    "verificationDocuments" JSONB,
-    "verificationMethod" VARCHAR(100),
-    "submittedToCourtAt" TIMESTAMP(3),
-    "courtFileReference" VARCHAR(100),
-    "courtAccepted" BOOLEAN NOT NULL DEFAULT false,
-    "courtRejectionReason" TEXT,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "estate_inventories_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "claim_payments_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "estate_accountings" (
     "id" UUID NOT NULL,
     "caseId" UUID NOT NULL,
-    "totalAssets" DOUBLE PRECISION NOT NULL,
-    "totalLiabilities" DOUBLE PRECISION NOT NULL,
-    "netEstateValue" DOUBLE PRECISION NOT NULL,
+    "totalAssets" DECIMAL(15,2) NOT NULL,
+    "totalLiabilities" DECIMAL(15,2) NOT NULL,
+    "netEstateValue" DECIMAL(15,2) NOT NULL,
     "assetBreakdown" JSONB NOT NULL,
     "liabilityBreakdown" JSONB NOT NULL,
-    "executorFees" DOUBLE PRECISION,
-    "legalFees" DOUBLE PRECISION,
-    "valuationFees" DOUBLE PRECISION,
-    "courtFees" DOUBLE PRECISION,
-    "funeralExpenses" DOUBLE PRECISION,
-    "totalAdministrationCosts" DOUBLE PRECISION,
-    "totalDistributed" DOUBLE PRECISION NOT NULL DEFAULT 0,
-    "remainingForDistribution" DOUBLE PRECISION NOT NULL,
+    "executorFees" DECIMAL(15,2),
+    "legalFees" DECIMAL(15,2),
+    "valuationFees" DECIMAL(15,2),
+    "courtFees" DECIMAL(15,2),
+    "funeralExpenses" DECIMAL(15,2),
+    "totalAdministrationCosts" DECIMAL(15,2),
+    "totalDistributed" DECIMAL(15,2) NOT NULL DEFAULT 0,
+    "remainingForDistribution" DECIMAL(15,2) NOT NULL,
     "preparedBy" UUID,
     "preparedAt" TIMESTAMP(3),
     "submittedToCourtAt" TIMESTAMP(3),
@@ -1506,10 +1760,40 @@ CREATE TABLE "estate_accountings" (
     "auditReportUrl" TEXT,
     "auditFindings" TEXT,
     "notes" TEXT,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "estate_accountings_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "estate_inventories" (
+    "id" UUID NOT NULL,
+    "caseId" UUID NOT NULL,
+    "estateAccountingId" UUID,
+    "inventoryDate" TIMESTAMP(3) NOT NULL,
+    "preparedBy" UUID,
+    "assetId" UUID NOT NULL,
+    "description" TEXT NOT NULL,
+    "estimatedValue" DECIMAL(15,2) NOT NULL,
+    "currency" VARCHAR(10) NOT NULL DEFAULT 'KES',
+    "isVerified" BOOLEAN NOT NULL DEFAULT false,
+    "verificationDocuments" JSONB,
+    "verificationMethod" VARCHAR(100),
+    "submittedToCourtAt" TIMESTAMP(3),
+    "courtFileReference" VARCHAR(100),
+    "courtAccepted" BOOLEAN NOT NULL DEFAULT false,
+    "courtRejectionReason" TEXT,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
+
+    CONSTRAINT "estate_inventories_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1536,10 +1820,36 @@ CREATE TABLE "executor_duties" (
     "extensionDate" TIMESTAMP(3),
     "overdueNotificationsSent" INTEGER NOT NULL DEFAULT 0,
     "lastOverdueNotification" TIMESTAMP(3),
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "executor_duties_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "executor_bonds" (
+    "id" UUID NOT NULL,
+    "executorId" UUID NOT NULL,
+    "grantId" UUID NOT NULL,
+    "suretyType" VARCHAR(50) NOT NULL,
+    "suretyCompany" VARCHAR(200) NOT NULL,
+    "policyNumber" VARCHAR(100) NOT NULL,
+    "initialAmountKES" DECIMAL(15,2) NOT NULL,
+    "reviewedAmountKES" DECIMAL(15,2),
+    "reviewDate" TIMESTAMP(3),
+    "reviewOrderReference" VARCHAR(100),
+    "annualRenewalDue" TIMESTAMP(3),
+    "lastRenewedAt" TIMESTAMP(3),
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
+
+    CONSTRAINT "executor_bonds_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1549,20 +1859,25 @@ CREATE TABLE "beneficiary_entitlements" (
     "beneficiaryId" UUID NOT NULL,
     "entitlementBasis" "EntitlementBasis" NOT NULL,
     "sectionApplied" VARCHAR(50),
+    "section45Tier" "Section45Tier",
     "sharePercent" DOUBLE PRECISION NOT NULL,
-    "shareValueKES" DOUBLE PRECISION NOT NULL,
+    "shareValueKES" DECIMAL(15,2) NOT NULL,
     "isLifeInterest" BOOLEAN NOT NULL DEFAULT false,
     "lifeInterestEndsAt" TIMESTAMP(3),
     "distributionStatus" "DistributionStatus" NOT NULL DEFAULT 'PENDING',
     "distributedAt" TIMESTAMP(3),
-    "distributionMethod" VARCHAR(100),
+    "distributionMethod" "TransmissionMethod",
     "heldInTrust" BOOLEAN NOT NULL DEFAULT false,
     "trusteeId" UUID,
     "trustConditions" TEXT,
     "trustValidUntil" TIMESTAMP(3),
     "priority" INTEGER NOT NULL DEFAULT 1,
+    "polygamousHouseId" UUID,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "beneficiary_entitlements_pkey" PRIMARY KEY ("id")
 );
@@ -1581,12 +1896,15 @@ CREATE TABLE "distribution_schedules" (
     "status" VARCHAR(50) NOT NULL DEFAULT 'PENDING',
     "dependsOnStep" INTEGER,
     "blockingReason" TEXT,
-    "estimatedAmount" DOUBLE PRECISION,
-    "actualAmount" DOUBLE PRECISION,
+    "estimatedAmount" DECIMAL(15,2),
+    "actualAmount" DECIMAL(15,2),
     "currency" VARCHAR(10) NOT NULL DEFAULT 'KES',
     "notes" TEXT,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "distribution_schedules_pkey" PRIMARY KEY ("id")
 );
@@ -1598,6 +1916,7 @@ CREATE TABLE "asset_transmissions" (
     "grantId" UUID NOT NULL,
     "assetId" UUID NOT NULL,
     "beneficiaryId" UUID NOT NULL,
+    "polygamousHouseId" UUID,
     "status" "TransmissionStatus" NOT NULL DEFAULT 'PENDING',
     "transmissionDate" TIMESTAMP(3),
     "scheduledDate" TIMESTAMP(3),
@@ -1605,16 +1924,16 @@ CREATE TABLE "asset_transmissions" (
     "registryReference" VARCHAR(100),
     "previousReference" VARCHAR(100),
     "registryLocation" VARCHAR(200),
-    "transmissionMethod" VARCHAR(100) NOT NULL,
+    "transmissionMethod" "TransmissionMethod" NOT NULL,
     "transferDocumentUrl" TEXT,
     "transferCertificateNumber" VARCHAR(100),
     "stampDutyPaid" BOOLEAN NOT NULL DEFAULT false,
-    "stampDutyAmount" DOUBLE PRECISION,
+    "stampDutyAmount" DECIMAL(15,2),
     "stampDutyReceipt" VARCHAR(100),
     "capitalGainsTaxPaid" BOOLEAN NOT NULL DEFAULT false,
-    "cgtAmount" DOUBLE PRECISION,
+    "cgtAmount" DECIMAL(15,2),
     "cgtReceipt" VARCHAR(100),
-    "transferFee" DOUBLE PRECISION,
+    "transferFee" DECIMAL(15,2),
     "transferFeeReceipt" VARCHAR(100),
     "isComplete" BOOLEAN NOT NULL DEFAULT false,
     "completedBy" UUID,
@@ -1623,8 +1942,11 @@ CREATE TABLE "asset_transmissions" (
     "blockingReason" TEXT,
     "rejectionReason" TEXT,
     "notes" TEXT,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "asset_transmissions_pkey" PRIMARY KEY ("id")
 );
@@ -1643,8 +1965,11 @@ CREATE TABLE "gazette_integrations" (
     "gazettePdfUrl" TEXT,
     "newspaperCuttingUrl" TEXT,
     "receiptUrl" TEXT,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "gazette_integrations_pkey" PRIMARY KEY ("id")
 );
@@ -1667,8 +1992,11 @@ CREATE TABLE "court_integration_queue" (
     "createdBy" UUID,
     "processedBy" VARCHAR(100),
     "processedAt" TIMESTAMP(3),
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "court_integration_queue_pkey" PRIMARY KEY ("id")
 );
@@ -1680,14 +2008,17 @@ CREATE TABLE "dependant_provision_orders" (
     "dependantId" UUID NOT NULL,
     "courtOrderNumber" VARCHAR(100) NOT NULL,
     "orderDate" TIMESTAMP(3) NOT NULL,
-    "provisionAmount" DOUBLE PRECISION NOT NULL,
+    "provisionAmount" DECIMAL(15,2) NOT NULL,
     "provisionType" VARCHAR(100) NOT NULL,
     "paymentSchedule" JSONB,
-    "totalPaid" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "totalPaid" DECIMAL(15,2) NOT NULL DEFAULT 0,
     "isCompliant" BOOLEAN NOT NULL DEFAULT false,
     "lastComplianceCheck" TIMESTAMP(3),
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "dependant_provision_orders_pkey" PRIMARY KEY ("id")
 );
@@ -1696,16 +2027,22 @@ CREATE TABLE "dependant_provision_orders" (
 CREATE TABLE "debt_priority_schedules" (
     "id" UUID NOT NULL,
     "caseId" UUID NOT NULL,
-    "category" VARCHAR(100) NOT NULL,
+    "section45Tier" "Section45Tier" NOT NULL,
     "priorityOrder" INTEGER NOT NULL,
-    "totalAmount" DOUBLE PRECISION NOT NULL,
-    "paidAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "totalAmount" DECIMAL(15,2) NOT NULL,
+    "paidAmount" DECIMAL(15,2) NOT NULL DEFAULT 0,
     "courtApprovedSchedule" BOOLEAN NOT NULL DEFAULT false,
     "courtOrderReference" VARCHAR(100),
     "scheduledPaymentDate" TIMESTAMP(3),
     "actualPaymentDate" TIMESTAMP(3),
+    "appealDeadline" TIMESTAMP(3),
+    "appealStatus" VARCHAR(50),
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
+    "grantId" UUID,
 
     CONSTRAINT "debt_priority_schedules_pkey" PRIMARY KEY ("id")
 );
@@ -1723,8 +2060,10 @@ CREATE TABLE "court_processing_metrics" (
     "casesWithinSLA" INTEGER NOT NULL,
     "casesOutsideSLA" INTEGER NOT NULL,
     "avgDaysToFirstHearing" DOUBLE PRECISION NOT NULL,
+    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "court_processing_metrics_pkey" PRIMARY KEY ("id")
 );
@@ -1781,6 +2120,14 @@ CREATE TABLE "_AssetInventoryEntries" (
     "B" UUID NOT NULL,
 
     CONSTRAINT "_AssetInventoryEntries_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
+CREATE TABLE "_DebtPriorityScheduleToEstateAccounting" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_DebtPriorityScheduleToEstateAccounting_AB_pkey" PRIMARY KEY ("A","B")
 );
 
 -- CreateIndex
@@ -1940,6 +2287,18 @@ CREATE UNIQUE INDEX "family_members_kraPin_unique" ON "family_members"("kraPin")
 CREATE UNIQUE INDEX "family_members_deathCert_unique" ON "family_members"("deathCertificateNumber");
 
 -- CreateIndex
+CREATE INDEX "family_members_religion_idx" ON "family_members"("religion");
+
+-- CreateIndex
+CREATE INDEX "family_members_disabilityStatus_idx" ON "family_members"("disabilityStatus");
+
+-- CreateIndex
+CREATE INDEX "family_members_presumedAlive_idx" ON "family_members"("presumedAlive");
+
+-- CreateIndex
+CREATE INDEX "family_members_nationalIdVerified_idx" ON "family_members"("nationalIdVerified");
+
+-- CreateIndex
 CREATE INDEX "family_members_familyId_idx" ON "family_members"("familyId");
 
 -- CreateIndex
@@ -1970,6 +2329,21 @@ CREATE INDEX "family_members_deletedAt_idx" ON "family_members"("deletedAt");
 CREATE UNIQUE INDEX "marriages_regNumber_unique" ON "marriages"("registrationNumber");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "marriages_s40CertificateNumber_key" ON "marriages"("s40CertificateNumber");
+
+-- CreateIndex
+CREATE INDEX "marriages_isPolygamousUnderS40_idx" ON "marriages"("isPolygamousUnderS40");
+
+-- CreateIndex
+CREATE INDEX "marriages_s40CertificateNumber_idx" ON "marriages"("s40CertificateNumber");
+
+-- CreateIndex
+CREATE INDEX "marriages_nikahDate_idx" ON "marriages"("nikahDate");
+
+-- CreateIndex
+CREATE INDEX "marriages_customaryType_idx" ON "marriages"("customaryType");
+
+-- CreateIndex
 CREATE INDEX "marriages_familyId_idx" ON "marriages"("familyId");
 
 -- CreateIndex
@@ -1988,6 +2362,15 @@ CREATE INDEX "marriages_startDate_idx" ON "marriages"("startDate");
 CREATE UNIQUE INDEX "marriages_spouses_startDate_unique" ON "marriages"("spouse1Id", "spouse2Id", "startDate");
 
 -- CreateIndex
+CREATE INDEX "family_relationships_strength_idx" ON "family_relationships"("strength");
+
+-- CreateIndex
+CREATE INDEX "family_relationships_isNextOfKin_nextOfKinPriority_idx" ON "family_relationships"("isNextOfKin", "nextOfKinPriority");
+
+-- CreateIndex
+CREATE INDEX "family_relationships_isContested_idx" ON "family_relationships"("isContested");
+
+-- CreateIndex
 CREATE INDEX "family_relationships_familyId_idx" ON "family_relationships"("familyId");
 
 -- CreateIndex
@@ -2001,6 +2384,18 @@ CREATE INDEX "family_relationships_inheritanceRights_idx" ON "family_relationshi
 
 -- CreateIndex
 CREATE UNIQUE INDEX "family_relationships_unique_relation" ON "family_relationships"("fromMemberId", "toMemberId", "type");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "guardians_courtCaseNumber_key" ON "guardians"("courtCaseNumber");
+
+-- CreateIndex
+CREATE INDEX "guardians_courtCaseNumber_idx" ON "guardians"("courtCaseNumber");
+
+-- CreateIndex
+CREATE INDEX "guardians_guardianIdNumber_idx" ON "guardians"("guardianIdNumber");
+
+-- CreateIndex
+CREATE INDEX "guardians_nextReportDue_idx" ON "guardians"("nextReportDue");
 
 -- CreateIndex
 CREATE INDEX "guardians_ward_isActive_idx" ON "guardians"("wardId", "isActive");
@@ -2021,6 +2416,15 @@ CREATE UNIQUE INDEX "guardians_ward_guardian_type_unique" ON "guardians"("wardId
 CREATE UNIQUE INDEX "polygamous_houses_houseHeadId_unique" ON "polygamous_houses"("houseHeadId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "polygamous_houses_s40CertificateNumber_key" ON "polygamous_houses"("s40CertificateNumber");
+
+-- CreateIndex
+CREATE INDEX "polygamous_houses_s40CertificateNumber_idx" ON "polygamous_houses"("s40CertificateNumber");
+
+-- CreateIndex
+CREATE INDEX "polygamous_houses_houseBusinessKraPin_idx" ON "polygamous_houses"("houseBusinessKraPin");
+
+-- CreateIndex
 CREATE INDEX "polygamous_houses_familyId_idx" ON "polygamous_houses"("familyId");
 
 -- CreateIndex
@@ -2031,6 +2435,15 @@ CREATE UNIQUE INDEX "polygamous_houses_family_houseName_unique" ON "polygamous_h
 
 -- CreateIndex
 CREATE UNIQUE INDEX "polygamous_houses_family_houseOrder_unique" ON "polygamous_houses"("familyId", "houseOrder");
+
+-- CreateIndex
+CREATE INDEX "legal_dependants_assessmentDate_idx" ON "legal_dependants"("assessmentDate");
+
+-- CreateIndex
+CREATE INDEX "legal_dependants_isStudent_idx" ON "legal_dependants"("isStudent");
+
+-- CreateIndex
+CREATE INDEX "legal_dependants_dependencyPercentage_idx" ON "legal_dependants"("dependencyPercentage");
 
 -- CreateIndex
 CREATE INDEX "legal_dependants_deceasedId_idx" ON "legal_dependants"("deceasedId");
@@ -2049,6 +2462,24 @@ CREATE UNIQUE INDEX "legal_dependants_deceased_dependant_unique" ON "legal_depen
 
 -- CreateIndex
 CREATE INDEX "dependant_evidence_dependantId_idx" ON "dependant_evidence"("dependantId");
+
+-- CreateIndex
+CREATE INDEX "CohabitationRecord_familyId_startDate_idx" ON "CohabitationRecord"("familyId", "startDate");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CohabitationRecord_partner1Id_partner2Id_startDate_key" ON "CohabitationRecord"("partner1Id", "partner2Id", "startDate");
+
+-- CreateIndex
+CREATE INDEX "NextOfKinDesignation_familyId_designationLevel_idx" ON "NextOfKinDesignation"("familyId", "designationLevel");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "NextOfKinDesignation_familyId_memberId_key" ON "NextOfKinDesignation"("familyId", "memberId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "AdoptionOrder_courtOrderNumber_key" ON "AdoptionOrder"("courtOrderNumber");
+
+-- CreateIndex
+CREATE INDEX "AdoptionOrder_familyId_adoptionDate_idx" ON "AdoptionOrder"("familyId", "adoptionDate");
 
 -- CreateIndex
 CREATE INDEX "family_legal_events_family_event_createdAt_idx" ON "family_legal_events"("familyId", "eventType", "createdAt");
@@ -2219,6 +2650,9 @@ CREATE INDEX "business_asset_details_businessName_idx" ON "business_asset_detail
 CREATE INDEX "business_asset_details_regNumber_idx" ON "business_asset_details"("registrationNumber");
 
 -- CreateIndex
+CREATE INDEX "DigitalAssetCredential_assetId_credentialType_idx" ON "DigitalAssetCredential"("assetId", "credentialType");
+
+-- CreateIndex
 CREATE INDEX "asset_co_owners_assetId_idx" ON "asset_co_owners"("assetId");
 
 -- CreateIndex
@@ -2327,13 +2761,22 @@ CREATE UNIQUE INDEX "estate_tax_compliance_kraPin_unique" ON "estate_tax_complia
 CREATE INDEX "asset_liquidations_assetId_idx" ON "asset_liquidations"("assetId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "PolygamousEstateDistribution_estateId_key" ON "PolygamousEstateDistribution"("estateId");
+
+-- CreateIndex
+CREATE INDEX "LegalDomainEvent_aggregateId_eventVersion_idx" ON "LegalDomainEvent"("aggregateId", "eventVersion");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "LegalDomainEvent_aggregateId_eventVersion_eventType_key" ON "LegalDomainEvent"("aggregateId", "eventVersion", "eventType");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "succession_cases_estateId_unique" ON "succession_cases"("estateId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "succession_cases_caseNumber_unique" ON "succession_cases"("caseNumber");
 
 -- CreateIndex
-CREATE INDEX "succession_cases_court_workload_idx" ON "succession_cases"("courtStation", "status", "filingDate");
+CREATE INDEX "succession_cases_court_workload_idx" ON "succession_cases"("courtStation", "status", "priority", "filingDate");
 
 -- CreateIndex
 CREATE INDEX "succession_cases_applicant_status_idx" ON "succession_cases"("applicantUserId", "status");
@@ -2342,13 +2785,7 @@ CREATE INDEX "succession_cases_applicant_status_idx" ON "succession_cases"("appl
 CREATE INDEX "succession_cases_county_status_idx" ON "succession_cases"("courtCounty", "status");
 
 -- CreateIndex
-CREATE INDEX "succession_cases_status_priority_idx" ON "succession_cases"("status", "priority");
-
--- CreateIndex
-CREATE INDEX "succession_cases_court_filingDate_idx" ON "succession_cases"("courtStation", "filingDate");
-
--- CreateIndex
-CREATE INDEX "succession_cases_applicantUserId_idx" ON "succession_cases"("applicantUserId");
+CREATE INDEX "succession_cases_status_priority_createdAt_idx" ON "succession_cases"("status", "priority", "createdAt");
 
 -- CreateIndex
 CREATE INDEX "succession_cases_caseNumber_idx" ON "succession_cases"("caseNumber");
@@ -2381,6 +2818,9 @@ CREATE INDEX "grants_caseId_idx" ON "grants"("caseId");
 CREATE INDEX "grants_administratorUserId_idx" ON "grants"("administratorUserId");
 
 -- CreateIndex
+CREATE INDEX "grants_status_confirmation_idx" ON "grants"("status", "confirmationDate");
+
+-- CreateIndex
 CREATE INDEX "gazette_notices_deadline_case_idx" ON "gazette_notices"("objectionDeadline", "caseId");
 
 -- CreateIndex
@@ -2393,6 +2833,9 @@ CREATE INDEX "gazette_notices_case_date_idx" ON "gazette_notices"("caseId", "gaz
 CREATE INDEX "gazette_notices_objectionDeadline_idx" ON "gazette_notices"("objectionDeadline");
 
 -- CreateIndex
+CREATE INDEX "gazette_notices_publicationReference_idx" ON "gazette_notices"("publicationReference");
+
+-- CreateIndex
 CREATE INDEX "objections_case_status_idx" ON "objections"("caseId", "status");
 
 -- CreateIndex
@@ -2403,6 +2846,9 @@ CREATE INDEX "objections_objectorName_idx" ON "objections"("objectorName");
 
 -- CreateIndex
 CREATE INDEX "objections_status_filedDate_idx" ON "objections"("status", "filedDate");
+
+-- CreateIndex
+CREATE INDEX "objections_resolutionHearing_idx" ON "objections"("resolutionHearingId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "hearings_hearingNumber_unique" ON "hearings"("hearingNumber");
@@ -2423,6 +2869,9 @@ CREATE INDEX "hearings_hearingNumber_idx" ON "hearings"("hearingNumber");
 CREATE INDEX "hearings_complianceDeadline_idx" ON "hearings"("complianceDeadline");
 
 -- CreateIndex
+CREATE INDEX "hearings_status_date_idx" ON "hearings"("status", "hearingDate");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "court_orders_orderReference_unique" ON "court_orders"("orderReference");
 
 -- CreateIndex
@@ -2435,10 +2884,16 @@ CREATE INDEX "court_orders_orderReference_idx" ON "court_orders"("orderReference
 CREATE INDEX "court_orders_orderDate_idx" ON "court_orders"("orderDate");
 
 -- CreateIndex
+CREATE INDEX "court_orders_compliance_idx" ON "court_orders"("complianceStatus", "complianceDeadline");
+
+-- CreateIndex
 CREATE INDEX "court_filings_case_formType_idx" ON "court_filings"("caseId", "formType");
 
 -- CreateIndex
 CREATE INDEX "court_filings_filingDate_idx" ON "court_filings"("filingDate");
+
+-- CreateIndex
+CREATE INDEX "court_filings_accepted_date_idx" ON "court_filings"("isAccepted", "filingDate");
 
 -- CreateIndex
 CREATE INDEX "disputes_case_status_idx" ON "disputes"("caseId", "status");
@@ -2450,10 +2905,16 @@ CREATE INDEX "disputes_disputantId_idx" ON "disputes"("disputantId");
 CREATE INDEX "disputes_type_status_idx" ON "disputes"("type", "status");
 
 -- CreateIndex
+CREATE INDEX "disputes_resolutionHearing_idx" ON "disputes"("resolutionHearingId");
+
+-- CreateIndex
 CREATE INDEX "creditor_claims_case_status_idx" ON "creditor_claims"("caseId", "status");
 
 -- CreateIndex
-CREATE INDEX "creditor_claims_priority_status_idx" ON "creditor_claims"("priority", "status");
+CREATE INDEX "creditor_claims_priority_status_tier_idx" ON "creditor_claims"("priority", "status", "section45Tier");
+
+-- CreateIndex
+CREATE INDEX "creditor_claims_status_priority_case_idx" ON "creditor_claims"("status", "priority", "caseId");
 
 -- CreateIndex
 CREATE INDEX "creditor_claims_isStatuteBarred_idx" ON "creditor_claims"("isStatuteBarred");
@@ -2468,10 +2929,37 @@ CREATE INDEX "creditor_claims_filedDate_idx" ON "creditor_claims"("filedDate");
 CREATE INDEX "creditor_claims_isSecured_idx" ON "creditor_claims"("isSecured");
 
 -- CreateIndex
+CREATE INDEX "creditor_claims_section45Tier_idx" ON "creditor_claims"("section45Tier");
+
+-- CreateIndex
+CREATE INDEX "creditor_claims_reviewedAt_idx" ON "creditor_claims"("reviewedAt");
+
+-- CreateIndex
 CREATE INDEX "claim_payments_claim_date_idx" ON "claim_payments"("creditorClaimId", "paymentDate");
 
 -- CreateIndex
 CREATE INDEX "claim_payments_paymentDate_idx" ON "claim_payments"("paymentDate");
+
+-- CreateIndex
+CREATE INDEX "claim_payments_transactionReference_idx" ON "claim_payments"("transactionReference");
+
+-- CreateIndex
+CREATE INDEX "claim_payments_receiptNumber_idx" ON "claim_payments"("receiptNumber");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "estate_accounting_caseId_unique" ON "estate_accountings"("caseId");
+
+-- CreateIndex
+CREATE INDEX "estate_accountings_preparedBy_idx" ON "estate_accountings"("preparedBy");
+
+-- CreateIndex
+CREATE INDEX "estate_accountings_submitted_idx" ON "estate_accountings"("submittedToCourtAt");
+
+-- CreateIndex
+CREATE INDEX "estate_accountings_approved_idx" ON "estate_accountings"("courtApprovedAt");
+
+-- CreateIndex
+CREATE INDEX "estate_accountings_audited_idx" ON "estate_accountings"("auditedAt");
 
 -- CreateIndex
 CREATE INDEX "estate_inventories_case_date_idx" ON "estate_inventories"("caseId", "inventoryDate");
@@ -2483,10 +2971,13 @@ CREATE INDEX "estate_inventories_assetId_idx" ON "estate_inventories"("assetId")
 CREATE INDEX "estate_inventories_submitted_idx" ON "estate_inventories"("submittedToCourtAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "estate_accounting_caseId_unique" ON "estate_accountings"("caseId");
+CREATE INDEX "estate_inventories_courtAccepted_idx" ON "estate_inventories"("courtAccepted");
 
 -- CreateIndex
-CREATE INDEX "executor_duties_case_status_idx" ON "executor_duties"("caseId", "status");
+CREATE INDEX "estate_inventories_isVerified_idx" ON "estate_inventories"("isVerified");
+
+-- CreateIndex
+CREATE INDEX "executor_duties_case_status_deadline_idx" ON "executor_duties"("caseId", "status", "deadline");
 
 -- CreateIndex
 CREATE INDEX "executor_duties_executor_deadline_idx" ON "executor_duties"("executorUserId", "deadline");
@@ -2501,6 +2992,21 @@ CREATE INDEX "executor_duties_deadline_idx" ON "executor_duties"("deadline");
 CREATE INDEX "executor_duties_type_idx" ON "executor_duties"("type");
 
 -- CreateIndex
+CREATE INDEX "executor_duties_status_completed_idx" ON "executor_duties"("status", "completedAt");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "executor_bond_policy_unique" ON "executor_bonds"("policyNumber");
+
+-- CreateIndex
+CREATE INDEX "executor_bonds_executor_surety_idx" ON "executor_bonds"("executorId", "suretyCompany");
+
+-- CreateIndex
+CREATE INDEX "executor_bonds_grant_idx" ON "executor_bonds"("grantId");
+
+-- CreateIndex
+CREATE INDEX "executor_bonds_renewalDue_idx" ON "executor_bonds"("annualRenewalDue");
+
+-- CreateIndex
 CREATE INDEX "beneficiary_entitlements_case_status_idx" ON "beneficiary_entitlements"("caseId", "distributionStatus");
 
 -- CreateIndex
@@ -2510,7 +3016,13 @@ CREATE INDEX "beneficiary_entitlements_entitlementBasis_idx" ON "beneficiary_ent
 CREATE INDEX "beneficiary_entitlements_distributionStatus_idx" ON "beneficiary_entitlements"("distributionStatus");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "beneficiary_entitlements_case_beneficiary_unique" ON "beneficiary_entitlements"("caseId", "beneficiaryId");
+CREATE INDEX "beneficiary_entitlements_beneficiary_idx" ON "beneficiary_entitlements"("beneficiaryId");
+
+-- CreateIndex
+CREATE INDEX "beneficiary_entitlements_polygamous_idx" ON "beneficiary_entitlements"("polygamousHouseId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "beneficiary_entitlements_case_beneficiary_priority_unique" ON "beneficiary_entitlements"("caseId", "beneficiaryId", "priority");
 
 -- CreateIndex
 CREATE INDEX "distribution_schedules_case_completed_idx" ON "distribution_schedules"("caseId", "isCompleted");
@@ -2519,10 +3031,13 @@ CREATE INDEX "distribution_schedules_case_completed_idx" ON "distribution_schedu
 CREATE INDEX "distribution_schedules_status_dueDate_idx" ON "distribution_schedules"("status", "dueDate");
 
 -- CreateIndex
+CREATE INDEX "distribution_schedules_dependencies_idx" ON "distribution_schedules"("dependsOnStep");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "distribution_schedules_case_step_unique" ON "distribution_schedules"("caseId", "stepOrder");
 
 -- CreateIndex
-CREATE INDEX "asset_transmissions_case_status_idx" ON "asset_transmissions"("caseId", "status");
+CREATE INDEX "asset_transmissions_case_status_scheduled_idx" ON "asset_transmissions"("caseId", "status", "scheduledDate");
 
 -- CreateIndex
 CREATE INDEX "asset_transmissions_status_scheduled_idx" ON "asset_transmissions"("status", "scheduledDate");
@@ -2534,7 +3049,16 @@ CREATE INDEX "asset_transmissions_grantId_idx" ON "asset_transmissions"("grantId
 CREATE INDEX "asset_transmissions_assetId_idx" ON "asset_transmissions"("assetId");
 
 -- CreateIndex
-CREATE INDEX "asset_transmissions_beneficiaryId_idx" ON "asset_transmissions"("beneficiaryId");
+CREATE INDEX "asset_transmissions_beneficiary_idx" ON "asset_transmissions"("beneficiaryId");
+
+-- CreateIndex
+CREATE INDEX "asset_transmissions_polygamous_idx" ON "asset_transmissions"("polygamousHouseId");
+
+-- CreateIndex
+CREATE INDEX "asset_transmissions_status_idx" ON "asset_transmissions"("status");
+
+-- CreateIndex
+CREATE INDEX "asset_transmissions_method_idx" ON "asset_transmissions"("transmissionMethod");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "asset_transmissions_unique_transfer" ON "asset_transmissions"("assetId", "beneficiaryId", "grantId");
@@ -2546,10 +3070,22 @@ CREATE UNIQUE INDEX "gazette_integrations_gazetteReference_unique" ON "gazette_i
 CREATE INDEX "gazette_integrations_case_status_idx" ON "gazette_integrations"("caseId", "publicationStatus");
 
 -- CreateIndex
+CREATE INDEX "gazette_integrations_publicationDate_idx" ON "gazette_integrations"("publicationDate");
+
+-- CreateIndex
+CREATE INDEX "gazette_integrations_ecitizen_idx" ON "gazette_integrations"("ecitizenReference");
+
+-- CreateIndex
 CREATE INDEX "court_integration_queue_case_status_type_idx" ON "court_integration_queue"("caseId", "status", "integrationType");
 
 -- CreateIndex
 CREATE INDEX "court_integration_queue_status_retry_idx" ON "court_integration_queue"("status", "nextRetryAt");
+
+-- CreateIndex
+CREATE INDEX "court_integration_queue_externalReference_idx" ON "court_integration_queue"("externalReference");
+
+-- CreateIndex
+CREATE INDEX "court_integration_queue_system_status_idx" ON "court_integration_queue"("targetSystem", "status");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "dependant_provision_orders_orderNumber_unique" ON "dependant_provision_orders"("courtOrderNumber");
@@ -2558,7 +3094,31 @@ CREATE UNIQUE INDEX "dependant_provision_orders_orderNumber_unique" ON "dependan
 CREATE INDEX "dependant_provision_orders_case_dependant_idx" ON "dependant_provision_orders"("caseId", "dependantId");
 
 -- CreateIndex
+CREATE INDEX "dependant_provision_orders_orderNumber_idx" ON "dependant_provision_orders"("courtOrderNumber");
+
+-- CreateIndex
+CREATE INDEX "dependant_provision_orders_compliant_idx" ON "dependant_provision_orders"("isCompliant");
+
+-- CreateIndex
 CREATE INDEX "debt_priority_schedules_case_priority_idx" ON "debt_priority_schedules"("caseId", "priorityOrder");
+
+-- CreateIndex
+CREATE INDEX "debt_priority_schedules_tier_payment_idx" ON "debt_priority_schedules"("section45Tier", "actualPaymentDate");
+
+-- CreateIndex
+CREATE INDEX "debt_priority_schedules_courtApproved_idx" ON "debt_priority_schedules"("courtApprovedSchedule");
+
+-- CreateIndex
+CREATE INDEX "debt_priority_schedules_appealDeadline_idx" ON "debt_priority_schedules"("appealDeadline");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "debt_priority_schedules_case_tier_unique" ON "debt_priority_schedules"("caseId", "section45Tier");
+
+-- CreateIndex
+CREATE INDEX "court_metrics_station_date_idx" ON "court_processing_metrics"("courtStation", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "court_metrics_monthYear_idx" ON "court_processing_metrics"("monthYear");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "court_processing_metrics_station_month_unique" ON "court_processing_metrics"("courtStation", "monthYear");
@@ -2580,6 +3140,9 @@ CREATE INDEX "_WitnessIdentityDocuments_B_index" ON "_WitnessIdentityDocuments"(
 
 -- CreateIndex
 CREATE INDEX "_AssetInventoryEntries_B_index" ON "_AssetInventoryEntries"("B");
+
+-- CreateIndex
+CREATE INDEX "_DebtPriorityScheduleToEstateAccounting_B_index" ON "_DebtPriorityScheduleToEstateAccounting"("B");
 
 -- AddForeignKey
 ALTER TABLE "user_profiles" ADD CONSTRAINT "user_profiles_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -2681,13 +3244,28 @@ ALTER TABLE "legal_dependants" ADD CONSTRAINT "legal_dependants_deceasedId_fkey"
 ALTER TABLE "legal_dependants" ADD CONSTRAINT "legal_dependants_dependantId_fkey" FOREIGN KEY ("dependantId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "legal_dependants" ADD CONSTRAINT "legal_dependants_custodialParentId_fkey" FOREIGN KEY ("custodialParentId") REFERENCES "family_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "dependant_evidence" ADD CONSTRAINT "dependant_evidence_dependantId_fkey" FOREIGN KEY ("dependantId") REFERENCES "legal_dependants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "family_legal_events" ADD CONSTRAINT "family_legal_events_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CohabitationRecord" ADD CONSTRAINT "CohabitationRecord_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "wills" ADD CONSTRAINT "wills_testatorId_fkey" FOREIGN KEY ("testatorId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CohabitationRecord" ADD CONSTRAINT "CohabitationRecord_partner1Id_fkey" FOREIGN KEY ("partner1Id") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CohabitationRecord" ADD CONSTRAINT "CohabitationRecord_partner2Id_fkey" FOREIGN KEY ("partner2Id") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "NextOfKinDesignation" ADD CONSTRAINT "NextOfKinDesignation_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "NextOfKinDesignation" ADD CONSTRAINT "NextOfKinDesignation_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "family_legal_events" ADD CONSTRAINT "family_legal_events_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "wills" ADD CONSTRAINT "wills_supersedesId_fkey" FOREIGN KEY ("supersedesId") REFERENCES "wills"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -2801,6 +3379,9 @@ ALTER TABLE "gazette_notices" ADD CONSTRAINT "gazette_notices_caseId_fkey" FOREI
 ALTER TABLE "objections" ADD CONSTRAINT "objections_caseId_fkey" FOREIGN KEY ("caseId") REFERENCES "succession_cases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "objections" ADD CONSTRAINT "objections_resolutionHearingId_fkey" FOREIGN KEY ("resolutionHearingId") REFERENCES "hearings"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "hearings" ADD CONSTRAINT "hearings_caseId_fkey" FOREIGN KEY ("caseId") REFERENCES "succession_cases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -2816,6 +3397,9 @@ ALTER TABLE "disputes" ADD CONSTRAINT "disputes_caseId_fkey" FOREIGN KEY ("caseI
 ALTER TABLE "disputes" ADD CONSTRAINT "disputes_disputantId_fkey" FOREIGN KEY ("disputantId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "disputes" ADD CONSTRAINT "disputes_resolutionHearingId_fkey" FOREIGN KEY ("resolutionHearingId") REFERENCES "hearings"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "creditor_claims" ADD CONSTRAINT "creditor_claims_caseId_fkey" FOREIGN KEY ("caseId") REFERENCES "succession_cases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -2828,22 +3412,31 @@ ALTER TABLE "creditor_claims" ADD CONSTRAINT "creditor_claims_filedByUserId_fkey
 ALTER TABLE "creditor_claims" ADD CONSTRAINT "creditor_claims_reviewedByUserId_fkey" FOREIGN KEY ("reviewedByUserId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "creditor_claims" ADD CONSTRAINT "creditor_claims_debtPriorityScheduleId_fkey" FOREIGN KEY ("debtPriorityScheduleId") REFERENCES "debt_priority_schedules"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "claim_payments" ADD CONSTRAINT "claim_payments_creditorClaimId_fkey" FOREIGN KEY ("creditorClaimId") REFERENCES "creditor_claims"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "estate_accountings" ADD CONSTRAINT "estate_accountings_caseId_fkey" FOREIGN KEY ("caseId") REFERENCES "succession_cases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "estate_inventories" ADD CONSTRAINT "estate_inventories_caseId_fkey" FOREIGN KEY ("caseId") REFERENCES "succession_cases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "estate_inventories" ADD CONSTRAINT "estate_inventories_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "estate_inventories" ADD CONSTRAINT "estate_inventories_estateAccountingId_fkey" FOREIGN KEY ("estateAccountingId") REFERENCES "estate_accountings"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "estate_accountings" ADD CONSTRAINT "estate_accountings_caseId_fkey" FOREIGN KEY ("caseId") REFERENCES "succession_cases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "estate_inventories" ADD CONSTRAINT "estate_inventories_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "executor_duties" ADD CONSTRAINT "executor_duties_caseId_fkey" FOREIGN KEY ("caseId") REFERENCES "succession_cases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "executor_duties" ADD CONSTRAINT "executor_duties_executorUserId_fkey" FOREIGN KEY ("executorUserId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "executor_bonds" ADD CONSTRAINT "executor_bonds_grantId_fkey" FOREIGN KEY ("grantId") REFERENCES "grants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "beneficiary_entitlements" ADD CONSTRAINT "beneficiary_entitlements_caseId_fkey" FOREIGN KEY ("caseId") REFERENCES "succession_cases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -2879,6 +3472,9 @@ ALTER TABLE "dependant_provision_orders" ADD CONSTRAINT "dependant_provision_ord
 ALTER TABLE "debt_priority_schedules" ADD CONSTRAINT "debt_priority_schedules_caseId_fkey" FOREIGN KEY ("caseId") REFERENCES "succession_cases"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "debt_priority_schedules" ADD CONSTRAINT "debt_priority_schedules_grantId_fkey" FOREIGN KEY ("grantId") REFERENCES "grants"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "notification_templates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -2898,3 +3494,9 @@ ALTER TABLE "_AssetInventoryEntries" ADD CONSTRAINT "_AssetInventoryEntries_A_fk
 
 -- AddForeignKey
 ALTER TABLE "_AssetInventoryEntries" ADD CONSTRAINT "_AssetInventoryEntries_B_fkey" FOREIGN KEY ("B") REFERENCES "estate_inventories"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_DebtPriorityScheduleToEstateAccounting" ADD CONSTRAINT "_DebtPriorityScheduleToEstateAccounting_A_fkey" FOREIGN KEY ("A") REFERENCES "debt_priority_schedules"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_DebtPriorityScheduleToEstateAccounting" ADD CONSTRAINT "_DebtPriorityScheduleToEstateAccounting_B_fkey" FOREIGN KEY ("B") REFERENCES "estate_accountings"("id") ON DELETE CASCADE ON UPDATE CASCADE;
