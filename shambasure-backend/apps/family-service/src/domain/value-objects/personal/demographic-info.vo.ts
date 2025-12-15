@@ -1,5 +1,5 @@
 // domain/value-objects/personal/demographic-info.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export type ReligionType =
   | 'CHRISTIAN'

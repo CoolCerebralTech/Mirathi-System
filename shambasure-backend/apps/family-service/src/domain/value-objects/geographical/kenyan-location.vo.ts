@@ -1,6 +1,6 @@
 // domain/value-objects/geographical/kenyan-location.vo.ts
-import { ValueObject } from '../base/value-object';
-import { KenyanCounty, KenyanCountyValidator } from './kenyan-county.enum';
+import { ValueObject } from '../../base/value-object';
+import { KenyanCounty, KenyanCountyValidator } from './kenyan-county.vo';
 
 export interface KenyanLocationProps {
   county: KenyanCounty;
@@ -15,6 +15,7 @@ export interface KenyanLocationProps {
   postalAddress?: string;
   landmark?: string;
   constituency?: string;
+  placeName?: string; // ADD THIS LINE
   isUrban: boolean;
   isRural: boolean;
   gpsCoordinates?: string;
@@ -27,9 +28,10 @@ export class KenyanLocation extends ValueObject<KenyanLocationProps> {
     this.validate();
   }
 
-  static create(county: KenyanCounty): KenyanLocation {
+  static create(county: KenyanCounty, placeName?: string): KenyanLocation {
     return new KenyanLocation({
       county,
+      placeName,
       isUrban: false,
       isRural: true,
     });
@@ -251,6 +253,7 @@ export class KenyanLocation extends ValueObject<KenyanLocationProps> {
   // Get display name for location
   get displayName(): string {
     const parts = [
+      this._value.placeName,
       this._value.village,
       this._value.ward,
       this._value.subCounty,

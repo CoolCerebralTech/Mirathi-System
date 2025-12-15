@@ -1,5 +1,5 @@
 // domain/value-objects/personal/life-status.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export type LifeStatusType =
   | 'ALIVE'

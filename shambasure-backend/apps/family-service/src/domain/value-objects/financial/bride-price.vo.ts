@@ -1,5 +1,5 @@
 // domain/value-objects/financial/bride-price.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export type BridePriceStatus =
   | 'PENDING'

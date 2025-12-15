@@ -1,6 +1,6 @@
 // domain/value-objects/identity/kra-pin.vo.ts
+import { ValueObject } from '../../base/value-object';
 import { InvalidKraPinException } from '../../exceptions/identity.exceptions';
-import { ValueObject } from '../base/value-object';
 
 export enum TaxPayerType {
   INDIVIDUAL = 'INDIVIDUAL', // Starts with A

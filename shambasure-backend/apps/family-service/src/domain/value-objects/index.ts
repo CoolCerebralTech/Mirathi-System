@@ -31,7 +31,7 @@ export * from './financial/bride-price.vo';
 export * from './financial/guardian-bond.vo';
 export * from './financial/allowance-amount.vo';
 
-export * from './geographical/kenyan-county.enum';
+export * from './geographical/kenyan-county.vo';
 export * from './geographical/kenyan-location.vo';
 export * from './geographical/ancestral-home.vo';
 export * from './geographical/clan-details.vo';

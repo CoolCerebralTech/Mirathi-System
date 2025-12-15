@@ -1,5 +1,5 @@
 // domain/value-objects/geographical/gps-coordinates.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export interface GPSCoordinatesProps {
   latitude: number;

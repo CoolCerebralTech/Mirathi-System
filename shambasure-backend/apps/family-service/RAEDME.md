@@ -58,6 +58,14 @@ family-service/
 │   │       ├── guardianship-term.vo.ts
 │   │       └── cohabitation-duration.vo.ts
 │   ├── policies/
+│   │   ├── kenyan-succession-law.policy.ts
+│   │   ├── guardian-eligibility.policy.ts
+│   │   ├── marriage-validity.policy.ts
+│   │   ├── polygamy-s40.policy.ts
+│   │   ├── dependant-qualification-s29.policy.ts
+│   │   ├── cohabitation-recognition.policy.ts
+│   │   ├── adoption-validity.policy.ts
+│   │   ├── next-of-kin-determination.policy.ts
 │   │   ├── law-of-succession-act/
     │   |   ├── section-29-dependant.policy.ts
 │   |   |   ├── section-35-intestate.policy.ts
@@ -122,12 +130,12 @@ family-service/
 │   │   │   ├── iidentity-verification.service.ts
 │   │   │   └── idependency-calculator.service.ts
 │   ├── exceptions/
-│   │   ├── family-domain-exception.ts
-│   │   ├── invalid-marriage.exception.ts
-│   │   ├── invalid-guardianship.exception.ts
-│   │   ├── duplicate-relationship.exception.ts
-│   │   ├── polygamy-violation.exception.ts
-│   │   └── dependant-validation.exception.ts
+│   │   ├── family.exception.ts
+│   │   ├── marriage.exception.ts
+│   │   ├── guardianship.exception.ts
+│   │   ├── relationship.exception.ts
+│   │   ├── polygamy.exception.ts
+│   │   └── dependant.exception.ts
 │   └── utils/
 │       ├── kenyan-law-calculator.ts
 │       ├── family-tree-builder.ts

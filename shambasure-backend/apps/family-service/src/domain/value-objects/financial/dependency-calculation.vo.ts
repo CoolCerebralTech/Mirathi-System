@@ -1,5 +1,5 @@
 // domain/value-objects/financial/dependency-calculation.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 import { DependencyLevel } from '../legal/dependency-level.vo';
 
 export type DependencyBasis =

@@ -1,4 +1,3 @@
-// domain/value-objects/base/value-object.ts
 export abstract class ValueObject<T> {
   protected readonly _value: T;
 

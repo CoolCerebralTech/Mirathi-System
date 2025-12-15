@@ -1,5 +1,5 @@
 // domain/value-objects/legal/legal-capacity.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export type LegalCapacityStatus =
   | 'ASSESSED_COMPETENT'

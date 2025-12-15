@@ -1,5 +1,5 @@
 // domain/value-objects/legal/polygamous-house-details.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export interface PolygamousHouseDetailsProps {
   houseId: string;

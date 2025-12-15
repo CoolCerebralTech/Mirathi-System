@@ -1,5 +1,5 @@
 // domain/value-objects/legal/kenyan-law-section.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export type LawSection =
   | 'S26_DEPENDANT_PROVISION'

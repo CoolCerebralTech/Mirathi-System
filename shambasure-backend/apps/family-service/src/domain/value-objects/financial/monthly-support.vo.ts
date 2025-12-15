@@ -1,5 +1,5 @@
 // domain/value-objects/financial/monthly-support.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export type SupportCategory =
   | 'FOOD'

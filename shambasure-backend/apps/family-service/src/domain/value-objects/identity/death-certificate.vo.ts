@@ -1,6 +1,6 @@
 // domain/value-objects/identity/death-certificate.vo.ts
+import { ValueObject } from '../../base/value-object';
 import { InvalidDeathCertificateException } from '../../exceptions/identity.exceptions';
-import { ValueObject } from '../base/value-object';
 
 export enum DeathProofType {
   CERTIFICATE = 'CERTIFICATE',
@@ -28,7 +28,7 @@ export interface DeathCertificateProps {
   informantRelationship?: string; // "Son", "Widow"
 
   // Verification
-  isVerified: boolean;
+  verified: boolean;
   verifiedAt?: Date;
   verifiedBy?: string;
 }
@@ -54,7 +54,7 @@ export class DeathCertificate extends ValueObject<DeathCertificateProps> {
       dateOfRegistration,
       placeOfDeath: this.sanitize(placeOfDeath),
       registrationDistrict: 'UNKNOWN', // Default
-      isVerified: false,
+      verified: false,
     });
   }
 
@@ -69,7 +69,7 @@ export class DeathCertificate extends ValueObject<DeathCertificateProps> {
       dateOfRegistration: new Date(), // Registered in system now
       placeOfDeath: 'UNKNOWN / PRESUMED',
       registrationDistrict: 'HIGH COURT',
-      isVerified: true, // Court orders are inherently verified (but need manual check)
+      verified: true, // Court orders are inherently verified (but need manual check)
     });
   }
 
@@ -118,6 +118,9 @@ export class DeathCertificate extends ValueObject<DeathCertificateProps> {
   get dateOfDeath(): Date {
     return this._value.dateOfDeath;
   }
+  get isVerified(): boolean {
+    return this._value.verified;
+  }
 
   /**
    * Adds physical serial number for verification
@@ -140,7 +143,7 @@ export class DeathCertificate extends ValueObject<DeathCertificateProps> {
   public verify(verifiedBy: string): DeathCertificate {
     return new DeathCertificate({
       ...this._value,
-      isVerified: true,
+      verified: true,
       verifiedAt: new Date(),
       verifiedBy,
     });
@@ -159,7 +162,7 @@ export class DeathCertificate extends ValueObject<DeathCertificateProps> {
       dateOfDeath: this._value.dateOfDeath,
       placeOfDeath: this._value.placeOfDeath,
       isLateRegistration: this.isLateRegistration,
-      isVerified: this._value.isVerified,
+      verified: this._value.verified,
     };
   }
 }

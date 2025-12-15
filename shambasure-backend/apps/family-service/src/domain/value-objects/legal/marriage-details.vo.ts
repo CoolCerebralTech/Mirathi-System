@@ -1,5 +1,5 @@
 // domain/value-objects/legal/marriage-details.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 import { KenyanLawSection } from './kenyan-law-section.vo';
 
 export type MarriageType = 'CUSTOMARY' | 'CHRISTIAN' | 'CIVIL' | 'ISLAMIC' | 'TRADITIONAL';

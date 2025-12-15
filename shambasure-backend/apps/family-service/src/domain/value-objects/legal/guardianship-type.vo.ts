@@ -1,5 +1,5 @@
 // domain/value-objects/legal/guardianship-type.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 import { KenyanLawSection } from './kenyan-law-section.vo';
 
 export type GuardianshipType = 'TESTAMENTARY' | 'COURT_APPOINTED' | 'NATURAL_PARENT' | 'DE_FACTO';

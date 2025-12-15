@@ -1,6 +1,6 @@
 // domain/value-objects/identity/birth-certificate.vo.ts
+import { ValueObject } from '../../base/value-object';
 import { InvalidBirthCertificateException } from '../../exceptions/identity.exceptions';
-import { ValueObject } from '../base/value-object';
 
 export interface BirthCertificateProps {
   // Identification

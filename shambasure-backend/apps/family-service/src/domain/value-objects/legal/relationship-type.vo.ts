@@ -1,5 +1,5 @@
 // domain/value-objects/legal/relationship-type.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export type RelationshipType =
   | 'SPOUSE'

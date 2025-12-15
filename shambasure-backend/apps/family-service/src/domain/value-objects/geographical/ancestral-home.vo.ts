@@ -1,6 +1,6 @@
 // domain/value-objects/geographical/ancestral-home.vo.ts
-import { ValueObject } from '../base/value-object';
-import { KenyanCounty, KenyanCountyValidator } from './kenyan-county.enum';
+import { ValueObject } from '../../base/value-object';
+import { KenyanCounty, KenyanCountyValidator } from './kenyan-county.vo';
 
 export interface AncestralHomeProps {
   county: KenyanCounty;

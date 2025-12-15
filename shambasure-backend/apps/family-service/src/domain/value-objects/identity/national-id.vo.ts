@@ -1,6 +1,6 @@
 // domain/value-objects/identity/national-id.vo.ts
+import { ValueObject } from '../../base/value-object';
 import { InvalidNationalIdException } from '../../exceptions/identity.exceptions';
-import { ValueObject } from '../base/value-object';
 
 export interface NationalIdProps {
   idNumber: string;

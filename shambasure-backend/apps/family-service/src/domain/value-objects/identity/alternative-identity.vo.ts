@@ -1,6 +1,6 @@
 // domain/value-objects/identity/alternative-identity.vo.ts
+import { ValueObject } from '../../base/value-object';
 import { InvalidIdentityException } from '../../exceptions/identity.exceptions';
-import { ValueObject } from '../base/value-object';
 
 export enum IdentityType {
   PASSPORT = 'PASSPORT',

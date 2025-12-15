@@ -1,5 +1,5 @@
 // domain/value-objects/personal/kenyan-name.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export interface KenyanNameProps {
   firstName: string;

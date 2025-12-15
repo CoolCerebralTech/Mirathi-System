@@ -1,5 +1,5 @@
 // domain/value-objects/legal/inheritance-rights.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 import { KenyanLawSection } from './kenyan-law-section.vo';
 import { RelationshipTypeVO } from './relationship-type.vo';
 

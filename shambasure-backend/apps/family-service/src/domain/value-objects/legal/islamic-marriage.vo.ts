@@ -1,5 +1,5 @@
 // domain/value-objects/legal/islamic-marriage.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export type IslamicMarriageStatus = 'VALID' | 'SUSPENDED' | 'DISSOLVED' | 'PENDING_VALIDATION';
 

@@ -1,5 +1,5 @@
 // domain/value-objects/identity/kenyan-identity.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 import { AlternativeIdentity } from './alternative-identity.vo';
 import { IdentityType } from './alternative-identity.vo';
 import { BirthCertificate } from './birth-certificate.vo';
@@ -24,6 +24,8 @@ export interface KenyanIdentityProps {
   ethnicity?: string; // KIKUYU, LUO, etc.
   clan?: string;
   subClan?: string;
+  appliesCustomaryLaw?: boolean;
+  isLegallyVerified?: boolean;
 }
 
 export class KenyanIdentity extends ValueObject<KenyanIdentityProps> {

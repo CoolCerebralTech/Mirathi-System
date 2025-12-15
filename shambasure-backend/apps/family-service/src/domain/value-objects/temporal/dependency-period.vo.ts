@@ -1,5 +1,5 @@
 // domain/value-objects/temporal/dependency-period.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export type DependencyReason =
   | 'AGE'

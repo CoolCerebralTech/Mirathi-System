@@ -1,5 +1,5 @@
 // domain/value-objects/temporal/guardianship-term.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 import { GuardianshipType } from '../legal/guardianship-type.vo';
 
 export type BondTermStatus = 'REQUIRED' | 'POSTED' | 'WAIVED' | 'NOT_REQUIRED';

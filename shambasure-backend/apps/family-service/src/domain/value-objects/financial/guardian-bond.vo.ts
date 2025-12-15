@@ -1,5 +1,5 @@
 // domain/value-objects/financial/guardian-bond.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export type BondType =
   | 'INSURANCE_BOND'

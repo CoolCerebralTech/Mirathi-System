@@ -1,5 +1,5 @@
 // domain/value-objects/personal/age-calculation.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export interface AgeCalculationProps {
   dateOfBirth?: Date;

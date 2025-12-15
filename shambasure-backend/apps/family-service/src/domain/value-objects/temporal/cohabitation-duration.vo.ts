@@ -1,5 +1,5 @@
 // domain/value-objects/temporal/cohabitation-duration.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export type CohabitationStatus = 'ACTIVE' | 'ENDED' | 'INTERRUPTED' | 'DISPUTED';
 export type RecognitionType = 'FAMILY' | 'COMMUNITY' | 'BOTH' | 'NONE';

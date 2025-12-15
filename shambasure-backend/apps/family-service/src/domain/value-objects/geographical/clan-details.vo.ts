@@ -1,6 +1,6 @@
 // domain/value-objects/geographical/clan-details.vo.ts
-import { ValueObject } from '../base/value-object';
-import { KenyanCounty, KenyanCountyValidator } from './kenyan-county.enum';
+import { ValueObject } from '../../base/value-object';
+import { KenyanCounty, KenyanCountyValidator } from './kenyan-county.vo';
 
 export type ClanStructure = 'PATRILINEAL' | 'MATRILINEAL' | 'BILINEAL' | 'UNKNOWN';
 export type ClanAuthority =

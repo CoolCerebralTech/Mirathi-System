@@ -1,5 +1,5 @@
 // domain/value-objects/personal/contact-info.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject } from '../../base/value-object';
 
 export interface KenyanAddress {
   street?: string;
