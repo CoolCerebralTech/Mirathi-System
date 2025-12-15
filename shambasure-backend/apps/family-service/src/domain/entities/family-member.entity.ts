@@ -322,14 +322,6 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
     clan?: string;
     subClan?: string;
   }): void {
-    const oldValues = {
-      firstName: this.props.name.firstName,
-      lastName: this.props.name.lastName,
-      middleName: this.props.name.middleName,
-      maidenName: this.props.name.maidenName,
-      occupation: this.props.occupation,
-    };
-
     // Update name
     let updatedName = this.props.name;
     if (params.firstName || params.lastName || params.middleName) {
@@ -442,8 +434,6 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
     this.props.identity = this.props.identity.withNationalId(nationalId);
     this.props.updatedAt = new Date();
     this.props.version++;
-
-    // Note: We might want a separate event for document addition
   }
 
   verifyNationalId(verifiedBy: string, verificationMethod: string): void {
@@ -591,12 +581,6 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
     requiresSupportedDecisionMaking: boolean;
     certificateId?: string;
   }): void {
-    const oldStatus = {
-      hasDisability: this.props.disabilityStatus?.hasDisability || false,
-      requiresSupportedDecisionMaking:
-        this.props.disabilityStatus?.requiresSupportedDecisionMaking || false,
-    };
-
     let disabilityStatus = this.props.disabilityStatus || DisabilityStatus.create(true);
 
     // Add a disability detail
@@ -642,7 +626,6 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
       throw new InvalidFamilyMemberException('Only male members can be assigned as house heads');
     }
 
-    const oldHouseId = this.props.polygamousHouseId;
     this.props.polygamousHouseId = houseId;
     this.props.updatedAt = new Date();
     this.props.version++;
@@ -676,7 +659,6 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
   }
 
   removeFromPolygamousHouse(): void {
-    const oldHouseId = this.props.polygamousHouseId;
     this.props.polygamousHouseId = undefined;
     this.props.updatedAt = new Date();
     this.props.version++;
@@ -687,7 +669,6 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
   }
 
   markAsMissing(missingSince: Date, lastSeenLocation?: string): void {
-    const oldStatus = this.props.lifeStatus.status;
     this.props.lifeStatus = this.props.lifeStatus.markMissing(missingSince, lastSeenLocation);
     this.props.updatedAt = new Date();
     this.props.version++;
@@ -706,7 +687,6 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
   }
 
   markAsFound(): void {
-    const oldStatus = this.props.lifeStatus.status;
     this.props.lifeStatus = this.props.lifeStatus.markAlive();
     this.props.updatedAt = new Date();
     this.props.version++;

@@ -1,4 +1,7 @@
 // domain/entities/marriage.entity.ts
+import { MarriageEndReason } from '@prisma/client';
+import { MarriageType } from '@prisma/client';
+
 import { Entity } from '../base/entity';
 import { CustomaryMarriageRecognizedEvent } from '../events/marriage-events/customary-marriage-recognized.event';
 import { MarriageDissolvedEvent } from '../events/marriage-events/marriage-dissolved.event';
@@ -7,23 +10,6 @@ import { InvalidMarriageException } from '../exceptions/marriage.exception';
 import { BridePrice } from '../value-objects/financial/bride-price.vo';
 import { MarriageDetails } from '../value-objects/legal/marriage-details.vo';
 import { KenyanMarriageDates } from '../value-objects/temporal/kenyan-marriage-dates.vo';
-
-// Enums based on your Prisma Schema
-export enum MarriageType {
-  CUSTOMARY = 'CUSTOMARY',
-  CHRISTIAN = 'CHRISTIAN',
-  CIVIL = 'CIVIL',
-  ISLAMIC = 'ISLAMIC',
-  TRADITIONAL = 'TRADITIONAL',
-}
-
-export enum MarriageEndReason {
-  DEATH_OF_SPOUSE = 'DEATH_OF_SPOUSE',
-  DIVORCE = 'DIVORCE',
-  ANNULMENT = 'ANNULMENT',
-  CUSTOMARY_DISSOLUTION = 'CUSTOMARY_DISSOLUTION',
-  STILL_ACTIVE = 'STILL_ACTIVE',
-}
 
 export enum MatrimonialRegime {
   MONOGAMOUS = 'MONOGAMOUS',

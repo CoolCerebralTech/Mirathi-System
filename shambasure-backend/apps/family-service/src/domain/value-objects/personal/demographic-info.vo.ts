@@ -1,6 +1,8 @@
 // domain/value-objects/personal/demographic-info.vo.ts
 import { ValueObject } from '../../base/value-object';
 
+export type GenderType = 'MALE' | 'FEMALE' | 'INTERSEX' | 'OTHER';
+
 export type ReligionType =
   | 'CHRISTIAN'
   | 'CATHOLIC'
@@ -34,6 +36,7 @@ export type EducationLevel =
   | 'OTHER';
 
 export interface DemographicInfoProps {
+  gender?: string; // Validate as GenderType internally
   religion?: ReligionType;
   maritalStatus?: MaritalStatusType;
   occupation?: string;
@@ -47,7 +50,7 @@ export interface DemographicInfoProps {
   numberOfDependants?: number;
   languages: string[];
   ethnicGroup?: string;
-  subEthnicGroup?: string;
+  subEthnicGroup?: string; // Mapped from 'subClan' in entity
   isUrbanDweller: boolean;
   hasRuralHome: boolean;
   ruralHomeLocation?: string;
@@ -59,11 +62,12 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
     this.validate();
   }
 
-  static create(): DemographicInfo {
+  static create(props?: Partial<DemographicInfoProps>): DemographicInfo {
     return new DemographicInfo({
       languages: [],
       isUrbanDweller: true,
       hasRuralHome: false,
+      ...props,
     });
   }
 
@@ -72,6 +76,11 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
   }
 
   validate(): void {
+    // Gender validation
+    if (this._value.gender && !this.isValidGender(this._value.gender)) {
+      throw new Error(`Invalid gender: ${this._value.gender}`);
+    }
+
     // Religion validation
     if (this._value.religion && !this.isValidReligion(this._value.religion)) {
       throw new Error('Invalid religion type');
@@ -111,9 +120,11 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
     }
 
     // Languages validation
-    for (const language of this._value.languages) {
-      if (!language || language.trim().length === 0) {
-        throw new Error('Language cannot be empty');
+    if (this._value.languages) {
+      for (const language of this._value.languages) {
+        if (!language || language.trim().length === 0) {
+          throw new Error('Language cannot be empty');
+        }
       }
     }
 
@@ -137,10 +148,16 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
       ];
 
       const normalizedEthnicGroup = this._value.ethnicGroup.toUpperCase();
+      // Only warn, don't throw, as there are 40+ tribes
       if (!commonEthnicGroups.includes(normalizedEthnicGroup)) {
-        console.warn(`Uncommon ethnic group specified: ${this._value.ethnicGroup}`);
+        // console.warn(`Uncommon ethnic group specified: ${this._value.ethnicGroup}`);
       }
     }
+  }
+
+  private isValidGender(gender: string): boolean {
+    const validGenders = ['MALE', 'FEMALE', 'INTERSEX', 'OTHER'];
+    return validGenders.includes(gender.toUpperCase());
   }
 
   private isValidReligion(religion: string): religion is ReligionType {
@@ -185,6 +202,15 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
       'OTHER',
     ];
     return validLevels.includes(level as EducationLevel);
+  }
+
+  // --- Update Methods ---
+
+  updateGender(gender: string): DemographicInfo {
+    return new DemographicInfo({
+      ...this._value,
+      gender: gender.toUpperCase(),
+    });
   }
 
   updateReligion(religion?: ReligionType): DemographicInfo {
@@ -247,7 +273,7 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
   }
 
   addLanguage(language: string): DemographicInfo {
-    const languages = [...this._value.languages];
+    const languages = [...(this._value.languages || [])];
     if (!languages.includes(language)) {
       languages.push(language);
     }
@@ -258,7 +284,7 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
   }
 
   removeLanguage(language: string): DemographicInfo {
-    const languages = this._value.languages.filter((l) => l !== language);
+    const languages = (this._value.languages || []).filter((l) => l !== language);
     return new DemographicInfo({
       ...this._value,
       languages,
@@ -284,6 +310,12 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
       hasRuralHome,
       ruralHomeLocation,
     });
+  }
+
+  // --- Getters ---
+
+  get gender(): string | undefined {
+    return this._value.gender;
   }
 
   get religion(): ReligionType | undefined {
@@ -331,7 +363,7 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
   }
 
   get languages(): string[] {
-    return [...this._value.languages];
+    return [...(this._value.languages || [])];
   }
 
   get ethnicGroup(): string | undefined {
@@ -339,6 +371,11 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
   }
 
   get subEthnicGroup(): string | undefined {
+    return this._value.subEthnicGroup;
+  }
+
+  // Alias subClan to subEthnicGroup for compatibility with FamilyMember
+  get subClan(): string | undefined {
     return this._value.subEthnicGroup;
   }
 
@@ -353,6 +390,8 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
   get ruralHomeLocation(): string | undefined {
     return this._value.ruralHomeLocation;
   }
+
+  // --- Computed Domain Logic ---
 
   // Check if person is Muslim (for inheritance rules)
   get isMuslim(): boolean {
@@ -396,17 +435,19 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
 
   // Get primary language (first in list)
   get primaryLanguage(): string | undefined {
-    return this._value.languages[0];
+    return this._value.languages && this._value.languages.length > 0
+      ? this._value.languages[0]
+      : undefined;
   }
 
   // Check if person speaks English
   get speaksEnglish(): boolean {
-    return this._value.languages.some((lang) => lang.toLowerCase().includes('english'));
+    return (this._value.languages || []).some((lang) => lang.toLowerCase().includes('english'));
   }
 
   // Check if person speaks Swahili
   get speaksSwahili(): boolean {
-    return this._value.languages.some(
+    return (this._value.languages || []).some(
       (lang) => lang.toLowerCase().includes('swahili') || lang.toLowerCase().includes('kiswahili'),
     );
   }
@@ -441,23 +482,24 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
 
   toJSON() {
     return {
-      religion: this._value.religion,
-      maritalStatus: this._value.maritalStatus,
-      occupation: this._value.occupation,
-      educationLevel: this._value.educationLevel,
-      institutionName: this._value.institutionName,
-      yearOfGraduation: this._value.yearOfGraduation,
-      employmentStatus: this._value.employmentStatus,
-      employerName: this._value.employerName,
-      monthlyIncome: this._value.monthlyIncome,
-      incomeCurrency: this._value.incomeCurrency,
-      numberOfDependants: this._value.numberOfDependants,
-      languages: this._value.languages,
-      ethnicGroup: this._value.ethnicGroup,
-      subEthnicGroup: this._value.subEthnicGroup,
-      isUrbanDweller: this._value.isUrbanDweller,
-      hasRuralHome: this._value.hasRuralHome,
-      ruralHomeLocation: this._value.ruralHomeLocation,
+      gender: this.gender,
+      religion: this.religion,
+      maritalStatus: this.maritalStatus,
+      occupation: this.occupation,
+      educationLevel: this.educationLevel,
+      institutionName: this.institutionName,
+      yearOfGraduation: this.yearOfGraduation,
+      employmentStatus: this.employmentStatus,
+      employerName: this.employerName,
+      monthlyIncome: this.monthlyIncome,
+      incomeCurrency: this.incomeCurrency,
+      numberOfDependants: this.numberOfDependants,
+      languages: this.languages,
+      ethnicGroup: this.ethnicGroup,
+      subEthnicGroup: this.subEthnicGroup,
+      isUrbanDweller: this.isUrbanDweller,
+      hasRuralHome: this.hasRuralHome,
+      ruralHomeLocation: this.ruralHomeLocation,
       isMuslim: this.isMuslim,
       isChristian: this.isChristian,
       isTraditionalReligion: this.isTraditionalReligion,
