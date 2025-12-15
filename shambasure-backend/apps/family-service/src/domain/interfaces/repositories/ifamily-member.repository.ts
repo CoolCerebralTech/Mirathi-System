@@ -1,36 +1,63 @@
-// domain/interfaces/repositories/ifamily-member.repository.ts
 import { FamilyMember } from '../../entities/family-member.entity';
+import { KenyanIdentity } from '../../value-objects/identity/kenyan-identity.vo';
 
 export interface IFamilyMemberRepository {
-  save(member: FamilyMember): Promise<void>;
-
+  // CRUD operations
   findById(id: string): Promise<FamilyMember | null>;
+  save(member: FamilyMember): Promise<FamilyMember>;
+  update(member: FamilyMember): Promise<FamilyMember>;
+  delete(id: string): Promise<void>;
+  softDelete(id: string, deletedBy: string, reason?: string): Promise<void>;
 
-  /**
-   * Retrieves all members of a specific family.
-   * Critical for reconstructing the Family Tree.
-   */
-  findByFamilyId(familyId: string): Promise<FamilyMember[]>;
-
-  /**
-   * Finds a member by their Kenyan National ID.
-   * Enforces uniqueness in the system.
-   */
+  // Identity queries
+  findByIdentity(identity: KenyanIdentity): Promise<FamilyMember | null>;
   findByNationalId(nationalId: string): Promise<FamilyMember | null>;
-
-  /**
-   * Finds a member by KRA PIN.
-   * Essential for Tax Compliance & Estate Asset mapping.
-   */
   findByKraPin(kraPin: string): Promise<FamilyMember | null>;
+  findByEmail(email: string): Promise<FamilyMember | null>;
+  findByPhone(phoneNumber: string): Promise<FamilyMember | null>;
+  findByUserId(userId: string): Promise<FamilyMember | null>;
 
-  /**
-   * Finds members marked as deceased within a family.
-   */
-  findDeceasedByFamily(familyId: string): Promise<FamilyMember[]>;
+  // Life status queries
+  findLivingMembers(familyId: string): Promise<FamilyMember[]>;
+  findDeceasedMembers(familyId: string): Promise<FamilyMember[]>;
+  findMinors(familyId: string): Promise<FamilyMember[]>;
+  findAdults(familyId: string): Promise<FamilyMember[]>;
 
-  /**
-   * Batch retrieval for performance (e.g., fetching all beneficiaries for a case).
-   */
-  findByIds(ids: string[]): Promise<FamilyMember[]>;
+  // Special categories
+  findDependants(familyId: string): Promise<FamilyMember[]>;
+  findMembersWithDisabilities(familyId: string): Promise<FamilyMember[]>;
+  findMissingPersons(familyId: string): Promise<FamilyMember[]>;
+
+  // Batch operations
+  bulkCreate(members: FamilyMember[]): Promise<FamilyMember[]>;
+  bulkUpdate(members: FamilyMember[]): Promise<FamilyMember[]>;
+
+  // Verification
+  verifyNationalId(memberId: string, verifiedBy: string): Promise<void>;
+  verifyKraPin(memberId: string, verifiedBy: string): Promise<void>;
+
+  // Death registration
+  registerDeath(
+    memberId: string,
+    deathDetails: {
+      dateOfDeath: Date;
+      placeOfDeath?: string;
+      deathCertificateNumber?: string;
+    },
+  ): Promise<void>;
+
+  // Age calculations
+  updateAgeCalculations(memberId: string): Promise<void>;
+
+  // Search
+  searchMembers(criteria: {
+    familyId?: string;
+    firstName?: string;
+    lastName?: string;
+    nationalId?: string;
+    kraPin?: string;
+    isDeceased?: boolean;
+    isMinor?: boolean;
+    disabilityStatus?: string;
+  }): Promise<FamilyMember[]>;
 }

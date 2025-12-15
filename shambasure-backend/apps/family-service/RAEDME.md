@@ -126,3 +126,31 @@ family-service/
 ├── application/
 ├── presentation/
 └── infrastructure/
+
+// infrastructure/persistence/
+├── repositories/
+│   ├── impl/
+│   │   ├── family.repository.impl.ts
+│   │   ├── family-member.repository.impl.ts
+│   │   ├── marriage.repository.impl.ts
+│   │   ├── guardianship.repository.impl.ts
+│   │   ├── legal-dependant.repository.impl.ts
+│   │   ├── polygamous-house.repository.impl.ts
+│   │   ├── family-relationship.repository.impl.ts
+│   │   └── family-legal-event.repository.impl.ts
+│   ├── base/
+│   │   ├── base.repository.ts
+│   │   └── transaction.manager.ts
+│   └── index.ts
+├── mappers/
+│   ├── family.mapper.ts
+│   ├── family-member.mapper.ts
+│   ├── marriage.mapper.ts
+│   ├── guardianship.mapper.ts
+│   ├── legal-dependant.mapper.ts
+│   ├── polygamous-house.mapper.ts
+│   ├── family-relationship.mapper.ts
+│   ├── cohabitation-record.mapper.ts
+│   ├── adoption-order.mapper.ts
+│   └── family-legal-event.mapper.ts
+└── persistence.module.ts  # NEW: Simplified module

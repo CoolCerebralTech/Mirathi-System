@@ -1,50 +1,105 @@
-// domain/interfaces/services/ikenyan-law.service.ts
-import { DependantQualificationResult } from '../../policies/law-of-succession-act/section-29-dependant.policy';
-import { IntestateDistributionResult } from '../../policies/law-of-succession-act/section-35-intestate.policy';
-import { PolygamousDistributionPlan } from '../../policies/law-of-succession-act/section-40-polygamy.policy';
-import { GuardianEligibilityResult } from '../../policies/law-of-succession-act/section-70-guardianship.policy';
+import { FamilyMember } from '../../entities/family-member.entity';
+import { LegalDependant } from '../../entities/legal-dependant.entity';
+import { Marriage } from '../../entities/marriage.entity';
 
 export interface IKenyanLawService {
-  /**
-   * Runs the full S.40 or S.35/38 calculation engine for a deceased member.
-   *
-   * 1. Reconstructs the Family Tree.
-   * 2. Identifies the Succession Structure (Monogamous vs Polygamous).
-   * 3. Applies the correct distribution policy.
-   */
-  calculateIntestateDistribution(
-    deceasedId: string,
-  ): Promise<PolygamousDistributionPlan | IntestateDistributionResult>;
+  // S.29 Dependant Determination
+  determineDependantStatus(member: FamilyMember): Promise<{
+    isDependant: boolean;
+    dependencyLevel: string;
+    basis: string[];
+  }>;
 
-  /**
-   * Determines if a specific family member qualifies as a S.29 Dependant.
-   * Checks relationships, age, disability, and financial maintenance history.
-   */
-  assessDependantEligibility(
-    deceasedId: string,
-    candidateId: string,
-  ): Promise<DependantQualificationResult>;
+  calculateDependencyPercentage(
+    dependant: LegalDependant,
+    deceasedIncome?: number,
+  ): Promise<number>;
 
-  /**
-   * Validates a Guardianship appointment against S.70-73 LSA.
-   * Checks criminal record, bankruptcy status, and relationship to ward.
-   */
-  validateGuardianshipAppointment(
-    guardianId: string,
-    wardId: string,
-    source: 'WILL' | 'COURT',
-  ): Promise<GuardianEligibilityResult>;
+  // S.35 Intestate Succession
+  calculateIntestateShares(family: {
+    deceasedId: string;
+    spouseId?: string;
+    childrenIds: string[];
+    polygamousHouses?: Array<{
+      houseId: string;
+      spouseId: string;
+      childrenIds: string[];
+    }>;
+    parentsAlive?: boolean;
+    siblingsExist?: boolean;
+  }): Promise<Map<string, number>>; // memberId -> share percentage
 
-  /**
-   * Determines if a specific marriage is valid under Kenyan Law.
-   * Checks for Bigamy (e.g., Civil marriage exists, trying to register Customary).
-   */
-  validateMarriageLegality(
-    spouse1Id: string,
-    spouse2Id: string,
-  ): Promise<{
+  // S.40 Polygamous Succession
+  calculatePolygamousShares(family: {
+    deceasedId: string;
+    houses: Array<{
+      houseId: string;
+      spouseId: string;
+      childrenIds: string[];
+    }>;
+    totalEstateValue: number;
+  }): Promise<Map<string, number>>; // houseId/memberId -> share percentage
+
+  // S.70-73 Guardianship
+  validateGuardianAppointment(guardian: {
+    guardianId: string;
+    wardId: string;
+    type: string;
+  }): Promise<{
+    eligible: boolean;
+    requirements: string[];
+    restrictions: string[];
+  }>;
+
+  calculateGuardianBondAmount(wardAssetsValue: number): Promise<number>;
+
+  // Marriage Validity (various laws)
+  validateMarriage(marriage: Marriage): Promise<{
     isValid: boolean;
-    reason?: string;
-    requiresConversion?: boolean;
+    lawApplied: string;
+    issues: string[];
+  }>;
+
+  // Customary Law Applications
+  applyCustomaryLaw(family: {
+    ethnicGroup: string;
+    clan: string;
+    situation: string; // 'inheritance', 'marriage', 'guardianship'
+  }): Promise<{
+    applicable: boolean;
+    rules: object;
+  }>;
+
+  // Age of Majority (Children Act)
+  isAgeOfMajorityReached(birthDate: Date, context?: string): Promise<boolean>;
+
+  // Islamic Law Applications
+  applyIslamicLaw(family: {
+    muslimMembers: string[];
+    situation: string;
+    estateValue?: number;
+  }): Promise<{
+    applicable: boolean;
+    distribution: Map<string, number>;
+  }>;
+
+  // Court Procedure Compliance
+  validateCourtProcedure(procedure: {
+    type: string; // 'guardianship', 'adoption', 'dependency'
+    documents: string[];
+    parties: string[];
+  }): Promise<{
+    compliant: boolean;
+    missingRequirements: string[];
+  }>;
+
+  // Statutory Time Limits
+  calculateTimeLimits(situation: {
+    type: string; // 'claim', 'appeal', 'filing'
+    triggerDate: Date;
+  }): Promise<{
+    deadline: Date;
+    isOverdue: boolean;
+    daysRemaining: number;
   }>;
 }
