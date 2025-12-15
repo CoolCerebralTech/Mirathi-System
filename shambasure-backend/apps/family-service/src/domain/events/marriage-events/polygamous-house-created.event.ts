@@ -2,15 +2,20 @@
 import { DomainEvent } from '../../base/domain-event';
 
 export interface PolygamousHouseCreatedEventPayload {
-  familyId: string;
   houseId: string;
+  familyId: string;
+  houseName: string;
+  houseOrder: number;
   houseHeadId?: string;
-  houseCount: number;
+  establishedDate: Date;
   timestamp: Date;
 }
 
 export class PolygamousHouseCreatedEvent extends DomainEvent<PolygamousHouseCreatedEventPayload> {
-  constructor(payload: PolygamousHouseCreatedEventPayload) {
-    super('PolygamousHouseCreated', payload);
+  constructor(payload: Omit<PolygamousHouseCreatedEventPayload, 'timestamp'>) {
+    super('PolygamousHouseCreated', payload.houseId, 'PolygamousHouse', {
+      ...payload,
+      timestamp: new Date(),
+    });
   }
 }

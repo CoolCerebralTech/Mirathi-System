@@ -41,22 +41,12 @@ family-service/
 │   │   │   ├── dependency-level.vo.ts
 │   │   │   └── legal-capacity.vo.ts
 │   │   ├── financial/
-│   │   │   ├── dependency-calculation.vo.ts
-│   │   │   ├── monthly-support.vo.ts
 │   │   │   ├── bride-price.vo.ts
-│   │   │   ├── guardian-bond.vo.ts
-│   │   │   └── allowance-amount.vo.ts
 │   │   ├── geographical/
 │   │   │   ├── kenyan-location.vo.ts
 │   │   │   ├── kenyan-county.vo.ts
-│   │   │   ├── ancestral-home.vo.ts
-│   │   │   ├── clan-details.vo.ts
-│   │   │   └── gps-coordinates.vo.ts
 │   │   └── temporal/
 │   │       ├── kenyan-marriage-dates.vo.ts
-│   │       ├── dependency-period.vo.ts
-│   │       ├── guardianship-term.vo.ts
-│   │       └── cohabitation-duration.vo.ts
 │   ├── policies/
 │   │   ├── marriage-validity.policy.ts
 │   │   ├── next-of-kin-determination.policy.ts
@@ -128,7 +118,7 @@ family-service/
 │   │   ├── polygamy.exception.ts
 │   │   └── dependant.exception.ts
 │   └── utils/
-│       ├── kenyan-law-calculator.ts
+│       ├── 
 │       ├── family-tree-builder.ts
 │       ├── age-calculator.ts
 │       ├── dependency-validator.ts

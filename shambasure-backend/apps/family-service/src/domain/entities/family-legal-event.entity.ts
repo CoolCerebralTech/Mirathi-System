@@ -1,4 +1,3 @@
-// domain/entities/family-legal-event.entity.ts
 import { Entity } from '../base/entity';
 
 export enum LegalEventType {
@@ -45,14 +44,17 @@ export interface CreateLegalEventProps {
   description: string;
   metadata: Record<string, any>;
   occurredAt: Date;
+
+  // Optional relations
   relatedUserId?: string;
+  relatedEstateId?: string;
   relatedCaseId?: string;
   recordedBy?: string;
 }
 
 export class FamilyLegalEvent extends Entity<FamilyLegalEventProps> {
   private constructor(props: FamilyLegalEventProps) {
-    super(props);
+    super(props.id, props);
     // No validation needed for immutable history logs
   }
 
@@ -69,6 +71,7 @@ export class FamilyLegalEvent extends Entity<FamilyLegalEventProps> {
       occurredAt: props.occurredAt,
       recordedAt: now,
       relatedUserId: props.relatedUserId,
+      relatedEstateId: props.relatedEstateId,
       relatedCaseId: props.relatedCaseId,
       recordedBy: props.recordedBy,
       version: 1,
@@ -104,6 +107,15 @@ export class FamilyLegalEvent extends Entity<FamilyLegalEventProps> {
   get occurredAt(): Date {
     return this.props.occurredAt;
   }
+  get relatedUserId(): string | undefined {
+    return this.props.relatedUserId;
+  }
+  get relatedEstateId(): string | undefined {
+    return this.props.relatedEstateId;
+  }
+  get relatedCaseId(): string | undefined {
+    return this.props.relatedCaseId;
+  }
 
   toJSON() {
     return {
@@ -113,6 +125,7 @@ export class FamilyLegalEvent extends Entity<FamilyLegalEventProps> {
       description: this.props.description,
       metadata: this.props.metadata,
       relatedUserId: this.props.relatedUserId,
+      relatedEstateId: this.props.relatedEstateId,
       relatedCaseId: this.props.relatedCaseId,
       occurredAt: this.props.occurredAt,
       recordedAt: this.props.recordedAt,

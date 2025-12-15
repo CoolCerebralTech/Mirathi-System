@@ -1,96 +1,194 @@
 // domain/policies/marriage-validity.policy.ts
+import { MarriageType } from '@prisma/client';
+
 import { FamilyMember } from '../entities/family-member.entity';
-import { Marriage, MarriageType } from '../entities/marriage.entity';
-import { AgeCalculator } from '../utils/age-calculator';
-import { RelationshipType } from '../value-objects/legal/relationship-type.vo';
+import { Marriage } from '../entities/marriage.entity';
 
 export interface MarriageValidationResult {
   isValid: boolean;
   issues: string[];
-  requiresConversion: boolean;
+  requiresConversion: boolean; // E.g., Converting Customary to Christian
+  legalCitation?: string;
+}
+
+export interface ValidationContext {
+  spouse1: FamilyMember;
+  spouse2: FamilyMember;
+  spouse1ExistingMarriages: Marriage[];
+  spouse2ExistingMarriages: Marriage[];
+  proposedType: MarriageType;
+  areRelatedByBlood?: boolean; // S.10 Consanguinity check
+  areRelatedByMarriage?: boolean; // S.10 Affinity check
 }
 
 export class MarriageValidityPolicy {
   /**
    * Validates if a proposed marriage is legal under the Marriage Act 2014.
    */
-  static validateNewUnion(
-    spouse1: FamilyMember,
-    spouse2: FamilyMember,
-    spouse1ExistingMarriages: Marriage[],
-    spouse2ExistingMarriages: Marriage[],
-    proposedType: MarriageType,
-  ): MarriageValidationResult {
+  static validateNewUnion(context: ValidationContext): MarriageValidationResult {
+    const { spouse1, spouse2, proposedType } = context;
     const issues: string[] = [];
 
-    // 1. Age Check (Strict 18+ requirement in Kenya)
-    if (spouse1.isMinor || spouse2.isMinor) {
-      issues.push('Both parties must be at least 18 years old.');
-    }
+    // =========================================================================
+    // 1. FUNDAMENTAL CAPACITIES
+    // =========================================================================
 
-    // 2. Identity Check
+    // A. Identity & Gender
     if (spouse1.id === spouse2.id) {
-      issues.push('Parties cannot be the same person.');
-    }
-    if (spouse1.gender === spouse2.gender) {
-      // Current Kenyan Law (Constitution Art 45) recognizes opposite-sex marriage
-      issues.push('Union must be between opposite genders under current Kenyan Law.');
+      return this.fail(['Parties cannot be the same person.']);
     }
 
-    // 3. Mental Capacity
+    if (spouse1.gender === spouse2.gender) {
+      return this.fail(
+        ['Union must be between opposite genders under current Kenyan Law.'],
+        'Constitution of Kenya 2010, Article 45(2)',
+      );
+    }
+
+    // B. Age (Marriage Act S.4 - Void if under 18)
+    if (spouse1.isMinor || spouse2.isMinor) {
+      issues.push(`Minimum legal age for marriage is 18.`);
+    }
+
+    // C. Mental Capacity
     if (spouse1.requiresSupportedDecisionMaking || spouse2.requiresSupportedDecisionMaking) {
       issues.push('One or both parties lack capacity to consent due to mental status.');
     }
 
-    // 4. Bigamy & Monogamy Checks
-    // Check Spouse 1
-    const s1Issue = this.checkExistingMarriages(spouse1ExistingMarriages, proposedType, 'Spouse 1');
-    if (s1Issue) issues.push(s1Issue);
+    // D. Prohibited Relationships
+    if (context.areRelatedByBlood) {
+      issues.push('Parties are within prohibited degrees of consanguinity (Blood Relation).');
+    }
 
-    // Check Spouse 2
-    const s2Issue = this.checkExistingMarriages(spouse2ExistingMarriages, proposedType, 'Spouse 2');
-    if (s2Issue) issues.push(s2Issue);
+    // =========================================================================
+    // 2. BIGAMY & REGIME CHECKS (Sections 6-9)
+    // =========================================================================
 
-    // 5. Prohibited Degrees (Consanguinity)
-    // Note: Deep relationship check is done via FamilyTreeBuilder in services.
-    // This policy assumes the inputs provided are the direct entities.
+    // Validate Spouse 1
+    issues.push(
+      ...this.checkExistingMarriages(spouse1, context.spouse1ExistingMarriages, proposedType),
+    );
+
+    // Validate Spouse 2
+    issues.push(
+      ...this.checkExistingMarriages(spouse2, context.spouse2ExistingMarriages, proposedType),
+    );
+
+    // Check for "Conversion" (S.9) - e.g., Couple converting Customary -> Christian
+    const isConversion = this.detectConversion(
+      spouse1,
+      spouse2,
+      context.spouse1ExistingMarriages,
+      proposedType,
+    );
+
+    if (issues.length > 0) {
+      // If it's a valid conversion, ignore "Existing Marriage" errors specific to the couple themselves
+      if (isConversion) {
+        // Filter out errors related to the partner being married to each other
+        // (Simplified logic: In a real system, we'd check if the error is about *this* specific partner)
+        // For now, if issues exist, we return them unless we build specific waiver logic.
+        return { isValid: false, issues, requiresConversion: false };
+      }
+      return { isValid: false, issues, requiresConversion: false };
+    }
 
     return {
-      isValid: issues.length === 0,
-      issues,
-      requiresConversion: false, // Handled in specific conversion logic
+      isValid: true,
+      issues: [],
+      requiresConversion: isConversion,
     };
   }
 
   /**
-   * Helper to check existing marriages against the regime.
-   * - Civil/Christian = Monogamous (Cannot marry again while active).
-   * - Customary/Islamic = Potentially Polygamous (Can marry again, but ONLY Customary/Islamic).
+   * Checks a spouse's ability to contract a new marriage based on history.
    */
   private static checkExistingMarriages(
+    spouse: FamilyMember,
     marriages: Marriage[],
     proposedType: MarriageType,
-    spouseLabel: string,
-  ): string | null {
+  ): string[] {
+    const issues: string[] = [];
+
+    // FILTER: Only look at Active marriages
     const activeMarriages = marriages.filter((m) => m.isActive);
 
+    if (activeMarriages.length === 0) {
+      return [];
+    }
+
+    // RULE 1: Polyandry Check (Women cannot have > 1 husband)
+    if (spouse.gender === 'FEMALE' && activeMarriages.length > 0) {
+      issues.push('Female party is already married. Polyandry is not recognized.');
+      return issues;
+    }
+
+    // RULE 2: Regime Compatibility (Men)
     for (const marriage of activeMarriages) {
-      // Scenario A: Existing Monogamous Marriage
-      if (marriage.type === MarriageType.CIVIL || marriage.type === MarriageType.CHRISTIAN) {
-        return `${spouseLabel} is already in a Monogamous union (${marriage.type}). Must divorce before remarriage.`;
+      // A. Existing Monogamous Union
+      if (
+        marriage.type === MarriageType.CIVIL ||
+        marriage.type === MarriageType.CHRISTIAN
+        //marriage.type === MarriageType.HINDU
+      ) {
+        issues.push(
+          `Party is already in a Monogamous union (${marriage.type}). Must divorce before remarriage.`,
+        );
+        return issues;
       }
 
-      // Scenario B: Existing Polygamous Marriage, trying to marry Monogamous
+      // B. Existing Potentially Polygamous Union
+      // Can marry again, BUT cannot switch to Monogamous (Civil/Christian) without divorce/conversion
       if (proposedType === MarriageType.CIVIL || proposedType === MarriageType.CHRISTIAN) {
-        return `${spouseLabel} is in a potentially polygamous union. Cannot contract a Monogamous marriage without prior conversion/divorce.`;
+        issues.push(
+          `Party is in a potentially polygamous union (${marriage.type}). Cannot contract a Monogamous marriage without prior divorce or conversion.`,
+        );
       }
 
-      // Scenario C: Islamic Limitations
+      // C. Islamic Limit (4 Wives)
       if (marriage.type === MarriageType.ISLAMIC && activeMarriages.length >= 4) {
-        return `${spouseLabel} has reached the maximum of 4 wives under Islamic Law.`;
+        issues.push('Party has reached the maximum of 4 wives allowed under Islamic Law.');
       }
     }
 
-    return null;
+    return issues;
+  }
+
+  /**
+   * Detects if the couple is ALREADY married to EACH OTHER and wants to convert.
+   */
+  private static detectConversion(
+    spouse1: FamilyMember,
+    spouse2: FamilyMember,
+    s1Marriages: Marriage[],
+    proposedType: MarriageType,
+  ): boolean {
+    // Conversion is only relevant if moving TO Monogamous
+    if (proposedType !== MarriageType.CIVIL && proposedType !== MarriageType.CHRISTIAN) {
+      return false;
+    }
+
+    // Find existing marriage between these two
+    const existingUnion = s1Marriages.find(
+      (m) => m.isActive && (m.spouse1Id === spouse2.id || m.spouse2Id === spouse2.id),
+    );
+
+    if (existingUnion) {
+      // Allow conversion only from Customary or Islamic
+      return (
+        existingUnion.type === MarriageType.CUSTOMARY || existingUnion.type === MarriageType.ISLAMIC
+      );
+    }
+
+    return false;
+  }
+
+  private static fail(issues: string[], citation?: string): MarriageValidationResult {
+    return {
+      isValid: false,
+      issues,
+      requiresConversion: false,
+      legalCitation: citation,
+    };
   }
 }

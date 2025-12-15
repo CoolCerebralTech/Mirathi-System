@@ -1,4 +1,5 @@
-// domain/aggregates/family.aggregate.ts
+import { KenyanCounty as PrismaKenyanCounty } from '@prisma/client';
+
 import { AggregateRoot } from '../base/aggregate-root';
 import { FamilyMember } from '../entities/family-member.entity';
 import { Marriage } from '../entities/marriage.entity';
@@ -13,8 +14,8 @@ import { PolygamousHouseCreatedEvent } from '../events/marriage-events/polygamou
 import {
   FamilyDomainException,
   InvalidFamilyMemberException,
+  PolygamyComplianceException,
 } from '../exceptions/family.exception';
-import { KenyanCounty } from '../value-objects/geographical/kenyan-county.vo';
 
 export interface FamilyProps {
   id: string;
@@ -22,38 +23,43 @@ export interface FamilyProps {
   description?: string;
   creatorId: string;
 
-  // Cultural Identity
+  // Kenyan Cultural Identity
   clanName?: string;
   subClan?: string;
   ancestralHome?: string;
   familyTotem?: string;
-  homeCounty?: KenyanCounty;
+  homeCounty?: PrismaKenyanCounty;
 
-  // Denormalized counts for performance
+  // Performance: Denormalized Counts
   memberCount: number;
   livingMemberCount: number;
   deceasedMemberCount: number;
   minorCount: number;
-  dependantCount: number; // S.29 Potential Dependants
+  dependantCount: number;
 
-  // S.40 Polygamy Tracking
+  // S. 40 Polygamy Tracking
   isPolygamous: boolean;
   polygamousHouseCount: number;
 
-  // State management
+  // Versioning for concurrency control
   version: number;
   lastEventId?: string;
+
+  // Audit
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date;
+  deletedBy?: string;
+  deletionReason?: string;
+  isArchived: boolean;
 
-  // Relationship References (Lazy Loaded via IDs)
+  // References to related entities (loaded separately)
   memberIds: string[];
-  marriageIds: string[]; // <-- ADDED: Critical for tracking unions
+  marriageIds: string[];
   polygamousHouseIds: string[];
 }
 
-export interface CreateFamilyParams {
+export interface CreateFamilyProps {
   name: string;
   creatorId: string;
   description?: string;
@@ -61,39 +67,35 @@ export interface CreateFamilyParams {
   subClan?: string;
   ancestralHome?: string;
   familyTotem?: string;
-  homeCounty?: string;
+  homeCounty?: PrismaKenyanCounty;
+  subCounty?: string;
+  ward?: string;
+  village?: string;
+  placeName?: string;
 }
 
 export class Family extends AggregateRoot<FamilyProps> {
   private constructor(props: FamilyProps) {
-    super(props, props.id);
+    super(props.id, props);
     this.validate();
   }
 
   // --- Factory Methods ---
 
-  static create(params: CreateFamilyParams): Family {
-    // Robust ID generation (Fallback if crypto not available in env)
-    const id =
-      typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `fam-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
+  static create(props: CreateFamilyProps): Family {
+    const id = this.generateId();
     const now = new Date();
-    const homeCounty = params.homeCounty
-      ? KenyanCounty.create({ countyName: params.homeCounty })
-      : undefined;
 
-    const props: FamilyProps = {
+    const familyProps: FamilyProps = {
       id,
-      name: params.name,
-      description: params.description,
-      creatorId: params.creatorId,
-      clanName: params.clanName,
-      subClan: params.subClan,
-      ancestralHome: params.ancestralHome,
-      familyTotem: params.familyTotem,
-      homeCounty,
+      name: props.name.trim(),
+      description: props.description?.trim(),
+      creatorId: props.creatorId,
+      clanName: props.clanName?.trim(),
+      subClan: props.subClan?.trim(),
+      ancestralHome: props.ancestralHome?.trim(),
+      familyTotem: props.familyTotem?.trim(),
+      homeCounty: props.homeCounty,
 
       // Initialize counts
       memberCount: 0,
@@ -108,16 +110,18 @@ export class Family extends AggregateRoot<FamilyProps> {
 
       // State
       version: 1,
+      lastEventId: undefined,
       createdAt: now,
       updatedAt: now,
+      isArchived: false,
 
-      // Relationships
+      // Relationships (empty initially)
       memberIds: [],
-      marriageIds: [], // Start empty
+      marriageIds: [],
       polygamousHouseIds: [],
     };
 
-    const family = new Family(props);
+    const family = new Family(familyProps);
 
     family.addDomainEvent(
       new FamilyCreatedEvent({
@@ -125,8 +129,7 @@ export class Family extends AggregateRoot<FamilyProps> {
         creatorId: family.creatorId,
         name: family.name,
         clanName: family.clanName,
-        homeCounty: family.homeCounty?.value,
-        timestamp: now,
+        homeCounty: family.homeCounty,
       }),
     );
 
@@ -134,9 +137,7 @@ export class Family extends AggregateRoot<FamilyProps> {
   }
 
   static createFromProps(props: FamilyProps): Family {
-    const family = new Family(props);
-    // No events on reconstitution
-    return family;
+    return new Family(props);
   }
 
   // --- Domain Logic ---
@@ -148,32 +149,53 @@ export class Family extends AggregateRoot<FamilyProps> {
     subClan?: string;
     ancestralHome?: string;
     familyTotem?: string;
-    homeCounty?: string;
+    homeCounty?: PrismaKenyanCounty;
   }): void {
     const oldName = this.props.name;
+    const oldClanName = this.props.clanName;
+    const oldHomeCounty = this.props.homeCounty;
 
-    this.props.name = params.name || this.props.name;
-    this.props.description = params.description ?? this.props.description;
-    this.props.clanName = params.clanName ?? this.props.clanName;
-    this.props.subClan = params.subClan ?? this.props.subClan;
-    this.props.ancestralHome = params.ancestralHome ?? this.props.ancestralHome;
-    this.props.familyTotem = params.familyTotem ?? this.props.familyTotem;
-
-    if (params.homeCounty) {
-      this.props.homeCounty = KenyanCounty.create({ countyName: params.homeCounty });
-    }
+    this.props.name = params.name?.trim() || this.props.name;
+    this.props.description = params.description?.trim() ?? this.props.description;
+    this.props.ancestralHome = params.ancestralHome?.trim() ?? this.props.ancestralHome;
+    this.props.familyTotem = params.familyTotem?.trim() ?? this.props.familyTotem;
+    this.props.clanName = params.clanName?.trim() ?? this.props.clanName;
+    this.props.subClan = params.subClan?.trim() ?? this.props.subClan;
+    this.props.homeCounty = params.homeCounty ?? this.props.homeCounty;
 
     this.props.updatedAt = new Date();
     this.props.version++;
 
-    if (params.name && params.name !== oldName) {
+    // Emit appropriate update events
+    if (params.name && params.name.trim() !== oldName) {
       this.addDomainEvent(
         new FamilyUpdatedEvent({
           familyId: this.id,
           field: 'name',
           oldValue: oldName,
           newValue: this.props.name,
-          timestamp: new Date(),
+        }),
+      );
+    }
+
+    if (params.clanName !== undefined && params.clanName !== oldClanName) {
+      this.addDomainEvent(
+        new FamilyUpdatedEvent({
+          familyId: this.id,
+          field: 'clanName',
+          oldValue: oldClanName,
+          newValue: params.clanName,
+        }),
+      );
+    }
+
+    if (params.homeCounty && params.homeCounty !== oldHomeCounty) {
+      this.addDomainEvent(
+        new FamilyUpdatedEvent({
+          familyId: this.id,
+          field: 'homeCounty',
+          oldValue: oldHomeCounty,
+          newValue: params.homeCounty,
         }),
       );
     }
@@ -189,20 +211,33 @@ export class Family extends AggregateRoot<FamilyProps> {
     }
 
     if (this.props.memberIds.includes(member.id)) {
-      // Idempotency: Ignore if already exists
-      return;
+      return; // Idempotency
+    }
+
+    // Kenyan Legal Requirement: Verify National ID if adult
+    if (!member.isMinor && !member.isIdentityVerified && !member.isDeceased) {
+      console.warn(
+        `Adult member ${member.id} added without verified National ID. Legal compliance issue.`,
+      );
     }
 
     this.props.memberIds.push(member.id);
     this.props.memberCount++;
 
-    // Update Counters
+    // Update Counters based on Kenyan LSA categories
     if (member.isDeceased) {
       this.props.deceasedMemberCount++;
     } else {
       this.props.livingMemberCount++;
-      if (member.isMinor) this.props.minorCount++;
-      if (member.isPotentialDependant) this.props.dependantCount++;
+
+      if (member.isMinor) {
+        this.props.minorCount++;
+      }
+
+      // Update dependant count based on S.29 criteria
+      if (member.isPotentialDependant) {
+        this.props.dependantCount++;
+      }
     }
 
     this.props.updatedAt = new Date();
@@ -212,56 +247,84 @@ export class Family extends AggregateRoot<FamilyProps> {
       new FamilyMemberAddedEvent({
         familyId: this.id,
         memberId: member.id,
-        memberName: member.name.fullName,
+        firstName: member.name.firstName,
+        lastName: member.name.lastName,
         isDeceased: member.isDeceased,
         isMinor: member.isMinor,
-        timestamp: new Date(),
+        isS29Dependant: member.isPotentialDependant,
       }),
     );
   }
 
-  /**
-   * Records a death. This is distinct from removing a member.
-   * Death changes legal status and triggers succession workflows.
-   */
-  recordMemberDeath(memberId: string, dateOfDeath: Date): void {
+  updateMemberStatus(member: FamilyMember): void {
+    if (!this.props.memberIds.includes(member.id)) {
+      throw new InvalidFamilyMemberException(`Member ${member.id} not found in family.`);
+    }
+
+    // Recalculate counts for this specific member
+    // This method should be called after member updates
+    console.warn('updateMemberStatus called - consider using event-driven updates instead');
+  }
+
+  recordMemberDeath(
+    memberId: string,
+    dateOfDeath: Date,
+    deathCertificateNumber?: string,
+    placeOfDeath?: string,
+  ): void {
     if (!this.props.memberIds.includes(memberId)) {
       throw new InvalidFamilyMemberException(`Member ${memberId} not found in family.`);
     }
 
-    // Adjust counters logic
-    // Note: The Entity (FamilyMember) should have been updated already.
-    // The Aggregate just reflects the impact on the Group.
+    // Note: This method is called when we only have the member ID, not the full member object
+    // In production, we'd load the member to adjust counts accurately
+    console.warn(
+      'recordMemberDeath requires member details to adjust minor/dependant counts accurately. Using optimistic update.',
+    );
+
+    // Optimistic adjustments - will be corrected when member is loaded
     this.props.livingMemberCount--;
     this.props.deceasedMemberCount++;
 
-    // If they were a minor, reduce minor count
-    // (We assume the service layer checks the member entity state before calling this)
+    // Note: Minor and dependant counts need actual member data
+    // We'll log a warning and rely on periodic recount
 
     this.props.updatedAt = new Date();
     this.props.version++;
 
     this.addDomainEvent(
       new FamilyMemberDeceasedEvent({
-        familyId: this.id,
         familyMemberId: memberId,
-        dateOfDeath: dateOfDeath,
+        familyId: this.id,
+        dateOfDeath,
+        placeOfDeath,
+        deathCertificateNumber,
         timestamp: new Date(),
       }),
     );
   }
 
-  removeMember(memberId: string): void {
-    const index = this.props.memberIds.indexOf(memberId);
+  removeMember(member: FamilyMember): void {
+    const index = this.props.memberIds.indexOf(member.id);
     if (index === -1) {
-      // Idempotent return
-      return;
+      return; // Idempotent
     }
 
     this.props.memberIds.splice(index, 1);
     this.props.memberCount--;
-    // Note: Caller must ensure counters (living/deceased) are adjusted via a recalculation
-    // or passing the member object state. For safety, we force a "Recalculate" pattern in Services.
+
+    // Adjust counters based on member status
+    if (member.isDeceased) {
+      this.props.deceasedMemberCount--;
+    } else {
+      this.props.livingMemberCount--;
+      if (member.isMinor) {
+        this.props.minorCount--;
+      }
+      if (member.isPotentialDependant) {
+        this.props.dependantCount--;
+      }
+    }
 
     this.props.updatedAt = new Date();
     this.props.version++;
@@ -269,19 +332,26 @@ export class Family extends AggregateRoot<FamilyProps> {
     this.addDomainEvent(
       new FamilyMemberRemovedEvent({
         familyId: this.id,
-        memberId,
-        timestamp: new Date(),
+        memberId: member.id,
+        wasDeceased: member.isDeceased,
+        wasMinor: member.isMinor,
+        wasDependant: member.isPotentialDependant,
       }),
     );
   }
 
-  // --- Marriage Management (CRITICAL ADDITION) ---
+  // --- Marriage Management ---
 
   registerMarriage(marriage: Marriage): void {
-    if (marriage.familyId !== this.id) return;
-    if (this.props.marriageIds.includes(marriage.id)) return;
+    if (marriage.familyId !== this.id) {
+      throw new FamilyDomainException('Marriage does not belong to this family.');
+    }
 
-    // Validate Spouses exist
+    if (this.props.marriageIds.includes(marriage.id)) {
+      return; // Idempotency
+    }
+
+    // Validate Spouses exist in family
     if (
       !this.props.memberIds.includes(marriage.spouse1Id) ||
       !this.props.memberIds.includes(marriage.spouse2Id)
@@ -291,17 +361,21 @@ export class Family extends AggregateRoot<FamilyProps> {
       );
     }
 
+    // Kenyan Legal Validation
+    this.validateMarriageCompliance(marriage);
+
     this.props.marriageIds.push(marriage.id);
 
-    // S.40 Logic: If this is the 2nd+ active marriage, flag family as polygamous
-    if (this.props.marriageIds.length > 1 && !this.props.isPolygamous) {
-      // Simple heuristic: If multiple marriages exist, potential polygamy.
-      // Complex logic (e.g., checking if previous marriage ended) handled in Policies.
-      // Here we just track the ID.
+    // Update polygamy status if this is a polygamous marriage
+    if (marriage.isPolygamous) {
+      this.props.isPolygamous = true;
     }
 
     this.props.updatedAt = new Date();
     this.props.version++;
+
+    // Access props safely via toJSON() or public interface
+    const marriageData = marriage.toJSON();
 
     this.addDomainEvent(
       new MarriageRegisteredEvent({
@@ -310,37 +384,193 @@ export class Family extends AggregateRoot<FamilyProps> {
         spouse1Id: marriage.spouse1Id,
         spouse2Id: marriage.spouse2Id,
         marriageType: marriage.type,
-        startDate: new Date(), // Should come from marriage entity
+        startDate: marriage.dates.marriageDate,
+        registrationNumber: marriageData.registrationNumber,
       }),
     );
   }
 
-  // --- Polygamous House Management ---
+  private validateMarriageCompliance(marriage: Marriage): void {
+    // Access state via toJSON to avoid access modifiers issues in Aggregate
+    const mState = marriage.toJSON();
+
+    // Kenyan Marriage Act compliance checks
+    if (marriage.dates.marriageDate > new Date()) {
+      throw new FamilyDomainException('Marriage cannot start in the future.');
+    }
+
+    // S.40 Polygamy compliance
+    if (marriage.isPolygamous && !mState.s40CertificateNumber) {
+      throw new PolygamyComplianceException(
+        'Polygamous marriages under S.40 require a certificate number.',
+      );
+    }
+
+    // Customary marriage validation
+    if (
+      marriage.isCustomary &&
+      mState.bridePrice?.status !== 'FULLY_PAID' &&
+      mState.bridePrice?.status !== 'PARTIALLY_PAID'
+    ) {
+      console.warn(
+        'Customary marriage registered without documented bride price payment (Status: ' +
+          mState.bridePrice?.status +
+          ').',
+      );
+    }
+
+    // Islamic marriage validation
+    if (marriage.isIslamic && !mState.islamicMarriage?.nikahDate) {
+      throw new FamilyDomainException('Islamic marriage requires Nikah date.');
+    }
+  }
+
+  // --- Polygamous House Management (S.40 LSA) ---
 
   addPolygamousHouse(house: PolygamousHouse): void {
-    if (house.familyId !== this.id) return;
-    if (this.props.polygamousHouseIds.includes(house.id)) return;
+    if (house.familyId !== this.id) {
+      throw new FamilyDomainException('House does not belong to this family.');
+    }
 
-    // Validate Head
-    if (!this.props.memberIds.includes(house.houseHeadId)) {
-      throw new FamilyDomainException('House Head (Wife) must be a family member.');
+    if (this.props.polygamousHouseIds.includes(house.id)) {
+      return; // Idempotency
+    }
+
+    // Validate House Head exists in family
+    if (house.houseHeadId && !this.props.memberIds.includes(house.houseHeadId)) {
+      throw new FamilyDomainException('House Head must be a family member.');
+    }
+
+    // S.40 Compliance: Wives consent for polygamous houses
+    if (!house.wivesConsentObtained && house.houseOrder > 1) {
+      throw new PolygamyComplianceException(
+        'Subsequent polygamous house requires documented consent from existing wives.',
+      );
     }
 
     this.props.polygamousHouseIds.push(house.id);
     this.props.polygamousHouseCount++;
-    this.props.isPolygamous = true; // S.40 is now active
+    this.props.isPolygamous = true;
 
     this.props.updatedAt = new Date();
     this.props.version++;
 
     this.addDomainEvent(
       new PolygamousHouseCreatedEvent({
-        familyId: this.id,
         houseId: house.id,
-        houseHeadId: house.houseHeadId,
+        familyId: this.id,
         houseName: house.houseName,
         houseOrder: house.houseOrder,
-        timestamp: new Date(),
+        houseHeadId: house.houseHeadId,
+        establishedDate: house.establishedDate,
+      }),
+    );
+  }
+
+  removePolygamousHouse(houseId: string): void {
+    const index = this.props.polygamousHouseIds.indexOf(houseId);
+    if (index === -1) {
+      return; // Idempotency
+    }
+
+    this.props.polygamousHouseIds.splice(index, 1);
+    this.props.polygamousHouseCount--;
+
+    // Update polygamy status if no houses left
+    if (this.props.polygamousHouseCount === 0) {
+      this.props.isPolygamous = false;
+    }
+
+    this.props.updatedAt = new Date();
+    this.props.version++;
+
+    this.addDomainEvent(
+      new FamilyUpdatedEvent({
+        familyId: this.id,
+        field: 'polygamousHouseRemoved',
+        oldValue: houseId,
+        newValue: undefined,
+      }),
+    );
+  }
+
+  // --- Count Management ---
+
+  recalculateCounts(members: FamilyMember[]): void {
+    // Reset all counts
+    this.props.livingMemberCount = 0;
+    this.props.deceasedMemberCount = 0;
+    this.props.minorCount = 0;
+    this.props.dependantCount = 0;
+
+    // Recalculate from member data
+    members.forEach((member) => {
+      if (member.isDeceased) {
+        this.props.deceasedMemberCount++;
+      } else {
+        this.props.livingMemberCount++;
+        if (member.isMinor) {
+          this.props.minorCount++;
+        }
+        if (member.isPotentialDependant) {
+          this.props.dependantCount++;
+        }
+      }
+    });
+
+    // Ensure memberCount matches
+    this.props.memberCount = this.props.livingMemberCount + this.props.deceasedMemberCount;
+
+    this.props.updatedAt = new Date();
+    this.props.version++;
+  }
+
+  // --- Archive & Deletion ---
+
+  archive(reason: string, deletedBy: string): void {
+    if (this.props.isArchived) {
+      throw new FamilyDomainException('Family is already archived.');
+    }
+
+    if (this.props.livingMemberCount > 0) {
+      throw new FamilyDomainException('Cannot archive family with living members.');
+    }
+
+    this.props.isArchived = true;
+    this.props.deletedAt = new Date();
+    this.props.deletedBy = deletedBy;
+    this.props.deletionReason = reason;
+    this.props.updatedAt = new Date();
+    this.props.version++;
+
+    this.addDomainEvent(
+      new FamilyUpdatedEvent({
+        familyId: this.id,
+        field: 'isArchived',
+        oldValue: false,
+        newValue: true,
+      }),
+    );
+  }
+
+  unarchive(): void {
+    if (!this.props.isArchived) {
+      throw new FamilyDomainException('Family is not archived.');
+    }
+
+    this.props.isArchived = false;
+    this.props.deletedAt = undefined;
+    this.props.deletedBy = undefined;
+    this.props.deletionReason = undefined;
+    this.props.updatedAt = new Date();
+    this.props.version++;
+
+    this.addDomainEvent(
+      new FamilyUpdatedEvent({
+        familyId: this.id,
+        field: 'isArchived',
+        oldValue: true,
+        newValue: false,
       }),
     );
   }
@@ -348,86 +578,249 @@ export class Family extends AggregateRoot<FamilyProps> {
   // --- Validation & Invariants ---
 
   private validate(): void {
-    if (!this.props.id) throw new FamilyDomainException('Family ID is required');
-    if (!this.props.name?.trim()) throw new FamilyDomainException('Family name is required');
-    if (!this.props.creatorId) throw new FamilyDomainException('Creator ID is required');
+    if (!this.props.id) {
+      throw new FamilyDomainException('Family ID is required');
+    }
+
+    if (!this.props.name?.trim()) {
+      throw new FamilyDomainException('Family name is required');
+    }
+
+    if (!this.props.creatorId) {
+      throw new FamilyDomainException('Creator ID is required');
+    }
 
     // Counts consistency
-    if (this.props.memberCount < 0)
+    if (this.props.memberCount < 0) {
       throw new FamilyDomainException('Member count cannot be negative');
+    }
+
+    if (this.props.livingMemberCount < 0 || this.props.deceasedMemberCount < 0) {
+      throw new FamilyDomainException('Living/Deceased member counts cannot be negative');
+    }
+
+    if (this.props.memberCount !== this.props.livingMemberCount + this.props.deceasedMemberCount) {
+      throw new FamilyDomainException('Member count must equal living + deceased members');
+    }
+
+    if (this.props.minorCount > this.props.livingMemberCount) {
+      throw new FamilyDomainException('Minor count cannot exceed living member count');
+    }
+
+    if (this.props.dependantCount > this.props.livingMemberCount) {
+      throw new FamilyDomainException('Dependant count cannot exceed living member count');
+    }
 
     // Polygamy Consistency
     if (this.props.isPolygamous && this.props.polygamousHouseCount < 1) {
-      // Exception: It's possible to be polygamous by Marriage count (2 wives)
-      // before formally setting up Houses in the system.
-      // So we relax this strict check to allow the "Setup Phase".
+      console.warn('Polygamous family has no houses defined - may be in transition');
     }
+
+    if (this.props.polygamousHouseCount < 0) {
+      throw new FamilyDomainException('Polygamous house count cannot be negative');
+    }
+
+    // Archived validation
+    if (this.props.isArchived && !this.props.deletedAt) {
+      throw new FamilyDomainException('Archived family must have deletion timestamp');
+    }
+
+    if (this.props.deletedAt && !this.props.isArchived) {
+      throw new FamilyDomainException('Deleted family must be archived');
+    }
+  }
+
+  private static generateId(): string {
+    return crypto.randomUUID
+      ? crypto.randomUUID()
+      : `fam-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
   // --- Getters ---
 
+  get id(): string {
+    return this.props.id;
+  }
+
   get name(): string {
     return this.props.name;
   }
+
+  get description(): string | undefined {
+    return this.props.description;
+  }
+
   get creatorId(): string {
     return this.props.creatorId;
   }
+
   get clanName(): string | undefined {
     return this.props.clanName;
   }
-  get homeCounty(): KenyanCounty | undefined {
+
+  get subClan(): string | undefined {
+    return this.props.subClan;
+  }
+
+  get ancestralHome(): string | undefined {
+    return this.props.ancestralHome;
+  }
+
+  get familyTotem(): string | undefined {
+    return this.props.familyTotem;
+  }
+
+  get homeCounty(): PrismaKenyanCounty | undefined {
     return this.props.homeCounty;
   }
 
-  // Counts
   get memberCount(): number {
     return this.props.memberCount;
   }
+
   get livingMemberCount(): number {
     return this.props.livingMemberCount;
   }
+
   get deceasedMemberCount(): number {
     return this.props.deceasedMemberCount;
   }
 
-  // Logic
+  get minorCount(): number {
+    return this.props.minorCount;
+  }
+
+  get dependantCount(): number {
+    return this.props.dependantCount;
+  }
+
   get isPolygamous(): boolean {
     return this.props.isPolygamous;
+  }
+
+  get polygamousHouseCount(): number {
+    return this.props.polygamousHouseCount;
+  }
+
+  get version(): number {
+    return this.props.version;
+  }
+
+  get lastEventId(): string | undefined {
+    return this.props.lastEventId;
+  }
+
+  get createdAt(): Date {
+    return this.props.createdAt;
+  }
+
+  get updatedAt(): Date {
+    return this.props.updatedAt;
+  }
+
+  get deletedAt(): Date | undefined {
+    return this.props.deletedAt;
+  }
+
+  get deletedBy(): string | undefined {
+    return this.props.deletedBy;
+  }
+
+  get deletionReason(): string | undefined {
+    return this.props.deletionReason;
+  }
+
+  get isArchived(): boolean {
+    return this.props.isArchived;
   }
 
   get memberIds(): string[] {
     return [...this.props.memberIds];
   }
+
   get marriageIds(): string[] {
     return [...this.props.marriageIds];
   }
+
   get polygamousHouseIds(): string[] {
     return [...this.props.polygamousHouseIds];
+  }
+
+  // Computed properties
+  get hasLivingMembers(): boolean {
+    return this.props.livingMemberCount > 0;
+  }
+
+  get hasDeceasedMembers(): boolean {
+    return this.props.deceasedMemberCount > 0;
+  }
+
+  get hasMinors(): boolean {
+    return this.props.minorCount > 0;
+  }
+
+  get hasDependants(): boolean {
+    return this.props.dependantCount > 0;
+  }
+
+  get isActive(): boolean {
+    return !this.props.isArchived && this.props.livingMemberCount > 0;
+  }
+
+  // S.40 Compliance
+  get isS40Compliant(): boolean {
+    if (!this.props.isPolygamous) {
+      return true; // Monogamous families are automatically compliant
+    }
+
+    // For polygamous families under S.40:
+    // 1. Must have houses defined
+    // 2. Each house should have consent documentation
+    // 3. Ideally court recognized
+    return this.props.polygamousHouseCount > 0;
+  }
+
+  // S.29 Compliance
+  get hasPotentialS29Claims(): boolean {
+    return this.props.dependantCount > 0;
   }
 
   toJSON() {
     return {
       id: this.id,
       name: this.name,
-      description: this.props.description,
+      description: this.description,
       creatorId: this.creatorId,
       clanName: this.clanName,
-      subClan: this.props.subClan,
-      homeCounty: this.homeCounty?.value,
-      stats: {
-        total: this.memberCount,
-        living: this.livingMemberCount,
-        deceased: this.deceasedMemberCount,
-        minors: this.props.minorCount,
-        dependants: this.props.dependantCount,
-      },
+      subClan: this.subClan,
+      ancestralHome: this.ancestralHome,
+      familyTotem: this.familyTotem,
+      homeCounty: this.homeCounty,
+      memberCount: this.memberCount,
+      livingMemberCount: this.livingMemberCount,
+      deceasedMemberCount: this.deceasedMemberCount,
+      minorCount: this.minorCount,
+      dependantCount: this.dependantCount,
       isPolygamous: this.isPolygamous,
-      houses: this.props.polygamousHouseCount,
-      members: this.memberIds,
-      marriages: this.marriageIds,
-      version: this.props.version,
-      createdAt: this.props.createdAt,
-      updatedAt: this.props.updatedAt,
+      polygamousHouseCount: this.polygamousHouseCount,
+      hasLivingMembers: this.hasLivingMembers,
+      hasDeceasedMembers: this.hasDeceasedMembers,
+      hasMinors: this.hasMinors,
+      hasDependants: this.hasDependants,
+      isActive: this.isActive,
+      isS40Compliant: this.isS40Compliant,
+      hasPotentialS29Claims: this.hasPotentialS29Claims,
+      version: this.version,
+      lastEventId: this.lastEventId,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+      deletedAt: this.deletedAt,
+      deletedBy: this.deletedBy,
+      deletionReason: this.deletionReason,
+      isArchived: this.isArchived,
+      memberIds: this.memberIds,
+      marriageIds: this.marriageIds,
+      polygamousHouseIds: this.polygamousHouseIds,
     };
   }
 }

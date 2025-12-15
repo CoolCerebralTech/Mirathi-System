@@ -1,18 +1,23 @@
-// domain/events/family-events/family-member-added.event.ts
 import { DomainEvent } from '../../base/domain-event';
 
 export interface FamilyMemberAddedEventPayload {
   familyId: string;
   memberId: string;
-  memberName: string;
+  firstName: string;
+  lastName: string;
   isDeceased: boolean;
   isMinor: boolean;
-  isPotentialDependant: boolean;
+  isS29Dependant: boolean;
+  nationalId?: string;
+  kraPin?: string;
   timestamp: Date;
 }
 
 export class FamilyMemberAddedEvent extends DomainEvent<FamilyMemberAddedEventPayload> {
-  constructor(payload: FamilyMemberAddedEventPayload) {
-    super('FamilyMemberAdded', payload);
+  constructor(payload: Omit<FamilyMemberAddedEventPayload, 'timestamp'>) {
+    super('FamilyMemberAdded', payload.familyId, 'Family', {
+      ...payload,
+      timestamp: new Date(),
+    });
   }
 }

@@ -1,59 +1,83 @@
-// domain/entities/polygamous-house.entity.ts
 import { Entity } from '../base/entity';
 import { HouseHeadChangedEvent } from '../events/family-events/house-head-changed.event';
 import { S40CertificateVerifiedEvent } from '../events/legal-events/s40-certificate-verified.event';
 import { PolygamousHouseCreatedEvent } from '../events/marriage-events/polygamous-house-created.event';
 import { InvalidPolygamousHouseException } from '../exceptions/polygamy.exception';
-import { PolygamousHouseDetails } from '../value-objects/legal/polygamous-house-details.vo';
 
 export interface PolygamousHouseProps {
   id: string;
   familyId: string;
 
-  // The "Owner" of the house (The Wife/Widow)
-  houseHeadId: string;
+  // House identity
+  houseName: string;
+  houseOrder: number;
+  establishedDate: Date;
 
-  // Core Details (Name, Order in marriage sequence)
-  details: PolygamousHouseDetails;
+  // House head (wife)
+  houseHeadId?: string;
 
   // Section 40 LSA Compliance
-  s40CertificateNumber?: string;
   courtRecognized: boolean;
   courtOrderNumber?: string;
+  s40CertificateNumber?: string;
+  certificateIssuedDate?: Date;
+  certificateIssuingCourt?: string;
 
-  // House Specific Economy (S.40 implies houses can have own property)
+  // House share percentage for estate distribution
+  houseSharePercentage?: number;
+
+  // Business and property tracking
   houseBusinessName?: string;
   houseBusinessKraPin?: string;
-  areAssetsFrozen: boolean; // During succession disputes
+  separateProperty: boolean;
 
-  // Wives Consent (Critical for validity of subsequent houses in customary law)
+  // Wives consent tracking
   wivesConsentObtained: boolean;
-  wivesConsentDocumentId?: string;
+  wivesConsentDocument?: string; // Document ID
+  wivesAgreementDetails?: any; // JSON
 
-  // State
-  isDissolved: boolean;
-  dissolvedAt?: Date;
+  // Succession planning
+  successionInstructions?: string;
+
+  // House dissolution tracking
+  houseDissolvedAt?: Date;
+  houseAssetsFrozen: boolean;
 
   // Audit
   version: number;
   createdAt: Date;
   updatedAt: Date;
-  deletedAt?: Date;
 }
 
 export interface CreatePolygamousHouseProps {
   familyId: string;
-  houseHeadId: string; // The Wife
-  houseName: string; // e.g., "House of Wanjiku"
-  houseOrder: number; // 1, 2, 3...
+  houseHeadId?: string;
+  houseName: string;
+  houseOrder: number;
   establishedDate: Date;
-  wivesConsentObtained?: boolean; // Did previous wives agree?
-  s40CertificateNumber?: string; // If retrospective creation
+
+  // S.40 compliance
+  courtRecognized?: boolean;
+  s40CertificateNumber?: string;
+  certificateIssuedDate?: Date;
+  certificateIssuingCourt?: string;
+
+  // Wives consent
+  wivesConsentObtained?: boolean;
+  wivesConsentDocument?: string;
+  wivesAgreementDetails?: any;
+
+  // House share
+  houseSharePercentage?: number;
+
+  // Business details
+  houseBusinessName?: string;
+  houseBusinessKraPin?: string;
 }
 
 export class PolygamousHouse extends Entity<PolygamousHouseProps> {
   private constructor(props: PolygamousHouseProps) {
-    super(props);
+    super(props.id, props);
     this.validate();
   }
 
@@ -61,22 +85,25 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
     const id = this.generateId();
     const now = new Date();
 
-    const details = PolygamousHouseDetails.create({
-      houseName: props.houseName,
-      houseOrder: props.houseOrder,
-      establishedDate: props.establishedDate,
-    });
-
     const house = new PolygamousHouse({
       id,
       familyId: props.familyId,
       houseHeadId: props.houseHeadId,
-      details,
+      houseName: props.houseName,
+      houseOrder: props.houseOrder,
+      establishedDate: props.establishedDate,
+      courtRecognized: props.courtRecognized || false,
       s40CertificateNumber: props.s40CertificateNumber,
-      courtRecognized: !!props.s40CertificateNumber, // If cert exists, it's recognized
-      areAssetsFrozen: false,
-      wivesConsentObtained: props.wivesConsentObtained ?? false, // Defaults to false (strict)
-      isDissolved: false,
+      certificateIssuedDate: props.certificateIssuedDate,
+      certificateIssuingCourt: props.certificateIssuingCourt,
+      houseSharePercentage: props.houseSharePercentage,
+      houseBusinessName: props.houseBusinessName,
+      houseBusinessKraPin: props.houseBusinessKraPin,
+      separateProperty: false,
+      wivesConsentObtained: props.wivesConsentObtained || false,
+      wivesConsentDocument: props.wivesConsentDocument,
+      wivesAgreementDetails: props.wivesAgreementDetails,
+      houseAssetsFrozen: false,
       version: 1,
       createdAt: now,
       updatedAt: now,
@@ -86,10 +113,10 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
       new PolygamousHouseCreatedEvent({
         houseId: id,
         familyId: props.familyId,
-        houseHeadId: props.houseHeadId,
-        houseOrder: props.houseOrder,
         houseName: props.houseName,
-        timestamp: now,
+        houseOrder: props.houseOrder,
+        houseHeadId: props.houseHeadId,
+        establishedDate: props.establishedDate,
       }),
     );
 
@@ -102,13 +129,8 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
 
   // --- Domain Logic ---
 
-  /**
-   * Updates the House Head.
-   * In Kenyan Customary Law, if the wife dies, the eldest son often becomes the
-   * "acting head" for the purpose of administration, though the house remains "House of [Mother]".
-   */
   changeHouseHead(newHeadId: string, reason: string): void {
-    if (this.props.isDissolved) {
+    if (this.props.houseDissolvedAt) {
       throw new InvalidPolygamousHouseException('Cannot change head of a dissolved house.');
     }
 
@@ -128,92 +150,146 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
         oldHeadId: previousHeadId,
         newHeadId: newHeadId,
         reason,
-        timestamp: new Date(),
       }),
     );
   }
 
-  /**
-   * Certifies the house under Section 40 of the LSA.
-   * This is usually done via a court process confirming the beneficiaries.
-   */
-  certifyUnderSection40(certificateNumber: string, courtStation: string): void {
+  certifyUnderSection40(params: {
+    certificateNumber: string;
+    courtStation: string;
+    issuedDate?: Date;
+  }): void {
     if (this.props.s40CertificateNumber) {
-      // Idempotency check - if same cert, ignore
-      if (this.props.s40CertificateNumber === certificateNumber) return;
+      if (this.props.s40CertificateNumber === params.certificateNumber) return;
       throw new InvalidPolygamousHouseException('House is already certified under S.40.');
     }
 
-    this.props.s40CertificateNumber = certificateNumber;
+    if (!this.props.houseHeadId) {
+      throw new InvalidPolygamousHouseException('House must have a head before certification.');
+    }
+
+    this.props.s40CertificateNumber = params.certificateNumber;
     this.props.courtRecognized = true;
-    this.props.courtOrderNumber = `S40-${courtStation}-${certificateNumber}`;
+    this.props.certificateIssuingCourt = params.courtStation;
+    this.props.certificateIssuedDate = params.issuedDate || new Date();
+    this.props.courtOrderNumber = `S40-${params.courtStation}-${params.certificateNumber}`;
     this.props.updatedAt = new Date();
     this.props.version++;
 
     this.addDomainEvent(
       new S40CertificateVerifiedEvent({
         houseId: this.id,
-        certificateNumber,
-        courtStation,
-        timestamp: new Date(),
+        certificateNumber: params.certificateNumber,
+        courtStation: params.courtStation,
+        issuedDate: params.issuedDate || new Date(),
       }),
     );
   }
 
-  /**
-   * Registers a separate business or property specifically for this house.
-   * This protects these assets from being merged into the general estate
-   * before the Section 40 split.
-   */
+  updateHouseShare(percentage: number): void {
+    if (percentage < 0 || percentage > 100) {
+      throw new InvalidPolygamousHouseException('Share percentage must be between 0 and 100.');
+    }
+
+    this.props.houseSharePercentage = percentage;
+    this.props.updatedAt = new Date();
+    this.props.version++;
+  }
+
   registerHouseBusiness(businessName: string, kraPin?: string): void {
-    if (this.props.isDissolved) {
+    if (this.props.houseDissolvedAt) {
       throw new InvalidPolygamousHouseException('Cannot register business for dissolved house.');
     }
 
     this.props.houseBusinessName = businessName;
     this.props.houseBusinessKraPin = kraPin;
+    this.props.separateProperty = true;
     this.props.updatedAt = new Date();
     this.props.version++;
   }
 
-  /**
-   * Freezes house assets.
-   * Used when there is an inter-house dispute regarding asset ownership.
-   */
+  recordWivesConsent(params: {
+    consentObtained: boolean;
+    consentDocument?: string;
+    agreementDetails?: any;
+  }): void {
+    this.props.wivesConsentObtained = params.consentObtained;
+    this.props.wivesConsentDocument = params.consentDocument;
+    this.props.wivesAgreementDetails = params.agreementDetails;
+    this.props.updatedAt = new Date();
+    this.props.version++;
+  }
+
+  addSuccessionInstructions(instructions: string): void {
+    this.props.successionInstructions = instructions;
+    this.props.updatedAt = new Date();
+    this.props.version++;
+  }
+
   freezeAssets(): void {
-    this.props.areAssetsFrozen = true;
+    this.props.houseAssetsFrozen = true;
     this.props.updatedAt = new Date();
     this.props.version++;
   }
 
   unfreezeAssets(): void {
-    this.props.areAssetsFrozen = false;
+    this.props.houseAssetsFrozen = false;
     this.props.updatedAt = new Date();
     this.props.version++;
   }
 
-  /**
-   * Validates the house structure.
-   */
-  private validate(): void {
-    if (!this.props.houseHeadId) {
-      throw new InvalidPolygamousHouseException(
-        'A Polygamous House must have a Head (Wife/Widow).',
-      );
+  dissolve(dissolutionDate: Date): void {
+    if (this.props.houseDissolvedAt) {
+      throw new InvalidPolygamousHouseException('House is already dissolved.');
     }
 
-    if (this.props.details.houseOrder < 1) {
+    this.props.houseDissolvedAt = dissolutionDate;
+    this.props.houseAssetsFrozen = true;
+    this.props.updatedAt = new Date();
+    this.props.version++;
+  }
+
+  private validate(): void {
+    if (!this.props.houseName) {
+      throw new InvalidPolygamousHouseException('House name is required.');
+    }
+
+    if (this.props.houseOrder < 1) {
       throw new InvalidPolygamousHouseException('House order must be 1 or greater.');
     }
 
-    // S.40 specific validation:
-    // If it's the 2nd+ house, and customary law applies, explicit consent/recognition is preferred
-    // but not always strictly required by statute if cohabitation is proven.
-    // However, in our system, we enforce logic consistency.
+    if (this.props.establishedDate > new Date()) {
+      throw new InvalidPolygamousHouseException('Established date cannot be in the future.');
+    }
+
+    if (
+      this.props.houseSharePercentage &&
+      (this.props.houseSharePercentage < 0 || this.props.houseSharePercentage > 100)
+    ) {
+      throw new InvalidPolygamousHouseException(
+        'House share percentage must be between 0 and 100.',
+      );
+    }
+
+    // S.40 validation: If court recognized, must have certificate number
+    if (this.props.courtRecognized && !this.props.s40CertificateNumber) {
+      throw new InvalidPolygamousHouseException(
+        'Court recognized house must have S.40 certificate number.',
+      );
+    }
+
+    // For polygamous houses under S.40, wives consent is critical
+    if (this.props.houseOrder > 1 && !this.props.wivesConsentObtained) {
+      console.warn(
+        'Warning: Subsequent polygamous house without documented wives consent may face legal challenges.',
+      );
+    }
   }
 
   private static generateId(): string {
-    return `hse-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return crypto.randomUUID
+      ? crypto.randomUUID()
+      : `hse-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
   // --- Getters ---
@@ -221,40 +297,106 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
   get id(): string {
     return this.props.id;
   }
+
   get familyId(): string {
     return this.props.familyId;
   }
-  get houseHeadId(): string {
+
+  get houseHeadId(): string | undefined {
     return this.props.houseHeadId;
   }
+
   get houseName(): string {
-    return this.props.details.houseName;
+    return this.props.houseName;
   }
+
   get houseOrder(): number {
-    return this.props.details.houseOrder;
+    return this.props.houseOrder;
   }
+
+  get establishedDate(): Date {
+    return this.props.establishedDate;
+  }
+
   get isCertifiedS40(): boolean {
     return !!this.props.s40CertificateNumber;
   }
-  get areAssetsFrozen(): boolean {
-    return this.props.areAssetsFrozen;
+
+  get courtRecognized(): boolean {
+    return this.props.courtRecognized;
+  }
+
+  get houseAssetsFrozen(): boolean {
+    return this.props.houseAssetsFrozen;
+  }
+
+  get houseDissolvedAt(): Date | undefined {
+    return this.props.houseDissolvedAt;
+  }
+
+  get isDissolved(): boolean {
+    return !!this.props.houseDissolvedAt;
+  }
+
+  get wivesConsentObtained(): boolean {
+    return this.props.wivesConsentObtained;
+  }
+
+  get separateProperty(): boolean {
+    return this.props.separateProperty;
+  }
+
+  get houseSharePercentage(): number | undefined {
+    return this.props.houseSharePercentage;
+  }
+
+  get hasSuccessionInstructions(): boolean {
+    return !!this.props.successionInstructions;
+  }
+
+  // Computed property for S.40 compliance status
+  get s40ComplianceStatus(): 'COMPLIANT' | 'NON_COMPLIANT' | 'PENDING' {
+    if (this.props.houseOrder === 1) return 'COMPLIANT'; // First house doesn't need S.40 certification
+
+    if (this.props.courtRecognized && this.props.s40CertificateNumber) {
+      return 'COMPLIANT';
+    }
+
+    if (this.props.wivesConsentObtained) {
+      return 'PENDING'; // Has consent but not court recognized
+    }
+
+    return 'NON_COMPLIANT';
   }
 
   toJSON() {
     return {
       id: this.id,
       familyId: this.props.familyId,
+      houseName: this.props.houseName,
+      houseOrder: this.props.houseOrder,
       houseHeadId: this.props.houseHeadId,
-      details: this.props.details.toJSON(),
-      s40CertificateNumber: this.props.s40CertificateNumber,
+      establishedDate: this.props.establishedDate,
       courtRecognized: this.props.courtRecognized,
+      courtOrderNumber: this.props.courtOrderNumber,
+      s40CertificateNumber: this.props.s40CertificateNumber,
+      certificateIssuedDate: this.props.certificateIssuedDate,
+      certificateIssuingCourt: this.props.certificateIssuingCourt,
+      houseSharePercentage: this.props.houseSharePercentage,
       houseBusinessName: this.props.houseBusinessName,
       houseBusinessKraPin: this.props.houseBusinessKraPin,
-      areAssetsFrozen: this.props.areAssetsFrozen,
+      separateProperty: this.props.separateProperty,
       wivesConsentObtained: this.props.wivesConsentObtained,
-      isActive: !this.props.isDissolved,
+      wivesConsentDocument: this.props.wivesConsentDocument,
+      wivesAgreementDetails: this.props.wivesAgreementDetails,
+      successionInstructions: this.props.successionInstructions,
+      houseDissolvedAt: this.props.houseDissolvedAt,
+      houseAssetsFrozen: this.props.houseAssetsFrozen,
       version: this.props.version,
       createdAt: this.props.createdAt,
+      updatedAt: this.props.updatedAt,
+      isDissolved: this.isDissolved,
+      s40ComplianceStatus: this.s40ComplianceStatus,
     };
   }
 }

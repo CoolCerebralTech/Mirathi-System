@@ -1,19 +1,24 @@
 // domain/events/guardianship-events/guardian-appointed.event.ts
+import { GuardianType } from '@prisma/client';
+
 import { DomainEvent } from '../../base/domain-event';
 
 export interface GuardianAppointedEventPayload {
   guardianshipId: string;
-  familyId: string;
   wardId: string;
   guardianId: string;
-  type: string;
+  type: GuardianType;
   courtOrderNumber?: string;
+  courtStation?: string;
   appointmentDate: Date;
   timestamp: Date;
 }
 
 export class GuardianAppointedEvent extends DomainEvent<GuardianAppointedEventPayload> {
-  constructor(payload: GuardianAppointedEventPayload) {
-    super('GuardianAppointed', payload);
+  constructor(payload: Omit<GuardianAppointedEventPayload, 'timestamp'>) {
+    super('GuardianAppointed', payload.guardianshipId, 'Guardian', {
+      ...payload,
+      timestamp: new Date(),
+    });
   }
 }

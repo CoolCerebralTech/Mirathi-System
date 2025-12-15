@@ -1,9 +1,14 @@
 // domain/utils/family-tree-builder.ts
-import { FamilyMember } from '../entities/family-member.entity';
-import { FamilyRelationship } from '../entities/family-relationship.entity';
-import { PolygamousHouse } from '../entities/polygamous-house.entity';
+import {
+  FamilyMember,
+  FamilyRelationship,
+  PolygamousHouse,
+  RelationshipType,
+} from '@prisma/client';
 
-// --- Legal Interfaces ---
+// =============================================================================
+// INTERFACES
+// =============================================================================
 
 export interface FamilyTreeNode {
   memberId: string;
@@ -13,36 +18,46 @@ export interface FamilyTreeNode {
   parents: FamilyTreeNode[];
   children: FamilyTreeNode[];
   spouses: FamilyTreeNode[];
-  siblings: FamilyTreeNode[]; // Full or Half (tracked in relationship obj)
+  siblings: FamilyTreeNode[];
 
   // Legal Context
-  houseId?: string; // S.40 House Membership
-  isHouseHead: boolean; // Is this a wife heading a house?
+  houseId: string | null; // S.40 House Membership
+  isHouseHead: boolean; // Is this member a head of a polygamous house?
 
   // Visualization / Tree Structure
   depth: number;
-  position: number;
 }
 
 export interface HouseStructure {
   houseId: string;
-  houseHeadId: string;
+  houseHeadId: string | null;
   houseName: string;
-  children: string[]; // IDs of children in this house
-  grandChildrenPerChild: Map<string, string[]>; // Map<ChildId, GrandChildId[]> (Per Stirpes)
+  livingChildrenIds: string[];
+  // Per Stirpes: Dead child -> Living Grandkids
+  deceasedChildrenWithIssue: Map<string, string[]>;
 }
 
-export interface LsaSuccessionStructure {
+export interface SuccessionStructure {
+  deceasedId: string;
   survivingSpouses: string[];
-  children: string[]; // Direct living children
-  deceasedChildrenWithIssue: string[]; // Dead children who left grandkids (Per Stirpes)
-  parents: string[]; // Dependent parents (S.39)
-  polygamousHouses: HouseStructure[]; // S.40 Structure
+
+  // Monogamous / General Context (S.35/38)
+  livingChildren: string[];
+  deceasedChildrenWithIssue: Map<string, string[]>; // Dead Child ID -> [Living Grandchild IDs]
+  livingParents: string[];
+
+  // Polygamous Context (S.40)
+  polygamousHouses: HouseStructure[];
 }
+
+// =============================================================================
+// TREE BUILDER CLASS
+// =============================================================================
 
 export class FamilyTreeBuilder {
   /**
-   * Builds the core graph map from flat lists.
+   * 1. BUILD GRAPH
+   * Converts flat lists of members/relationships into a traversable graph.
    */
   static buildTree(
     members: FamilyMember[],
@@ -51,7 +66,7 @@ export class FamilyTreeBuilder {
   ): Map<string, FamilyTreeNode> {
     const nodes = new Map<string, FamilyTreeNode>();
 
-    // 1. Initialize Nodes
+    // A. Initialize Nodes
     for (const member of members) {
       nodes.set(member.id, {
         memberId: member.id,
@@ -60,16 +75,13 @@ export class FamilyTreeBuilder {
         children: [],
         spouses: [],
         siblings: [],
-        // Check if member is a house head (Wife)
         isHouseHead: houses.some((h) => h.houseHeadId === member.id),
-        // Check if member belongs to a house (Child)
         houseId: member.polygamousHouseId,
         depth: 0,
-        position: 0,
       });
     }
 
-    // 2. Build Edges
+    // B. Build Edges (Strictly typed)
     for (const rel of relationships) {
       const fromNode = nodes.get(rel.fromMemberId);
       const toNode = nodes.get(rel.toMemberId);
@@ -103,141 +115,148 @@ export class FamilyTreeBuilder {
       }
     }
 
-    // 3. Calculate Layout (Depth)
-    this.calculateTreeLayout(nodes);
+    // C. Calculate Layout (Depth) for visualization/ordering
+    this.calculateTreeDepth(nodes);
 
     return nodes;
   }
 
   /**
-   * Analyzes the family tree to determine the LSA Succession Structure.
-   * This is the "Engine" for Section 35, 38, 40 logic.
+   * 2. ANALYZE SUCCESSION STRUCTURE
+   * Extracts the legal hierarchy for S.35 (Intestacy) and S.40 (Polygamy).
+   * Handles "Per Stirpes" (S.41) automatically.
    */
   static analyzeSuccessionStructure(
     deceasedId: string,
     nodes: Map<string, FamilyTreeNode>,
     houses: PolygamousHouse[],
-  ): LsaSuccessionStructure {
+  ): SuccessionStructure {
     const deceasedNode = nodes.get(deceasedId);
     if (!deceasedNode) {
-      throw new Error('Deceased member not found in tree.');
+      throw new Error(`Deceased member (ID: ${deceasedId}) not found in the provided family tree.`);
     }
 
-    const structure: LsaSuccessionStructure = {
+    const structure: SuccessionStructure = {
+      deceasedId,
       survivingSpouses: [],
-      children: [],
-      deceasedChildrenWithIssue: [],
-      parents: [],
+      livingChildren: [],
+      deceasedChildrenWithIssue: new Map(),
+      livingParents: [],
       polygamousHouses: [],
     };
 
-    // 1. Find Surviving Spouses
+    // A. Find Surviving Spouses
     structure.survivingSpouses = deceasedNode.spouses
       .filter((s) => s.member && !s.member.isDeceased)
       .map((s) => s.memberId);
 
-    // 2. Find Children (Living)
-    structure.children = deceasedNode.children
+    // B. Find Direct Descendants (General/Monogamous Context)
+    // 1. Living Children
+    structure.livingChildren = deceasedNode.children
       .filter((c) => c.member && !c.member.isDeceased)
       .map((c) => c.memberId);
 
-    // 3. Find Deceased Children with Issue (Per Stirpes - Section 41 LSA)
+    // 2. Dead Children with Issue (S.41 Per Stirpes)
     const deadChildren = deceasedNode.children.filter((c) => c.member && c.member.isDeceased);
 
     for (const deadChild of deadChildren) {
-      // Check if they have living children (Grandkids of deceased)
-      const grandkids = deadChild.children.filter((gc) => gc.member && !gc.member.isDeceased);
+      const livingGrandkids = deadChild.children
+        .filter((gc) => gc.member && !gc.member.isDeceased)
+        .map((gc) => gc.memberId);
 
-      if (grandkids.length > 0) {
-        structure.deceasedChildrenWithIssue.push(deadChild.memberId);
+      if (livingGrandkids.length > 0) {
+        structure.deceasedChildrenWithIssue.set(deadChild.memberId, livingGrandkids);
       }
     }
 
-    // 4. Find Parents (Living) - Relevant for S.39 if no wife/kids
-    structure.parents = deceasedNode.parents
+    // C. Find Parents (S.39 Fallback)
+    structure.livingParents = deceasedNode.parents
       .filter((p) => p.member && !p.member.isDeceased)
       .map((p) => p.memberId);
 
-    // 5. Structure S.40 Polygamous Houses
+    // D. Structure S.40 Polygamous Houses
     if (houses.length > 0) {
       for (const house of houses) {
-        const houseHeadNode = nodes.get(house.houseHeadId);
-
-        // Filter children belonging to this house
-        const houseChildren = deceasedNode.children
-          .filter((child) => child.houseId === house.id)
+        // Filter direct children belonging to this house
+        const houseLivingChildren = deceasedNode.children
+          .filter((c) => c.houseId === house.id && c.member && !c.member.isDeceased)
           .map((c) => c.memberId);
 
-        // Map grandkids for Per Stirpes within the house
-        const grandKidsMap = new Map<string, string[]>();
+        // Filter dead children of this house with issue
+        const houseIssueMap = new Map<string, string[]>();
 
-        const deadHouseChildren = deceasedNode.children.filter(
-          (c) => c.houseId === house.id && c.member?.isDeceased,
+        const houseDeadChildren = deceasedNode.children.filter(
+          (c) => c.houseId === house.id && c.member && c.member.isDeceased,
         );
 
-        for (const dc of deadHouseChildren) {
+        for (const dc of houseDeadChildren) {
           const gcIds = dc.children
             .filter((gc) => gc.member && !gc.member.isDeceased)
             .map((gc) => gc.memberId);
 
           if (gcIds.length > 0) {
-            grandKidsMap.set(dc.memberId, gcIds);
+            houseIssueMap.set(dc.memberId, gcIds);
           }
         }
 
-        structure.polygamousHouses.push({
-          houseId: house.id,
-          houseHeadId: house.houseHeadId,
-          houseName: house.houseName,
-          children: houseChildren,
-          grandChildrenPerChild: grandKidsMap,
-        });
+        // Only add house if it has surviving beneficiaries (Head, Child, or Grandchild)
+        const houseHeadAlive = structure.survivingSpouses.includes(house.houseHeadId || '');
+        const hasBeneficiaries =
+          houseHeadAlive || houseLivingChildren.length > 0 || houseIssueMap.size > 0;
+
+        if (hasBeneficiaries) {
+          structure.polygamousHouses.push({
+            houseId: house.id,
+            houseHeadId: house.houseHeadId,
+            houseName: house.houseName,
+            livingChildrenIds: houseLivingChildren,
+            deceasedChildrenWithIssue: houseIssueMap,
+          });
+        }
       }
     }
 
     return structure;
   }
 
-  // --- Layout Helper (BFS) ---
+  // ===========================================================================
+  // PRIVATE HELPERS
+  // ===========================================================================
 
-  private static calculateTreeLayout(nodes: Map<string, FamilyTreeNode>): void {
-    const roots: FamilyTreeNode[] = [];
+  /**
+   * Helper to calculate generations relative to roots.
+   * Useful for UI visualization (e.g. Generation 1, 2, 3).
+   */
+  private static calculateTreeDepth(nodes: Map<string, FamilyTreeNode>): void {
+    const visited = new Set<string>();
+    const queue: { node: FamilyTreeNode; depth: number }[] = [];
 
+    // 1. Identify "Roots" (Oldest generation or those without parents in tree)
     for (const node of nodes.values()) {
-      // Root = No parents recorded OR Parents are deceased/unknown
-      const hasLivingParent = node.parents.some(
-        (parent) => parent.member && !parent.member.isDeceased,
-      );
-
-      if (node.parents.length === 0 || !hasLivingParent) {
-        roots.push(node);
+      const hasParentsInTree = node.parents.some((p) => nodes.has(p.memberId));
+      if (!hasParentsInTree) {
+        queue.push({ node, depth: 0 });
+        visited.add(node.memberId);
       }
     }
 
-    const queue: { node: FamilyTreeNode; depth: number }[] = roots.map((node) => ({
-      node,
-      depth: 0,
-    }));
-
-    const visited = new Set<string>();
-
+    // 2. BFS Traverse
     while (queue.length > 0) {
       const { node, depth } = queue.shift()!;
-      if (visited.has(node.memberId)) continue;
-      visited.add(node.memberId);
-
       node.depth = depth;
 
-      // Spouses are same depth
+      // Spouses stay on same level
       for (const spouse of node.spouses) {
         if (!visited.has(spouse.memberId)) {
+          visited.add(spouse.memberId);
           queue.push({ node: spouse, depth: depth });
         }
       }
 
-      // Children are depth + 1
+      // Children go down a level
       for (const child of node.children) {
         if (!visited.has(child.memberId)) {
+          visited.add(child.memberId);
           queue.push({ node: child, depth: depth + 1 });
         }
       }

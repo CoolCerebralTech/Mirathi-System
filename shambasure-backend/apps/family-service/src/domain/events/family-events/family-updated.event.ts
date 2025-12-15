@@ -1,4 +1,3 @@
-// domain/events/family-events/family-updated.event.ts
 import { DomainEvent } from '../../base/domain-event';
 
 export interface FamilyUpdatedEventPayload {
@@ -10,7 +9,10 @@ export interface FamilyUpdatedEventPayload {
 }
 
 export class FamilyUpdatedEvent extends DomainEvent<FamilyUpdatedEventPayload> {
-  constructor(payload: FamilyUpdatedEventPayload) {
-    super('FamilyUpdated', payload);
+  constructor(payload: Omit<FamilyUpdatedEventPayload, 'timestamp'>) {
+    super('FamilyUpdated', payload.familyId, 'Family', {
+      ...payload,
+      timestamp: new Date(),
+    });
   }
 }

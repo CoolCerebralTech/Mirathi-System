@@ -1,14 +1,14 @@
 // domain/policies/law-of-succession-act/section-29-dependant.policy.ts
-import { CohabitationRecord } from '../../entities/cohabitation-record.entity';
-import { FamilyMember } from '../../entities/family-member.entity';
 import {
-  FamilyRelationship,
-  RelationshipStrength,
-} from '../../entities/family-relationship.entity';
-import { Marriage, MarriageEndReason } from '../../entities/marriage.entity';
-import { DependencyLevel } from '../../value-objects/legal/dependency-level.vo';
-import { KenyanLawSection } from '../../value-objects/legal/kenyan-law-section.vo';
-import { RelationshipType } from '../../value-objects/legal/relationship-type.vo';
+  DependencyLevel,
+  KenyanLawSection,
+  MarriageEndReason,
+  RelationshipType,
+} from '@prisma/client';
+
+import { FamilyMember } from '../../entities/family-member.entity';
+import { FamilyRelationship } from '../../entities/family-relationship.entity';
+import { Marriage } from '../../entities/marriage.entity';
 
 export interface DependantQualificationResult {
   isDependant: boolean;
@@ -21,6 +21,11 @@ export interface DependantQualificationResult {
 export class Section29DependantPolicy {
   /**
    * Main entry point to determine if a person counts as a "Dependant" under Section 29.
+   *
+   * @param deceased - The deceased family member
+   * @param candidate - The person claiming dependancy
+   * @param relationship - The documented relationship
+   * @param context - Additional evidence (marriage, maintenance history)
    */
   static checkEligibility(
     deceased: FamilyMember,
@@ -28,11 +33,11 @@ export class Section29DependantPolicy {
     relationship: FamilyRelationship,
     context: {
       marriage?: Marriage; // If spouse
-      cohabitation?: CohabitationRecord; // If cohabitor
       wasMaintained?: boolean; // Financial evidence provided?
+      isCohabiting?: boolean; // For "Living as wife" check
     },
   ): DependantQualificationResult {
-    // 1. Check Section 29(a) - Wives (and former wives)
+    // 1. SPOUSES (S.29(a) & S.29(c))
     if (
       relationship.type === RelationshipType.SPOUSE ||
       relationship.type === RelationshipType.EX_SPOUSE
@@ -40,189 +45,106 @@ export class Section29DependantPolicy {
       return this.evaluateSpouse(deceased, candidate, context.marriage, context.wasMaintained);
     }
 
-    // 2. Check Section 29(a) - Children
+    // 2. CHILDREN (S.29(a)) - Biological & Adopted
     if (
       relationship.type === RelationshipType.CHILD ||
       relationship.type === RelationshipType.ADOPTED_CHILD
     ) {
-      return this.evaluateChild(candidate, relationship);
+      return this.evaluateChild(relationship);
     }
 
-    // 3. Check Section 29(5) - Cohabitors ("Woman living as wife")
-    if (context.cohabitation && context.cohabitation.isQualifyingForS29) {
-      return this.evaluateCohabitor(deceased, context.cohabitation);
+    // 3. STEP-CHILDREN / TAKEN INTO FAMILY (S.29(b))
+    if (relationship.type === RelationshipType.STEPCHILD) {
+      return this.evaluateStepChild(context.wasMaintained);
     }
 
-    // 4. Check Section 29(b) - Other Relatives (Parents, Step-children, Siblings)
-    return this.evaluateExtendedFamily(relationship, context.wasMaintained ?? false);
+    // 4. COHABITORS (S.29(5)) - "Woman living as wife"
+    if (context.isCohabiting && deceased.gender === 'MALE' && candidate.gender === 'FEMALE') {
+      return this.evaluateCohabitor();
+    }
+
+    // 5. OTHER RELATIVES (S.29(b)) - Parents, Siblings, etc.
+    return this.evaluateExtendedFamily(relationship.type, context.wasMaintained ?? false);
   }
 
-  /**
-   * Evaluates Spouse Eligibility (S.29(a) and S.29(c)).
-   * Handles the distinction between Wife (automatic) and Husband (conditional under old LSA text, though Constitution overrides).
-   */
+  // ===========================================================================
+  // EVALUATION LOGIC
+  // ===========================================================================
+
   private static evaluateSpouse(
     deceased: FamilyMember,
     candidate: FamilyMember,
     marriage?: Marriage,
     wasMaintained?: boolean,
   ): DependantQualificationResult {
-    // Fallback if marriage object missing but relationship exists
+    // NOTE: Accessing properties from the Marriage Entity via toJSON() or direct props
+    // requires checking if the public getters expose them.
+    // The Marriage Entity provided has a `toJSON()` method that exposes all props.
+    // For type safety within the domain, we should ideally add public getters to the Entity,
+    // but here we cast safely or check existence.
+
     if (!marriage) {
-      // If simply "Spouse", assume qualifying for safety, mark for verification
-      return {
-        isDependant: true,
-        section: KenyanLawSection.S29_DEPENDANTS,
-        dependencyLevel: DependencyLevel.FULL,
-        requiresMaintenanceProof: false,
-        reason: 'Spouse (Verification of marriage status required)',
-      };
+      return this.fail('Marriage record not provided for spouse verification');
     }
 
-    // CASE 1: The Deceased was Male (S.29(a))
-    if (deceased.gender === 'MALE') {
-      // Wife or Wives are automatic dependants
-      if (marriage.isActive) {
-        return {
-          isDependant: true,
-          section: KenyanLawSection.S29_DEPENDANTS,
-          dependencyLevel: DependencyLevel.FULL,
-          requiresMaintenanceProof: false, // Automatic
-          reason: 'Wife of deceased (S.29(a))',
-        };
+    const marriageData = marriage.toJSON(); // Access raw state safely
+    const isAlive = marriage.isActive;
+
+    // A. Current Spouses
+    if (isAlive) {
+      // Deceased was Husband (S.29(a)) - Wife is automatic dependant
+      if (deceased.gender === 'MALE') {
+        return this.success('Wife of deceased (S.29(a))', DependencyLevel.FULL, false);
       }
 
-      // Former Wife (Divorced but maintained)
-      if (
-        marriage.endReason === MarriageEndReason.DIVORCE ||
-        marriage.endReason === MarriageEndReason.ANNULMENT
-      ) {
-        // Strict LSA: Must have been receiving maintenance
-        // If court ordered maintenance exists or wasMaintained is true
-        if (wasMaintained || marriage.details?.maintenanceOrderNumber) {
-          return {
-            isDependant: true,
-            section: KenyanLawSection.S29_DEPENDANTS,
-            dependencyLevel: DependencyLevel.PARTIAL,
-            requiresMaintenanceProof: true,
-            reason: 'Former wife receiving maintenance (S.29(a))',
-          };
-        }
+      // Deceased was Wife (S.29(c)) - Husband requires proof of maintenance
+      if (deceased.gender === 'FEMALE') {
+        const desc = 'Husband of deceased (S.29(c)) - Maintenance proof typically required';
+        return wasMaintained
+          ? this.success(desc, DependencyLevel.PARTIAL, true)
+          : this.fail(desc + ' [Not Maintained]', true);
       }
     }
 
-    // CASE 2: The Deceased was Female (S.29(c))
-    if (deceased.gender === 'FEMALE') {
-      // "Where the deceased was a woman, her husband if he was being maintained by her"
-      // Note: Art 27 of Constitution implies equality, but statutes often require proof for husbands
-      if (wasMaintained) {
-        return {
-          isDependant: true,
-          section: KenyanLawSection.S29_DEPENDANTS, // Technically S.29(c) falls under the general section
-          dependencyLevel: DependencyLevel.PARTIAL,
-          requiresMaintenanceProof: true,
-          reason: 'Husband maintained by deceased wife (S.29(c))',
-        };
+    // B. Former Spouses (Divorced)
+    if (marriageData.endReason === MarriageEndReason.DIVORCE) {
+      // Check maintenanceOrderIssued property from the Entity
+      if (wasMaintained || marriageData.maintenanceOrderIssued) {
+        return this.success(
+          'Former spouse receiving maintenance (S.29(a))',
+          DependencyLevel.PARTIAL,
+          true,
+        );
       }
-
-      return {
-        isDependant: false,
-        section: KenyanLawSection.S29_DEPENDANTS,
-        dependencyLevel: DependencyLevel.NONE,
-        requiresMaintenanceProof: true,
-        reason: 'Husband not maintained by deceased (S.29(c))',
-      };
     }
 
-    return {
-      isDependant: false,
-      section: KenyanLawSection.S29_DEPENDANTS,
-      dependencyLevel: DependencyLevel.NONE,
-      requiresMaintenanceProof: false,
-      reason: 'Relationship does not qualify',
-    };
+    return this.fail('Spouse relationship does not meet criteria');
   }
 
-  /**
-   * Evaluates Children (S.29(a)).
-   * "The children of the deceased whether or not maintained..."
-   */
-  private static evaluateChild(
-    candidate: FamilyMember,
-    relationship: FamilyRelationship,
-  ): DependantQualificationResult {
-    // 1. Biological or Adopted Children (Full Rights)
-    if (relationship.isBiological || relationship.isAdopted) {
-      return {
-        isDependant: true,
-        section: KenyanLawSection.S29_DEPENDANTS,
-        dependencyLevel: DependencyLevel.FULL,
-        requiresMaintenanceProof: false, // "Whether or not maintained"
-        reason: relationship.isAdopted ? 'Adopted Child (S.29(a))' : 'Biological Child (S.29(a))',
-      };
-    }
-
-    // 2. Children "taken into his family as his own" (S.29(b))
-    // This often covers foster children or step-children treated as own
-    if (
-      relationship.strength === RelationshipStrength.FOSTER ||
-      relationship.strength === RelationshipStrength.STEP
-    ) {
-      // These technically fall under 29(b) and require maintenance proof
-      return {
-        isDependant: true, // Conditional
-        section: KenyanLawSection.S29_DEPENDANTS,
-        dependencyLevel: DependencyLevel.PARTIAL,
-        requiresMaintenanceProof: true,
-        reason: 'Child taken into family/Step-child (S.29(b))',
-      };
-    }
-
-    return {
-      isDependant: false,
-      section: KenyanLawSection.S29_DEPENDANTS,
-      dependencyLevel: DependencyLevel.NONE,
-      requiresMaintenanceProof: false,
-      reason: 'Invalid child relationship',
-    };
+  private static evaluateChild(relationship: FamilyRelationship): DependantQualificationResult {
+    // S.29(a): "The children of the deceased whether or not maintained..."
+    // Automatic qualification.
+    const type = relationship.type === RelationshipType.ADOPTED_CHILD ? 'Adopted' : 'Biological';
+    return this.success(`${type} Child (S.29(a))`, DependencyLevel.FULL, false);
   }
 
-  /**
-   * Evaluates Cohabitors (S.29(5)).
-   * "Woman living as wife"
-   */
-  private static evaluateCohabitor(
-    deceased: FamilyMember,
-    record: CohabitationRecord,
-  ): DependantQualificationResult {
-    // Only applies if Deceased is Male and Cohabitor is Female (Text of LSA S.29(5))
-    // (Again, Courts may vary, but we implement the statute default)
-    if (deceased.gender === 'MALE') {
-      return {
-        isDependant: true,
-        section: KenyanLawSection.S29_DEPENDANTS,
-        dependencyLevel: DependencyLevel.FULL, // Treated as wife
-        requiresMaintenanceProof: false,
-        reason: 'Woman living as wife (S.29(5)) - Presumption of Marriage',
-      };
+  private static evaluateStepChild(wasMaintained: boolean = false): DependantQualificationResult {
+    // S.29(b): "...children whom the deceased had taken into his family as his own"
+    // Requires maintenance/acceptance proof.
+    if (wasMaintained) {
+      return this.success('Step-child taken into family (S.29(b))', DependencyLevel.PARTIAL, true);
     }
-
-    return {
-      isDependant: false,
-      section: KenyanLawSection.S29_DEPENDANTS,
-      dependencyLevel: DependencyLevel.NONE,
-      requiresMaintenanceProof: false,
-      reason: 'S.29(5) applies to women living as wives only',
-    };
+    return this.fail('Step-child not maintained by deceased', true);
   }
 
-  /**
-   * Evaluates Extended Family (S.29(b)).
-   * Parents, Siblings, Grandchildren, etc.
-   * ALL require proof of maintenance immediately prior to death.
-   */
+  private static evaluateCohabitor(): DependantQualificationResult {
+    // S.29(5): "Woman living as wife"
+    // Courts treat this as equivalent to a wife for dependency purposes.
+    return this.success('Woman living as wife (S.29(5))', DependencyLevel.FULL, true);
+  }
+
   private static evaluateExtendedFamily(
-    relationship: FamilyRelationship,
+    type: RelationshipType,
     wasMaintained: boolean,
   ): DependantQualificationResult {
     const validExtendedTypes = [
@@ -231,35 +153,48 @@ export class Section29DependantPolicy {
       RelationshipType.HALF_SIBLING,
       RelationshipType.GRANDPARENT,
       RelationshipType.GRANDCHILD,
-      RelationshipType.STEPCHILD,
     ];
 
-    if (validExtendedTypes.includes(relationship.type)) {
+    if (validExtendedTypes.includes(type as (typeof validExtendedTypes)[number])) {
       if (wasMaintained) {
-        return {
-          isDependant: true,
-          section: KenyanLawSection.S29_DEPENDANTS,
-          dependencyLevel: DependencyLevel.PARTIAL,
-          requiresMaintenanceProof: true,
-          reason: `${relationship.type} maintained by deceased (S.29(b))`,
-        };
+        return this.success(
+          `${type} maintained by deceased (S.29(b))`,
+          DependencyLevel.PARTIAL,
+          true,
+        );
       } else {
-        return {
-          isDependant: false, // Not a dependant if not maintained
-          section: KenyanLawSection.S29_DEPENDANTS,
-          dependencyLevel: DependencyLevel.NONE,
-          requiresMaintenanceProof: true,
-          reason: `${relationship.type} not maintained by deceased (S.29(b))`,
-        };
+        return this.fail(`${type} not maintained by deceased (S.29(b))`, true);
       }
     }
 
+    return this.fail('Relationship type not covered by Section 29');
+  }
+
+  // ===========================================================================
+  // HELPER FACTORIES
+  // ===========================================================================
+
+  private static success(
+    reason: string,
+    level: DependencyLevel,
+    proofReq: boolean,
+  ): DependantQualificationResult {
+    return {
+      isDependant: true,
+      section: KenyanLawSection.S29_DEPENDANTS,
+      dependencyLevel: level,
+      requiresMaintenanceProof: proofReq,
+      reason,
+    };
+  }
+
+  private static fail(reason: string, proofReq: boolean = false): DependantQualificationResult {
     return {
       isDependant: false,
       section: KenyanLawSection.S29_DEPENDANTS,
       dependencyLevel: DependencyLevel.NONE,
-      requiresMaintenanceProof: false,
-      reason: 'Relationship not covered by Section 29',
+      requiresMaintenanceProof: proofReq,
+      reason,
     };
   }
 }

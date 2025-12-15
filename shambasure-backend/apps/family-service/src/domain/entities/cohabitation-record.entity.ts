@@ -1,37 +1,28 @@
-// domain/entities/cohabitation-record.entity.ts
 import { Entity } from '../base/entity';
 import { CohabitationEndedEvent } from '../events/relationship-events/cohabitation-ended.event';
 import { CohabitationRecognizedEvent } from '../events/relationship-events/cohabitation-recognized.event';
 import { CohabitationStartedEvent } from '../events/relationship-events/cohabitation-started.event';
 import { InvalidCohabitationException } from '../exceptions/relationship.exception';
-import { CohabitationDuration } from '../value-objects/temporal/cohabitation-duration.vo';
 
 export interface CohabitationRecordProps {
   id: string;
   familyId: string;
-  partner1Id: string; // The Deceased (usually)
-  partner2Id: string; // The Claimant
+  partner1Id: string;
+  partner2Id: string;
 
-  // Timing & Duration (Critical for S.29(5))
+  // Timing
   startDate: Date;
   endDate?: Date;
-  duration: CohabitationDuration;
 
-  // Recognition Factors
-  isAcknowledgedByCommunity: boolean;
-  isRegisteredWithChief: boolean; // "Chief's Letter" is standard proof in Kenya
-  chiefsLetterReference?: string;
-
-  // Family Unit
+  // S. 29(5) Kenyan criteria
+  durationYears: number; // Must be ≥5 years for dependancy claims
+  isAcknowledged: boolean; // Family/community recognition
   hasChildren: boolean;
   childrenCount: number;
+  isRegistered: boolean; // Some counties have registries
 
-  // Rejection/Validation
-  isRejected: boolean;
+  // Rejection tracking
   rejectionReason?: string;
-
-  // State
-  isActive: boolean;
 
   // Audit
   version: number;
@@ -46,11 +37,14 @@ export interface CreateCohabitationProps {
   startDate: Date;
   hasChildren?: boolean;
   childrenCount?: number;
+  isAcknowledged?: boolean;
+  isRegistered?: boolean;
+  rejectionReason?: string;
 }
 
 export class CohabitationRecord extends Entity<CohabitationRecordProps> {
   private constructor(props: CohabitationRecordProps) {
-    super(props);
+    super(props.id, props);
     this.validate();
   }
 
@@ -58,10 +52,8 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
     const id = this.generateId();
     const now = new Date();
 
-    const duration = CohabitationDuration.create({
-      startDate: props.startDate,
-      endDate: undefined, // Ongoing
-    });
+    // Calculate initial duration in years
+    const durationYears = this.calculateYearsBetween(props.startDate, now);
 
     const record = new CohabitationRecord({
       id,
@@ -69,13 +61,12 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
       partner1Id: props.partner1Id,
       partner2Id: props.partner2Id,
       startDate: props.startDate,
-      duration,
-      isAcknowledgedByCommunity: false, // Must be proven
-      isRegisteredWithChief: false,
-      hasChildren: props.hasChildren ?? false,
-      childrenCount: props.childrenCount ?? 0,
-      isRejected: false,
-      isActive: true,
+      durationYears,
+      isAcknowledged: props.isAcknowledged || false,
+      hasChildren: props.hasChildren || false,
+      childrenCount: props.childrenCount || 0,
+      isRegistered: props.isRegistered || false,
+      rejectionReason: props.rejectionReason,
       version: 1,
       createdAt: now,
       updatedAt: now,
@@ -88,7 +79,6 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
         partner1Id: props.partner1Id,
         partner2Id: props.partner2Id,
         startDate: props.startDate,
-        timestamp: now,
       }),
     );
 
@@ -101,36 +91,37 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
 
   // --- Domain Logic ---
 
-  /**
-   * Officially recognizes the cohabitation (e.g., via Chief's Letter or Affidavit).
-   * This is the step that typically transforms "roommates" into "Dependants".
-   */
-  registerRecognition(chiefsLetterRef: string): void {
-    if (this.props.isRejected) {
-      throw new InvalidCohabitationException('Cannot recognize a rejected cohabitation record.');
+  updateRecognition(params: {
+    isAcknowledged?: boolean;
+    isRegistered?: boolean;
+    rejectionReason?: string;
+  }): void {
+    if (params.isAcknowledged !== undefined) {
+      this.props.isAcknowledged = params.isAcknowledged;
     }
 
-    this.props.isRegisteredWithChief = true;
-    this.props.chiefsLetterReference = chiefsLetterRef;
-    this.props.isAcknowledgedByCommunity = true;
+    if (params.isRegistered !== undefined) {
+      this.props.isRegistered = params.isRegistered;
+    }
+
+    if (params.rejectionReason !== undefined) {
+      this.props.rejectionReason = params.rejectionReason;
+    }
+
     this.props.updatedAt = new Date();
     this.props.version++;
 
-    this.addDomainEvent(
-      new CohabitationRecognizedEvent({
-        cohabitationId: this.id,
-        method: 'CHIEFS_LETTER',
-        reference: chiefsLetterRef,
-        timestamp: new Date(),
-      }),
-    );
+    if (params.isAcknowledged || params.isRegistered) {
+      this.addDomainEvent(
+        new CohabitationRecognizedEvent({
+          cohabitationId: this.id,
+          isAcknowledged: params.isAcknowledged,
+          isRegistered: params.isRegistered,
+        }),
+      );
+    }
   }
 
-  /**
-   * Updates the children count.
-   * The presence of children is the strongest indicator of a "system of law permitting polygamy"
-   * or permanent union in Kenyan case law.
-   */
   updateChildrenStatus(hasChildren: boolean, count: number): void {
     this.props.hasChildren = hasChildren;
     this.props.childrenCount = count;
@@ -138,21 +129,22 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
     this.props.version++;
   }
 
-  /**
-   * Ends the cohabitation (Separation or Death).
-   */
-  endCohabitation(endDate: Date, reason: string): void {
-    if (!this.props.isActive) return;
-
+  endCohabitation(endDate: Date, reason?: string): void {
     if (endDate < this.props.startDate) {
       throw new InvalidCohabitationException('End date cannot be before start date.');
     }
 
-    this.props.endDate = endDate;
-    this.props.isActive = false;
+    if (endDate > new Date()) {
+      throw new InvalidCohabitationException('End date cannot be in the future.');
+    }
 
-    // Finalize duration calculation
-    this.props.duration = this.props.duration.finalize(endDate);
+    this.props.endDate = endDate;
+
+    // Update duration years
+    this.props.durationYears = CohabitationRecord.calculateYearsBetween(
+      this.props.startDate,
+      endDate,
+    );
 
     this.props.updatedAt = new Date();
     this.props.version++;
@@ -162,19 +154,35 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
         cohabitationId: this.id,
         endDate,
         reason,
-        totalDurationMonths: this.props.duration.months,
-        timestamp: new Date(),
+        durationYears: this.props.durationYears,
       }),
     );
   }
 
-  /**
-   * Marks the record as rejected (e.g., Court determines it was just a casual relationship).
-   */
-  reject(reason: string): void {
-    this.props.isRejected = true;
-    this.props.rejectionReason = reason;
-    this.props.isActive = false;
+  markAsRegistered(): void {
+    if (this.props.isRegistered) {
+      return;
+    }
+
+    this.props.isRegistered = true;
+    this.props.updatedAt = new Date();
+    this.props.version++;
+
+    this.addDomainEvent(
+      new CohabitationRecognizedEvent({
+        cohabitationId: this.id,
+        isAcknowledged: this.props.isAcknowledged,
+        isRegistered: true,
+      }),
+    );
+  }
+
+  updateDuration(): void {
+    const endDate = this.props.endDate || new Date();
+    this.props.durationYears = CohabitationRecord.calculateYearsBetween(
+      this.props.startDate,
+      endDate,
+    );
     this.props.updatedAt = new Date();
     this.props.version++;
   }
@@ -183,10 +191,48 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
     if (this.props.partner1Id === this.props.partner2Id) {
       throw new InvalidCohabitationException('Partners cannot be the same person.');
     }
+
+    if (this.props.startDate > new Date()) {
+      throw new InvalidCohabitationException('Start date cannot be in the future.');
+    }
+
+    if (this.props.endDate && this.props.endDate < this.props.startDate) {
+      throw new InvalidCohabitationException('End date cannot be before start date.');
+    }
+
+    if (this.props.childrenCount < 0) {
+      throw new InvalidCohabitationException('Children count cannot be negative.');
+    }
+
+    if (this.props.durationYears < 0) {
+      throw new InvalidCohabitationException('Duration years cannot be negative.');
+    }
+
+    if (this.props.hasChildren && this.props.childrenCount === 0) {
+      console.warn('Warning: hasChildren is true but childrenCount is 0');
+    }
+  }
+
+  private static calculateYearsBetween(startDate: Date, endDate: Date): number {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    // Calculate full years between dates
+    const years = end.getFullYear() - start.getFullYear();
+
+    // Adjust if end month/day is before start month/day
+    const monthDiff = end.getMonth() - start.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && end.getDate() < start.getDate())) {
+      return years - 1;
+    }
+
+    return years;
   }
 
   private static generateId(): string {
-    return `coh-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return crypto.randomUUID
+      ? crypto.randomUUID()
+      : `coh-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
   // --- Getters ---
@@ -194,15 +240,94 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
   get id(): string {
     return this.props.id;
   }
-  get durationYears(): number {
-    return this.props.duration.years;
+
+  get familyId(): string {
+    return this.props.familyId;
   }
+
+  get partner1Id(): string {
+    return this.props.partner1Id;
+  }
+
+  get partner2Id(): string {
+    return this.props.partner2Id;
+  }
+
+  get startDate(): Date {
+    return this.props.startDate;
+  }
+
+  get endDate(): Date | undefined {
+    return this.props.endDate;
+  }
+
+  get durationYears(): number {
+    return this.props.durationYears;
+  }
+
+  get isAcknowledged(): boolean {
+    return this.props.isAcknowledged;
+  }
+
+  get hasChildren(): boolean {
+    return this.props.hasChildren;
+  }
+
+  get childrenCount(): number {
+    return this.props.childrenCount;
+  }
+
+  get isRegistered(): boolean {
+    return this.props.isRegistered;
+  }
+
+  get rejectionReason(): string | undefined {
+    return this.props.rejectionReason;
+  }
+
+  get isActive(): boolean {
+    return !this.props.endDate;
+  }
+
+  get isRejected(): boolean {
+    return !!this.props.rejectionReason;
+  }
+
   get isQualifyingForS29(): boolean {
-    // Heuristic: > 2 years + children OR > 5 years + Chief's letter
-    // This is a domain helper, actual legal determination is in Policies.
+    // S. 29(5) criteria: Must be ≥5 years for dependancy claims
+    // Additional factors: community recognition, having children, registration
+    if (this.props.durationYears < 5) {
+      return false;
+    }
+
+    // Strong evidence if has children and community acknowledgment
+    if (this.props.hasChildren && this.props.isAcknowledged) {
+      return true;
+    }
+
+    // Registered cohabitations are considered valid
+    if (this.props.isRegistered) {
+      return true;
+    }
+
+    // For 5+ years, even without children, if acknowledged by community
+    if (this.props.isAcknowledged) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // For S. 29(5) "woman living as wife" claims
+  get qualifiesAsWomanLivingAsWife(): boolean {
+    if (this.props.rejectionReason) {
+      return false;
+    }
+
     return (
-      (this.durationYears >= 2 && this.props.hasChildren) ||
-      (this.durationYears >= 3 && this.props.isAcknowledgedByCommunity)
+      this.props.durationYears >= 5 &&
+      this.props.isAcknowledged &&
+      (this.props.hasChildren || this.props.isRegistered)
     );
   }
 
@@ -214,18 +339,19 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
       partner2Id: this.props.partner2Id,
       startDate: this.props.startDate,
       endDate: this.props.endDate,
-      duration: this.props.duration.toJSON(),
-      isAcknowledgedByCommunity: this.props.isAcknowledgedByCommunity,
-      isRegisteredWithChief: this.props.isRegisteredWithChief,
-      chiefsLetterReference: this.props.chiefsLetterReference,
+      durationYears: this.props.durationYears,
+      isAcknowledged: this.props.isAcknowledged,
       hasChildren: this.props.hasChildren,
       childrenCount: this.props.childrenCount,
-      isRejected: this.props.isRejected,
+      isRegistered: this.props.isRegistered,
       rejectionReason: this.props.rejectionReason,
-      isActive: this.props.isActive,
+      isActive: this.isActive,
+      isRejected: this.isRejected,
       isQualifyingForS29: this.isQualifyingForS29,
+      qualifiesAsWomanLivingAsWife: this.qualifiesAsWomanLivingAsWife,
       version: this.props.version,
       createdAt: this.props.createdAt,
+      updatedAt: this.props.updatedAt,
     };
   }
 }

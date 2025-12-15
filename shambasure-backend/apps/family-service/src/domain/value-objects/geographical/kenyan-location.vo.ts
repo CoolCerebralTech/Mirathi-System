@@ -41,6 +41,17 @@ export class KenyanLocation extends ValueObject<KenyanLocationProps> {
     return new KenyanLocation(props);
   }
 
+  static createFromCounty(county: string, placeName?: string): KenyanLocation {
+    // Validate the county string
+    // You might need to import or access your KenyanCountyValidator
+    // Assuming you have a way to validate county strings
+    return new KenyanLocation({
+      county: county as any, // Cast to your domain KenyanCounty type
+      placeName,
+      isUrban: false,
+      isRural: true,
+    });
+  }
   validate(): void {
     // County validation
     if (!this._value.county) {

@@ -1,49 +1,41 @@
-// domain/entities/adoption-order.entity.ts
 import { Entity } from '../base/entity';
 import { AdoptionFinalizedEvent } from '../events/relationship-events/adoption-finalized.event';
 import { InvalidAdoptionException } from '../exceptions/relationship.exception';
 
-// Enums based on Kenyan Children Act
 export enum AdoptionType {
-  STATUTORY = 'STATUTORY', // Formal High Court adoption
-  CUSTOMARY = 'CUSTOMARY', // Traditional (requires strict proof for succession)
-  INTER_COUNTRY = 'INTER_COUNTRY', // Hague Convention
-  KINSHIP = 'KINSHIP', // Relative adoption
+  CUSTOMARY = 'CUSTOMARY',
+  STATUTORY = 'STATUTORY',
+  INTER_COUNTRY = 'INTER_COUNTRY',
+  KINSHIP = 'KINSHIP',
 }
 
 export interface AdoptionConsents {
   biologicalParents: boolean;
-  spouseOfAdopter: boolean; // Mandatory if adopter is married (sole applicant)
-  childConsent: boolean; // If child is > 10 years (typically 14 in Kenya)
+  spouse: boolean;
+  [key: string]: boolean; // Allow for additional consents
 }
 
 export interface AdoptionOrderProps {
   id: string;
   familyId: string;
 
-  adopteeId: string; // The Child
-  adopterId: string; // The Parent
+  // Adoption parties
+  adopteeId: string;
+  adopterId: string;
 
-  type: AdoptionType;
-
-  // Legal Proof
-  courtOrderNumber?: string; // High Court Adoption Cause No.
-  courtStation?: string;
+  // Adoption details
+  adoptionType: string;
+  courtOrderNumber?: string;
   adoptionDate: Date;
-  registrationDate?: Date; // Date entered in Registrar of Adoptions
+  registrationDate?: Date;
 
-  // Section 158 Compliance (Consents)
-  hasConsents: AdoptionConsents;
-  consentDocumentIds: string[];
+  // Kenyan Children Act compliance
+  hasConsents: any; // JSON - e.g., {biologicalParents: true, spouse: true}
+  consentDocuments: string[]; // Array of document IDs
 
-  // Children's Department Reports
-  childWelfareReportId?: string; // Assessing child's best interest
-  suitabilityReportId?: string; // Assessing parent's capacity
-
-  // State
-  isFinalized: boolean;
-  isRevoked: boolean;
-  revocationReason?: string;
+  // Social welfare reports
+  childWelfareReport?: string; // Document ID
+  suitabilityReport?: string; // Document ID
 
   // Audit
   version: number;
@@ -55,14 +47,25 @@ export interface CreateAdoptionProps {
   familyId: string;
   adopteeId: string;
   adopterId: string;
-  type: AdoptionType;
+  adoptionType: string;
   adoptionDate: Date;
+
+  // Legal details
   courtOrderNumber?: string;
+  registrationDate?: Date;
+
+  // Consents (optional at creation, can be added later)
+  hasConsents?: any;
+  consentDocuments?: string[];
+
+  // Welfare reports
+  childWelfareReport?: string;
+  suitabilityReport?: string;
 }
 
 export class AdoptionOrder extends Entity<AdoptionOrderProps> {
   private constructor(props: AdoptionOrderProps) {
-    super(props);
+    super(props.id, props);
     this.validate();
   }
 
@@ -75,24 +78,21 @@ export class AdoptionOrder extends Entity<AdoptionOrderProps> {
       familyId: props.familyId,
       adopteeId: props.adopteeId,
       adopterId: props.adopterId,
-      type: props.type,
+      adoptionType: props.adoptionType,
       courtOrderNumber: props.courtOrderNumber,
       adoptionDate: props.adoptionDate,
-      hasConsents: {
+      registrationDate: props.registrationDate,
+      hasConsents: props.hasConsents || {
         biologicalParents: false,
-        spouseOfAdopter: false,
-        childConsent: false,
+        spouse: false,
       },
-      consentDocumentIds: [],
-      isFinalized: false, // Starts as pending/interim
-      isRevoked: false,
+      consentDocuments: props.consentDocuments || [],
+      childWelfareReport: props.childWelfareReport,
+      suitabilityReport: props.suitabilityReport,
       version: 1,
       createdAt: now,
       updatedAt: now,
     });
-
-    // Note: We don't fire the 'Finalized' event yet.
-    // We wait for the actual finalization method to be called.
 
     return order;
   }
@@ -103,58 +103,47 @@ export class AdoptionOrder extends Entity<AdoptionOrderProps> {
 
   // --- Domain Logic ---
 
-  /**
-   * Records the necessary consents required by Section 158 of the Children Act.
-   */
-  recordConsents(consents: Partial<AdoptionConsents>, documentIds: string[]): void {
+  recordConsents(consents: any, documentIds: string[]): void {
     this.props.hasConsents = {
       ...this.props.hasConsents,
       ...consents,
     };
 
     // Add unique document IDs
-    const currentDocs = new Set(this.props.consentDocumentIds);
+    const currentDocs = new Set(this.props.consentDocuments);
     documentIds.forEach((id) => currentDocs.add(id));
-    this.props.consentDocumentIds = Array.from(currentDocs);
+    this.props.consentDocuments = Array.from(currentDocs);
 
     this.props.updatedAt = new Date();
     this.props.version++;
   }
 
-  /**
-   * Links the mandatory Social Inquiry/Welfare reports from the Children's Department.
-   */
-  attachWelfareReports(childReportId: string, suitabilityReportId: string): void {
-    this.props.childWelfareReportId = childReportId;
-    this.props.suitabilityReportId = suitabilityReportId;
+  attachWelfareReports(childWelfareReport: string, suitabilityReport: string): void {
+    this.props.childWelfareReport = childWelfareReport;
+    this.props.suitabilityReport = suitabilityReport;
     this.props.updatedAt = new Date();
     this.props.version++;
   }
 
-  /**
-   * Finalizes the adoption process.
-   * This is the trigger that permanently alters the FamilyRelationship graph,
-   * cutting legal ties with bio parents and establishing full rights with adopter.
-   */
   finalize(registrationDate: Date): void {
-    if (this.props.isRevoked) {
-      throw new InvalidAdoptionException('Cannot finalize a revoked adoption.');
-    }
-
-    if (this.props.type === AdoptionType.STATUTORY && !this.props.courtOrderNumber) {
+    if (this.props.adoptionType === 'STATUTORY' && !this.props.courtOrderNumber) {
       throw new InvalidAdoptionException('Statutory adoption requires a Court Order Number.');
     }
 
-    // Basic consent check (simplified domain rule)
-    // In reality, court dispenses consent, but we track if we have the record
-    if (!this.props.childWelfareReportId && this.props.type !== AdoptionType.CUSTOMARY) {
-      // Customary adoption might lack formal welfare reports initially
-      throw new InvalidAdoptionException(
-        'Cannot finalize statutory adoption without Welfare Report.',
-      );
+    // Check for necessary consents based on adoption type
+    if (this.props.adoptionType === 'STATUTORY') {
+      if (!this.props.childWelfareReport || !this.props.suitabilityReport) {
+        throw new InvalidAdoptionException(
+          'Statutory adoption requires child welfare and suitability reports.',
+        );
+      }
+
+      // For statutory adoption, biological parents' consent is typically required
+      if (!this.props.hasConsents?.biologicalParents) {
+        console.warn('Warning: Statutory adoption finalized without biological parents consent.');
+      }
     }
 
-    this.props.isFinalized = true;
     this.props.registrationDate = registrationDate;
     this.props.updatedAt = new Date();
     this.props.version++;
@@ -165,31 +154,84 @@ export class AdoptionOrder extends Entity<AdoptionOrderProps> {
         familyId: this.props.familyId,
         adopteeId: this.props.adopteeId,
         adopterId: this.props.adopterId,
+        adoptionType: this.props.adoptionType,
+        adoptionDate: this.props.adoptionDate,
+        registrationDate,
         courtOrderNumber: this.props.courtOrderNumber,
-        timestamp: new Date(),
       }),
     );
   }
 
-  /**
-   * Revokes an adoption order (rare, but legally possible via High Court appeal).
-   */
-  revoke(reason: string): void {
-    this.props.isRevoked = true;
-    this.props.revocationReason = reason;
-    this.props.isFinalized = false;
+  updateAdoptionDetails(params: {
+    courtOrderNumber?: string;
+    adoptionDate?: Date;
+    registrationDate?: Date;
+    adoptionType?: string;
+  }): void {
+    if (params.courtOrderNumber !== undefined) {
+      this.props.courtOrderNumber = params.courtOrderNumber;
+    }
+
+    if (params.adoptionDate !== undefined) {
+      this.props.adoptionDate = params.adoptionDate;
+    }
+
+    if (params.registrationDate !== undefined) {
+      this.props.registrationDate = params.registrationDate;
+    }
+
+    if (params.adoptionType !== undefined) {
+      this.props.adoptionType = params.adoptionType;
+    }
+
     this.props.updatedAt = new Date();
     this.props.version++;
+  }
+
+  addConsentDocument(documentId: string): void {
+    if (!this.props.consentDocuments.includes(documentId)) {
+      this.props.consentDocuments.push(documentId);
+      this.props.updatedAt = new Date();
+      this.props.version++;
+    }
   }
 
   private validate(): void {
     if (this.props.adopteeId === this.props.adopterId) {
       throw new InvalidAdoptionException('Adopter cannot be the Adoptee.');
     }
+
+    if (this.props.adoptionDate > new Date()) {
+      throw new InvalidAdoptionException('Adoption date cannot be in the future.');
+    }
+
+    if (this.props.registrationDate && this.props.registrationDate < this.props.adoptionDate) {
+      throw new InvalidAdoptionException('Registration date cannot be before adoption date.');
+    }
+
+    // Validate adoption type
+    const validTypes = ['CUSTOMARY', 'STATUTORY', 'INTER_COUNTRY', 'KINSHIP'];
+    if (!validTypes.includes(this.props.adoptionType)) {
+      throw new InvalidAdoptionException(`Invalid adoption type: ${this.props.adoptionType}`);
+    }
+
+    // For inter-country adoption, additional validation would be needed
+    if (this.props.adoptionType === 'INTER_COUNTRY') {
+      if (!this.props.courtOrderNumber) {
+        throw new InvalidAdoptionException('Inter-country adoption requires a court order number.');
+      }
+    }
+
+    // Validate consents structure
+    if (this.props.hasConsents && typeof this.props.hasConsents !== 'object') {
+      throw new InvalidAdoptionException('hasConsents must be a JSON object.');
+    }
   }
 
   private static generateId(): string {
-    return `adp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return crypto.randomUUID
+      ? crypto.randomUUID()
+      : `adp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
   // --- Getters ---
@@ -197,14 +239,97 @@ export class AdoptionOrder extends Entity<AdoptionOrderProps> {
   get id(): string {
     return this.props.id;
   }
-  get type(): AdoptionType {
-    return this.props.type;
+
+  get familyId(): string {
+    return this.props.familyId;
   }
+
+  get adopteeId(): string {
+    return this.props.adopteeId;
+  }
+
+  get adopterId(): string {
+    return this.props.adopterId;
+  }
+
+  get adoptionType(): string {
+    return this.props.adoptionType;
+  }
+
   get courtOrderNumber(): string | undefined {
     return this.props.courtOrderNumber;
   }
+
+  get adoptionDate(): Date {
+    return this.props.adoptionDate;
+  }
+
+  get registrationDate(): Date | undefined {
+    return this.props.registrationDate;
+  }
+
+  get hasConsents(): any {
+    return this.props.hasConsents;
+  }
+
+  get consentDocuments(): string[] {
+    return this.props.consentDocuments;
+  }
+
+  get childWelfareReport(): string | undefined {
+    return this.props.childWelfareReport;
+  }
+
+  get suitabilityReport(): string | undefined {
+    return this.props.suitabilityReport;
+  }
+
   get isFinalized(): boolean {
-    return this.props.isFinalized;
+    return !!this.props.registrationDate;
+  }
+
+  get isStatutory(): boolean {
+    return this.props.adoptionType === 'STATUTORY';
+  }
+
+  get isCustomary(): boolean {
+    return this.props.adoptionType === 'CUSTOMARY';
+  }
+
+  get isInterCountry(): boolean {
+    return this.props.adoptionType === 'INTER_COUNTRY';
+  }
+
+  get isKinship(): boolean {
+    return this.props.adoptionType === 'KINSHIP';
+  }
+
+  // For inheritance rights under Kenyan Law of Succession Act
+  get grantsFullInheritanceRights(): boolean {
+    // All adoption types grant full inheritance rights under Kenyan law
+    // Customary adoption may require proof, but once registered, grants rights
+    return this.isFinalized;
+  }
+
+  // For Children Act compliance
+  get isCompliantWithChildrenAct(): boolean {
+    if (this.isStatutory) {
+      return (
+        !!this.props.courtOrderNumber &&
+        !!this.props.childWelfareReport &&
+        !!this.props.suitabilityReport &&
+        (this.props.hasConsents?.biologicalParents || this.props.courtOrderNumber) // Court can dispense with consent
+      );
+    }
+
+    if (this.isCustomary) {
+      return (
+        this.props.hasConsents?.biologicalParents === true ||
+        this.props.courtOrderNumber !== undefined // Customary adoption can be formalized in court
+      );
+    }
+
+    return this.isFinalized;
   }
 
   toJSON() {
@@ -213,16 +338,24 @@ export class AdoptionOrder extends Entity<AdoptionOrderProps> {
       familyId: this.props.familyId,
       adopteeId: this.props.adopteeId,
       adopterId: this.props.adopterId,
-      type: this.props.type,
+      adoptionType: this.props.adoptionType,
       courtOrderNumber: this.props.courtOrderNumber,
       adoptionDate: this.props.adoptionDate,
       registrationDate: this.props.registrationDate,
       hasConsents: this.props.hasConsents,
-      childWelfareReportId: this.props.childWelfareReportId,
-      isFinalized: this.props.isFinalized,
-      isRevoked: this.props.isRevoked,
+      consentDocuments: this.props.consentDocuments,
+      childWelfareReport: this.props.childWelfareReport,
+      suitabilityReport: this.props.suitabilityReport,
+      isFinalized: this.isFinalized,
+      isStatutory: this.isStatutory,
+      isCustomary: this.isCustomary,
+      isInterCountry: this.isInterCountry,
+      isKinship: this.isKinship,
+      grantsFullInheritanceRights: this.grantsFullInheritanceRights,
+      isCompliantWithChildrenAct: this.isCompliantWithChildrenAct,
       version: this.props.version,
       createdAt: this.props.createdAt,
+      updatedAt: this.props.updatedAt,
     };
   }
 }

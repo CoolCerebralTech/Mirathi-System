@@ -1,5 +1,5 @@
 // domain/policies/next-of-kin-determination.policy.ts
-import { RelationshipType } from '../value-objects/legal/relationship-type.vo';
+import { RelationshipType } from '@prisma/client';
 
 export interface AdministrationPriority {
   rank: number; // 1 is highest

@@ -1,4 +1,5 @@
-// domain/events/family-events/family-created.event.ts
+import { KenyanCounty } from '@prisma/client';
+
 import { DomainEvent } from '../../base/domain-event';
 
 export interface FamilyCreatedEventPayload {
@@ -6,12 +7,18 @@ export interface FamilyCreatedEventPayload {
   creatorId: string;
   name: string;
   clanName?: string;
-  homeCounty?: string;
+  subClan?: string;
+  ancestralHome?: string;
+  familyTotem?: string;
+  homeCounty?: KenyanCounty;
   timestamp: Date;
 }
 
 export class FamilyCreatedEvent extends DomainEvent<FamilyCreatedEventPayload> {
-  constructor(payload: FamilyCreatedEventPayload) {
-    super('FamilyCreated', payload);
+  constructor(payload: Omit<FamilyCreatedEventPayload, 'timestamp'>) {
+    super('FamilyCreated', payload.familyId, 'Family', {
+      ...payload,
+      timestamp: new Date(),
+    });
   }
 }
