@@ -1,18 +1,26 @@
-// domain/interfaces/repositories/ipolygamous-house.repository.ts
 import { PolygamousHouse } from '../../entities/polygamous-house.entity';
 
 export interface IPolygamousHouseRepository {
-  save(house: PolygamousHouse): Promise<void>;
-
+  /**
+   * Finds a PolygamousHouse by its unique ID.
+   */
   findById(id: string): Promise<PolygamousHouse | null>;
 
   /**
-   * Finds all houses in a family, ordered by house number.
+   * Finds all polygamous houses belonging to a specific family.
    */
-  findByFamilyId(familyId: string): Promise<PolygamousHouse[]>;
+  findAllByFamilyId(familyId: string): Promise<PolygamousHouse[]>;
 
   /**
-   * Finds the house led by a specific wife (Head).
+   * Saves a new or updated PolygamousHouse entity. This method handles both
+   * creation and updates (upsert).
+   * @param house The PolygamousHouse entity to save.
+   * @param tx An optional transaction client to perform the operation within a transaction.
    */
-  findByHeadId(houseHeadId: string): Promise<PolygamousHouse | null>;
+  save(house: PolygamousHouse, tx?: any): Promise<PolygamousHouse>;
+
+  /**
+   * Deletes a PolygamousHouse from the repository.
+   */
+  delete(id: string, tx?: any): Promise<void>;
 }

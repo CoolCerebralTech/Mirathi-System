@@ -1,107 +1,62 @@
+import { RelationshipType } from '@prisma/client';
+
 import { FamilyRelationship } from '../../entities/family-relationship.entity';
-import { InheritanceRights } from '../../value-objects/legal/inheritance-rights.vo';
-import { RelationshipType } from '../../value-objects/legal/relationship-type.vo';
+
+/**
+ * Defines the query criteria for finding FamilyRelationship entities.
+ */
+export interface RelationshipQueryCriteria {
+  familyId?: string;
+  fromMemberId?: string;
+  toMemberId?: string;
+  type?: RelationshipType;
+  isVerified?: boolean;
+  isContested?: boolean;
+}
 
 export interface IFamilyRelationshipRepository {
-  // CRUD operations
+  /**
+   * Finds a FamilyRelationship by its unique ID.
+   */
   findById(id: string): Promise<FamilyRelationship | null>;
-  save(relationship: FamilyRelationship): Promise<FamilyRelationship>;
-  update(relationship: FamilyRelationship): Promise<FamilyRelationship>;
-  delete(id: string): Promise<void>;
 
-  // Query operations
-  findByFamilyId(familyId: string): Promise<FamilyRelationship[]>;
-  findByFromMemberId(fromMemberId: string): Promise<FamilyRelationship[]>;
-  findByToMemberId(toMemberId: string): Promise<FamilyRelationship[]>;
-  findRelationship(fromMemberId: string, toMemberId: string): Promise<FamilyRelationship | null>;
+  /**
+   * Finds a specific relationship between two members, if it exists.
+   * Useful for preventing duplicate relationship entries.
+   */
+  findByMembersAndType(
+    fromMemberId: string,
+    toMemberId: string,
+    type: RelationshipType,
+  ): Promise<FamilyRelationship | null>;
 
-  // Type-based queries
-  findByRelationshipType(type: RelationshipType): Promise<FamilyRelationship[]>;
-  findBiologicalRelationships(familyId: string): Promise<FamilyRelationship[]>;
-  findAdoptionRelationships(familyId: string): Promise<FamilyRelationship[]>;
-  findCustomaryRelationships(familyId: string): Promise<FamilyRelationship[]>;
+  /**
+   * Finds all relationships originating from a specific family member.
+   * (e.g., find all children of a parent).
+   */
+  findAllByFromMemberId(fromMemberId: string): Promise<FamilyRelationship[]>;
 
-  // Verification
-  findVerifiedRelationships(familyId: string): Promise<FamilyRelationship[]>;
-  findUnverifiedRelationships(familyId: string): Promise<FamilyRelationship[]>;
-  findContestedRelationships(familyId: string): Promise<FamilyRelationship[]>;
+  /**
+   * Finds all relationships pointing to a specific family member.
+   * (e.g., find the parents of a child).
+   */
+  findAllByToMemberId(toMemberId: string): Promise<FamilyRelationship[]>;
 
-  // Next-of-kin queries
-  findNextOfKin(memberId: string): Promise<FamilyRelationship[]>;
-  findPrimaryNextOfKin(memberId: string): Promise<FamilyRelationship | null>;
+  /**
+   * Finds all FamilyRelationship entities that match the given criteria.
+   * @param criteria The query criteria to filter relationships by.
+   */
+  findAll(criteria: RelationshipQueryCriteria): Promise<FamilyRelationship[]>;
 
-  // Inheritance rights
-  findByInheritanceRights(rights: InheritanceRights): Promise<FamilyRelationship[]>;
+  /**
+   * Saves a new or updated FamilyRelationship entity.
+   * @param relationship The FamilyRelationship entity to save.
+   * @param tx An optional transaction client.
+   */
+  save(relationship: FamilyRelationship, tx?: any): Promise<FamilyRelationship>;
 
-  // Verification operations
-  verifyRelationship(
-    relationshipId: string,
-    verificationDetails: {
-      verificationMethod: string;
-      verifiedBy: string;
-      verificationDocuments?: object;
-    },
-  ): Promise<void>;
-
-  contestRelationship(
-    relationshipId: string,
-    contestationDetails: {
-      contestationCaseNumber?: string;
-      reasons: string[];
-    },
-  ): Promise<void>;
-
-  // Court validation
-  courtValidateRelationship(
-    relationshipId: string,
-    courtDetails: {
-      courtOrderNumber?: string;
-      validatedDate: Date;
-    },
-  ): Promise<void>;
-
-  // Next-of-kin designation
-  designateNextOfKin(
-    relationshipId: string,
-    designationDetails: {
-      isNextOfKin: boolean;
-      priority?: number;
-    },
-  ): Promise<void>;
-
-  // Adoption tracking
-  recordAdoption(
-    relationshipId: string,
-    adoptionDetails: {
-      adoptionOrderNumber?: string;
-      adoptionCourt?: string;
-      adoptionDate: Date;
-      isCustomaryAdoption?: boolean;
-    },
-  ): Promise<void>;
-
-  // Search
-  searchRelationships(criteria: {
-    familyId?: string;
-    fromMemberId?: string;
-    toMemberId?: string;
-    type?: string;
-    isBiological?: boolean;
-    isVerified?: boolean;
-    isNextOfKin?: boolean;
-    inheritanceRights?: string;
-    isContested?: boolean;
-  }): Promise<FamilyRelationship[]>;
-
-  // Family tree operations
-  getFamilyTree(
-    familyId: string,
-    rootMemberId?: string,
-  ): Promise<Map<string, FamilyRelationship[]>>;
-
-  // Relationship strength
-  updateRelationshipStrength(
-    relationshipId: string,
-    strength: 'FULL' | 'HALF' | 'STEP' | 'ADOPTED',
-  ): Promise<void>;
+  /**
+   * Deletes a FamilyRelationship from the repository.
+   */
+  delete(id: string, tx?: any): Promise<void>;
 }

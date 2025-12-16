@@ -100,12 +100,17 @@ family-service/
 │   │       └── is-cohabitation-qualifying.spec.ts
 │   ├── interfaces/
 │   │   ├── repositories/
+|   |   |   |   ifamily-relationship.repository.ts
+|   |   |   |   Ipolygamous-house.repository.ts
 │   │   │   ├── ifamily.repository.ts
 │   │   │   ├── ifamily-member.repository.ts
 │   │   │   ├── imarriage.repository.ts
 │   │   │   ├── iguardianship.repository.ts
 │   │   │   └── idependancy.repository.ts
 │   │   ├── services/
+|   |   |   |   iadoption.service.ts
+|   |   |   |   inext-of-kin.service.ts
+|   |   |   |   ipolygamy.service.ts
 │   │   │   ├── ikenyan-law.service.ts
 │   │   │   ├── ifamily-validation.service.ts
 │   │   │   ├── iidentity-verification.service.ts
@@ -154,3 +159,133 @@ family-service/
 │   ├── adoption-order.mapper.ts
 │   └── family-legal-event.mapper.ts
 └── persistence.module.ts  # NEW: Simplified module
+
+application/
+├── common/
+│   ├── dto/
+│   │   ├── pagination.dto.ts
+│   │   ├── metadata.dto.ts
+│   │   └── error-response.dto.ts
+│   ├── mapper/
+│   │   └── base.mapper.ts
+│   ├── services/
+│   │   └── unit-of-work.service.ts
+│   └── interfaces/
+│       ├── command.ts
+│       ├── query.ts
+│       └── handler.ts
+│
+├── dependency/
+├── guardianship/
+├── family/
+│
+application/dependency/
+├── dto/
+│   ├── request/
+│   │   ├── create-dependency-assessment.request.ts
+│   │   ├── assess-financial-dependency.request.ts
+│   │   ├── file-s26-claim.request.ts
+│   │   └── record-court-provision.request.ts
+│   │
+│   └── response/
+│       ├── dependency-assessment.response.ts
+│       └── dependency-status.response.ts
+│
+├── commands/
+│   ├── impl/
+│   │   ├── create-dependency-assessment.command.ts
+│   │   ├── assess-financial-dependency.command.ts
+│   │   ├── file-s26-claim.command.ts
+│   │   └── record-court-provision.command.ts
+│   │
+│   └── handlers/
+│       ├── create-dependency-assessment.handler.ts
+│       ├── assess-financial-dependency.handler.ts
+│       ├── file-s26-claim.handler.ts
+│       └── record-court-provision.handler.ts
+│
+├── queries/
+│   ├── impl/
+│   │   ├── get-dependency-by-id.query.ts
+│   │   ├── list-dependencies-by-deceased.query.ts
+│   │   └── check-s29-compliance.query.ts
+│   │
+│   └── handlers/
+│       ├── get-dependency-by-id.handler.ts
+│       ├── list-dependencies-by-deceased.handler.ts
+│       └── check-s29-compliance.handler.ts
+│
+├── mappers/
+│   └── dependency.mapper.ts
+│
+├── services/
+│   └── dependency-application.service.ts
+│
+├── ports/
+│   ├── inbound/
+│   │   └── dependency.use-case.ts
+│   │
+│   └── outbound/
+│       └── dependency-repository.port.ts
+│
+└── dependency.module.ts
+
+application/guardianship/
+├── dto/
+│   ├── request/
+│   │   ├── appoint-guardian.request.ts
+│   │   ├── post-bond.request.ts
+│   │   ├── file-annual-report.request.ts
+│   │   └── terminate-guardianship.request.ts
+│   │
+│   └── response/
+│       └── guardianship.response.ts
+│
+├── commands/
+├── queries/
+├── mappers/
+├── services/
+├── ports/
+└── guardianship.module.ts
+
+application/family/
+├── dto/
+│   ├── request/
+│   │   ├── add-family-member.request.ts
+│   │   ├── define-relationship.request.ts
+│   │   └── mark-next-of-kin.request.ts
+│   │
+│   └── response/
+│       ├── family-tree.response.ts
+│       └── family-member.response.ts
+│
+├── commands/
+│   ├── impl/
+│   │   ├── add-family-member.command.ts
+│   │   ├── define-relationship.command.ts
+│   │   └── mark-next-of-kin.command.ts
+│   │
+│   └── handlers/
+│
+├── queries/
+│   ├── impl/
+│   │   ├── get-family-tree.query.ts
+│   │   └── list-next-of-kin.query.ts
+│   │
+│   └── handlers/
+│
+├── mappers/
+│   └── family.mapper.ts
+│
+├── services/
+│   └── family-application.service.ts
+│
+├── ports/
+│   ├── inbound/
+│   │   └── family.use-case.ts
+│   │
+│   └── outbound/
+│       └── family-repository.port.ts
+│
+└── family.module.ts
+

@@ -1,63 +1,57 @@
+// domain/interfaces/repositories/ifamily-member.repository.ts
 import { FamilyMember } from '../../entities/family-member.entity';
-import { KenyanIdentity } from '../../value-objects/identity/kenyan-identity.vo';
+
+/**
+ * Defines the query criteria for finding FamilyMember entities.
+ * All properties are optional, allowing for flexible searching.
+ */
+export interface FamilyMemberQueryCriteria {
+  familyId?: string;
+  isDeceased?: boolean;
+  isMinor?: boolean;
+  hasDisability?: boolean;
+  isMissing?: boolean;
+}
 
 export interface IFamilyMemberRepository {
-  // CRUD operations
+  /**
+   * Finds a FamilyMember by its unique ID.
+   */
   findById(id: string): Promise<FamilyMember | null>;
-  save(member: FamilyMember): Promise<FamilyMember>;
-  update(member: FamilyMember): Promise<FamilyMember>;
-  delete(id: string): Promise<void>;
-  softDelete(id: string, deletedBy: string, reason?: string): Promise<void>;
 
-  // Identity queries
-  findByIdentity(identity: KenyanIdentity): Promise<FamilyMember | null>;
+  /**
+   * Finds a FamilyMember by their unique National ID number. Essential for preventing duplicates.
+   */
   findByNationalId(nationalId: string): Promise<FamilyMember | null>;
-  findByKraPin(kraPin: string): Promise<FamilyMember | null>;
-  findByEmail(email: string): Promise<FamilyMember | null>;
-  findByPhone(phoneNumber: string): Promise<FamilyMember | null>;
+
+  /**
+   * Finds a FamilyMember by their associated User ID. Essential for linking to the accounts service.
+   */
   findByUserId(userId: string): Promise<FamilyMember | null>;
 
-  // Life status queries
-  findLivingMembers(familyId: string): Promise<FamilyMember[]>;
-  findDeceasedMembers(familyId: string): Promise<FamilyMember[]>;
-  findMinors(familyId: string): Promise<FamilyMember[]>;
-  findAdults(familyId: string): Promise<FamilyMember[]>;
+  /**
+   * Finds all FamilyMember entities that match the given criteria.
+   * @param criteria The query criteria to filter members by.
+   */
+  findAll(criteria: FamilyMemberQueryCriteria): Promise<FamilyMember[]>;
 
-  // Special categories
-  findDependants(familyId: string): Promise<FamilyMember[]>;
-  findMembersWithDisabilities(familyId: string): Promise<FamilyMember[]>;
-  findMissingPersons(familyId: string): Promise<FamilyMember[]>;
+  /**
+   * Saves a new or updated FamilyMember entity. This method handles both
+   * creation and updates (upsert).
+   * @param member The FamilyMember entity to save.
+   * @param tx An optional transaction client to perform the operation within a transaction.
+   */
+  save(member: FamilyMember, tx?: any): Promise<FamilyMember>;
 
-  // Batch operations
-  bulkCreate(members: FamilyMember[]): Promise<FamilyMember[]>;
-  bulkUpdate(members: FamilyMember[]): Promise<FamilyMember[]>;
+  /**
+   * Saves multiple FamilyMember entities in a single transaction.
+   * @param members An array of FamilyMember entities to save.
+   */
+  saveMany(members: FamilyMember[]): Promise<void>;
 
-  // Verification
-  verifyNationalId(memberId: string, verifiedBy: string): Promise<void>;
-  verifyKraPin(memberId: string, verifiedBy: string): Promise<void>;
-
-  // Death registration
-  registerDeath(
-    memberId: string,
-    deathDetails: {
-      dateOfDeath: Date;
-      placeOfDeath?: string;
-      deathCertificateNumber?: string;
-    },
-  ): Promise<void>;
-
-  // Age calculations
-  updateAgeCalculations(memberId: string): Promise<void>;
-
-  // Search
-  searchMembers(criteria: {
-    familyId?: string;
-    firstName?: string;
-    lastName?: string;
-    nationalId?: string;
-    kraPin?: string;
-    isDeceased?: boolean;
-    isMinor?: boolean;
-    disabilityStatus?: string;
-  }): Promise<FamilyMember[]>;
+  /**
+   * Deletes a FamilyMember from the repository. The implementation should handle
+   * whether this is a hard or soft delete.
+   */
+  delete(id: string, tx?: any): Promise<void>;
 }

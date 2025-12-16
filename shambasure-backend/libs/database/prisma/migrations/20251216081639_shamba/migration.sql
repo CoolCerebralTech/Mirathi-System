@@ -544,6 +544,7 @@ CREATE TABLE "marriages" (
     "invalidityReason" TEXT,
     "matrimonialRegime" VARCHAR(50) NOT NULL DEFAULT 'MONOGAMOUS',
     "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "version" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -580,6 +581,7 @@ CREATE TABLE "family_relationships" (
     "contestationCaseNumber" VARCHAR(100),
     "courtValidated" BOOLEAN NOT NULL DEFAULT false,
     "inheritanceRights" "InheritanceRights" NOT NULL DEFAULT 'FULL',
+    "version" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -617,6 +619,7 @@ CREATE TABLE "guardians" (
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "terminationDate" TIMESTAMP(3),
     "terminationReason" TEXT,
+    "version" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -646,6 +649,7 @@ CREATE TABLE "polygamous_houses" (
     "wivesConsentDocument" UUID,
     "wivesAgreementDetails" JSONB,
     "successionInstructions" TEXT,
+    "version" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -688,6 +692,7 @@ CREATE TABLE "legal_dependants" (
     "disabilityDetails" TEXT,
     "dependencyProofDocuments" JSONB,
     "verifiedByCourtAt" TIMESTAMP(3),
+    "version" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -721,6 +726,9 @@ CREATE TABLE "CohabitationRecord" (
     "childrenCount" INTEGER NOT NULL DEFAULT 0,
     "isRegistered" BOOLEAN NOT NULL DEFAULT false,
     "rejectionReason" TEXT,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "CohabitationRecord_pkey" PRIMARY KEY ("id")
 );
@@ -751,6 +759,9 @@ CREATE TABLE "AdoptionOrder" (
     "consentDocuments" TEXT[],
     "childWelfareReport" UUID,
     "suitabilityReport" UUID,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "AdoptionOrder_pkey" PRIMARY KEY ("id")
 );
@@ -765,6 +776,7 @@ CREATE TABLE "family_legal_events" (
     "relatedUserId" UUID,
     "relatedEstateId" UUID,
     "relatedCaseId" UUID,
+    "version" INTEGER NOT NULL DEFAULT 1,
     "recordedBy" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -2389,15 +2401,6 @@ CREATE UNIQUE INDEX "family_relationships_unique_relation" ON "family_relationsh
 CREATE UNIQUE INDEX "guardians_courtCaseNumber_key" ON "guardians"("courtCaseNumber");
 
 -- CreateIndex
-CREATE INDEX "guardians_courtCaseNumber_idx" ON "guardians"("courtCaseNumber");
-
--- CreateIndex
-CREATE INDEX "guardians_guardianIdNumber_idx" ON "guardians"("guardianIdNumber");
-
--- CreateIndex
-CREATE INDEX "guardians_nextReportDue_idx" ON "guardians"("nextReportDue");
-
--- CreateIndex
 CREATE INDEX "guardians_ward_isActive_idx" ON "guardians"("wardId", "isActive");
 
 -- CreateIndex
@@ -2408,6 +2411,12 @@ CREATE INDEX "guardians_type_idx" ON "guardians"("type");
 
 -- CreateIndex
 CREATE INDEX "guardians_validUntil_idx" ON "guardians"("validUntil");
+
+-- CreateIndex
+CREATE INDEX "guardians_nextReportDue_idx" ON "guardians"("nextReportDue");
+
+-- CreateIndex
+CREATE INDEX "guardians_reportStatus_idx" ON "guardians"("reportStatus");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "guardians_ward_guardian_type_unique" ON "guardians"("wardId", "guardianId", "type");
@@ -2480,6 +2489,18 @@ CREATE UNIQUE INDEX "AdoptionOrder_courtOrderNumber_key" ON "AdoptionOrder"("cou
 
 -- CreateIndex
 CREATE INDEX "AdoptionOrder_familyId_adoptionDate_idx" ON "AdoptionOrder"("familyId", "adoptionDate");
+
+-- CreateIndex
+CREATE INDEX "AdoptionOrder_adopteeId_idx" ON "AdoptionOrder"("adopteeId");
+
+-- CreateIndex
+CREATE INDEX "AdoptionOrder_adopterId_idx" ON "AdoptionOrder"("adopterId");
+
+-- CreateIndex
+CREATE INDEX "AdoptionOrder_courtOrderNumber_idx" ON "AdoptionOrder"("courtOrderNumber");
+
+-- CreateIndex
+CREATE INDEX "AdoptionOrder_adoptionType_idx" ON "AdoptionOrder"("adoptionType");
 
 -- CreateIndex
 CREATE INDEX "family_legal_events_family_event_createdAt_idx" ON "family_legal_events"("familyId", "eventType", "createdAt");
@@ -3263,6 +3284,15 @@ ALTER TABLE "NextOfKinDesignation" ADD CONSTRAINT "NextOfKinDesignation_familyId
 
 -- AddForeignKey
 ALTER TABLE "NextOfKinDesignation" ADD CONSTRAINT "NextOfKinDesignation_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AdoptionOrder" ADD CONSTRAINT "AdoptionOrder_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AdoptionOrder" ADD CONSTRAINT "AdoptionOrder_adopteeId_fkey" FOREIGN KEY ("adopteeId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AdoptionOrder" ADD CONSTRAINT "AdoptionOrder_adopterId_fkey" FOREIGN KEY ("adopterId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "family_legal_events" ADD CONSTRAINT "family_legal_events_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;

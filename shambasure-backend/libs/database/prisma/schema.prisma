@@ -940,6 +940,7 @@ model Family {
   version      Int      @default(1)
   lastEventId  String?  @db.Uuid()
   // Relations
+  adoptionOrders AdoptionOrder[]
   nextOfKinDesignations NextOfKinDesignation[]
   cohabitationRecords CohabitationRecord[]
   members                 FamilyMember[]
@@ -1039,7 +1040,8 @@ model FamilyMember {
   // Relations: Cohabitation Tracking
   cohabitationRecords1 CohabitationRecord[] @relation("CohabitationPartner1")
   cohabitationRecords2 CohabitationRecord[] @relation("CohabitationPartner2")
-  
+  adoptee AdoptionOrder[] @relation("AdoptedAsAdoptee")
+  adopter AdoptionOrder[] @relation("AdoptedAsAdopter")
   nextOfKinDesignations NextOfKinDesignation[]
   // Audit
   createdAt    DateTime @default(now())
@@ -1147,6 +1149,7 @@ model Marriage {
   isActive                Boolean                @default(true) // Computed from endReason
   
   // Audit
+  version                 Int      @default(1)
   createdAt               DateTime               @default(now())
   updatedAt               DateTime               @updatedAt
   @@index([isPolygamousUnderS40])
@@ -1206,6 +1209,7 @@ model FamilyRelationship {
   // Inheritance Rights Impact
   inheritanceRights    InheritanceRights @default(FULL)
   // Audit
+  version                 Int      @default(1)
   createdAt               DateTime               @default(now())
   updatedAt               DateTime               @updatedAt
   @@index([strength])
@@ -1265,17 +1269,17 @@ model Guardian {
   terminationDate         DateTime?
   terminationReason       String?                @db.Text
   
-  // Audit
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
-  @@index([courtCaseNumber])
-  @@index([guardianIdNumber])
-  @@index([nextReportDue])
+  // Audit and Versioning
+  version                 Int      @default(1)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
   @@unique([wardId, guardianId, type], map: "guardians_ward_guardian_type_unique")
   @@index([wardId, isActive], map: "guardians_ward_isActive_idx")
   @@index([guardianId], map: "guardians_guardianId_idx")
   @@index([type], map: "guardians_type_idx")
   @@index([validUntil], map: "guardians_validUntil_idx")
+  @@index([nextReportDue], map: "guardians_nextReportDue_idx")
+  @@index([reportStatus], map: "guardians_reportStatus_idx")
   @@map("guardians")
 }
 // =============================================================================
@@ -1319,8 +1323,9 @@ model PolygamousHouse {
   // === SUCCESSION PLANNING ===
   successionInstructions String?  @db.Text // Testator instructions per house
   // Audit
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
+  version                 Int      @default(1)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
   @@index([s40CertificateNumber])
   @@index([houseBusinessKraPin])
   @@unique([familyId, houseName], map: "polygamous_houses_family_houseName_unique")
@@ -1384,8 +1389,9 @@ model LegalDependant {
   dependencyProofDocuments Json?                 // Array of document IDs
   verifiedByCourtAt       DateTime?
   // Audit
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
   
   dependantEvidences DependantEvidence[]
   @@index([assessmentDate])
@@ -1436,6 +1442,9 @@ model CohabitationRecord {
   isRegistered    Boolean  @default(false) // Some counties have registries
   
   rejectionReason String?  // Why it doesn't qualify as marriage
+  version         Int      @default(1)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
   
   @@unique([partner1Id, partner2Id, startDate])
   @@index([familyId, startDate])
@@ -1457,14 +1466,13 @@ model NextOfKinDesignation {
   @@index([familyId, designationLevel])
 }
 model AdoptionOrder {
-  // Formal adoption tracking (separate from FamilyRelationship)
   id                  String   @id @default(uuid()) @db.Uuid()
   familyId            String   @db.Uuid()
   
   adopteeId           String   @db.Uuid()
   adopterId           String   @db.Uuid()
   
-  adoptionType        String   // "CUSTOMARY", "STATUTORY", "INTER_COUNTRY"
+  adoptionType        String   // "CUSTOMARY", "STATUTORY", "INTER_COUNTRY", "KINSHIP"
   courtOrderNumber    String?  @unique
   adoptionDate        DateTime
   registrationDate    DateTime?
@@ -1472,11 +1480,23 @@ model AdoptionOrder {
   hasConsents         Json     // {biologicalParents: true, spouse: true}
   consentDocuments    String[] // Array of document IDs
   
-  // Kenyan Children Act compliance
   childWelfareReport  String?  @db.Uuid() // Document ID
   suitabilityReport   String?  @db.Uuid() // Document ID
   
+  version             Int      @default(1)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Relations
+  family  Family        @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  adoptee FamilyMember? @relation("AdoptedAsAdoptee", fields: [adopteeId], references: [id], onDelete: Cascade)
+  adopter FamilyMember? @relation("AdoptedAsAdopter", fields: [adopterId], references: [id], onDelete: Cascade)
+  
   @@index([familyId, adoptionDate])
+  @@index([adopteeId])
+  @@index([adopterId])
+  @@index([courtOrderNumber])
+  @@index([adoptionType])
 }
 // Track all legal events in family history
 model FamilyLegalEvent {
@@ -1492,7 +1512,7 @@ model FamilyLegalEvent {
   relatedUserId String?  @db.Uuid
   relatedEstateId String? @db.Uuid
   relatedCaseId String? @db.Uuid
-  
+  version      Int      @default(1)
   recordedBy    String?  @db.Uuid
   createdAt     DateTime @default(now())
   
