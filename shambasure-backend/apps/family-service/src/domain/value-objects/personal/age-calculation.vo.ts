@@ -32,6 +32,17 @@ export class AgeCalculation extends ValueObject<AgeCalculationProps> {
     return new AgeCalculation(props);
   }
 
+  static createFromJSON(data: any): AgeCalculation | null {
+    if (!data) return null;
+
+    return new AgeCalculation({
+      dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
+      dateOfDeath: data.dateOfDeath ? new Date(data.dateOfDeath) : undefined,
+      estimatedBirthYear: data.estimatedBirthYear,
+      isApproximateDate: data.isApproximateDate || false,
+    });
+  }
+
   validate(): void {
     // Date of birth validation
     if (this._value.dateOfBirth) {
@@ -123,10 +134,26 @@ export class AgeCalculation extends ValueObject<AgeCalculationProps> {
     return this._value.isApproximateDate;
   }
 
-  // Calculate current age or age at death
+  // Calculate current age (if alive) or age at death (if deceased)
   get age(): number | null {
+    return this.calculateAgeAt(this._value.dateOfDeath || new Date());
+  }
+
+  // Get age at death specifically
+  get ageAtDeath(): number | null {
+    if (!this._value.dateOfDeath) return null;
+    return this.calculateAgeAt(this._value.dateOfDeath);
+  }
+
+  // Get current age if alive
+  get currentAge(): number | null {
+    if (this._value.dateOfDeath) return null;
+    return this.calculateAgeAt(new Date());
+  }
+
+  // Private helper to calculate age at a specific date
+  private calculateAgeAt(referenceDate: Date): number | null {
     if (this._value.dateOfBirth) {
-      const referenceDate = this._value.dateOfDeath || new Date();
       let age = referenceDate.getFullYear() - this._value.dateOfBirth.getFullYear();
       const monthDiff = referenceDate.getMonth() - this._value.dateOfBirth.getMonth();
 
@@ -139,8 +166,7 @@ export class AgeCalculation extends ValueObject<AgeCalculationProps> {
 
       return age;
     } else if (this._value.estimatedBirthYear) {
-      const referenceYear = this._value.dateOfDeath?.getFullYear() || new Date().getFullYear();
-      return referenceYear - this._value.estimatedBirthYear;
+      return referenceDate.getFullYear() - this._value.estimatedBirthYear;
     }
 
     return null;
@@ -171,45 +197,43 @@ export class AgeCalculation extends ValueObject<AgeCalculationProps> {
 
   // Check if person is a minor (<18 years)
   get isMinor(): boolean {
-    const age = this.age;
+    const age = this.currentAge || this.ageAtDeath;
     return age !== null && age < 18;
   }
 
   // Check if person is a young adult (18-25)
   get isYoungAdult(): boolean {
-    const age = this.age;
+    const age = this.currentAge || this.ageAtDeath;
     return age !== null && age >= 18 && age <= 25;
   }
 
   // Check if person is elderly (>60 years)
   get isElderly(): boolean {
-    const age = this.age;
+    const age = this.currentAge || this.ageAtDeath;
     return age !== null && age > 60;
   }
 
   // Check if person is of legal age for marriage (18+ in Kenya)
   get isMarriageAge(): boolean {
-    const age = this.age;
+    const age = this.currentAge || this.ageAtDeath;
     return age !== null && age >= 18;
   }
 
   // Check if person is of legal age for will making (18+ in Kenya)
   get isWillMakingAge(): boolean {
-    const age = this.age;
+    const age = this.currentAge || this.ageAtDeath;
     return age !== null && age >= 18;
   }
 
   // Check if person was a minor at time of death
   get wasMinorAtDeath(): boolean {
     if (!this._value.dateOfDeath) return false;
-
-    const age = this.age;
-    return age !== null && age < 18 && this._value.dateOfDeath !== undefined;
+    return this.ageAtDeath !== null && this.ageAtDeath < 18;
   }
 
   // Get next birthday
   get nextBirthday(): Date | null {
-    if (!this._value.dateOfBirth) return null;
+    if (!this._value.dateOfBirth || this._value.dateOfDeath) return null;
 
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -274,6 +298,8 @@ export class AgeCalculation extends ValueObject<AgeCalculationProps> {
       estimatedBirthYear: this._value.estimatedBirthYear,
       isApproximateDate: this._value.isApproximateDate,
       age: this.age,
+      currentAge: this.currentAge,
+      ageAtDeath: this.ageAtDeath,
       detailedAge: this.detailedAge,
       isMinor: this.isMinor,
       isYoungAdult: this.isYoungAdult,

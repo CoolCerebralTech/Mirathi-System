@@ -1,96 +1,205 @@
 // family-member.mapper.ts
 import { Injectable } from '@nestjs/common';
-import { KenyanCounty, Prisma, FamilyMember as PrismaFamilyMember, UserRole } from '@prisma/client';
+import { Prisma, FamilyMember as PrismaFamilyMember } from '@prisma/client';
 
 import { FamilyMember, FamilyMemberProps } from '../../../domain/entities/family-member.entity';
-import {
-  KenyanLocation,
-  KenyanLocationProps,
-} from '../../../domain/value-objects/geographical/kenyan-location.vo';
-import { BirthCertificate } from '../../../domain/value-objects/identity/birth-certificate.vo';
+import { KenyanLocation } from '../../../domain/value-objects/geographical/kenyan-location.vo';
 import { DeathCertificate } from '../../../domain/value-objects/identity/death-certificate.vo';
-import {
-  KenyanIdentity,
-  KenyanIdentityProps,
-} from '../../../domain/value-objects/identity/kenyan-identity.vo';
+import { KenyanIdentity } from '../../../domain/value-objects/identity/kenyan-identity.vo';
 import { KraPin } from '../../../domain/value-objects/identity/kra-pin.vo';
 import { NationalId } from '../../../domain/value-objects/identity/national-id.vo';
-import { AgeCalculation } from '../../../domain/value-objects/personal/age-calculator.vo';
-import {
-  ContactInfo,
-  ContactInfoProps,
-} from '../../../domain/value-objects/personal/contact-info.vo';
-import {
-  DemographicInfo,
-  DemographicInfoProps,
-} from '../../../domain/value-objects/personal/demographic-info.vo';
-import {
-  DisabilityStatus,
-  DisabilityStatusProps,
-} from '../../../domain/value-objects/personal/disability-status.vo';
-import { KenyanName, KenyanNameProps } from '../../../domain/value-objects/personal/kenyan-name.vo';
-import { LifeStatus, LifeStatusProps } from '../../../domain/value-objects/personal/life-status.vo';
+import { AgeCalculation } from '../../../domain/value-objects/personal/age-calculation.vo';
+import { ContactInfo } from '../../../domain/value-objects/personal/contact-info.vo';
+import { DemographicInfo } from '../../../domain/value-objects/personal/demographic-info.vo';
+import { DisabilityStatus } from '../../../domain/value-objects/personal/disability-status.vo';
+import { KenyanName } from '../../../domain/value-objects/personal/kenyan-name.vo';
+import { LifeStatus } from '../../../domain/value-objects/personal/life-status.vo';
 
 @Injectable()
 export class FamilyMemberMapper {
   /**
    * Converts Prisma FamilyMember record to Domain FamilyMember aggregate
-   * Handles complex Value Object reconstruction
    */
-  toDomain(raw: PrismaFamilyMember | null): FamilyMember | null {
-    if (!raw) return null;
+  toDomain(raw: PrismaFamilyMember): FamilyMember {
+    // Convert null to undefined for domain
+    const toUndefined = <T>(value: T | null): T | undefined => (value === null ? undefined : value);
 
     try {
-      // 1. Reconstitute KenyanName Value Object
-      const name = this.reconstituteKenyanName(raw);
+      // Reconstruct KenyanName
+      const name = KenyanName.create(
+        raw.firstName || '',
+        raw.lastName || '',
+        toUndefined(raw.middleName),
+      );
 
-      // 2. Reconstitute KenyanIdentity Value Object
-      const identity = this.reconstituteKenyanIdentity(raw);
+      const nameWithMaidenName = raw.maidenName ? name.withMaidenName(raw.maidenName) : name;
 
-      // 3. Reconstitute ContactInfo Value Object
-      const contactInfo = this.reconstituteContactInfo(raw);
+      // Reconstruct KenyanIdentity
+      let identity = KenyanIdentity.create((raw.citizenship as any) || 'KENYAN');
 
-      // 4. Reconstitute LifeStatus Value Object
-      const lifeStatus = this.reconstituteLifeStatus(raw);
+      // Add National ID
+      if (raw.nationalId) {
+        const nationalId = raw.nationalIdVerified
+          ? NationalId.createVerified(
+              raw.nationalId,
+              'DATABASE_RECONSTITUTION',
+              raw.nationalIdVerifiedAt?.toISOString() || 'auto',
+            )
+          : NationalId.createUnverified(raw.nationalId);
+        identity = identity.withNationalId(nationalId);
+      }
 
-      // 5. Reconstitute AgeCalculation Value Object
-      const ageCalculation = this.reconstituteAgeCalculation(raw);
+      // Add KRA PIN
+      if (raw.kraPin) {
+        const kraPin = raw.kraPinVerified
+          ? KraPin.createVerified(raw.kraPin, 'DATABASE_RECONSTITUTION', true)
+          : KraPin.create(raw.kraPin);
+        identity = identity.withKraPin(kraPin);
+      }
 
-      // 6. Reconstitute DemographicInfo Value Object
-      const demographicInfo = this.reconstituteDemographicInfo(raw);
+      // Add death certificate
+      if (raw.deathCertificateNumber && raw.dateOfDeath) {
+        const deathCertificate = DeathCertificate.create(
+          raw.deathCertificateNumber,
+          raw.dateOfDeath,
+          new Date(),
+          raw.placeOfDeath || '',
+        );
+        identity = identity.withDeathCertificate(deathCertificate);
+      }
 
-      // 7. Reconstitute DisabilityStatus Value Object
-      const disabilityStatus = this.reconstituteDisabilityStatus(raw);
+      // Add cultural details
+      if (raw.customaryEthnicGroup || raw.religion || raw.customaryClan) {
+        identity = identity.withCulturalDetails(
+          raw.customaryEthnicGroup || '',
+          raw.religion || '',
+          toUndefined(raw.customaryClan),
+        );
+      }
 
-      // 8. Reconstitute Birth Location
-      const birthLocation = this.reconstituteBirthLocation(raw);
+      // Reconstruct ContactInfo
+      let contactInfo: ContactInfo | undefined;
+      if (raw.phoneNumber) {
+        try {
+          contactInfo = ContactInfo.create(raw.phoneNumber, '');
+          if (raw.email) {
+            contactInfo = contactInfo.updateEmail(raw.email);
+          }
+          if (raw.alternativePhone) {
+            contactInfo = contactInfo.updateSecondaryPhone(raw.alternativePhone);
+          }
+        } catch (error) {
+          console.warn('Failed to reconstruct contact info:', error);
+        }
+      }
 
-      // 9. Reconstitute Death Location
-      const deathLocation = this.reconstituteDeathLocation(raw);
+      // Reconstruct LifeStatus
+      let lifeStatus: LifeStatus;
+      if (raw.isDeceased && raw.dateOfDeath) {
+        lifeStatus = LifeStatus.createDeceased(
+          raw.dateOfDeath,
+          toUndefined(raw.placeOfDeath),
+          toUndefined(raw.deathCertificateNumber),
+        );
+      } else if (raw.missingSince) {
+        lifeStatus = LifeStatus.createAlive().markMissing(
+          raw.missingSince,
+          toUndefined(raw.placeOfDeath),
+        );
+      } else {
+        lifeStatus = LifeStatus.createAlive();
+      }
 
-      // 10. Assemble FamilyMemberProps
+      // Reconstruct AgeCalculation
+      let ageCalculation: AgeCalculation | undefined;
+      if (raw.dateOfBirth) {
+        ageCalculation = AgeCalculation.create(raw.dateOfBirth);
+      }
+
+      // Reconstruct DemographicInfo
+      let demographicInfo: DemographicInfo | undefined;
+      if (raw.gender || raw.religion || raw.customaryEthnicGroup) {
+        demographicInfo = DemographicInfo.create();
+        if (raw.gender) {
+          demographicInfo = demographicInfo.updateGender(raw.gender as any);
+        }
+        if (raw.religion) {
+          demographicInfo = demographicInfo.updateReligion(raw.religion as any);
+        }
+        if (raw.customaryEthnicGroup) {
+          demographicInfo = demographicInfo.updateEthnicity(
+            raw.customaryEthnicGroup,
+            toUndefined(raw.customaryClan),
+          );
+        }
+      }
+
+      // Reconstruct DisabilityStatus
+      let disabilityStatus: DisabilityStatus | undefined;
+      if (raw.disabilityStatus && raw.disabilityStatus !== 'NONE') {
+        disabilityStatus = DisabilityStatus.create(true);
+
+        // Add disability details based on status
+        const disabilityDetail = {
+          type: raw.disabilityStatus as any,
+          severity: 'MODERATE' as const,
+          requiresAssistance: raw.requiresSupportedDecisionMaking || false,
+        };
+
+        disabilityStatus = disabilityStatus.addDisability(disabilityDetail);
+
+        if (raw.requiresSupportedDecisionMaking) {
+          disabilityStatus = disabilityStatus.setSupportedDecisionMaking(true);
+        }
+      } else if (raw.requiresSupportedDecisionMaking) {
+        disabilityStatus = DisabilityStatus.create(false);
+        disabilityStatus = disabilityStatus.setSupportedDecisionMaking(true);
+      }
+
+      // Reconstruct locations
+      let birthLocation: KenyanLocation | undefined;
+      if (raw.placeOfBirth) {
+        birthLocation = KenyanLocation.createFromProps({
+          county: 'UNKNOWN' as any,
+          placeName: raw.placeOfBirth,
+          isUrban: false,
+          isRural: true,
+        });
+      }
+
+      let deathLocation: KenyanLocation | undefined;
+      if (raw.placeOfDeath) {
+        deathLocation = KenyanLocation.createFromProps({
+          county: 'UNKNOWN' as any,
+          placeName: raw.placeOfDeath,
+          isUrban: false,
+          isRural: true,
+        });
+      }
+
+      // Assemble props
       const props: FamilyMemberProps = {
         id: raw.id,
-        userId: raw.userId ?? undefined,
+        userId: toUndefined(raw.userId),
         familyId: raw.familyId,
-        name,
+        name: nameWithMaidenName,
         identity,
         contactInfo,
         lifeStatus,
-        ageCalculation,
+        disabilityStatus: disabilityStatus,
         demographicInfo,
-        disabilityStatus,
+        ageCalculation,
         birthLocation,
         deathLocation,
-        occupation: raw.occupation ?? undefined,
-        polygamousHouseId: raw.polygamousHouseId ?? undefined,
+        occupation: toUndefined(raw.occupation),
+        polygamousHouseId: toUndefined(raw.polygamousHouseId),
         version: raw.version,
-        lastEventId: raw.lastEventId ?? undefined,
-        createdAt: new Date(raw.createdAt),
-        updatedAt: new Date(raw.updatedAt),
-        deletedAt: raw.deletedAt ? new Date(raw.deletedAt) : undefined,
-        deletedBy: raw.deletedBy ?? undefined,
-        deletionReason: raw.deletionReason ?? undefined,
+        lastEventId: toUndefined(raw.lastEventId),
+        createdAt: raw.createdAt,
+        updatedAt: raw.updatedAt,
+        deletedAt: toUndefined(raw.deletedAt),
+        deletedBy: toUndefined(raw.deletedBy),
+        deletionReason: toUndefined(raw.deletionReason),
         isArchived: raw.isArchived,
       };
 
@@ -102,460 +211,180 @@ export class FamilyMemberMapper {
   }
 
   /**
-   * Converts Domain FamilyMember aggregate to Prisma create/update input
-   * Flattens complex Value Objects for persistence
+   * Converts Domain FamilyMember aggregate to Prisma create input
    */
-  toPersistence(entity: FamilyMember): Prisma.FamilyMemberUncheckedCreateInput {
-    // Get JSON representations of all Value Objects
-    const nameJson = this.extractNameForPersistence(entity);
-    const identityJson = this.extractIdentityForPersistence(entity);
-    const contactInfoJson = this.extractContactInfoForPersistence(entity);
-    const lifeStatusJson = this.extractLifeStatusForPersistence(entity);
-    const ageCalculationJson = this.extractAgeCalculationForPersistence(entity);
-    const demographicInfoJson = this.extractDemographicInfoForPersistence(entity);
-    const disabilityStatusJson = this.extractDisabilityStatusForPersistence(entity);
-    const birthLocationJson = this.extractBirthLocationForPersistence(entity);
-    const deathLocationJson = this.extractDeathLocationForPersistence(entity);
+  toPersistenceCreate(entity: FamilyMember): Prisma.FamilyMemberUncheckedCreateInput {
+    // Helper to convert undefined to null for Prisma
+    const toNullable = <T>(value: T | undefined): T | null => (value === undefined ? null : value);
+
+    // Helper to convert emergency contact
+    const toEmergencyContact = (
+      emergencyContact: any,
+    ): Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue => {
+      if (!emergencyContact) {
+        return Prisma.JsonNull;
+      }
+      return emergencyContact as Prisma.InputJsonValue;
+    };
+
+    // Extract values from domain entity
+    const emergencyContact = entity.contactInfo?.emergencyContact;
+    const identity = entity.identity;
+    const lifeStatus = entity.lifeStatus.toJSON();
+    const ageCalculation = entity.ageCalculation?.toJSON();
+    const demographicInfo = entity.demographicInfo?.toJSON();
+    const disabilityStatus = entity.disabilityStatus?.toJSON();
 
     return {
       id: entity.id,
-      userId: entity.userId,
+      userId: toNullable(entity.userId),
       familyId: entity.familyId,
-      polygamousHouseId: entity.polygamousHouseId,
+      polygamousHouseId: toNullable(entity.polygamousHouseId),
 
-      // Name Fields
-      firstName: nameJson.firstName || '',
-      lastName: nameJson.lastName || '',
-      middleName: nameJson.middleName,
-      maidenName: nameJson.maidenName,
+      // Name
+      firstName: entity.name.firstName,
+      lastName: entity.name.lastName,
+      middleName: toNullable(entity.name.middleName),
+      maidenName: toNullable(entity.maidenName),
 
-      // Identity Fields
-      nationalId: identityJson.nationalId?.idNumber,
-      nationalIdVerified: identityJson.nationalId?.isVerified || false,
-      nationalIdVerifiedAt: identityJson.nationalId?.verifiedAt || null,
-      kraPin: identityJson.kraPin?.pinNumber,
-      kraPinVerified: identityJson.kraPin?.isVerified || false,
-      citizenship: identityJson.citizenship || 'KENYAN',
+      // Identity
+      nationalId: toNullable(identity.nationalId?.idNumber),
+      nationalIdVerified: (identity.nationalId?.isVerified as boolean) || false,
+      nationalIdVerifiedAt: toNullable(identity.nationalId?.verifiedAt),
+      kraPin: toNullable(identity.kraPin?.pinNumber),
+      kraPinVerified: (identity.kraPin?.isVerified as boolean) || false,
+      citizenship: identity.citizenship || 'KENYAN',
 
-      // Contact Info Fields
-      phoneNumber: contactInfoJson?.primaryPhone,
-      email: contactInfoJson?.email,
-      alternativePhone: contactInfoJson?.secondaryPhone,
-      emergencyContact: contactInfoJson?.emergencyContact
-        ? (contactInfoJson.emergencyContact as Prisma.JsonValue)
-        : Prisma.JsonNull,
+      // Contact
+      phoneNumber: toNullable(entity.contactInfo?.primaryPhone),
+      email: toNullable(entity.contactInfo?.email),
+      alternativePhone: toNullable(entity.contactInfo?.secondaryPhone),
+      emergencyContact: toEmergencyContact(emergencyContact),
 
-      // Life Status Fields
-      isDeceased: lifeStatusJson.isDeceased,
-      dateOfDeath: lifeStatusJson.dateOfDeath || null,
-      placeOfDeath: lifeStatusJson.placeOfDeath,
-      presumedAlive: lifeStatusJson.isAlive,
-      missingSince: lifeStatusJson.missingSince || null,
-      deathCertificateIssued: lifeStatusJson.deathCertificateIssued || false,
-      deathCertificateNumber: identityJson.deathCertificate?.entryNumber,
+      // Life Status
+      isDeceased: lifeStatus.isDeceased,
+      dateOfDeath: toNullable(lifeStatus.dateOfDeath),
+      placeOfDeath: toNullable(lifeStatus.placeOfDeath),
+      presumedAlive: lifeStatus.isAlive,
+      missingSince: toNullable(lifeStatus.missingSince),
+      deathCertificateIssued: !!identity.deathCertificate,
+      deathCertificateNumber: toNullable(identity.deathCertificate?.certificateNumber),
 
-      // Age Calculation Fields
-      dateOfBirth: ageCalculationJson?.dateOfBirth || null,
-      ageAtDeath: lifeStatusJson.isDeceased ? ageCalculationJson?.age || null : null,
-      currentAge: !lifeStatusJson.isDeceased ? ageCalculationJson?.age || null : null,
-      isMinor: ageCalculationJson?.isMinor || false,
+      // Age
+      dateOfBirth: toNullable(ageCalculation?.dateOfBirth),
+      ageAtDeath: toNullable(ageCalculation?.ageAtDeath),
+      currentAge: toNullable(ageCalculation?.age),
+      isMinor: ageCalculation?.isMinor || false,
 
-      // Demographic Fields
-      gender: demographicInfoJson?.gender,
-      placeOfBirth: birthLocationJson?.placeName || null,
-      religion: demographicInfoJson?.religion || identityJson.religion,
-      customaryEthnicGroup: demographicInfoJson?.ethnicGroup || identityJson.ethnicity,
-      customaryClan: demographicInfoJson?.clan || identityJson.clan,
-      occupation: entity.occupation,
+      // Demographics
+      gender: toNullable(demographicInfo?.gender),
+      placeOfBirth: toNullable(entity.birthLocation?.placeName),
+      religion: toNullable(demographicInfo?.religion || identity.religion),
+      customaryEthnicGroup: toNullable(demographicInfo?.ethnicGroup || identity.ethnicity),
+      customaryClan: toNullable(demographicInfo?.clan || identity.clan),
+      occupation: toNullable(entity.occupation),
 
-      // Disability Fields
-      disabilityStatus: disabilityStatusJson?.hasDisability ? disabilityStatusJson.status : null,
-      requiresSupportedDecisionMaking:
-        disabilityStatusJson?.requiresSupportedDecisionMaking || false,
-      disabilityCertificate: disabilityStatusJson?.disabilityCardNumber || null,
+      // Disability
+      disabilityStatus: toNullable(disabilityStatus?.status || 'NONE'),
+      requiresSupportedDecisionMaking: disabilityStatus?.requiresSupportedDecisionMaking || false,
+      disabilityCertificate: toNullable(disabilityStatus?.disabilityCardNumber),
 
-      // Kenyan Location Fields (additional)
-      homeCounty: (birthLocationJson?.county as KenyanCounty) || null,
-      subCounty: birthLocationJson?.subCounty,
-      ward: birthLocationJson?.ward,
-      village: birthLocationJson?.village,
-
-      // Audit and Versioning
+      // Versioning & Audit
       version: entity.version,
-      lastEventId: entity.lastEventId,
+      lastEventId: toNullable(entity.lastEventId),
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
-      deletedAt: entity.deletedAt,
-      deletedBy: entity.deletedBy,
-      deletionReason: entity.deletionReason,
+      deletedAt: toNullable(entity.deletedAt),
+      deletedBy: toNullable(entity.deletedBy),
+      deletionReason: toNullable(entity.deletionReason),
       isArchived: entity.isArchived,
     };
   }
 
-  // Private Helper Methods for Reconstitution
+  /**
+   * Converts Domain FamilyMember aggregate to Prisma update input
+   * Only includes changed fields
+   */
+  toPersistenceUpdate(entity: FamilyMember): Prisma.FamilyMemberUncheckedUpdateInput {
+    // For updates, we only need to update certain fields
+    // Use the same helpers as above
+    const toNullable = <T>(value: T | undefined): T | null => (value === undefined ? null : value);
 
-  private reconstituteKenyanName(raw: PrismaFamilyMember): KenyanName {
-    const nameProps: KenyanNameProps = {
-      firstName: raw.firstName || '',
-      lastName: raw.lastName || '',
-      middleName: raw.middleName ?? undefined,
-      maidenName: raw.maidenName ?? undefined,
+    const toEmergencyContact = (
+      emergencyContact: any,
+    ): Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue => {
+      if (!emergencyContact) {
+        return Prisma.JsonNull;
+      }
+      return emergencyContact as Prisma.InputJsonValue;
     };
 
-    // Use factory method if available, otherwise create directly
-    try {
-      return KenyanName.create(
-        nameProps.firstName,
-        nameProps.lastName,
-        nameProps.middleName,
-      ).withMaidenName(nameProps.maidenName);
-    } catch (error) {
-      // Fallback: create from props if create method has different signature
-      const name = new KenyanName(nameProps);
-      if (nameProps.maidenName) {
-        // Assuming there's a method to set maiden name
-        (name as any).maidenName = nameProps.maidenName;
-      }
-      return name;
-    }
-  }
+    const identity = entity.identity.toJSON();
+    const lifeStatus = entity.lifeStatus.toJSON();
+    const ageCalculation = entity.ageCalculation?.toJSON();
+    const demographicInfo = entity.demographicInfo?.toJSON();
+    const disabilityStatus = entity.disabilityStatus?.toJSON();
+    const emergencyContact = entity.contactInfo?.emergencyContact;
 
-  private reconstituteKenyanIdentity(raw: PrismaFamilyMember): KenyanIdentity {
-    const identityProps: Partial<KenyanIdentityProps> = {
-      citizenship: (raw.citizenship as any) || 'KENYAN',
-      ethnicity: raw.customaryEthnicGroup ?? undefined,
-      religion: raw.religion ?? undefined,
-      clan: raw.customaryClan ?? undefined,
-      appliesCustomaryLaw: raw.customaryEthnicGroup ? true : false,
-    };
-
-    let identity = KenyanIdentity.create(identityProps.citizenship);
-
-    // Add National ID if exists
-    if (raw.nationalId) {
-      let nationalId = NationalId.createUnverified(raw.nationalId);
-      if (raw.nationalIdVerified) {
-        nationalId = nationalId.verify(
-          'DATABASE_RECONSTITUTION',
-          raw.nationalIdVerifiedAt ? 'VERIFIED_ON_RECONSTITUTION' : 'STORED_STATE',
-        );
-        if (raw.nationalIdVerifiedAt) {
-          // Manually set verification date if needed
-          (nationalId as any).verifiedAt = raw.nationalIdVerifiedAt;
-        }
-      }
-      identity = identity.withNationalId(nationalId);
-    }
-
-    // Add KRA PIN if exists
-    if (raw.kraPin) {
-      let kraPin = KraPin.create(raw.kraPin);
-      if (raw.kraPinVerified) {
-        kraPin = kraPin.verify('DATABASE_RECONSTITUTION', true);
-      }
-      identity = identity.withKraPin(kraPin);
-    }
-
-    // Add Death Certificate if exists
-    if (raw.deathCertificateNumber && raw.dateOfDeath) {
-      const deathCert = DeathCertificate.create(
-        raw.deathCertificateNumber,
-        raw.dateOfDeath,
-        raw.dateOfDeath, // Use date of death as issue date if not available
-        raw.placeOfDeath || '',
-      );
-      identity = identity.withDeathCertificate(deathCert);
-    }
-
-    // Add cultural details
-    if (raw.customaryEthnicGroup || raw.religion || raw.customaryClan) {
-      identity = identity.withCulturalDetails(
-        raw.customaryEthnicGroup || '',
-        raw.religion || '',
-        raw.customaryClan,
-      );
-    }
-
-    // Set legal verification status
-    if (raw.nationalIdVerified && raw.kraPinVerified) {
-      identity = identity.markAsLegallyVerified(new Date());
-    }
-
-    return identity;
-  }
-
-  private reconstituteContactInfo(raw: PrismaFamilyMember): ContactInfo | undefined {
-    if (!raw.phoneNumber && !raw.email) {
-      return undefined;
-    }
-
-    try {
-      const contactProps: ContactInfoProps = {
-        primaryPhone: raw.phoneNumber || '',
-        email: raw.email ?? undefined,
-        secondaryPhone: raw.alternativePhone ?? undefined,
-        emergencyContact: (raw.emergencyContact as any) ?? undefined,
-      };
-
-      return ContactInfo.create(
-        contactProps.primaryPhone,
-        'UNKNOWN', // County will need to be updated separately
-      )
-        .updateEmail(contactProps.email)
-        .updateSecondaryPhone(contactProps.secondaryPhone);
-    } catch (error) {
-      console.warn('Failed to reconstitute ContactInfo:', error);
-      return undefined;
-    }
-  }
-
-  private reconstituteLifeStatus(raw: PrismaFamilyMember): LifeStatus {
-    if (raw.isDeceased && raw.dateOfDeath) {
-      const lifeStatus = LifeStatus.createDeceased(raw.dateOfDeath, raw.placeOfDeath ?? undefined);
-
-      if (raw.missingSince) {
-        // If deceased but also marked missing, adjust as needed
-        return lifeStatus;
-      }
-      return lifeStatus;
-    }
-
-    let lifeStatus = LifeStatus.createAlive();
-
-    if (raw.missingSince) {
-      lifeStatus = lifeStatus.markMissing(raw.missingSince, raw.placeOfDeath ?? undefined);
-    }
-
-    return lifeStatus;
-  }
-
-  private reconstituteAgeCalculation(raw: PrismaFamilyMember): AgeCalculation | undefined {
-    if (!raw.dateOfBirth) return undefined;
-
-    try {
-      return AgeCalculation.create(raw.dateOfBirth);
-    } catch (error) {
-      console.warn('Failed to reconstitute AgeCalculation:', error);
-      return undefined;
-    }
-  }
-
-  private reconstituteDemographicInfo(raw: PrismaFamilyMember): DemographicInfo | undefined {
-    if (!raw.gender && !raw.religion && !raw.customaryEthnicGroup) {
-      return undefined;
-    }
-
-    let demographicInfo = DemographicInfo.create();
-
-    if (raw.gender) {
-      demographicInfo = demographicInfo.updateGender(raw.gender as any);
-    }
-
-    if (raw.religion) {
-      demographicInfo = demographicInfo.updateReligion(raw.religion as any);
-    }
-
-    if (raw.customaryEthnicGroup) {
-      demographicInfo = demographicInfo.updateEthnicity(
-        raw.customaryEthnicGroup,
-        raw.customaryClan ?? undefined,
-      );
-    }
-
-    return demographicInfo;
-  }
-
-  private reconstituteDisabilityStatus(raw: PrismaFamilyMember): DisabilityStatus | undefined {
-    if (!raw.disabilityStatus && !raw.requiresSupportedDecisionMaking) {
-      return undefined;
-    }
-
-    const disabilityStatus = DisabilityStatus.create(!!raw.disabilityStatus);
-
-    if (raw.requiresSupportedDecisionMaking) {
-      disabilityStatus.setSupportedDecisionMaking(true);
-    }
-
-    if (raw.disabilityCertificate) {
-      // Assuming there's a method to set disability card number
-      (disabilityStatus as any).disabilityCardNumber = raw.disabilityCertificate;
-    }
-
-    return disabilityStatus;
-  }
-
-  private reconstituteBirthLocation(raw: PrismaFamilyMember): KenyanLocation | undefined {
-    if (!raw.placeOfBirth) return undefined;
-
-    try {
-      const locationProps: KenyanLocationProps = {
-        county: (raw.homeCounty as KenyanCounty) || ('UNKNOWN' as any),
-        subCounty: raw.subCounty ?? undefined,
-        ward: raw.ward ?? undefined,
-        village: raw.village ?? undefined,
-        placeName: raw.placeOfBirth,
-        isUrban: false,
-        isRural: true,
-      };
-
-      return KenyanLocation.createFromProps(locationProps);
-    } catch (error) {
-      console.warn('Failed to reconstitute BirthLocation:', error);
-      return undefined;
-    }
-  }
-
-  private reconstituteDeathLocation(raw: PrismaFamilyMember): KenyanLocation | undefined {
-    if (!raw.placeOfDeath) return undefined;
-
-    try {
-      const locationProps: KenyanLocationProps = {
-        county: 'UNKNOWN' as any, // Death location county not stored
-        placeName: raw.placeOfDeath,
-        isUrban: false,
-        isRural: true,
-      };
-
-      return KenyanLocation.createFromProps(locationProps);
-    } catch (error) {
-      console.warn('Failed to reconstitute DeathLocation:', error);
-      return undefined;
-    }
-  }
-
-  // Private Helper Methods for Persistence Extraction
-
-  private extractNameForPersistence(entity: FamilyMember): KenyanNameProps {
     return {
+      // Name
       firstName: entity.name.firstName,
       lastName: entity.name.lastName,
-      middleName: entity.name.middleName,
-      maidenName: entity.maidenName,
-    };
-  }
+      middleName: toNullable(entity.name.middleName),
+      maidenName: toNullable(entity.maidenName),
 
-  private extractIdentityForPersistence(entity: FamilyMember): any {
-    const identityJson = entity.identity.toJSON();
+      // Identity
+      nationalId: toNullable(identity.nationalId?.idNumber),
+      nationalIdVerified: identity.nationalId?.isVerified ?? false,
+      nationalIdVerifiedAt: toNullable(identity.nationalId?.verifiedAt),
 
-    return {
-      ...identityJson,
-      // Ensure we extract the nested values properly
-      nationalId: identityJson.nationalId,
-      kraPin: identityJson.kraPin,
-      deathCertificate: identityJson.deathCertificate,
-      citizenship: identityJson.citizenship,
-      ethnicity: identityJson.ethnicity,
-      religion: identityJson.religion,
-      clan: identityJson.clan,
-    };
-  }
+      kraPin: toNullable(identity.kraPin?.pinNumber),
+      kraPinVerified: identity.kraPin?.isVerified ?? false,
 
-  private extractContactInfoForPersistence(entity: FamilyMember): ContactInfoProps | undefined {
-    if (!entity.contactInfo) return undefined;
+      citizenship: identity.citizenship ?? 'KENYAN',
 
-    const contactJson = entity.contactInfo.toJSON();
+      // Contact
+      phoneNumber: toNullable(entity.contactInfo?.primaryPhone),
+      email: toNullable(entity.contactInfo?.email),
+      alternativePhone: toNullable(entity.contactInfo?.secondaryPhone),
+      emergencyContact: toEmergencyContact(emergencyContact),
 
-    return {
-      primaryPhone: contactJson.primaryPhone,
-      email: contactJson.email,
-      secondaryPhone: contactJson.secondaryPhone,
-      emergencyContact: contactJson.emergencyContact,
-    };
-  }
+      // Life Status
+      isDeceased: lifeStatus.isDeceased,
+      dateOfDeath: toNullable(lifeStatus.dateOfDeath),
+      placeOfDeath: toNullable(lifeStatus.placeOfDeath),
+      presumedAlive: lifeStatus.isAlive,
+      missingSince: toNullable(lifeStatus.missingSince),
+      deathCertificateIssued: !!identity.deathCertificate,
+      deathCertificateNumber: toNullable(identity.deathCertificate?.certificateNumber),
 
-  private extractLifeStatusForPersistence(entity: FamilyMember): LifeStatusProps {
-    const lifeStatusJson = entity.lifeStatus.toJSON();
+      // Age
+      dateOfBirth: toNullable(ageCalculation?.dateOfBirth),
+      ageAtDeath: toNullable(ageCalculation?.ageAtDeath),
+      currentAge: toNullable(ageCalculation?.age),
+      isMinor: ageCalculation?.isMinor || false,
 
-    return {
-      isAlive: lifeStatusJson.isAlive,
-      isDeceased: lifeStatusJson.isDeceased,
-      dateOfDeath: lifeStatusJson.dateOfDeath,
-      placeOfDeath: lifeStatusJson.placeOfDeath,
-      missingSince: lifeStatusJson.missingSince,
-      deathCertificateIssued: lifeStatusJson.deathCertificateIssued,
-    };
-  }
+      // Demographics
+      gender: toNullable(demographicInfo?.gender),
+      placeOfBirth: toNullable(entity.birthLocation?.placeName),
+      religion: toNullable(demographicInfo?.religion || identity.religion),
+      customaryEthnicGroup: toNullable(demographicInfo?.ethnicGroup || identity.ethnicity),
+      customaryClan: toNullable(demographicInfo?.clan || identity.clan),
+      occupation: toNullable(entity.occupation),
 
-  private extractAgeCalculationForPersistence(entity: FamilyMember): any {
-    if (!entity.ageCalculation) return undefined;
+      // Disability
+      disabilityStatus: toNullable(disabilityStatus?.status || 'NONE'),
+      requiresSupportedDecisionMaking: disabilityStatus?.requiresSupportedDecisionMaking || false,
+      disabilityCertificate: toNullable(disabilityStatus?.disabilityCardNumber),
 
-    const ageJson = entity.ageCalculation.toJSON();
-
-    return {
-      dateOfBirth: ageJson.dateOfBirth,
-      age: ageJson.age,
-      isMinor: ageJson.isMinor,
-      isYoungAdult: ageJson.isYoungAdult,
-      isElderly: ageJson.isElderly,
-    };
-  }
-
-  private extractDemographicInfoForPersistence(
-    entity: FamilyMember,
-  ): DemographicInfoProps | undefined {
-    if (!entity.demographicInfo) return undefined;
-
-    const demoJson = entity.demographicInfo.toJSON();
-
-    return {
-      gender: demoJson.gender,
-      religion: demoJson.religion,
-      ethnicGroup: demoJson.ethnicGroup,
-      clan: demoJson.clan,
-      subClan: demoJson.subClan,
-      isMuslim: demoJson.isMuslim,
-    };
-  }
-
-  private extractDisabilityStatusForPersistence(
-    entity: FamilyMember,
-  ): DisabilityStatusProps | undefined {
-    if (!entity.disabilityStatus) return undefined;
-
-    const disabilityJson = entity.disabilityStatus.toJSON();
-
-    return {
-      hasDisability: disabilityJson.hasDisability,
-      status: disabilityJson.status,
-      requiresSupportedDecisionMaking: disabilityJson.requiresSupportedDecisionMaking,
-      disabilityCardNumber: disabilityJson.disabilityCardNumber,
-      registeredWithNCPWD: disabilityJson.registeredWithNCPWD,
-    };
-  }
-
-  private extractBirthLocationForPersistence(
-    entity: FamilyMember,
-  ): KenyanLocationProps | undefined {
-    if (!entity.birthLocation) return undefined;
-
-    const locationJson = entity.birthLocation.toJSON();
-
-    return {
-      county: locationJson.county,
-      subCounty: locationJson.subCounty,
-      ward: locationJson.ward,
-      village: locationJson.village,
-      placeName: locationJson.placeName,
-      isUrban: locationJson.isUrban,
-      isRural: locationJson.isRural,
-    };
-  }
-
-  private extractDeathLocationForPersistence(
-    entity: FamilyMember,
-  ): KenyanLocationProps | undefined {
-    if (!entity.deathLocation) return undefined;
-
-    const locationJson = entity.deathLocation.toJSON();
-
-    return {
-      county: locationJson.county,
-      subCounty: locationJson.subCounty,
-      ward: locationJson.ward,
-      village: locationJson.village,
-      placeName: locationJson.placeName,
-      isUrban: locationJson.isUrban,
-      isRural: locationJson.isRural,
+      // Versioning & Audit
+      version: entity.version,
+      lastEventId: toNullable(entity.lastEventId),
+      updatedAt: entity.updatedAt,
+      deletedAt: toNullable(entity.deletedAt),
+      deletedBy: toNullable(entity.deletedBy),
+      deletionReason: toNullable(entity.deletionReason),
+      isArchived: entity.isArchived,
     };
   }
 
@@ -576,80 +405,6 @@ export class FamilyMemberMapper {
       // polygamousHouse: true,
       // marriagesAsSpouse1: true,
       // marriagesAsSpouse2: true,
-      // relationshipsFrom: true,
-      // relationshipsTo: true,
     };
-  }
-
-  /**
-   * Validates mapping consistency between domain and persistence
-   */
-  validateMapping(entity: FamilyMember, raw: PrismaFamilyMember): boolean {
-    const errors: string[] = [];
-
-    if (entity.id !== raw.id) {
-      errors.push(`ID mismatch: Domain=${entity.id}, Persistence=${raw.id}`);
-    }
-
-    if (entity.version !== raw.version) {
-      errors.push(`Version mismatch: Domain=${entity.version}, Persistence=${raw.version}`);
-    }
-
-    if (entity.familyId !== raw.familyId) {
-      errors.push(`Family ID mismatch: Domain=${entity.familyId}, Persistence=${raw.familyId}`);
-    }
-
-    // Validate name consistency
-    if (entity.name.firstName !== (raw.firstName || '')) {
-      errors.push(
-        `First name mismatch: Domain=${entity.name.firstName}, Persistence=${raw.firstName}`,
-      );
-    }
-
-    // Validate life status consistency
-    if (entity.isDeceased !== raw.isDeceased) {
-      errors.push(
-        `Deceased status mismatch: Domain=${entity.isDeceased}, Persistence=${raw.isDeceased}`,
-      );
-    }
-
-    if (errors.length > 0) {
-      console.warn('FamilyMember mapping validation errors:', errors);
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Creates a partial update DTO from domain changes
-   */
-  getChangedFields(
-    oldEntity: FamilyMember,
-    newEntity: FamilyMember,
-  ): Partial<Prisma.FamilyMemberUncheckedUpdateInput> {
-    const changed: Partial<Prisma.FamilyMemberUncheckedUpdateInput> = {};
-
-    // Compare and add changed fields
-    if (oldEntity.name.firstName !== newEntity.name.firstName)
-      changed.firstName = newEntity.name.firstName;
-    if (oldEntity.name.lastName !== newEntity.name.lastName)
-      changed.lastName = newEntity.name.lastName;
-    if (oldEntity.name.middleName !== newEntity.name.middleName)
-      changed.middleName = newEntity.name.middleName;
-    if (oldEntity.maidenName !== newEntity.maidenName) changed.maidenName = newEntity.maidenName;
-
-    if (oldEntity.occupation !== newEntity.occupation) changed.occupation = newEntity.occupation;
-    if (oldEntity.polygamousHouseId !== newEntity.polygamousHouseId)
-      changed.polygamousHouseId = newEntity.polygamousHouseId;
-
-    // Always update these fields
-    changed.version = newEntity.version;
-    changed.lastEventId = newEntity.lastEventId;
-    changed.updatedAt = newEntity.updatedAt;
-    changed.isArchived = newEntity.isArchived;
-    changed.deletedAt = newEntity.deletedAt;
-
-    return changed;
   }
 }

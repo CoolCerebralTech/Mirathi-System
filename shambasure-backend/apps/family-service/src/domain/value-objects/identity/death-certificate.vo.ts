@@ -3,34 +3,45 @@ import { ValueObject } from '../../base/value-object';
 import { InvalidDeathCertificateException } from '../../exceptions/identity.exceptions';
 
 export enum DeathProofType {
-  CERTIFICATE = 'CERTIFICATE',
+  DEATH_CERTIFICATE = 'DEATH_CERTIFICATE',
   BURIAL_PERMIT = 'BURIAL_PERMIT',
-  COURT_ORDER_PRESUMPTION = 'COURT_ORDER_PRESUMPTION', // S. 118 Evidence Act
-  POLICE_ABSTRACT = 'POLICE_ABSTRACT', // Temporary
+  COURT_PRESUMPTION_ORDER = 'COURT_PRESUMPTION_ORDER',
+  POLICE_ABSTRACT = 'POLICE_ABSTRACT',
+  CHIEFS_LETTER = 'CHIEFS_LETTER',
+  MEDICAL_CERTIFICATE = 'MEDICAL_CERTIFICATE',
+}
+
+export enum RegistrationType {
+  STANDARD = 'STANDARD',
+  LATE_REGISTRATION = 'LATE_REGISTRATION',
+  DELAYED_REGISTRATION = 'DELAYED_REGISTRATION',
+  STILLBIRTH = 'STILLBIRTH',
 }
 
 export interface DeathCertificateProps {
-  // Identification
-  entryNumber: string; // "Entry No." in the register (Permanent)
-  serialNumber?: string; // "Serial No." on the paper
+  certificateNumber: string;
+  entryNumber?: string;
+  serialNumber?: string;
   proofType: DeathProofType;
-
-  // Core Event Data
   dateOfDeath: Date;
-  placeOfDeath: string; // "Kenyatta National Hospital", "Home - Siaya"
-
-  // Registration Details
+  placeOfDeath: string;
+  causeOfDeath?: string;
+  registrationType: RegistrationType;
   dateOfRegistration: Date;
-  registrationDistrict: string; // "Nairobi", "Murang'a South"
-
-  // Informant (Critical for Fraud Detection)
-  informantName?: string;
-  informantRelationship?: string; // "Son", "Widow"
-
-  // Verification
-  verified: boolean;
+  registrationDistrict: string;
+  registrationOfficer?: string;
+  reportedBy?: string;
+  informantRelationship?: string;
+  informantIdNumber?: string;
+  informantContact?: string;
+  isCertifiedCopy: boolean;
+  issuedAt?: Date;
+  issuingOffice?: string;
+  isVerified: boolean;
   verifiedAt?: Date;
   verifiedBy?: string;
+  verificationMethod?: string;
+  supportingDocumentIds?: string[];
 }
 
 export class DeathCertificate extends ValueObject<DeathCertificateProps> {
@@ -41,35 +52,63 @@ export class DeathCertificate extends ValueObject<DeathCertificateProps> {
 
   // --- Factory Methods ---
 
-  static create(
-    entryNumber: string,
+  static createStandardCertificate(
+    certificateNumber: string,
     dateOfDeath: Date,
     dateOfRegistration: Date,
     placeOfDeath: string,
+    registrationDistrict: string,
   ): DeathCertificate {
     return new DeathCertificate({
-      entryNumber: this.sanitize(entryNumber),
-      proofType: DeathProofType.CERTIFICATE,
+      certificateNumber: DeathCertificate.sanitizeCertificateNumber(certificateNumber),
+      proofType: DeathProofType.DEATH_CERTIFICATE,
       dateOfDeath,
+      placeOfDeath: DeathCertificate.sanitize(placeOfDeath),
+      registrationType: DeathCertificate.determineRegistrationType(dateOfDeath, dateOfRegistration),
       dateOfRegistration,
-      placeOfDeath: this.sanitize(placeOfDeath),
-      registrationDistrict: 'UNKNOWN', // Default
-      verified: false,
+      registrationDistrict: DeathCertificate.sanitize(registrationDistrict),
+      isCertifiedCopy: false,
+      isVerified: false,
     });
   }
 
   static createFromCourtOrder(
     courtOrderNumber: string,
     presumedDateOfDeath: Date,
+    courtStation: string,
   ): DeathCertificate {
     return new DeathCertificate({
-      entryNumber: courtOrderNumber,
-      proofType: DeathProofType.COURT_ORDER_PRESUMPTION,
+      certificateNumber: courtOrderNumber,
+      proofType: DeathProofType.COURT_PRESUMPTION_ORDER,
       dateOfDeath: presumedDateOfDeath,
-      dateOfRegistration: new Date(), // Registered in system now
-      placeOfDeath: 'UNKNOWN / PRESUMED',
-      registrationDistrict: 'HIGH COURT',
-      verified: true, // Court orders are inherently verified (but need manual check)
+      placeOfDeath: `${courtStation} High Court`,
+      registrationType: RegistrationType.STANDARD,
+      dateOfRegistration: new Date(),
+      registrationDistrict: courtStation,
+      isCertifiedCopy: true,
+      isVerified: true,
+      verifiedAt: new Date(),
+      verifiedBy: courtStation,
+      verificationMethod: 'COURT_ORDER',
+    });
+  }
+
+  static createBurialPermit(
+    permitNumber: string,
+    dateOfDeath: Date,
+    placeOfDeath: string,
+    issuingCounty: string,
+  ): DeathCertificate {
+    return new DeathCertificate({
+      certificateNumber: permitNumber,
+      proofType: DeathProofType.BURIAL_PERMIT,
+      dateOfDeath,
+      placeOfDeath: DeathCertificate.sanitize(placeOfDeath),
+      registrationType: RegistrationType.STANDARD,
+      dateOfRegistration: new Date(),
+      registrationDistrict: issuingCounty,
+      isCertifiedCopy: false,
+      isVerified: false,
     });
   }
 
@@ -80,89 +119,237 @@ export class DeathCertificate extends ValueObject<DeathCertificateProps> {
   // --- Validation ---
 
   protected validate(): void {
-    const { entryNumber, dateOfDeath, dateOfRegistration, proofType } = this._value;
+    const { certificateNumber, dateOfDeath, dateOfRegistration, proofType } = this._value;
 
-    if (!entryNumber) {
-      throw new InvalidDeathCertificateException('Certificate/Entry Number is required');
+    if (!certificateNumber) {
+      throw new InvalidDeathCertificateException('Certificate number is required');
     }
 
-    if (dateOfDeath > new Date()) {
-      throw new InvalidDeathCertificateException('Date of Death cannot be in the future');
+    if (!dateOfDeath) {
+      throw new InvalidDeathCertificateException('Date of death is required');
     }
 
-    // Logic: Registration cannot happen before death
-    if (proofType === DeathProofType.CERTIFICATE && dateOfRegistration < dateOfDeath) {
+    if (!dateOfRegistration) {
+      throw new InvalidDeathCertificateException('Date of registration is required');
+    }
+
+    const today = new Date();
+    if (dateOfDeath > today) {
+      throw new InvalidDeathCertificateException('Date of death cannot be in the future');
+    }
+
+    if (dateOfRegistration > today) {
+      throw new InvalidDeathCertificateException('Registration date cannot be in the future');
+    }
+
+    if (proofType !== DeathProofType.COURT_PRESUMPTION_ORDER && dateOfRegistration < dateOfDeath) {
       throw new InvalidDeathCertificateException(
-        'Registration Date cannot be before Date of Death',
+        'Registration date cannot be before date of death',
       );
+    }
+
+    if (proofType === DeathProofType.DEATH_CERTIFICATE) {
+      this.validateCivilRegistration();
+    }
+  }
+
+  private validateCivilRegistration(): void {
+    const { certificateNumber } = this._value;
+
+    if (!DeathCertificate.isValidCertificateNumber(certificateNumber)) {
+      console.warn(`Invalid certificate number format: ${certificateNumber}`);
     }
   }
 
   // --- Business Logic ---
 
-  /**
-   * Returns true if registered > 6 months after death.
-   * Late registration often requires a "Late Death Registration" form
-   * and carries higher fraud risk.
-   */
   get isLateRegistration(): boolean {
     const { dateOfDeath, dateOfRegistration } = this._value;
-    const sixMonthsLater = new Date(dateOfDeath);
-    sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
-    return dateOfRegistration > sixMonthsLater;
+    const oneYearLater = new Date(dateOfDeath);
+    oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
+    return dateOfRegistration > oneYearLater;
   }
 
-  /**
-   * Official date of death as recorded in the register or court order.
-   */
+  get isDelayedRegistration(): boolean {
+    const { dateOfDeath, dateOfRegistration } = this._value;
+    const oneWeekLater = new Date(dateOfDeath);
+    oneWeekLater.setDate(oneWeekLater.getDate() + 7);
+    const oneYearLater = new Date(dateOfDeath);
+    oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
+
+    return dateOfRegistration >= oneWeekLater && dateOfRegistration <= oneYearLater;
+  }
+
+  get requiresAdditionalVerification(): boolean {
+    return (
+      this.isLateRegistration ||
+      this._value.proofType === DeathProofType.CHIEFS_LETTER ||
+      this._value.proofType === DeathProofType.POLICE_ABSTRACT
+    );
+  }
+
+  get validityStatus(): 'VALID' | 'REQUIRES_VERIFICATION' | 'INVALID' {
+    if (!this._value.isVerified) return 'REQUIRES_VERIFICATION';
+
+    if (this.requiresAdditionalVerification && !this._value.supportingDocumentIds?.length) {
+      return 'REQUIRES_VERIFICATION';
+    }
+
+    return 'VALID';
+  }
+
+  // --- Domain Methods ---
+
+  withEntryNumber(entryNumber: string): DeathCertificate {
+    return new DeathCertificate({
+      ...this._value,
+      entryNumber: DeathCertificate.sanitize(entryNumber),
+    });
+  }
+
+  withInformant(
+    name: string,
+    relationship: string,
+    idNumber?: string,
+    contact?: string,
+  ): DeathCertificate {
+    return new DeathCertificate({
+      ...this._value,
+      reportedBy: DeathCertificate.sanitize(name),
+      informantRelationship: DeathCertificate.sanitize(relationship),
+      informantIdNumber: idNumber ? DeathCertificate.sanitize(idNumber) : undefined,
+      informantContact: contact ? DeathCertificate.sanitize(contact) : undefined,
+    });
+  }
+
+  withCauseOfDeath(cause: string, icdCode?: string): DeathCertificate {
+    const causeDescription = icdCode ? `${cause} (ICD-10: ${icdCode})` : cause;
+    return new DeathCertificate({
+      ...this._value,
+      causeOfDeath: DeathCertificate.sanitize(causeDescription),
+    });
+  }
+
+  markAsCertifiedCopy(issuedAt: Date, issuingOffice: string): DeathCertificate {
+    return new DeathCertificate({
+      ...this._value,
+      isCertifiedCopy: true,
+      issuedAt,
+      issuingOffice: DeathCertificate.sanitize(issuingOffice),
+    });
+  }
+
+  verify(
+    verifiedBy: string,
+    method: string = 'MANUAL_VERIFICATION',
+    supportingDocumentIds?: string[],
+  ): DeathCertificate {
+    return new DeathCertificate({
+      ...this._value,
+      isVerified: true,
+      verifiedAt: new Date(),
+      verifiedBy: DeathCertificate.sanitize(verifiedBy),
+      verificationMethod: method,
+      supportingDocumentIds: supportingDocumentIds || this._value.supportingDocumentIds,
+    });
+  }
+
+  addSupportingDocument(documentId: string): DeathCertificate {
+    const documents = [...(this._value.supportingDocumentIds || []), documentId];
+    return new DeathCertificate({
+      ...this._value,
+      supportingDocumentIds: documents,
+    });
+  }
+
+  // --- Getters ---
+
+  get certificateNumber(): string {
+    return this._value.certificateNumber;
+  }
+
   get dateOfDeath(): Date {
     return this._value.dateOfDeath;
   }
+
   get isVerified(): boolean {
-    return this._value.verified;
+    return this._value.isVerified;
   }
 
-  /**
-   * Adds physical serial number for verification
-   */
-  public withSerialNumber(serial: string): DeathCertificate {
-    return new DeathCertificate({
-      ...this._value,
-      serialNumber: serial,
-    });
+  get proofType(): DeathProofType {
+    return this._value.proofType;
   }
 
-  public withInformant(name: string, relationship: string): DeathCertificate {
-    return new DeathCertificate({
-      ...this._value,
-      informantName: name,
-      informantRelationship: relationship,
-    });
+  get registrationType(): RegistrationType {
+    return this._value.registrationType;
   }
 
-  public verify(verifiedBy: string): DeathCertificate {
-    return new DeathCertificate({
-      ...this._value,
-      verified: true,
-      verifiedAt: new Date(),
-      verifiedBy,
-    });
-  }
+  // --- Static Helper Methods ---
 
-  // --- Helpers ---
+  private static sanitizeCertificateNumber(certNumber: string): string {
+    return certNumber ? certNumber.trim().toUpperCase().replace(/\s+/g, '') : '';
+  }
 
   private static sanitize(val: string): string {
-    return val ? val.trim().toUpperCase() : '';
+    return val ? val.trim() : '';
   }
+
+  private static determineRegistrationType(
+    dateOfDeath: Date,
+    dateOfRegistration: Date,
+  ): RegistrationType {
+    const oneYearLater = new Date(dateOfDeath);
+    oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
+
+    if (dateOfRegistration > oneYearLater) {
+      return RegistrationType.LATE_REGISTRATION;
+    }
+
+    const oneWeekLater = new Date(dateOfDeath);
+    oneWeekLater.setDate(oneWeekLater.getDate() + 7);
+
+    if (dateOfRegistration >= oneWeekLater) {
+      return RegistrationType.DELAYED_REGISTRATION;
+    }
+
+    return RegistrationType.STANDARD;
+  }
+
+  private static isValidCertificateNumber(certNumber: string): boolean {
+    const patterns = [
+      /^CR\/\d{4,}\/\d{4}$/,
+      /^BP\/\w+\/\d{4}$/,
+      /^HC\/\w+\/\d{4}\/\d+$/,
+      /^\d{2}\/\d{4}\/\d{4}$/,
+      /^[A-Z]{2,3}\d{6,8}$/,
+    ];
+
+    return patterns.some((pattern) => pattern.test(certNumber));
+  }
+
+  // --- JSON Serialization ---
 
   public toJSON() {
     return {
-      proofType: this._value.proofType,
+      certificateNumber: this._value.certificateNumber,
       entryNumber: this._value.entryNumber,
+      proofType: this._value.proofType,
       dateOfDeath: this._value.dateOfDeath,
       placeOfDeath: this._value.placeOfDeath,
+      causeOfDeath: this._value.causeOfDeath,
+      registrationType: this._value.registrationType,
+      dateOfRegistration: this._value.dateOfRegistration,
+      registrationDistrict: this._value.registrationDistrict,
+      isCertifiedCopy: this._value.isCertifiedCopy,
+      isVerified: this._value.isVerified,
+      verifiedAt: this._value.verifiedAt,
+      verifiedBy: this._value.verifiedBy,
+      verificationMethod: this._value.verificationMethod,
       isLateRegistration: this.isLateRegistration,
-      verified: this._value.verified,
+      isDelayedRegistration: this.isDelayedRegistration,
+      requiresAdditionalVerification: this.requiresAdditionalVerification,
+      validityStatus: this.validityStatus,
+      supportingDocumentIds: this._value.supportingDocumentIds,
     };
   }
 }

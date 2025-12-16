@@ -1,13 +1,7 @@
 // domain/value-objects/personal/life-status.vo.ts
 import { ValueObject } from '../../base/value-object';
 
-export type LifeStatusType =
-  | 'ALIVE'
-  | 'DECEASED'
-  | 'MISSING'
-  | 'PRESUMED_DEAD'
-  | 'PRESUMED_ALIVE'
-  | 'UNKNOWN';
+export type LifeStatusType = 'ALIVE' | 'DECEASED' | 'MISSING';
 
 export interface LifeStatusProps {
   status: LifeStatusType;
@@ -16,11 +10,6 @@ export interface LifeStatusProps {
   causeOfDeath?: string;
   missingSince?: Date;
   lastSeenLocation?: string;
-  presumedDeadDate?: Date;
-  presumedDeadCourtOrder?: string;
-  funeralArranged: boolean;
-  burialLocation?: string;
-  cremation: boolean;
 }
 
 export class LifeStatus extends ValueObject<LifeStatusProps> {
@@ -29,100 +18,107 @@ export class LifeStatus extends ValueObject<LifeStatusProps> {
     this.validate();
   }
 
+  // Factory method for creating a new alive status
   static createAlive(): LifeStatus {
     return new LifeStatus({
       status: 'ALIVE',
-      funeralArranged: false,
-      cremation: false,
     });
   }
 
-  static createDeceased(dateOfDeath: Date): LifeStatus {
+  // Factory method for creating a deceased status
+  static createDeceased(
+    dateOfDeath: Date,
+    placeOfDeath?: string,
+    causeOfDeath?: string,
+  ): LifeStatus {
     return new LifeStatus({
       status: 'DECEASED',
       dateOfDeath,
-      funeralArranged: false,
-      cremation: false,
+      placeOfDeath,
+      causeOfDeath,
     });
   }
 
+  // Factory method for creating a missing status
   static createMissing(missingSince: Date, lastSeenLocation?: string): LifeStatus {
     return new LifeStatus({
       status: 'MISSING',
       missingSince,
       lastSeenLocation,
-      funeralArranged: false,
-      cremation: false,
     });
   }
 
+  // Factory method for creating from existing data
   static createFromProps(props: LifeStatusProps): LifeStatus {
     return new LifeStatus(props);
   }
 
-  validate(): void {
-    // Date of death validation
-    if (this._value.dateOfDeath) {
-      if (this._value.dateOfDeath > new Date()) {
-        throw new Error('Date of death cannot be in the future');
-      }
-
-      if (this._value.status !== 'DECEASED' && this._value.dateOfDeath) {
-        throw new Error('Date of death can only be set for DECEASED status');
-      }
+  // Factory method for creating from JSON (for mappers)
+  static createFromJSON(data: any): LifeStatus {
+    if (!data) {
+      return LifeStatus.createAlive();
     }
 
-    // Missing since validation
-    if (this._value.missingSince) {
-      if (this._value.missingSince > new Date()) {
-        throw new Error('Missing since date cannot be in the future');
-      }
+    const props: LifeStatusProps = {
+      status: data.status || 'ALIVE',
+      dateOfDeath: data.dateOfDeath ? new Date(data.dateOfDeath) : undefined,
+      placeOfDeath: data.placeOfDeath,
+      causeOfDeath: data.causeOfDeath,
+      missingSince: data.missingSince ? new Date(data.missingSince) : undefined,
+      lastSeenLocation: data.lastSeenLocation,
+    };
 
-      if (this._value.status !== 'MISSING' && this._value.missingSince) {
-        throw new Error('Missing since date can only be set for MISSING status');
-      }
+    return new LifeStatus(props);
+  }
+
+  protected validate(): void {
+    const { status, dateOfDeath, missingSince } = this._value;
+
+    // Validate date of death for deceased status
+    if (status === 'DECEASED' && !dateOfDeath) {
+      throw new Error('Date of death is required for deceased status');
     }
 
-    // Presumed dead validation
-    if (this._value.presumedDeadDate) {
-      if (this._value.presumedDeadDate > new Date()) {
-        throw new Error('Presumed dead date cannot be in the future');
-      }
-
-      if (!['PRESUMED_DEAD', 'MISSING'].includes(this._value.status)) {
-        throw new Error('Presumed dead date can only be set for MISSING or PRESUMED_DEAD status');
-      }
+    // Validate missing since for missing status
+    if (status === 'MISSING' && !missingSince) {
+      throw new Error('Missing since date is required for missing status');
     }
 
-    // Funeral validation
-    if (this._value.funeralArranged && this._value.status !== 'DECEASED') {
-      throw new Error('Funeral can only be arranged for DECEASED status');
+    // Validate date of death is not in the future
+    if (dateOfDeath && dateOfDeath > new Date()) {
+      throw new Error('Date of death cannot be in the future');
     }
 
-    // Cremation validation
-    if (this._value.cremation && this._value.status !== 'DECEASED') {
-      throw new Error('Cremation can only be set for DECEASED status');
+    // Validate missing since is not in the future
+    if (missingSince && missingSince > new Date()) {
+      throw new Error('Missing since date cannot be in the future');
     }
 
-    // Burial location validation
-    if (this._value.burialLocation && this._value.status !== 'DECEASED') {
-      throw new Error('Burial location can only be set for DECEASED status');
+    // Validate consistency - can't have both date of death and missing since
+    if (dateOfDeath && missingSince) {
+      throw new Error('Cannot have both date of death and missing since date');
     }
 
-    // Cause of death validation
-    if (this._value.causeOfDeath && this._value.status !== 'DECEASED') {
-      throw new Error('Cause of death can only be set for DECEASED status');
+    // Validate place of death only for deceased
+    if (this._value.placeOfDeath && status !== 'DECEASED') {
+      throw new Error('Place of death can only be set for deceased status');
     }
 
-    // Place of death validation
-    if (this._value.placeOfDeath && this._value.status !== 'DECEASED') {
-      throw new Error('Place of death can only be set for DECEASED status');
+    // Validate cause of death only for deceased
+    if (this._value.causeOfDeath && status !== 'DECEASED') {
+      throw new Error('Cause of death can only be set for deceased status');
+    }
+
+    // Validate last seen location only for missing
+    if (this._value.lastSeenLocation && status !== 'MISSING') {
+      throw new Error('Last seen location can only be set for missing status');
     }
   }
 
+  // Domain methods
+
   markDeceased(dateOfDeath: Date, placeOfDeath?: string, causeOfDeath?: string): LifeStatus {
     return new LifeStatus({
-      ...this._value,
       status: 'DECEASED',
       dateOfDeath,
       placeOfDeath,
@@ -132,58 +128,19 @@ export class LifeStatus extends ValueObject<LifeStatusProps> {
 
   markMissing(missingSince: Date, lastSeenLocation?: string): LifeStatus {
     return new LifeStatus({
-      ...this._value,
       status: 'MISSING',
       missingSince,
       lastSeenLocation,
     });
   }
 
-  markPresumedDead(presumedDeadDate: Date, courtOrder?: string): LifeStatus {
-    return new LifeStatus({
-      ...this._value,
-      status: 'PRESUMED_DEAD',
-      presumedDeadDate,
-      presumedDeadCourtOrder: courtOrder,
-    });
-  }
-
   markAlive(): LifeStatus {
     return new LifeStatus({
-      ...this._value,
       status: 'ALIVE',
-      dateOfDeath: undefined,
-      missingSince: undefined,
-      presumedDeadDate: undefined,
-      presumedDeadCourtOrder: undefined,
-      causeOfDeath: undefined,
-      placeOfDeath: undefined,
     });
   }
 
-  arrangeFuneral(burialLocation?: string, cremation: boolean = false): LifeStatus {
-    if (this._value.status !== 'DECEASED') {
-      throw new Error('Cannot arrange funeral for non-deceased person');
-    }
-
-    return new LifeStatus({
-      ...this._value,
-      funeralArranged: true,
-      burialLocation,
-      cremation,
-    });
-  }
-
-  updateCauseOfDeath(cause: string): LifeStatus {
-    if (this._value.status !== 'DECEASED') {
-      throw new Error('Cannot update cause of death for non-deceased person');
-    }
-
-    return new LifeStatus({
-      ...this._value,
-      causeOfDeath: cause,
-    });
-  }
+  // Getters
 
   get status(): LifeStatusType {
     return this._value.status;
@@ -209,76 +166,64 @@ export class LifeStatus extends ValueObject<LifeStatusProps> {
     return this._value.lastSeenLocation;
   }
 
-  get presumedDeadDate(): Date | undefined {
-    return this._value.presumedDeadDate;
-  }
+  // Computed properties that match entity requirements
 
-  get presumedDeadCourtOrder(): string | undefined {
-    return this._value.presumedDeadCourtOrder;
-  }
-
-  get funeralArranged(): boolean {
-    return this._value.funeralArranged;
-  }
-
-  get burialLocation(): string | undefined {
-    return this._value.burialLocation;
-  }
-
-  get cremation(): boolean {
-    return this._value.cremation;
-  }
-
-  // Check if person is alive
   get isAlive(): boolean {
-    return this._value.status === 'ALIVE' || this._value.status === 'PRESUMED_ALIVE';
+    return this._value.status === 'ALIVE';
   }
 
-  // Check if person is deceased
   get isDeceased(): boolean {
-    return this._value.status === 'DECEASED' || this._value.status === 'PRESUMED_DEAD';
+    return this._value.status === 'DECEASED';
   }
 
-  // Check if person is missing
   get isMissing(): boolean {
     return this._value.status === 'MISSING';
   }
 
-  // Check if death is officially registered
-  get isOfficiallyDeceased(): boolean {
-    return this._value.status === 'DECEASED' && !!this._value.dateOfDeath;
+  get deathCertificateIssued(): boolean {
+    // In your entity, this is determined by the presence of a death certificate in KenyanIdentity
+    // This is just a placeholder - the actual check is in the FamilyMember entity
+    return this.isDeceased;
   }
 
-  // Get duration missing (in days)
-  get missingDurationDays(): number | null {
-    if (!this._value.missingSince) return null;
-
-    const now = new Date();
-    const diffTime = now.getTime() - this._value.missingSince.getTime();
-    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  }
+  // Helper methods for business logic
 
   // Check if person can be declared legally dead (7 years missing in Kenya)
   get canBeDeclaredLegallyDead(): boolean {
-    if (this._value.status !== 'MISSING') return false;
+    if (!this.isMissing || !this._value.missingSince) {
+      return false;
+    }
 
-    const missingDuration = this.missingDurationDays;
-    if (!missingDuration) return false;
-
-    // Kenyan law: 7 years missing for presumption of death
-    return missingDuration >= 2555; // 7 years in days (approx)
+    const now = new Date();
+    const yearsMissing =
+      (now.getTime() - this._value.missingSince.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+    return yearsMissing >= 7; // Kenyan law: 7 years missing for presumption of death
   }
 
-  // Check if funeral has been arranged
-  get hasFuneralArranged(): boolean {
-    return this._value.funeralArranged;
+  // Get duration missing in years (for Kenyan presumption of death)
+  get yearsMissing(): number | null {
+    if (!this.isMissing || !this._value.missingSince) {
+      return null;
+    }
+
+    const now = new Date();
+    return (now.getTime() - this._value.missingSince.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
   }
 
-  // Get burial type
-  get burialType(): string {
-    if (this._value.cremation) return 'CREMATION';
-    if (this._value.burialLocation) return 'BURIAL';
-    return 'UNKNOWN';
+  // Check if this is a sudden death (within 24 hours)
+  get isSuddenDeath(): boolean {
+    if (!this.isDeceased || !this._value.dateOfDeath) {
+      return false;
+    }
+
+    // This would require additional medical information
+    // Placeholder logic
+    return false;
+  }
+
+  // For inheritance eligibility
+  get isEligibleForInheritance(): boolean {
+    return this.isAlive || (this.isDeceased && !!this._value.dateOfDeath);
   }
 
   toJSON() {
@@ -289,19 +234,28 @@ export class LifeStatus extends ValueObject<LifeStatusProps> {
       causeOfDeath: this._value.causeOfDeath,
       missingSince: this._value.missingSince?.toISOString(),
       lastSeenLocation: this._value.lastSeenLocation,
-      presumedDeadDate: this._value.presumedDeadDate?.toISOString(),
-      presumedDeadCourtOrder: this._value.presumedDeadCourtOrder,
-      funeralArranged: this._value.funeralArranged,
-      burialLocation: this._value.burialLocation,
-      cremation: this._value.cremation,
       isAlive: this.isAlive,
       isDeceased: this.isDeceased,
       isMissing: this.isMissing,
-      isOfficiallyDeceased: this.isOfficiallyDeceased,
-      missingDurationDays: this.missingDurationDays,
+      deathCertificateIssued: this.deathCertificateIssued,
       canBeDeclaredLegallyDead: this.canBeDeclaredLegallyDead,
-      hasFuneralArranged: this.hasFuneralArranged,
-      burialType: this.burialType,
+      yearsMissing: this.yearsMissing,
+      isSuddenDeath: this.isSuddenDeath,
+      isEligibleForInheritance: this.isEligibleForInheritance,
     };
+  }
+
+  // For debugging
+  toString(): string {
+    switch (this._value.status) {
+      case 'ALIVE':
+        return 'Alive';
+      case 'DECEASED':
+        return `Deceased on ${this._value.dateOfDeath?.toLocaleDateString()}`;
+      case 'MISSING':
+        return `Missing since ${this._value.missingSince?.toLocaleDateString()}`;
+      default:
+        return 'Unknown';
+    }
   }
 }

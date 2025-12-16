@@ -50,7 +50,8 @@ export interface DemographicInfoProps {
   numberOfDependants?: number;
   languages: string[];
   ethnicGroup?: string;
-  subEthnicGroup?: string; // Mapped from 'subClan' in entity
+  clan?: string;
+  subClan?: string;
   isUrbanDweller: boolean;
   hasRuralHome: boolean;
   ruralHomeLocation?: string;
@@ -73,6 +74,32 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
 
   static createFromProps(props: DemographicInfoProps): DemographicInfo {
     return new DemographicInfo(props);
+  }
+
+  static createFromJSON(data: any): DemographicInfo | undefined {
+    if (!data) return undefined;
+
+    return new DemographicInfo({
+      gender: data.gender || undefined,
+      religion: data.religion || undefined,
+      maritalStatus: data.maritalStatus || undefined,
+      occupation: data.occupation || undefined,
+      educationLevel: data.educationLevel || undefined,
+      institutionName: data.institutionName || undefined,
+      yearOfGraduation: data.yearOfGraduation || undefined,
+      employmentStatus: data.employmentStatus || undefined,
+      employerName: data.employerName || undefined,
+      monthlyIncome: data.monthlyIncome || undefined,
+      incomeCurrency: data.incomeCurrency || undefined,
+      numberOfDependants: data.numberOfDependants || undefined,
+      languages: data.languages || [],
+      ethnicGroup: data.ethnicGroup || undefined,
+      clan: data.clan || data.subEthnicGroup || undefined,
+      subClan: data.subClan || undefined,
+      isUrbanDweller: data.isUrbanDweller !== undefined ? data.isUrbanDweller : true,
+      hasRuralHome: data.hasRuralHome || false,
+      ruralHomeLocation: data.ruralHomeLocation || undefined,
+    });
   }
 
   validate(): void {
@@ -291,11 +318,12 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
     });
   }
 
-  updateEthnicity(ethnicGroup?: string, subEthnicGroup?: string): DemographicInfo {
+  updateEthnicity(ethnicGroup?: string, clan?: string, subClan?: string): DemographicInfo {
     return new DemographicInfo({
       ...this._value,
       ethnicGroup,
-      subEthnicGroup,
+      clan,
+      subClan,
     });
   }
 
@@ -370,13 +398,12 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
     return this._value.ethnicGroup;
   }
 
-  get subEthnicGroup(): string | undefined {
-    return this._value.subEthnicGroup;
+  get clan(): string | undefined {
+    return this._value.clan;
   }
 
-  // Alias subClan to subEthnicGroup for compatibility with FamilyMember
   get subClan(): string | undefined {
-    return this._value.subEthnicGroup;
+    return this._value.subClan;
   }
 
   get isUrbanDweller(): boolean {
@@ -496,7 +523,8 @@ export class DemographicInfo extends ValueObject<DemographicInfoProps> {
       numberOfDependants: this.numberOfDependants,
       languages: this.languages,
       ethnicGroup: this.ethnicGroup,
-      subEthnicGroup: this.subEthnicGroup,
+      clan: this.clan,
+      subClan: this.subClan,
       isUrbanDweller: this.isUrbanDweller,
       hasRuralHome: this.hasRuralHome,
       ruralHomeLocation: this.ruralHomeLocation,

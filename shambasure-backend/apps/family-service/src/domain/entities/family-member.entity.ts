@@ -1,4 +1,3 @@
-// domain/entities/family-member.entity.ts
 import { AggregateRoot } from '../base/aggregate-root';
 import {
   FamilyMemberAgeRecalculatedEvent,
@@ -33,17 +32,25 @@ export interface FamilyMemberProps {
   id: string;
   userId?: string;
   familyId: string;
+
+  // The Single Source of Truth (Value Objects)
   name: KenyanName;
   identity: KenyanIdentity;
-  contactInfo?: ContactInfo;
-  disabilityStatus?: DisabilityStatus;
   lifeStatus: LifeStatus;
+
+  // Optional VOs
+  contactInfo?: ContactInfo;
   demographicInfo?: DemographicInfo;
   ageCalculation?: AgeCalculation;
+  disabilityStatus?: DisabilityStatus;
   birthLocation?: KenyanLocation;
   deathLocation?: KenyanLocation;
+
+  // Domain Fields
   occupation?: string;
   polygamousHouseId?: string;
+
+  // System/Audit
   version: number;
   lastEventId?: string;
   createdAt: Date;

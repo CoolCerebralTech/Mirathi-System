@@ -56,6 +56,111 @@ export class DisabilityStatus extends ValueObject<DisabilityStatusProps> {
     return new DisabilityStatus(props);
   }
 
+  static createFromJSON(data: any): DisabilityStatus | undefined {
+    if (!data) return undefined;
+
+    return new DisabilityStatus({
+      hasDisability: data.hasDisability || false,
+      disabilityCardNumber: data.disabilityCardNumber,
+      registeredWithNCPWD: data.registeredWithNCPWD || false,
+      ncpwdRegistrationDate: data.ncpwdRegistrationDate
+        ? new Date(data.ncpwdRegistrationDate)
+        : undefined,
+      disabilityDetails: (data.disabilityDetails || []).map((detail: any) => ({
+        type: detail.type,
+        severity: detail.severity,
+        description: detail.description,
+        onsetDate: detail.onsetDate ? new Date(detail.onsetDate) : undefined,
+        diagnosedBy: detail.diagnosedBy,
+        medicalCertificationId: detail.medicalCertificationId,
+        requiresAssistance: detail.requiresAssistance || false,
+        assistanceNeeds: detail.assistanceNeeds,
+        mobilityAids: detail.mobilityAids,
+      })),
+      functionalLimitations: data.functionalLimitations,
+      requiresSupportedDecisionMaking: data.requiresSupportedDecisionMaking || false,
+      legalCapacityAssessed: data.legalCapacityAssessed,
+      assessmentDate: data.assessmentDate ? new Date(data.assessmentDate) : undefined,
+      assessorName: data.assessorName,
+    });
+  }
+
+  // Factory method for creating from Prisma string status
+  static createFromPrismaStatus(
+    disabilityStatus?: string,
+    requiresSupportedDecisionMaking: boolean = false,
+    disabilityCertificate?: string,
+  ): DisabilityStatus | undefined {
+    if (!disabilityStatus || disabilityStatus === 'NONE') {
+      if (requiresSupportedDecisionMaking) {
+        const status = DisabilityStatus.create(false);
+        return status.setSupportedDecisionMaking(true);
+      }
+      return undefined;
+    }
+
+    // Map Prisma string to DisabilityType
+    const disabilityType = this.mapPrismaToDisabilityType(disabilityStatus);
+
+    const disabilityDetail: DisabilityDetails = {
+      type: disabilityType,
+      severity: 'MODERATE', // Default severity
+      requiresAssistance: requiresSupportedDecisionMaking,
+    };
+
+    let status = DisabilityStatus.create(true);
+    status = status.addDisability(disabilityDetail);
+
+    if (disabilityCertificate) {
+      status = status.registerWithNCPWD(disabilityCertificate, new Date());
+    }
+
+    if (requiresSupportedDecisionMaking) {
+      status = status.setSupportedDecisionMaking(true);
+    }
+
+    return status;
+  }
+
+  private static mapPrismaToDisabilityType(prismaStatus: string): DisabilityType {
+    // Map Prisma disability status strings to our DisabilityType
+    const statusMap: Record<string, DisabilityType> = {
+      PHYSICAL: 'PHYSICAL',
+      MENTAL: 'MENTAL_HEALTH',
+      BOTH: 'MULTIPLE',
+      VISUAL: 'VISUAL',
+      HEARING: 'HEARING',
+      SPEECH: 'SPEECH',
+      INTELLECTUAL: 'INTELLECTUAL',
+      MULTIPLE: 'MULTIPLE',
+    };
+
+    return statusMap[prismaStatus] || 'OTHER';
+  }
+
+  // Get a simplified status for Prisma storage
+  get prismaStatus(): string {
+    if (!this._value.hasDisability) return 'NONE';
+
+    const details = this._value.disabilityDetails;
+    if (details.length === 0) return 'NONE';
+
+    // Check for multiple types
+    const hasPhysical = details.some(
+      (d) =>
+        d.type === 'PHYSICAL' || d.type === 'VISUAL' || d.type === 'HEARING' || d.type === 'SPEECH',
+    );
+
+    const hasMental = details.some((d) => d.type === 'MENTAL_HEALTH' || d.type === 'INTELLECTUAL');
+
+    if (hasPhysical && hasMental) return 'BOTH';
+    if (hasPhysical) return 'PHYSICAL';
+    if (hasMental) return 'MENTAL';
+
+    // Default to first type
+    return details[0].type;
+  }
+
   validate(): void {
     // If hasDisability is false, other disability fields should not be present
     if (!this._value.hasDisability) {
@@ -294,24 +399,39 @@ export class DisabilityStatus extends ValueObject<DisabilityStatusProps> {
     );
   }
 
+  // Get status for mapper (computed from disability details)
+  get status(): string {
+    return this.prismaStatus;
+  }
+
   toJSON() {
     return {
       hasDisability: this._value.hasDisability,
       disabilityCardNumber: this._value.disabilityCardNumber,
       registeredWithNCPWD: this._value.registeredWithNCPWD,
       ncpwdRegistrationDate: this._value.ncpwdRegistrationDate?.toISOString(),
-      disabilityDetails: this._value.disabilityDetails,
+      disabilityDetails: this._value.disabilityDetails.map((detail) => ({
+        ...detail,
+        onsetDate: detail.onsetDate?.toISOString(),
+      })),
       functionalLimitations: this._value.functionalLimitations,
       requiresSupportedDecisionMaking: this._value.requiresSupportedDecisionMaking,
       legalCapacityAssessed: this._value.legalCapacityAssessed,
       assessmentDate: this._value.assessmentDate?.toISOString(),
       assessorName: this._value.assessorName,
-      primaryDisability: this.primaryDisability,
+      primaryDisability: this.primaryDisability
+        ? {
+            ...this.primaryDisability,
+            onsetDate: this.primaryDisability.onsetDate?.toISOString(),
+          }
+        : undefined,
       hasSevereDisability: this.hasSevereDisability,
       affectsInheritanceCapacity: this.affectsInheritanceCapacity,
       qualifiesForDependantStatus: this.qualifiesForDependantStatus,
       disabilityDuration: this.disabilityDuration,
       needsMobilityAssistance: this.needsMobilityAssistance,
+      status: this.status,
+      prismaStatus: this.prismaStatus,
     };
   }
 }
