@@ -1,36 +1,96 @@
+// domain/interfaces/repositories/icohabitation-record.repository.ts
 import { CohabitationRecord } from '../../entities/cohabitation-record.entity';
 
 export interface ICohabitationRecordRepository {
   /**
-   * Finds a CohabitationRecord by its unique ID.
+   * Core CRUD Operations
    */
+  create(record: CohabitationRecord): Promise<CohabitationRecord>;
   findById(id: string): Promise<CohabitationRecord | null>;
+  update(record: CohabitationRecord): Promise<CohabitationRecord>;
+  delete(id: string): Promise<void>;
 
   /**
-   * Finds the most recent active cohabitation record between two partners.
-   * This is essential for preventing duplicate active records.
+   * Partner Relationship Queries (Critical for S.29(5))
    */
   findActiveByPartners(partner1Id: string, partner2Id: string): Promise<CohabitationRecord | null>;
+  findAllByPartners(partner1Id: string, partner2Id: string): Promise<CohabitationRecord[]>;
+  findAllByPartnerId(partnerId: string): Promise<CohabitationRecord[]>;
+  getActivePartnerId(partnerId: string): Promise<string | null>;
+  isPersonInActiveCohabitation(partnerId: string): Promise<boolean>;
 
   /**
-   * Finds all cohabitation records (active and inactive) for a specific family.
+   * Family Relationship Queries
    */
   findAllByFamilyId(familyId: string): Promise<CohabitationRecord[]>;
+  countByFamilyId(familyId: string): Promise<number>;
+  findActiveByFamilyId(familyId: string): Promise<CohabitationRecord[]>;
+  findEndedByFamilyId(familyId: string): Promise<CohabitationRecord[]>;
 
   /**
-   * Finds all cohabitation records (active and inactive) a person has been a part of.
+   * S.29(5) LSA Compliance Queries (Critical for Inheritance)
    */
-  findAllByPartnerId(partnerId: string): Promise<CohabitationRecord[]>;
+  findQualifyingForS29ByFamilyId(familyId: string): Promise<CohabitationRecord[]>;
+  findQualifyingForS29ByPartnerId(partnerId: string): Promise<CohabitationRecord[]>;
+  findQualifyingAsWomanLivingAsWife(familyId: string): Promise<CohabitationRecord[]>;
 
   /**
-   * Saves a new or updated CohabitationRecord entity.
-   * @param record The CohabitationRecord entity to save.
-   * @param tx An optional transaction client.
+   * Status-Based Queries
    */
-  save(record: CohabitationRecord, tx?: any): Promise<CohabitationRecord>;
+  findAcknowledgedByFamilyId(familyId: string): Promise<CohabitationRecord[]>;
+  findRegisteredByFamilyId(familyId: string): Promise<CohabitationRecord[]>;
+  findRejectedByFamilyId(familyId: string): Promise<CohabitationRecord[]>;
+  findWithChildrenByFamilyId(familyId: string): Promise<CohabitationRecord[]>;
 
   /**
-   * Deletes a CohabitationRecord from the repository.
+   * Duration-Based Queries (Critical for S.29(5) threshold)
    */
-  delete(id: string, tx?: any): Promise<void>;
+  findWithDurationGreaterThan(familyId: string, years: number): Promise<CohabitationRecord[]>;
+  findActiveWithLongDuration(familyId: string, years: number): Promise<CohabitationRecord[]>;
+  findPotentialS29Claims(familyId: string): Promise<CohabitationRecord[]>;
+
+  /**
+   * Bulk Operations
+   */
+  batchSave(records: CohabitationRecord[]): Promise<CohabitationRecord[]>;
+  batchEndByFamilyId(familyId: string, endDate: Date): Promise<void>;
+
+  /**
+   * Validation & Existence Checks
+   */
+  existsActiveForPartners(partner1Id: string, partner2Id: string): Promise<boolean>;
+  validateCohabitationUniqueness(
+    familyId: string,
+    partner1Id: string,
+    partner2Id: string,
+    startDate: Date,
+  ): Promise<boolean>;
+
+  /**
+   * Statistics & Reporting
+   */
+  getCohabitationStatistics(familyId: string): Promise<{
+    total: number;
+    active: number;
+    ended: number;
+    acknowledged: number;
+    registered: number;
+    qualifyingS29: number;
+    withChildren: number;
+    averageDuration: number;
+  }>;
+
+  /**
+   * Date Range Queries
+   */
+  findOverlappingByDateRange(
+    familyId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<CohabitationRecord[]>;
+
+  /**
+   * Legal Evidence Queries
+   */
+  findWithStrongEvidence(familyId: string): Promise<CohabitationRecord[]>;
 }

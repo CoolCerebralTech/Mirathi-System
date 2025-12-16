@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, FamilyLegalEvent as PrismaFamilyLegalEvent } from '@prisma/client';
 
 import {
@@ -9,53 +9,70 @@ import {
 
 @Injectable()
 export class FamilyLegalEventMapper {
+  private readonly logger = new Logger(FamilyLegalEventMapper.name);
+
   /**
    * Converts a raw Prisma FamilyLegalEvent record into a FamilyLegalEvent domain entity.
-   * This method reconstitutes the entity from database data.
-   * @param raw The raw data from Prisma.
-   * @returns A FamilyLegalEvent entity instance, or null if raw is null.
    */
   toDomain(raw: PrismaFamilyLegalEvent | null): FamilyLegalEvent | null {
     if (!raw) {
       return null;
     }
 
-    const metadata = (raw.metadata as Record<string, any>) ?? {};
+    try {
+      // 1. Safe Metadata Parsing
+      const metadata =
+        raw.metadata && typeof raw.metadata === 'object'
+          ? (raw.metadata as Record<string, any>)
+          : {};
 
-    // The domain expects `occurredAt`, but the schema only has `createdAt`.
-    // We retrieve `occurredAt` from the metadata, with a fallback to `createdAt`
-    // for data integrity, ensuring the domain model is always valid.
-    const occurredAt = metadata.occurredAt ? new Date(metadata.occurredAt) : raw.createdAt;
+      // 2. Extract occurredAt from metadata (fallback to recordedAt/createdAt if missing)
+      // This supports historical data entry where the event happened years ago.
+      let occurredAt = raw.createdAt;
+      if (metadata.occurredAt) {
+        const parsedDate = new Date(metadata.occurredAt);
+        if (!isNaN(parsedDate.getTime())) {
+          occurredAt = parsedDate;
+        }
+      }
 
-    const props: FamilyLegalEventProps = {
-      id: raw.id,
-      familyId: raw.familyId,
-      eventType: raw.eventType as LegalEventType,
-      description: raw.description,
-      metadata: metadata,
-      relatedUserId: raw.relatedUserId ?? undefined,
-      relatedEstateId: raw.relatedEstateId ?? undefined,
-      relatedCaseId: raw.relatedCaseId ?? undefined,
-      recordedBy: raw.recordedBy ?? undefined,
-      occurredAt: occurredAt,
-      recordedAt: raw.createdAt, // DB `createdAt` maps to domain `recordedAt`
-      version: 1, // Defaulting version as it's not in the Prisma model
-    };
+      // 3. Enum Casting
+      // Ensure DB string matches Domain Enum, default to generic if unknown
+      const eventType = Object.values(LegalEventType).includes(raw.eventType as LegalEventType)
+        ? (raw.eventType as LegalEventType)
+        : LegalEventType.MARRIAGE_REGISTERED; // Fallback or throw based on strictness
 
-    return FamilyLegalEvent.createFromProps(props);
+      const props: FamilyLegalEventProps = {
+        id: raw.id,
+        familyId: raw.familyId,
+        eventType: eventType,
+        description: raw.description,
+        metadata: metadata,
+        relatedUserId: raw.relatedUserId ?? undefined,
+        relatedEstateId: raw.relatedEstateId ?? undefined,
+        relatedCaseId: raw.relatedCaseId ?? undefined,
+        recordedBy: raw.recordedBy ?? undefined,
+        occurredAt: occurredAt,
+        recordedAt: raw.createdAt, // DB `createdAt` maps to domain `recordedAt`
+        // FIX: Map the actual version from DB schema
+        version: raw.version,
+      };
+
+      return FamilyLegalEvent.createFromProps(props);
+    } catch (error) {
+      this.logger.error(`Failed to reconstitute FamilyLegalEvent ${raw?.id}`, error.stack);
+      throw new Error(`Data integrity error for FamilyLegalEvent ${raw?.id}: ${error.message}`);
+    }
   }
 
   /**
    * Converts a FamilyLegalEvent domain entity into a Prisma-compatible data structure.
-   * This method "flattens" the entity for persistence.
-   * @param entity The FamilyLegalEvent entity instance.
-   * @returns An object compatible with Prisma's `create` data input.
    */
   toPersistence(entity: FamilyLegalEvent): Prisma.FamilyLegalEventUncheckedCreateInput {
     const props = entity.toJSON();
 
-    // To ensure no data loss, we embed the domain's `occurredAt` field
-    // into the metadata JSON blob before persisting.
+    // Strategy: We embed the domain's `occurredAt` into the metadata JSON
+    // because the Schema doesn't have a specific column for it.
     const metadataWithOccurredAt = {
       ...props.metadata,
       occurredAt: props.occurredAt.toISOString(),
@@ -66,12 +83,31 @@ export class FamilyLegalEventMapper {
       familyId: props.familyId,
       eventType: props.eventType,
       description: props.description,
-      metadata: metadataWithOccurredAt,
+      metadata: metadataWithOccurredAt as Prisma.InputJsonValue,
       relatedUserId: props.relatedUserId,
       relatedEstateId: props.relatedEstateId,
       relatedCaseId: props.relatedCaseId,
       recordedBy: props.recordedBy,
-      createdAt: props.recordedAt, // Domain `recordedAt` maps to DB `createdAt`
+      // DB 'createdAt' represents when the record was inserted (recordedAt)
+      createdAt: props.recordedAt,
+      version: props.version,
+    };
+  }
+
+  /**
+   * Creates a partial update input (though Legal Events are usually immutable)
+   */
+  toPrismaUpdate(entity: FamilyLegalEvent): Prisma.FamilyLegalEventUncheckedUpdateInput {
+    const props = entity.toJSON();
+
+    // Only mutable fields (e.g., if correcting a typo in description)
+    return {
+      description: props.description,
+      metadata: {
+        ...props.metadata,
+        occurredAt: props.occurredAt.toISOString(),
+      } as Prisma.InputJsonValue,
+      version: props.version,
     };
   }
 }

@@ -540,11 +540,12 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
 
     // Add death certificate if provided
     if (params.deathCertificateNumber) {
-      const deathCertificate = DeathCertificate.create(
+      const deathCertificate = DeathCertificate.createStandardCertificate(
         params.deathCertificateNumber,
         params.dateOfDeath,
-        new Date(),
+        new Date(), // date of registration
         params.placeOfDeath || '',
+        params.placeOfDeath || 'UNKNOWN', // registrationDistrict - using placeOfDeath or default
       );
       this.props.identity = this.props.identity.withDeathCertificate(deathCertificate);
     }
@@ -950,12 +951,10 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
     return this.props.demographicInfo?.isMuslim || false;
   }
 
-  // FIXED: Use correct method from KenyanIdentity
   get isCustomaryLawApplicable(): boolean {
     return this.props.identity['_value'].appliesCustomaryLaw || false;
   }
 
-  // FIXED: Use correct property from KenyanIdentity
   get isIdentityVerified(): boolean {
     return this.props.identity['_value'].isLegallyVerified || false;
   }

@@ -1,5 +1,4 @@
-// family-member.mapper.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, FamilyMember as PrismaFamilyMember } from '@prisma/client';
 
 import { FamilyMember, FamilyMemberProps } from '../../../domain/entities/family-member.entity';
@@ -17,25 +16,28 @@ import { LifeStatus } from '../../../domain/value-objects/personal/life-status.v
 
 @Injectable()
 export class FamilyMemberMapper {
+  private readonly logger = new Logger(FamilyMemberMapper.name);
+
   /**
    * Converts Prisma FamilyMember record to Domain FamilyMember aggregate
    */
-  toDomain(raw: PrismaFamilyMember): FamilyMember {
-    // Convert null to undefined for domain
-    const toUndefined = <T>(value: T | null): T | undefined => (value === null ? undefined : value);
+  toDomain(raw: PrismaFamilyMember): FamilyMember | null {
+    if (!raw) return null;
 
     try {
-      // Reconstruct KenyanName
+      // 1. Reconstruct KenyanName
       const name = KenyanName.create(
         raw.firstName || '',
         raw.lastName || '',
-        toUndefined(raw.middleName),
+        raw.middleName || undefined,
       );
 
       const nameWithMaidenName = raw.maidenName ? name.withMaidenName(raw.maidenName) : name;
 
-      // Reconstruct KenyanIdentity
-      let identity = KenyanIdentity.create((raw.citizenship as any) || 'KENYAN');
+      // 2. Reconstruct KenyanIdentity
+      let identity = KenyanIdentity.create(
+        (raw.citizenship as 'KENYAN' | 'DUAL' | 'FOREIGN') || 'KENYAN',
+      );
 
       // Add National ID
       if (raw.nationalId) {
@@ -59,11 +61,13 @@ export class FamilyMemberMapper {
 
       // Add death certificate
       if (raw.deathCertificateNumber && raw.dateOfDeath) {
-        const deathCertificate = DeathCertificate.create(
+        // FIX: Use createStandardCertificate instead of create
+        const deathCertificate = DeathCertificate.createStandardCertificate(
           raw.deathCertificateNumber,
           raw.dateOfDeath,
-          new Date(),
-          raw.placeOfDeath || '',
+          raw.createdAt, // Fallback to record creation date for registration date
+          raw.placeOfDeath || 'Unknown',
+          'Unknown', // Registration district missing in simple DB schema
         );
         identity = identity.withDeathCertificate(deathCertificate);
       }
@@ -73,11 +77,11 @@ export class FamilyMemberMapper {
         identity = identity.withCulturalDetails(
           raw.customaryEthnicGroup || '',
           raw.religion || '',
-          toUndefined(raw.customaryClan),
+          raw.customaryClan || undefined,
         );
       }
 
-      // Reconstruct ContactInfo
+      // 3. Reconstruct ContactInfo
       let contactInfo: ContactInfo | undefined;
       if (raw.phoneNumber) {
         try {
@@ -89,34 +93,34 @@ export class FamilyMemberMapper {
             contactInfo = contactInfo.updateSecondaryPhone(raw.alternativePhone);
           }
         } catch (error) {
-          console.warn('Failed to reconstruct contact info:', error);
+          this.logger.warn(`Failed to reconstruct contact info for ${raw.id}: ${error.message}`);
         }
       }
 
-      // Reconstruct LifeStatus
+      // 4. Reconstruct LifeStatus
       let lifeStatus: LifeStatus;
       if (raw.isDeceased && raw.dateOfDeath) {
         lifeStatus = LifeStatus.createDeceased(
           raw.dateOfDeath,
-          toUndefined(raw.placeOfDeath),
-          toUndefined(raw.deathCertificateNumber),
+          raw.placeOfDeath || undefined,
+          raw.deathCertificateNumber || undefined,
         );
       } else if (raw.missingSince) {
         lifeStatus = LifeStatus.createAlive().markMissing(
           raw.missingSince,
-          toUndefined(raw.placeOfDeath),
+          raw.placeOfDeath || undefined,
         );
       } else {
         lifeStatus = LifeStatus.createAlive();
       }
 
-      // Reconstruct AgeCalculation
+      // 5. Reconstruct AgeCalculation
       let ageCalculation: AgeCalculation | undefined;
       if (raw.dateOfBirth) {
         ageCalculation = AgeCalculation.create(raw.dateOfBirth);
       }
 
-      // Reconstruct DemographicInfo
+      // 6. Reconstruct DemographicInfo
       let demographicInfo: DemographicInfo | undefined;
       if (raw.gender || raw.religion || raw.customaryEthnicGroup) {
         demographicInfo = DemographicInfo.create();
@@ -129,21 +133,20 @@ export class FamilyMemberMapper {
         if (raw.customaryEthnicGroup) {
           demographicInfo = demographicInfo.updateEthnicity(
             raw.customaryEthnicGroup,
-            toUndefined(raw.customaryClan),
+            raw.customaryClan || undefined,
           );
         }
       }
 
-      // Reconstruct DisabilityStatus
+      // 7. Reconstruct DisabilityStatus
       let disabilityStatus: DisabilityStatus | undefined;
       if (raw.disabilityStatus && raw.disabilityStatus !== 'NONE') {
         disabilityStatus = DisabilityStatus.create(true);
 
-        // Add disability details based on status
         const disabilityDetail = {
           type: raw.disabilityStatus as any,
           severity: 'MODERATE' as const,
-          requiresAssistance: raw.requiresSupportedDecisionMaking || false,
+          requiresAssistance: raw.requiresSupportedDecisionMaking,
         };
 
         disabilityStatus = disabilityStatus.addDisability(disabilityDetail);
@@ -156,7 +159,7 @@ export class FamilyMemberMapper {
         disabilityStatus = disabilityStatus.setSupportedDecisionMaking(true);
       }
 
-      // Reconstruct locations
+      // 8. Reconstruct Locations
       let birthLocation: KenyanLocation | undefined;
       if (raw.placeOfBirth) {
         birthLocation = KenyanLocation.createFromProps({
@@ -177,124 +180,124 @@ export class FamilyMemberMapper {
         });
       }
 
-      // Assemble props
+      // 9. Assemble Props
       const props: FamilyMemberProps = {
         id: raw.id,
-        userId: toUndefined(raw.userId),
+        userId: raw.userId ?? undefined,
         familyId: raw.familyId,
         name: nameWithMaidenName,
         identity,
         contactInfo,
         lifeStatus,
-        disabilityStatus: disabilityStatus,
+        disabilityStatus,
         demographicInfo,
         ageCalculation,
         birthLocation,
         deathLocation,
-        occupation: toUndefined(raw.occupation),
-        polygamousHouseId: toUndefined(raw.polygamousHouseId),
+        occupation: raw.occupation ?? undefined,
+        polygamousHouseId: raw.polygamousHouseId ?? undefined,
         version: raw.version,
-        lastEventId: toUndefined(raw.lastEventId),
+        lastEventId: raw.lastEventId ?? undefined,
         createdAt: raw.createdAt,
         updatedAt: raw.updatedAt,
-        deletedAt: toUndefined(raw.deletedAt),
-        deletedBy: toUndefined(raw.deletedBy),
-        deletionReason: toUndefined(raw.deletionReason),
+        deletedAt: raw.deletedAt ?? undefined,
+        deletedBy: raw.deletedBy ?? undefined,
+        deletionReason: raw.deletionReason ?? undefined,
         isArchived: raw.isArchived,
       };
 
       return FamilyMember.createFromProps(props);
     } catch (error) {
-      console.error('Error reconstituting FamilyMember from persistence:', error);
-      throw new Error(`Failed to reconstitute FamilyMember ${raw.id}: ${error.message}`);
+      this.logger.error(`Failed to reconstitute FamilyMember ${raw?.id}`, error.stack);
+      throw new Error(`Data integrity error for FamilyMember ${raw?.id}: ${error.message}`);
     }
   }
 
   /**
    * Converts Domain FamilyMember aggregate to Prisma create input
+   * Flattens Value Objects into scalar DB columns
    */
   toPersistenceCreate(entity: FamilyMember): Prisma.FamilyMemberUncheckedCreateInput {
-    // Helper to convert undefined to null for Prisma
     const toNullable = <T>(value: T | undefined): T | null => (value === undefined ? null : value);
 
-    // Helper to convert emergency contact
-    const toEmergencyContact = (
-      emergencyContact: any,
-    ): Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue => {
-      if (!emergencyContact) {
-        return Prisma.JsonNull;
-      }
-      return emergencyContact as Prisma.InputJsonValue;
-    };
-
-    // Extract values from domain entity
-    const emergencyContact = entity.contactInfo?.emergencyContact;
-    const identity = entity.identity;
-    const lifeStatus = entity.lifeStatus.toJSON();
-    const ageCalculation = entity.ageCalculation?.toJSON();
-    const demographicInfo = entity.demographicInfo?.toJSON();
-    const disabilityStatus = entity.disabilityStatus?.toJSON();
+    const serialized = entity.toJSON();
+    // Use optional chaining carefully on serialized objects
+    const identity = serialized.identity;
+    const nationalId = identity?.nationalId;
+    const kraPin = identity?.kraPin;
+    const life = serialized.lifeStatus;
+    const contact = serialized.contactInfo;
+    const demo = serialized.demographicInfo;
+    const age = serialized.ageCalculation;
+    const disability = serialized.disabilityStatus;
 
     return {
-      id: entity.id,
-      userId: toNullable(entity.userId),
-      familyId: entity.familyId,
-      polygamousHouseId: toNullable(entity.polygamousHouseId),
+      id: serialized.id,
+      userId: toNullable(serialized.userId),
+      familyId: serialized.familyId,
+      polygamousHouseId: toNullable(serialized.polygamousHouseId),
 
       // Name
-      firstName: entity.name.firstName,
-      lastName: entity.name.lastName,
-      middleName: toNullable(entity.name.middleName),
-      maidenName: toNullable(entity.maidenName),
+      firstName: serialized.name.firstName,
+      lastName: serialized.name.lastName,
+      middleName: toNullable(serialized.name.middleName),
+      maidenName: toNullable(serialized.maidenName),
 
       // Identity
-      nationalId: toNullable(identity.nationalId?.idNumber),
-      nationalIdVerified: (identity.nationalId?.isVerified as boolean) || false,
-      nationalIdVerifiedAt: toNullable(identity.nationalId?.verifiedAt),
-      kraPin: toNullable(identity.kraPin?.pinNumber),
-      kraPinVerified: (identity.kraPin?.isVerified as boolean) || false,
-      citizenship: identity.citizenship || 'KENYAN',
+      // FIX: Cast unknown/any types from JSON to explicit Prisma types
+      nationalId: toNullable(nationalId?.idNumber as string),
+      // FIX: Access verifiedAt safely from the JSON object
+      nationalIdVerified: (nationalId?.isVerified as boolean) ?? false,
+      nationalIdVerifiedAt: toNullable(
+        nationalId?.verifiedAt ? new Date(nationalId.verifiedAt as string) : undefined,
+      ),
+
+      kraPin: toNullable(kraPin?.pinNumber as string),
+      kraPinVerified: (kraPin?.isVerified as boolean) ?? false,
+      citizenship: (identity?.citizenship as string) || 'KENYAN',
 
       // Contact
-      phoneNumber: toNullable(entity.contactInfo?.primaryPhone),
-      email: toNullable(entity.contactInfo?.email),
-      alternativePhone: toNullable(entity.contactInfo?.secondaryPhone),
-      emergencyContact: toEmergencyContact(emergencyContact),
+      phoneNumber: toNullable(contact?.primaryPhone),
+      email: toNullable(contact?.email),
+      alternativePhone: toNullable(contact?.secondaryPhone),
+      emergencyContact: contact?.emergencyContact
+        ? (contact.emergencyContact as Prisma.InputJsonValue)
+        : Prisma.JsonNull,
 
       // Life Status
-      isDeceased: lifeStatus.isDeceased,
-      dateOfDeath: toNullable(lifeStatus.dateOfDeath),
-      placeOfDeath: toNullable(lifeStatus.placeOfDeath),
-      presumedAlive: lifeStatus.isAlive,
-      missingSince: toNullable(lifeStatus.missingSince),
-      deathCertificateIssued: !!identity.deathCertificate,
-      deathCertificateNumber: toNullable(identity.deathCertificate?.certificateNumber),
+      isDeceased: life.isDeceased,
+      dateOfDeath: life.dateOfDeath ? new Date(life.dateOfDeath) : null,
+      placeOfDeath: toNullable(life.placeOfDeath),
+      presumedAlive: !life.isDeceased && !life.missingSince,
+      missingSince: life.missingSince ? new Date(life.missingSince) : null,
+      deathCertificateIssued: !!identity?.deathCertificate,
+      deathCertificateNumber: toNullable(identity?.deathCertificate?.certificateNumber),
 
       // Age
-      dateOfBirth: toNullable(ageCalculation?.dateOfBirth),
-      ageAtDeath: toNullable(ageCalculation?.ageAtDeath),
-      currentAge: toNullable(ageCalculation?.age),
-      isMinor: ageCalculation?.isMinor || false,
+      dateOfBirth: age?.dateOfBirth ? new Date(age.dateOfBirth) : null,
+      ageAtDeath: toNullable(age?.ageAtDeath),
+      currentAge: toNullable(age?.age),
+      isMinor: age?.isMinor || false,
 
       // Demographics
-      gender: toNullable(demographicInfo?.gender),
-      placeOfBirth: toNullable(entity.birthLocation?.placeName),
-      religion: toNullable(demographicInfo?.religion || identity.religion),
-      customaryEthnicGroup: toNullable(demographicInfo?.ethnicGroup || identity.ethnicity),
-      customaryClan: toNullable(demographicInfo?.clan || identity.clan),
-      occupation: toNullable(entity.occupation),
+      gender: toNullable(demo?.gender),
+      placeOfBirth: toNullable(serialized.birthLocation?.placeName),
+      religion: toNullable(demo?.religion || identity?.religion),
+      customaryEthnicGroup: toNullable(demo?.ethnicGroup || identity?.ethnicity),
+      customaryClan: toNullable(demo?.clan || identity?.clan),
+      occupation: toNullable(serialized.occupation),
 
       // Disability
-      disabilityStatus: toNullable(disabilityStatus?.status || 'NONE'),
-      requiresSupportedDecisionMaking: disabilityStatus?.requiresSupportedDecisionMaking || false,
-      disabilityCertificate: toNullable(disabilityStatus?.disabilityCardNumber),
+      disabilityStatus: disability?.hasDisability ? 'PHYSICAL' : 'NONE',
+      requiresSupportedDecisionMaking: disability?.requiresSupportedDecisionMaking || false,
+      disabilityCertificate: toNullable(disability?.disabilityCardNumber),
 
-      // Versioning & Audit
+      // Audit & system fields — read directly from aggregate
       version: entity.version,
       lastEventId: toNullable(entity.lastEventId),
       createdAt: entity.createdAt,
       updatedAt: entity.updatedAt,
-      deletedAt: toNullable(entity.deletedAt),
+      deletedAt: entity.deletedAt ?? null,
       deletedBy: toNullable(entity.deletedBy),
       deletionReason: toNullable(entity.deletionReason),
       isArchived: entity.isArchived,
@@ -303,108 +306,15 @@ export class FamilyMemberMapper {
 
   /**
    * Converts Domain FamilyMember aggregate to Prisma update input
-   * Only includes changed fields
    */
   toPersistenceUpdate(entity: FamilyMember): Prisma.FamilyMemberUncheckedUpdateInput {
-    // For updates, we only need to update certain fields
-    // Use the same helpers as above
-    const toNullable = <T>(value: T | undefined): T | null => (value === undefined ? null : value);
-
-    const toEmergencyContact = (
-      emergencyContact: any,
-    ): Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue => {
-      if (!emergencyContact) {
-        return Prisma.JsonNull;
-      }
-      return emergencyContact as Prisma.InputJsonValue;
-    };
-
-    const identity = entity.identity.toJSON();
-    const lifeStatus = entity.lifeStatus.toJSON();
-    const ageCalculation = entity.ageCalculation?.toJSON();
-    const demographicInfo = entity.demographicInfo?.toJSON();
-    const disabilityStatus = entity.disabilityStatus?.toJSON();
-    const emergencyContact = entity.contactInfo?.emergencyContact;
-
-    return {
-      // Name
-      firstName: entity.name.firstName,
-      lastName: entity.name.lastName,
-      middleName: toNullable(entity.name.middleName),
-      maidenName: toNullable(entity.maidenName),
-
-      // Identity
-      nationalId: toNullable(identity.nationalId?.idNumber),
-      nationalIdVerified: identity.nationalId?.isVerified ?? false,
-      nationalIdVerifiedAt: toNullable(identity.nationalId?.verifiedAt),
-
-      kraPin: toNullable(identity.kraPin?.pinNumber),
-      kraPinVerified: identity.kraPin?.isVerified ?? false,
-
-      citizenship: identity.citizenship ?? 'KENYAN',
-
-      // Contact
-      phoneNumber: toNullable(entity.contactInfo?.primaryPhone),
-      email: toNullable(entity.contactInfo?.email),
-      alternativePhone: toNullable(entity.contactInfo?.secondaryPhone),
-      emergencyContact: toEmergencyContact(emergencyContact),
-
-      // Life Status
-      isDeceased: lifeStatus.isDeceased,
-      dateOfDeath: toNullable(lifeStatus.dateOfDeath),
-      placeOfDeath: toNullable(lifeStatus.placeOfDeath),
-      presumedAlive: lifeStatus.isAlive,
-      missingSince: toNullable(lifeStatus.missingSince),
-      deathCertificateIssued: !!identity.deathCertificate,
-      deathCertificateNumber: toNullable(identity.deathCertificate?.certificateNumber),
-
-      // Age
-      dateOfBirth: toNullable(ageCalculation?.dateOfBirth),
-      ageAtDeath: toNullable(ageCalculation?.ageAtDeath),
-      currentAge: toNullable(ageCalculation?.age),
-      isMinor: ageCalculation?.isMinor || false,
-
-      // Demographics
-      gender: toNullable(demographicInfo?.gender),
-      placeOfBirth: toNullable(entity.birthLocation?.placeName),
-      religion: toNullable(demographicInfo?.religion || identity.religion),
-      customaryEthnicGroup: toNullable(demographicInfo?.ethnicGroup || identity.ethnicity),
-      customaryClan: toNullable(demographicInfo?.clan || identity.clan),
-      occupation: toNullable(entity.occupation),
-
-      // Disability
-      disabilityStatus: toNullable(disabilityStatus?.status || 'NONE'),
-      requiresSupportedDecisionMaking: disabilityStatus?.requiresSupportedDecisionMaking || false,
-      disabilityCertificate: toNullable(disabilityStatus?.disabilityCardNumber),
-
-      // Versioning & Audit
-      version: entity.version,
-      lastEventId: toNullable(entity.lastEventId),
-      updatedAt: entity.updatedAt,
-      deletedAt: toNullable(entity.deletedAt),
-      deletedBy: toNullable(entity.deletedBy),
-      deletionReason: toNullable(entity.deletionReason),
-      isArchived: entity.isArchived,
-    };
+    // Reuse create logic since structures align for unchecked updates,
+    // ensuring type compatibility by removing 'id' if necessary (though unchecked allows it as filter/match)
+    const createData = this.toPersistenceCreate(entity);
+    return createData as Prisma.FamilyMemberUncheckedUpdateInput;
   }
 
-  /**
-   * Creates a Prisma where clause for the FamilyMember by ID
-   */
   createWhereById(id: string): Prisma.FamilyMemberWhereUniqueInput {
     return { id };
-  }
-
-  /**
-   * Creates Prisma include clause for eager loading relationships
-   */
-  createIncludeClause(): Prisma.FamilyMemberInclude {
-    return {
-      // Add relationships as needed
-      // family: true,
-      // polygamousHouse: true,
-      // marriagesAsSpouse1: true,
-      // marriagesAsSpouse2: true,
-    };
   }
 }

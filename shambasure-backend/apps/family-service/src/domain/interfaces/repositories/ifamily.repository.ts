@@ -3,36 +3,57 @@ import { Family } from '../../aggregates/family.aggregate';
 
 export interface IFamilyRepository {
   /**
-   * Finds a Family aggregate by its unique ID.
-   * This should load the core family properties and the IDs of its members/marriages/houses.
+   * Core CRUD Operations
    */
+  create(family: Family): Promise<Family>;
   findById(id: string): Promise<Family | null>;
+  update(family: Family): Promise<Family>;
+  delete(id: string, deletedBy: string, reason: string): Promise<void>;
+  archive(id: string, deletedBy: string, reason: string): Promise<void>;
+  unarchive(id: string): Promise<void>;
 
   /**
-   * Finds all families created by a specific user.
+   * Query Operations Critical for Business Logic
    */
   findByCreatorId(creatorId: string): Promise<Family[]>;
+  exists(id: string): Promise<boolean>;
 
   /**
-   * Saves a new or updated Family aggregate.
-   * This method handles both creation and updates, persisting the aggregate's state.
+   * Member Management Operations (Critical for Family aggregate)
    */
-  save(family: Family): Promise<Family>;
+  addMember(familyId: string, memberId: string): Promise<void>;
+  removeMember(familyId: string, memberId: string): Promise<void>;
+  getMemberIds(familyId: string): Promise<string[]>;
 
   /**
-   * Deletes a Family aggregate from the repository.
-   * Note: Business logic for deletion (e.g., checking for living members)
-   * should be in the application service layer before calling this.
+   * Marriage Management Operations (Critical for S.40 compliance)
    */
-  delete(id: string): Promise<void>;
+  addMarriage(familyId: string, marriageId: string): Promise<void>;
+  removeMarriage(familyId: string, marriageId: string): Promise<void>;
 
   /**
-   * Searches for families based on specific criteria.
+   * Polygamous House Management (Critical for S.40 compliance)
    */
-  search(criteria: {
-    name?: string;
-    county?: string;
-    clanName?: string;
-    isPolygamous?: boolean;
-  }): Promise<Family[]>;
+  addPolygamousHouse(familyId: string, houseId: string): Promise<void>;
+  removePolygamousHouse(familyId: string, houseId: string): Promise<void>;
+
+  /**
+   * Search Operations (Basic but necessary for UX)
+   */
+  searchByName(name: string): Promise<Family[]>;
+  findByCounty(county: string): Promise<Family[]>;
+
+  /**
+   * Concurrency Control (Critical for event sourcing)
+   */
+  saveWithOptimisticLocking(family: Family, expectedVersion: number): Promise<Family>;
+
+  /**
+   * Bulk Operations for Performance (Critical for system efficiency)
+   */
+  recalculateFamilyCounts(familyId: string): Promise<void>;
+  batchUpdateMemberStatus(
+    familyId: string,
+    updates: Array<{ memberId: string; isDeceased: boolean }>,
+  ): Promise<void>;
 }

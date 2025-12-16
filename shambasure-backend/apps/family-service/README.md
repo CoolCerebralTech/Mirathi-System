@@ -166,14 +166,8 @@ application/
 │   │   ├── pagination.dto.ts
 │   │   ├── metadata.dto.ts
 │   │   └── error-response.dto.ts
-│   ├── mapper/
-│   │   └── base.mapper.ts
 │   ├── services/
 │   │   └── unit-of-work.service.ts
-│   └── interfaces/
-│       ├── command.ts
-│       ├── query.ts
-│       └── handler.ts
 │
 ├── dependency/
 ├── guardianship/

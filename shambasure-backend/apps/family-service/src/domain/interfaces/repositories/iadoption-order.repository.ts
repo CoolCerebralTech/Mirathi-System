@@ -1,38 +1,62 @@
+// domain/interfaces/repositories/iadoption-order.repository.ts
 import { AdoptionOrder } from '../../entities/adoption-order.entity';
 
 export interface IAdoptionOrderRepository {
   /**
-   * Finds an AdoptionOrder by its unique ID.
+   * Core CRUD Operations
    */
+  create(adoptionOrder: AdoptionOrder): Promise<AdoptionOrder>;
   findById(id: string): Promise<AdoptionOrder | null>;
+  update(adoptionOrder: AdoptionOrder): Promise<AdoptionOrder>;
+  delete(id: string): Promise<void>;
 
   /**
-   * Finds an AdoptionOrder by its unique court order number.
-   * This is a key legal identifier.
+   * Legal & Compliance Queries (Critical for Kenyan Law)
    */
   findByCourtOrderNumber(orderNumber: string): Promise<AdoptionOrder | null>;
-
-  /**
-   * Finds all adoption orders within a specific family.
-   */
+  existsByCourtOrderNumber(orderNumber: string): Promise<boolean>;
   findAllByFamilyId(familyId: string): Promise<AdoptionOrder[]>;
 
   /**
-   * Finds all adoption orders where a specific person is involved,
-   * either as the adoptee or the adopter.
+   * Person-Centric Queries (Critical for inheritance calculations)
    */
-  findAllByPersonId(personId: string): Promise<AdoptionOrder[]>;
+  findAllByAdopteeId(adopteeId: string): Promise<AdoptionOrder[]>;
+  findAllByAdopterId(adopterId: string): Promise<AdoptionOrder[]>;
+  findActiveAdoptionForAdoptee(adopteeId: string): Promise<AdoptionOrder | null>;
 
   /**
-   * Saves a new or updated AdoptionOrder entity. This method handles both
-   * creation and updates (upsert).
-   * @param order The AdoptionOrder entity to save.
-   * @param tx An optional transaction client.
+   * Adoption Type Queries (Critical for legal differentiation)
    */
-  save(order: AdoptionOrder, tx?: any): Promise<AdoptionOrder>;
+  findAllByAdoptionType(adoptionType: string): Promise<AdoptionOrder[]>;
+  findStatutoryAdoptions(familyId: string): Promise<AdoptionOrder[]>;
+  findCustomaryAdoptions(familyId: string): Promise<AdoptionOrder[]>;
 
   /**
-   * Deletes an AdoptionOrder from the repository.
+   * Status & Compliance Queries
    */
-  delete(id: string, tx?: any): Promise<void>;
+  findFinalizedAdoptions(familyId: string): Promise<AdoptionOrder[]>;
+  findPendingAdoptions(familyId: string): Promise<AdoptionOrder[]>;
+
+  /**
+   * Bulk Operations for Family Aggregates
+   */
+  batchSave(adoptionOrders: AdoptionOrder[]): Promise<AdoptionOrder[]>;
+  batchDeleteByFamilyId(familyId: string): Promise<void>;
+
+  /**
+   * Validation Queries
+   */
+  hasActiveAdoption(adopteeId: string, adopterId: string): Promise<boolean>;
+  validateAdoptionUniqueness(
+    familyId: string,
+    adopteeId: string,
+    adopterId: string,
+  ): Promise<boolean>;
+
+  /**
+   * Count Operations for Reporting
+   */
+  countByFamilyId(familyId: string): Promise<number>;
+  countByAdoptionType(familyId: string, adoptionType: string): Promise<number>;
+  countFinalizedAdoptions(familyId: string): Promise<number>;
 }
