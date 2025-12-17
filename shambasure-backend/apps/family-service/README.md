@@ -134,19 +134,16 @@ family-service/
 
 // infrastructure/persistence/
 ├── repositories/
-│   ├── impl/
-│   │   ├── family.repository.impl.ts
-│   │   ├── family-member.repository.impl.ts
-│   │   ├── marriage.repository.impl.ts
-│   │   ├── guardianship.repository.impl.ts
-│   │   ├── legal-dependant.repository.impl.ts
-│   │   ├── polygamous-house.repository.impl.ts
-│   │   ├── family-relationship.repository.impl.ts
-│   │   └── family-legal-event.repository.impl.ts
-│   ├── base/
-│   │   ├── base.repository.ts
-│   │   └── transaction.manager.ts
-│   └── index.ts
+|   |   |   adoption-order.repository.ts
+|   |   |   cohabitation-record.repository.ts
+│   │   ├── family.repository.ts
+│   │   ├── family-member.repository.ts
+│   │   ├── marriage.repository.ts
+│   │   ├── guardianship.repository.ts
+│   │   ├── legal-dependant.repository.ts
+│   │   ├── polygamous-house.repository.ts
+│   │   ├── family-relationship.repository.ts
+│   │   └── family-legal-event.repository.ts
 ├── mappers/
 │   ├── family.mapper.ts
 │   ├── family-member.mapper.ts
@@ -158,21 +155,7 @@ family-service/
 │   ├── cohabitation-record.mapper.ts
 │   ├── adoption-order.mapper.ts
 │   └── family-legal-event.mapper.ts
-└── persistence.module.ts  # NEW: Simplified module
 
-application/
-├── common/
-│   ├── dto/
-│   │   ├── pagination.dto.ts
-│   │   ├── metadata.dto.ts
-│   │   └── error-response.dto.ts
-│   ├── services/
-│   │   └── unit-of-work.service.ts
-│
-├── dependency/
-├── guardianship/
-├── family/
-│
 application/dependency/
 ├── dto/
 │   ├── request/
@@ -242,44 +225,73 @@ application/guardianship/
 ├── ports/
 └── guardianship.module.ts
 
-application/family/
-├── dto/
-│   ├── request/
-│   │   ├── add-family-member.request.ts
-│   │   ├── define-relationship.request.ts
-│   │   └── mark-next-of-kin.request.ts
+application/
+├── common/ (shared across bounded contexts)
+│   ├── dto/
+│   │   ├── pagination.dto.ts
+│   │   └── error-response.dto.ts
+│   ├── interfaces/
+│   │   └── use-case.interface.ts
+│
+├── family/
+│   ├── dto/
+│   │   ├── request/
+│   │   │   ├── create-family.request.ts
+│   │   │   ├── add-family-member.request.ts
+│   │   │   ├── update-family-member.request.ts
+│   │   │   ├── register-marriage.request.ts
+│   │   │   ├── add-polygamous-house.request.ts
+│   │   │   └── archive-family.request.ts
+│   │   │
+│   │   └── response/
+│   │       ├── family.response.ts
+│   │       ├── family-member.response.ts
+│   │       ├── marriage.response.ts
+│   │       ├── polygamous-house.response.ts
+│   │       └── family-tree.response.ts
 │   │
-│   └── response/
-│       ├── family-tree.response.ts
-│       └── family-member.response.ts
-│
-├── commands/
-│   ├── impl/
-│   │   ├── add-family-member.command.ts
-│   │   ├── define-relationship.command.ts
-│   │   └── mark-next-of-kin.command.ts
+│   ├── commands/
+│   │   ├── impl/
+│   │   │   ├── create-family.command.ts
+│   │   │   ├── add-family-member.command.ts
+│   │   │   ├── update-family-member.command.ts
+│   │   │   ├── remove-family-member.command.ts
+│   │   │   ├── mark-member-deceased.command.ts
+│   │   │   ├── register-marriage.command.ts
+│   │   │   └── add-polygamous-house.command.ts
+│   │   │
+│   │   └── handlers/
+│   │       ├── create-family.handler.ts
+│   │       ├── add-family-member.handler.ts
+│   │       ├── update-family-member.handler.ts
+│   │       ├── remove-family-member.handler.ts
+│   │       ├── mark-member-deceased.handler.ts
+│   │       ├── register-marriage.handler.ts
+│   │       └── add-polygamous-house.handler.ts
 │   │
-│   └── handlers/
-│
-├── queries/
-│   ├── impl/
-│   │   ├── get-family-tree.query.ts
-│   │   └── list-next-of-kin.query.ts
+│   ├── queries/
+│   │   ├── impl/
+│   │   │   ├── get-family-by-id.query.ts
+│   │   │   ├── get-family-members.query.ts
+│   │   │   ├── get-family-tree.query.ts
+│   │   │   ├── search-families.query.ts
+│   │   │   └── check-s40-compliance.query.ts
+│   │   │
+│   │   └── handlers/
+│   │       ├── get-family-by-id.handler.ts
+│   │       ├── get-family-members.handler.ts
+│   │       ├── get-family-tree.handler.ts
+│   │       ├── search-families.handler.ts
+│   │       └── check-s40-compliance.handler.ts
 │   │
-│   └── handlers/
-│
-├── mappers/
-│   └── family.mapper.ts
-│
-├── services/
-│   └── family-application.service.ts
-│
-├── ports/
-│   ├── inbound/
-│   │   └── family.use-case.ts
+│   ├── mappers/
+│   │   └── family.mapper.ts
 │   │
-│   └── outbound/
-│       └── family-repository.port.ts
+│   ├── ports/
+│   │   ├── inbound/
+│   │   │   └── family.use-case.ts
+│   │
+│   └── services/
+│       └── family-application.service.ts (implements use-case interface)
 │
 └── family.module.ts
-
