@@ -201,11 +201,6 @@ application/dependency/
 ├── ports/
 │   ├── inbound/
 │   │   └── dependency.use-case.ts
-│   │
-│   └── outbound/
-│       └── dependency-repository.port.ts
-│
-└── dependency.module.ts
 
 application/guardianship/
 ├── dto/
@@ -223,7 +218,6 @@ application/guardianship/
 ├── mappers/
 ├── services/
 ├── ports/
-└── guardianship.module.ts
 
 application/
 ├── common/ (shared across bounded contexts)
@@ -293,5 +287,4 @@ application/
 │   │
 │   └── services/
 │       └── family-application.service.ts (implements use-case interface)
-│
-└── family.module.ts
+
