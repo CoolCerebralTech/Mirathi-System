@@ -48,7 +48,13 @@ export class FamilyMemberRepository implements IFamilyMemberRepository {
   async update(familyMember: FamilyMember): Promise<FamilyMember> {
     try {
       const persistenceData = this.memberMapper.toPersistenceUpdate(familyMember);
-      const { id, ...updateData } = persistenceData;
+
+      // Extract the ID from the domain object, not from persistenceData
+      const id = familyMember.id;
+
+      // Create update data without the id field
+      const updateData = { ...persistenceData };
+      delete updateData.id;
 
       const savedMember = await this.prisma.familyMember.update({
         where: { id },
@@ -154,14 +160,15 @@ export class FamilyMemberRepository implements IFamilyMemberRepository {
     const members = await this.prisma.familyMember.findMany({
       where: {
         familyId,
-        OR: [{ nationalIdVerified: false }, { nationalIdVerified: null }],
+        nationalIdVerified: {
+          not: true, // This excludes true, leaving false and null
+        },
       },
     });
     return members
-      .map((member) => member && this.memberMapper.toDomain(member))
+      .map((member) => this.memberMapper.toDomain(member))
       .filter((member): member is FamilyMember => member !== null);
   }
-
   // ============ FAMILY-CENTRIC QUERIES ============
   async findAllByFamilyId(familyId: string): Promise<FamilyMember[]> {
     const members = await this.prisma.familyMember.findMany({
@@ -785,7 +792,6 @@ export class FamilyMemberRepository implements IFamilyMemberRepository {
     }
 
     // Get all family members in the same family
-    const familyMembers = await this.findAllByFamilyId(member.familyId);
 
     // This is a placeholder - in production, you'd query the FamilyRelationship model
     return {
@@ -801,46 +807,89 @@ export class FamilyMemberRepository implements IFamilyMemberRepository {
     familyMember: FamilyMember,
     expectedVersion: number,
   ): Promise<FamilyMember> {
-    const persistenceData = this.memberMapper.toPersistenceUpdate(familyMember);
-    const { id, ...updateData } = persistenceData;
+    const id = familyMember.id;
 
     try {
-      // First check if record exists and version matches
-      const existing = await this.prisma.familyMember.findUnique({
-        where: { id },
-        select: { version: true },
-      });
+      const persistenceData = this.memberMapper.toPersistenceUpdate(familyMember);
 
-      if (!existing) {
-        throw new Error(`Family member with id ${id} not found.`);
-      }
+      // Ensure we're incrementing the version in the update
+      const updateData = {
+        ...persistenceData,
+        version: { increment: 1 }, // Add version increment
+      };
 
-      if (existing.version !== expectedVersion) {
-        throw new Error(
-          `Optimistic locking conflict for family member ${id}. Expected version: ${expectedVersion}, Current version: ${existing.version}.`,
-        );
-      }
+      // Remove id from update data if it exists
+      delete updateData.id;
 
       const savedMember = await this.prisma.familyMember.update({
-        where: { id },
+        where: {
+          id,
+          version: expectedVersion, // Prisma will handle version check atomically
+        },
         data: updateData,
       });
+
       return this.memberMapper.toDomain(savedMember)!;
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new Error(
-          `Optimistic locking conflict for family member ${id}. Expected version: ${expectedVersion}, Current version may have changed.`,
-        );
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2025') {
+          // Record not found or version mismatch
+          throw new Error(
+            `Optimistic locking conflict for family member ${id}. Expected version: ${expectedVersion}, but record was updated by another transaction.`,
+          );
+        }
       }
+
+      this.logger.error(`Failed to save family member ${id} with optimistic locking:`, error);
       throw error;
     }
   }
 
   // ============ POLYGAMY-SPECIFIC QUERIES ============
   async findWivesWithMultipleHouses(familyId: string): Promise<FamilyMember[]> {
-    // This would require a more complex query or denormalized data
-    // For now, return empty array
-    return [];
+    try {
+      // Get all polygamous house IDs that have more than one wife
+      const housesWithMultipleWives = await this.prisma.familyMember.groupBy({
+        by: ['polygamousHouseId'],
+        where: {
+          familyId,
+          gender: 'FEMALE',
+          polygamousHouseId: { not: null },
+        },
+        having: {
+          polygamousHouseId: {
+            _count: {
+              gt: 1, // Houses with more than 1 wife
+            },
+          },
+        },
+      });
+
+      if (housesWithMultipleWives.length === 0) {
+        return [];
+      }
+
+      // Extract house IDs
+      const houseIds = housesWithMultipleWives
+        .map((house) => house.polygamousHouseId)
+        .filter((id): id is string => id !== null);
+
+      // Get all wives in those houses
+      const wives = await this.prisma.familyMember.findMany({
+        where: {
+          familyId,
+          gender: 'FEMALE',
+          polygamousHouseId: { in: houseIds },
+        },
+      });
+
+      return wives
+        .map((member) => this.memberMapper.toDomain(member))
+        .filter((member): member is FamilyMember => member !== null);
+    } catch (error) {
+      this.logger.error(`Error finding wives with multiple houses for family ${familyId}:`, error);
+      return [];
+    }
   }
 
   async findHeirsByPolygamousHouse(houseId: string): Promise<FamilyMember[]> {

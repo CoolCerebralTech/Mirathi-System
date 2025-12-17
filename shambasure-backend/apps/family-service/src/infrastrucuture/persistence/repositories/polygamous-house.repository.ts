@@ -72,7 +72,16 @@ export class PolygamousHouseRepository implements IPolygamousHouseRepository {
 
   async softDelete(id: string, dissolutionDate: Date): Promise<void> {
     try {
-      await this.prisma.polygamousHouse.update({
+      // Validate input
+      if (!id || !dissolutionDate) {
+        throw new Error('ID and dissolution date are required');
+      }
+
+      if (!(dissolutionDate instanceof Date) || isNaN(dissolutionDate.getTime())) {
+        throw new Error('Invalid dissolution date provided');
+      }
+
+      const result = await this.prisma.polygamousHouse.update({
         where: { id },
         data: {
           houseDissolvedAt: dissolutionDate,
@@ -80,9 +89,22 @@ export class PolygamousHouseRepository implements IPolygamousHouseRepository {
           updatedAt: new Date(),
         },
       });
-      this.logger.log(`Polygamous house ${id} dissolved on ${dissolutionDate}`);
+
+      // Log with formatted date
+      const formattedDate = dissolutionDate.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      this.logger.log(`Polygamous house ${id} (${result.houseName}) dissolved on ${formattedDate}`);
     } catch (error) {
       this.logger.error(`Failed to soft delete polygamous house ${id}:`, error);
+      if (error instanceof Error) {
+        throw new Error(`Failed to dissolve house ${id}: ${error.message}`);
+      }
       throw error;
     }
   }
@@ -288,7 +310,7 @@ export class PolygamousHouseRepository implements IPolygamousHouseRepository {
   }
 
   async findByBusinessKraPin(kraPin: string): Promise<PolygamousHouse | null> {
-    const house = await this.prisma.polygamousHouse.findUnique({
+    const house = await this.prisma.polygamousHouse.findFirst({
       where: { houseBusinessKraPin: kraPin },
     });
     return this.houseMapper.toDomain(house);
@@ -378,18 +400,61 @@ export class PolygamousHouseRepository implements IPolygamousHouseRepository {
   }
 
   async batchDissolveByFamilyId(familyId: string, dissolutionDate: Date): Promise<void> {
-    await this.prisma.polygamousHouse.updateMany({
-      where: {
-        familyId,
-        houseDissolvedAt: null,
-      },
-      data: {
-        houseDissolvedAt: dissolutionDate,
-        houseAssetsFrozen: true,
-        updatedAt: new Date(),
-      },
-    });
-    this.logger.log(`All active houses for family ${familyId} dissolved on ${dissolutionDate}`);
+    try {
+      // Validate inputs
+      if (!familyId) {
+        throw new Error('Family ID is required');
+      }
+
+      if (!(dissolutionDate instanceof Date) || isNaN(dissolutionDate.getTime())) {
+        throw new Error('Invalid dissolution date provided');
+      }
+
+      // Count how many houses will be affected
+      const activeHouseCount = await this.prisma.polygamousHouse.count({
+        where: {
+          familyId,
+          houseDissolvedAt: null,
+        },
+      });
+
+      if (activeHouseCount === 0) {
+        this.logger.log(`No active houses found for family ${familyId} to dissolve`);
+        return;
+      }
+
+      // Perform the batch update
+      const result = await this.prisma.polygamousHouse.updateMany({
+        where: {
+          familyId,
+          houseDissolvedAt: null,
+        },
+        data: {
+          houseDissolvedAt: dissolutionDate,
+          houseAssetsFrozen: true,
+          updatedAt: new Date(),
+        },
+      });
+
+      // Log with formatted date
+      const formattedDate = dissolutionDate.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      this.logger.log(
+        `Dissolved ${result.count} active houses for family ${familyId} on ${formattedDate}`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to batch dissolve houses for family ${familyId}:`, error);
+      if (error instanceof Error) {
+        throw new Error(`Failed to batch dissolve houses for family ${familyId}: ${error.message}`);
+      }
+      throw error;
+    }
   }
 
   async batchFreezeAssetsByFamilyId(familyId: string): Promise<void> {
@@ -503,7 +568,6 @@ export class PolygamousHouseRepository implements IPolygamousHouseRepository {
     const averageSharePercentage = total > 0 ? totalShare / total : 0;
 
     // Calculate compliance rate (houses with S.40 certificate / total houses after first house)
-    const housesAfterFirst = houses.filter((h) => h.houseOrder > 1).length;
     const compliantHouses = houses.filter(
       (h) => h.houseOrder === 1 || h.s40CertificateNumber,
     ).length;

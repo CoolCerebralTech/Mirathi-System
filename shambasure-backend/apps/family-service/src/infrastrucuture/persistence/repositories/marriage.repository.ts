@@ -548,13 +548,30 @@ export class MarriageRepository implements IMarriageRepository {
   ): Promise<Marriage[]> {
     const where: Prisma.MarriageWhereInput = {
       OR: [
-        { spouse1Id, spouse2Id },
-        { spouse1Id: spouse2Id, spouse2Id: spouse1Id },
-      ],
-      startDate: { lte: endDate || new Date() },
-      OR: [
-        { endDate: null }, // Ongoing marriages
-        { endDate: { gte: startDate } }, // Ended after our start date
+        {
+          AND: [
+            { spouse1Id, spouse2Id },
+            { startDate: { lte: endDate || new Date() } },
+            {
+              OR: [
+                { endDate: null }, // Ongoing marriages
+                { endDate: { gte: startDate } }, // Ended after our start date
+              ],
+            },
+          ],
+        },
+        {
+          AND: [
+            { spouse1Id: spouse2Id, spouse2Id: spouse1Id },
+            { startDate: { lte: endDate || new Date() } },
+            {
+              OR: [
+                { endDate: null }, // Ongoing marriages
+                { endDate: { gte: startDate } }, // Ended after our start date
+              ],
+            },
+          ],
+        },
       ],
     };
 
@@ -565,10 +582,16 @@ export class MarriageRepository implements IMarriageRepository {
   async findCurrentMarriageAtDate(spouseId: string, date: Date): Promise<Marriage | null> {
     const marriage = await this.prisma.marriage.findFirst({
       where: {
-        OR: [{ spouse1Id: spouseId }, { spouse2Id: spouseId }],
-        startDate: { lte: date },
-        OR: [{ endDate: null }, { endDate: { gte: date } }],
-        isActive: true,
+        AND: [
+          {
+            OR: [{ spouse1Id: spouseId }, { spouse2Id: spouseId }],
+          },
+          { startDate: { lte: date } },
+          {
+            OR: [{ endDate: null }, { endDate: { gte: date } }],
+          },
+          { isActive: true },
+        ],
       },
     });
     return this.marriageMapper.toDomain(marriage);

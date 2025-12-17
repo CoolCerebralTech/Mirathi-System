@@ -1,5 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { DependencyLevel, KenyanLawSection, Prisma, PrismaClient } from '@prisma/client';
+import {
+  DependencyLevel,
+  KenyanLawSection,
+  Prisma,
+  PrismaClient,
+  LegalDependant as PrismaLegalDependant,
+} from '@prisma/client';
 
 import { PrismaService } from '@shamba/database';
 
@@ -446,7 +452,9 @@ export class LegalDependantRepository implements ILegalDependantRepository {
     const dependants = await this.prisma.legalDependant.findMany({
       where: {
         deceasedId,
-        NOT: { dependencyProofDocuments: Prisma.JsonNull },
+        dependencyProofDocuments: {
+          not: Prisma.AnyNull, // Use Prisma.AnyNull for checking both DbNull and JsonNull
+        },
       },
       orderBy: { verifiedByCourtAt: 'desc' },
     });
@@ -476,13 +484,17 @@ export class LegalDependantRepository implements ILegalDependantRepository {
   }
 
   async findWithInsufficientEvidence(deceasedId: string): Promise<LegalDependant[]> {
+    const where: any = {
+      deceasedId,
+      OR: [
+        { dependencyProofDocuments: null as any }, // Cast to any to bypass TypeScript
+        { monthlySupportEvidence: null },
+        { verifiedByCourtAt: null },
+      ],
+    };
+
     const dependants = await this.prisma.legalDependant.findMany({
-      where: {
-        deceasedId,
-        dependencyProofDocuments: Prisma.JsonNull,
-        monthlySupportEvidence: null,
-        verifiedByCourtAt: null,
-      },
+      where,
       orderBy: { dependencyPercentage: 'desc' },
     });
     return this.toDomainArray(dependants);
@@ -808,26 +820,42 @@ export class LegalDependantRepository implements ILegalDependantRepository {
 
   // ============ LEGAL COMPLIANCE QUERIES ============
   async findNonCompliantDependants(deceasedId: string): Promise<LegalDependant[]> {
+    // Create a more type-safe approach using Prisma's JsonNullableFilter
+    const where: Prisma.LegalDependantWhereInput = {
+      deceasedId,
+      OR: [
+        {
+          dependencyProofDocuments: {
+            equals: Prisma.DbNull, // Use DbNull instead of JsonNull
+          },
+        },
+        { monthlySupportEvidence: null },
+        { dependencyPercentage: 0 },
+        { isClaimant: true, provisionOrderIssued: false },
+      ],
+    };
+
     const dependants = await this.prisma.legalDependant.findMany({
-      where: {
-        deceasedId,
-        OR: [
-          { dependencyProofDocuments: Prisma.JsonNull },
-          { monthlySupportEvidence: null },
-          { dependencyPercentage: 0 },
-          { isClaimant: true, provisionOrderIssued: false },
-        ],
-      },
+      where,
     });
     return this.toDomainArray(dependants);
   }
 
   async findWithMissingEvidence(deceasedId: string): Promise<LegalDependant[]> {
+    const where: Prisma.LegalDependantWhereInput = {
+      deceasedId,
+      OR: [
+        {
+          dependencyProofDocuments: {
+            equals: Prisma.DbNull, // Use DbNull instead of JsonNull
+          },
+        },
+        { monthlySupportEvidence: null },
+      ],
+    };
+
     const dependants = await this.prisma.legalDependant.findMany({
-      where: {
-        deceasedId,
-        OR: [{ dependencyProofDocuments: Prisma.JsonNull }, { monthlySupportEvidence: null }],
-      },
+      where,
     });
     return this.toDomainArray(dependants);
   }
@@ -1020,7 +1048,7 @@ export class LegalDependantRepository implements ILegalDependantRepository {
   }
 
   // ============ HELPER METHODS ============
-  private toDomainArray(prismaDependants: Prisma.LegalDependant[]): LegalDependant[] {
+  private toDomainArray(prismaDependants: PrismaLegalDependant[]): LegalDependant[] {
     return prismaDependants
       .map((d) => this.dependantMapper.toDomain(d))
       .filter((d): d is LegalDependant => d !== null);

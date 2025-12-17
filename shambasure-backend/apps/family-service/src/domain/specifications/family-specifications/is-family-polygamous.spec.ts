@@ -1,6 +1,8 @@
 // domain/specifications/family-specifications/is-family-polygamous.spec.ts
+import { MarriageType } from '@prisma/client';
+
 import { Family } from '../../aggregates/family.aggregate';
-import { Marriage, MarriageType } from '../../entities/marriage.entity';
+import { Marriage } from '../../entities/marriage.entity';
 
 export class IsFamilyPolygamousSpec {
   /**
