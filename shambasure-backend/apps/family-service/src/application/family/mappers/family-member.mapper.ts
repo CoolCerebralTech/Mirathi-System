@@ -1,4 +1,3 @@
-// application/family/mappers/family-member.mapper.ts
 import { Injectable } from '@nestjs/common';
 
 import { FamilyMember } from '../../../domain/entities/family-member.entity';
@@ -6,6 +5,9 @@ import { AddFamilyMemberRequest } from '../dto/request/add-family-member.request
 import { UpdateFamilyMemberRequest } from '../dto/request/update-family-member.request';
 import { FamilyMemberResponse } from '../dto/response/family-member.response';
 import { BaseMapper } from './base.mapper';
+
+// Type-safe helper to cast to any for properties that aren't in the base type
+type WithAny<T> = T & { [key: string]: any };
 
 @Injectable()
 export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberResponse> {
@@ -68,18 +70,13 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
   }
 
   toDomain(dto: any): FamilyMember {
-    // Map database representation to domain entity
-    // Note: This requires reconstructing all value objects
-    // For simplicity, we're showing a basic mapping
-    // In production, you'd need to reconstruct all VOs
-
     const props = {
       id: dto.id,
       userId: dto.userId,
       familyId: dto.familyId,
-      name: dto.name, // This should be KenyanName VO
-      identity: dto.identity, // This should be KenyanIdentity VO
-      lifeStatus: dto.lifeStatus, // This should be LifeStatus VO
+      name: dto.name,
+      identity: dto.identity,
+      lifeStatus: dto.lifeStatus,
       contactInfo: dto.contactInfo,
       demographicInfo: dto.demographicInfo,
       ageCalculation: dto.ageCalculation,
@@ -104,172 +101,243 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
   toDTO(familyMember: FamilyMember): FamilyMemberResponse {
     const memberJSON = familyMember.toJSON();
     const nameJSON = memberJSON.name;
-    const identityJSON = memberJSON.identity;
-    const contactInfoJSON = memberJSON.contactInfo;
-    const disabilityStatusJSON = memberJSON.disabilityStatus;
-    const lifeStatusJSON = memberJSON.lifeStatus;
-    const demographicInfoJSON = memberJSON.demographicInfo;
-    const ageCalculationJSON = memberJSON.ageCalculation;
-    const birthLocationJSON = memberJSON.birthLocation;
-    const deathLocationJSON = memberJSON.deathLocation;
+    const identityJSON = memberJSON.identity as WithAny<typeof memberJSON.identity>;
+    const contactInfoJSON = memberJSON.contactInfo as WithAny<typeof memberJSON.contactInfo>;
+    const disabilityStatusJSON = memberJSON.disabilityStatus as WithAny<
+      typeof memberJSON.disabilityStatus
+    >;
+    const lifeStatusJSON = memberJSON.lifeStatus as WithAny<typeof memberJSON.lifeStatus>;
+    const demographicInfoJSON = memberJSON.demographicInfo as WithAny<
+      typeof memberJSON.demographicInfo
+    >;
+    const ageCalculationJSON = memberJSON.ageCalculation as WithAny<
+      typeof memberJSON.ageCalculation
+    >;
+    const birthLocationJSON = memberJSON.birthLocation as WithAny<typeof memberJSON.birthLocation>;
+    const deathLocationJSON = memberJSON.deathLocation as WithAny<typeof memberJSON.deathLocation>;
 
+    // Extract nested identity documents with proper type casting
+    const nationalId = identityJSON.nationalId as any;
+    const kraPin = identityJSON.kraPin as any;
+    const birthCert = identityJSON.birthCertificate as any;
+    const deathCert = identityJSON.deathCertificate as any;
+
+    // Helper functions for safe mapping
+    const toDateIfExists = (dateString: string | Date | undefined | null): Date | undefined => {
+      if (!dateString) return undefined;
+      return dateString instanceof Date ? dateString : new Date(dateString);
+    };
+
+    const toStringOrDefault = (value: any, defaultValue: string = ''): string => {
+      if (value === null || value === undefined) return defaultValue;
+      return String(value);
+    };
+
+    const toBoolean = (value: any): boolean => {
+      return Boolean(value);
+    };
+
+    // Helper to get disability type from disabilityDetails array
+    const getDisabilityType = (disabilityStatus: any): string | undefined => {
+      if (
+        !disabilityStatus?.disabilityDetails ||
+        !Array.isArray(disabilityStatus.disabilityDetails)
+      ) {
+        return undefined;
+      }
+
+      const primaryDisability = disabilityStatus.disabilityDetails[0];
+      return primaryDisability?.type;
+    };
+
+    // Fix 2: Handle age calculation - ensure age is a number, not null
+    const getAgeValue = (ageCalculation: any): number => {
+      if (!ageCalculation?.age && ageCalculation?.age !== 0) return 0;
+      return Number(ageCalculation.age);
+    };
+
+    // Build the response object
     return {
       id: memberJSON.id,
       userId: memberJSON.userId,
       familyId: memberJSON.familyId,
       name: {
-        firstName: nameJSON.firstName,
-        lastName: nameJSON.lastName,
+        firstName: toStringOrDefault(nameJSON.firstName),
+        lastName: toStringOrDefault(nameJSON.lastName),
         middleName: nameJSON.middleName,
         maidenName: nameJSON.maidenName,
-        fullName: nameJSON.fullName,
+        fullName: toStringOrDefault(nameJSON.fullName),
       },
       identity: {
-        citizenship: identityJSON.citizenship,
-        nationalId: identityJSON.nationalId
-          ? {
-              number: identityJSON.nationalId.number,
-              type: 'NATIONAL_ID',
-              isVerified: identityJSON.nationalId.isVerified,
-              verifiedAt: identityJSON.nationalId.verifiedAt,
-              verifiedBy: identityJSON.nationalId.verifiedBy,
-              verificationMethod: identityJSON.nationalId.verificationMethod,
-            }
-          : undefined,
-        kraPin: identityJSON.kraPin
-          ? {
-              number: identityJSON.kraPin.number,
-              type: 'KRA_PIN',
-              isVerified: identityJSON.kraPin.isVerified,
-              verifiedAt: identityJSON.kraPin.verifiedAt,
-              verifiedBy: identityJSON.kraPin.verifiedBy,
-              verificationMethod: identityJSON.kraPin.verificationMethod,
-            }
-          : undefined,
-        birthCertificate: identityJSON.birthCertificate
-          ? {
-              number: identityJSON.birthCertificate.number,
-              type: 'BIRTH_CERTIFICATE',
-              isVerified: identityJSON.birthCertificate.isVerified,
-              verifiedAt: identityJSON.birthCertificate.verifiedAt,
-              verifiedBy: identityJSON.birthCertificate.verifiedBy,
-              verificationMethod: identityJSON.birthCertificate.verificationMethod,
-            }
-          : undefined,
-        deathCertificate: identityJSON.deathCertificate
-          ? {
-              number: identityJSON.deathCertificate.number,
-              type: 'DEATH_CERTIFICATE',
-              isVerified: identityJSON.deathCertificate.isVerified,
-              verifiedAt: identityJSON.deathCertificate.verifiedAt,
-              verifiedBy: identityJSON.deathCertificate.verifiedBy,
-              verificationMethod: identityJSON.deathCertificate.verificationMethod,
-            }
-          : undefined,
-        isLegallyVerified: identityJSON.isLegallyVerified,
+        citizenship: toStringOrDefault(identityJSON.citizenship, 'KENYAN'),
+        isLegallyVerified: toBoolean(identityJSON.isLegallyVerified),
         ethnicity: identityJSON.ethnicity,
         religion: identityJSON.religion,
         clan: identityJSON.clan,
-        appliesCustomaryLaw: identityJSON.appliesCustomaryLaw,
+        appliesCustomaryLaw: toBoolean(identityJSON.appliesCustomaryLaw),
+
+        nationalId: nationalId
+          ? {
+              number: toStringOrDefault(nationalId.idNumber || nationalId.number),
+              type: 'NATIONAL_ID',
+              isVerified: toBoolean(nationalId.isVerified),
+              verifiedAt: toDateIfExists(nationalId.verifiedAt),
+              verifiedBy: nationalId.verifiedBy,
+              verificationMethod: nationalId.verificationMethod,
+            }
+          : undefined,
+
+        kraPin: kraPin
+          ? {
+              number: toStringOrDefault(kraPin.pinNumber || kraPin.number),
+              type: 'KRA_PIN',
+              isVerified: toBoolean(kraPin.isVerified),
+              verifiedAt: toDateIfExists(kraPin.verifiedAt),
+              verifiedBy: kraPin.verifiedBy,
+              verificationMethod: kraPin.verificationMethod || 'ITAX',
+            }
+          : undefined,
+
+        birthCertificate: birthCert
+          ? {
+              number: toStringOrDefault(birthCert.entryNumber || birthCert.certificateNumber),
+              type: 'BIRTH_CERTIFICATE',
+              isVerified: toBoolean(birthCert.isVerified),
+              verifiedAt: toDateIfExists(birthCert.verifiedAt),
+              verifiedBy: birthCert.verifiedBy,
+              verificationMethod: birthCert.verificationMethod,
+            }
+          : undefined,
+
+        deathCertificate: deathCert
+          ? {
+              number: toStringOrDefault(deathCert.certificateNumber || deathCert.number),
+              type: 'DEATH_CERTIFICATE',
+              isVerified: toBoolean(deathCert.isVerified),
+              verifiedAt: toDateIfExists(deathCert.verifiedAt),
+              verifiedBy: deathCert.verifiedBy,
+              verificationMethod: deathCert.verificationMethod,
+            }
+          : undefined,
       },
+
       contactInfo: contactInfoJSON
         ? {
-            primaryPhone: contactInfoJSON.primaryPhone,
+            primaryPhone: toStringOrDefault(contactInfoJSON.primaryPhone),
             secondaryPhone: contactInfoJSON.secondaryPhone,
             email: contactInfoJSON.email,
-            county: contactInfoJSON.county,
-            subCounty: contactInfoJSON.subCounty,
-            ward: contactInfoJSON.ward,
-            streetAddress: contactInfoJSON.streetAddress,
-            postalAddress: contactInfoJSON.postalAddress,
+            county: contactInfoJSON.primaryAddress?.county,
+            subCounty: contactInfoJSON.primaryAddress?.subCounty,
+            // KenyanAddress doesn't have 'ward', so we use 'village' or leave undefined
+            ward: contactInfoJSON.primaryAddress?.village,
+            streetAddress: contactInfoJSON.primaryAddress?.street,
+            postalAddress: contactInfoJSON.primaryAddress?.postalAddress,
           }
         : undefined,
+
       disabilityStatus: disabilityStatusJSON
         ? {
-            hasDisability: disabilityStatusJSON.hasDisability,
-            disabilityType: disabilityStatusJSON.disabilityType,
-            requiresSupportedDecisionMaking: disabilityStatusJSON.requiresSupportedDecisionMaking,
+            hasDisability: toBoolean(disabilityStatusJSON.hasDisability),
+            disabilityType: getDisabilityType(disabilityStatusJSON),
+            requiresSupportedDecisionMaking: toBoolean(
+              disabilityStatusJSON.requiresSupportedDecisionMaking,
+            ),
             disabilityCardNumber: disabilityStatusJSON.disabilityCardNumber,
-            registeredWithNCPWD: disabilityStatusJSON.registeredWithNCPWD,
-            qualifiesForDependantStatus: disabilityStatusJSON.qualifiesForDependantStatus,
+            registeredWithNCPWD: toBoolean(disabilityStatusJSON.registeredWithNCPWD),
+            qualifiesForDependantStatus: toBoolean(
+              disabilityStatusJSON.qualifiesForDependantStatus || false,
+            ),
           }
         : undefined,
+
       lifeStatus: {
-        status: lifeStatusJSON.status,
-        isDeceased: lifeStatusJSON.isDeceased,
-        isAlive: lifeStatusJSON.isAlive,
-        dateOfDeath: lifeStatusJSON.dateOfDeath,
+        status: lifeStatusJSON.status || 'ALIVE',
+        isDeceased: toBoolean(lifeStatusJSON.isDeceased),
+        isAlive: toBoolean(lifeStatusJSON.isAlive),
+        dateOfDeath: toDateIfExists(lifeStatusJSON.dateOfDeath),
         causeOfDeath: lifeStatusJSON.causeOfDeath,
         placeOfDeath: lifeStatusJSON.placeOfDeath,
-        missingSince: lifeStatusJSON.missingSince,
+        missingSince: toDateIfExists(lifeStatusJSON.missingSince),
         lastSeenLocation: lifeStatusJSON.lastSeenLocation,
       },
+
       demographicInfo: demographicInfoJSON
         ? {
-            gender: demographicInfoJSON.gender,
+            gender: toStringOrDefault(demographicInfoJSON.gender),
             religion: demographicInfoJSON.religion,
             ethnicGroup: demographicInfoJSON.ethnicGroup,
-            subEthnicGroup: demographicInfoJSON.subEthnicGroup,
-            isMuslim: demographicInfoJSON.isMuslim,
-            isCustomaryLawApplicable: demographicInfoJSON.isCustomaryLawApplicable,
+            subEthnicGroup:
+              demographicInfoJSON.subClan ||
+              demographicInfoJSON.clan ||
+              demographicInfoJSON.subEthnicGroup,
+            isMuslim: toBoolean(demographicInfoJSON.isMuslim),
+            isCustomaryLawApplicable: toBoolean(
+              demographicInfoJSON.isCustomaryLawApplicable || false,
+            ),
           }
         : undefined,
+
       ageCalculation: ageCalculationJSON
         ? {
-            dateOfBirth: ageCalculationJSON.dateOfBirth,
-            age: ageCalculationJSON.age,
-            isMinor: ageCalculationJSON.isMinor,
-            isYoungAdult: ageCalculationJSON.isYoungAdult,
-            isElderly: ageCalculationJSON.isElderly,
-            isOfMajorityAge: ageCalculationJSON.isOfMajorityAge,
+            dateOfBirth: ageCalculationJSON.dateOfBirth
+              ? new Date(ageCalculationJSON.dateOfBirth)
+              : new Date(0),
+            age: getAgeValue(ageCalculationJSON), // Fix: Ensure it's a number, not null
+            isMinor: toBoolean(ageCalculationJSON.isMinor),
+            isYoungAdult: toBoolean(ageCalculationJSON.isYoungAdult),
+            isElderly: toBoolean(ageCalculationJSON.isElderly),
+            isOfMajorityAge: toBoolean(!ageCalculationJSON.isMinor),
           }
         : undefined,
+
       birthLocation: birthLocationJSON
         ? {
-            county: birthLocationJSON.county,
+            county: toStringOrDefault(birthLocationJSON.county),
             subCounty: birthLocationJSON.subCounty,
             ward: birthLocationJSON.ward,
-            placeName: birthLocationJSON.placeName,
-            isRural: birthLocationJSON.isRural,
-            isUrban: birthLocationJSON.isUrban,
+            placeName: toStringOrDefault(birthLocationJSON.placeName),
+            isRural: toBoolean(birthLocationJSON.isRural),
+            isUrban: toBoolean(birthLocationJSON.isUrban),
           }
         : undefined,
+
       deathLocation: deathLocationJSON
         ? {
-            county: deathLocationJSON.county,
+            county: toStringOrDefault(deathLocationJSON.county),
             subCounty: deathLocationJSON.subCounty,
             ward: deathLocationJSON.ward,
-            placeName: deathLocationJSON.placeName,
-            isRural: deathLocationJSON.isRural,
-            isUrban: deathLocationJSON.isUrban,
+            placeName: toStringOrDefault(deathLocationJSON.placeName),
+            isRural: toBoolean(deathLocationJSON.isRural),
+            isUrban: toBoolean(deathLocationJSON.isUrban),
           }
         : undefined,
+
       occupation: memberJSON.occupation,
       polygamousHouseId: memberJSON.polygamousHouseId,
-      isDeceased: memberJSON.isDeceased,
-      isMinor: memberJSON.isMinor,
-      currentAge: memberJSON.currentAge,
-      isPotentialDependant: memberJSON.isPotentialDependant,
-      isIdentityVerified: memberJSON.isIdentityVerified,
-      hasDisability: memberJSON.hasDisability,
-      requiresSupportedDecisionMaking: memberJSON.requiresSupportedDecisionMaking,
-      isPresumedAlive: memberJSON.isPresumedAlive,
-      deathCertificateIssued: memberJSON.deathCertificateIssued,
-      isActive: memberJSON.isActive,
-      isEligibleForInheritance: memberJSON.isEligibleForInheritance,
-      gender: memberJSON.gender,
+      isDeceased: toBoolean(memberJSON.isDeceased),
+      isMinor: toBoolean(memberJSON.isMinor),
+      currentAge: memberJSON.currentAge ?? null,
+      isPotentialDependant: toBoolean(memberJSON.isPotentialDependant),
+      isIdentityVerified: toBoolean(memberJSON.isIdentityVerified),
+      hasDisability: toBoolean(memberJSON.hasDisability),
+      requiresSupportedDecisionMaking: toBoolean(memberJSON.requiresSupportedDecisionMaking),
+      isPresumedAlive: toBoolean(memberJSON.isPresumedAlive),
+      deathCertificateIssued: toBoolean(memberJSON.deathCertificateIssued),
+      isActive: toBoolean(memberJSON.isActive),
+      isEligibleForInheritance: toBoolean(memberJSON.isEligibleForInheritance),
+      gender: toStringOrDefault(memberJSON.gender),
       religion: memberJSON.religion,
       ethnicity: memberJSON.ethnicity,
-      isMuslim: memberJSON.isMuslim,
-      isCustomaryLawApplicable: memberJSON.isCustomaryLawApplicable,
-      isArchived: memberJSON.isArchived,
-      deletedAt: memberJSON.deletedAt,
+      isMuslim: toBoolean(memberJSON.isMuslim),
+      isCustomaryLawApplicable: toBoolean(memberJSON.isCustomaryLawApplicable),
+      isArchived: toBoolean(memberJSON.isArchived),
+      deletedAt: toDateIfExists(memberJSON.deletedAt),
       deletedBy: memberJSON.deletedBy,
       deletionReason: memberJSON.deletionReason,
-      missingSince: memberJSON.missingSince,
-      version: memberJSON.version,
-      createdAt: memberJSON.createdAt,
-      updatedAt: memberJSON.updatedAt,
+      missingSince: toDateIfExists(memberJSON.missingSince),
+      version: memberJSON.version ?? 1,
+      createdAt: toDateIfExists(memberJSON.createdAt) ?? new Date(),
+      updatedAt: toDateIfExists(memberJSON.updatedAt) ?? new Date(),
     };
   }
 
@@ -279,61 +347,5 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
 
   toDTOList(members: FamilyMember[]): FamilyMemberResponse[] {
     return members.map((member) => this.toDTO(member));
-  }
-
-  // For family tree nodes
-  toTreeNodeDTO(familyMember: FamilyMember) {
-    const memberJSON = familyMember.toJSON();
-    const nameJSON = memberJSON.name;
-
-    return {
-      id: memberJSON.id,
-      name: nameJSON.fullName,
-      firstName: nameJSON.firstName,
-      lastName: nameJSON.lastName,
-      middleName: nameJSON.middleName,
-      maidenName: nameJSON.maidenName,
-      gender: memberJSON.gender,
-      dateOfBirth: memberJSON.dateOfBirth,
-      age: memberJSON.currentAge || 0,
-      isDeceased: memberJSON.isDeceased,
-      dateOfDeath: memberJSON.dateOfDeath,
-      isMinor: memberJSON.isMinor,
-      hasDisability: memberJSON.hasDisability,
-      occupation: memberJSON.occupation,
-      generation: 0, // To be set by tree builder
-      depth: 0, // To be set by tree builder
-      x: 0, // To be set by tree layout
-      y: 0, // To be set by tree layout
-      width: 200,
-      height: 60,
-      isExpanded: true,
-      relationshipToRoot: 'ROOT', // To be set by tree builder
-      spouses: [],
-      children: [],
-      parents: [],
-      siblings: [],
-    };
-  }
-
-  // For summary views (lists, dropdowns)
-  toSummaryDTO(familyMember: FamilyMember) {
-    const memberJSON = familyMember.toJSON();
-    const nameJSON = memberJSON.name;
-
-    return {
-      id: memberJSON.id,
-      name: nameJSON.fullName,
-      firstName: nameJSON.firstName,
-      lastName: nameJSON.lastName,
-      gender: memberJSON.gender,
-      age: memberJSON.currentAge,
-      isDeceased: memberJSON.isDeceased,
-      isMinor: memberJSON.isMinor,
-      isIdentityVerified: memberJSON.isIdentityVerified,
-      isActive: memberJSON.isActive,
-      polygamousHouseId: memberJSON.polygamousHouseId,
-      lastUpdated: memberJSON.updatedAt,
-    };
   }
 }

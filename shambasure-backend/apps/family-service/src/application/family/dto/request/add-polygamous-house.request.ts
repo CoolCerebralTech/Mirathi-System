@@ -6,6 +6,7 @@ import {
   IsDate,
   IsNotEmpty,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   Length,
@@ -158,13 +159,13 @@ export class AddPolygamousHouseRequest {
   })
   houseBusinessKraPin?: string;
 
-  @IsString()
   @IsOptional()
+  @IsObject()
   @ApiPropertyOptional({
-    description: 'Wives agreement details (JSON string)',
-    example: '{"consentGiven": true, "witnesses": ["Wife1", "Wife2"]}',
+    description: 'Wives agreement details object',
+    example: { consentGiven: true, witnesses: ['Wife1', 'Wife2'], date: '2023-01-01' },
   })
-  wivesAgreementDetails?: string;
+  wivesAgreementDetails?: Record<string, any>;
 
   @IsString()
   @IsNotEmpty()

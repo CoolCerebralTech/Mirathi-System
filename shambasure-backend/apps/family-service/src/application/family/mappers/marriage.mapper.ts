@@ -1,4 +1,3 @@
-// application/family/mappers/marriage.mapper.ts
 import { Injectable } from '@nestjs/common';
 import { MarriageEndReason, MarriageType } from '@prisma/client';
 
@@ -6,6 +5,9 @@ import { Marriage } from '../../../domain/entities/marriage.entity';
 import { RegisterMarriageRequest } from '../dto/request/register-marriage.request';
 import { MarriageResponse } from '../dto/response/marriage.response';
 import { BaseMapper } from './base.mapper';
+
+// Helper type for safe property access
+type WithAny<T> = T & { [key: string]: any };
 
 @Injectable()
 export class MarriageMapper extends BaseMapper<Marriage, MarriageResponse> {
@@ -16,23 +18,28 @@ export class MarriageMapper extends BaseMapper<Marriage, MarriageResponse> {
       spouse2Id: request.spouse2Id,
       type: request.type,
       startDate: request.startDate,
+
       registrationNumber: request.registrationNumber,
       issuingAuthority: request.issuingAuthority,
       certificateIssueDate: request.certificateIssueDate,
       registrationDistrict: request.registrationDistrict,
+
       isCustomary:
         request.type === MarriageType.CUSTOMARY || request.type === MarriageType.TRADITIONAL,
       customaryType: request.customaryType,
       ethnicGroup: request.ethnicGroup,
+
       dowryPaid: request.dowryPaid,
       dowryAmount: request.dowryAmount,
       dowryCurrency: request.dowryCurrency,
+
       elderWitnesses: request.elderWitnesses,
       ceremonyLocation: request.ceremonyLocation,
       clanApproval: request.clanApproval,
       clanApprovalDate: request.clanApprovalDate,
       familyConsent: request.familyConsent,
       familyConsentDate: request.familyConsentDate,
+
       isIslamic: request.type === MarriageType.ISLAMIC,
       nikahDate: request.nikahDate,
       nikahLocation: request.nikahLocation,
@@ -40,8 +47,10 @@ export class MarriageMapper extends BaseMapper<Marriage, MarriageResponse> {
       waliName: request.waliName,
       mahrAmount: request.mahrAmount,
       mahrCurrency: request.mahrCurrency,
+
       isPolygamous: request.isPolygamous,
       s40CertificateNumber: request.s40CertificateNumber,
+
       isMatrimonialPropertyRegime: request.isMatrimonialPropertyRegime,
       spouse1MaritalStatusAtMarriage: request.spouse1MaritalStatusAtMarriage,
       spouse2MaritalStatusAtMarriage: request.spouse2MaritalStatusAtMarriage,
@@ -55,37 +64,46 @@ export class MarriageMapper extends BaseMapper<Marriage, MarriageResponse> {
       spouse1Id: dto.spouse1Id,
       spouse2Id: dto.spouse2Id,
       type: dto.type as MarriageType,
-      details: dto.details, // This should be MarriageDetails VO
-      dates: dto.dates, // This should be KenyanMarriageDates VO
+      details: dto.details,
+      dates: dto.dates,
       bridePrice: dto.bridePrice,
       customaryMarriage: dto.customaryMarriage,
       islamicMarriage: dto.islamicMarriage,
+
       registrationNumber: dto.registrationNumber,
       issuingAuthority: dto.issuingAuthority,
       certificateIssueDate: dto.certificateIssueDate
         ? new Date(dto.certificateIssueDate)
         : undefined,
       registrationDistrict: dto.registrationDistrict,
+
       endReason: dto.endReason as MarriageEndReason,
       deceasedSpouseId: dto.deceasedSpouseId,
       divorceDecreeNumber: dto.divorceDecreeNumber,
       divorceCourt: dto.divorceCourt,
       divorceDate: dto.divorceDate ? new Date(dto.divorceDate) : undefined,
+
       isPolygamousUnderS40: dto.isPolygamousUnderS40 || false,
       s40CertificateNumber: dto.s40CertificateNumber,
       polygamousHouseId: dto.polygamousHouseId,
-      isMatrimonialPropertyRegime: dto.isMatrimonialPropertyRegime || true,
-      matrimonialPropertySettled: dto.matrimonialPropertySettled || false,
+
+      isMatrimonialPropertyRegime: dto.isMatrimonialPropertyRegime ?? true,
+      matrimonialPropertySettled: dto.matrimonialPropertySettled ?? false,
+
       spouse1MaritalStatusAtMarriage: dto.spouse1MaritalStatusAtMarriage,
       spouse2MaritalStatusAtMarriage: dto.spouse2MaritalStatusAtMarriage,
+
       separationDate: dto.separationDate ? new Date(dto.separationDate) : undefined,
       separationReason: dto.separationReason,
-      maintenanceOrderIssued: dto.maintenanceOrderIssued || false,
+
+      maintenanceOrderIssued: dto.maintenanceOrderIssued ?? false,
       maintenanceOrderNumber: dto.maintenanceOrderNumber,
+
       courtValidationDate: dto.courtValidationDate ? new Date(dto.courtValidationDate) : undefined,
       isValidUnderKenyanLaw: dto.isValidUnderKenyanLaw !== false,
       invalidityReason: dto.invalidityReason,
       isActive: dto.isActive !== false,
+
       version: dto.version || 1,
       createdAt: new Date(dto.createdAt),
       updatedAt: new Date(dto.updatedAt),
@@ -96,152 +114,271 @@ export class MarriageMapper extends BaseMapper<Marriage, MarriageResponse> {
   }
 
   toDTO(marriage: Marriage): MarriageResponse {
-    const marriageJSON = marriage.toJSON();
-    const detailsJSON = marriageJSON.details;
-    const datesJSON = marriageJSON.dates;
-    const bridePriceJSON = marriageJSON.bridePrice;
-    const customaryMarriageJSON = marriageJSON.customaryMarriage;
-    const islamicMarriageJSON = marriageJSON.islamicMarriage;
+    const json = marriage.toJSON();
+    const details = (json.details as WithAny<typeof json.details>) || {};
+    const dates = (json.dates as WithAny<typeof json.dates>) || {};
+    const bridePrice = json.bridePrice as WithAny<typeof json.bridePrice>;
+    const customary = json.customaryMarriage as WithAny<typeof json.customaryMarriage>;
+    const islamic = json.islamicMarriage as WithAny<typeof json.islamicMarriage>;
+
+    // Helper functions
+    const toDate = (dateString: string | Date | undefined | null): Date => {
+      if (!dateString) return new Date(0); // Epoch as default
+      return dateString instanceof Date ? dateString : new Date(dateString);
+    };
+
+    const toDateIfExists = (dateString: string | Date | undefined | null): Date | undefined => {
+      if (!dateString) return undefined;
+      return dateString instanceof Date ? dateString : new Date(dateString);
+    };
+
+    const toBoolean = (value: any): boolean => {
+      return Boolean(value);
+    };
+
+    const toStringOrDefault = (value: any, defaultValue: string = ''): string => {
+      if (value === null || value === undefined) return defaultValue;
+      return String(value);
+    };
+
+    // Calculate isEnded from endReason or dissolution date
+    const isEnded =
+      !!(json.endReason && json.endReason !== 'STILL_ACTIVE') ||
+      !!dates.dissolutionDate ||
+      toBoolean(details.isDissolved) ||
+      toBoolean(customary?.isDissolved);
+
+    // Calculate bride price totals
+    const totalAmountAgreed = bridePrice?.totalAmountAgreed || 0;
+    const totalPaid = bridePrice?.totalPaid || 0;
+    const totalOutstanding = Math.max(0, totalAmountAgreed - totalPaid);
+
+    // Calculate bride price status
+    const getBridePriceStatus = (bridePrice: any): string => {
+      if (!bridePrice) return 'PENDING';
+      if (bridePrice.status) return bridePrice.status;
+      if (totalPaid >= totalAmountAgreed) return 'FULLY_PAID';
+      if (totalPaid > 0) return 'PARTIALLY_PAID';
+      return 'PENDING';
+    };
+
+    // Get mahr status from islamic marriage
+    const getMahrStatus = (islamic: any): string => {
+      if (!islamic) return 'PENDING';
+      if (islamic.mahrPaidInFull) return 'PAID_IN_FULL';
+      if (islamic.mahrPaymentDate) return 'PARTIALLY_PAID';
+      if (islamic.deferredMahrAmount) return 'DEFERRED';
+      return 'PENDING';
+    };
+
+    // Get marriage status
+    const getMarriageStatus = (): string => {
+      if (isEnded) {
+        if (json.endReason === MarriageEndReason.DEATH_OF_SPOUSE) return 'ENDED_BY_DEATH';
+        if (json.endReason === MarriageEndReason.DIVORCE) return 'DIVORCED';
+        if (json.endReason === MarriageEndReason.ANNULMENT) return 'ANNULLED';
+        if (json.endReason === MarriageEndReason.CUSTOMARY_DISSOLUTION)
+          return 'CUSTOMARY_DISSOLVED';
+        return 'ENDED';
+      }
+      return json.isActive ? 'ACTIVE' : 'INACTIVE';
+    };
 
     return {
-      id: marriageJSON.id,
-      familyId: marriageJSON.familyId,
-      spouse1Id: marriageJSON.spouse1Id,
-      spouse2Id: marriageJSON.spouse2Id,
+      id: json.id,
+      familyId: json.familyId,
+      spouse1Id: json.spouse1Id,
+      spouse2Id: json.spouse2Id,
+
+      // STUBBED DATA: Service Layer must populate names/genders via FamilyMember Repository
       spouse1: {
-        id: marriageJSON.spouse1Id,
-        name: '', // To be populated by service
-        gender: '', // To be populated by service
-        isDeceased: false, // To be populated by service
+        id: json.spouse1Id,
+        name: 'Pending Load...',
+        gender: 'UNKNOWN',
+        isDeceased: false,
       },
       spouse2: {
-        id: marriageJSON.spouse2Id,
-        name: '', // To be populated by service
-        gender: '', // To be populated by service
-        isDeceased: false, // To be populated by service
+        id: json.spouse2Id,
+        name: 'Pending Load...',
+        gender: 'UNKNOWN',
+        isDeceased: false,
       },
-      type: marriageJSON.type,
+
+      type: json.type,
+
       details: {
-        type: detailsJSON.type,
-        status: detailsJSON.status,
-        isPolygamous: detailsJSON.isPolygamous,
-        polygamousHouseId: detailsJSON.polygamousHouseId,
-        isEnded: detailsJSON.isEnded,
-        endReason: detailsJSON.endReason,
-        registrationNumber: detailsJSON.registrationNumber,
-        issuingAuthority: detailsJSON.issuingAuthority,
-        certificateIssueDate: detailsJSON.certificateIssueDate,
-        registrationDistrict: detailsJSON.registrationDistrict,
-        s40CertificateNumber: detailsJSON.s40CertificateNumber,
-        isMatrimonialPropertyRegime: detailsJSON.isMatrimonialPropertyRegime,
-        matrimonialPropertySettled: detailsJSON.matrimonialPropertySettled,
-        customaryType: detailsJSON.customaryType,
-        dowryPaid: detailsJSON.dowryPaid,
-        dowryAmount: detailsJSON.dowryAmount,
-        dowryCurrency: detailsJSON.dowryCurrency,
-        nikahDate: detailsJSON.nikahDate,
-        mahrAmount: detailsJSON.mahrAmount,
-        mahrCurrency: detailsJSON.mahrCurrency,
-        waliName: detailsJSON.waliName,
-        isValidUnderKenyanLaw: detailsJSON.isValidUnderKenyanLaw,
-        invalidityReason: detailsJSON.invalidityReason,
+        // Use marriageType from dates VO or root type
+        type: dates.marriageType || json.type,
+        status: getMarriageStatus(),
+        isPolygamous: toBoolean(details.isPolygamous) || json.isPolygamousUnderS40,
+        polygamousHouseId: details.polygamousHouseId || json.polygamousHouseId,
+        isEnded,
+        endReason: json.endReason,
+
+        // Legal Registration
+        registrationNumber: json.registrationNumber,
+        issuingAuthority: json.issuingAuthority,
+        certificateIssueDate: toDateIfExists(json.certificateIssueDate),
+        registrationDistrict: json.registrationDistrict,
+        s40CertificateNumber: json.s40CertificateNumber,
+
+        isMatrimonialPropertyRegime: toBoolean(json.isMatrimonialPropertyRegime),
+        matrimonialPropertySettled: toBoolean(json.matrimonialPropertySettled),
+
+        // Customary details
+        customaryType: customary?.customaryType,
+        dowryPaid: bridePrice?.status === 'FULLY_PAID' || bridePrice?.status === 'PARTIALLY_PAID',
+        dowryAmount: totalAmountAgreed > 0 ? totalAmountAgreed : undefined,
+        dowryCurrency: bridePrice?.currency,
+
+        // Islamic details
+        nikahDate: toDateIfExists(islamic?.nikahDate),
+        mahrAmount: islamic?.mahrAmount,
+        mahrCurrency: islamic?.mahrCurrency,
+        waliName: islamic?.waliName,
+
+        isValidUnderKenyanLaw: toBoolean(json.isValidUnderKenyanLaw),
+        invalidityReason: json.invalidityReason,
       },
+
       dates: {
-        marriageDate: datesJSON.marriageDate,
-        registrationDate: datesJSON.registrationDate,
-        polygamousHouseDate: datesJSON.polygamousHouseDate,
-        dissolutionDate: datesJSON.dissolutionDate,
-        durationYears: datesJSON.durationYears,
-        durationMonths: datesJSON.durationMonths,
+        marriageDate: toDate(dates.marriageDate),
+        registrationDate: toDateIfExists(dates.registrationDate),
+        // Map from polygamousHouseEstablishmentDate
+        polygamousHouseDate: toDateIfExists(dates.polygamousHouseEstablishmentDate),
+        dissolutionDate: toDateIfExists(dates.dissolutionDate),
+        durationYears: dates.marriageDurationYears ?? 0,
+        durationMonths: (dates.marriageDurationYears ?? 0) * 12,
       },
-      bridePrice: bridePriceJSON
+
+      bridePrice: bridePrice
         ? {
-            totalAmount: bridePriceJSON.totalAmount,
-            currency: bridePriceJSON.currency,
-            status: bridePriceJSON.status,
-            isPaid: bridePriceJSON.isPaid,
-            payments:
-              bridePriceJSON.payments?.map((payment) => ({
-                type: payment.type,
-                totalValue: payment.totalValue,
-                currency: payment.currency,
-                description: payment.description,
-                date: payment.date,
-                paidAmount: payment.paidAmount,
-                outstandingAmount: payment.outstandingAmount,
-              })) || [],
-            totalPaid: bridePriceJSON.totalPaid,
-            totalOutstanding: bridePriceJSON.totalOutstanding,
+            totalAmount: totalAmountAgreed,
+            currency: bridePrice.currency || 'KES',
+            status: getBridePriceStatus(bridePrice),
+            isPaid: getBridePriceStatus(bridePrice) === 'FULLY_PAID',
+            payments: Array.isArray(bridePrice.payments)
+              ? bridePrice.payments.map((p: any) => ({
+                  type: p.type,
+                  totalValue: p.totalValue,
+                  currency: p.currency,
+                  description: p.description,
+                  date: toDate(p.date), // Use toDate to ensure Date, not undefined
+                  paidAmount: p.totalValue,
+                  outstandingAmount: 0, // Each payment is considered paid
+                }))
+              : [],
+            totalPaid,
+            totalOutstanding,
           }
         : undefined,
-      customaryMarriage: customaryMarriageJSON
+
+      customaryMarriage: customary
         ? {
-            ethnicGroup: customaryMarriageJSON.ethnicGroup,
-            customaryType: customaryMarriageJSON.customaryType,
-            ceremonyDate: customaryMarriageJSON.ceremonyDate,
-            ceremonyLocation: customaryMarriageJSON.ceremonyLocation,
-            clanApproval: customaryMarriageJSON.clanApproval,
-            clanApprovalDate: customaryMarriageJSON.clanApprovalDate,
-            familyConsent: customaryMarriageJSON.familyConsent,
-            familyConsentDate: customaryMarriageJSON.familyConsentDate,
-            elderWitnesses:
-              customaryMarriageJSON.elderWitnesses?.map((witness) => ({
-                name: witness.name,
-                age: witness.age,
-                relationship: witness.relationship,
-              })) || [],
-            isDissolved: customaryMarriageJSON.isDissolved,
-            dissolutionDate: customaryMarriageJSON.dissolutionDate,
-            dissolutionReason: customaryMarriageJSON.dissolutionReason,
+            ethnicGroup: customary.ethnicGroup,
+            customaryType: customary.customaryType,
+            ceremonyDate: toDate(customary.ceremonyDate),
+            ceremonyLocation: toStringOrDefault(customary.ceremonyLocation),
+            clanApproval: toBoolean(customary.clanApproval),
+            clanApprovalDate: toDateIfExists(customary.clanApprovalDate),
+            familyConsent: toBoolean(customary.familyConsent),
+            familyConsentDate: toDateIfExists(customary.familyConsentDate),
+            elderWitnesses: Array.isArray(customary.elderWitnesses)
+              ? customary.elderWitnesses.map((w: any) => ({
+                  name: toStringOrDefault(w.name),
+                  age: w.age || 0,
+                  relationship: toStringOrDefault(w.relationship),
+                }))
+              : [],
+            isDissolved: toBoolean(customary.isDissolved),
+            dissolutionDate: toDateIfExists(customary.dissolutionDate),
+            dissolutionReason: customary.dissolutionReason,
           }
         : undefined,
-      islamicMarriage: islamicMarriageJSON
+
+      islamicMarriage: islamic
         ? {
-            nikahDate: islamicMarriageJSON.nikahDate,
-            nikahLocation: islamicMarriageJSON.nikahLocation,
-            imamName: islamicMarriageJSON.imamName,
-            waliName: islamicMarriageJSON.waliName,
-            mahrAmount: islamicMarriageJSON.mahrAmount,
-            mahrCurrency: islamicMarriageJSON.mahrCurrency,
-            mahrStatus: islamicMarriageJSON.mahrStatus,
-            talaqIssued: islamicMarriageJSON.talaqIssued,
-            talaqDate: islamicMarriageJSON.talaqDate,
-            talaqType: islamicMarriageJSON.talaqType,
-            talaqCount: islamicMarriageJSON.talaqCount,
+            nikahDate: toDate(islamic.nikahDate),
+            nikahLocation: toStringOrDefault(islamic.nikahLocation),
+            imamName: toStringOrDefault(islamic.imamName),
+            waliName: toStringOrDefault(islamic.waliName),
+            mahrAmount: islamic.mahrAmount || 0,
+            mahrCurrency: islamic.mahrCurrency || 'KES',
+            mahrStatus: getMahrStatus(islamic),
+            talaqIssued: toBoolean(islamic.talaqIssued),
+            talaqDate: toDateIfExists(islamic.talaqDate),
+            talaqType: islamic.talaqType,
+            talaqCount: islamic.talaqCount || 0,
           }
         : undefined,
-      deceasedSpouseId: marriageJSON.deceasedSpouseId,
-      divorceDecreeNumber: marriageJSON.divorceDecreeNumber,
-      divorceCourt: marriageJSON.divorceCourt,
-      divorceDate: marriageJSON.divorceDate,
-      separationDate: marriageJSON.separationDate,
-      separationReason: marriageJSON.separationReason,
-      maintenanceOrderIssued: marriageJSON.maintenanceOrderIssued,
-      maintenanceOrderNumber: marriageJSON.maintenanceOrderNumber,
-      courtValidationDate: marriageJSON.courtValidationDate,
-      spouse1MaritalStatusAtMarriage: marriageJSON.spouse1MaritalStatusAtMarriage,
-      spouse2MaritalStatusAtMarriage: marriageJSON.spouse2MaritalStatusAtMarriage,
-      isActive: marriageJSON.isActive,
-      endReason: marriageJSON.endReason,
-      isPolygamousUnderS40: marriageJSON.isPolygamousUnderS40,
-      polygamousHouseId: marriageJSON.polygamousHouseId,
-      polygamousHouseName: '', // To be populated by service
+
+      deceasedSpouseId: json.deceasedSpouseId,
+      divorceDecreeNumber: json.divorceDecreeNumber,
+      divorceCourt: json.divorceCourt,
+      divorceDate: toDateIfExists(json.divorceDate),
+
+      separationDate: toDateIfExists(json.separationDate),
+      separationReason: json.separationReason,
+      maintenanceOrderIssued: toBoolean(json.maintenanceOrderIssued),
+      maintenanceOrderNumber: json.maintenanceOrderNumber,
+      courtValidationDate: toDateIfExists(json.courtValidationDate),
+
+      spouse1MaritalStatusAtMarriage: json.spouse1MaritalStatusAtMarriage,
+      spouse2MaritalStatusAtMarriage: json.spouse2MaritalStatusAtMarriage,
+
+      isActive: toBoolean(json.isActive),
+      endReason: json.endReason || MarriageEndReason.STILL_ACTIVE,
+
+      isPolygamousUnderS40: toBoolean(json.isPolygamousUnderS40),
+      polygamousHouseId: json.polygamousHouseId,
+      polygamousHouseName: undefined,
+
       hasMatrimonialProperty:
-        marriageJSON.isMatrimonialPropertyRegime && !marriageJSON.matrimonialPropertySettled,
-      isIslamic: marriageJSON.type === MarriageType.ISLAMIC,
-      isCustomary:
-        marriageJSON.type === MarriageType.CUSTOMARY ||
-        marriageJSON.type === MarriageType.TRADITIONAL,
+        toBoolean(json.isMatrimonialPropertyRegime) && !toBoolean(json.matrimonialPropertySettled),
+
+      isIslamic: json.type === MarriageType.ISLAMIC,
+      isCustomary: json.type === MarriageType.CUSTOMARY || json.type === MarriageType.TRADITIONAL,
+
       isSpouseDependant:
-        marriageJSON.isActive || marriageJSON.endReason === MarriageEndReason.STILL_ACTIVE,
-      complianceStatus: this.calculateComplianceStatus(marriageJSON),
-      childrenCount: 0, // To be populated by service
-      childrenIds: [], // To be populated by service
-      legalNotes: this.generateLegalNotes(marriageJSON),
-      version: marriageJSON.version,
-      createdAt: marriageJSON.createdAt,
-      updatedAt: marriageJSON.updatedAt,
+        toBoolean(json.isActive) || json.endReason === MarriageEndReason.STILL_ACTIVE,
+
+      complianceStatus: this.calculateComplianceStatus(json),
+
+      childrenCount: 0,
+      childrenIds: [],
+
+      legalNotes: this.generateLegalNotes(json),
+
+      version: json.version || 1,
+      createdAt: toDate(json.createdAt),
+      updatedAt: toDate(json.updatedAt),
     };
+  }
+
+  // --- Helpers ---
+
+  private calculateComplianceStatus(json: any): string {
+    if (json.isValidUnderKenyanLaw === false) return 'NON_COMPLIANT';
+    if (json.isPolygamousUnderS40 && !json.s40CertificateNumber) return 'NON_COMPLIANT';
+    // Registration check for Civil
+    if (json.type === MarriageType.CIVIL && !json.registrationNumber) return 'PENDING';
+    return 'COMPLIANT';
+  }
+
+  private generateLegalNotes(json: any): string[] {
+    const notes: string[] = [];
+    if (json.type === MarriageType.CIVIL) {
+      notes.push(
+        json.registrationNumber ? `Registered: ${json.registrationNumber}` : 'Registration Pending',
+      );
+    }
+    if (json.isPolygamousUnderS40) {
+      notes.push('S.40 Polygamy Act Applicable');
+    }
+    if (json.endReason && json.endReason !== 'STILL_ACTIVE') {
+      notes.push(`Terminated: ${json.endReason}`);
+    }
+    return notes;
   }
 
   toDomainList(dtos: any[]): Marriage[] {
@@ -250,88 +387,5 @@ export class MarriageMapper extends BaseMapper<Marriage, MarriageResponse> {
 
   toDTOList(marriages: Marriage[]): MarriageResponse[] {
     return marriages.map((marriage) => this.toDTO(marriage));
-  }
-
-  // Helper methods
-  private calculateComplianceStatus(marriageJSON: any): string {
-    if (!marriageJSON.isValidUnderKenyanLaw) {
-      return 'NON_COMPLIANT';
-    }
-
-    if (marriageJSON.isPolygamousUnderS40 && !marriageJSON.s40CertificateNumber) {
-      return 'NON_COMPLIANT';
-    }
-
-    if (marriageJSON.type === MarriageType.CIVIL && !marriageJSON.registrationNumber) {
-      return 'PENDING';
-    }
-
-    return 'COMPLIANT';
-  }
-
-  private generateLegalNotes(marriageJSON: any): string[] {
-    const notes: string[] = [];
-
-    if (marriageJSON.type === MarriageType.CIVIL) {
-      if (marriageJSON.registrationNumber) {
-        notes.push(
-          `Civil marriage registered with ${marriageJSON.issuingAuthority || 'authorities'}`,
-        );
-      } else {
-        notes.push('Civil marriage pending registration');
-      }
-    }
-
-    if (marriageJSON.type === MarriageType.ISLAMIC) {
-      notes.push('Islamic marriage governed by Islamic law');
-      if (marriageJSON.islamicMarriage?.mahrAmount) {
-        notes.push(
-          `Mahr amount: ${marriageJSON.islamicMarriage.mahrAmount} ${marriageJSON.islamicMarriage.mahrCurrency || 'KES'}`,
-        );
-      }
-    }
-
-    if (
-      marriageJSON.type === MarriageType.CUSTOMARY ||
-      marriageJSON.type === MarriageType.TRADITIONAL
-    ) {
-      notes.push('Customary marriage recognized under Kenyan law');
-      if (marriageJSON.customaryMarriage?.clanApproval) {
-        notes.push('Clan approval obtained');
-      }
-      if (marriageJSON.customaryMarriage?.familyConsent) {
-        notes.push('Family consent obtained');
-      }
-    }
-
-    if (marriageJSON.isPolygamousUnderS40) {
-      notes.push('Polygamous marriage under S.40 Law of Succession Act');
-      if (marriageJSON.s40CertificateNumber) {
-        notes.push(`Court certified: ${marriageJSON.s40CertificateNumber}`);
-      }
-    }
-
-    if (marriageJSON.endReason !== MarriageEndReason.STILL_ACTIVE) {
-      notes.push(`Marriage ended: ${marriageJSON.endReason}`);
-    }
-
-    return notes;
-  }
-
-  // For summary views
-  toSummaryDTO(marriage: Marriage) {
-    const marriageJSON = marriage.toJSON();
-
-    return {
-      id: marriageJSON.id,
-      spouse1Id: marriageJSON.spouse1Id,
-      spouse2Id: marriageJSON.spouse2Id,
-      type: marriageJSON.type,
-      startDate: marriageJSON.dates.marriageDate,
-      isActive: marriageJSON.isActive,
-      isPolygamous: marriageJSON.isPolygamousUnderS40,
-      polygamousHouseId: marriageJSON.polygamousHouseId,
-      lastUpdated: marriageJSON.updatedAt,
-    };
   }
 }

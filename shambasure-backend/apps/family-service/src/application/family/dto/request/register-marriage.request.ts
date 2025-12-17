@@ -44,6 +44,24 @@ export class ElderWitnessRequest {
   })
   relationship: string;
 }
+// New Generic Witness Class (Required for S.11 of Marriage Act)
+export class MarriageWitnessRequest {
+  @IsString()
+  @IsNotEmpty()
+  @Length(2, 100)
+  @ApiProperty({ description: 'Full Name', example: 'Jane Doe' })
+  name: string;
+
+  @IsString()
+  @IsOptional()
+  @ApiPropertyOptional({ description: 'National ID', example: '12345678' })
+  nationalId?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @ApiProperty({ description: 'Role', example: 'Best Man/Maid of Honor/Witness' })
+  role: string;
+}
 
 export class RegisterMarriageRequest {
   @IsString()
@@ -187,6 +205,15 @@ export class RegisterMarriageRequest {
     type: [ElderWitnessRequest],
   })
   elderWitnesses?: ElderWitnessRequest[];
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MarriageWitnessRequest)
+  @IsNotEmpty({ message: 'At least 2 witnesses are required by law' })
+  @ApiProperty({
+    description: 'Official witnesses signing the certificate',
+    type: [MarriageWitnessRequest],
+  })
+  officialWitnesses: MarriageWitnessRequest[];
 
   @ValidateIf((o) => o.type === MarriageType.CUSTOMARY || o.type === MarriageType.TRADITIONAL)
   @IsString()

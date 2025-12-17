@@ -18,6 +18,6 @@ export const KENYAN_VALIDATION = {
   KRA_PIN: /^[A-Z]{1}\d{9}[A-Z]{1}$/,
   BIRTH_CERTIFICATE: /^\d{1,10}[A-Z]{0,3}$/,
   PHONE: /^(?:\+254|0)?[17]\d{8}$/,
-  NAME: /^[A-Za-zÀ-ÿ\s'-]+$/,
-  HOUSE_NAME: /^[A-Za-zÀ-ÿ\s'-]{2,50}$/,
+  NAME: /^[A-Za-zÀ-ÿ\s'\-\\.]+$/,
+  HOUSE_NAME: /^[A-Za-zÀ-ÿ\s'\\-]{2,50}$/,
 };

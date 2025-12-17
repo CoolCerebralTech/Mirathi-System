@@ -1,8 +1,7 @@
-// application/family/mappers/family.mapper.ts
 import { Injectable } from '@nestjs/common';
 import { KenyanCounty as PrismaKenyanCounty } from '@prisma/client';
 
-import { Family } from '../../../domain/aggregates/family.aggregate';
+import { CreateFamilyProps, Family } from '../../../domain/aggregates/family.aggregate';
 import { CreateFamilyRequest } from '../dto/request/create-family.request';
 import { UpdateFamilyRequest } from '../dto/request/update-family.request';
 import { FamilyResponse } from '../dto/response/family.response';
@@ -10,7 +9,8 @@ import { BaseMapper } from './base.mapper';
 
 @Injectable()
 export class FamilyMapper extends BaseMapper<Family, FamilyResponse> {
-  toCreateFamilyProps(request: CreateFamilyRequest) {
+  // Helper to convert Request DTO -> Aggregate Creation Props
+  toCreateFamilyProps(request: CreateFamilyRequest): CreateFamilyProps {
     return {
       name: request.name,
       creatorId: request.creatorId,
@@ -27,6 +27,7 @@ export class FamilyMapper extends BaseMapper<Family, FamilyResponse> {
     };
   }
 
+  // Helper to convert Request DTO -> Update Props
   toUpdateFamilyProps(request: UpdateFamilyRequest) {
     return {
       name: request.name,
@@ -39,125 +40,99 @@ export class FamilyMapper extends BaseMapper<Family, FamilyResponse> {
     };
   }
 
-  toDomain(dto: any): Family {
-    // For creating from props (usually from database)
+  // Used when loading from Database/Persistence
+  toDomain(raw: any): Family {
     const props = {
-      id: dto.id,
-      name: dto.name,
-      description: dto.description,
-      creatorId: dto.creatorId,
-      clanName: dto.clanName,
-      subClan: dto.subClan,
-      ancestralHome: dto.ancestralHome,
-      familyTotem: dto.familyTotem,
-      homeCounty: dto.homeCounty as PrismaKenyanCounty,
-      memberCount: dto.memberCount || 0,
-      livingMemberCount: dto.livingMemberCount || 0,
-      deceasedMemberCount: dto.deceasedMemberCount || 0,
-      minorCount: dto.minorCount || 0,
-      dependantCount: dto.dependantCount || 0,
-      isPolygamous: dto.isPolygamous || false,
-      polygamousHouseCount: dto.polygamousHouseCount || 0,
-      version: dto.version || 1,
-      lastEventId: dto.lastEventId,
-      createdAt: new Date(dto.createdAt),
-      updatedAt: new Date(dto.updatedAt),
-      deletedAt: dto.deletedAt ? new Date(dto.deletedAt) : undefined,
-      deletedBy: dto.deletedBy,
-      deletionReason: dto.deletionReason,
-      isArchived: dto.isArchived || false,
-      memberIds: dto.memberIds || [],
-      marriageIds: dto.marriageIds || [],
-      polygamousHouseIds: dto.polygamousHouseIds || [],
+      id: raw.id,
+      name: raw.name,
+      description: raw.description,
+      creatorId: raw.creatorId,
+      clanName: raw.clanName,
+      subClan: raw.subClan,
+      ancestralHome: raw.ancestralHome,
+      familyTotem: raw.familyTotem,
+      homeCounty: raw.homeCounty as PrismaKenyanCounty,
+
+      // Counts
+      memberCount: raw.memberCount ?? 0,
+      livingMemberCount: raw.livingMemberCount ?? 0,
+      deceasedMemberCount: raw.deceasedMemberCount ?? 0,
+      minorCount: raw.minorCount ?? 0,
+      dependantCount: raw.dependantCount ?? 0,
+
+      // Polygamy
+      isPolygamous: raw.isPolygamous ?? false,
+      polygamousHouseCount: raw.polygamousHouseCount ?? 0,
+
+      // System
+      version: raw.version ?? 1,
+      lastEventId: raw.lastEventId,
+      createdAt: raw.createdAt ? new Date(raw.createdAt) : new Date(),
+      updatedAt: raw.updatedAt ? new Date(raw.updatedAt) : new Date(),
+      deletedAt: raw.deletedAt ? new Date(raw.deletedAt) : undefined,
+      deletedBy: raw.deletedBy,
+      deletionReason: raw.deletionReason,
+      isArchived: raw.isArchived ?? false,
+
+      // Relations (Ids)
+      memberIds: raw.memberIds || [],
+      marriageIds: raw.marriageIds || [],
+      polygamousHouseIds: raw.polygamousHouseIds || [],
     };
 
     return Family.createFromProps(props);
   }
 
+  // Domain -> Response DTO
   toDTO(family: Family): FamilyResponse {
-    const familyJSON = family.toJSON();
+    const json = family.toJSON();
 
-    return {
-      id: familyJSON.id,
-      name: familyJSON.name,
-      description: familyJSON.description,
-      creatorId: familyJSON.creatorId,
-      clanName: familyJSON.clanName,
-      subClan: familyJSON.subClan,
-      ancestralHome: familyJSON.ancestralHome,
-      familyTotem: familyJSON.familyTotem,
-      homeCounty: familyJSON.homeCounty,
-      memberCount: familyJSON.memberCount,
-      livingMemberCount: familyJSON.livingMemberCount,
-      deceasedMemberCount: familyJSON.deceasedMemberCount,
-      minorCount: familyJSON.minorCount,
-      dependantCount: familyJSON.dependantCount,
-      isPolygamous: familyJSON.isPolygamous,
-      polygamousHouseCount: familyJSON.polygamousHouseCount,
-      hasLivingMembers: familyJSON.hasLivingMembers,
-      hasDeceasedMembers: familyJSON.hasDeceasedMembers,
-      hasMinors: familyJSON.hasMinors,
-      hasDependants: familyJSON.hasDependants,
-      isActive: familyJSON.isActive,
-      isS40Compliant: familyJSON.isS40Compliant,
-      hasPotentialS29Claims: familyJSON.hasPotentialS29Claims,
-      version: familyJSON.version,
-      lastEventId: familyJSON.lastEventId,
-      createdAt: familyJSON.createdAt,
-      updatedAt: familyJSON.updatedAt,
-      deletedAt: familyJSON.deletedAt,
-      deletedBy: familyJSON.deletedBy,
-      deletionReason: familyJSON.deletionReason,
-      isArchived: familyJSON.isArchived,
-      memberIds: familyJSON.memberIds,
-      marriageIds: familyJSON.marriageIds,
-      polygamousHouseIds: familyJSON.polygamousHouseIds,
-    };
-  }
+    // We instantiate the class to ensure Swagger decorators apply if used in serialization
+    const response = new FamilyResponse();
 
-  toDomainList(dtos: any[]): Family[] {
-    return dtos.map((dto) => this.toDomain(dto));
-  }
+    response.id = json.id;
+    response.name = json.name;
+    response.description = json.description;
+    response.creatorId = json.creatorId;
+    response.clanName = json.clanName;
+    response.subClan = json.subClan;
+    response.ancestralHome = json.ancestralHome;
+    response.familyTotem = json.familyTotem;
+    response.homeCounty = json.homeCounty;
 
-  toDTOList(families: Family[]): FamilyResponse[] {
-    return families.map((family) => this.toDTO(family));
-  }
+    response.memberCount = json.memberCount;
+    response.livingMemberCount = json.livingMemberCount;
+    response.deceasedMemberCount = json.deceasedMemberCount;
+    response.minorCount = json.minorCount;
+    response.dependantCount = json.dependantCount;
 
-  // For search results (lightweight mapping)
-  toSearchResult(family: Family) {
-    const familyJSON = family.toJSON();
+    response.isPolygamous = json.isPolygamous;
+    response.polygamousHouseCount = json.polygamousHouseCount;
 
-    return {
-      id: familyJSON.id,
-      name: familyJSON.name,
-      clanName: familyJSON.clanName,
-      ancestralHome: familyJSON.ancestralHome,
-      homeCounty: familyJSON.homeCounty,
-      memberCount: familyJSON.memberCount,
-      isPolygamous: familyJSON.isPolygamous,
-      isActive: familyJSON.isActive,
-      createdAt: familyJSON.createdAt,
-      updatedAt: familyJSON.updatedAt,
-    };
-  }
+    // Computed props
+    response.hasLivingMembers = json.hasLivingMembers;
+    response.hasDeceasedMembers = json.hasDeceasedMembers;
+    response.hasMinors = json.hasMinors;
+    response.hasDependants = json.hasDependants;
+    response.isActive = json.isActive;
+    response.isS40Compliant = json.isS40Compliant;
+    response.hasPotentialS29Claims = json.hasPotentialS29Claims;
 
-  // For summary views (dashboard, lists)
-  toSummaryDTO(family: Family) {
-    const familyJSON = family.toJSON();
+    // Audit
+    response.version = json.version;
+    response.lastEventId = json.lastEventId;
+    response.createdAt = json.createdAt;
+    response.updatedAt = json.updatedAt;
+    response.deletedAt = json.deletedAt;
+    response.deletedBy = json.deletedBy;
+    response.deletionReason = json.deletionReason;
+    response.isArchived = json.isArchived;
 
-    return {
-      id: familyJSON.id,
-      name: familyJSON.name,
-      clanName: familyJSON.clanName,
-      homeCounty: familyJSON.homeCounty,
-      memberCount: familyJSON.memberCount,
-      livingMemberCount: familyJSON.livingMemberCount,
-      isPolygamous: familyJSON.isPolygamous,
-      polygamousHouseCount: familyJSON.polygamousHouseCount,
-      isActive: familyJSON.isActive,
-      isArchived: familyJSON.isArchived,
-      createdAt: familyJSON.createdAt,
-      lastUpdated: familyJSON.updatedAt,
-    };
+    // Arrays
+    response.memberIds = json.memberIds;
+    response.marriageIds = json.marriageIds;
+    response.polygamousHouseIds = json.polygamousHouseIds;
+
+    return response;
   }
 }

@@ -1,22 +1,29 @@
-// application/family/mappers/base.mapper.ts
 import { ClassConstructor, plainToInstance } from 'class-transformer';
 
 export abstract class BaseMapper<Domain, DTO> {
-  abstract toDomain(dto: any): Domain;
+  abstract toDomain(raw: any): Domain;
   abstract toDTO(domain: Domain): DTO;
-  abstract toDomainList(dtos: any[]): Domain[];
-  abstract toDTOList(domains: Domain[]): DTO[];
+
+  // Implemented generally to avoid repetition
+  toDomainList(rawList: any[]): Domain[] {
+    return rawList.map((item) => this.toDomain(item));
+  }
+
+  toDTOList(domains: Domain[]): DTO[] {
+    return domains.map((domain) => this.toDTO(domain));
+  }
 
   protected mapToClass<T>(cls: ClassConstructor<T>, plain: any): T {
     return plainToInstance(cls, plain, {
-      excludeExtraneousValues: true,
+      // CRITICAL UPDATE: Set to false unless we add @Expose() to all DTOs
+      excludeExtraneousValues: false,
       exposeDefaultValues: true,
+      enableImplicitConversion: true,
     });
   }
 
   protected sanitizeObject(obj: any): any {
     if (!obj) return obj;
-
     // Remove undefined values but keep null for intentional nulls
     const sanitized = {};
     for (const [key, value] of Object.entries(obj)) {
