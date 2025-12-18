@@ -9,6 +9,12 @@ export interface ICommand {
   readonly correlationId?: string;
   readonly userId: string;
 }
+export interface IQuery {
+  readonly queryId: string;
+  readonly timestamp: Date;
+  readonly correlationId?: string;
+  readonly userId: string;
+}
 
 export interface ICommandHandler<TCommand, TResult> extends IUseCase<TCommand, TResult> {
   execute(command: TCommand): Promise<Result<TResult>>;

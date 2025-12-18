@@ -1056,7 +1056,6 @@ model FamilyMember {
   beneficiaryAssignmentsAsBeneficiary BeneficiaryAssignment[] @relation("BeneficiaryFamilyMember")
   disinheritedFrom          DisinheritanceRecord[]     @relation("DisinheritedMember")
   giftsReceived            GiftInterVivos[]           @relation("GiftRecipient")
-  heirShares               HeirShare[]                @relation("Heir")
   assetTransmissions       AssetTransmission[]        @relation("Beneficiary")
   entitlements            BeneficiaryEntitlement[]   @relation("Entitled")
 
@@ -1553,11 +1552,9 @@ model Estate {
   assets                  Asset[]
   debts                   Debt[]
   giftsInterVivos         GiftInterVivos[]
-  heirShares              HeirShare[]
-  
-  inheritanceComputations InheritanceComputation[]
   estateTaxCompliances EstateTaxCompliance[]
   successionCases SuccessionCase[]
+  distributionScenarios DistributionScenario[]
   
   // Financial Summary (Updated via triggers/events)
   grossValueKES           Float                  @default(0)
@@ -2306,69 +2303,105 @@ model GiftInterVivos {
 // =============================================================================
 // INTESTATE INHERITANCE COMPUTATION OUTPUT
 // =============================================================================
-model HeirShare {
-  id                   String   @id @default(uuid()) @db.Uuid()
-  estateId             String   @db.Uuid()
-  estate               Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Heir
-  heirId               String   @db.Uuid()
-  heir                 FamilyMember @relation("Heir", fields: [heirId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Legal Basis
-  sectionApplied       String   @db.VarChar(50)
-  // Computed Output Fields
-  computedSharePercent Float
-  computedShareValueKES Float
-  // Life Interest
-  isLifeInterest       Boolean @default(false)
-  lifeInterestEndsAt   DateTime?
-  // Distribution Status
-  distributionStatus   DistributionStatus @default(PENDING)
-  distributedAt        DateTime?
-  
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+// ============================================================================
+// SIMULATION & PLANNING MODELS
+// ============================================================================
 
-  @@unique([estateId, heirId], map: "heir_shares_estate_heir_unique")
-  @@index([estateId], map: "heir_shares_estateId_idx")
-  @@index([heirId], map: "heir_shares_heirId_idx")
-  @@index([sectionApplied], map: "heir_shares_sectionApplied_idx")
-  @@index([distributionStatus], map: "heir_shares_distributionStatus_idx")
-  @@index([computedShareValueKES], map: "heir_shares_shareValue_idx")
-  @@map("heir_shares")
-}
-// Computes inheritance distribution
-model InheritanceComputation {
+model DistributionScenario {
   id                      String   @id @default(uuid()) @db.Uuid()
-  estateId                String   @unique(map: "inheritance_computations_estateId_unique") @db.Uuid()
-  estate                  Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   
-  // Computation Parameters
+  // Parent
+  estateId                String   @db.Uuid()
+  estate                  Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  scenarioName            String   @db.VarChar(100)
+  scenarioType            String   @default("INTESTATE") @db.VarChar(50) // "TESTATE", "INTESTATE_S35", "INTESTATE_S40"
+  description             String?  @db.Text
+  
+  // --- INPUT PARAMETERS (The "What-If" Settings) ---
+  
+  // Simulation Filters
+  includedAssetIds        String[] // Array of UUIDs from Asset table
+  excludedAssetIds        String[] // Assets hidden from this calculation
+  
+  // S.45 Debt Simulation
+  assumeAllDebtsPaid      Boolean  @default(true) // If false, use the slider below
+  debtAdjustmentPercent   Float?   // e.g., "Only pay 50% of unsecured debts"
+  
+  // S.35(3) Hotchpot Settings
+  // Stores IDs of GiftInterVivos entities that must be refunded to estate
+  activeHotchpotGiftIds   String[] 
+  
+  // Law Configuration
+  appliedLawSection       KenyanLawSection // S35, S40, CUSTOMARY
+  polygamousHouseCount    Int      @default(0)
+  
+  // --- OUTPUT RESULTS (The Header) ---
+  totalGrossValueKES      Float    @default(0)
+  totalNetValueKES        Float    @default(0)
   computationDate         DateTime @default(now())
-  computedBy              String?  @db.Uuid()
-  // Input Data
-  isTestate               Boolean @default(false)
-  willId                  String?  @db.Uuid()
-  isIntestate             Boolean @default(false)
-  // Kenyan Law Parameters
-  polygamousHouseCount    Int @default(0)
-  hasDependantsProvision  Boolean @default(false)
-  hotchpotIncluded        Boolean @default(true)
-  // Computation Results
-  totalEstateValue        Float
-  distributionPlan        Json
-  heirShares              Json
-  lifeInterests           Json
-  // Legal Validation
-  compliesWithSection35   Boolean @default(false)
-  compliesWithSection40   Boolean @default(false)
-  courtApproved           Boolean @default(false)
-  courtOrderReference     String? @db.VarChar(100)
+
+  // --- RELATIONS ---
+  // Direct link to the calculated shares
+  computedShares          ComputedShareDetail[]
+
+  // Audit
+  createdBy               String?  @db.Uuid()
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  
+  // Constraints
+  @@unique([estateId, scenarioName], map: "unique_scenario_name_per_estate")
+  @@index([estateId, scenarioType])
+  @@map("distribution_scenarios")
+}
+
+model ComputedShareDetail {
+  id                      String   @id @default(uuid()) @db.Uuid()
+  
+  // Parent (Direct link to Scenario)
+  scenarioId              String   @db.Uuid()
+  scenario                DistributionScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  
+  // Beneficiary Info 
+  // (We store ID + Name snapshot. If User deletes account, this report remains valid)
+  heirId                  String?  @db.Uuid() 
+  heirName                String   @db.VarChar(200)
+  heirRelationship        String   @db.VarChar(100) // "SPOUSE", "CHILD", "HOUSE_HEAD"
+  
+  // --- THE MATH (The Audit Trail) ---
+  
+  // 1. Starting Point
+  grossEntitlementPercent Float    // "S.35 gives 100% of residue to children"
+  
+  // 2. Adjustments (Critical for Legal Audit)
+  hotchpotDeductionKES    Float?   // S.35(3): Deduct previous gifts
+  customaryAdjustmentKES  Float?   // Customary deviations
+  dependencySupportKES    Float?   // S.29: Added support for dependants
+  
+  // 3. Final Result
+  finalSharePercent       Float
+  finalShareValueKES      Float
+  currency                String   @default("KES") @db.VarChar(10)
+  
+  // --- LEGAL NATURE OF SHARE ---
+  
+  // S.35(1)(b): Life Interest Tracking
+  shareType               String   @default("ABSOLUTE") @db.VarChar(50) // "ABSOLUTE", "LIFE_INTEREST", "CONDITIONAL"
+  lifeInterestEndsAt      DateTime? // e.g., Computed expectation or hard date
+  lifeInterestCondition   String?   @db.Text // "Terminates on remarriage"
+  
+  // Polygamous Context (S.40)
+  polygamousHouseId       String?  @db.Uuid()
+  houseName               String?  @db.VarChar(100)
   
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
-
-  @@index([estateId, computationDate], map: "inheritance_computations_estate_date_idx")
-  @@map("inheritance_computations")
+  
+  @@index([scenarioId, heirId])
+  @@index([polygamousHouseId])
+  @@map("computed_share_details")
 }
 // KRA tax compliance for estates
 model EstateTaxCompliance {

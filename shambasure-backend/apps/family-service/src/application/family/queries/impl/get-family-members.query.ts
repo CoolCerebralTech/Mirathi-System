@@ -74,7 +74,7 @@ export class GetFamilyMembersQuery extends BaseQuery {
   @IsNumber()
   @Min(1)
   @Transform(({ value }) => parseInt(value, 10))
-  readonly page?: number = 1;
+  readonly page: number = 1;
 
   @ApiPropertyOptional({
     description: 'Number of items per page',
@@ -88,7 +88,7 @@ export class GetFamilyMembersQuery extends BaseQuery {
   @Min(1)
   @Max(100)
   @Transform(({ value }) => parseInt(value, 10))
-  readonly limit?: number = 20;
+  readonly limit: number = 20;
 
   @ApiPropertyOptional({
     description: 'Search term for member names',
@@ -226,8 +226,8 @@ export class GetFamilyMembersQuery extends BaseQuery {
     timestamp: Date,
     userId: string,
     familyId: string,
-    page?: number,
-    limit?: number,
+    page: number = 1,
+    limit: number = 20,
     search?: string,
     gender?: string,
     minAge?: number,

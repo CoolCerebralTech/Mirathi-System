@@ -1303,47 +1303,52 @@ CREATE TABLE "gifts_inter_vivos" (
 );
 
 -- CreateTable
-CREATE TABLE "heir_shares" (
+CREATE TABLE "distribution_scenarios" (
     "id" UUID NOT NULL,
     "estateId" UUID NOT NULL,
-    "heirId" UUID NOT NULL,
-    "sectionApplied" VARCHAR(50) NOT NULL,
-    "computedSharePercent" DOUBLE PRECISION NOT NULL,
-    "computedShareValueKES" DOUBLE PRECISION NOT NULL,
-    "isLifeInterest" BOOLEAN NOT NULL DEFAULT false,
-    "lifeInterestEndsAt" TIMESTAMP(3),
-    "distributionStatus" "DistributionStatus" NOT NULL DEFAULT 'PENDING',
-    "distributedAt" TIMESTAMP(3),
+    "scenarioName" VARCHAR(100) NOT NULL,
+    "scenarioType" VARCHAR(50) NOT NULL DEFAULT 'INTESTATE',
+    "description" TEXT,
+    "includedAssetIds" TEXT[],
+    "excludedAssetIds" TEXT[],
+    "assumeAllDebtsPaid" BOOLEAN NOT NULL DEFAULT true,
+    "debtAdjustmentPercent" DOUBLE PRECISION,
+    "activeHotchpotGiftIds" TEXT[],
+    "appliedLawSection" "KenyanLawSection" NOT NULL,
+    "polygamousHouseCount" INTEGER NOT NULL DEFAULT 0,
+    "totalGrossValueKES" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "totalNetValueKES" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "computationDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdBy" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "heir_shares_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "distribution_scenarios_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "inheritance_computations" (
+CREATE TABLE "computed_share_details" (
     "id" UUID NOT NULL,
-    "estateId" UUID NOT NULL,
-    "computationDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "computedBy" UUID,
-    "isTestate" BOOLEAN NOT NULL DEFAULT false,
-    "willId" UUID,
-    "isIntestate" BOOLEAN NOT NULL DEFAULT false,
-    "polygamousHouseCount" INTEGER NOT NULL DEFAULT 0,
-    "hasDependantsProvision" BOOLEAN NOT NULL DEFAULT false,
-    "hotchpotIncluded" BOOLEAN NOT NULL DEFAULT true,
-    "totalEstateValue" DOUBLE PRECISION NOT NULL,
-    "distributionPlan" JSONB NOT NULL,
-    "heirShares" JSONB NOT NULL,
-    "lifeInterests" JSONB NOT NULL,
-    "compliesWithSection35" BOOLEAN NOT NULL DEFAULT false,
-    "compliesWithSection40" BOOLEAN NOT NULL DEFAULT false,
-    "courtApproved" BOOLEAN NOT NULL DEFAULT false,
-    "courtOrderReference" VARCHAR(100),
+    "scenarioId" UUID NOT NULL,
+    "heirId" UUID,
+    "heirName" VARCHAR(200) NOT NULL,
+    "heirRelationship" VARCHAR(100) NOT NULL,
+    "grossEntitlementPercent" DOUBLE PRECISION NOT NULL,
+    "hotchpotDeductionKES" DOUBLE PRECISION,
+    "customaryAdjustmentKES" DOUBLE PRECISION,
+    "dependencySupportKES" DOUBLE PRECISION,
+    "finalSharePercent" DOUBLE PRECISION NOT NULL,
+    "finalShareValueKES" DOUBLE PRECISION NOT NULL,
+    "currency" VARCHAR(10) NOT NULL DEFAULT 'KES',
+    "shareType" VARCHAR(50) NOT NULL DEFAULT 'ABSOLUTE',
+    "lifeInterestEndsAt" TIMESTAMP(3),
+    "lifeInterestCondition" TEXT,
+    "polygamousHouseId" UUID,
+    "houseName" VARCHAR(100),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "inheritance_computations_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "computed_share_details_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -2749,28 +2754,16 @@ CREATE INDEX "gifts_inter_vivos_dateOfGift_idx" ON "gifts_inter_vivos"("dateOfGi
 CREATE INDEX "gifts_inter_vivos_isAdvancement_idx" ON "gifts_inter_vivos"("isAdvancement");
 
 -- CreateIndex
-CREATE INDEX "heir_shares_estateId_idx" ON "heir_shares"("estateId");
+CREATE INDEX "distribution_scenarios_estateId_scenarioType_idx" ON "distribution_scenarios"("estateId", "scenarioType");
 
 -- CreateIndex
-CREATE INDEX "heir_shares_heirId_idx" ON "heir_shares"("heirId");
+CREATE UNIQUE INDEX "unique_scenario_name_per_estate" ON "distribution_scenarios"("estateId", "scenarioName");
 
 -- CreateIndex
-CREATE INDEX "heir_shares_sectionApplied_idx" ON "heir_shares"("sectionApplied");
+CREATE INDEX "computed_share_details_scenarioId_heirId_idx" ON "computed_share_details"("scenarioId", "heirId");
 
 -- CreateIndex
-CREATE INDEX "heir_shares_distributionStatus_idx" ON "heir_shares"("distributionStatus");
-
--- CreateIndex
-CREATE INDEX "heir_shares_shareValue_idx" ON "heir_shares"("computedShareValueKES");
-
--- CreateIndex
-CREATE UNIQUE INDEX "heir_shares_estate_heir_unique" ON "heir_shares"("estateId", "heirId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "inheritance_computations_estateId_unique" ON "inheritance_computations"("estateId");
-
--- CreateIndex
-CREATE INDEX "inheritance_computations_estate_date_idx" ON "inheritance_computations"("estateId", "computationDate");
+CREATE INDEX "computed_share_details_polygamousHouseId_idx" ON "computed_share_details"("polygamousHouseId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "estate_tax_compliance_estateId_unique" ON "estate_tax_compliance"("estateId");
@@ -3379,13 +3372,10 @@ ALTER TABLE "gifts_inter_vivos" ADD CONSTRAINT "gifts_inter_vivos_estateId_fkey"
 ALTER TABLE "gifts_inter_vivos" ADD CONSTRAINT "gifts_inter_vivos_recipientId_fkey" FOREIGN KEY ("recipientId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "heir_shares" ADD CONSTRAINT "heir_shares_estateId_fkey" FOREIGN KEY ("estateId") REFERENCES "estates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "distribution_scenarios" ADD CONSTRAINT "distribution_scenarios_estateId_fkey" FOREIGN KEY ("estateId") REFERENCES "estates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "heir_shares" ADD CONSTRAINT "heir_shares_heirId_fkey" FOREIGN KEY ("heirId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "inheritance_computations" ADD CONSTRAINT "inheritance_computations_estateId_fkey" FOREIGN KEY ("estateId") REFERENCES "estates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "computed_share_details" ADD CONSTRAINT "computed_share_details_scenarioId_fkey" FOREIGN KEY ("scenarioId") REFERENCES "distribution_scenarios"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "estate_tax_compliance" ADD CONSTRAINT "estate_tax_compliance_estateId_fkey" FOREIGN KEY ("estateId") REFERENCES "estates"("id") ON DELETE CASCADE ON UPDATE CASCADE;

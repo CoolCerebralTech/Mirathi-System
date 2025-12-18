@@ -1,10 +1,9 @@
-// application/family/commands/handlers/create-family.handler.ts
 import { Injectable } from '@nestjs/common';
-import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+import { CommandBus, CommandHandler, EventBus } from '@nestjs/cqrs';
 
 import { Family } from '../../../../domain/aggregates/family.aggregate';
-import { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
-import { Result } from '../../common/result';
+import type { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
+import { Result } from '../../../common/base/result';
 import { FamilyResponse } from '../../dto/response/family.response';
 import { FamilyMapper } from '../../mappers/family.mapper';
 import { RequestToDomainMapper } from '../../mappers/request-to-domain.mapper';
@@ -21,49 +20,42 @@ export class CreateFamilyHandler extends BaseCommandHandler<
     private readonly familyRepository: IFamilyRepository,
     private readonly familyMapper: FamilyMapper,
     private readonly requestMapper: RequestToDomainMapper,
-    commandBus: any,
-    eventPublisher: EventPublisher,
+    commandBus: CommandBus, // ✅ strongly typed
+    eventBus: EventBus, // ✅ inject EventBus too
   ) {
-    super(commandBus, eventPublisher);
+    super(commandBus, eventBus); // ✅ pass both to base class
   }
 
   async execute(command: CreateFamilyCommand): Promise<Result<FamilyResponse>> {
     try {
-      // Validate command
       const validation = this.validateCommand(command);
       if (validation.isFailure) {
-        return Result.fail(validation.error);
+        return Result.fail(validation.error!);
       }
 
-      // Validate request data
       const requestErrors = this.requestMapper.validateCreateFamilyRequest(command.data);
       if (requestErrors.length > 0) {
-        return Result.fail(`Invalid request data: ${requestErrors.join(', ')}`);
+        return Result.fail(new Error(`Invalid request data: ${requestErrors.join(', ')}`));
       }
 
-      // Check if family with same name/clan exists (optional)
-      // This would require additional repository methods
-
-      // Map request to domain props
+      // Map request → domain props
       const createProps = this.requestMapper.toCreateFamilyProps(command.data);
 
-      // Create family aggregate
+      // Create aggregate (domain-only)
       const family = Family.create(createProps);
 
-      // Publish events (if any)
-      const familyWithEvents = this.eventPublisher.mergeObjectContext(family);
+      // Persist aggregate
+      await this.familyRepository.create(family);
 
-      // Save family
-      await this.familyRepository.create(familyWithEvents);
+      // Publish domain events (application responsibility)
+      await this.publishDomainEvents(family);
 
-      // Commit events
-      familyWithEvents.commit();
+      // Map to response DTO
+      const responseDTO = this.familyMapper.toDTO(family);
+      const result = Result.ok(responseDTO);
 
-      // Map to response
-      const response = this.familyMapper.toDTO(familyWithEvents);
-
-      this.logSuccess(command, response, 'Family created');
-      return Result.ok(response);
+      this.logSuccess(command, result, 'Family created');
+      return result;
     } catch (error) {
       this.handleError(error, command, 'CreateFamilyHandler');
     }

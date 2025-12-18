@@ -1,59 +1,46 @@
-// application/family/queries/handlers/base.query-handler.ts
 import { Logger } from '@nestjs/common';
-import { IQueryHandler, QueryBus } from '@nestjs/cqrs';
+import { QueryBus } from '@nestjs/cqrs';
 
 import { Result } from '../../../common/base/result';
+import { IQuery, IQueryHandler } from '../../../common/interfaces/use-case.interface';
 
-export abstract class BaseQueryHandler<Query, Response> implements IQueryHandler<Query> {
+export abstract class BaseQueryHandler<TQuery extends IQuery, TResult> implements IQueryHandler<
+  TQuery,
+  TResult
+> {
   protected readonly logger = new Logger(this.constructor.name);
 
-  constructor(protected readonly queryBus: QueryBus) {}
+  constructor(protected readonly queryBus: QueryBus) {} // ✅ accept QueryBus
 
-  abstract execute(query: Query): Promise<Response>;
+  abstract execute(query: TQuery): Promise<Result<TResult>>;
 
-  protected handleError(error: any, query: Query, context?: string): never {
-    this.logger.error({
-      message: `Query execution failed: ${error.message}`,
-      query: query.constructor.name,
-      queryId: (query as any).queryId,
-      correlationId: (query as any).correlationId,
-      userId: (query as any).userId,
-      context,
-      stack: error.stack,
-    });
-
-    if (error.name === 'DomainException') {
-      throw error;
+  protected validateQuery(query: TQuery): Result<void> {
+    if (!query) {
+      return Result.fail(new Error('Query is required'));
     }
-
-    throw new Error(`Query execution failed: ${error.message}`);
+    return Result.ok();
   }
 
-  protected logSuccess(query: Query, result: any, context?: string): void {
+  protected logSuccess(query: TQuery, result?: TResult, context?: string): void {
     this.logger.log({
       message: 'Query executed successfully',
-      query: query.constructor.name,
-      queryId: (query as any).queryId,
-      correlationId: (query as any).correlationId,
-      userId: (query as any).userId,
-      resultType: result?.constructor?.name,
+      query: query?.constructor?.name,
       context,
+      resultType: result?.constructor?.name,
     });
   }
 
-  protected validateQuery(query: Query): Result<void> {
-    if (!query) {
-      return Result.fail('Query is required');
-    }
+  protected handleError(error: unknown, query: TQuery, context?: string): never {
+    const err = error instanceof Error ? error : new Error(String(error));
 
-    if (!(query as any).queryId) {
-      return Result.fail('Query ID is required');
-    }
+    this.logger.error({
+      message: 'Query execution failed',
+      error: err.message,
+      query: query?.constructor?.name,
+      context,
+      stack: err.stack,
+    });
 
-    if (!(query as any).userId) {
-      return Result.fail('User ID is required');
-    }
-
-    return Result.ok();
+    throw err;
   }
 }

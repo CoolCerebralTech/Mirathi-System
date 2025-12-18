@@ -1,9 +1,8 @@
-// application/family/commands/handlers/remove-family-member.handler.ts
 import { Injectable } from '@nestjs/common';
-import { CommandHandler, EventPublisher } from '@nestjs/cqrs';
+import { CommandBus, CommandHandler, EventBus } from '@nestjs/cqrs';
 
-import { IFamilyMemberRepository } from '../../../../domain/interfaces/repositories/ifamily-member.repository';
-import { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
+import type { IFamilyMemberRepository } from '../../../../domain/interfaces/repositories/ifamily-member.repository';
+import type { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
 import { Result } from '../../../common/base/result';
 import { RemoveFamilyMemberCommand } from '../impl/remove-family-member.command';
 import { BaseCommandHandler } from './base.command-handler';
@@ -16,57 +15,43 @@ export class RemoveFamilyMemberHandler extends BaseCommandHandler<
 > {
   constructor(
     private readonly familyRepository: IFamilyRepository,
-    private readonly familyMemberRepository: IFamilyMemberRepository,
-    commandBus: any,
-    eventPublisher: EventPublisher,
+    private readonly memberRepository: IFamilyMemberRepository,
+    commandBus: CommandBus,
+    eventBus: EventBus,
   ) {
-    super(commandBus, eventPublisher);
+    super(commandBus, eventBus);
   }
 
   async execute(command: RemoveFamilyMemberCommand): Promise<Result<void>> {
     try {
-      // Validate command
       const validation = this.validateCommand(command);
-      if (validation.isFailure) {
-        return Result.fail(validation.error);
-      }
+      if (validation.isFailure) return Result.fail(validation.error!);
 
-      // Load family
+      // 1. Load Aggregates
       const family = await this.familyRepository.findById(command.familyId);
-      if (!family) {
-        return Result.fail(`Family with ID ${command.familyId} not found`);
-      }
+      if (!family) return Result.fail(new Error('Family not found'));
 
-      // Load family member
-      const familyMember = await this.familyMemberRepository.findById(command.memberId);
-      if (!familyMember) {
-        return Result.fail(`Family member with ID ${command.memberId} not found`);
-      }
+      const member = await this.memberRepository.findById(command.memberId);
+      if (!member) return Result.fail(new Error('Member not found'));
 
-      // Verify member belongs to the family
-      if (familyMember.familyId !== command.familyId) {
-        return Result.fail(`Family member does not belong to family ${command.familyId}`);
-      }
+      // 2. Domain Logic: Remove from Family (Updates counts, triggers MemberRemovedEvent)
+      family.removeMember(member);
 
-      // Publish events
-      const familyWithEvents = this.eventPublisher.mergeObjectContext(family);
+      // 3. Domain Logic: Archive Member (Soft Delete)
+      member.archive(command.reason, command.userId);
 
-      // Remove member from family
-      familyWithEvents.removeMember(familyMember);
+      // 4. Persist
+      await this.familyRepository.update(family);
+      await this.memberRepository.update(member);
 
-      // Archive the member
-      familyMember.archive(command.reason, command.userId);
+      // OR if hard delete is required by repo:
+      // await this.familyRepository.removeMember(family.id, member.id);
 
-      // Update family
-      await this.familyRepository.update(familyWithEvents);
+      // 5. Publish Events
+      await this.publishDomainEvents(family);
+      await this.publishDomainEvents(member);
 
-      // Archive member
-      await this.familyMemberRepository.archive(command.memberId, command.userId, command.reason);
-
-      // Commit events
-      familyWithEvents.commit();
-
-      this.logSuccess(command, null, 'Family member removed');
+      this.logSuccess(command, undefined, 'Member removed from family');
       return Result.ok();
     } catch (error) {
       this.handleError(error, command, 'RemoveFamilyMemberHandler');

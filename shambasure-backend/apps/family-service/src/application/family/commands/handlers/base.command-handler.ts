@@ -1,70 +1,70 @@
-// application/family/commands/handlers/base.command-handler.ts
 import { Logger } from '@nestjs/common';
-import { CommandBus, ICommandHandler } from '@nestjs/cqrs';
-import { EventPublisher } from '@nestjs/cqrs';
+import { CommandBus, EventBus, ICommand } from '@nestjs/cqrs';
 
-import { DomainException } from '../../../../domain/exceptions/family.exception';
+import { DomainException } from '../../../../domain/exceptions/domain.exception';
 import { Result } from '../../../common/base/result';
 
-export abstract class BaseCommandHandler<Command, Response> implements ICommandHandler<Command> {
+/**
+ * Base class for all command handlers.
+ * DOES NOT implement ICommandHandler (TS limitation).
+ */
+export abstract class BaseCommandHandler<TCommand extends ICommand, TResult = void> {
   protected readonly logger = new Logger(this.constructor.name);
 
   constructor(
     protected readonly commandBus: CommandBus,
-    protected readonly eventPublisher: EventPublisher,
+    protected readonly eventBus: EventBus, // ✅ inject EventBus for domain events
   ) {}
 
-  abstract execute(command: Command): Promise<Response>;
+  abstract execute(command: TCommand): Promise<TResult>;
 
-  protected handleError(error: any, command: Command, context?: string): never {
-    this.logger.error({
-      message: `Command execution failed: ${error.message}`,
-      command: command.constructor.name,
-      commandId: (command as any).commandId,
-      correlationId: (command as any).correlationId,
-      userId: (command as any).userId,
+  protected validateCommand(command: TCommand): Result<void> {
+    if (!command) {
+      return Result.fail(new Error('Command is required'));
+    }
+    return Result.ok();
+  }
+
+  protected async publishDomainEvents(aggregate: {
+    getDomainEvents(): readonly any[];
+    clearDomainEvents(): void;
+  }): Promise<void> {
+    const events = aggregate.getDomainEvents();
+
+    for (const event of events) {
+      await this.eventBus.publish(event); // ✅ use EventBus, not CommandBus
+    }
+
+    aggregate.clearDomainEvents();
+  }
+
+  protected logSuccess(command: TCommand, result?: TResult, context?: string): void {
+    this.logger.log({
+      message: 'Command executed successfully',
+      command: command?.constructor?.name,
       context,
-      stack: error.stack,
+      resultType: result?.constructor?.name,
+    });
+  }
+
+  protected handleError(error: unknown, command: TCommand, context?: string): never {
+    const err = error instanceof Error ? error : new Error(String(error));
+
+    this.logger.error({
+      message: 'Command execution failed',
+      error: err.message,
+      command: command?.constructor?.name,
+      context,
+      stack: err.stack,
     });
 
     if (error instanceof DomainException) {
       throw error;
     }
 
-    // Wrap unexpected errors in a domain exception
-    throw new DomainException(
-      `Command execution failed: ${error.message}`,
-      'COMMAND_EXECUTION_ERROR',
-      { command, context },
-    );
-  }
-
-  protected logSuccess(command: Command, result: any, context?: string): void {
-    this.logger.log({
-      message: 'Command executed successfully',
-      command: command.constructor.name,
-      commandId: (command as any).commandId,
-      correlationId: (command as any).correlationId,
-      userId: (command as any).userId,
-      resultType: result?.constructor?.name,
+    throw new DomainException(err.message, 'COMMAND_EXECUTION_ERROR', {
+      command: command?.constructor?.name,
       context,
     });
-  }
-
-  protected validateCommand(command: Command): Result<void> {
-    // Basic validation - can be extended by specific handlers
-    if (!command) {
-      return Result.fail('Command is required');
-    }
-
-    if (!(command as any).commandId) {
-      return Result.fail('Command ID is required');
-    }
-
-    if (!(command as any).userId) {
-      return Result.fail('User ID is required');
-    }
-
-    return Result.ok();
   }
 }

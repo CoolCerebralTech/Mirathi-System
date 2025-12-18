@@ -1,10 +1,8 @@
-// application/family/commands/handlers/update-family.handler.ts
 import { Injectable } from '@nestjs/common';
-import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+import { CommandBus, CommandHandler, EventBus } from '@nestjs/cqrs';
 
-import { Family } from '../../../../domain/aggregates/family.aggregate';
-import { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
-import { Result } from '../../common/result';
+import type { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
+import { Result } from '../../../common/base/result';
 import { FamilyResponse } from '../../dto/response/family.response';
 import { FamilyMapper } from '../../mappers/family.mapper';
 import { RequestToDomainMapper } from '../../mappers/request-to-domain.mapper';
@@ -21,46 +19,41 @@ export class UpdateFamilyHandler extends BaseCommandHandler<
     private readonly familyRepository: IFamilyRepository,
     private readonly familyMapper: FamilyMapper,
     private readonly requestMapper: RequestToDomainMapper,
-    commandBus: any,
-    eventPublisher: EventPublisher,
+    commandBus: CommandBus,
+    eventBus: EventBus,
   ) {
-    super(commandBus, eventPublisher);
+    super(commandBus, eventBus);
   }
 
   async execute(command: UpdateFamilyCommand): Promise<Result<FamilyResponse>> {
     try {
-      // Validate command
       const validation = this.validateCommand(command);
-      if (validation.isFailure) {
-        return Result.fail(validation.error);
-      }
+      if (validation.isFailure) return Result.fail(validation.error!);
 
-      // Load family
+      // 1. Load Family
       const family = await this.familyRepository.findById(command.familyId);
       if (!family) {
-        return Result.fail(`Family with ID ${command.familyId} not found`);
+        return Result.fail(new Error(`Family with ID ${command.familyId} not found`));
       }
 
-      // Publish events
-      const familyWithEvents = this.eventPublisher.mergeObjectContext(family);
+      // 2. Map Update Props
+      const updateParams = this.requestMapper.toUpdateFamilyProps(command.data);
 
-      // Update family info
-      const updateProps = this.requestMapper.toUpdateFamilyProps(command.data);
-      if (Object.keys(updateProps).length > 0) {
-        familyWithEvents.updateBasicInfo(updateProps);
-      }
+      // 3. Update Domain
+      family.updateBasicInfo(updateParams);
 
-      // Save family
-      await this.familyRepository.update(familyWithEvents);
+      // 4. Persist
+      await this.familyRepository.update(family);
 
-      // Commit events
-      familyWithEvents.commit();
+      // 5. Publish Events
+      await this.publishDomainEvents(family);
 
-      // Map to response
-      const response = this.familyMapper.toDTO(familyWithEvents);
+      // 6. Response
+      const responseDTO = this.familyMapper.toDTO(family);
+      const result = Result.ok(responseDTO);
 
-      this.logSuccess(command, response, 'Family updated');
-      return Result.ok(response);
+      this.logSuccess(command, result, 'Family updated');
+      return result;
     } catch (error) {
       this.handleError(error, command, 'UpdateFamilyHandler');
     }

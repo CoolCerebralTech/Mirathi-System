@@ -1,10 +1,8 @@
-// application/family/commands/handlers/archive-family.handler.ts
 import { Injectable } from '@nestjs/common';
-import { CommandHandler, EventPublisher, ICommandHandler } from '@nestjs/cqrs';
+import { CommandBus, CommandHandler, EventBus } from '@nestjs/cqrs';
 
-import { Family } from '../../../../domain/aggregates/family.aggregate';
-import { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
-import { Result } from '../../common/result';
+import type { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
+import { Result } from '../../../common/base/result';
 import { ArchiveFamilyCommand } from '../impl/archive-family.command';
 import { BaseCommandHandler } from './base.command-handler';
 
@@ -13,49 +11,32 @@ import { BaseCommandHandler } from './base.command-handler';
 export class ArchiveFamilyHandler extends BaseCommandHandler<ArchiveFamilyCommand, Result<void>> {
   constructor(
     private readonly familyRepository: IFamilyRepository,
-    commandBus: any,
-    eventPublisher: EventPublisher,
+    commandBus: CommandBus,
+    eventBus: EventBus,
   ) {
-    super(commandBus, eventPublisher);
+    super(commandBus, eventBus);
   }
 
   async execute(command: ArchiveFamilyCommand): Promise<Result<void>> {
     try {
-      // Validate command
       const validation = this.validateCommand(command);
-      if (validation.isFailure) {
-        return Result.fail(validation.error);
-      }
+      if (validation.isFailure) return Result.fail(validation.error!);
 
-      // Load family
+      // 1. Load Family
       const family = await this.familyRepository.findById(command.familyId);
-      if (!family) {
-        return Result.fail(`Family with ID ${command.familyId} not found`);
-      }
+      if (!family) return Result.fail(new Error('Family not found'));
 
-      // Check if family is already archived
-      if (family.isArchived) {
-        return Result.fail('Family is already archived');
-      }
+      // 2. Domain Logic
+      // Invariant: Cannot archive if active members exist (checked inside domain method)
+      family.archive(command.reason, command.userId);
 
-      // Check if family has living members
-      if (family.livingMemberCount > 0) {
-        return Result.fail('Cannot archive family with living members');
-      }
+      // 3. Persist
+      await this.familyRepository.update(family);
 
-      // Publish events
-      const familyWithEvents = this.eventPublisher.mergeObjectContext(family);
+      // 4. Publish Events
+      await this.publishDomainEvents(family);
 
-      // Archive family
-      familyWithEvents.archive(command.reason, command.userId);
-
-      // Save family
-      await this.familyRepository.update(familyWithEvents);
-
-      // Commit events
-      familyWithEvents.commit();
-
-      this.logSuccess(command, null, 'Family archived');
+      this.logSuccess(command, undefined, 'Family archived');
       return Result.ok();
     } catch (error) {
       this.handleError(error, command, 'ArchiveFamilyHandler');

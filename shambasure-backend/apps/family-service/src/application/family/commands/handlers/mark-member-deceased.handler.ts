@@ -1,112 +1,81 @@
 import { Injectable } from '@nestjs/common';
-import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+import { CommandBus, CommandHandler, EventBus } from '@nestjs/cqrs';
 
-import { IEventPublisher } from '../../../../common/interfaces/use-case.interface';
-import { Family } from '../../../../domain/aggregates/family.aggregate';
-import { FamilyMember } from '../../../../domain/entities/family-member.entity';
-import { InvalidFamilyMemberException } from '../../../../domain/exceptions/family.exception';
-import { IFamilyMemberRepositoryPort } from '../../ports/outbound/family-member-repository.port';
-import { IFamilyRepositoryPort } from '../../ports/outbound/family-repository.port';
-import {
-  MarkMemberDeceasedCommand,
-  MarkMemberDeceasedCommandResult,
-} from '../impl/mark-member-deceased.command';
+import type { IFamilyMemberRepository } from '../../../../domain/interfaces/repositories/ifamily-member.repository';
+import type { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
+import { Result } from '../../../common/base/result';
+import { FamilyMemberResponse } from '../../dto/response/family-member.response';
+import { FamilyMemberMapper } from '../../mappers/family-member.mapper';
+import { MarkMemberDeceasedCommand } from '../impl/mark-member-deceased.command';
+import { BaseCommandHandler } from './base.command-handler';
 
 @Injectable()
 @CommandHandler(MarkMemberDeceasedCommand)
-export class MarkMemberDeceasedHandler implements ICommandHandler<
+export class MarkMemberDeceasedHandler extends BaseCommandHandler<
   MarkMemberDeceasedCommand,
-  MarkMemberDeceasedCommandResult
+  Result<FamilyMemberResponse>
 > {
   constructor(
-    private readonly familyRepository: IFamilyRepositoryPort,
-    private readonly familyMemberRepository: IFamilyMemberRepositoryPort,
-    private readonly eventPublisher: IEventPublisher,
-  ) {}
+    private readonly familyRepository: IFamilyRepository,
+    private readonly memberRepository: IFamilyMemberRepository,
+    private readonly memberMapper: FamilyMemberMapper,
+    commandBus: CommandBus,
+    eventBus: EventBus,
+  ) {
+    super(commandBus, eventBus);
+  }
 
-  async execute(command: MarkMemberDeceasedCommand): Promise<MarkMemberDeceasedCommandResult> {
-    const warnings: string[] = [];
-
+  async execute(command: MarkMemberDeceasedCommand): Promise<Result<FamilyMemberResponse>> {
     try {
-      // 1. Validate command
-      command.validate();
+      const validation = this.validateCommand(command);
+      if (validation.isFailure) return Result.fail(validation.error!);
 
-      // 2. Get the family and member
-      const family = await this.familyRepository.findById(command.familyId);
-      if (!family) {
-        throw new Error(`Family with ID ${command.familyId} not found`);
+      const { memberId, familyId, data } = command;
+
+      // 1. Load Aggregates
+      const member = await this.memberRepository.findById(memberId);
+      if (!member) return Result.fail(new Error('Member not found'));
+
+      const family = await this.familyRepository.findById(familyId);
+      if (!family) return Result.fail(new Error('Family not found'));
+
+      if (member.familyId !== familyId) {
+        return Result.fail(new Error('Member does not belong to this family'));
       }
 
-      const member = await this.familyMemberRepository.findById(command.memberId);
-      if (!member) {
-        throw new Error(`Family member with ID ${command.memberId} not found`);
-      }
-
-      // 3. Verify member belongs to the family
-      if (member.familyId !== command.familyId) {
-        throw new Error(`Member ${command.memberId} does not belong to family ${command.familyId}`);
-      }
-
-      // 4. Check if member is already deceased
-      if (member.isDeceased) {
-        throw new Error(`Member ${command.memberId} is already marked as deceased`);
-      }
-
-      // 5. Check if member has verified identity (important for inheritance)
-      if (!member.isIdentityVerified) {
-        warnings.push(
-          'Member marked deceased without verified identity. May affect inheritance claims.',
-        );
-      }
-
-      // 6. Mark member as deceased
+      // 2. Update Member State (Domain Logic)
       member.markAsDeceased({
-        dateOfDeath: command.dateOfDeath,
-        placeOfDeath: command.placeOfDeath,
-        deathCertificateNumber: command.deathCertificateNumber,
-        causeOfDeath: command.causeOfDeath,
-        issuingAuthority: command.issuingAuthority,
+        dateOfDeath: data.dateOfDeath,
+        placeOfDeath: data.placeOfDeath,
+        deathCertificateNumber: data.deathCertificateNumber,
+        causeOfDeath: data.causeOfDeath,
+        issuingAuthority: data.issuingAuthority,
       });
 
-      // 7. Update family counts
+      // 3. Update Family State (Counters)
       family.recordMemberDeath(
         member.id,
-        command.dateOfDeath,
-        command.deathCertificateNumber,
-        command.placeOfDeath,
+        data.dateOfDeath,
+        data.deathCertificateNumber,
+        data.placeOfDeath,
       );
 
-      // 8. Save changes
-      const updatedMember = await this.familyMemberRepository.save(member);
-      await this.familyRepository.save(family);
+      // 4. Persist (Ideally transactional)
+      await this.memberRepository.update(member);
+      await this.familyRepository.update(family);
 
-      // 9. Publish domain events
-      const memberEvents = updatedMember.getDomainEvents();
-      const familyEvents = family.getDomainEvents();
-      const allEvents = [...memberEvents, ...familyEvents];
+      // 5. Publish Events
+      await this.publishDomainEvents(member);
+      await this.publishDomainEvents(family);
 
-      if (allEvents.length > 0) {
-        await this.eventPublisher.publishAll(allEvents);
-        updatedMember.clearDomainEvents();
-        family.clearDomainEvents();
-      }
+      // 6. Response
+      const responseDTO = this.memberMapper.toDTO(member);
+      const result = Result.ok(responseDTO);
 
-      // 10. Return result
-      return new MarkMemberDeceasedCommandResult(
-        updatedMember.id,
-        family.id,
-        command.dateOfDeath,
-        command.deathCertificateNumber,
-        updatedMember.currentAge,
-        new Date(),
-        command.recordedBy,
-        warnings,
-      );
+      this.logSuccess(command, result, 'Member marked as deceased');
+      return result;
     } catch (error) {
-      if (error instanceof InvalidFamilyMemberException) {
-        throw new Error(`Failed to mark member as deceased: ${error.message}`);
-      }
-      throw error;
+      this.handleError(error, command, 'MarkMemberDeceasedHandler');
     }
   }
 }

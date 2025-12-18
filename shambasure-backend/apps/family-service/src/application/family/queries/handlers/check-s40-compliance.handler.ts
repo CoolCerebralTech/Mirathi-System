@@ -1,11 +1,15 @@
-// application/family/queries/handlers/check-s40-compliance.handler.ts
 import { Injectable } from '@nestjs/common';
-import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
+import { QueryBus, QueryHandler } from '@nestjs/cqrs';
 
-import { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
-import { IMarriageRepository } from '../../../../domain/interfaces/repositories/imarriage.repository';
-import { IPolygamousHouseRepository } from '../../../../domain/interfaces/repositories/ipolygamous-house.repository';
-import { Result } from '../../common/result';
+// Use correct QueryBus type
+
+import { Family } from '../../../../domain/aggregates/family.aggregate';
+import { Marriage } from '../../../../domain/entities/marriage.entity';
+import { PolygamousHouse } from '../../../../domain/entities/polygamous-house.entity';
+import type { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
+import type { IMarriageRepository } from '../../../../domain/interfaces/repositories/imarriage.repository';
+import type { IPolygamousHouseRepository } from '../../../../domain/interfaces/repositories/ipolygamous-house.repository';
+import { Result } from '../../../common/base/result';
 import { KenyanLegalComplianceResponse } from '../../dto/response/kenyan-legal-compliance.response';
 import {
   CheckS40ComplianceQuery,
@@ -17,43 +21,39 @@ import { BaseQueryHandler } from './base.query-handler';
 @QueryHandler(CheckS40ComplianceQuery)
 export class CheckS40ComplianceHandler extends BaseQueryHandler<
   CheckS40ComplianceQuery,
-  Result<KenyanLegalComplianceResponse>
+  KenyanLegalComplianceResponse
 > {
   constructor(
     private readonly familyRepository: IFamilyRepository,
     private readonly polygamousHouseRepository: IPolygamousHouseRepository,
     private readonly marriageRepository: IMarriageRepository,
-    queryBus: any,
+    queryBus: QueryBus,
   ) {
-    super(queryBus);
+    super(queryBus); // Pass queryBus to base
   }
 
   async execute(query: CheckS40ComplianceQuery): Promise<Result<KenyanLegalComplianceResponse>> {
     try {
-      // Validate query
       const validation = this.validateQuery(query);
-      if (validation.isFailure) {
-        return Result.fail(validation.error);
-      }
+      if (validation.isFailure) return Result.fail(validation.error!);
 
-      // Load family
+      // 1. Load Aggregates
+      // Note: Repositories return Domain Entities
       const family = await this.familyRepository.findById(query.familyId);
       if (!family) {
-        return Result.fail(`Family with ID ${query.familyId} not found`);
+        return Result.fail(new Error(`Family with ID ${query.familyId} not found`));
       }
 
-      // Load polygamous houses
+      // Assuming these methods exist in your repository interfaces
       const houses = await this.polygamousHouseRepository.findAllByFamilyId(query.familyId);
-
-      // Load marriages
       const marriages = await this.marriageRepository.findAllByFamilyId(query.familyId);
 
-      // Generate compliance report
+      // 2. Generate Report
       const report = await this.generateComplianceReport(
         family,
         houses,
         marriages,
-        query.reportType,
+        query.reportType || S40ComplianceReportType.SUMMARY,
         query,
       );
 
@@ -65,25 +65,21 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
   }
 
   private async generateComplianceReport(
-    family: any,
-    houses: any[],
-    marriages: any[],
+    family: Family,
+    houses: PolygamousHouse[],
+    marriages: Marriage[],
     reportType: S40ComplianceReportType,
     query: CheckS40ComplianceQuery,
   ): Promise<KenyanLegalComplianceResponse> {
     const now = new Date();
+    const nextDue = new Date();
+    nextDue.setDate(now.getDate() + 90);
 
-    // Calculate S.40 compliance
     const s40Compliance = this.calculateS40Compliance(family, houses, marriages);
-
-    // Calculate overall compliance (simplified)
     const overallScore = this.calculateOverallScore(s40Compliance);
     const overallStatus = this.determineOverallStatus(overallScore);
+    const issues = this.generateComplianceIssues(family, houses, marriages);
 
-    // Generate issues
-    const issues = this.generateComplianceIssues(houses, marriages);
-
-    // Generate recommendations
     const recommendations = query.includeRecommendations
       ? this.generateRecommendations(houses, s40Compliance)
       : [];
@@ -94,7 +90,7 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
       overallScore,
       overallStatus,
       lastChecked: now,
-      nextCheckDue: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000), // 90 days from now
+      nextCheckDue: nextDue,
       section29: this.calculateS29Compliance(family),
       section40: s40Compliance,
       section70: this.calculateS70Compliance(family),
@@ -117,25 +113,33 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
       },
     };
 
-    // Format for legal documentation if requested
     if (query.legalDocumentationFormat) {
-      this.formatForLegalDocumentation(response);
+      // Cast to any to attach extra property not strictly in DTO if needed,
+      // or ensure DTO has this field. Assuming DTO update:
+      (response as any).legalDocumentation = {
+        preparedFor: 'Legal Review',
+        preparedBy: 'Family Service System',
+        datePrepared: new Date(),
+        referenceNumber: `COMP-${response.familyId}-${Date.now()}`,
+        disclaimer: 'This report is for informational purposes only.',
+      };
     }
 
     return response;
   }
 
-  private calculateS40Compliance(family: any, houses: any[], marriages: any[]): any {
-    const polygamousMarriages = marriages.filter((m) => m.isPolygamousUnderS40);
+  // --- Calculation Helpers ---
+
+  private calculateS40Compliance(
+    family: Family,
+    houses: PolygamousHouse[],
+    marriages: Marriage[],
+  ): any {
+    const polygamousMarriages = marriages.filter((m) => m.isPolygamous);
     const certifiedHouses = houses.filter((h) => h.courtRecognized);
     const housesWithConsent = houses.filter((h) => h.wivesConsentObtained);
 
-    // Calculate house shares
-    let totalSharesPercentage = 0;
-    houses.forEach((house) => {
-      totalSharesPercentage += house.houseSharePercentage || 0;
-    });
-
+    const totalSharesPercentage = houses.reduce((sum, h) => sum + (h.houseSharePercentage || 0), 0);
     const complianceStatus = this.determineS40ComplianceStatus(family, houses, polygamousMarriages);
 
     return {
@@ -150,49 +154,26 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
   }
 
   private determineS40ComplianceStatus(
-    family: any,
-    houses: any[],
-    polygamousMarriages: any[],
+    family: Family,
+    houses: PolygamousHouse[],
+    polygamousMarriages: Marriage[],
   ): string {
-    if (!family.isPolygamous) {
-      return 'NOT_APPLICABLE';
-    }
+    if (!family.isPolygamous) return 'NOT_APPLICABLE';
+    if (houses.length === 0) return 'NON_COMPLIANT';
 
-    if (houses.length === 0) {
-      return 'NON_COMPLIANT';
-    }
+    const issues = this.generateS40ComplianceIssues(family, houses, polygamousMarriages);
+    if (issues.some((i) => i.severity === 'CRITICAL')) return 'NON_COMPLIANT';
 
-    // Check for critical issues
-    const criticalIssues = this.generateS40ComplianceIssues(
-      family,
-      houses,
-      polygamousMarriages,
-    ).filter((issue) => issue.severity === 'CRITICAL');
-
-    if (criticalIssues.length > 0) {
-      return 'NON_COMPLIANT';
-    }
-
-    // Check if all polygamous marriages have houses
-    const marriagesWithoutHouses = polygamousMarriages.filter((m) => !m.polygamousHouseId);
-    if (marriagesWithoutHouses.length > 0) {
-      return 'PARTIAL';
-    }
-
-    // Check if all houses beyond first have consent
     const subsequentHouses = houses.filter((h) => h.houseOrder > 1);
-    const housesWithoutConsent = subsequentHouses.filter((h) => !h.wivesConsentObtained);
-    if (housesWithoutConsent.length > 0) {
-      return 'PARTIAL';
-    }
+    if (subsequentHouses.some((h) => !h.wivesConsentObtained)) return 'PARTIAL';
 
     return 'COMPLIANT';
   }
 
   private generateS40ComplianceIssues(
-    family: any,
-    houses: any[],
-    polygamousMarriages: any[],
+    family: Family,
+    houses: PolygamousHouse[],
+    polygamousMarriages: Marriage[],
   ): any[] {
     const issues: any[] = [];
 
@@ -201,57 +182,55 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
         code: 'S40_NO_HOUSES',
         severity: 'CRITICAL',
         title: 'Polygamous Family Without Houses',
-        description: 'Family is marked as polygamous but has no polygamous houses defined.',
+        description: 'Family is marked as polygamous but has no houses defined.',
         lawReference: 'Law of Succession Act, Section 40(1)',
-        recommendation: 'Define polygamous houses for estate distribution.',
+        recommendation: 'Define polygamous houses.',
         isResolved: false,
       });
     }
 
-    // Check for houses without court certification
     houses.forEach((house) => {
+      // Rule: Houses beyond 1st need certification/consent validation more strictly
       if (house.houseOrder > 1 && !house.courtRecognized) {
         issues.push({
           code: 'S40_NO_CERTIFICATE',
-          severity: house.houseOrder === 2 ? 'HIGH' : 'MEDIUM',
+          severity: 'HIGH',
           title: `House "${house.houseName}" Lacks Court Certification`,
-          description: `Polygamous house "${house.houseName}" (Order: ${house.houseOrder}) lacks S.40 court certification.`,
+          description: `House order ${house.houseOrder} lacks S.40 certificate.`,
           lawReference: 'Law of Succession Act, Section 40(1)',
           affectedId: house.id,
           affectedName: house.houseName,
-          recommendation: 'Obtain court certificate for the polygamous house.',
+          recommendation: 'Obtain court certificate.',
           isResolved: false,
         });
       }
-    });
 
-    // Check for houses without wives consent
-    houses.forEach((house) => {
       if (house.houseOrder > 1 && !house.wivesConsentObtained) {
         issues.push({
           code: 'S40_NO_CONSENT',
           severity: 'HIGH',
           title: `House "${house.houseName}" Lacks Wives Consent`,
-          description: `Subsequent polygamous house "${house.houseName}" lacks documented consent from existing wives.`,
+          description: `No documented consent from existing wives.`,
           lawReference: 'Law of Succession Act, Section 40(2)',
           affectedId: house.id,
           affectedName: house.houseName,
-          recommendation: 'Document and obtain consent from existing wives.',
+          recommendation: 'Document consent.',
           isResolved: false,
         });
       }
     });
 
-    // Check for polygamous marriages without house assignment
-    polygamousMarriages.forEach((marriage) => {
-      if (!marriage.polygamousHouseId) {
+    // Check Unassigned Polygamous Marriages
+    polygamousMarriages.forEach((m) => {
+      if (!m.polygamousHouseId) {
         issues.push({
           code: 'S40_MARRIAGE_NO_HOUSE',
           severity: 'MEDIUM',
-          title: 'Polygamous Marriage Without House Assignment',
-          description: `Marriage between spouses lacks polygamous house assignment.`,
-          lawReference: 'Law of Succession Act, Section 40(3)',
-          recommendation: 'Assign marriage to appropriate polygamous house.',
+          title: 'Polygamous Marriage Unassigned',
+          description: 'Marriage flagged as polygamous but not assigned to a house.',
+          lawReference: 'S.40',
+          affectedId: m.id,
+          recommendation: 'Assign to house.',
           isResolved: false,
         });
       }
@@ -260,11 +239,12 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
     return issues;
   }
 
-  private calculateS29Compliance(family: any): any {
-    // Simplified S.29 compliance calculation
+  // --- Other Act Helpers (Simplified from Entity Getters) ---
+
+  private calculateS29Compliance(family: Family): any {
     return {
-      potentialDependants: family.dependantCount || 0,
-      verifiedDependants: 0, // Would need actual verification data
+      potentialDependants: family.dependantCount,
+      verifiedDependants: 0, // Placeholder
       claimsFiled: 0,
       courtProvisions: 0,
       totalDependencyValue: 0,
@@ -273,11 +253,10 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
     };
   }
 
-  private calculateS70Compliance(family: any): any {
-    // Simplified S.70 compliance calculation
+  private calculateS70Compliance(family: Family): any {
     return {
-      minorChildren: family.minorCount || 0,
-      appointedGuardians: 0, // Would need guardianship data
+      minorChildren: family.minorCount,
+      appointedGuardians: 0,
       guardiansWithBonds: 0,
       pendingAnnualReports: 0,
       status: family.minorCount > 0 ? 'REQUIRES_REVIEW' : 'COMPLIANT',
@@ -285,38 +264,36 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
     };
   }
 
-  private calculateChildrenActCompliance(family: any): any {
-    // Simplified Children Act compliance
+  private calculateChildrenActCompliance(family: Family): any {
     return {
-      adoptedChildren: 0, // Would need adoption data
+      adoptedChildren: 0,
       validAdoptionOrders: 0,
-      childrenInNeed: family.minorCount || 0,
+      childrenInNeed: family.minorCount,
       status: 'COMPLIANT',
       issues: [],
     };
   }
 
-  private calculateMarriageActCompliance(marriages: any[]): any {
-    const registeredMarriages = marriages.filter((m) => m.registrationNumber);
-    const customaryMarriages = marriages.filter(
-      (m) => m.type === 'CUSTOMARY' || m.type === 'TRADITIONAL',
-    );
-    const islamicMarriages = marriages.filter((m) => m.type === 'ISLAMIC');
+  private calculateMarriageActCompliance(marriages: Marriage[]): any {
+    const registered = marriages.filter((m) => m.details.registrationNumber);
+
+    // Note: Using entity getters for type
+    const customary = marriages.filter((m) => m.isCustomary);
+    const islamic = marriages.filter((m) => m.isIslamic);
 
     return {
       totalMarriages: marriages.length,
-      registeredMarriages: registeredMarriages.length,
-      customaryMarriages: customaryMarriages.length,
-      islamicMarriages: islamicMarriages.length,
-      marriagesWithBridePrice: 0, // Would need bride price data
-      marriagesWithSettledProperty: 0, // Would need property data
+      registeredMarriages: registered.length,
+      customaryMarriages: customary.length,
+      islamicMarriages: islamic.length,
+      marriagesWithBridePrice: 0,
+      marriagesWithSettledProperty: 0,
       status: marriages.length > 0 ? 'REQUIRES_REVIEW' : 'COMPLIANT',
       issues: [],
     };
   }
 
   private calculateOverallScore(s40Compliance: any): number {
-    // Simplified overall score calculation
     if (s40Compliance.status === 'COMPLIANT') return 85;
     if (s40Compliance.status === 'PARTIAL') return 65;
     if (s40Compliance.status === 'NOT_APPLICABLE') return 90;
@@ -330,82 +307,28 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
     return 'CRITICAL';
   }
 
-  private generateComplianceIssues(houses: any[], marriages: any[]): any[] {
-    const issues = [];
-
-    // Generate issues from S.40 compliance
-    houses.forEach((house) => {
-      if (house.houseOrder > 1 && !house.courtRecognized) {
-        issues.push({
-          code: 'S40_NO_CERTIFICATE',
-          severity: 'HIGH',
-          title: `Missing S.40 Certificate for House "${house.houseName}"`,
-          description: `House "${house.houseName}" (Order: ${house.houseOrder}) lacks S.40 court certificate required by Law of Succession Act.`,
-          lawReference: 'Law of Succession Act, Section 40(1)',
-          affectedId: house.id,
-          affectedName: house.houseName,
-          recommendation: 'Obtain court certificate for polygamous house.',
-          isResolved: false,
-        });
-      }
-    });
-
-    // Add more issue generation logic as needed
-
-    return issues;
+  private generateComplianceIssues(
+    family: Family,
+    houses: PolygamousHouse[],
+    marriages: Marriage[],
+  ): any[] {
+    // Combine issues from different logic blocks
+    return this.generateS40ComplianceIssues(family, houses, marriages);
   }
 
-  private generateRecommendations(houses: any[], s40Compliance: any): string[] {
-    const recommendations: string[] = [];
+  private generateRecommendations(houses: PolygamousHouse[], s40Compliance: any): string[] {
+    const recs: string[] = [];
+    if (s40Compliance.status === 'NON_COMPLIANT') recs.push('Address critical S.40 issues.');
 
-    if (s40Compliance.status === 'NON_COMPLIANT') {
-      recommendations.push('Address critical S.40 compliance issues immediately.');
-    }
-
-    houses.forEach((house) => {
-      if (house.houseOrder > 1 && !house.courtRecognized) {
-        recommendations.push(`Obtain S.40 certificate for house "${house.houseName}".`);
-      }
-      if (house.houseOrder > 1 && !house.wivesConsentObtained) {
-        recommendations.push(`Document wives consent for house "${house.houseName}".`);
-      }
+    houses.forEach((h) => {
+      if (h.houseOrder > 1 && !h.courtRecognized) recs.push(`Obtain S.40 cert for ${h.houseName}`);
     });
 
-    if (recommendations.length === 0) {
-      recommendations.push('Maintain current compliance practices.');
-    }
-
-    return recommendations;
+    return recs;
   }
 
   private async getComplianceHistory(familyId: string): Promise<any[]> {
-    // This would query historical compliance data
-    // For now, return placeholder data
-    return [
-      {
-        date: new Date('2023-10-15'),
-        score: 65,
-        status: 'PARTIAL',
-        checkedBy: 'system',
-      },
-      {
-        date: new Date('2024-01-15'),
-        score: 75,
-        status: 'PARTIAL',
-        checkedBy: 'system',
-      },
-    ];
-  }
-
-  private formatForLegalDocumentation(response: KenyanLegalComplianceResponse): void {
-    // Add legal formatting to response
-    response.legalDocumentation = {
-      preparedFor: 'Legal Review',
-      preparedBy: 'Family Service System',
-      datePrepared: new Date(),
-      referenceNumber: `COMP-${response.familyId}-${Date.now()}`,
-      disclaimer:
-        'This report is for informational purposes only and does not constitute legal advice.',
-    };
+    // Placeholder: Connect to Audit Log / History Repo in production
+    return [];
   }
 }

@@ -1,5 +1,6 @@
 // application/family/commands/impl/create-family.command.ts
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import { IsNotEmpty, IsUUID, ValidateNested } from 'class-validator';
 
 import { CreateFamilyRequest } from '../../dto/request/create-family.request';
@@ -21,13 +22,6 @@ export class CreateFamilyCommand extends BaseCommand {
   readonly timestamp: Date;
 
   @ApiProperty({
-    description: 'Correlation ID for tracing',
-    example: 'corr-1234567890',
-  })
-  @IsUUID('4')
-  readonly correlationId?: string;
-
-  @ApiProperty({
     description: 'User ID executing the command',
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
@@ -39,6 +33,7 @@ export class CreateFamilyCommand extends BaseCommand {
     type: CreateFamilyRequest,
   })
   @ValidateNested()
+  @Type(() => CreateFamilyRequest)
   readonly data: CreateFamilyRequest;
 
   constructor(
@@ -48,12 +43,12 @@ export class CreateFamilyCommand extends BaseCommand {
     data: CreateFamilyRequest,
     correlationId?: string,
   ) {
-    super();
+    super(correlationId); // Pass correlationId to base constructor
     this.commandId = commandId;
     this.timestamp = timestamp;
     this.userId = userId;
     this.data = data;
-    this.correlationId = correlationId;
+    // REMOVED: this.correlationId = correlationId;
   }
 
   static create(

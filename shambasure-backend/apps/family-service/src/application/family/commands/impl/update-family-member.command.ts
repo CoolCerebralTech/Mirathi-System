@@ -1,11 +1,10 @@
-// application/family/commands/impl/update-family.command.ts
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, IsUUID, ValidateNested } from 'class-validator';
 
-import { UpdateFamilyRequest } from '../../dto/request/update-family.request';
+import { UpdateFamilyMemberRequest } from '../../dto/request/update-family-member.request';
 import { BaseCommand } from '../base.command';
 
-export class UpdateFamilyCommand extends BaseCommand {
+export class UpdateFamilyMemberCommand extends BaseCommand {
   @ApiProperty({
     description: 'Unique command identifier',
     example: 'cmd-1234567890',
@@ -35,25 +34,33 @@ export class UpdateFamilyCommand extends BaseCommand {
   readonly userId: string;
 
   @ApiProperty({
-    description: 'Family ID to update',
+    description: 'Family ID',
     example: 'fam-1234567890',
   })
   @IsString()
   readonly familyId: string;
 
   @ApiProperty({
-    description: 'Family update data',
-    type: UpdateFamilyRequest,
+    description: 'Member ID to update',
+    example: 'fm-1234567890',
+  })
+  @IsString()
+  readonly memberId: string;
+
+  @ApiProperty({
+    description: 'Update data payload',
+    type: UpdateFamilyMemberRequest,
   })
   @ValidateNested()
-  readonly data: UpdateFamilyRequest;
+  readonly data: UpdateFamilyMemberRequest;
 
   constructor(
     commandId: string,
     timestamp: Date,
     userId: string,
     familyId: string,
-    data: UpdateFamilyRequest,
+    memberId: string,
+    data: UpdateFamilyMemberRequest,
     correlationId?: string,
   ) {
     super();
@@ -61,6 +68,7 @@ export class UpdateFamilyCommand extends BaseCommand {
     this.timestamp = timestamp;
     this.userId = userId;
     this.familyId = familyId;
+    this.memberId = memberId;
     this.data = data;
     this.correlationId = correlationId;
   }
@@ -68,14 +76,16 @@ export class UpdateFamilyCommand extends BaseCommand {
   static create(
     userId: string,
     familyId: string,
-    data: UpdateFamilyRequest,
+    memberId: string,
+    data: UpdateFamilyMemberRequest,
     correlationId?: string,
-  ): UpdateFamilyCommand {
-    return new UpdateFamilyCommand(
+  ): UpdateFamilyMemberCommand {
+    return new UpdateFamilyMemberCommand(
       `cmd-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       new Date(),
       userId,
       familyId,
+      memberId,
       data,
       correlationId,
     );

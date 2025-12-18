@@ -1,12 +1,14 @@
-// application/family/queries/handlers/get-family-counts.handler.ts
 import { Injectable } from '@nestjs/common';
-import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
+import { QueryBus, QueryHandler } from '@nestjs/cqrs';
+import { MarriageType } from '@prisma/client';
 
-import { IFamilyMemberRepository } from '../../../../domain/interfaces/repositories/ifamily-member.repository';
-import { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
-import { IMarriageRepository } from '../../../../domain/interfaces/repositories/imarriage.repository';
-import { IPolygamousHouseRepository } from '../../../../domain/interfaces/repositories/ipolygamous-house.repository';
-import { Result } from '../../common/result';
+import { Family } from '../../../../domain/aggregates/family.aggregate';
+import { FamilyMember } from '../../../../domain/entities/family-member.entity';
+import type { IFamilyMemberRepository } from '../../../../domain/interfaces/repositories/ifamily-member.repository';
+import type { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
+import type { IMarriageRepository } from '../../../../domain/interfaces/repositories/imarriage.repository';
+import type { IPolygamousHouseRepository } from '../../../../domain/interfaces/repositories/ipolygamous-house.repository';
+import { Result } from '../../../common/base/result';
 import { FamilyCountsResponse } from '../../dto/response/family-counts.response';
 import { GetFamilyCountsQuery } from '../impl/get-family-counts.query';
 import { BaseQueryHandler } from './base.query-handler';
@@ -15,127 +17,136 @@ import { BaseQueryHandler } from './base.query-handler';
 @QueryHandler(GetFamilyCountsQuery)
 export class GetFamilyCountsHandler extends BaseQueryHandler<
   GetFamilyCountsQuery,
-  Result<FamilyCountsResponse>
+  FamilyCountsResponse
 > {
   constructor(
     private readonly familyRepository: IFamilyRepository,
     private readonly familyMemberRepository: IFamilyMemberRepository,
     private readonly marriageRepository: IMarriageRepository,
     private readonly polygamousHouseRepository: IPolygamousHouseRepository,
-    queryBus: any,
+    queryBus: QueryBus,
   ) {
     super(queryBus);
   }
 
   async execute(query: GetFamilyCountsQuery): Promise<Result<FamilyCountsResponse>> {
     try {
-      // Validate query
       const validation = this.validateQuery(query);
-      if (validation.isFailure) {
-        return Result.fail(validation.error);
-      }
+      if (validation.isFailure) return Result.fail(validation.error!);
 
-      // Load family
+      // 1. Load Family
       const family = await this.familyRepository.findById(query.familyId);
       if (!family) {
-        return Result.fail(`Family with ID ${query.familyId} not found`);
+        return Result.fail(new Error(`Family with ID ${query.familyId} not found`));
       }
 
-      // Load detailed statistics
-      const statistics = await this.familyMemberRepository.getFamilyMemberStatistics(
-        query.familyId,
-      );
-      const houses = await this.polygamousHouseRepository.findAllByFamilyId(query.familyId);
+      // 2. Load Related Data
+      // In a read-optimized system, this might be a single raw SQL query.
+      // Here we use repositories to maintain Domain integrity.
+      const members = await this.familyMemberRepository.findAllByFamilyId(query.familyId);
       const marriages = await this.marriageRepository.findAllByFamilyId(query.familyId);
-      const activeMarriages = marriages.filter((m) => m.isActive);
+      const houses = await this.polygamousHouseRepository.findAllByFamilyId(query.familyId);
 
-      // Calculate average age
-      const averageAge = statistics.averageAge || 0;
+      // 3. Aggregate Data
+      const response = this.calculateCounts(family, members, marriages, houses);
 
-      // Calculate S.40 compliance
-      const certifiedHouses = houses.filter((h) => h.courtRecognized).length;
-      const s40ComplianceStatus = this.determineS40ComplianceStatus(
-        family,
-        houses,
-        certifiedHouses,
-      );
-
-      // Build response
-      const response: FamilyCountsResponse = {
-        familyId: family.id,
-        familyName: family.name,
-        totalMembers: family.memberCount,
-        livingMembers: family.livingMemberCount,
-        deceasedMembers: family.deceasedMemberCount,
-        minorMembers: family.minorCount,
-        dependantMembers: family.dependantCount,
-        verifiedIdentityMembers: statistics.identityVerified,
-        disabledMembers: statistics.withDisability,
-        polygamousHouses: family.polygamousHouseCount,
-        marriages: marriages.length,
-        activeMarriages: activeMarriages.length,
-        endedMarriages: marriages.length - activeMarriages.length,
-        customaryMarriages: marriages.filter(
-          (m) => m.type === 'CUSTOMARY' || m.type === 'TRADITIONAL',
-        ).length,
-        islamicMarriages: marriages.filter((m) => m.type === 'ISLAMIC').length,
-        civilMarriages: marriages.filter((m) => m.type === 'CIVIL').length,
-        christianMarriages: marriages.filter((m) => m.type === 'CHRISTIAN').length,
-        averageAge,
-        requiresIdentityVerification: statistics.requiresIdentityVerification,
-        missingCriticalData: statistics.missingCriticalData,
-        s40ComplianceStatus,
-        potentialS29Claims: family.dependantCount,
-        generations: await this.calculateGenerations(family.id),
-        lastUpdated: new Date(),
-      };
-
-      this.logSuccess(query, response, 'Family counts retrieved');
+      this.logSuccess(query, response, 'Family counts calculated');
       return Result.ok(response);
     } catch (error) {
       this.handleError(error, query, 'GetFamilyCountsHandler');
     }
   }
 
-  private determineS40ComplianceStatus(
-    family: any,
-    houses: any[],
-    certifiedHouses: number,
-  ): string {
-    if (!family.isPolygamous) {
-      return 'COMPLIANT';
+  private calculateCounts(
+    family: Family,
+    members: FamilyMember[],
+    marriages: any[], // Type as Marriage[] in production
+    houses: any[], // Type as PolygamousHouse[] in production
+  ): FamilyCountsResponse {
+    // Member Demographics
+    const livingMembers = members.filter((m) => !m.isDeceased);
+    const deceasedMembers = members.filter((m) => m.isDeceased);
+    const minorMembers = livingMembers.filter((m) => m.isMinor);
+    const verifiedMembers = members.filter((m) => m.isIdentityVerified);
+    const disabledMembers = members.filter((m) => m.hasDisability);
+
+    // S.29 Dependants (Potential)
+    // - Minors
+    // - Disabled
+    // - Young Adults (18-25, student logic usually handled in Entity)
+    const potentialDependants = members.filter((m) => m.isPotentialDependant);
+
+    // Missing Data Check (e.g., Missing Dates of Birth, IDs)
+    const missingCriticalData = members.filter(
+      (m) =>
+        (!m.isDeceased && !m.currentAge && !m.ageCalculation?.dateOfBirth) || // Missing Age
+        (!m.isDeceased && !m.identity.nationalId && m.ageCalculation?.isOfMajorityAge), // Missing ID for Adults
+    ).length;
+
+    // Average Age Calculation
+    const membersWithAge = livingMembers.filter((m) => m.currentAge !== null);
+    const totalAge = membersWithAge.reduce((sum, m) => sum + (m.currentAge || 0), 0);
+    const averageAge = membersWithAge.length > 0 ? totalAge / membersWithAge.length : null;
+
+    // Marriage Analysis
+    const activeMarriages = marriages.filter((m) => m.isActive);
+    const endedMarriages = marriages.filter((m) => !m.isActive);
+
+    const customary = marriages.filter(
+      (m) => m.type === MarriageType.CUSTOMARY || m.type === MarriageType.TRADITIONAL,
+    );
+    const islamic = marriages.filter((m) => m.type === MarriageType.ISLAMIC);
+    const civil = marriages.filter((m) => m.type === MarriageType.CIVIL);
+    const christian = marriages.filter((m) => m.type === MarriageType.CHRISTIAN);
+
+    // S.40 Compliance Status (Simplified for Summary)
+    let s40Status = 'NOT_APPLICABLE';
+    if (family.isPolygamous) {
+      if (houses.length === 0) {
+        s40Status = 'NON_COMPLIANT';
+      } else {
+        // Are all houses court recognized?
+        const allCertified = houses.every((h) => h.courtRecognized);
+        s40Status = allCertified ? 'COMPLIANT' : 'PENDING';
+      }
     }
 
-    if (houses.length === 0) {
-      return 'NON_COMPLIANT';
-    }
+    return {
+      familyId: family.id,
+      familyName: family.name,
 
-    if (certifiedHouses === houses.length) {
-      return 'COMPLIANT';
-    }
+      // Member Counts
+      totalMembers: members.length,
+      livingMembers: livingMembers.length,
+      deceasedMembers: deceasedMembers.length,
+      minorMembers: minorMembers.length,
+      dependantMembers: potentialDependants.length,
+      verifiedIdentityMembers: verifiedMembers.length,
+      disabledMembers: disabledMembers.length,
 
-    if (certifiedHouses > 0) {
-      return 'PARTIAL';
-    }
+      // Marriage Counts
+      marriages: marriages.length,
+      activeMarriages: activeMarriages.length,
+      endedMarriages: endedMarriages.length,
+      customaryMarriages: customary.length,
+      islamicMarriages: islamic.length,
+      civilMarriages: civil.length,
+      christianMarriages: christian.length,
 
-    return 'NON_COMPLIANT';
-  }
+      // Polygamy
+      polygamousHouses: houses.length,
+      s40ComplianceStatus: s40Status,
 
-  private async calculateGenerations(familyId: string): Promise<number> {
-    // Simplified generation calculation
-    // In production, this would analyze the family tree
-    const members = await this.familyMemberRepository.findAllByFamilyId(familyId);
+      // Metadata / Analytics
+      averageAge: averageAge ? parseFloat(averageAge.toFixed(1)) : null,
+      requiresIdentityVerification: livingMembers.length - verifiedMembers.length,
+      missingCriticalData,
+      potentialS29Claims: potentialDependants.length,
 
-    // Find oldest and youngest members
-    const ages = members.filter((m) => m.currentAge !== null).map((m) => m.currentAge as number);
+      // Generation approximation (Simple heuristic based on relationship depth if available, else 1)
+      generations: 1, // To do real calc requires TreeBuilder, usually too expensive for a Summary Query
 
-    if (ages.length === 0) return 1;
-
-    const maxAge = Math.max(...ages);
-    const minAge = Math.min(...ages);
-    const ageDifference = maxAge - minAge;
-
-    // Rough estimate: one generation every 25 years
-    return Math.max(1, Math.ceil(ageDifference / 25) + 1);
+      lastUpdated: new Date(),
+    };
   }
 }

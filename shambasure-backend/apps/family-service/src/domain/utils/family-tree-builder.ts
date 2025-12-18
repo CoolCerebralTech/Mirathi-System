@@ -1,10 +1,11 @@
-// domain/utils/family-tree-builder.ts
-import {
-  FamilyMember,
-  FamilyRelationship,
-  PolygamousHouse,
-  RelationshipType,
-} from '@prisma/client';
+import { Injectable } from '@nestjs/common';
+import { RelationshipType } from '@prisma/client';
+
+// Enums from Prisma are fine
+
+import { FamilyMember } from '../entities/family-member.entity';
+import { FamilyRelationship } from '../entities/family-relationship.entity';
+import { PolygamousHouse } from '../entities/polygamous-house.entity';
 
 // =============================================================================
 // INTERFACES
@@ -26,6 +27,9 @@ export interface FamilyTreeNode {
 
   // Visualization / Tree Structure
   depth: number;
+  generation: number; // Added generation property
+  isDeceased: boolean; // Helper
+  currentAge: number | null; // Helper
 }
 
 export interface HouseStructure {
@@ -50,16 +54,64 @@ export interface SuccessionStructure {
   polygamousHouses: HouseStructure[];
 }
 
+export interface TreeBuildOptions {
+  rootMemberId: string;
+  members: FamilyMember[];
+  relationships: FamilyRelationship[];
+  houses?: PolygamousHouse[];
+  maxDepth?: number;
+  includeDeceased?: boolean;
+  includeAdopted?: boolean;
+  includeStepRelations?: boolean;
+  includePolygamousHouses?: boolean;
+}
+
+export interface BuiltTree {
+  nodes: FamilyTreeNode[];
+  edges: Array<{ source: string; target: string; type: string; label: string }>;
+  marriages: number[]; // Placeholder count or IDs
+}
+
 // =============================================================================
-// TREE BUILDER CLASS
+// TREE BUILDER SERVICE
 // =============================================================================
 
+@Injectable()
 export class FamilyTreeBuilder {
   /**
-   * 1. BUILD GRAPH
-   * Converts flat lists of members/relationships into a traversable graph.
+   * 1. BUILD GRAPH (Main Entry Point for Handler)
    */
-  static buildTree(
+  public buildTree(options: TreeBuildOptions): BuiltTree {
+    const { members, relationships, houses = [] } = options;
+    const nodesMap = this.constructGraph(members, relationships, houses);
+
+    // Filter nodes based on options (depth, etc.) if needed
+    // For now, convert map to array
+    const nodes = Array.from(nodesMap.values());
+
+    // Generate Edges for Visualization
+    const edges: Array<{ source: string; target: string; type: string; label: string }> = [];
+
+    relationships.forEach((rel) => {
+      edges.push({
+        source: rel.fromMemberId,
+        target: rel.toMemberId,
+        type: rel.type,
+        label: rel.type.replace('_', ' '),
+      });
+    });
+
+    return {
+      nodes,
+      edges,
+      marriages: [], // Logic to count marriages
+    };
+  }
+
+  /**
+   * Internal Graph Construction Logic
+   */
+  private constructGraph(
     members: FamilyMember[],
     relationships: FamilyRelationship[],
     houses: PolygamousHouse[] = [],
@@ -76,8 +128,11 @@ export class FamilyTreeBuilder {
         spouses: [],
         siblings: [],
         isHouseHead: houses.some((h) => h.houseHeadId === member.id),
-        houseId: member.polygamousHouseId,
+        houseId: member.polygamousHouseId || null, // Ensure explicit null
         depth: 0,
+        generation: 0,
+        isDeceased: member.isDeceased,
+        currentAge: member.currentAge,
       });
     }
 
@@ -115,7 +170,7 @@ export class FamilyTreeBuilder {
       }
     }
 
-    // C. Calculate Layout (Depth) for visualization/ordering
+    // C. Calculate Layout (Depth)
     this.calculateTreeDepth(nodes);
 
     return nodes;
@@ -124,13 +179,16 @@ export class FamilyTreeBuilder {
   /**
    * 2. ANALYZE SUCCESSION STRUCTURE
    * Extracts the legal hierarchy for S.35 (Intestacy) and S.40 (Polygamy).
-   * Handles "Per Stirpes" (S.41) automatically.
    */
-  static analyzeSuccessionStructure(
+  public analyzeSuccessionStructure(
     deceasedId: string,
-    nodes: Map<string, FamilyTreeNode>,
+    members: FamilyMember[],
+    relationships: FamilyRelationship[],
     houses: PolygamousHouse[],
   ): SuccessionStructure {
+    // Re-build graph to ensure we have traversable nodes
+    const nodes = this.constructGraph(members, relationships, houses);
+
     const deceasedNode = nodes.get(deceasedId);
     if (!deceasedNode) {
       throw new Error(`Deceased member (ID: ${deceasedId}) not found in the provided family tree.`);
@@ -199,7 +257,6 @@ export class FamilyTreeBuilder {
           }
         }
 
-        // Only add house if it has surviving beneficiaries (Head, Child, or Grandchild)
         const houseHeadAlive = structure.survivingSpouses.includes(house.houseHeadId || '');
         const hasBeneficiaries =
           houseHeadAlive || houseLivingChildren.length > 0 || houseIssueMap.size > 0;
@@ -223,11 +280,7 @@ export class FamilyTreeBuilder {
   // PRIVATE HELPERS
   // ===========================================================================
 
-  /**
-   * Helper to calculate generations relative to roots.
-   * Useful for UI visualization (e.g. Generation 1, 2, 3).
-   */
-  private static calculateTreeDepth(nodes: Map<string, FamilyTreeNode>): void {
+  private calculateTreeDepth(nodes: Map<string, FamilyTreeNode>): void {
     const visited = new Set<string>();
     const queue: { node: FamilyTreeNode; depth: number }[] = [];
 
@@ -244,6 +297,7 @@ export class FamilyTreeBuilder {
     while (queue.length > 0) {
       const { node, depth } = queue.shift()!;
       node.depth = depth;
+      node.generation = depth; // Mapping depth to generation
 
       // Spouses stay on same level
       for (const spouse of node.spouses) {
