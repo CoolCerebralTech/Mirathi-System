@@ -46,12 +46,21 @@ src/domain/
 │           └── hotchpot-applied.event.ts
 │
 ├── shared/                         # SHARED KERNEL (Cross-Aggregate)
-│   ├── money.vo.ts                 # Amount + Currency (KES-focused)
-│   ├── kenyan-id.vo.ts            # National ID/KRA PIN validation
-│   ├── kenyan-location.vo.ts      # County/SubCounty/Ward structure
-│   ├── ownership-percentage.vo.ts
-│   ├── court-reference.vo.ts      # Case numbers, grant numbers
-│   └── document-reference.vo.ts   # Title deeds, registration numbers
+│   ├── money.vo.ts                     # Currency-aware monetary values (KES focus)
+|   ├── percentage.vo.ts                # Percentage validation (0-100%)
+|   ├── kenyan-id.vo.ts                 # National ID & KRA PIN validation
+|   ├── kenyan-location.vo.ts           # County/SubCounty/Ward/Village with validation
+|   ├── title-deed.vo.ts               # Kenyan title deed format validation
+|   ├── document-reference.vo.ts        # Legal document references
+|   ├── court-reference.vo.ts           # Court case/grant number validation
+|   ├── date-range.vo.ts               # Date ranges with business logic
+|   ├── address.vo.ts                  # Physical address with Kenyan specifics
+|   ├── phone-number.vo.ts             # Kenyan phone number validation
+|   ├── email.vo.ts                    # Email with custom Kenyan domain validation
+|   ├── gps-coordinates.vo.ts          # GPS coordinates validation
+|   ├── ownership-percentage.vo.ts     # Ownership share calculations
+|   ├── currency-conversion.vo.ts      # Forex conversions (KES to USD, etc.)
+|   └── kenyan-customary-law.vo.ts     # Customary law classification
 │
 ├── services/                       # DOMAIN SERVICES (Stateless business logic)
 │   ├── kenyan-intestacy-calculator.service.ts  # Pure S.35, 36, 38, 40 math
