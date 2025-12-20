@@ -69,3 +69,24 @@ export class NegativeMultiplicationFactorException extends InvalidMoneyException
     super(`Multiplication factor cannot be negative: ${factor}`, 'factor', { ...context, factor });
   }
 }
+
+export class ZeroAmountException extends InvalidMoneyException {
+  constructor(message: string = 'Amount cannot be zero', context?: Record<string, any>) {
+    super(message, 'amount', context);
+  }
+}
+
+export class InvalidMoneyFormatException extends InvalidMoneyException {
+  constructor(amountStr: string, context?: Record<string, any>) {
+    super(`Invalid money format: ${amountStr}`, 'format', { ...context, amountStr });
+  }
+}
+
+export class InvalidPercentageException extends InvalidMoneyException {
+  constructor(percent: number, context?: Record<string, any>) {
+    super(`Invalid percentage: ${percent}. Must be between 0 and 100`, 'percentage', {
+      ...context,
+      percent,
+    });
+  }
+}

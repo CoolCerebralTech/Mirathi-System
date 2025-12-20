@@ -2,16 +2,15 @@
 import { InvalidValueObjectException } from './base-domain.exception';
 
 export class InvalidDocumentReferenceException extends InvalidValueObjectException {
-  constructor(message: string, field?: string, context?: Record<string, any>) {
+  constructor(message: string, field: string = 'referenceNumber', context?: Record<string, any>) {
     super(message, 'DOMAIN_DOC_REF_001', field, context);
   }
 }
 
 export class InvalidTitleDeedReferenceException extends InvalidDocumentReferenceException {
   constructor(reference: string, context?: Record<string, any>) {
-    super(`Invalid title deed reference: ${reference}`, 'referenceNumber', {
+    super(`Invalid Title Deed reference format: ${reference}`, 'referenceNumber', {
       ...context,
-      reference,
       documentType: 'TITLE_DEED',
     });
   }
@@ -19,9 +18,8 @@ export class InvalidTitleDeedReferenceException extends InvalidDocumentReference
 
 export class InvalidDeathCertificateException extends InvalidDocumentReferenceException {
   constructor(reference: string, context?: Record<string, any>) {
-    super(`Invalid death certificate reference: ${reference}`, 'referenceNumber', {
+    super(`Invalid Death Certificate reference format: ${reference}`, 'referenceNumber', {
       ...context,
-      reference,
       documentType: 'DEATH_CERTIFICATE',
     });
   }
@@ -29,36 +27,27 @@ export class InvalidDeathCertificateException extends InvalidDocumentReferenceEx
 
 export class InvalidBirthCertificateException extends InvalidDocumentReferenceException {
   constructor(reference: string, context?: Record<string, any>) {
-    super(`Invalid birth certificate reference: ${reference}`, 'referenceNumber', {
+    super(`Invalid Birth Certificate reference format: ${reference}`, 'referenceNumber', {
       ...context,
-      reference,
       documentType: 'BIRTH_CERTIFICATE',
     });
   }
 }
 
 export class InvalidIDNumberException extends InvalidDocumentReferenceException {
-  constructor(idNumber: string, idType: string, context?: Record<string, any>) {
-    super(
-      `Invalid ${idType.replace('_', ' ').toLowerCase()} number: ${idNumber}`,
-      'referenceNumber',
-      { ...context, idNumber, idType },
-    );
-  }
-}
-
-export class InvalidIssuingAuthorityException extends InvalidDocumentReferenceException {
-  constructor(authority: string, context?: Record<string, any>) {
-    super(`Invalid issuing authority: ${authority}`, 'issuingAuthority', { ...context, authority });
-  }
-}
-
-export class ExpiredDocumentException extends InvalidDocumentReferenceException {
-  constructor(reference: string, expiryDate: Date, context?: Record<string, any>) {
-    super(`Document ${reference} expired on ${expiryDate.toISOString()}`, 'expiryDate', {
+  constructor(reference: string, idType: string, context?: Record<string, any>) {
+    super(`Invalid ${idType} format or checksum: ${reference}`, 'referenceNumber', {
       ...context,
-      reference,
-      expiryDate,
+      documentType: idType,
+    });
+  }
+}
+
+export class InvalidWillReferenceException extends InvalidDocumentReferenceException {
+  constructor(reference: string, context?: Record<string, any>) {
+    super(`Invalid Will reference format: ${reference}`, 'referenceNumber', {
+      ...context,
+      documentType: 'WILL',
     });
   }
 }

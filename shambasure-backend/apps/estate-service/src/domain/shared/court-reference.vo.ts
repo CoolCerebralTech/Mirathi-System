@@ -1,11 +1,6 @@
 // src/shared/domain/value-objects/court-reference.vo.ts
 import { ValueObject } from '../base/value-object';
-import {
-  InvalidCaseNumberException,
-  InvalidCourtReferenceException,
-  InvalidFormNumberException,
-  InvalidGrantNumberException,
-} from '../exceptions/court-reference.exception';
+import { InvalidCourtReferenceException } from '../exceptions/court-reference.exception';
 import { KenyanCounty } from './kenyan-location.vo';
 
 export enum CourtLevel {
@@ -174,7 +169,7 @@ export class CourtReference extends ValueObject<CourtReferenceProps> {
 
   private validateGenericCourtReference(ref: string): void {
     // Generic pattern for other courts
-    const genericPattern = /^[A-Za-z\s]+No\.?\s*\d+[\s\/\-]?\d{4}$/i;
+    const genericPattern = /^[A-Za-z\s]+No\.?\s*\d+[\s\\/\\-]?\d{4}$/i;
 
     if (!genericPattern.test(ref)) {
       throw new InvalidCourtReferenceException(

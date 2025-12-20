@@ -24,42 +24,6 @@ const userWithProfile = Prisma.validator<Prisma.UserDefaultArgs>()({
 });
 export type UserWithProfile = Prisma.UserGetPayload<typeof userWithProfile>;
 
-// --- SUCCESSION SERVICE ---
-const willWithAssignments = Prisma.validator<Prisma.WillDefaultArgs>()({
-  include: {
-    beneficiaryAssignments: {
-      include: {
-        asset: true,
-        beneficiary: true,
-      },
-    },
-  },
-});
-export type WillWithAssignments = Prisma.WillGetPayload<typeof willWithAssignments>;
-
-const assetWithAssignments = Prisma.validator<Prisma.AssetDefaultArgs>()({
-  include: {
-    beneficiaryAssignments: {
-      include: {
-        will: true,
-        beneficiary: true,
-      },
-    },
-  },
-});
-export type AssetWithAssignments = Prisma.AssetGetPayload<typeof assetWithAssignments>;
-
-const familyWithMembers = Prisma.validator<Prisma.FamilyDefaultArgs>()({
-  include: {
-    members: {
-      include: {
-        user: true,
-      },
-    },
-  },
-});
-export type FamilyWithMembers = Prisma.FamilyGetPayload<typeof familyWithMembers>;
-
 // --- DOCUMENTS SERVICE ---
 const documentWithVersions = Prisma.validator<Prisma.DocumentDefaultArgs>()({
   include: {

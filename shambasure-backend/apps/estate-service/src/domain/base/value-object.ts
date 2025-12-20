@@ -1,4 +1,5 @@
-// src/shared/domain/base/value-object.ts
+// src/domain/base/value-object.ts
+
 export abstract class ValueObject<T> {
   protected readonly _value: T;
 
