@@ -43,81 +43,53 @@ export class GetFamilyByIdHandler extends BaseQueryHandler<GetFamilyByIdQuery, F
         return Result.fail(new Error(`Family with ID ${query.familyId} not found`));
       }
 
-      await this.checkUserPermissions(query.userId, family);
+      this.checkUserPermissions(query.userId, family);
 
       // 2. Base Response
       const response = this.familyMapper.toDTO(family);
 
-      // 3. Conditional Data Loading
+      // 3. Parallel Data Loading (Optimization)
+      const promises: Promise<any>[] = [];
+
+      // A. Load Members
       if (query.includeMembers) {
-        const members = await this.familyMemberRepository.findAllByFamilyId(query.familyId);
-        // Cast to any to attach extra field if DTO is strict, or assume DTO has optional 'members'
-        (response as any).members = this.familyMemberMapper.toDTOList(members);
+        promises.push(
+          this.familyMemberRepository
+            .findAllByFamilyId(query.familyId)
+            .then(
+              (members) => ((response as any).members = this.familyMemberMapper.toDTOList(members)),
+            ),
+        );
       }
 
+      // B. Load Marriages with Spouse Hydration
       if (query.includeMarriages) {
-        const marriages = await this.marriageRepository.findAllByFamilyId(query.familyId);
-        const marriageResponses = await Promise.all(
-          marriages.map(async (marriage) => {
-            const dto = this.marriageMapper.toDTO(marriage);
-
-            // Hydrate Spouse Names
-            const [spouse1, spouse2] = await Promise.all([
-              this.familyMemberRepository.findById(marriage.spouse1Id),
-              this.familyMemberRepository.findById(marriage.spouse2Id),
-            ]);
-
-            if (spouse1) {
-              dto.spouse1 = {
-                id: spouse1.id,
-                name: spouse1.name.fullName,
-                gender: spouse1.gender || 'UNKNOWN',
-                isDeceased: spouse1.isDeceased,
-              };
-            }
-            if (spouse2) {
-              dto.spouse2 = {
-                id: spouse2.id,
-                name: spouse2.name.fullName,
-                gender: spouse2.gender || 'UNKNOWN',
-                isDeceased: spouse2.isDeceased,
-              };
-            }
-            return dto;
-          }),
+        promises.push(
+          this.loadMarriages(query.familyId).then(
+            (marriages) => ((response as any).marriages = marriages),
+          ),
         );
-        (response as any).marriages = marriageResponses;
       }
 
+      // C. Load Polygamous Houses with Head Hydration
       if (query.includePolygamousHouses) {
-        const houses = await this.polygamousHouseRepository.findAllByFamilyId(query.familyId);
-        const houseResponses = await Promise.all(
-          houses.map(async (house) => {
-            const dto = this.polygamousHouseMapper.toDTO(house);
-
-            // Hydrate House Head
-            if (house.houseHeadId) {
-              const head = await this.familyMemberRepository.findById(house.houseHeadId);
-              if (head) {
-                dto.houseHead = {
-                  id: head.id,
-                  name: head.name.fullName,
-                  gender: head.gender || 'FEMALE',
-                  isDeceased: head.isDeceased,
-                  age: head.currentAge || 0,
-                  isIdentityVerified: head.isIdentityVerified,
-                };
-              }
-            }
-            return dto;
-          }),
+        promises.push(
+          this.loadPolygamousHouses(query.familyId).then(
+            (houses) => ((response as any).polygamousHouses = houses),
+          ),
         );
-        (response as any).polygamousHouses = houseResponses;
       }
 
+      // D. Compliance Data
       if (query.includeCompliance) {
-        (response as any).compliance = await this.calculateComplianceData(family);
+        promises.push(
+          this.calculateComplianceData(family).then(
+            (compliance) => ((response as any).compliance = compliance),
+          ),
+        );
       }
+
+      await Promise.all(promises);
 
       this.logSuccess(query, response, 'Family retrieved');
       return Result.ok(response);
@@ -126,12 +98,66 @@ export class GetFamilyByIdHandler extends BaseQueryHandler<GetFamilyByIdQuery, F
     }
   }
 
-  private async checkUserPermissions(userId: string, family: Family): Promise<void> {
+  private checkUserPermissions(userId: string, family: Family): void {
     if (family.creatorId !== userId) {
       this.logger.warn(
         `User ${userId} accessing family ${family.id} created by ${family.creatorId}`,
       );
     }
+  }
+
+  private async loadMarriages(familyId: string): Promise<any[]> {
+    const marriages = await this.marriageRepository.findAllByFamilyId(familyId);
+    return Promise.all(
+      marriages.map(async (marriage) => {
+        const dto = this.marriageMapper.toDTO(marriage);
+        const [spouse1, spouse2] = await Promise.all([
+          this.familyMemberRepository.findById(marriage.spouse1Id),
+          this.familyMemberRepository.findById(marriage.spouse2Id),
+        ]);
+
+        if (spouse1) {
+          dto.spouse1 = {
+            id: spouse1.id,
+            name: spouse1.name.fullName,
+            gender: spouse1.gender || 'UNKNOWN',
+            isDeceased: spouse1.isDeceased,
+          };
+        }
+        if (spouse2) {
+          dto.spouse2 = {
+            id: spouse2.id,
+            name: spouse2.name.fullName,
+            gender: spouse2.gender || 'UNKNOWN',
+            isDeceased: spouse2.isDeceased,
+          };
+        }
+        return dto;
+      }),
+    );
+  }
+
+  private async loadPolygamousHouses(familyId: string): Promise<any[]> {
+    const houses = await this.polygamousHouseRepository.findAllByFamilyId(familyId);
+    return Promise.all(
+      houses.map(async (house) => {
+        const dto = this.polygamousHouseMapper.toDTO(house);
+        if (house.houseHeadId) {
+          const head = await this.familyMemberRepository.findById(house.houseHeadId);
+          if (head) {
+            dto.houseHead = {
+              id: head.id,
+              name: head.name.fullName,
+              gender: head.gender || 'FEMALE',
+              isDeceased: head.isDeceased,
+              age: head.currentAge || 0,
+              isIdentityVerified: head.isIdentityVerified,
+            };
+          }
+        }
+        return dto;
+      }),
+    );
   }
 
   private async calculateComplianceData(family: Family): Promise<any> {

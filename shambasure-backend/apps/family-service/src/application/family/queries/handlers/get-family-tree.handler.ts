@@ -56,7 +56,7 @@ export class GetFamilyTreeHandler extends BaseQueryHandler<GetFamilyTreeQuery, F
         : [];
 
       // 3. Determine Root
-      let rootMemberId = query.rootMemberId;
+      let rootMemberId: string | null = query.rootMemberId ?? null;
       if (!rootMemberId) {
         rootMemberId = this.findRootMember(members, relationships);
       }

@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { QueryBus, QueryHandler } from '@nestjs/cqrs';
 
-// Use correct QueryBus type
-
 import { Family } from '../../../../domain/aggregates/family.aggregate';
 import { Marriage } from '../../../../domain/entities/marriage.entity';
 import { PolygamousHouse } from '../../../../domain/entities/polygamous-house.entity';
@@ -29,7 +27,7 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
     private readonly marriageRepository: IMarriageRepository,
     queryBus: QueryBus,
   ) {
-    super(queryBus); // Pass queryBus to base
+    super(queryBus);
   }
 
   async execute(query: CheckS40ComplianceQuery): Promise<Result<KenyanLegalComplianceResponse>> {
@@ -38,18 +36,16 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
       if (validation.isFailure) return Result.fail(validation.error!);
 
       // 1. Load Aggregates
-      // Note: Repositories return Domain Entities
       const family = await this.familyRepository.findById(query.familyId);
       if (!family) {
         return Result.fail(new Error(`Family with ID ${query.familyId} not found`));
       }
 
-      // Assuming these methods exist in your repository interfaces
       const houses = await this.polygamousHouseRepository.findAllByFamilyId(query.familyId);
       const marriages = await this.marriageRepository.findAllByFamilyId(query.familyId);
 
-      // 2. Generate Report
-      const report = await this.generateComplianceReport(
+      // 2. Generate Report (Synchronous call)
+      const report = this.generateComplianceReport(
         family,
         houses,
         marriages,
@@ -64,16 +60,16 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
     }
   }
 
-  private async generateComplianceReport(
+  private generateComplianceReport(
     family: Family,
     houses: PolygamousHouse[],
     marriages: Marriage[],
     reportType: S40ComplianceReportType,
     query: CheckS40ComplianceQuery,
-  ): Promise<KenyanLegalComplianceResponse> {
+  ): KenyanLegalComplianceResponse {
     const now = new Date();
     const nextDue = new Date();
-    nextDue.setDate(now.getDate() + 90);
+    nextDue.setDate(now.getDate() + 90); // Quarterly compliance check
 
     const s40Compliance = this.calculateS40Compliance(family, houses, marriages);
     const overallScore = this.calculateOverallScore(s40Compliance);
@@ -103,7 +99,8 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
       lowIssues: issues.filter((i) => i.severity === 'LOW').length,
       resolvedIssues: issues.filter((i) => i.isResolved).length,
       allIssues: issues,
-      history: query.includeHistory ? await this.getComplianceHistory(family.id) : [],
+      // Fixed: Removed parameter since it wasn't used
+      history: query.includeHistory ? this.getComplianceHistory() : [],
       recommendations,
       legalAdvisor: {
         name: 'Kenya Law Society',
@@ -114,8 +111,6 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
     };
 
     if (query.legalDocumentationFormat) {
-      // Cast to any to attach extra property not strictly in DTO if needed,
-      // or ensure DTO has this field. Assuming DTO update:
       (response as any).legalDocumentation = {
         preparedFor: 'Legal Review',
         preparedBy: 'Family Service System',
@@ -239,12 +234,12 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
     return issues;
   }
 
-  // --- Other Act Helpers (Simplified from Entity Getters) ---
+  // --- Other Act Helpers (Simplified) ---
 
   private calculateS29Compliance(family: Family): any {
     return {
       potentialDependants: family.dependantCount,
-      verifiedDependants: 0, // Placeholder
+      verifiedDependants: 0,
       claimsFiled: 0,
       courtProvisions: 0,
       totalDependencyValue: 0,
@@ -276,8 +271,6 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
 
   private calculateMarriageActCompliance(marriages: Marriage[]): any {
     const registered = marriages.filter((m) => m.details.registrationNumber);
-
-    // Note: Using entity getters for type
     const customary = marriages.filter((m) => m.isCustomary);
     const islamic = marriages.filter((m) => m.isIslamic);
 
@@ -312,7 +305,6 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
     houses: PolygamousHouse[],
     marriages: Marriage[],
   ): any[] {
-    // Combine issues from different logic blocks
     return this.generateS40ComplianceIssues(family, houses, marriages);
   }
 
@@ -327,8 +319,8 @@ export class CheckS40ComplianceHandler extends BaseQueryHandler<
     return recs;
   }
 
-  private async getComplianceHistory(familyId: string): Promise<any[]> {
-    // Placeholder: Connect to Audit Log / History Repo in production
+  // Placeholder: Connect to Audit Log / History Repo in production
+  private getComplianceHistory(): any[] {
     return [];
   }
 }

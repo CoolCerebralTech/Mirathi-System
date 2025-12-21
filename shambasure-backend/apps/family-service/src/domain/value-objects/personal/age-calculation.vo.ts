@@ -1,4 +1,3 @@
-// domain/value-objects/personal/age-calculation.vo.ts
 import { ValueObject } from '../../base/value-object';
 
 export interface AgeCalculationProps {
@@ -84,6 +83,7 @@ export class AgeCalculation extends ValueObject<AgeCalculationProps> {
     }
   }
 
+  // ... [Existing update methods: updateDateOfBirth, updateDateOfDeath, markAsApproximate, markAsExact] ...
   updateDateOfBirth(dateOfBirth: Date): AgeCalculation {
     return new AgeCalculation({
       ...this._value,
@@ -201,6 +201,12 @@ export class AgeCalculation extends ValueObject<AgeCalculationProps> {
     return age !== null && age < 18;
   }
 
+  // --- NEW PROPERTY: Majority Age (18+) ---
+  get isOfMajorityAge(): boolean {
+    const age = this.currentAge || this.ageAtDeath;
+    return age !== null && age >= 18;
+  }
+
   // Check if person is a young adult (18-25)
   get isYoungAdult(): boolean {
     const age = this.currentAge || this.ageAtDeath;
@@ -215,14 +221,12 @@ export class AgeCalculation extends ValueObject<AgeCalculationProps> {
 
   // Check if person is of legal age for marriage (18+ in Kenya)
   get isMarriageAge(): boolean {
-    const age = this.currentAge || this.ageAtDeath;
-    return age !== null && age >= 18;
+    return this.isOfMajorityAge; // Re-use logic
   }
 
   // Check if person is of legal age for will making (18+ in Kenya)
   get isWillMakingAge(): boolean {
-    const age = this.currentAge || this.ageAtDeath;
-    return age !== null && age >= 18;
+    return this.isOfMajorityAge; // Re-use logic
   }
 
   // Check if person was a minor at time of death
@@ -302,6 +306,7 @@ export class AgeCalculation extends ValueObject<AgeCalculationProps> {
       ageAtDeath: this.ageAtDeath,
       detailedAge: this.detailedAge,
       isMinor: this.isMinor,
+      isOfMajorityAge: this.isOfMajorityAge, // Added to JSON output
       isYoungAdult: this.isYoungAdult,
       isElderly: this.isElderly,
       isMarriageAge: this.isMarriageAge,

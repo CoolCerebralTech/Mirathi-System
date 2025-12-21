@@ -110,6 +110,7 @@ export class FamilyRepository implements IFamilyRepository {
     }
   }
 
+  // ============ QUERY OPERATIONS CRITICAL FOR BUSINESS LOGIC ============
   async findByCreatorId(creatorId: string): Promise<Family[]> {
     const families = await this.prisma.family.findMany({
       where: { creatorId },
@@ -125,6 +126,47 @@ export class FamilyRepository implements IFamilyRepository {
       where: { id },
     });
     return count > 0;
+  }
+
+  // ============ ADVANCED SEARCH & FILTERING ============
+  async findAll(criteria: Record<string, any>): Promise<Family[]> {
+    try {
+      // Convert criteria to Prisma where clause
+      const whereClause = this.buildWhereClause(criteria);
+
+      const families = await this.prisma.family.findMany({
+        where: whereClause,
+        include: this.includeRelations,
+        orderBy: criteria.sort ? this.buildOrderBy(criteria.sort) : { createdAt: 'desc' },
+        skip: criteria.skip || 0,
+        take: criteria.take || 100,
+      });
+
+      return families
+        .map((family) => FamilyMapper.fromPrisma(family))
+        .filter((family): family is Family => family !== null);
+    } catch (error) {
+      this.logger.error(
+        `Failed to find families with criteria ${JSON.stringify(criteria)}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  async count(criteria: Record<string, any>): Promise<number> {
+    try {
+      const whereClause = this.buildWhereClause(criteria);
+      return await this.prisma.family.count({
+        where: whereClause,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to count families with criteria ${JSON.stringify(criteria)}:`,
+        error,
+      );
+      throw error;
+    }
   }
 
   // ============ MEMBER MANAGEMENT OPERATIONS ============
@@ -406,5 +448,53 @@ export class FamilyRepository implements IFamilyRepository {
       age--;
     }
     return age;
+  }
+
+  // ============ HELPER METHODS ============
+  private buildWhereClause(criteria: Record<string, any>): any {
+    const where: any = {};
+
+    // Map common criteria to Prisma where conditions
+    if (criteria.id) where.id = criteria.id;
+    if (criteria.ids) where.id = { in: criteria.ids };
+    if (criteria.name) where.name = { contains: criteria.name, mode: 'insensitive' };
+    if (criteria.creatorId) where.creatorId = criteria.creatorId;
+    if (criteria.homeCounty) where.homeCounty = criteria.homeCounty;
+    if (criteria.isPolygamous !== undefined) where.isPolygamous = criteria.isPolygamous;
+    if (criteria.createdAfter) where.createdAt = { gte: new Date(criteria.createdAfter) };
+    if (criteria.createdBefore) where.createdAt = { lte: new Date(criteria.createdBefore) };
+
+    // Handle archived/active filter
+    if (criteria.archived === true) {
+      where.deletedAt = { not: null };
+    } else if (criteria.archived === false) {
+      where.deletedAt = null;
+    }
+
+    // Custom filters can be passed directly
+    if (criteria.where) {
+      Object.assign(where, criteria.where);
+    }
+
+    return where;
+  }
+
+  private buildOrderBy(sort: any): any {
+    if (typeof sort === 'string') {
+      return { [sort]: 'asc' };
+    }
+
+    if (Array.isArray(sort)) {
+      return sort.reduce((orderBy, sortItem) => {
+        if (typeof sortItem === 'string') {
+          orderBy[sortItem] = 'asc';
+        } else if (typeof sortItem === 'object') {
+          Object.assign(orderBy, sortItem);
+        }
+        return orderBy;
+      }, {});
+    }
+
+    return sort;
   }
 }

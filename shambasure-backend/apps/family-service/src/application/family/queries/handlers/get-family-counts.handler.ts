@@ -4,6 +4,8 @@ import { MarriageType } from '@prisma/client';
 
 import { Family } from '../../../../domain/aggregates/family.aggregate';
 import { FamilyMember } from '../../../../domain/entities/family-member.entity';
+import { Marriage } from '../../../../domain/entities/marriage.entity';
+import { PolygamousHouse } from '../../../../domain/entities/polygamous-house.entity';
 import type { IFamilyMemberRepository } from '../../../../domain/interfaces/repositories/ifamily-member.repository';
 import type { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
 import type { IMarriageRepository } from '../../../../domain/interfaces/repositories/imarriage.repository';
@@ -60,8 +62,8 @@ export class GetFamilyCountsHandler extends BaseQueryHandler<
   private calculateCounts(
     family: Family,
     members: FamilyMember[],
-    marriages: any[], // Type as Marriage[] in production
-    houses: any[], // Type as PolygamousHouse[] in production
+    marriages: Marriage[],
+    houses: PolygamousHouse[],
   ): FamilyCountsResponse {
     // Member Demographics
     const livingMembers = members.filter((m) => !m.isDeceased);

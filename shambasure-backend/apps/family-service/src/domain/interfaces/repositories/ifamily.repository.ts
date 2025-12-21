@@ -1,4 +1,3 @@
-// domain/interfaces/repositories/ifamily.repository.ts
 import { Family } from '../../aggregates/family.aggregate';
 
 export interface IFamilyRepository {
@@ -17,6 +16,13 @@ export interface IFamilyRepository {
    */
   findByCreatorId(creatorId: string): Promise<Family[]>;
   exists(id: string): Promise<boolean>;
+
+  /**
+   * Advanced Search & Filtering
+   * Added to support SearchFamiliesQuery
+   */
+  findAll(criteria: Record<string, any>): Promise<Family[]>;
+  count(criteria: Record<string, any>): Promise<number>;
 
   /**
    * Member Management Operations (Critical for Family aggregate)

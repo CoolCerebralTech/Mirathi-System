@@ -18,7 +18,7 @@ import { FamilyResponse } from '../../dto/response/family.response';
 import { KenyanLegalComplianceResponse } from '../../dto/response/kenyan-legal-compliance.response';
 import { MarriageResponse } from '../../dto/response/marriage.response';
 import { PolygamousHouseResponse } from '../../dto/response/polygamous-house.response';
-// Query Options (Interfaces for finding/filtering)
+// Query Options
 import { CheckS40ComplianceQuery } from '../../queries/impl/check-s40-compliance.query';
 import { GetFamilyByIdQuery } from '../../queries/impl/get-family-by-id.query';
 import { GetFamilyCountsQuery } from '../../queries/impl/get-family-counts.query';
@@ -32,7 +32,7 @@ export interface IFamilyUseCase {
   /**
    * Core Family Management
    */
-  createFamily(request: CreateFamilyRequest): Promise<Result<FamilyResponse>>;
+  createFamily(request: CreateFamilyRequest, userId: string): Promise<Result<FamilyResponse>>;
 
   updateFamily(
     familyId: string,
@@ -40,12 +40,20 @@ export interface IFamilyUseCase {
     userId: string,
   ): Promise<Result<FamilyResponse>>;
 
-  archiveFamily(familyId: string, request: ArchiveFamilyRequest): Promise<Result<void>>;
+  archiveFamily(
+    familyId: string,
+    request: ArchiveFamilyRequest,
+    userId: string,
+  ): Promise<Result<void>>;
 
   /**
    * Member Management
    */
-  addFamilyMember(request: AddFamilyMemberRequest): Promise<Result<FamilyMemberResponse>>;
+  addFamilyMember(
+    familyId: string,
+    request: AddFamilyMemberRequest,
+    userId: string,
+  ): Promise<Result<FamilyMemberResponse>>;
 
   updateFamilyMember(
     familyId: string,
@@ -61,23 +69,33 @@ export interface IFamilyUseCase {
     userId: string,
   ): Promise<Result<void>>;
 
-  markMemberDeceased(request: RecordDeathRequest): Promise<Result<FamilyMemberResponse>>;
+  markMemberDeceased(
+    familyId: string,
+    memberId: string,
+    request: RecordDeathRequest,
+    userId: string,
+  ): Promise<Result<FamilyMemberResponse>>;
 
   /**
    * Marriage & Relationship Management
    */
-  registerMarriage(request: RegisterMarriageRequest): Promise<Result<MarriageResponse>>;
-
-  // Future: dissolveMarriage, etc.
+  registerMarriage(
+    familyId: string,
+    request: RegisterMarriageRequest,
+    userId: string,
+  ): Promise<Result<MarriageResponse>>;
 
   /**
    * Polygamy & S.40 Management
    */
-  addPolygamousHouse(request: AddPolygamousHouseRequest): Promise<Result<PolygamousHouseResponse>>;
+  addPolygamousHouse(
+    familyId: string,
+    request: AddPolygamousHouseRequest,
+    userId: string,
+  ): Promise<Result<PolygamousHouseResponse>>;
 
   /**
    * Queries (Read Operations)
-   * Note: We pass the Query Objects directly or parameters to build them
    */
   getFamilyById(query: GetFamilyByIdQuery): Promise<Result<FamilyResponse>>;
 

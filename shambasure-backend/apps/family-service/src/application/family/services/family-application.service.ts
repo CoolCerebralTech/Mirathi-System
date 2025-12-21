@@ -54,9 +54,12 @@ export class FamilyApplicationService implements IFamilyUseCase {
   // FAMILY MANAGEMENT (CORE)
   // ===========================================================================
 
-  async createFamily(request: CreateFamilyRequest): Promise<Result<FamilyResponse>> {
-    this.logger.log(`Creating family: ${request.name}`);
-    return this.commandBus.execute(CreateFamilyCommand.create(request.creatorId, request));
+  async createFamily(
+    request: CreateFamilyRequest,
+    userId: string,
+  ): Promise<Result<FamilyResponse>> {
+    this.logger.log(`Creating family: ${request.name} by User: ${userId}`);
+    return this.commandBus.execute(CreateFamilyCommand.create(userId, request));
   }
 
   async updateFamily(
@@ -64,26 +67,31 @@ export class FamilyApplicationService implements IFamilyUseCase {
     request: UpdateFamilyRequest,
     userId: string,
   ): Promise<Result<FamilyResponse>> {
-    this.logger.log(`Updating family: ${familyId}`);
+    this.logger.log(`Updating family: ${familyId} by User: ${userId}`);
     return this.commandBus.execute(UpdateFamilyCommand.create(userId, familyId, request));
   }
 
-  async archiveFamily(familyId: string, request: ArchiveFamilyRequest): Promise<Result<void>> {
-    this.logger.log(`Archiving family: ${familyId}`);
-    return this.commandBus.execute(
-      ArchiveFamilyCommand.create(request.archivedByUserId, familyId, request.reason),
-    );
+  async archiveFamily(
+    familyId: string,
+    request: ArchiveFamilyRequest,
+    userId: string,
+  ): Promise<Result<void>> {
+    this.logger.log(`Archiving family: ${familyId} by User: ${userId}`);
+    return this.commandBus.execute(ArchiveFamilyCommand.create(userId, familyId, request.reason));
   }
 
   // ===========================================================================
   // MEMBER MANAGEMENT
   // ===========================================================================
 
-  async addFamilyMember(request: AddFamilyMemberRequest): Promise<Result<FamilyMemberResponse>> {
-    this.logger.log(`Adding member to family: ${request.familyId}`);
-    return this.commandBus.execute(
-      AddFamilyMemberCommand.create(request.addedByUserId, request.familyId, request),
-    );
+  async addFamilyMember(
+    familyId: string,
+    request: AddFamilyMemberRequest,
+    userId: string,
+  ): Promise<Result<FamilyMemberResponse>> {
+    this.logger.log(`Adding member to family: ${familyId} by User: ${userId}`);
+    // Inject familyId from path into Request DTO logic if needed, or rely on Command
+    return this.commandBus.execute(AddFamilyMemberCommand.create(userId, familyId, request));
   }
 
   async updateFamilyMember(
@@ -92,7 +100,7 @@ export class FamilyApplicationService implements IFamilyUseCase {
     request: UpdateFamilyMemberRequest,
     userId: string,
   ): Promise<Result<FamilyMemberResponse>> {
-    this.logger.log(`Updating member: ${memberId}`);
+    this.logger.log(`Updating member: ${memberId} in family: ${familyId}`);
     return this.commandBus.execute(
       UpdateFamilyMemberCommand.create(userId, familyId, memberId, request),
     );
@@ -110,10 +118,15 @@ export class FamilyApplicationService implements IFamilyUseCase {
     );
   }
 
-  async markMemberDeceased(request: RecordDeathRequest): Promise<Result<FamilyMemberResponse>> {
-    this.logger.log(`Marking member deceased: ${request.familyMemberId}`);
+  async markMemberDeceased(
+    familyId: string,
+    memberId: string,
+    request: RecordDeathRequest,
+    userId: string,
+  ): Promise<Result<FamilyMemberResponse>> {
+    this.logger.log(`Marking member deceased: ${memberId} in family: ${familyId}`);
     return this.commandBus.execute(
-      MarkMemberDeceasedCommand.create(request.reportedByUserId, request.familyId, request),
+      MarkMemberDeceasedCommand.create(userId, familyId, memberId, request),
     );
   }
 
@@ -121,20 +134,22 @@ export class FamilyApplicationService implements IFamilyUseCase {
   // RELATIONSHIP & MARRIAGE MANAGEMENT
   // ===========================================================================
 
-  async registerMarriage(request: RegisterMarriageRequest): Promise<Result<MarriageResponse>> {
-    this.logger.log(`Registering marriage for family: ${request.familyId}`);
-    return this.commandBus.execute(
-      RegisterMarriageCommand.create(request.registeredByUserId, request.familyId, request),
-    );
+  async registerMarriage(
+    familyId: string,
+    request: RegisterMarriageRequest,
+    userId: string,
+  ): Promise<Result<MarriageResponse>> {
+    this.logger.log(`Registering marriage for family: ${familyId}`);
+    return this.commandBus.execute(RegisterMarriageCommand.create(userId, familyId, request));
   }
 
   async addPolygamousHouse(
+    familyId: string,
     request: AddPolygamousHouseRequest,
+    userId: string,
   ): Promise<Result<PolygamousHouseResponse>> {
-    this.logger.log(`Adding polygamous house to family: ${request.familyId}`);
-    return this.commandBus.execute(
-      AddPolygamousHouseCommand.create(request.createdByUserId, request.familyId, request),
-    );
+    this.logger.log(`Adding polygamous house to family: ${familyId}`);
+    return this.commandBus.execute(AddPolygamousHouseCommand.create(userId, familyId, request));
   }
 
   // ===========================================================================

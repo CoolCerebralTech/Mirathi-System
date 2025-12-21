@@ -57,7 +57,7 @@ export class SearchFamiliesHandler extends BaseQueryHandler<
       // 6. Statistics (Optional)
       let statistics = {};
       if (query.includeStatistics) {
-        statistics = await this.calculateSearchStatistics(query, total);
+        statistics = this.calculateSearchStatistics(query, total);
       }
 
       // 7. Response
@@ -142,11 +142,12 @@ export class SearchFamiliesHandler extends BaseQueryHandler<
         case FamilySortField.UPDATED_AT:
           comparison = a.updatedAt.getTime() - b.updatedAt.getTime();
           break;
-        case FamilySortField.COUNTY:
+        case FamilySortField.COUNTY: {
           const cA = a.homeCounty || '';
           const cB = b.homeCounty || '';
           comparison = cA.localeCompare(cB);
           break;
+        }
       }
 
       return sortOrder === FamilySortOrder.DESC ? -comparison : comparison;
@@ -176,10 +177,8 @@ export class SearchFamiliesHandler extends BaseQueryHandler<
     return filters;
   }
 
-  private async calculateSearchStatistics(
-    query: SearchFamiliesQuery,
-    totalResults: number,
-  ): Promise<any> {
+  // Fixed: Removed async
+  private calculateSearchStatistics(query: SearchFamiliesQuery, totalResults: number): any {
     return {
       searchStats: {
         totalFound: totalResults,

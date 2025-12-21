@@ -4,6 +4,7 @@ import { FamilyMember } from '../../../domain/entities/family-member.entity';
 import { AddFamilyMemberRequest } from '../dto/request/add-family-member.request';
 import { UpdateFamilyMemberRequest } from '../dto/request/update-family-member.request';
 import { FamilyMemberResponse } from '../dto/response/family-member.response';
+import { FamilyTreeNodeResponse } from '../dto/response/family-tree.response';
 import { BaseMapper } from './base.mapper';
 
 // Type-safe helper to cast to any for properties that aren't in the base type
@@ -116,13 +117,11 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
     const birthLocationJSON = memberJSON.birthLocation as WithAny<typeof memberJSON.birthLocation>;
     const deathLocationJSON = memberJSON.deathLocation as WithAny<typeof memberJSON.deathLocation>;
 
-    // Extract nested identity documents with proper type casting
     const nationalId = identityJSON.nationalId as any;
     const kraPin = identityJSON.kraPin as any;
     const birthCert = identityJSON.birthCertificate as any;
     const deathCert = identityJSON.deathCertificate as any;
 
-    // Helper functions for safe mapping
     const toDateIfExists = (dateString: string | Date | undefined | null): Date | undefined => {
       if (!dateString) return undefined;
       return dateString instanceof Date ? dateString : new Date(dateString);
@@ -137,7 +136,6 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
       return Boolean(value);
     };
 
-    // Helper to get disability type from disabilityDetails array
     const getDisabilityType = (disabilityStatus: any): string | undefined => {
       if (
         !disabilityStatus?.disabilityDetails ||
@@ -145,18 +143,15 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
       ) {
         return undefined;
       }
-
       const primaryDisability = disabilityStatus.disabilityDetails[0];
       return primaryDisability?.type;
     };
 
-    // Fix 2: Handle age calculation - ensure age is a number, not null
     const getAgeValue = (ageCalculation: any): number => {
       if (!ageCalculation?.age && ageCalculation?.age !== 0) return 0;
       return Number(ageCalculation.age);
     };
 
-    // Build the response object
     return {
       id: memberJSON.id,
       userId: memberJSON.userId,
@@ -175,7 +170,6 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
         religion: identityJSON.religion,
         clan: identityJSON.clan,
         appliesCustomaryLaw: toBoolean(identityJSON.appliesCustomaryLaw),
-
         nationalId: nationalId
           ? {
               number: toStringOrDefault(nationalId.idNumber || nationalId.number),
@@ -186,7 +180,6 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
               verificationMethod: nationalId.verificationMethod,
             }
           : undefined,
-
         kraPin: kraPin
           ? {
               number: toStringOrDefault(kraPin.pinNumber || kraPin.number),
@@ -194,10 +187,9 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
               isVerified: toBoolean(kraPin.isVerified),
               verifiedAt: toDateIfExists(kraPin.verifiedAt),
               verifiedBy: kraPin.verifiedBy,
-              verificationMethod: kraPin.verificationMethod || 'ITAX',
+              verificationMethod: kraPin.verificationMethod || 'ITAX_SYSTEM',
             }
           : undefined,
-
         birthCertificate: birthCert
           ? {
               number: toStringOrDefault(birthCert.entryNumber || birthCert.certificateNumber),
@@ -208,7 +200,6 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
               verificationMethod: birthCert.verificationMethod,
             }
           : undefined,
-
         deathCertificate: deathCert
           ? {
               number: toStringOrDefault(deathCert.certificateNumber || deathCert.number),
@@ -220,7 +211,6 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
             }
           : undefined,
       },
-
       contactInfo: contactInfoJSON
         ? {
             primaryPhone: toStringOrDefault(contactInfoJSON.primaryPhone),
@@ -228,13 +218,11 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
             email: contactInfoJSON.email,
             county: contactInfoJSON.primaryAddress?.county,
             subCounty: contactInfoJSON.primaryAddress?.subCounty,
-            // KenyanAddress doesn't have 'ward', so we use 'village' or leave undefined
             ward: contactInfoJSON.primaryAddress?.village,
             streetAddress: contactInfoJSON.primaryAddress?.street,
             postalAddress: contactInfoJSON.primaryAddress?.postalAddress,
           }
         : undefined,
-
       disabilityStatus: disabilityStatusJSON
         ? {
             hasDisability: toBoolean(disabilityStatusJSON.hasDisability),
@@ -249,7 +237,6 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
             ),
           }
         : undefined,
-
       lifeStatus: {
         status: lifeStatusJSON.status || 'ALIVE',
         isDeceased: toBoolean(lifeStatusJSON.isDeceased),
@@ -260,7 +247,6 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
         missingSince: toDateIfExists(lifeStatusJSON.missingSince),
         lastSeenLocation: lifeStatusJSON.lastSeenLocation,
       },
-
       demographicInfo: demographicInfoJSON
         ? {
             gender: toStringOrDefault(demographicInfoJSON.gender),
@@ -276,20 +262,18 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
             ),
           }
         : undefined,
-
       ageCalculation: ageCalculationJSON
         ? {
             dateOfBirth: ageCalculationJSON.dateOfBirth
               ? new Date(ageCalculationJSON.dateOfBirth)
               : new Date(0),
-            age: getAgeValue(ageCalculationJSON), // Fix: Ensure it's a number, not null
+            age: getAgeValue(ageCalculationJSON),
             isMinor: toBoolean(ageCalculationJSON.isMinor),
             isYoungAdult: toBoolean(ageCalculationJSON.isYoungAdult),
             isElderly: toBoolean(ageCalculationJSON.isElderly),
             isOfMajorityAge: toBoolean(!ageCalculationJSON.isMinor),
           }
         : undefined,
-
       birthLocation: birthLocationJSON
         ? {
             county: toStringOrDefault(birthLocationJSON.county),
@@ -300,7 +284,6 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
             isUrban: toBoolean(birthLocationJSON.isUrban),
           }
         : undefined,
-
       deathLocation: deathLocationJSON
         ? {
             county: toStringOrDefault(deathLocationJSON.county),
@@ -311,7 +294,6 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
             isUrban: toBoolean(deathLocationJSON.isUrban),
           }
         : undefined,
-
       occupation: memberJSON.occupation,
       polygamousHouseId: memberJSON.polygamousHouseId,
       isDeceased: toBoolean(memberJSON.isDeceased),
@@ -338,6 +320,52 @@ export class FamilyMemberMapper extends BaseMapper<FamilyMember, FamilyMemberRes
       version: memberJSON.version ?? 1,
       createdAt: toDateIfExists(memberJSON.createdAt) ?? new Date(),
       updatedAt: toDateIfExists(memberJSON.updatedAt) ?? new Date(),
+    };
+  }
+
+  // --- FAMILY TREE MAPPING ---
+  toTreeNodeDTO(familyMember: FamilyMember): FamilyTreeNodeResponse {
+    const memberJSON = familyMember.toJSON();
+    const nameJSON = memberJSON.name;
+
+    const toDateIfExists = (dateString: string | Date | undefined | null): Date | undefined => {
+      if (!dateString) return undefined;
+      return dateString instanceof Date ? dateString : new Date(dateString);
+    };
+
+    return {
+      id: memberJSON.id,
+      name: nameJSON.fullName || `${nameJSON.firstName} ${nameJSON.lastName}`,
+      firstName: nameJSON.firstName || '',
+      lastName: nameJSON.lastName || '',
+      middleName: nameJSON.middleName,
+      maidenName: nameJSON.maidenName,
+      gender: memberJSON.gender || 'UNKNOWN',
+      // Ensure dateOfBirth is a Date object, default to Epoch if missing
+      dateOfBirth: toDateIfExists(memberJSON.ageCalculation?.dateOfBirth) || new Date(0),
+      age: memberJSON.currentAge || 0,
+      isDeceased: !!memberJSON.isDeceased,
+      dateOfDeath: toDateIfExists(memberJSON.lifeStatus?.dateOfDeath),
+      isMinor: !!memberJSON.isMinor,
+      hasDisability: !!memberJSON.hasDisability,
+      occupation: memberJSON.occupation,
+      photoUrl: undefined,
+
+      // Layout Defaults (will be updated by Handler)
+      generation: 0,
+      depth: 0,
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 60,
+      isExpanded: true,
+      relationshipToRoot: 'CHILD', // Default; logic in Handler/Builder should refine this if needed
+
+      // Graph Relations (will be populated by Handler/Builder)
+      spouses: [],
+      children: [],
+      parents: [],
+      siblings: [],
     };
   }
 

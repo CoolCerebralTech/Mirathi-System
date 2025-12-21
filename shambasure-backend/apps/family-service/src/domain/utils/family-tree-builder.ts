@@ -1,8 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { RelationshipType } from '@prisma/client';
 
-// Enums from Prisma are fine
-
 import { FamilyMember } from '../entities/family-member.entity';
 import { FamilyRelationship } from '../entities/family-relationship.entity';
 import { PolygamousHouse } from '../entities/polygamous-house.entity';
@@ -27,9 +25,9 @@ export interface FamilyTreeNode {
 
   // Visualization / Tree Structure
   depth: number;
-  generation: number; // Added generation property
-  isDeceased: boolean; // Helper
-  currentAge: number | null; // Helper
+  generation: number;
+  isDeceased: boolean;
+  currentAge: number | null;
 }
 
 export interface HouseStructure {
@@ -69,7 +67,7 @@ export interface TreeBuildOptions {
 export interface BuiltTree {
   nodes: FamilyTreeNode[];
   edges: Array<{ source: string; target: string; type: string; label: string }>;
-  marriages: number[]; // Placeholder count or IDs
+  marriages: number[]; // Count of unique marriages
 }
 
 // =============================================================================
@@ -91,6 +89,7 @@ export class FamilyTreeBuilder {
 
     // Generate Edges for Visualization
     const edges: Array<{ source: string; target: string; type: string; label: string }> = [];
+    let marriageCount = 0;
 
     relationships.forEach((rel) => {
       edges.push({
@@ -99,12 +98,18 @@ export class FamilyTreeBuilder {
         type: rel.type,
         label: rel.type.replace('_', ' '),
       });
+      if (rel.type === RelationshipType.SPOUSE) {
+        marriageCount++;
+      }
     });
+
+    // Since spouse relationships are bidirectional (A->B, B->A), divide by 2
+    const uniqueMarriages = Math.ceil(marriageCount / 2);
 
     return {
       nodes,
       edges,
-      marriages: [], // Logic to count marriages
+      marriages: Array(uniqueMarriages).fill(0), // Placeholder array of correct length
     };
   }
 
@@ -128,7 +133,7 @@ export class FamilyTreeBuilder {
         spouses: [],
         siblings: [],
         isHouseHead: houses.some((h) => h.houseHeadId === member.id),
-        houseId: member.polygamousHouseId || null, // Ensure explicit null
+        houseId: member.polygamousHouseId || null,
         depth: 0,
         generation: 0,
         isDeceased: member.isDeceased,
@@ -136,7 +141,7 @@ export class FamilyTreeBuilder {
       });
     }
 
-    // B. Build Edges (Strictly typed)
+    // B. Build Edges
     for (const rel of relationships) {
       const fromNode = nodes.get(rel.fromMemberId);
       const toNode = nodes.get(rel.toMemberId);
@@ -145,14 +150,12 @@ export class FamilyTreeBuilder {
 
       switch (rel.type) {
         case RelationshipType.PARENT:
-          // FROM Parent TO Child
           toNode.parents.push(fromNode);
           fromNode.children.push(toNode);
           break;
 
         case RelationshipType.CHILD:
         case RelationshipType.ADOPTED_CHILD:
-          // FROM Child TO Parent
           fromNode.parents.push(toNode);
           toNode.children.push(fromNode);
           break;
@@ -264,7 +267,7 @@ export class FamilyTreeBuilder {
         if (hasBeneficiaries) {
           structure.polygamousHouses.push({
             houseId: house.id,
-            houseHeadId: house.houseHeadId,
+            houseHeadId: house.houseHeadId || null,
             houseName: house.houseName,
             livingChildrenIds: houseLivingChildren,
             deceasedChildrenWithIssue: houseIssueMap,
@@ -297,7 +300,7 @@ export class FamilyTreeBuilder {
     while (queue.length > 0) {
       const { node, depth } = queue.shift()!;
       node.depth = depth;
-      node.generation = depth; // Mapping depth to generation
+      node.generation = depth;
 
       // Spouses stay on same level
       for (const spouse of node.spouses) {
