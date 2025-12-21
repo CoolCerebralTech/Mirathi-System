@@ -1,49 +1,33 @@
-// application/dependency/dto/request/record-court-provision.request.ts
+import { KenyanLawSection } from '@prisma/client';
 import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsJSON,
   IsNumber,
   IsOptional,
   IsPositive,
   IsString,
+  IsUUID,
 } from 'class-validator';
 
 export enum ProvisionType {
   LUMP_SUM = 'LUMP_SUM',
   MONTHLY_ALLOWANCE = 'MONTHLY_ALLOWANCE',
   PROPERTY_TRANSFER = 'PROPERTY_TRANSFER',
-  TRUST_FUND = 'TRUST_FUND',
-  LIFE_INTEREST = 'LIFE_INTEREST',
+  TRUST_FUND = 'TRUST_FUND', // Common for minors (S.27)
+  LIFE_INTEREST = 'LIFE_INTEREST', // Common for spouses (S.35)
   EDUCATION_FUND = 'EDUCATION_FUND',
   MEDICAL_FUND = 'MEDICAL_FUND',
   OTHER = 'OTHER',
 }
 
-export class CourtOrderDetailsDto {
-  @IsString()
-  courtName: string;
-
-  @IsString()
-  judgeName: string;
-
-  @IsString()
-  caseNumber: string;
-
-  @IsDateString()
-  hearingDate: string;
-
-  @IsOptional()
-  @IsString()
-  registrarName?: string;
-}
-
 export class RecordCourtProvisionRequest {
-  @IsString()
+  @IsUUID()
   dependencyAssessmentId: string;
 
   @IsString()
-  orderNumber: string; // Court order reference number
+  orderNumber: string; // e.g., "Ruling on App No. 4 of 2024"
 
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive()
@@ -55,9 +39,10 @@ export class RecordCourtProvisionRequest {
   @IsDateString()
   orderDate: string;
 
-  // Court details
+  // --- Court Details ---
+
   @IsString()
-  courtName: string;
+  courtName: string; // e.g., "High Court at Nairobi (Family Division)"
 
   @IsString()
   judgeName: string;
@@ -65,10 +50,11 @@ export class RecordCourtProvisionRequest {
   @IsString()
   caseNumber: string;
 
-  // Payment/Provision details
+  // --- Provision Execution Details ---
+
   @IsOptional()
   @IsString()
-  paymentSchedule?: string; // 'IMMEDIATE', 'MONTHLY', 'QUARTERLY', 'ANNUAL'
+  paymentSchedule?: string;
 
   @IsOptional()
   @IsDateString()
@@ -79,31 +65,33 @@ export class RecordCourtProvisionRequest {
   numberOfInstallments?: number;
 
   @IsOptional()
-  @IsString()
-  bankAccountDetails?: string; // JSON string of bank details
+  @IsJSON()
+  bankAccountDetails?: string;
 
   @IsOptional()
   @IsString()
-  propertyDetails?: string; // If provision is property transfer
+  propertyDetails?: string;
 
-  // Legal basis
+  // --- Legal Basis ---
+
+  @IsOptional()
+  @IsEnum(KenyanLawSection)
+  legalSection: KenyanLawSection = KenyanLawSection.S26_DEPENDANT_PROVISION;
+
+  // --- Conditions (S.27/S.28) ---
+
   @IsOptional()
   @IsString()
-  legalSection: string = 'S26'; // Default to S26, could be S27, S28
+  conditions?: string; // e.g., "Until marriage", "Until 18 years"
 
-  // Conditions attached
-  @IsOptional()
-  @IsString()
-  conditions?: string; // Any conditions attached to the provision
-
-  // Review period
   @IsOptional()
   @IsDateString()
   nextReviewDate?: string;
 
-  // Recorded by
-  @IsString()
-  recordedBy: string; // User ID of court clerk/officer
+  // --- Audit ---
+
+  @IsUUID()
+  recordedBy: string;
 
   @IsOptional()
   @IsBoolean()

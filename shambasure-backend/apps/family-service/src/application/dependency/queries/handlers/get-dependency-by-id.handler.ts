@@ -1,192 +1,57 @@
-// application/dependency/queries/handlers/get-dependency-by-id.handler.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { QueryBus, QueryHandler } from '@nestjs/cqrs';
 
-import { ILegalDependantRepository } from '../../../../domain/interfaces/repositories/ilegal-dependant.repository';
+import type { ILegalDependantRepository } from '../../../../domain/interfaces/repositories/ilegal-dependant.repository';
+import { Result } from '../../../common/base/result';
+import { DependencyAssessmentResponse } from '../../dto/response/dependency-assessment.response';
 import { DependencyMapper } from '../../mappers/dependency.mapper';
 import { GetDependencyByIdQuery } from '../impl/get-dependency-by-id.query';
-import { BaseQueryHandler, QueryHandlerResult } from './base.handler';
+import { BaseQueryHandler } from './base.query-handler';
 
 @Injectable()
-export class GetDependencyByIdHandler extends BaseQueryHandler<GetDependencyByIdQuery, any> {
-  constructor(repository: ILegalDependantRepository, mapper: DependencyMapper) {
-    super(repository, mapper);
+@QueryHandler(GetDependencyByIdQuery)
+export class GetDependencyByIdHandler extends BaseQueryHandler<
+  GetDependencyByIdQuery,
+  DependencyAssessmentResponse
+> {
+  constructor(
+    private readonly repository: ILegalDependantRepository,
+    private readonly mapper: DependencyMapper,
+    queryBus: QueryBus,
+  ) {
+    super(queryBus);
   }
 
-  async execute(query: GetDependencyByIdQuery): Promise<QueryHandlerResult> {
-    const startTime = Date.now();
-
+  async execute(query: GetDependencyByIdQuery): Promise<Result<DependencyAssessmentResponse>> {
     try {
-      // 1. Validate query
+      // 1. Validate
       const validation = this.validateQuery(query);
-      if (!validation.isValid) {
-        return this.createErrorResult(
-          'Query validation failed',
-          query,
-          validation.errors,
-          validation.warnings,
-          Date.now() - startTime,
-        );
-      }
+      if (validation.isFailure) return Result.fail(validation.error!);
 
-      // 2. Check permissions
-      const permissionCheck = this.checkQueryPermissions(
-        { userId: query.userId!, userRole: query.userRole! },
-        query,
-      );
-      if (!permissionCheck.hasPermission) {
-        return this.createErrorResult(
-          permissionCheck.reason!,
-          query,
-          ['PERMISSION_DENIED'],
-          validation.warnings,
-          Date.now() - startTime,
-        );
-      }
-
-      // 3. Execute query with performance monitoring
-      const { result: dependant, duration } = await this.withPerformanceMonitoring(async () => {
-        // Check cache first if enabled
-        // const cached = await this.cacheService.get(this.generateCacheKey(query));
-        // if (cached) return cached;
-
-        // Fetch from repository
-        const result = await this.repository.findById(query.dependencyId);
-
-        if (!result) {
-          throw new NotFoundException(
-            `Dependency assessment not found with ID: ${query.dependencyId}`,
-          );
-        }
-
-        // Cache the result if needed
-        // if (this.shouldCache(query)) {
-        //   await this.cacheService.set(
-        //     this.generateCacheKey(query),
-        //     result,
-        //     this.getCacheTTL(query),
-        //   );
-        // }
-
-        return result;
+      // 2. Fetch
+      const { result: entity } = await this.withPerformanceMonitoring(async () => {
+        return this.repository.findById(query.dependencyId);
       }, query);
 
-      // 4. Map to response
-      const response = this.mapper.toDependencyAssessmentResponse(dependant);
-
-      // 5. Fetch additional data if requested
-      if (query.includeDeceasedDetails || query.includeDependantDetails) {
-        await this.enrichResponse(response, query);
+      if (!entity) {
+        return Result.fail(new Error(`Dependency not found: ${query.dependencyId}`));
       }
 
-      // 6. Log success
-      this.logQueryExecution(query, duration, true);
+      // 3. Map
+      const response = this.mapper.toDependencyAssessmentResponse(entity);
 
-      return this.createSuccessResult(
-        response,
-        'Dependency assessment retrieved successfully',
-        query,
-        validation.warnings,
-        duration,
-      );
-    } catch (error) {
-      const duration = Date.now() - startTime;
-
-      this.logQueryExecution(query, duration, false, error);
-
-      if (error instanceof NotFoundException) {
-        return this.createErrorResult(error.message, query, ['DEPENDENCY_NOT_FOUND'], [], duration);
-      }
-
-      return this.createErrorResult(
-        `Failed to retrieve dependency assessment: ${error.message}`,
-        query,
-        ['EXECUTION_ERROR'],
-        [],
-        duration,
-      );
-    }
-  }
-
-  private async enrichResponse(response: any, query: GetDependencyByIdQuery): Promise<void> {
-    try {
-      // In a real implementation, you would fetch additional data from other services/repositories
-      // For now, we'll simulate enrichment
-
+      // 4. Enrich (Simulation)
       if (query.includeDeceasedDetails) {
-        response.deceasedDetails = {
-          // This would come from a person service
-          name: 'John Doe (Simulated)',
-          dateOfBirth: '1970-01-01',
-          dateOfDeath: '2024-01-01',
-          // ... other details
-        };
+        response.deceasedName = 'Enriched Deceased Name (Simulated)';
       }
-
       if (query.includeDependantDetails) {
-        response.dependantDetails = {
-          // This would come from a person service
-          name: 'Jane Smith (Simulated)',
-          dateOfBirth: '1990-05-15',
-          relationship: response.dependencyBasis,
-          // ... other details
-        };
+        response.dependantName = 'Enriched Dependant Name (Simulated)';
       }
 
-      if (query.includeCourtOrderDetails && response.courtOrderReference) {
-        response.courtOrderDetails = {
-          // This would come from a court service
-          courtName: 'High Court of Kenya',
-          judgeName: 'Hon. Justice Simulated',
-          hearingDate: '2024-02-01',
-          // ... other details
-        };
-      }
+      this.logSuccess(query, response, 'Get Dependency By ID');
+      return Result.ok(response);
     } catch (error) {
-      this.logger.warn('Failed to enrich response', error);
-      // Don't fail the query if enrichment fails
+      return this.handleError(error, query, 'GetDependencyByIdHandler');
     }
-  }
-
-  protected checkQueryPermissions(
-    metadata: { userId: string; userRole: string },
-    query: GetDependencyByIdQuery,
-  ): { hasPermission: boolean; reason?: string } {
-    // Base permission check
-    const baseCheck = super.checkQueryPermissions(metadata, query);
-    if (!baseCheck.hasPermission) {
-      return baseCheck;
-    }
-
-    // Additional permission logic specific to this query
-    // In practice, you might check if the user has access to this specific dependency
-    // For example, only court officials can see certain details
-
-    // Check if user can view evidence documents
-    if (query.includeEvidenceDocuments && !this.canViewEvidence(metadata.userRole)) {
-      return {
-        hasPermission: false,
-        reason: 'User role cannot view evidence documents',
-      };
-    }
-
-    // Check if user can view audit history
-    if (query.includeAuditHistory && !this.canViewAuditHistory(metadata.userRole)) {
-      return {
-        hasPermission: false,
-        reason: 'User role cannot view audit history',
-      };
-    }
-
-    return { hasPermission: true };
-  }
-
-  private canViewEvidence(userRole: string): boolean {
-    const allowedRoles = ['JUDGE', 'REGISTRAR', 'LAWYER', 'ADMIN'];
-    return allowedRoles.includes(userRole);
-  }
-
-  private canViewAuditHistory(userRole: string): boolean {
-    const allowedRoles = ['ADMIN', 'AUDITOR', 'SUPERVISOR'];
-    return allowedRoles.includes(userRole);
   }
 }

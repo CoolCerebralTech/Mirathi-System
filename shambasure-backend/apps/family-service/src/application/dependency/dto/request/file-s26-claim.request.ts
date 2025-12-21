@@ -1,4 +1,4 @@
-// application/dependency/dto/request/file-s26-claim.request.ts
+import { Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
   IsArray,
@@ -9,6 +9,8 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  IsUUID,
+  ValidateNested,
 } from 'class-validator';
 
 export enum S26ClaimType {
@@ -21,7 +23,7 @@ export enum S26ClaimType {
 }
 
 export class SupportingDocumentDto {
-  @IsString()
+  @IsUUID()
   documentId: string;
 
   @IsString()
@@ -36,9 +38,13 @@ export class SupportingDocumentDto {
 }
 
 export class FileS26ClaimRequest {
-  @IsString()
+  @IsUUID()
   dependencyAssessmentId: string;
 
+  /**
+   * The total claim amount.
+   * Under S.26, this must be "reasonable" provision.
+   */
   @IsNumber({ maxDecimalPlaces: 2 })
   @IsPositive()
   amount: number;
@@ -51,30 +57,36 @@ export class FileS26ClaimRequest {
   claimType: S26ClaimType;
 
   @IsString()
-  claimReason: string; // Detailed reason for the claim
+  claimReason: string;
 
   @IsOptional()
   @IsDateString()
-  claimStartDate?: string; // When the need started/will start
+  claimStartDate?: string;
 
   @IsOptional()
   @IsDateString()
-  claimEndDate?: string; // When the need is expected to end
+  claimEndDate?: string;
+
+  // --- Legal Context ---
 
   @IsOptional()
   @IsString()
-  courtCaseNumber?: string; // If already part of court proceedings
+  courtCaseNumber?: string; // Link to Succession Cause No.
 
   @IsOptional()
-  @IsString()
-  legalRepresentativeId?: string; // Lawyer/Advocate handling the claim
+  @IsUUID()
+  legalRepresentativeId?: string;
 
-  // Supporting evidence
+  // --- Evidence (Mandatory for S.26) ---
+
   @IsArray()
-  @ArrayNotEmpty()
+  @ArrayNotEmpty({ message: 'S.26 Claims must be supported by evidence documents' })
+  @ValidateNested({ each: true })
+  @Type(() => SupportingDocumentDto)
   supportingDocuments: SupportingDocumentDto[];
 
-  // Financial breakdown (optional)
+  // --- Financial Breakdown ---
+
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   monthlyBreakdownAmount?: number;
@@ -83,9 +95,10 @@ export class FileS26ClaimRequest {
   @IsNumber()
   numberOfMonths?: number;
 
-  // Claimant declaration
-  @IsString()
-  declaredBy: string; // User ID of person filing the claim
+  // --- Claimant Declaration ---
+
+  @IsUUID()
+  declaredBy: string;
 
   @IsDateString()
   declarationDate: string;

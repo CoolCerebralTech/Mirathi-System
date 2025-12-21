@@ -1,7 +1,5 @@
-// application/dependency/mappers/dependency.mapper.ts
 import { Injectable } from '@nestjs/common';
 
-import { DependencyAssessmentAggregate } from '../../../domain/aggregates/dependency-assessment.aggregate';
 import { LegalDependant } from '../../../domain/entities/legal-dependant.entity';
 import {
   AssessFinancialDependencyRequest,
@@ -12,6 +10,7 @@ import {
   SupportingDocumentDto,
 } from '../dto/request';
 import {
+  ComplianceIssue,
   DependantSummary,
   DependencyAssessmentResponse,
   DependencyStatistics,
@@ -147,7 +146,8 @@ export class DependencyMapper {
     }
 
     // Legal basis
-    response.basisSection = dependant['basisSection']; // Using bracket notation for private props
+    const props = dependant.toJSON();
+    response.basisSection = props['basisSection'];
     response.dependencyBasis = dependant.dependencyBasis;
     response.dependencyLevel = dependant.dependencyLevel;
     response.dependencyPercentage = dependant.dependencyPercentage;
@@ -155,43 +155,43 @@ export class DependencyMapper {
     // Personal circumstances
     response.isMinor = dependant.isMinor;
     response.isStudent = dependant.isStudent;
-    response.studentUntil = dependant['studentUntil']?.toISOString();
-    response.hasPhysicalDisability = dependant['hasPhysicalDisability'];
-    response.hasMentalDisability = dependant['hasMentalDisability'];
+    response.studentUntil = props['studentUntil']?.toISOString();
+    response.hasPhysicalDisability = props['hasPhysicalDisability'];
+    response.hasMentalDisability = props['hasMentalDisability'];
     response.requiresOngoingCare = dependant.requiresOngoingCare;
-    response.disabilityDetails = dependant['disabilityDetails'];
+    response.disabilityDetails = props['disabilityDetails'];
 
     // S.26 Claim information
     response.isClaimant = dependant.isClaimant;
-    response.claimAmount = dependant['claimAmount'];
+    response.claimAmount = props['claimAmount'];
     response.provisionAmount = dependant.provisionAmount;
-    response.currency = dependant['currency'] || 'KES';
+    response.currency = props['currency'] || 'KES';
 
     // Court order information
     response.provisionOrderIssued = dependant.hasCourtOrder;
-    response.courtOrderReference = dependant['courtOrderReference'];
-    response.courtOrderDate = dependant['courtOrderDate']?.toISOString();
+    response.courtOrderReference = props['courtOrderReference'];
+    response.courtOrderDate = props['courtOrderDate']?.toISOString();
     response.courtApprovedAmount = dependant.courtApprovedAmount;
-    response.provisionOrderNumber = dependant['provisionOrderNumber'];
+    response.provisionOrderNumber = props['provisionOrderNumber'];
 
     // Financial evidence
     response.monthlySupport = dependant.monthlySupport;
-    response.supportStartDate = dependant['supportStartDate']?.toISOString();
-    response.supportEndDate = dependant['supportEndDate']?.toISOString();
-    response.monthlySupportEvidence = dependant['monthlySupportEvidence'];
-    response.dependencyRatio = dependant['dependencyRatio'];
+    response.supportStartDate = props['supportStartDate']?.toISOString();
+    response.supportEndDate = props['supportEndDate']?.toISOString();
+    response.monthlySupportEvidence = props['monthlySupportEvidence'];
+    response.dependencyRatio = props['dependencyRatio'];
 
     // Assessment details
     response.assessmentDate = dependant.assessmentDate.toISOString();
-    response.assessmentMethod = dependant['assessmentMethod'];
-    response.ageLimit = dependant['ageLimit'];
+    response.assessmentMethod = props['assessmentMethod'];
+    response.ageLimit = props['ageLimit'];
 
     // Custodial parent
     response.custodialParentId = dependant.custodialParentId;
 
     // Evidence documents
     response.dependencyProofDocuments = this.mapEvidenceDocuments(
-      dependant['dependencyProofDocuments'],
+      props['dependencyProofDocuments'],
     );
 
     // Verification
@@ -201,103 +201,12 @@ export class DependencyMapper {
     response.isPriorityDependant = dependant.isPriorityDependant;
     response.qualifiesForS29 = dependant.qualifiesForS29;
     response.s26ClaimStatus = dependant.s26ClaimStatus;
-    response.isS29Compliant = dependant['isS29Compliant'];
+    response.isS29Compliant = dependant['isS29Compliant'] ?? true;
 
     // Audit
-    response.version = dependant['version'];
-    response.createdAt = dependant['createdAt'].toISOString();
-    response.updatedAt = dependant['updatedAt'].toISOString();
-
-    return response;
-  }
-
-  /**
-   * Maps DependencyAssessmentAggregate to DependencyAssessmentResponse
-   */
-  toDependencyAssessmentResponseFromAggregate(
-    aggregate: DependencyAssessmentAggregate,
-    options?: {
-      includeNames?: boolean;
-      deceasedName?: string;
-      dependantName?: string;
-      custodialParentName?: string;
-    },
-  ): DependencyAssessmentResponse {
-    const response = new DependencyAssessmentResponse();
-
-    // Basic IDs
-    response.id = aggregate.id;
-    response.deceasedId = aggregate.deceasedId;
-    response.dependantId = aggregate.dependantId;
-
-    // Names if available
-    if (options?.includeNames) {
-      response.deceasedName = options.deceasedName;
-      response.dependantName = options.dependantName;
-      response.custodialParentName = options.custodialParentName;
-    }
-
-    // Legal basis
-    response.basisSection = aggregate['basisSection'];
-    response.dependencyBasis = aggregate.dependencyBasis;
-    response.dependencyLevel = aggregate.dependencyLevel;
-    response.dependencyPercentage = aggregate.dependencyPercentage;
-
-    // Personal circumstances
-    response.isMinor = aggregate.isMinor;
-    response.isStudent = aggregate.isStudent;
-    response.studentUntil = aggregate['studentUntil']?.toISOString();
-    response.hasPhysicalDisability = aggregate['hasPhysicalDisability'];
-    response.hasMentalDisability = aggregate['hasMentalDisability'];
-    response.requiresOngoingCare = aggregate.requiresOngoingCare;
-    response.disabilityDetails = aggregate['disabilityDetails'];
-
-    // S.26 Claim information
-    response.isClaimant = aggregate.isClaimant;
-    response.claimAmount = aggregate['claimAmount'];
-    response.provisionAmount = aggregate.provisionAmount;
-    response.currency = aggregate['currency'] || 'KES';
-
-    // Court order information
-    response.provisionOrderIssued = aggregate.hasCourtOrder;
-    response.courtOrderReference = aggregate['courtOrderReference'];
-    response.courtOrderDate = aggregate['courtOrderDate']?.toISOString();
-    response.courtApprovedAmount = aggregate.courtApprovedAmount;
-    response.provisionOrderNumber = aggregate['provisionOrderNumber'];
-
-    // Financial evidence
-    response.monthlySupport = aggregate.monthlySupport;
-    response.supportStartDate = aggregate['supportStartDate']?.toISOString();
-    response.supportEndDate = aggregate['supportEndDate']?.toISOString();
-    response.monthlySupportEvidence = aggregate.monthlySupportEvidence;
-    response.dependencyRatio = aggregate.financialDependencyRatio;
-
-    // Assessment details
-    response.assessmentDate = aggregate.assessmentDate.toISOString();
-    response.assessmentMethod = aggregate['assessmentMethod'];
-    response.ageLimit = aggregate['ageLimit'];
-
-    // Custodial parent
-    response.custodialParentId = aggregate.custodialParentId;
-
-    // Evidence documents
-    response.dependencyProofDocuments = this.mapEvidenceDocuments(
-      aggregate['dependencyProofDocuments'],
-    );
-
-    // Verification
-    response.verifiedByCourtAt = aggregate.verifiedByCourtAt?.toISOString();
-
-    // Computed properties
-    response.isPriorityDependant = aggregate.isPriorityDependant;
-    response.qualifiesForS29 = aggregate.qualifiesForS29;
-    response.s26ClaimStatus = aggregate.s26ClaimStatus;
-    response.isS29Compliant = aggregate.isS29Compliant;
-
-    // Audit
-    response.version = aggregate.version;
-    response.createdAt = aggregate.createdAt.toISOString();
-    response.updatedAt = aggregate.updatedAt.toISOString();
+    response.version = props['version'];
+    response.createdAt = props['createdAt'].toISOString();
+    response.updatedAt = props['updatedAt'].toISOString();
 
     return response;
   }
@@ -330,10 +239,10 @@ export class DependencyMapper {
     return documents.map((doc) => ({
       documentId: doc.documentId,
       evidenceType: doc.evidenceType,
-      addedAt: doc.addedAt?.toISOString() || new Date().toISOString(),
+      addedAt: doc.addedAt instanceof Date ? doc.addedAt.toISOString() : new Date().toISOString(),
       verified: doc.verified || false,
       verifiedBy: doc.verifiedBy,
-      verifiedAt: doc.verifiedAt?.toISOString(),
+      verifiedAt: doc.verifiedAt instanceof Date ? doc.verifiedAt.toISOString() : doc.verifiedAt,
     }));
   }
 
@@ -341,10 +250,14 @@ export class DependencyMapper {
    * Maps domain statistics to DependencyStatistics response
    */
   toDependencyStatistics(stats: any): DependencyStatistics {
+    const totalClaim = stats.totalS26ClaimAmount || 0;
+    const totalApproved = stats.totalCourtApprovedAmount || 0;
+
     return {
       totalDependants: stats.totalDependants || 0,
       priorityDependants: stats.totalPriorityDependants || 0,
-      nonPriorityDependants: stats.totalNonPriorityDependants || 0,
+      conditionalDependants: stats.totalNonPriorityDependants || 0,
+      otherDependants: stats.totalOtherDependants || 0,
       s26Claimants: stats.totalS26Claimants || 0,
       withCourtOrders: stats.totalWithCourtOrders || 0,
       minors: stats.totalMinors || 0,
@@ -353,8 +266,9 @@ export class DependencyMapper {
       fullDependants: stats.totalFullDependants || 0,
       partialDependants: stats.totalPartialDependants || 0,
       verifiedByCourt: stats.totalVerifiedByCourt || 0,
-      totalClaimAmount: stats.totalS26ClaimAmount || 0,
-      totalCourtApprovedAmount: stats.totalCourtApprovedAmount || 0,
+      totalClaimAmount: totalClaim,
+      totalCourtApprovedAmount: totalApproved,
+      provisionGap: totalClaim - totalApproved,
       averageDependencyPercentage: stats.averageDependencyPercentage || 0,
     };
   }
@@ -375,6 +289,7 @@ export class DependencyMapper {
       monthlySupport: dependant.monthlySupport,
       hasCourtOrder: dependant.hasCourtOrder,
       courtApprovedAmount: dependant.courtApprovedAmount,
+      isCompliant: dependant['isS29Compliant'] ?? false,
     };
   }
 
@@ -394,21 +309,12 @@ export class DependencyMapper {
     response.deceasedName = deceasedName;
     response.assessmentDate = new Date().toISOString();
 
-    // Determine overall status
     response.status = this.determineOverallStatus(dependants);
-
-    // Map statistics
     response.statistics = this.toDependencyStatistics(statistics);
-
-    // Map dependants to summaries
     response.dependants = dependants.map((dependant) =>
       this.toDependantSummary(dependant, personInfoMap?.get(dependant.dependantId)),
     );
-
-    // Determine compliance
     response.compliance = this.determineCompliance(dependants);
-
-    // Determine next steps
     response.nextSteps = this.determineNextSteps(response.compliance, dependants);
 
     return response;
@@ -416,16 +322,13 @@ export class DependencyMapper {
 
   // --- Helper Methods ---
 
-  /**
-   * Determines overall dependency assessment status
-   */
   private determineOverallStatus(
     dependants: LegalDependant[],
   ): 'COMPLETE' | 'IN_PROGRESS' | 'PENDING' | 'DISPUTED' {
     if (dependants.length === 0) return 'PENDING';
 
     const hasPendingClaims = dependants.some((d) => d.s26ClaimStatus === 'PENDING');
-    const hasUnverified = dependants.some((d) => !d['verifiedByCourtAt']);
+    const hasUnverified = dependants.some((d) => !d.toJSON()['verifiedByCourtAt']);
     const hasDisputes = dependants.some(
       (d) => d.s26ClaimStatus === 'DENIED' || d.dependencyPercentage === 0,
     );
@@ -436,48 +339,61 @@ export class DependencyMapper {
     return 'COMPLETE';
   }
 
-  /**
-   * Determines compliance with LSA requirements
-   */
   private determineCompliance(dependants: LegalDependant[]): {
     s29Compliant: boolean;
     s26ClaimsResolved: boolean;
     courtOrdersFiled: boolean;
     evidenceComplete: boolean;
-    issues: string[];
+    issues: ComplianceIssue[];
   } {
-    const issues: string[] = [];
+    const issues: ComplianceIssue[] = [];
 
     // Check S.29 compliance
-    const nonCompliantS29 = dependants.filter((d) => !d['isS29Compliant']);
+    const nonCompliantS29 = dependants.filter((d) => !d.toJSON()['isS29Compliant']);
     const s29Compliant = nonCompliantS29.length === 0;
     if (!s29Compliant) {
-      issues.push(`${nonCompliantS29.length} dependants are not S.29 compliant`);
+      issues.push({
+        code: 'S29_NON_COMPLIANT',
+        message: `${nonCompliantS29.length} dependants do not meet Section 29 requirements`,
+        severity: 'CRITICAL',
+      });
     }
 
     // Check S.26 claims resolution
     const pendingClaims = dependants.filter((d) => d.s26ClaimStatus === 'PENDING');
     const s26ClaimsResolved = pendingClaims.length === 0;
     if (!s26ClaimsResolved) {
-      issues.push(`${pendingClaims.length} S.26 claims are pending`);
+      issues.push({
+        code: 'PENDING_S26_CLAIMS',
+        message: `${pendingClaims.length} S.26 claims are still pending resolution`,
+        severity: 'WARNING',
+      });
     }
 
     // Check court orders for claimants
     const claimantsWithoutOrders = dependants.filter((d) => d.isClaimant && !d.hasCourtOrder);
     const courtOrdersFiled = claimantsWithoutOrders.length === 0;
     if (!courtOrdersFiled) {
-      issues.push(`${claimantsWithoutOrders.length} claimants lack court orders`);
+      issues.push({
+        code: 'MISSING_COURT_ORDERS',
+        message: `${claimantsWithoutOrders.length} claimants lack required court orders`,
+        severity: 'CRITICAL',
+      });
     }
 
     // Check evidence completeness
-    const withoutEvidence = dependants.filter(
-      (d) =>
-        !d.isPriorityDependant &&
-        (!d['dependencyProofDocuments'] || d['dependencyProofDocuments'].length === 0),
-    );
+    const withoutEvidence = dependants.filter((d) => {
+      const docs = d.toJSON()['dependencyProofDocuments'];
+      return !d.isPriorityDependant && (!docs || docs.length === 0);
+    });
+
     const evidenceComplete = withoutEvidence.length === 0;
     if (!evidenceComplete) {
-      issues.push(`${withoutEvidence.length} non-priority dependants lack evidence`);
+      issues.push({
+        code: 'MISSING_EVIDENCE',
+        message: `${withoutEvidence.length} non-priority dependants lack supporting evidence`,
+        severity: 'WARNING',
+      });
     }
 
     return {
@@ -489,53 +405,45 @@ export class DependencyMapper {
     };
   }
 
-  /**
-   * Determines next steps based on current status
-   */
   private determineNextSteps(
-    compliance: { issues: string[] },
+    compliance: { issues: ComplianceIssue[] },
     dependants: LegalDependant[],
   ): string[] {
     const steps: string[] = [];
 
     if (compliance.issues.length > 0) {
-      steps.push('Address the following compliance issues:');
-      steps.push(...compliance.issues.map((issue) => `  - ${issue}`));
+      steps.push('Resolve compliance issues listed above.');
     }
 
-    // Check for minors without custodial parents
     const minorsWithoutCustodial = dependants.filter((d) => d.isMinor && !d.custodialParentId);
     if (minorsWithoutCustodial.length > 0) {
       steps.push(`Assign custodial parents for ${minorsWithoutCustodial.length} minor(s)`);
     }
 
-    // Check for students without end dates
     const studentsWithoutEndDate = dependants.filter(
-      (d) => d.isStudent && !d.isMinor && !d['studentUntil'],
+      (d) => d.isStudent && !d.isMinor && !d.toJSON()['studentUntil'],
     );
     if (studentsWithoutEndDate.length > 0) {
       steps.push(`Add student end dates for ${studentsWithoutEndDate.length} student(s)`);
     }
 
-    // Check for expired support
     const today = new Date();
-    const expiredSupport = dependants.filter(
-      (d) => d['supportEndDate'] && new Date(d['supportEndDate']) < today,
-    );
+    const expiredSupport = dependants.filter((d) => {
+      const end = d.toJSON()['supportEndDate'];
+      return end && new Date(end) < today;
+    });
+
     if (expiredSupport.length > 0) {
       steps.push(`Review ${expiredSupport.length} dependant(s) with expired support`);
     }
 
     if (steps.length === 0) {
-      steps.push('No further action required. Dependency assessment is complete.');
+      steps.push('Proceed to estate distribution planning.');
     }
 
     return steps;
   }
 
-  /**
-   * Maps evidence documents from request to domain format
-   */
   mapRequestEvidenceToDomain(evidence: EvidenceDocumentDto[]): any[] {
     return evidence.map((doc) => ({
       documentId: doc.documentId,
@@ -545,9 +453,6 @@ export class DependencyMapper {
     }));
   }
 
-  /**
-   * Maps supporting documents from S26 claim request
-   */
   mapSupportingDocumentsToDomain(docs: SupportingDocumentDto[]): any[] {
     return docs.map((doc) => ({
       documentId: doc.documentId,
@@ -557,33 +462,5 @@ export class DependencyMapper {
       addedAt: new Date(),
       verified: false,
     }));
-  }
-
-  /**
-   * Creates a partial update object from request
-   */
-  toPartialUpdateProps(request: any): Record<string, any> {
-    const props: Record<string, any> = {};
-
-    // Map date strings to Date objects
-    const dateFields = [
-      'supportStartDate',
-      'supportEndDate',
-      'studentUntil',
-      'courtOrderDate',
-      'verifiedByCourtAt',
-    ];
-
-    Object.keys(request).forEach((key) => {
-      if (request[key] !== undefined) {
-        if (dateFields.includes(key) && request[key]) {
-          props[key] = new Date(request[key]);
-        } else {
-          props[key] = request[key];
-        }
-      }
-    });
-
-    return props;
   }
 }

@@ -1,28 +1,40 @@
-// application/dependency/dto/request/assess-financial-dependency.request.ts
-import { IsDateString, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsDateString, IsNumber, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class AssessFinancialDependencyRequest {
-  @IsString()
+  @IsUUID()
   dependencyAssessmentId: string;
 
+  /**
+   * The amount the deceased was contributing monthly.
+   * Must be backed by receipts/mpesa statements in the evidence collection.
+   */
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  monthlySupportEvidence: number; // Monthly contribution from deceased
+  monthlySupportEvidence: number;
 
+  /**
+   * The calculated ratio of (Contribution / Total Needs).
+   * Determines strict S.29(b) eligibility.
+   */
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
   @Max(1)
-  dependencyRatio: number; // Ratio of deceased's contribution to dependant's needs
+  dependencyRatio: number;
 
+  /**
+   * The derived percentage (0-100).
+   * Used for estate distribution weighting.
+   */
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @Max(100)
   dependencyPercentage: number;
 
   @IsString()
-  assessmentMethod: string; // e.g., 'FINANCIAL_RATIO_ANALYSIS', 'COURT_ORDER', 'STATUTORY'
+  assessmentMethod: string; // 'FINANCIAL_RATIO_ANALYSIS', 'COURT_ORDER_PRECEDENT', 'AFFIDAVIT_BASED'
 
-  // Alternative: Calculate using needs and income
+  // --- Alternative Calculation Params ---
+
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
@@ -33,7 +45,8 @@ export class AssessFinancialDependencyRequest {
   @Min(0)
   totalDeceasedIncome?: number;
 
-  // For recalculation with different method
+  // --- Audit ---
+
   @IsOptional()
   @IsString()
   recalculationReason?: string;
@@ -43,6 +56,6 @@ export class AssessFinancialDependencyRequest {
   effectiveDate?: string;
 
   @IsOptional()
-  @IsString()
-  assessedBy?: string; // User ID or system identifier
+  @IsUUID()
+  assessedBy?: string;
 }

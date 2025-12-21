@@ -1,4 +1,3 @@
-// application/dependency/dto/response/dependency-assessment.response.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DependencyLevel, KenyanLawSection } from '@prisma/client';
 
@@ -6,164 +5,183 @@ export class EvidenceDocumentResponse {
   @ApiProperty({ description: 'Document ID' })
   documentId: string;
 
-  @ApiProperty({ description: 'Type of evidence' })
+  @ApiProperty({ description: 'Type of evidence (e.g., BIRTH_CERTIFICATE, AFFIDAVIT)' })
   evidenceType: string;
 
-  @ApiProperty({ description: 'When evidence was added' })
+  @ApiProperty({ description: 'Date added (ISO 8601)' })
   addedAt: string;
 
   @ApiPropertyOptional({ description: 'Verification status' })
   verified?: boolean;
 
-  @ApiPropertyOptional({ description: 'Verified by user ID' })
+  @ApiPropertyOptional({ description: 'User ID who verified the document' })
   verifiedBy?: string;
 
-  @ApiPropertyOptional({ description: 'Verification date' })
+  @ApiPropertyOptional({ description: 'Date verified (ISO 8601)' })
   verifiedAt?: string;
 }
 
 export class DependencyAssessmentResponse {
-  @ApiProperty({ description: 'Dependency assessment ID' })
+  @ApiProperty({ description: 'Unique Assessment ID' })
   id: string;
 
-  @ApiProperty({ description: 'Deceased person ID' })
+  @ApiProperty({ description: 'Deceased Person ID' })
   deceasedId: string;
 
-  @ApiProperty({ description: 'Dependant person ID' })
+  @ApiProperty({ description: 'Dependant Person ID' })
   dependantId: string;
 
-  @ApiProperty({ description: 'Deceased person name (if available)' })
+  @ApiProperty({ description: 'Deceased Name' })
   deceasedName?: string;
 
-  @ApiProperty({ description: 'Dependant person name (if available)' })
+  @ApiProperty({ description: 'Dependant Name' })
   dependantName?: string;
 
-  @ApiPropertyOptional({ enum: KenyanLawSection, description: 'Legal basis section' })
+  @ApiPropertyOptional({
+    enum: KenyanLawSection,
+    description: 'Applicable Law Section (e.g., S29_DEPENDANTS, S26_DEPENDANT_PROVISION)',
+  })
   basisSection?: KenyanLawSection;
 
-  @ApiProperty({ description: 'Dependency basis' })
+  @ApiProperty({ description: 'Basis of relationship (e.g., SPOUSE, CHILD, PARENT)' })
   dependencyBasis: string;
 
-  @ApiProperty({ enum: DependencyLevel, description: 'Dependency level' })
+  @ApiProperty({
+    enum: DependencyLevel,
+    description: 'Calculated Dependency Level (FULL/PARTIAL/NONE)',
+  })
   dependencyLevel: DependencyLevel;
 
-  @ApiProperty({ description: 'Dependency percentage (0-100)' })
+  @ApiProperty({ description: 'Calculated Dependency Percentage (0-100)' })
   dependencyPercentage: number;
 
-  @ApiProperty({ description: 'Whether dependant is a minor' })
+  // --- Demographic Flags ---
+
+  @ApiProperty({ description: 'Is the dependant a minor (<18)?' })
   isMinor: boolean;
 
-  @ApiProperty({ description: 'Whether dependant is a student' })
+  @ApiProperty({ description: 'Is the dependant a student?' })
   isStudent: boolean;
 
-  @ApiPropertyOptional({ description: 'Student status until date' })
+  @ApiPropertyOptional({ description: 'Expected graduation date (ISO 8601)' })
   studentUntil?: string;
 
-  @ApiProperty({ description: 'Has physical disability' })
+  // --- Disability (S.29(2)) ---
+
+  @ApiProperty({ description: 'Has physical disability?' })
   hasPhysicalDisability: boolean;
 
-  @ApiProperty({ description: 'Has mental disability' })
+  @ApiProperty({ description: 'Has mental disability?' })
   hasMentalDisability: boolean;
 
-  @ApiProperty({ description: 'Requires ongoing care' })
+  @ApiProperty({ description: 'Requires ongoing care/nursing?' })
   requiresOngoingCare: boolean;
 
-  @ApiPropertyOptional({ description: 'Disability details' })
+  @ApiPropertyOptional({ description: 'Details of the disability' })
   disabilityDetails?: string;
 
-  // S.26 Claim information
-  @ApiProperty({ description: 'Whether this is an S.26 claimant' })
+  // --- S.26 Claim Info ---
+
+  @ApiProperty({ description: 'Has an S.26 financial provision claim been filed?' })
   isClaimant: boolean;
 
-  @ApiPropertyOptional({ description: 'Claim amount if S.26 claimant' })
+  @ApiPropertyOptional({ description: 'Amount claimed under S.26 (KES)' })
   claimAmount?: number;
 
-  @ApiPropertyOptional({ description: 'Court provision amount' })
+  @ApiPropertyOptional({ description: 'Amount provisioned/approved (KES)' })
   provisionAmount?: number;
 
-  @ApiProperty({ description: 'Currency', default: 'KES' })
+  @ApiProperty({ description: 'Currency Code', default: 'KES' })
   currency: string;
 
-  // Court order information
-  @ApiProperty({ description: 'Whether court order has been issued' })
+  // --- Court Order Info ---
+
+  @ApiProperty({ description: 'Has a court order been issued?' })
   provisionOrderIssued: boolean;
 
-  @ApiPropertyOptional({ description: 'Court order reference number' })
+  @ApiPropertyOptional({ description: 'Court Order Reference Number' })
   courtOrderReference?: string;
 
-  @ApiPropertyOptional({ description: 'Court order date' })
+  @ApiPropertyOptional({ description: 'Date of Court Order (ISO 8601)' })
   courtOrderDate?: string;
 
-  @ApiPropertyOptional({ description: 'Court approved amount' })
+  @ApiPropertyOptional({ description: 'Court Approved Amount (KES)' })
   courtApprovedAmount?: number;
 
-  @ApiPropertyOptional({ description: 'Provision order number' })
+  @ApiPropertyOptional({ description: 'Specific Provision Order Number' })
   provisionOrderNumber?: string;
 
-  // Financial evidence
-  @ApiPropertyOptional({ description: 'Monthly support amount' })
+  // --- Financial Evidence (S.29(b)) ---
+
+  @ApiPropertyOptional({ description: 'Monthly support received (KES)' })
   monthlySupport?: number;
 
-  @ApiPropertyOptional({ description: 'Support start date' })
+  @ApiPropertyOptional({ description: 'Support Start Date (ISO 8601)' })
   supportStartDate?: string;
 
-  @ApiPropertyOptional({ description: 'Support end date' })
+  @ApiPropertyOptional({ description: 'Support End Date (ISO 8601)' })
   supportEndDate?: string;
 
-  @ApiPropertyOptional({ description: 'Monthly support evidence amount' })
+  @ApiPropertyOptional({ description: 'Proven monthly support amount (KES)' })
   monthlySupportEvidence?: number;
 
-  @ApiPropertyOptional({ description: 'Dependency ratio (0-1)' })
+  @ApiPropertyOptional({ description: 'Calculated dependency ratio (0-1)' })
   dependencyRatio?: number;
 
-  // Assessment details
-  @ApiProperty({ description: 'Assessment date' })
+  // --- Assessment Meta ---
+
+  @ApiProperty({ description: 'Date of last assessment (ISO 8601)' })
   assessmentDate: string;
 
-  @ApiPropertyOptional({ description: 'Assessment method used' })
+  @ApiPropertyOptional({ description: 'Method used for assessment' })
   assessmentMethod?: string;
 
-  @ApiPropertyOptional({ description: 'Age limit for dependency' })
+  @ApiPropertyOptional({ description: 'Legal age limit for dependency (e.g. 18 or 25)' })
   ageLimit?: number;
 
-  // Custodial parent
-  @ApiPropertyOptional({ description: 'Custodial parent ID for minors' })
+  // --- Custody ---
+
+  @ApiPropertyOptional({ description: 'ID of Custodial Parent (for minors)' })
   custodialParentId?: string;
 
-  @ApiPropertyOptional({ description: 'Custodial parent name' })
+  @ApiPropertyOptional({ description: 'Name of Custodial Parent' })
   custodialParentName?: string;
 
-  // Evidence documents
-  @ApiPropertyOptional({ type: [EvidenceDocumentResponse], description: 'Proof documents' })
+  // --- Evidence ---
+
+  @ApiPropertyOptional({ type: [EvidenceDocumentResponse], description: 'List of proof documents' })
   dependencyProofDocuments?: EvidenceDocumentResponse[];
 
-  // Verification
-  @ApiPropertyOptional({ description: 'Verified by court date' })
+  // --- Verification ---
+
+  @ApiPropertyOptional({ description: 'Date verified by Court/Registrar (ISO 8601)' })
   verifiedByCourtAt?: string;
 
-  // Computed properties
-  @ApiProperty({ description: 'Whether this is a priority dependant (spouse/child)' })
+  // --- Computed Legal Status ---
+
+  @ApiProperty({ description: 'Is Priority Dependant (S.29(a) - Spouse/Child)?' })
   isPriorityDependant: boolean;
 
-  @ApiProperty({ description: 'Qualifies under Section 29' })
+  @ApiProperty({ description: 'Legally qualifies as dependant under Section 29?' })
   qualifiesForS29: boolean;
 
   @ApiProperty({
     enum: ['NO_CLAIM', 'PENDING', 'APPROVED', 'DENIED'],
-    description: 'S.26 claim status',
+    description: 'Current status of S.26 claim',
   })
   s26ClaimStatus: 'NO_CLAIM' | 'PENDING' | 'APPROVED' | 'DENIED';
 
-  @ApiProperty({ description: 'Whether S.29 compliant' })
+  @ApiProperty({ description: 'Is fully compliant with S.29 evidence requirements?' })
   isS29Compliant: boolean;
 
-  // Audit
-  @ApiProperty({ description: 'Version for optimistic concurrency' })
+  // --- Audit ---
+
+  @ApiProperty({ description: 'Record Version' })
   version: number;
 
-  @ApiProperty({ description: 'Creation timestamp' })
+  @ApiProperty({ description: 'Created At (ISO 8601)' })
   createdAt: string;
 
-  @ApiProperty({ description: 'Last update timestamp' })
+  @ApiProperty({ description: 'Updated At (ISO 8601)' })
   updatedAt: string;
 }

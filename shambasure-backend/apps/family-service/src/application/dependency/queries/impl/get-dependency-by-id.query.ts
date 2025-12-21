@@ -1,10 +1,9 @@
-// application/dependency/queries/impl/get-dependency-by-id.query.ts
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsUUID } from 'class-validator';
 
 import { BaseQuery } from '../base.query';
 
 export class GetDependencyByIdQuery extends BaseQuery {
-  @IsString()
+  @IsUUID()
   dependencyId: string;
 
   @IsOptional()
@@ -27,6 +26,12 @@ export class GetDependencyByIdQuery extends BaseQuery {
   @IsBoolean()
   includeAuditHistory: boolean = false;
 
+  readonly queryId: string;
+  readonly timestamp: Date;
+  readonly correlationId?: string;
+  readonly userId: string;
+  readonly userRole?: string; // Added property
+
   constructor(
     dependencyId: string,
     options?: {
@@ -38,12 +43,17 @@ export class GetDependencyByIdQuery extends BaseQuery {
       requestId?: string;
       correlationId?: string;
       userId?: string;
-      userRole?: string;
+      userRole?: string; // Added to options interface
     },
   ) {
     super();
 
     this.dependencyId = dependencyId;
+    this.queryId = options?.requestId || crypto.randomUUID();
+    this.timestamp = new Date();
+    this.correlationId = options?.correlationId;
+    this.userId = options?.userId || 'SYSTEM';
+    this.userRole = options?.userRole;
 
     if (options) {
       this.includeDeceasedDetails = options.includeDeceasedDetails ?? false;
@@ -51,41 +61,10 @@ export class GetDependencyByIdQuery extends BaseQuery {
       this.includeEvidenceDocuments = options.includeEvidenceDocuments ?? false;
       this.includeCourtOrderDetails = options.includeCourtOrderDetails ?? false;
       this.includeAuditHistory = options.includeAuditHistory ?? false;
-      this.requestId = options.requestId;
-      this.correlationId = options.correlationId;
-      this.userId = options.userId;
-      this.userRole = options.userRole;
     }
   }
 
   get queryName(): string {
     return 'GetDependencyByIdQuery';
-  }
-
-  validate(): { isValid: boolean; errors: string[] } {
-    const errors: string[] = [];
-
-    if (!this.dependencyId) {
-      errors.push('Dependency ID is required');
-    }
-
-    if (this.dependencyId && !this.isValidUUID(this.dependencyId)) {
-      errors.push('Invalid dependency ID format');
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors,
-    };
-  }
-
-  private isValidUUID(id: string): boolean {
-    // Simple UUID validation
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(id) || id.startsWith('dep-'); // Allow our custom IDs too
-  }
-
-  getDescription(): string {
-    return `Get dependency assessment by ID: ${this.dependencyId}`;
   }
 }

@@ -1,23 +1,31 @@
-// application/dependency/queries/impl/check-s29-compliance.query.ts
-import { IsBoolean, IsDateString, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+} from 'class-validator';
 
 import { BaseQuery } from '../base.query';
 
 export enum ComplianceCheckLevel {
-  BASIC = 'BASIC', // Only check essential requirements
-  DETAILED = 'DETAILED', // Check all requirements with explanations
-  LEGAL = 'LEGAL', // Include legal citations and precedents
+  BASIC = 'BASIC',
+  DETAILED = 'DETAILED',
+  LEGAL = 'LEGAL',
 }
 
 export enum ComplianceReportFormat {
-  SUMMARY = 'SUMMARY', // Brief compliance status
-  DETAILED = 'DETAILED', // Detailed report with issues
-  LEGAL = 'LEGAL', // Legal opinion format
-  EXECUTIVE = 'EXECUTIVE', // Executive summary for non-lawyers
+  SUMMARY = 'SUMMARY',
+  DETAILED = 'DETAILED',
+  LEGAL_OPINION = 'LEGAL_OPINION',
+  EXECUTIVE_SUMMARY = 'EXECUTIVE_SUMMARY',
 }
 
 export class CheckS29ComplianceQuery extends BaseQuery {
-  @IsString()
+  @IsUUID()
   deceasedId: string;
 
   @IsOptional()
@@ -38,10 +46,6 @@ export class CheckS29ComplianceQuery extends BaseQuery {
 
   @IsOptional()
   @IsBoolean()
-  includeCaseStudies: boolean = false;
-
-  @IsOptional()
-  @IsBoolean()
   calculateDistribution: boolean = false;
 
   @IsOptional()
@@ -50,7 +54,8 @@ export class CheckS29ComplianceQuery extends BaseQuery {
 
   @IsOptional()
   @IsNumber()
-  estateValue?: number; // Total estate value for validation
+  @Min(0)
+  estateValue?: number;
 
   @IsOptional()
   @IsString()
@@ -58,7 +63,13 @@ export class CheckS29ComplianceQuery extends BaseQuery {
 
   @IsOptional()
   @IsDateString()
-  asOfDate?: string; // Check compliance as of a specific date
+  asOfDate?: string;
+
+  readonly queryId: string;
+  readonly timestamp: Date;
+  readonly correlationId?: string;
+  readonly userId: string;
+  readonly userRole?: string; // Added property
 
   constructor(
     deceasedId: string,
@@ -67,7 +78,6 @@ export class CheckS29ComplianceQuery extends BaseQuery {
       reportFormat?: ComplianceReportFormat;
       includeRecommendations?: boolean;
       includeLegalCitations?: boolean;
-      includeCaseStudies?: boolean;
       calculateDistribution?: boolean;
       validateAgainstEstateValue?: boolean;
       estateValue?: number;
@@ -76,22 +86,22 @@ export class CheckS29ComplianceQuery extends BaseQuery {
       requestId?: string;
       correlationId?: string;
       userId?: string;
-      userRole?: string;
+      userRole?: string; // Added to options interface
     },
   ) {
     super();
 
     this.deceasedId = deceasedId;
+    this.queryId = options?.requestId || crypto.randomUUID();
+    this.timestamp = new Date();
+    this.correlationId = options?.correlationId;
+    this.userId = options?.userId || 'SYSTEM';
+    this.userRole = options?.userRole;
 
     if (options) {
       Object.assign(this, options);
-      this.requestId = options.requestId;
-      this.correlationId = options.correlationId;
-      this.userId = options.userId;
-      this.userRole = options.userRole;
     }
 
-    // Set default jurisdiction
     if (!this.jurisdiction) {
       this.jurisdiction = 'Kenya';
     }
@@ -99,97 +109,5 @@ export class CheckS29ComplianceQuery extends BaseQuery {
 
   get queryName(): string {
     return 'CheckS29ComplianceQuery';
-  }
-
-  validate(): { isValid: boolean; errors: string[]; warnings: string[] } {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    if (!this.deceasedId) {
-      errors.push('Deceased ID is required');
-    }
-
-    if (this.deceasedId && !this.isValidUUID(this.deceasedId)) {
-      warnings.push('Invalid deceased ID format');
-    }
-
-    // Validate asOfDate is not in the future
-    if (this.asOfDate) {
-      const asOfDate = new Date(this.asOfDate);
-      const now = new Date();
-      if (asOfDate > now) {
-        warnings.push('Compliance check date is in the future. Results may not be accurate.');
-      }
-    }
-
-    // Validate estate value if provided
-    if (this.estateValue !== undefined) {
-      if (this.estateValue < 0) {
-        errors.push('Estate value cannot be negative');
-      }
-      if (this.estateValue > 10000000000) {
-        // 10 billion
-        warnings.push('Extremely high estate value detected. Please verify.');
-      }
-    }
-
-    // Check jurisdiction support
-    const supportedJurisdictions = ['Kenya', 'Uganda', 'Tanzania'];
-    if (!supportedJurisdictions.includes(this.jurisdiction)) {
-      warnings.push(
-        `Jurisdiction ${this.jurisdiction} may not be fully supported. Legal interpretations may vary.`,
-      );
-    }
-
-    // Validate user has appropriate role for legal checks
-    if (this.includeLegalCitations && this.userRole && !this.isLegalRole(this.userRole)) {
-      warnings.push('User may not have legal expertise to interpret legal citations.');
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors,
-      warnings,
-    };
-  }
-
-  private isValidUUID(id: string): boolean {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(id);
-  }
-
-  private isLegalRole(role: string): boolean {
-    const legalRoles = ['LAWYER', 'JUDGE', 'REGISTRAR', 'LEGAL_OFFICER', 'PARALEGAL'];
-    return legalRoles.includes(role);
-  }
-
-  getCheckParameters(): any {
-    return {
-      deceasedId: this.deceasedId,
-      checkLevel: this.checkLevel,
-      reportFormat: this.reportFormat,
-      includeRecommendations: this.includeRecommendations,
-      includeLegalCitations: this.includeLegalCitations,
-      includeCaseStudies: this.includeCaseStudies,
-      calculateDistribution: this.calculateDistribution,
-      validateAgainstEstateValue: this.validateAgainstEstateValue,
-      estateValue: this.estateValue,
-      jurisdiction: this.jurisdiction,
-      asOfDate: this.asOfDate ? new Date(this.asOfDate) : new Date(),
-    };
-  }
-
-  getDescription(): string {
-    let desc = `Check S.29 compliance for deceased ${this.deceasedId} at ${this.checkLevel} level`;
-
-    if (this.calculateDistribution) {
-      desc += ' with distribution calculation';
-    }
-
-    if (this.validateAgainstEstateValue && this.estateValue) {
-      desc += ` against estate value of ${this.estateValue.toLocaleString()} KES`;
-    }
-
-    return desc;
   }
 }
