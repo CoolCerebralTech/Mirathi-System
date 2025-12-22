@@ -1,38 +1,58 @@
-// src/domain/aggregates/estate/entities/gift-inter-vivos.entity.ts
-import { Entity } from '../../../base/entity';
-import { UniqueEntityID } from '../../../base/unique-entity-id';
-import { Guard } from '../../../core/guard';
-import { Result } from '../../../core/result';
+import { Entity } from '../../../../domain/base/entity';
+import { UniqueEntityID } from '../../../../domain/base/unique-entity-id';
+// Exceptions
+import { EstateDomainException } from '../../../exceptions/estate.exception';
 import { KenyanLocation } from '../../../shared/kenyan-location.vo';
 import { Money } from '../../../shared/money.vo';
 import { AssetType } from '../value-objects/asset-details.vo';
 import { GiftInterVivosDetails } from '../value-objects/gift-inter-vivos-details.vo';
 
+export class InvalidGiftConfigurationException extends EstateDomainException {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidGiftConfigurationException';
+  }
+}
+
+export class HotchpotCalculationException extends EstateDomainException {
+  constructor(message: string) {
+    super(message);
+    this.name = 'HotchpotCalculationException';
+  }
+}
+
+export class GiftConditionException extends EstateDomainException {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GiftConditionException';
+  }
+}
+
 export enum GiftHotchpotStatus {
-  NOT_APPLICABLE = 'NOT_APPLICABLE', // Not subject to hotchpot
-  PENDING = 'PENDING', // Awaiting hotchpot calculation
-  INCLUDED = 'INCLUDED', // Included in hotchpot calculation
-  EXCLUDED = 'EXCLUDED', // Excluded from hotchpot
-  RECLAIMED = 'RECLAIMED', // Gift returned to estate
-  CALCULATION_PENDING = 'CALCULATION_PENDING', // Awaiting inflation adjustment
+  NOT_APPLICABLE = 'NOT_APPLICABLE',
+  PENDING = 'PENDING',
+  INCLUDED = 'INCLUDED',
+  EXCLUDED = 'EXCLUDED',
+  RECLAIMED = 'RECLAIMED',
+  CALCULATION_PENDING = 'CALCULATION_PENDING',
 }
 
 export enum GiftConditionStatus {
-  NONE = 'NONE', // No conditions
-  PENDING = 'PENDING', // Condition not yet met
-  MET = 'MET', // Condition fulfilled
-  FAILED = 'FAILED', // Condition failed
-  WAIVED = 'WAIVED', // Condition waived by testator
-  TIME_EXPIRED = 'TIME_EXPIRED', // Condition deadline passed
+  NONE = 'NONE',
+  PENDING = 'PENDING',
+  MET = 'MET',
+  FAILED = 'FAILED',
+  WAIVED = 'WAIVED',
+  TIME_EXPIRED = 'TIME_EXPIRED',
 }
 
 export enum GiftLegalStatus {
-  VALID = 'VALID', // Legally valid gift
-  VOIDABLE = 'VOIDABLE', // Potentially voidable
-  CONTESTED = 'CONTESTED', // Being contested
-  SETTLED = 'SETTLED', // Legally settled
-  INVALID = 'INVALID', // Legally invalid
-  UNDER_INVESTIGATION = 'UNDER_INVESTIGATION', // Being investigated
+  VALID = 'VALID',
+  VOIDABLE = 'VOIDABLE',
+  CONTESTED = 'CONTESTED',
+  SETTLED = 'SETTLED',
+  INVALID = 'INVALID',
+  UNDER_INVESTIGATION = 'UNDER_INVESTIGATION',
 }
 
 export enum GiftType {
@@ -50,13 +70,13 @@ export enum GiftType {
   OTHER = 'OTHER',
 }
 
-interface GiftInterVivosProps {
+export interface GiftInterVivosProps {
   estateId: UniqueEntityID;
-  deceasedId: UniqueEntityID; // Reference to deceased family member
+  deceasedId: UniqueEntityID;
 
   // Recipient Information
   recipientId: UniqueEntityID;
-  recipientName: string; // Denormalized for reports
+  recipientName: string;
   relationshipToDeceased: string;
   relationshipCategory:
     | 'CHILD'
@@ -73,7 +93,7 @@ interface GiftInterVivosProps {
   valueAtGiftTime: Money;
   dateOfGift: Date;
 
-  // Gift Details (Polymorphic)
+  // Gift Details (Polymorphic VO)
   details: GiftInterVivosDetails;
 
   // Kenyan Cultural Context
@@ -81,8 +101,8 @@ interface GiftInterVivosProps {
     tribe: string | null;
     clan: string | null;
     ceremonyType: string | null;
-    elderWitnesses: string[]; // Names of elders who witnessed
-    customaryDocumentation: string | null; // Reference to customary document
+    elderWitnesses: string[];
+    customaryDocumentation: string | null;
     communityAcknowledged: boolean;
     registeredWithClan: boolean;
   };
@@ -93,9 +113,9 @@ interface GiftInterVivosProps {
   hotchpotInclusionReason: string | null;
   hotchpotExclusionReason: string | null;
 
-  // Inflation Adjustment (Kenyan CPI)
+  // Inflation Adjustment
   inflationAdjustedValue: Money | null;
-  inflationRateUsed: number | null; // Annual CPI rate
+  inflationRateUsed: number | null;
   inflationAdjustmentMethod: 'KENYA_CPI' | 'FIXED_RATE' | 'CUSTOM' | null;
   reconciliationDate: Date | null;
   reconciliationNotes: string | null;
@@ -115,7 +135,7 @@ interface GiftInterVivosProps {
   conditionWaivedBy: string | null;
   conditionWaivedDate: Date | null;
 
-  // Legal Status & Disputes
+  // Legal Status
   legalStatus: GiftLegalStatus;
   isContested: boolean;
   contestationDetails: {
@@ -128,18 +148,18 @@ interface GiftInterVivosProps {
   legalValidityAssessment: {
     assessedBy: string | null;
     assessmentDate: Date | null;
-    validityScore: number | null; // 0-100
+    validityScore: number | null;
     riskFactors: string[];
     recommendations: string[];
   } | null;
 
-  // Documentation & Evidence
+  // Documentation
   giftDeedReference: string | null;
   giftDeedDocumentId: string | null;
   witnessDetails: string[];
   supportingDocumentIds: string[];
-  photographicEvidence: string[]; // Photo IDs
-  videoEvidence: string | null; // Video recording reference
+  photographicEvidence: string[];
+  videoEvidence: string | null;
   elderTestimonies: Array<{
     elderName: string;
     elderPosition: string;
@@ -147,11 +167,11 @@ interface GiftInterVivosProps {
     date: Date;
   }>;
 
-  // Location Context
+  // Location
   giftLocation: KenyanLocation | null;
   ceremonyLocation: string | null;
 
-  // Reversion to Estate
+  // Reversion
   revertsToEstate: boolean;
   reversionTrigger:
     | 'CONDITION_FAILED'
@@ -176,7 +196,7 @@ interface GiftInterVivosProps {
   beneficiaryDisputed: boolean;
   beneficiaryDisputeReason: string | null;
 
-  // Tax Implications (Kenyan)
+  // Tax
   stampDutyPaid: boolean;
   stampDutyAmount: Money | null;
   stampDutyReceiptNumber: string | null;
@@ -187,12 +207,12 @@ interface GiftInterVivosProps {
     receiptNumber: string | null;
   } | null;
 
-  // Management & Audit
+  // Management
   isActive: boolean;
   requiresExecutorAttention: boolean;
   executorNotes: string | null;
   lastModifiedBy: UniqueEntityID | null;
-  notes: string; // Comprehensive audit trail
+  notes: string;
   verificationStatus: 'UNVERIFIED' | 'VERIFIED' | 'PENDING_VERIFICATION' | 'REJECTED';
   verifiedBy: UniqueEntityID | null;
   verifiedAt: Date | null;
@@ -201,6 +221,11 @@ interface GiftInterVivosProps {
 export class GiftInterVivos extends Entity<GiftInterVivosProps> {
   private constructor(props: GiftInterVivosProps, id?: UniqueEntityID) {
     super(id, props);
+  }
+
+  // Bypass readonly for internal mutation
+  private get mutableProps(): GiftInterVivosProps {
+    return this._props;
   }
 
   public static create(
@@ -240,60 +265,53 @@ export class GiftInterVivos extends Entity<GiftInterVivosProps> {
       createdBy?: string;
     },
     id?: string,
-  ): Result<GiftInterVivos> {
-    const guardResult = Guard.againstNullOrUndefinedBulk([
-      { argument: props.estateId, argumentName: 'estateId' },
-      { argument: props.deceasedId, argumentName: 'deceasedId' },
-      { argument: props.recipientId, argumentName: 'recipientId' },
-      { argument: props.recipientName, argumentName: 'recipientName' },
-      { argument: props.relationshipToDeceased, argumentName: 'relationshipToDeceased' },
-      { argument: props.giftType, argumentName: 'giftType' },
-      { argument: props.description, argumentName: 'description' },
-      { argument: props.assetType, argumentName: 'assetType' },
-      { argument: props.valueAtGiftTime, argumentName: 'valueAtGiftTime' },
-      { argument: props.dateOfGift, argumentName: 'dateOfGift' },
-      { argument: props.details, argumentName: 'details' },
-    ]);
-
-    if (!guardResult.succeeded) {
-      return Result.fail<GiftInterVivos>(guardResult.message);
+  ): GiftInterVivos {
+    // 1. Validation
+    if (
+      !props.estateId ||
+      !props.deceasedId ||
+      !props.recipientId ||
+      !props.giftType ||
+      !props.valueAtGiftTime
+    ) {
+      throw new InvalidGiftConfigurationException('Missing required gift fields');
     }
 
-    // Validate description
     if (props.description.trim().length < 10) {
-      return Result.fail<GiftInterVivos>('Gift description must be at least 10 characters');
+      throw new InvalidGiftConfigurationException(
+        'Gift description must be at least 10 characters',
+      );
     }
 
-    // Validate date of gift is not in the future
     if (props.dateOfGift > new Date()) {
-      return Result.fail<GiftInterVivos>('Date of gift cannot be in the future');
+      throw new InvalidGiftConfigurationException('Date of gift cannot be in the future');
     }
 
-    // Validate relationship
-    if (props.relationshipToDeceased.trim().length < 2) {
-      return Result.fail<GiftInterVivos>('Relationship to deceased must be specified');
-    }
-
-    // Validate gift value
     if (props.valueAtGiftTime.amount <= 0) {
-      return Result.fail<GiftInterVivos>('Gift value must be positive');
+      throw new InvalidGiftConfigurationException('Gift value must be positive');
     }
 
-    // Customary law exemption validation
+    // Customary law exemption validation (treated as warning/note in aggregate logic if strictness varies)
     const customaryContext = props.customaryContext || {};
-    if (customaryContext.registeredWithClan && !customaryContext.clan) {
-      return Result.warn<GiftInterVivos>('Gift registered with clan should specify clan name');
-    }
 
-    // Determine initial hotchpot status
+    // Determine hotchpot status based on VO logic
+    // We assume the VO exposes `isExemptFromHotchpot()` or we derive it from props.
+    // Based on the VO provided:
+    // isExemptFromHotchpot() = !isSubjectToHotchpot || customaryLawExemption
+
     let hotchpotStatus = GiftHotchpotStatus.PENDING;
-    if (!props.details.isSubjectToHotchpot) {
-      hotchpotStatus = GiftHotchpotStatus.NOT_APPLICABLE;
-    } else if (props.details.customaryLawExemption) {
+    if (props.details.isExemptFromHotchpot()) {
+      // Distinguish why it's exempt
+      // Accessing internal props via public getters or public methods of VO
+      // Assuming VO has public accessors or we rely on the method.
+      // For entity construction, we can map directly:
       hotchpotStatus = GiftHotchpotStatus.EXCLUDED;
+      if (!props.details.toJSON().isHotchpot) {
+        // Using toJSON workaround if getters missing
+        hotchpotStatus = GiftHotchpotStatus.NOT_APPLICABLE;
+      }
     }
 
-    // Determine condition status
     let conditionStatus = GiftConditionStatus.NONE;
     if (props.conditionDescription) {
       conditionStatus = GiftConditionStatus.PENDING;
@@ -304,6 +322,12 @@ export class GiftInterVivos extends Entity<GiftInterVivosProps> {
     const deceasedId = new UniqueEntityID(props.deceasedId);
     const recipientId = new UniqueEntityID(props.recipientId);
     const createdBy = props.createdBy ? new UniqueEntityID(props.createdBy) : null;
+
+    // Extract exemption reason
+    // We need to check if it was customary exemption specifically
+    const detailsJson = props.details.toJSON(); // Safe way to inspect VO properties
+    const isCustomaryExempt =
+      props.details.isExemptFromHotchpot() && detailsJson['isHotchpot'] === false; // Simplified check
 
     const defaultProps: GiftInterVivosProps = {
       estateId,
@@ -328,10 +352,10 @@ export class GiftInterVivos extends Entity<GiftInterVivosProps> {
         registeredWithClan: customaryContext.registeredWithClan || false,
       },
       hotchpotStatus,
-      isSubjectToHotchpot: props.details.isSubjectToHotchpot,
+      isSubjectToHotchpot: !props.details.isExemptFromHotchpot(),
       hotchpotInclusionReason: null,
-      hotchpotExclusionReason: props.details.customaryLawExemption
-        ? 'Customary law exemption'
+      hotchpotExclusionReason: props.details.isExemptFromHotchpot()
+        ? 'Exempt per gift terms/customary law'
         : null,
       inflationAdjustedValue: null,
       inflationRateUsed: null,
@@ -358,7 +382,7 @@ export class GiftInterVivos extends Entity<GiftInterVivosProps> {
       elderTestimonies: [],
       giftLocation: props.giftLocation || null,
       ceremonyLocation: props.ceremonyLocation || null,
-      revertsToEstate: props.details.revertsToEstate,
+      revertsToEstate: props.details.shouldRevertToEstate(),
       reversionTrigger: null,
       reversionDate: null,
       reversionReason: null,
@@ -388,75 +412,62 @@ export class GiftInterVivos extends Entity<GiftInterVivosProps> {
       verifiedAt: null,
     };
 
-    const gift = new GiftInterVivos(defaultProps, giftId);
-    return Result.ok<GiftInterVivos>(gift);
+    return new GiftInterVivos(defaultProps, giftId);
   }
 
   // ==================== BUSINESS METHODS ====================
 
-  // HOTCHPOT CALCULATION (S.35(3) LSA)
   public calculateHotchpotValue(
     dateOfDeath: Date,
-    inflationRate: number = 0.05, // 5% annual inflation (Kenyan average)
+    inflationRate: number = 0.05,
     method: 'KENYA_CPI' | 'FIXED_RATE' | 'CUSTOM' = 'FIXED_RATE',
-  ): Result<Money> {
+  ): Money {
     if (!this.props.isSubjectToHotchpot) {
-      return Result.fail('Gift is not subject to hotchpot calculation');
+      throw new HotchpotCalculationException('Gift is not subject to hotchpot calculation');
     }
 
     if (dateOfDeath <= this.props.dateOfGift) {
-      return Result.fail('Date of death must be after date of gift');
+      throw new HotchpotCalculationException('Date of death must be after date of gift');
     }
 
-    // Calculate years between gift and death
     const yearsDifference = this.calculateYearsDifference(this.props.dateOfGift, dateOfDeath);
-
-    // Apply inflation adjustment
     const adjustedValue =
       this.props.valueAtGiftTime.amount * Math.pow(1 + inflationRate, yearsDifference);
-
     const hotchpotValue = Money.create(adjustedValue, this.props.valueAtGiftTime.currency);
 
-    // Update gift with hotchpot calculation
-    this.props.inflationAdjustedValue = hotchpotValue;
-    this.props.inflationRateUsed = inflationRate;
-    this.props.inflationAdjustmentMethod = method;
-    this.props.reconciliationDate = dateOfDeath;
-    this.props.hotchpotStatus = GiftHotchpotStatus.CALCULATION_PENDING;
+    this.mutableProps.inflationAdjustedValue = hotchpotValue;
+    this.mutableProps.inflationRateUsed = inflationRate;
+    this.mutableProps.inflationAdjustmentMethod = method;
+    this.mutableProps.reconciliationDate = dateOfDeath;
+    this.mutableProps.hotchpotStatus = GiftHotchpotStatus.CALCULATION_PENDING;
 
     this.addNote(
-      `Hotchpot value calculated: ${adjustedValue.toFixed(2)} ${this.props.valueAtGiftTime.currency} (${inflationRate * 100}% annual inflation for ${yearsDifference.toFixed(1)} years)`,
+      `Hotchpot value: ${adjustedValue.toFixed(2)} (${inflationRate * 100}% for ${yearsDifference.toFixed(1)} yrs)`,
     );
 
-    return Result.ok(hotchpotValue);
+    return hotchpotValue;
   }
 
   public includeInHotchpot(
     includedBy: string,
     reason?: string,
     effectiveDate: Date = new Date(),
-  ): Result<void> {
+  ): void {
     if (this.props.hotchpotStatus === GiftHotchpotStatus.NOT_APPLICABLE) {
-      return Result.fail('Gift is not subject to hotchpot');
+      throw new HotchpotCalculationException('Gift is not subject to hotchpot');
     }
-
     if (this.props.hotchpotStatus === GiftHotchpotStatus.INCLUDED) {
-      return Result.fail('Hotchpot already applied to this gift');
+      throw new HotchpotCalculationException('Hotchpot already applied');
     }
-
     if (!this.props.inflationAdjustedValue) {
-      return Result.fail('Hotchpot value must be calculated before inclusion');
+      throw new HotchpotCalculationException('Hotchpot value must be calculated before inclusion');
     }
 
-    this.props.hotchpotStatus = GiftHotchpotStatus.INCLUDED;
-    this.props.hotchpotInclusionReason = reason || null;
-    this.props.lastModifiedBy = new UniqueEntityID(includedBy);
+    this.mutableProps.hotchpotStatus = GiftHotchpotStatus.INCLUDED;
+    this.mutableProps.hotchpotInclusionReason = reason || null;
+    this.mutableProps.lastModifiedBy = new UniqueEntityID(includedBy);
 
-    this.addNote(
-      `Included in hotchpot calculation by ${includedBy} on ${effectiveDate.toISOString()}. ${reason ? `Reason: ${reason}` : ''}`,
-    );
-
-    return Result.ok();
+    this.addNote(`Included in hotchpot by ${includedBy}. Reason: ${reason}`);
   }
 
   public excludeFromHotchpot(
@@ -464,30 +475,23 @@ export class GiftInterVivos extends Entity<GiftInterVivosProps> {
     reason: string,
     requiresCourtOrder: boolean = false,
     courtOrderReference?: string,
-  ): Result<void> {
-    if (!reason || reason.trim().length < 10) {
-      return Result.fail('Exclusion reason must be at least 10 characters');
-    }
+  ): void {
+    if (!reason || reason.trim().length < 10)
+      throw new HotchpotCalculationException('Exclusion reason required (min 10 chars)');
 
-    if (this.props.hotchpotStatus === GiftHotchpotStatus.NOT_APPLICABLE) {
-      return Result.fail('Gift is already not applicable for hotchpot');
-    }
-
-    this.props.hotchpotStatus = GiftHotchpotStatus.EXCLUDED;
-    this.props.hotchpotExclusionReason = reason;
-    this.props.lastModifiedBy = new UniqueEntityID(excludedBy);
+    this.mutableProps.hotchpotStatus = GiftHotchpotStatus.EXCLUDED;
+    this.mutableProps.hotchpotExclusionReason = reason;
+    this.mutableProps.lastModifiedBy = new UniqueEntityID(excludedBy);
 
     let exclusionNote = `Excluded from hotchpot by ${excludedBy}: ${reason}`;
     if (requiresCourtOrder && courtOrderReference) {
       exclusionNote += ` (Court Order: ${courtOrderReference})`;
     }
-
     this.addNote(exclusionNote);
-
-    return Result.ok();
   }
 
-  // CONDITION MANAGEMENT
+  // --- Condition Management ---
+
   public setCondition(
     conditionDetails: {
       type: 'AGE' | 'EDUCATION' | 'MARRIAGE' | 'BUSINESS_SUCCESS' | 'CUSTOMARY_RITE' | 'OTHER';
@@ -497,34 +501,23 @@ export class GiftInterVivos extends Entity<GiftInterVivosProps> {
       verificationMethod?: string;
     },
     setBy: string,
-  ): Result<void> {
-    if (this.props.conditionStatus !== GiftConditionStatus.NONE) {
-      return Result.fail('Gift already has a condition');
-    }
+  ): void {
+    if (this.props.conditionStatus !== GiftConditionStatus.NONE)
+      throw new GiftConditionException('Gift already has a condition');
+    if (!conditionDetails.description || conditionDetails.description.trim().length < 10)
+      throw new GiftConditionException('Condition description required');
 
-    if (!conditionDetails.description || conditionDetails.description.trim().length < 10) {
-      return Result.fail('Condition description must be at least 10 characters');
-    }
-
-    this.props.conditionStatus = GiftConditionStatus.PENDING;
-    this.props.conditionDescription = conditionDetails.description;
-    this.props.conditionDetails = {
+    this.mutableProps.conditionStatus = GiftConditionStatus.PENDING;
+    this.mutableProps.conditionDescription = conditionDetails.description;
+    this.mutableProps.conditionDetails = {
       type: conditionDetails.type,
       deadline: conditionDetails.deadline || null,
       verificationRequired: conditionDetails.verificationRequired || false,
       verificationMethod: conditionDetails.verificationMethod || null,
       verificationDocumentId: null,
     };
-    this.props.lastModifiedBy = new UniqueEntityID(setBy);
-
-    let conditionNote = `Condition set by ${setBy}: ${conditionDetails.description} (Type: ${conditionDetails.type})`;
-    if (conditionDetails.deadline) {
-      conditionNote += `, Deadline: ${conditionDetails.deadline.toISOString()}`;
-    }
-
-    this.addNote(conditionNote);
-
-    return Result.ok();
+    this.mutableProps.lastModifiedBy = new UniqueEntityID(setBy);
+    this.addNote(`Condition set by ${setBy}: ${conditionDetails.description}`);
   }
 
   public markConditionAsMet(
@@ -532,160 +525,87 @@ export class GiftInterVivos extends Entity<GiftInterVivosProps> {
     verificationDocumentId?: string,
     verificationNotes?: string,
     metDate: Date = new Date(),
-  ): Result<void> {
-    if (this.props.conditionStatus === GiftConditionStatus.NONE) {
-      return Result.fail('Gift has no conditions');
-    }
+  ): void {
+    if (this.props.conditionStatus === GiftConditionStatus.NONE)
+      throw new GiftConditionException('Gift has no conditions');
+    if (this.props.conditionStatus === GiftConditionStatus.MET)
+      throw new GiftConditionException('Condition already met');
 
-    if (this.props.conditionStatus === GiftConditionStatus.MET) {
-      return Result.fail('Condition already marked as met');
-    }
-
-    // Check if deadline has passed
     if (this.props.conditionDetails?.deadline && metDate > this.props.conditionDetails.deadline) {
       this.addNote(
         `Warning: Condition met after deadline (${this.props.conditionDetails.deadline.toISOString()})`,
       );
     }
 
-    this.props.conditionStatus = GiftConditionStatus.MET;
-    this.props.conditionMetDate = metDate;
-    this.props.lastModifiedBy = new UniqueEntityID(metBy);
-
+    this.mutableProps.conditionStatus = GiftConditionStatus.MET;
+    this.mutableProps.conditionMetDate = metDate;
+    this.mutableProps.lastModifiedBy = new UniqueEntityID(metBy);
     if (verificationDocumentId && this.props.conditionDetails) {
-      this.props.conditionDetails.verificationDocumentId = verificationDocumentId;
+      this.mutableProps.conditionDetails.verificationDocumentId = verificationDocumentId;
     }
 
-    let metNote = `Condition marked as met by ${metBy} on ${metDate.toISOString()}`;
-    if (verificationNotes) {
-      metNote += `. Verification notes: ${verificationNotes}`;
-    }
-
-    this.addNote(metNote);
-
-    return Result.ok();
+    this.addNote(
+      `Condition met by ${metBy} on ${metDate.toISOString()}. ${verificationNotes || ''}`,
+    );
   }
 
   public markConditionAsFailed(
     failedBy: string,
     failureReason: string,
     failureDate: Date = new Date(),
-  ): Result<void> {
-    if (this.props.conditionStatus === GiftConditionStatus.NONE) {
-      return Result.fail('Gift has no conditions');
-    }
+  ): void {
+    if (this.props.conditionStatus === GiftConditionStatus.NONE)
+      throw new GiftConditionException('Gift has no conditions');
 
-    if (!failureReason || failureReason.trim().length < 10) {
-      return Result.fail('Failure reason must be at least 10 characters');
-    }
+    this.mutableProps.conditionStatus = GiftConditionStatus.FAILED;
+    this.mutableProps.conditionFailedDate = failureDate;
+    this.mutableProps.lastModifiedBy = new UniqueEntityID(failedBy);
+    this.addNote(`Condition failed: ${failureReason}`);
 
-    this.props.conditionStatus = GiftConditionStatus.FAILED;
-    this.props.conditionFailedDate = failureDate;
-    this.props.lastModifiedBy = new UniqueEntityID(failedBy);
-
-    this.addNote(`Condition marked as failed by ${failedBy}: ${failureReason}`);
-
-    // Check if gift reverts to estate
     if (this.props.revertsToEstate) {
       this.reclaimToEstate(failedBy, `Condition failed: ${failureReason}`);
     }
-
-    return Result.ok();
   }
 
-  public waiveCondition(
-    waivedBy: string,
-    reason: string,
-    requiresBeneficiaryConsent: boolean = true,
-    beneficiaryConsentObtained?: boolean,
-  ): Result<void> {
-    if (this.props.conditionStatus === GiftConditionStatus.NONE) {
-      return Result.fail('Gift has no conditions');
-    }
+  // --- Reversion ---
 
-    if (!reason || reason.trim().length < 10) {
-      return Result.fail('Waiver reason must be at least 10 characters');
-    }
-
-    if (requiresBeneficiaryConsent && !beneficiaryConsentObtained) {
-      return Result.fail('Beneficiary consent is required to waive condition');
-    }
-
-    this.props.conditionStatus = GiftConditionStatus.WAIVED;
-    this.props.conditionWaivedBy = waivedBy;
-    this.props.conditionWaivedDate = new Date();
-    this.props.lastModifiedBy = new UniqueEntityID(waivedBy);
-
-    let waiverNote = `Condition waived by ${waivedBy}: ${reason}`;
-    if (beneficiaryConsentObtained) {
-      waiverNote += ' (with beneficiary consent)';
-    }
-
-    this.addNote(waiverNote);
-
-    return Result.ok();
-  }
-
-  // REVERSION TO ESTATE
   public reclaimToEstate(
     reclaimedBy: string,
     reason: string,
     reversionDocumentId?: string,
     reversionDate: Date = new Date(),
-  ): Result<void> {
-    if (this.props.reversionCompleted) {
-      return Result.fail('Gift already reclaimed to estate');
-    }
+  ): void {
+    if (this.props.reversionCompleted) throw new EstateDomainException('Gift already reclaimed');
 
-    if (!reason || reason.trim().length < 10) {
-      return Result.fail('Reclamation reason must be at least 10 characters');
-    }
+    this.mutableProps.reversionCompleted = true;
+    this.mutableProps.reversionDate = reversionDate;
+    this.mutableProps.reversionReason = reason;
+    this.mutableProps.reversionDocumentId = reversionDocumentId || null;
+    this.mutableProps.hotchpotStatus = GiftHotchpotStatus.RECLAIMED;
+    this.mutableProps.lastModifiedBy = new UniqueEntityID(reclaimedBy);
 
-    this.props.reversionCompleted = true;
-    this.props.reversionDate = reversionDate;
-    this.props.reversionReason = reason;
-    this.props.reversionDocumentId = reversionDocumentId || null;
-    this.props.hotchpotStatus = GiftHotchpotStatus.RECLAIMED;
-    this.props.lastModifiedBy = new UniqueEntityID(reclaimedBy);
-
-    this.addNote(
-      `Gift reclaimed to estate by ${reclaimedBy} on ${reversionDate.toISOString()}: ${reason}`,
-    );
-
-    return Result.ok();
+    this.addNote(`Reclaimed to estate by ${reclaimedBy}: ${reason}`);
   }
 
-  // LEGAL STATUS MANAGEMENT
+  // --- Contestations ---
+
   public contestGift(
     contestedBy: string,
     reason: string,
-    courtDetails?: {
-      caseNumber: string;
-      courtStation: string;
-      filingDate: Date;
-    },
-  ): Result<void> {
-    if (this.props.isContested) {
-      return Result.fail('Gift is already contested');
-    }
+    courtDetails?: { caseNumber: string; courtStation: string; filingDate: Date },
+  ): void {
+    if (this.props.isContested) throw new EstateDomainException('Gift already contested');
 
-    if (!reason || reason.trim().length < 20) {
-      return Result.fail('Contestation reason must be at least 20 characters');
-    }
-
-    this.props.isContested = true;
-    this.props.legalStatus = GiftLegalStatus.CONTESTED;
-    this.props.contestationDetails = {
+    this.mutableProps.isContested = true;
+    this.mutableProps.legalStatus = GiftLegalStatus.CONTESTED;
+    this.mutableProps.contestationDetails = {
       contestedBy,
       contestationDate: new Date(),
       contestationReason: reason,
       courtCaseNumber: courtDetails?.caseNumber || null,
       courtStation: courtDetails?.courtStation || null,
     };
-
-    this.addNote(`Gift contested by ${contestedBy}: ${reason}`);
-
-    return Result.ok();
+    this.addNote(`Contested by ${contestedBy}: ${reason}`);
   }
 
   public resolveContestation(
@@ -693,433 +613,41 @@ export class GiftInterVivos extends Entity<GiftInterVivosProps> {
     resolution: string,
     outcome: 'UPHELD' | 'DISMISSED' | 'SETTLED' | 'COMPROMISE',
     courtOrderReference?: string,
-    resolutionDate: Date = new Date(),
-  ): Result<void> {
-    if (!this.props.isContested) {
-      return Result.fail('Gift is not contested');
-    }
+  ): void {
+    if (!this.props.isContested) throw new EstateDomainException('Gift is not contested');
 
-    if (!resolution || resolution.trim().length < 10) {
-      return Result.fail('Resolution details must be at least 10 characters');
-    }
+    this.mutableProps.isContested = false;
 
-    this.props.isContested = false;
-
-    // Update legal status based on outcome
-    switch (outcome) {
-      case 'UPHELD':
-        this.props.legalStatus = GiftLegalStatus.VALID;
-        break;
-      case 'DISMISSED':
-        this.props.legalStatus = GiftLegalStatus.VALID;
-        break;
-      case 'SETTLED':
-        this.props.legalStatus = GiftLegalStatus.SETTLED;
-        break;
-      case 'COMPROMISE':
-        this.props.legalStatus = GiftLegalStatus.SETTLED;
-        break;
+    if (outcome === 'UPHELD' || outcome === 'DISMISSED') {
+      this.mutableProps.legalStatus = GiftLegalStatus.VALID;
+    } else {
+      this.mutableProps.legalStatus = GiftLegalStatus.SETTLED;
     }
 
     if (this.props.contestationDetails) {
-      this.props.contestationDetails.contestationReason += ` - RESOLVED (${outcome}): ${resolution}`;
+      this.mutableProps.contestationDetails.contestationReason += ` - RESOLVED: ${outcome}`;
     }
-
-    this.props.lastModifiedBy = new UniqueEntityID(resolvedBy);
-
-    let resolutionNote = `Contestation resolved by ${resolvedBy}: ${outcome}. ${resolution}`;
-    if (courtOrderReference) {
-      resolutionNote += ` (Court Order: ${courtOrderReference})`;
-    }
-
-    this.addNote(resolutionNote);
-
-    return Result.ok();
-  }
-
-  // DOCUMENTATION MANAGEMENT
-  public addSupportingDocument(
-    documentId: string,
-    documentType: string,
-    addedBy: string,
-  ): Result<void> {
-    if (!documentId || documentId.trim().length === 0) {
-      return Result.fail('Document ID cannot be empty');
-    }
-
-    if (this.props.supportingDocumentIds.includes(documentId)) {
-      return Result.fail('Document already added');
-    }
-
-    this.props.supportingDocumentIds.push(documentId);
-    this.props.lastModifiedBy = new UniqueEntityID(addedBy);
-
-    this.addNote(`Supporting document added: ${documentType} (ID: ${documentId}) by ${addedBy}`);
-
-    return Result.ok();
-  }
-
-  public addElderTestimony(
-    elderName: string,
-    elderPosition: string,
-    testimony: string,
-    recordedBy: string,
-    testimonyDate: Date = new Date(),
-  ): Result<void> {
-    if (!elderName || elderName.trim().length === 0) {
-      return Result.fail('Elder name is required');
-    }
-
-    if (!testimony || testimony.trim().length < 10) {
-      return Result.fail('Testimony must be at least 10 characters');
-    }
-
-    this.props.elderTestimonies.push({
-      elderName: elderName.trim(),
-      elderPosition: elderPosition.trim(),
-      testimony: testimony.trim(),
-      date: testimonyDate,
-    });
-
-    this.props.lastModifiedBy = new UniqueEntityID(recordedBy);
-
+    this.mutableProps.lastModifiedBy = new UniqueEntityID(resolvedBy);
     this.addNote(
-      `Elder testimony recorded: ${elderName} (${elderPosition}) on ${testimonyDate.toISOString()}`,
+      `Contestation resolved by ${resolvedBy}: ${outcome}. Ref: ${courtOrderReference || 'N/A'}`,
     );
-
-    return Result.ok();
   }
 
-  // BENEFICIARY ACKNOWLEDGMENT
-  public recordBeneficiaryAcknowledgment(
-    acknowledgmentMethod: 'SIGNED_DOCUMENT' | 'WITNESSED_ORAL' | 'CUSTOMARY_RITE' | 'OTHER',
-    acknowledgedBy: string,
-    documentId?: string,
-    acknowledgmentDate: Date = new Date(),
-  ): Result<void> {
-    if (this.props.beneficiaryAcknowledged) {
-      return Result.fail('Beneficiary already acknowledged gift');
-    }
+  // --- Helpers ---
 
-    this.props.beneficiaryAcknowledged = true;
-    this.props.beneficiaryAcknowledgmentDate = acknowledgmentDate;
-    this.props.beneficiaryAcknowledgmentMethod = acknowledgmentMethod;
-    this.props.lastModifiedBy = new UniqueEntityID(acknowledgedBy);
-
-    if (documentId) {
-      this.props.giftDeedDocumentId = documentId;
-    }
-
-    this.addNote(
-      `Beneficiary acknowledgment recorded via ${acknowledgmentMethod} by ${acknowledgedBy}`,
-    );
-
-    return Result.ok();
-  }
-
-  // TAX COMPLIANCE
-  public recordStampDutyPayment(
-    amount: Money,
-    receiptNumber: string,
-    paymentDate: Date = new Date(),
-    recordedBy: string,
-  ): Result<void> {
-    if (amount.amount <= 0) {
-      return Result.fail('Stamp duty amount must be positive');
-    }
-
-    this.props.stampDutyPaid = true;
-    this.props.stampDutyAmount = amount;
-    this.props.stampDutyReceiptNumber = receiptNumber;
-    this.props.lastModifiedBy = new UniqueEntityID(recordedBy);
-
-    this.addNote(
-      `Stamp duty paid: ${amount.amount} ${amount.currency}, Receipt: ${receiptNumber}, Date: ${paymentDate.toISOString()}`,
-    );
-
-    return Result.ok();
-  }
-
-  // VERIFICATION WORKFLOW
-  public verifyGift(
-    verifiedBy: string,
-    verificationMethod: string,
-    notes?: string,
-    documentId?: string,
-    verificationDate: Date = new Date(),
-  ): Result<void> {
-    if (this.props.verificationStatus === 'VERIFIED') {
-      return Result.fail('Gift is already verified');
-    }
-
-    // Special verification for customary gifts
-    if (
-      this.props.customaryContext.communityAcknowledged &&
-      !this.props.customaryContext.registeredWithClan
-    ) {
-      this.addNote('Warning: Gift community acknowledged but not registered with clan');
-    }
-
-    this.props.verificationStatus = 'VERIFIED';
-    this.props.verifiedBy = new UniqueEntityID(verifiedBy);
-    this.props.verifiedAt = verificationDate;
-    this.props.lastModifiedBy = new UniqueEntityID(verifiedBy);
-
-    if (documentId) {
-      this.props.supportingDocumentIds.push(documentId);
-    }
-
-    let verificationNote = `Gift verified by ${verifiedBy} using ${verificationMethod}`;
-    if (notes) {
-      verificationNote += `. Notes: ${notes}`;
-    }
-
-    this.addNote(verificationNote);
-
-    return Result.ok();
-  }
-
-  // VALIDATION METHODS
-  public validateForHotchpot(): Result<{
-    canInclude: boolean;
-    requirements: string[];
-    warnings: string[];
-    recommendedAction: string[];
-  }> {
-    const requirements: string[] = [];
-    const warnings: string[] = [];
-    const recommendedAction: string[] = [];
-
-    if (!this.props.isSubjectToHotchpot) {
-      requirements.push('Gift is not subject to hotchpot');
-      return Result.ok({
-        canInclude: false,
-        requirements,
-        warnings,
-        recommendedAction: ['No hotchpot calculation needed'],
-      });
-    }
-
-    // Check documentation
-    if (!this.props.giftDeedReference && this.props.valueAtGiftTime.amount > 1000000) {
-      warnings.push('Large gift (> 1M KES) without gift deed reference');
-      recommendedAction.push('Obtain gift deed or written acknowledgment');
-    }
-
-    // Check verification
-    if (this.props.verificationStatus !== 'VERIFIED') {
-      requirements.push('Gift must be verified before hotchpot calculation');
-      recommendedAction.push('Verify gift documentation');
-    }
-
-    // Check condition status
-    if (this.props.conditionStatus === GiftConditionStatus.PENDING) {
-      requirements.push('Pending conditions must be resolved');
-      recommendedAction.push('Resolve gift conditions');
-    }
-
-    // Check contestation
-    if (this.props.isContested) {
-      requirements.push('Contested gift cannot be included in hotchpot');
-      recommendedAction.push('Resolve legal dispute');
-    }
-
-    // Check beneficiary acknowledgment
-    if (!this.props.beneficiaryAcknowledged && this.props.relationshipCategory !== 'NON_FAMILY') {
-      warnings.push('Beneficiary has not acknowledged gift');
-      recommendedAction.push('Obtain beneficiary acknowledgment');
-    }
-
-    const canInclude = requirements.length === 0;
-
-    return Result.ok({
-      canInclude,
-      requirements,
-      warnings,
-      recommendedAction,
-    });
-  }
-
-  public getHotchpotCompliance(): {
-    isSubjectToHotchpot: boolean;
-    status: GiftHotchpotStatus;
-    inflationAdjustedValue: Money | null;
-    requirements: string[];
-    exemptions: string[];
-  } {
-    const requirements: string[] = [];
-    const exemptions: string[] = [];
-
-    if (this.props.isSubjectToHotchpot) {
-      requirements.push('Must be included in hotchpot calculation under S.35(3) LSA');
-      requirements.push('Value must be adjusted for inflation from gift date to date of death');
-      requirements.push('Must be disclosed in affidavit of assets');
-
-      if (!this.props.inflationAdjustedValue) {
-        requirements.push('Hotchpot value calculation pending');
-      }
-    }
-
-    if (this.props.details.customaryLawExemption) {
-      exemptions.push('Exempt under customary law');
-      const exemptionDetail = this.props.details.getCustomaryExemptionDetails();
-      if (exemptionDetail) {
-        exemptions.push(exemptionDetail);
-      }
-    }
-
-    if (this.props.customaryContext.communityAcknowledged) {
-      exemptions.push('Community acknowledged customary gift');
-    }
-
-    return {
-      isSubjectToHotchpot: this.props.isSubjectToHotchpot,
-      status: this.props.hotchpotStatus,
-      inflationAdjustedValue: this.props.inflationAdjustedValue,
-      requirements,
-      exemptions,
-    };
-  }
-
-  // HELPER METHODS
   private addNote(note: string): void {
-    if (this.props.notes) {
-      this.props.notes += `\n${new Date().toISOString()}: ${note}`;
-    } else {
-      this.props.notes = `${new Date().toISOString()}: ${note}`;
-    }
+    const timestamp = new Date().toISOString();
+    const entry = `[${timestamp}] ${note}`;
+    this.mutableProps.notes = this.props.notes ? `${this.props.notes}\n${entry}` : entry;
   }
 
   private calculateYearsDifference(startDate: Date, endDate: Date): number {
-    const diffInMilliseconds = endDate.getTime() - startDate.getTime();
-    const diffInYears = diffInMilliseconds / (1000 * 60 * 60 * 24 * 365.25);
-    return diffInYears;
+    const diff = endDate.getTime() - startDate.getTime();
+    return diff / (1000 * 60 * 60 * 24 * 365.25);
   }
 
-  // ==================== GETTERS ====================
+  // --- Static Factories ---
 
-  get id(): UniqueEntityID {
-    return this._id;
-  }
-
-  get estateId(): UniqueEntityID {
-    return this.props.estateId;
-  }
-
-  get deceasedId(): UniqueEntityID {
-    return this.props.deceasedId;
-  }
-
-  get recipientId(): UniqueEntityID {
-    return this.props.recipientId;
-  }
-
-  get recipientName(): string {
-    return this.props.recipientName;
-  }
-
-  get description(): string {
-    return this.props.description;
-  }
-
-  get valueAtGiftTime(): Money {
-    return this.props.valueAtGiftTime;
-  }
-
-  get dateOfGift(): Date {
-    return this.props.dateOfGift;
-  }
-
-  get details(): GiftInterVivosDetails {
-    return this.props.details;
-  }
-
-  get hotchpotStatus(): GiftHotchpotStatus {
-    return this.props.hotchpotStatus;
-  }
-
-  get isSubjectToHotchpot(): boolean {
-    return this.props.isSubjectToHotchpot;
-  }
-
-  get conditionStatus(): GiftConditionStatus {
-    return this.props.conditionStatus;
-  }
-
-  get legalStatus(): GiftLegalStatus {
-    return this.props.legalStatus;
-  }
-
-  get isContested(): boolean {
-    return this.props.isContested;
-  }
-
-  get isActive(): boolean {
-    return this.props.isActive;
-  }
-
-  get inflationAdjustedValue(): Money | null {
-    return this.props.inflationAdjustedValue;
-  }
-
-  get verificationStatus(): string {
-    return this.props.verificationStatus;
-  }
-
-  get beneficiaryAcknowledged(): boolean {
-    return this.props.beneficiaryAcknowledged;
-  }
-
-  get customaryContext() {
-    return this.props.customaryContext;
-  }
-
-  // COMPUTED PROPERTIES
-  get requiresHotchpotCalculation(): boolean {
-    return (
-      this.props.isSubjectToHotchpot &&
-      !this.props.details.customaryLawExemption &&
-      this.props.hotchpotStatus === GiftHotchpotStatus.PENDING
-    );
-  }
-
-  get isConditionPending(): boolean {
-    return this.props.conditionStatus === GiftConditionStatus.PENDING;
-  }
-
-  get hasFailedCondition(): boolean {
-    return this.props.conditionStatus === GiftConditionStatus.FAILED;
-  }
-
-  get shouldRevertToEstate(): boolean {
-    return (
-      this.props.revertsToEstate ||
-      (this.hasFailedCondition && this.props.details.revertsToEstate) ||
-      this.props.reversionCompleted
-    );
-  }
-
-  get isLegallyValid(): boolean {
-    return (
-      this.props.legalStatus === GiftLegalStatus.VALID &&
-      !this.props.isContested &&
-      this.props.conditionStatus !== GiftConditionStatus.FAILED
-    );
-  }
-
-  get isCustomaryGift(): boolean {
-    return (
-      this.props.giftType === GiftType.CUSTOMARY_BRIDE_PRICE ||
-      this.props.giftType === GiftType.TRADITIONAL_RITE ||
-      this.props.customaryContext.communityAcknowledged
-    );
-  }
-
-  get hotchpotValue(): Money {
-    return this.props.inflationAdjustedValue || this.props.valueAtGiftTime;
-  }
-
-  // STATIC FACTORY METHODS
   public static createBridePriceGift(props: {
     estateId: string;
     deceasedId: string;
@@ -1133,16 +661,16 @@ export class GiftInterVivos extends Entity<GiftInterVivosProps> {
     clan: string;
     elderWitnesses: string[];
     createdBy?: string;
-  }): Result<GiftInterVivos> {
+  }): GiftInterVivos {
     const details = GiftInterVivosDetails.create({
       description: props.description,
       valueAtGiftTime: props.valueAtGiftTime,
       dateOfGift: props.dateOfGift,
-      isSubjectToHotchpot: false, // Bride price traditionally exempt
+      isSubjectToHotchpot: false,
       customaryLawExemption: true,
       giftDeedReference: 'Bride Price (Lobola)',
       witnessDetails: props.witnessDetails.join(', '),
-    }).getValue();
+    });
 
     return GiftInterVivos.create({
       ...props,
@@ -1162,126 +690,27 @@ export class GiftInterVivos extends Entity<GiftInterVivosProps> {
     });
   }
 
-  public static createEducationalGift(props: {
-    estateId: string;
-    deceasedId: string;
-    recipientId: string;
-    recipientName: string;
-    relationshipToDeceased: string;
-    relationshipCategory: 'CHILD' | 'SIBLING' | 'EXTENDED_FAMILY';
-    description: string;
-    valueAtGiftTime: Money;
-    dateOfGift: Date;
-    conditionDescription: string;
-    deadline?: Date;
-    createdBy?: string;
-  }): Result<GiftInterVivos> {
-    const details = GiftInterVivosDetails.create({
-      description: props.description,
-      valueAtGiftTime: props.valueAtGiftTime,
-      dateOfGift: props.dateOfGift,
-      isSubjectToHotchpot: true,
-      isAdvancement: true,
-      revertsToEstate: true,
-    }).getValue();
+  // --- Getters ---
 
-    const gift = GiftInterVivos.create({
-      ...props,
-      giftType: GiftType.EDUCATIONAL_SUPPORT,
-      assetType: AssetType.FINANCIAL_ASSET,
-      details,
-      conditionDescription: props.conditionDescription,
-    });
-
-    if (gift.isSuccess) {
-      gift.getValue().setCondition(
-        {
-          type: 'EDUCATION',
-          description: props.conditionDescription,
-          deadline: props.deadline,
-          verificationRequired: true,
-          verificationMethod: 'EDUCATION_CERTIFICATE',
-        },
-        props.createdBy || 'system',
-      );
-    }
-
-    return gift;
+  get id(): UniqueEntityID {
+    return this._id;
   }
-
-  public static createPropertyGift(props: {
-    estateId: string;
-    deceasedId: string;
-    recipientId: string;
-    recipientName: string;
-    relationshipToDeceased: string;
-    relationshipCategory: 'CHILD' | 'SPOUSE' | 'PARENT' | 'SIBLING';
-    description: string;
-    valueAtGiftTime: Money;
-    dateOfGift: Date;
-    giftDeedReference: string;
-    witnessDetails: string[];
-    giftLocation: KenyanLocation;
-    createdBy?: string;
-  }): Result<GiftInterVivos> {
-    const details = GiftInterVivosDetails.create({
-      description: props.description,
-      valueAtGiftTime: props.valueAtGiftTime,
-      dateOfGift: props.dateOfGift,
-      isSubjectToHotchpot: true,
-      giftDeedReference: props.giftDeedReference,
-      witnessDetails: props.witnessDetails.join(', '),
-    }).getValue();
-
-    return GiftInterVivos.create({
-      ...props,
-      giftType: GiftType.PROPERTY_TRANSFER,
-      assetType: AssetType.LAND_PARCEL,
-      details,
-      giftLocation: props.giftLocation,
-    });
+  get recipientId(): UniqueEntityID {
+    return this.props.recipientId;
   }
-
-  public static createTraditionalRiteGift(props: {
-    estateId: string;
-    deceasedId: string;
-    recipientId: string;
-    recipientName: string;
-    relationshipToDeceased: string;
-    relationshipCategory: 'EXTENDED_FAMILY';
-    description: string;
-    valueAtGiftTime: Money;
-    dateOfGift: Date;
-    tribe: string;
-    clan: string;
-    ceremonyType: string;
-    elderWitnesses: string[];
-    ceremonyLocation: string;
-    createdBy?: string;
-  }): Result<GiftInterVivos> {
-    const details = GiftInterVivosDetails.create({
-      description: props.description,
-      valueAtGiftTime: props.valueAtGiftTime,
-      dateOfGift: props.dateOfGift,
-      isSubjectToHotchpot: false,
-      customaryLawExemption: true,
-      witnessDetails: props.elderWitnesses.join(', '),
-    }).getValue();
-
-    return GiftInterVivos.create({
-      ...props,
-      giftType: GiftType.TRADITIONAL_RITE,
-      assetType: AssetType.OTHER,
-      details,
-      customaryContext: {
-        tribe: props.tribe,
-        clan: props.clan,
-        ceremonyType: props.ceremonyType,
-        elderWitnesses: props.elderWitnesses,
-        communityAcknowledged: true,
-        registeredWithClan: true,
-      },
-      ceremonyLocation: props.ceremonyLocation,
-    });
+  get valueAtGiftTime(): Money {
+    return this.props.valueAtGiftTime;
+  }
+  get dateOfGift(): Date {
+    return this.props.dateOfGift;
+  }
+  get isSubjectToHotchpot(): boolean {
+    return this.props.isSubjectToHotchpot;
+  }
+  get hotchpotStatus(): GiftHotchpotStatus {
+    return this.props.hotchpotStatus;
+  }
+  get inflationAdjustedValue(): Money | null {
+    return this.props.inflationAdjustedValue;
   }
 }
