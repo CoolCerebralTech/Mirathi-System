@@ -1,20 +1,19 @@
-// application/guardianship/commands/handlers/terminate-guardianship.handler.ts
+// application/guardianship/commands/handlers/post-bond.handler.ts
 import { Injectable } from '@nestjs/common';
 import { CommandBus, EventBus } from '@nestjs/cqrs';
 import { ICommandHandler } from '@nestjs/cqrs/dist/interfaces/commands/command-handler.interface';
 
-import { GuardianshipAggregate } from '../../../../domain/aggregates/guardianship.aggregate';
 import { InvalidGuardianshipException } from '../../../../domain/exceptions/guardianship.exception';
-import { IGuardianRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
+import type { IGuardianRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { Result } from '../../../common/base/result';
 import { GuardianshipResponse } from '../../dto/response/guardianship.response';
-import { TerminateGuardianshipCommand } from '../impl/terminate-guardianship.command';
+import { PostBondCommand } from '../impl/remove-guardian.command';
 import { BaseCommandHandler } from './base.command-handler';
 
 @Injectable()
-export class TerminateGuardianshipHandler
-  extends BaseCommandHandler<TerminateGuardianshipCommand, Result<GuardianshipResponse>>
-  implements ICommandHandler<TerminateGuardianshipCommand, Result<GuardianshipResponse>>
+export class PostBondHandler
+  extends BaseCommandHandler<PostBondCommand, Result<GuardianshipResponse>>
+  implements ICommandHandler<PostBondCommand, Result<GuardianshipResponse>>
 {
   constructor(
     commandBus: CommandBus,
@@ -24,7 +23,7 @@ export class TerminateGuardianshipHandler
     super(commandBus, eventBus);
   }
 
-  async execute(command: TerminateGuardianshipCommand): Promise<Result<GuardianshipResponse>> {
+  async execute(command: PostBondCommand): Promise<Result<GuardianshipResponse>> {
     try {
       // 1. Validate command
       const validation = this.validateCommand(command);
@@ -43,11 +42,15 @@ export class TerminateGuardianshipHandler
       // 3. Convert to aggregate
       const aggregate = GuardianshipAggregate.createFromProps(guardianship.toJSON());
 
-      // 4. Validate termination requirements
-      this.validateTerminationRequirements(aggregate, command);
+      // 4. Validate bond posting requirements (S.72 LSA)
+      this.validateBondPostingRequirements(aggregate, command);
 
-      // 5. Terminate guardianship
-      aggregate.terminate(command.reason, command.terminationDate);
+      // 5. Post bond
+      aggregate.postBond({
+        provider: command.provider,
+        policyNumber: command.policyNumber,
+        expiryDate: command.expiryDate,
+      });
 
       // 6. Save to repository
       const updatedGuardianship = await this.guardianRepository.update(aggregate);
@@ -55,8 +58,9 @@ export class TerminateGuardianshipHandler
       // 7. Publish domain events
       await this.publishDomainEvents(updatedGuardianship);
 
-      // 8. Log termination
-      this.logTerminationSuccess(command, updatedGuardianship);
+      // 8. Log success and compliance
+      this.logSuccess(command);
+      this.logKenyanLawCompliance(updatedGuardianship, 'POST_BOND');
 
       // 9. Return result
       const response = this.mapToResponse(updatedGuardianship);
@@ -66,81 +70,56 @@ export class TerminateGuardianshipHandler
     }
   }
 
-  private validateTerminationRequirements(
+  private validateBondPostingRequirements(
     aggregate: GuardianshipAggregate,
-    command: TerminateGuardianshipCommand,
+    command: PostBondCommand,
   ): void {
-    // Already terminated check
-    if (!aggregate.isActive) {
-      throw new InvalidGuardianshipException('Guardianship is already terminated');
+    // S.72 LSA Compliance checks
+    if (!aggregate.bondRequired) {
+      throw new InvalidGuardianshipException('Bond is not required for this guardianship');
     }
 
-    // Termination date validation
-    if (command.terminationDate > new Date()) {
-      throw new InvalidGuardianshipException('Termination date cannot be in the future');
+    if (!aggregate.bondAmountKES) {
+      throw new InvalidGuardianshipException('Bond amount must be set before posting bond');
     }
 
-    if (command.terminationDate < aggregate.appointmentDate) {
-      throw new InvalidGuardianshipException('Termination date must be after appointment date');
+    // Validate bond expiry date is in future
+    if (command.expiryDate <= new Date()) {
+      throw new InvalidGuardianshipException('Bond expiry date must be in the future');
     }
 
-    // Reason validation
-    if (!command.reason || command.reason.trim() === '') {
-      throw new InvalidGuardianshipException('Termination reason is required');
+    // Validate bond provider
+    if (!command.provider || command.provider.trim() === '') {
+      throw new InvalidGuardianshipException('Bond provider is required');
     }
 
-    // Court order validation for certain reasons
-    const reasonsRequiringCourtOrder = [
-      'COURT_ORDER',
-      'COURT_REVOCATION',
-      'GUARDIAN_INCAPACITATED',
+    // Validate policy number
+    if (!command.policyNumber || command.policyNumber.trim() === '') {
+      throw new InvalidGuardianshipException('Bond policy number is required');
+    }
+
+    // Kenyan insurance company validation (simplified)
+    const validInsuranceCompanies = [
+      'APA INSURANCE',
+      'BRITAM',
+      'JUBILEE INSURANCE',
+      'CFC STANBIC',
+      'LIBERTY INSURANCE',
+      'KENYA REINSURANCE CORPORATION',
+      'UAP INSURANCE',
+      'HERITAGE INSURANCE',
     ];
 
-    if (
-      reasonsRequiringCourtOrder.includes(command.reason) &&
-      (!command.courtOrderNumber || command.courtOrderNumber.trim() === '')
-    ) {
-      throw new InvalidGuardianshipException(
-        `Court order number is required for termination reason: ${command.reason}`,
+    const providerUpper = command.provider.toUpperCase();
+    const isValidProvider = validInsuranceCompanies.some((company) =>
+      providerUpper.includes(company),
+    );
+
+    if (!isValidProvider) {
+      this.logWarning(
+        command,
+        `Bond provider ${command.provider} is not a recognized Kenyan insurance company`,
       );
-    }
-
-    // Final account validation
-    if (command.finalAccountBalanceKES !== undefined && command.finalAccountBalanceKES < 0) {
-      throw new InvalidGuardianshipException('Final account balance cannot be negative');
-    }
-
-    // New guardian validation if transferring
-    if (command.newGuardianId && command.newGuardianId === aggregate.guardianId) {
-      throw new InvalidGuardianshipException('Cannot transfer guardianship to the same guardian');
-    }
-  }
-
-  private logTerminationSuccess(
-    command: TerminateGuardianshipCommand,
-    guardianship: GuardianshipAggregate,
-  ): void {
-    this.logger.log({
-      message: 'Guardianship terminated successfully',
-      guardianshipId: guardianship.id,
-      wardId: guardianship.wardId,
-      guardianId: guardianship.guardianId,
-      terminationReason: command.reason,
-      terminationDate: command.terminationDate,
-      correlationId: command.correlationId,
-      finalComplianceStatus: guardianship.isCompliantWithKenyanLaw,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Log if there were compliance issues at termination
-    if (!guardianship.isCompliantWithKenyanLaw) {
-      const issues = this.extractComplianceIssues(guardianship);
-      this.logger.warn({
-        message: 'Guardianship terminated with compliance issues',
-        guardianshipId: guardianship.id,
-        issues,
-        correlationId: command.correlationId,
-      });
     }
   }
 
@@ -186,12 +165,12 @@ export class TerminateGuardianshipHandler
 
   private handleErrorResult(
     error: unknown,
-    command: TerminateGuardianshipCommand,
+    command: PostBondCommand,
   ): Result<GuardianshipResponse> {
     if (error instanceof InvalidGuardianshipException) {
       return Result.fail(error);
     }
-    this.handleError(error, command, 'TerminateGuardianshipHandler');
-    return Result.fail(new Error('Failed to terminate guardianship'));
+    this.handleError(error, command, 'PostBondHandler');
+    return Result.fail(new Error('Failed to post bond'));
   }
 }

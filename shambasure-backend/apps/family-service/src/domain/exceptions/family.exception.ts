@@ -76,10 +76,38 @@ export class InvalidGuardianshipException extends FamilyDomainException {
 /**
  * Invalid Polygamous Structure Exception
  * Thrown when polygamous family violates S. 40 LSA
+ *
+ * Kenyan Law Context:
+ * - S. 40 LSA: Polygamous marriage distribution rules
+ * - Wives' consent required for subsequent marriages
+ * - Court certification validates structure
  */
 export class InvalidPolygamousStructureException extends FamilyDomainException {
   constructor(message: string) {
     super(message);
+  }
+}
+
+/**
+ * S. 40 Certification Exception
+ * Thrown when S. 40 certification requirements not met
+ */
+export class S40CertificationException extends InvalidPolygamousStructureException {
+  constructor(houseOrder: number, reason: string) {
+    super(`House ${houseOrder} cannot be certified under S. 40 LSA: ${reason}`);
+  }
+}
+
+/**
+ * Wives Consent Missing Exception
+ * Thrown when required wives' consent is missing
+ */
+export class WivesConsentMissingException extends InvalidPolygamousStructureException {
+  constructor(houseOrder: number, missingWives: string[]) {
+    super(
+      `House ${houseOrder} missing consent from wives: ${missingWives.join(', ')}. ` +
+        `S. 40 LSA requires all co-wives to consent to subsequent marriages.`,
+    );
   }
 }
 

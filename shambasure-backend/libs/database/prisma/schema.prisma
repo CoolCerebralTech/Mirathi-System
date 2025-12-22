@@ -106,6 +106,25 @@ enum KenyanLawSection {
   S73_GUARDIAN_ACCOUNTS
   S83_EXECUTOR_DUTIES
 }
+enum GuardianReportStatus {
+  PENDING
+  DUE
+  SUBMITTED
+  APPROVED
+  OVERDUE
+  REJECTED
+}
+enum GuardianshipTerminationReason {
+  WARD_REACHED_MAJORITY
+  WARD_DECEASED
+  GUARDIAN_DECEASED
+  GUARDIAN_INCAPACITATED
+  COURT_REMOVAL
+  VOLUNTARY_RESIGNATION
+  WARD_REGAINED_CAPACITY
+  ADOPTION_FINALIZED
+  CUSTOMARY_TRANSFER
+}
 enum GuardianType {
   TESTAMENTARY      // Appointed by will (S. 70 LSA)
   COURT_APPOINTED   // Appointed by court (S. 71 LSA)
@@ -1241,7 +1260,9 @@ model Guardianship {
   // Court context
   courtOrder          Json?
   primaryGuardianId   String?  @db.Uuid()
-  
+  complianceWarnings String[]
+
+  lastComplianceCheck DateTime?
   // Versioning
   version             Int      @default(1)
   
@@ -1249,8 +1270,7 @@ model Guardianship {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   deletedAt           DateTime?
-  polygamousHouses PolygamousHouse[]
-  
+  guardians Guardian[]
   // Indexes
   @@index([wardId])
   @@index([isActive])
@@ -1269,6 +1289,7 @@ model Guardian {
   // Guardian
   guardianId              String   @db.Uuid()
   guardian                FamilyMember @relation("Guardian", fields: [guardianId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  
   // Guardian Type
   type                    GuardianType
   // Kenyan Legal Requirements
@@ -1295,15 +1316,16 @@ model Guardian {
   // === ANNUAL REPORTING (S. 73 LSA) ===
   lastReportDate         DateTime?
   nextReportDue          DateTime?
-  reportStatus           String?  @default("PENDING") @db.VarChar(50)
+  reportStatus           GuardianReportStatus
   // === ALLOWANCES ===
   annualAllowanceKES     Float?
   allowanceApprovedBy    String?  @db.Uuid()
   // Status
   isActive                Boolean                @default(true)
   terminationDate         DateTime?
-  terminationReason       String?                @db.Text
-  
+  terminationReason       GuardianshipTerminationReason
+  guardianshipId      String       @db.Uuid()
+  guardianship        Guardianship @relation(fields: [guardianshipId], references: [id], onDelete: Cascade)
   // Audit and Versioning
   version                 Int      @default(1)
   createdAt               DateTime @default(now())
@@ -1357,8 +1379,6 @@ model PolygamousHouse {
   wivesAgreementDetails  Json?    // {wife1Signed: true, wife2Signed: true}
   // === SUCCESSION PLANNING ===
   successionInstructions String?  @db.Text // Testator instructions per house
-  guardianshipId      String       @db.Uuid()
-  guardianship        Guardianship @relation(fields: [guardianshipId], references: [id], onDelete: Cascade)
   // Audit
   version                 Int      @default(1)
   createdAt               DateTime @default(now())

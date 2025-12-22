@@ -2,12 +2,12 @@
 import { PaginatedResponse } from '../../../common/dto/pagination.dto';
 import { CreateGuardianshipRequest } from '../../dto/request/create-guardianship.request';
 import { FileAnnualReportRequest } from '../../dto/request/file-annual-report.request';
-import { FindGuardianshipsQuery } from '../../dto/request/find-guardianships.query';
+import { FindGuardianshipsQuery } from '../../dto/request/get-guardian-by-id.request';
 import { GrantPropertyPowersRequest } from '../../dto/request/grant-property-powers.request';
-import { PostBondRequest } from '../../dto/request/post-bond.request';
-import { TerminateGuardianshipRequest } from '../../dto/request/terminate-guardianship.request';
-import { UpdateAllowanceRequest } from '../../dto/request/update-allowance.request';
-import { ComplianceReportResponse } from '../../dto/response/compliance-report.response';
+import { PostBondRequest } from '../../dto/request/get-guardians.request';
+import { TerminateGuardianshipRequest } from '../../dto/request/dissolve-guardianship.request';
+import { UpdateAllowanceRequest } from '../../dto/request/update-guardian-allowance.request';
+import { ComplianceReportResponse } from '../../dto/response/compliance-status.response';
 import { GuardianshipSummaryResponse } from '../../dto/response/guardianship-summary.response';
 import { GuardianshipResponse } from '../../dto/response/guardianship.response';
 

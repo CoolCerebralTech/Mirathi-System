@@ -35,6 +35,12 @@ CREATE TYPE "DependencyLevel" AS ENUM ('NONE', 'PARTIAL', 'FULL');
 CREATE TYPE "KenyanLawSection" AS ENUM ('S26_DEPENDANT_PROVISION', 'S29_DEPENDANTS', 'S35_SPOUSAL_CHILDS_SHARE', 'S40_POLY_GAMY', 'S45_DEBT_PRIORITY', 'S70_TESTAMENTARY_GUARDIAN', 'S71_COURT_GUARDIAN', 'S72_GUARDIAN_BOND', 'S73_GUARDIAN_ACCOUNTS', 'S83_EXECUTOR_DUTIES');
 
 -- CreateEnum
+CREATE TYPE "GuardianReportStatus" AS ENUM ('PENDING', 'DUE', 'SUBMITTED', 'APPROVED', 'OVERDUE', 'REJECTED');
+
+-- CreateEnum
+CREATE TYPE "GuardianshipTerminationReason" AS ENUM ('WARD_REACHED_MAJORITY', 'WARD_DECEASED', 'GUARDIAN_DECEASED', 'GUARDIAN_INCAPACITATED', 'COURT_REMOVAL', 'VOLUNTARY_RESIGNATION', 'WARD_REGAINED_CAPACITY', 'ADOPTION_FINALIZED', 'CUSTOMARY_TRANSFER');
+
+-- CreateEnum
 CREATE TYPE "GuardianType" AS ENUM ('TESTAMENTARY', 'COURT_APPOINTED', 'NATURAL_PARENT', 'DE_FACTO');
 
 -- CreateEnum
@@ -589,6 +595,29 @@ CREATE TABLE "family_relationships" (
 );
 
 -- CreateTable
+CREATE TABLE "guardianships" (
+    "id" UUID NOT NULL,
+    "wardId" UUID NOT NULL,
+    "wardInfo" JSONB NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "establishedDate" TIMESTAMP(3) NOT NULL,
+    "dissolvedDate" TIMESTAMP(3),
+    "dissolutionReason" TEXT,
+    "customaryLawApplies" BOOLEAN NOT NULL DEFAULT false,
+    "customaryDetails" JSONB,
+    "courtOrder" JSONB,
+    "primaryGuardianId" UUID,
+    "complianceWarnings" TEXT[],
+    "lastComplianceCheck" TIMESTAMP(3),
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
+
+    CONSTRAINT "guardianships_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "guardians" (
     "id" UUID NOT NULL,
     "wardId" UUID NOT NULL,
@@ -613,12 +642,13 @@ CREATE TABLE "guardians" (
     "bondExpiry" TIMESTAMP(3),
     "lastReportDate" TIMESTAMP(3),
     "nextReportDue" TIMESTAMP(3),
-    "reportStatus" VARCHAR(50) DEFAULT 'PENDING',
+    "reportStatus" "GuardianReportStatus" NOT NULL,
     "annualAllowanceKES" DOUBLE PRECISION,
     "allowanceApprovedBy" UUID,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "terminationDate" TIMESTAMP(3),
-    "terminationReason" TEXT,
+    "terminationReason" "GuardianshipTerminationReason" NOT NULL,
+    "guardianshipId" UUID NOT NULL,
     "version" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -2403,6 +2433,18 @@ CREATE INDEX "family_relationships_inheritanceRights_idx" ON "family_relationshi
 CREATE UNIQUE INDEX "family_relationships_unique_relation" ON "family_relationships"("fromMemberId", "toMemberId", "type");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "guardianships_wardId_key" ON "guardianships"("wardId");
+
+-- CreateIndex
+CREATE INDEX "guardianships_wardId_idx" ON "guardianships"("wardId");
+
+-- CreateIndex
+CREATE INDEX "guardianships_isActive_idx" ON "guardianships"("isActive");
+
+-- CreateIndex
+CREATE INDEX "guardianships_establishedDate_idx" ON "guardianships"("establishedDate");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "guardians_courtCaseNumber_key" ON "guardians"("courtCaseNumber");
 
 -- CreateIndex
@@ -3244,6 +3286,9 @@ ALTER TABLE "guardians" ADD CONSTRAINT "guardians_wardId_fkey" FOREIGN KEY ("war
 
 -- AddForeignKey
 ALTER TABLE "guardians" ADD CONSTRAINT "guardians_guardianId_fkey" FOREIGN KEY ("guardianId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "guardians" ADD CONSTRAINT "guardians_guardianshipId_fkey" FOREIGN KEY ("guardianshipId") REFERENCES "guardianships"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "polygamous_houses" ADD CONSTRAINT "polygamous_houses_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;

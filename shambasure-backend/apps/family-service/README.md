@@ -276,3 +276,54 @@ application/
 │   └── services/
 │       └── family-application.service.ts (implements use-case interface)
 
+
+
+family-service/
+├── domain/
+│   ├── aggregates/
+│   │   ├── family/                  <-- DIRECTORY FOR THE AGGREGATE
+│   │   │   ├── family.aggregate.ts  <-- THE BOSS (Root)
+│   │   │   ├── entities/            <-- Internal parts of Family
+│   │   │   │   ├── family-member.entity.ts
+│   │   │   │   ├── marriage.entity.ts
+│   │   │   │   ├── polygamous-house.entity.ts
+│   │   │   │   ├── family-relationship.entity.ts
+│   │   │   │   ├── cohabitation-record.entity.ts
+│   │   │   │   └── adoption-order.entity.ts
+│   │   │   └── value-objects/       <-- VOs specific to Family
+│   │   │       ├── kenyan-identity.vo.ts
+│   │   │       └── ...
+│   │   │
+│   │   ├── guardianship/            <-- SEPARATE AGGREGATE
+│   │   │   ├── guardianship.aggregate.ts
+│   │   │   ├── entities/
+│   │   │   │   └── guardian-appointment.entity.ts
+│   │   │   └── value-objects/
+│   │   │       └── guardian-bond.vo.ts
+│   │   │
+│   │   └── dependency/              <-- SEPARATE AGGREGATE
+│   │       ├── legal-dependant.aggregate.ts
+│   │       └── entities/
+│   │           └── evidence-record.entity.ts
+│   │
+│   ├── interfaces/
+│   │   ├── repositories/
+│   │   │   ├── ifamily.repository.ts       <-- SAVES THE WHOLE FAMILY GRAPH
+│   │   │   ├── iguardianship.repository.ts
+│   │   │   └── idependency.repository.ts
+│   │
+│   └── events/ ... (Keep your events, they are good)
+
+├── infrastructure/
+│   ├── persistence/
+│   │   ├── repositories/
+│   │   │   ├── family.repository.ts       <-- Implements IFamilyRepository
+│   │   │   ├── guardianship.repository.ts <-- Implements IGuardianshipRepository
+│   │   │   └── dependency.repository.ts   <-- Implements IDependencyRepository
+│   │   │
+│   │   ├── daos/                          <-- DATA ACCESS OBJECTS (Optional helper layer)
+│   │   │   │  // It is okay to have these strictly for Prisma logic, 
+│   │   │   │  // but they MUST NOT be exposed to the Domain or Application layer.
+│   │   │   ├── prisma-family-member.dao.ts
+│   │   │   ├── prisma-marriage.dao.ts
+│   │   │   └── ...
