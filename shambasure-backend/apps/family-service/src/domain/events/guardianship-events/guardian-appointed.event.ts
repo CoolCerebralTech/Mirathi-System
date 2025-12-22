@@ -1,24 +1,31 @@
 // domain/events/guardianship-events/guardian-appointed.event.ts
-import { GuardianType } from '@prisma/client';
-
 import { DomainEvent } from '../../base/domain-event';
 
-export interface GuardianAppointedEventPayload {
-  guardianshipId: string;
-  wardId: string;
-  guardianId: string;
-  type: GuardianType;
-  courtOrderNumber?: string;
-  courtStation?: string;
-  appointmentDate: Date;
-  timestamp: Date;
-}
+export class GuardianAppointedEvent extends DomainEvent {
+  constructor(
+    aggregateId: string,
+    aggregateType: string,
+    version: number,
+    public readonly payload: {
+      wardId: string;
+      guardianId: string;
+      type: string;
+      courtOrderNumber?: string;
+      appointmentDate: Date;
+      customaryLawApplies: boolean;
+    },
+  ) {
+    super(aggregateId, aggregateType, version);
+  }
 
-export class GuardianAppointedEvent extends DomainEvent<GuardianAppointedEventPayload> {
-  constructor(payload: Omit<GuardianAppointedEventPayload, 'timestamp'>) {
-    super('GuardianAppointed', payload.guardianshipId, 'Guardian', {
-      ...payload,
-      timestamp: new Date(),
-    });
+  protected getPayload(): Record<string, any> {
+    return {
+      wardId: this.payload.wardId,
+      guardianId: this.payload.guardianId,
+      type: this.payload.type,
+      courtOrderNumber: this.payload.courtOrderNumber,
+      appointmentDate: this.payload.appointmentDate.toISOString(),
+      customaryLawApplies: this.payload.customaryLawApplies,
+    };
   }
 }

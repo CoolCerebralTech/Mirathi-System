@@ -4,7 +4,7 @@ import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 
 import { GuardianshipAggregate } from '../../../../domain/aggregates/guardianship.aggregate';
 import { IFamilyMemberRepository } from '../../../../domain/interfaces/repositories/ifamily-member.repository';
-import { IGuardianRepository } from '../../../../domain/interfaces/repositories/iguardian.repository';
+import { IGuardianRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { Result } from '../../../common/base/result';
 import { PaginatedResponse } from '../../../common/dto/paginated-response.dto';
 import { GuardianshipSummaryResponse } from '../../dto/response/guardianship-summary.response';

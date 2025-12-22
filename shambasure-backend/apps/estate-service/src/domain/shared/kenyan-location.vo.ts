@@ -1,8 +1,10 @@
-// src/shared/domain/value-objects/kenyan-location.vo.ts
 import { ValueObject } from '../base/value-object';
-import { InvalidLocationException } from '../exceptions/location.exception';
+import {
+  InvalidCountyException,
+  LocationOutOfBoundsException,
+} from '../exceptions/location.exception';
 
-// Enum for the 47 Counties of Kenya
+// Enum for the 47 Counties of Kenya (Constitutional Schedule 1)
 export enum KenyanCounty {
   MOMBASA = 'MOMBASA',
   KWALE = 'KWALE',
@@ -53,7 +55,7 @@ export enum KenyanCounty {
   NAIROBI = 'NAIROBI',
 }
 
-// Customary law types for inheritance determination
+// Dominant customary law types for inheritance determination
 export enum CustomaryLawType {
   KIKUYU = 'KIKUYU',
   LUO = 'LUO',
@@ -67,21 +69,18 @@ export enum CustomaryLawType {
   SOMALI = 'SOMALI',
   MIIKENDA = 'MIIKENDA',
   SWAHILI = 'SWAHILI',
-  ISLAMIC = 'ISLAMIC',
+  ISLAMIC = 'ISLAMIC', // Not strictly customary, but behaves similarly in succession jurisdiction
   HINDU = 'HINDU',
-  STATUTORY = 'STATUTORY', // For urban/educated families
+  STATUTORY = 'STATUTORY', // For cosmopolitan/urban areas
   GENERAL = 'GENERAL',
 }
 
 export enum InheritancePattern {
   PRIMOGENITURE = 'PRIMOGENITURE', // First son inherits (Luo, Maasai)
-  ULTIMOGENITURE = 'ULTIMOGENITURE', // Last son inherits (Kikuyu)
-  EQUAL_DISTRIBUTION = 'EQUAL_DISTRIBUTION', // Equal shares (Statutory)
-  HOUSE_SYSTEM = 'HOUSE_SYSTEM', // Polygamous families (S.40 LSA)
+  ULTIMOGENITURE = 'ULTIMOGENITURE', // Last son inherits (Kikuyu - 'Muramati')
+  EQUAL_DISTRIBUTION = 'EQUAL_DISTRIBUTION', // Equal shares (Statutory / Luhya)
   MATRILINEAL = 'MATRILINEAL', // Through mother's line (some coastal communities)
-  NONE = 'NONE',
-  ISLAMIC = 'ISLAMIC',
-  STATUTORY = 'STATUTORY', // No fixed pattern
+  ISLAMIC = 'ISLAMIC', // Quranic shares
 }
 
 interface KenyanLocationProps {
@@ -89,9 +88,8 @@ interface KenyanLocationProps {
   subCounty?: string;
   ward?: string;
   village?: string;
-  location?: string; // Administrative location (for rural areas)
+  location?: string; // Administrative location
   subLocation?: string;
-  constituency?: string;
   gpsCoordinates?: {
     latitude: number;
     longitude: number;
@@ -99,27 +97,22 @@ interface KenyanLocationProps {
 }
 
 export class KenyanLocation extends ValueObject<KenyanLocationProps> {
-  // Complete Kenyan administrative hierarchy cache for all 47 counties
-  private static readonly COUNTY_DATA: Map<
+  // Static Data: Mapping Counties to Customary Law & Urban Status
+  // This helps determine if S.35 (Statutory) or Customary Law likely applies
+  private static readonly COUNTY_DATA: ReadonlyMap<
     KenyanCounty,
     {
       capital: string;
-      region: string;
       customaryLaw: CustomaryLawType[];
       isFormallyUrban: boolean;
     }
   > = new Map([
-    // COAST REGION
+    // COAST
     [
       KenyanCounty.MOMBASA,
       {
         capital: 'Mombasa',
-        region: 'Coast',
-        customaryLaw: [
-          CustomaryLawType.SWAHILI,
-          CustomaryLawType.ISLAMIC,
-          CustomaryLawType.MIIKENDA,
-        ],
+        customaryLaw: [CustomaryLawType.SWAHILI, CustomaryLawType.ISLAMIC],
         isFormallyUrban: true,
       },
     ],
@@ -127,440 +120,217 @@ export class KenyanLocation extends ValueObject<KenyanLocationProps> {
       KenyanCounty.KWALE,
       {
         capital: 'Kwale',
-        region: 'Coast',
         customaryLaw: [CustomaryLawType.MIIKENDA, CustomaryLawType.ISLAMIC],
         isFormallyUrban: false,
       },
     ],
     [
       KenyanCounty.KILIFI,
-      {
-        capital: 'Kilifi',
-        region: 'Coast',
-        customaryLaw: [CustomaryLawType.MIIKENDA, CustomaryLawType.ISLAMIC],
-        isFormallyUrban: false,
-      },
+      { capital: 'Kilifi', customaryLaw: [CustomaryLawType.MIIKENDA], isFormallyUrban: false },
     ],
     [
       KenyanCounty.TANA_RIVER,
-      {
-        capital: 'Hola',
-        region: 'Coast',
-        customaryLaw: [CustomaryLawType.SOMALI, CustomaryLawType.ISLAMIC],
-        isFormallyUrban: false,
-      },
+      { capital: 'Hola', customaryLaw: [CustomaryLawType.SOMALI], isFormallyUrban: false },
     ],
     [
       KenyanCounty.LAMU,
-      {
-        capital: 'Lamu',
-        region: 'Coast',
-        customaryLaw: [CustomaryLawType.SWAHILI, CustomaryLawType.ISLAMIC],
-        isFormallyUrban: false,
-      },
+      { capital: 'Lamu', customaryLaw: [CustomaryLawType.SWAHILI], isFormallyUrban: false },
     ],
     [
       KenyanCounty.TAITA_TAVETA,
-      {
-        capital: 'Mwatate',
-        region: 'Coast',
-        customaryLaw: [CustomaryLawType.GENERAL],
-        isFormallyUrban: false,
-      },
+      { capital: 'Mwatate', customaryLaw: [CustomaryLawType.GENERAL], isFormallyUrban: false },
     ],
-
-    // NORTH EASTERN REGION
+    // NORTH EASTERN
     [
       KenyanCounty.GARISSA,
-      {
-        capital: 'Garissa',
-        region: 'North Eastern',
-        customaryLaw: [CustomaryLawType.SOMALI, CustomaryLawType.ISLAMIC],
-        isFormallyUrban: false,
-      },
+      { capital: 'Garissa', customaryLaw: [CustomaryLawType.SOMALI], isFormallyUrban: false },
     ],
     [
       KenyanCounty.WAJIR,
-      {
-        capital: 'Wajir',
-        region: 'North Eastern',
-        customaryLaw: [CustomaryLawType.SOMALI, CustomaryLawType.ISLAMIC],
-        isFormallyUrban: false,
-      },
+      { capital: 'Wajir', customaryLaw: [CustomaryLawType.SOMALI], isFormallyUrban: false },
     ],
     [
       KenyanCounty.MANDERA,
-      {
-        capital: 'Mandera',
-        region: 'North Eastern',
-        customaryLaw: [CustomaryLawType.SOMALI, CustomaryLawType.ISLAMIC],
-        isFormallyUrban: false,
-      },
+      { capital: 'Mandera', customaryLaw: [CustomaryLawType.SOMALI], isFormallyUrban: false },
     ],
-
-    // EASTERN REGION
+    // EASTERN
     [
       KenyanCounty.MARSABIT,
       {
         capital: 'Marsabit',
-        region: 'Eastern',
         customaryLaw: [CustomaryLawType.SOMALI, CustomaryLawType.TURKANA],
         isFormallyUrban: false,
       },
     ],
     [
       KenyanCounty.ISIOLO,
-      {
-        capital: 'Isiolo',
-        region: 'Eastern',
-        customaryLaw: [CustomaryLawType.SOMALI, CustomaryLawType.ISLAMIC],
-        isFormallyUrban: false,
-      },
+      { capital: 'Isiolo', customaryLaw: [CustomaryLawType.SOMALI], isFormallyUrban: false },
     ],
     [
       KenyanCounty.MERU,
-      {
-        capital: 'Meru',
-        region: 'Eastern',
-        customaryLaw: [CustomaryLawType.MERU],
-        isFormallyUrban: false,
-      },
+      { capital: 'Meru', customaryLaw: [CustomaryLawType.MERU], isFormallyUrban: false },
     ],
     [
       KenyanCounty.THARAKA_NITHI,
-      {
-        capital: 'Kathwana',
-        region: 'Eastern',
-        customaryLaw: [CustomaryLawType.MERU],
-        isFormallyUrban: false,
-      },
+      { capital: 'Kathwana', customaryLaw: [CustomaryLawType.MERU], isFormallyUrban: false },
     ],
     [
       KenyanCounty.EMBU,
-      {
-        capital: 'Embu',
-        region: 'Eastern',
-        customaryLaw: [CustomaryLawType.MERU],
-        isFormallyUrban: false,
-      },
+      { capital: 'Embu', customaryLaw: [CustomaryLawType.MERU], isFormallyUrban: false },
     ],
     [
       KenyanCounty.KITUI,
-      {
-        capital: 'Kitui',
-        region: 'Eastern',
-        customaryLaw: [CustomaryLawType.KAMBA],
-        isFormallyUrban: false,
-      },
+      { capital: 'Kitui', customaryLaw: [CustomaryLawType.KAMBA], isFormallyUrban: false },
     ],
     [
       KenyanCounty.MACHAKOS,
-      {
-        capital: 'Machakos',
-        region: 'Eastern',
-        customaryLaw: [CustomaryLawType.KAMBA],
-        isFormallyUrban: true,
-      },
+      { capital: 'Machakos', customaryLaw: [CustomaryLawType.KAMBA], isFormallyUrban: true },
     ],
     [
       KenyanCounty.MAKUENI,
-      {
-        capital: 'Wote',
-        region: 'Eastern',
-        customaryLaw: [CustomaryLawType.KAMBA],
-        isFormallyUrban: false,
-      },
+      { capital: 'Wote', customaryLaw: [CustomaryLawType.KAMBA], isFormallyUrban: false },
     ],
-
-    // CENTRAL REGION
+    // CENTRAL
     [
       KenyanCounty.NYANDARUA,
-      {
-        capital: 'Ol Kalou',
-        region: 'Central',
-        customaryLaw: [CustomaryLawType.KIKUYU],
-        isFormallyUrban: false,
-      },
+      { capital: 'Ol Kalou', customaryLaw: [CustomaryLawType.KIKUYU], isFormallyUrban: false },
     ],
     [
       KenyanCounty.NYERI,
-      {
-        capital: 'Nyeri',
-        region: 'Central',
-        customaryLaw: [CustomaryLawType.KIKUYU],
-        isFormallyUrban: false,
-      },
+      { capital: 'Nyeri', customaryLaw: [CustomaryLawType.KIKUYU], isFormallyUrban: false },
     ],
     [
       KenyanCounty.KIRINYAGA,
-      {
-        capital: 'Kerugoya',
-        region: 'Central',
-        customaryLaw: [CustomaryLawType.KIKUYU],
-        isFormallyUrban: false,
-      },
+      { capital: 'Kerugoya', customaryLaw: [CustomaryLawType.KIKUYU], isFormallyUrban: false },
     ],
     [
       KenyanCounty.MURANGA,
-      {
-        capital: "Murang'a",
-        region: 'Central',
-        customaryLaw: [CustomaryLawType.KIKUYU],
-        isFormallyUrban: false,
-      },
+      { capital: "Murang'a", customaryLaw: [CustomaryLawType.KIKUYU], isFormallyUrban: false },
     ],
     [
       KenyanCounty.KIAMBU,
-      {
-        capital: 'Kiambu',
-        region: 'Central',
-        customaryLaw: [CustomaryLawType.KIKUYU],
-        isFormallyUrban: true,
-      },
+      { capital: 'Kiambu', customaryLaw: [CustomaryLawType.KIKUYU], isFormallyUrban: true },
     ],
-
-    // RIFT VALLEY REGION
+    // RIFT VALLEY
     [
       KenyanCounty.TURKANA,
-      {
-        capital: 'Lodwar',
-        region: 'Rift Valley',
-        customaryLaw: [CustomaryLawType.TURKANA],
-        isFormallyUrban: false,
-      },
+      { capital: 'Lodwar', customaryLaw: [CustomaryLawType.TURKANA], isFormallyUrban: false },
     ],
     [
       KenyanCounty.WEST_POKOT,
-      {
-        capital: 'Kapenguria',
-        region: 'Rift Valley',
-        customaryLaw: [CustomaryLawType.KALENJIN],
-        isFormallyUrban: false,
-      },
+      { capital: 'Kapenguria', customaryLaw: [CustomaryLawType.KALENJIN], isFormallyUrban: false },
     ],
     [
       KenyanCounty.SAMBURU,
-      {
-        capital: 'Maralal',
-        region: 'Rift Valley',
-        customaryLaw: [CustomaryLawType.MAASAI],
-        isFormallyUrban: false,
-      },
+      { capital: 'Maralal', customaryLaw: [CustomaryLawType.MAASAI], isFormallyUrban: false },
     ],
     [
       KenyanCounty.TRANS_NZOIA,
       {
         capital: 'Kitale',
-        region: 'Rift Valley',
-        customaryLaw: [CustomaryLawType.KALENJIN, CustomaryLawType.LUHYA],
+        customaryLaw: [CustomaryLawType.LUHYA, CustomaryLawType.KALENJIN],
         isFormallyUrban: false,
       },
     ],
     [
       KenyanCounty.UASIN_GISHU,
-      {
-        capital: 'Eldoret',
-        region: 'Rift Valley',
-        customaryLaw: [CustomaryLawType.KALENJIN],
-        isFormallyUrban: true,
-      },
+      { capital: 'Eldoret', customaryLaw: [CustomaryLawType.KALENJIN], isFormallyUrban: true },
     ],
     [
       KenyanCounty.ELGEYO_MARAKWET,
-      {
-        capital: 'Iten',
-        region: 'Rift Valley',
-        customaryLaw: [CustomaryLawType.KALENJIN],
-        isFormallyUrban: false,
-      },
+      { capital: 'Iten', customaryLaw: [CustomaryLawType.KALENJIN], isFormallyUrban: false },
     ],
     [
       KenyanCounty.NANDI,
-      {
-        capital: 'Kapsabet',
-        region: 'Rift Valley',
-        customaryLaw: [CustomaryLawType.KALENJIN],
-        isFormallyUrban: false,
-      },
+      { capital: 'Kapsabet', customaryLaw: [CustomaryLawType.KALENJIN], isFormallyUrban: false },
     ],
     [
       KenyanCounty.BARINGO,
-      {
-        capital: 'Kabarnet',
-        region: 'Rift Valley',
-        customaryLaw: [CustomaryLawType.KALENJIN],
-        isFormallyUrban: false,
-      },
+      { capital: 'Kabarnet', customaryLaw: [CustomaryLawType.KALENJIN], isFormallyUrban: false },
     ],
     [
       KenyanCounty.LAIKIPIA,
-      {
-        capital: 'Rumuruti',
-        region: 'Rift Valley',
-        customaryLaw: [CustomaryLawType.KIKUYU, CustomaryLawType.MAASAI],
-        isFormallyUrban: false,
-      },
+      { capital: 'Rumuruti', customaryLaw: [CustomaryLawType.KIKUYU], isFormallyUrban: false },
     ],
     [
       KenyanCounty.NAKURU,
       {
         capital: 'Nakuru',
-        region: 'Rift Valley',
         customaryLaw: [CustomaryLawType.KIKUYU, CustomaryLawType.KALENJIN],
         isFormallyUrban: true,
       },
     ],
     [
       KenyanCounty.NAROK,
-      {
-        capital: 'Narok',
-        region: 'Rift Valley',
-        customaryLaw: [CustomaryLawType.MAASAI],
-        isFormallyUrban: false,
-      },
+      { capital: 'Narok', customaryLaw: [CustomaryLawType.MAASAI], isFormallyUrban: false },
     ],
     [
       KenyanCounty.KAJIADO,
-      {
-        capital: 'Kajiado',
-        region: 'Rift Valley',
-        customaryLaw: [CustomaryLawType.MAASAI],
-        isFormallyUrban: false,
-      },
+      { capital: 'Kajiado', customaryLaw: [CustomaryLawType.MAASAI], isFormallyUrban: false },
     ],
     [
       KenyanCounty.KERICHO,
-      {
-        capital: 'Kericho',
-        region: 'Rift Valley',
-        customaryLaw: [CustomaryLawType.KALENJIN],
-        isFormallyUrban: false,
-      },
+      { capital: 'Kericho', customaryLaw: [CustomaryLawType.KALENJIN], isFormallyUrban: false },
     ],
     [
       KenyanCounty.BOMET,
-      {
-        capital: 'Bomet',
-        region: 'Rift Valley',
-        customaryLaw: [CustomaryLawType.KALENJIN],
-        isFormallyUrban: false,
-      },
+      { capital: 'Bomet', customaryLaw: [CustomaryLawType.KALENJIN], isFormallyUrban: false },
     ],
-
-    // WESTERN REGION
+    // WESTERN
     [
       KenyanCounty.KAKAMEGA,
-      {
-        capital: 'Kakamega',
-        region: 'Western',
-        customaryLaw: [CustomaryLawType.LUHYA],
-        isFormallyUrban: false,
-      },
+      { capital: 'Kakamega', customaryLaw: [CustomaryLawType.LUHYA], isFormallyUrban: false },
     ],
     [
       KenyanCounty.VIHIGA,
-      {
-        capital: 'Mbale',
-        region: 'Western',
-        customaryLaw: [CustomaryLawType.LUHYA],
-        isFormallyUrban: false,
-      },
+      { capital: 'Mbale', customaryLaw: [CustomaryLawType.LUHYA], isFormallyUrban: false },
     ],
     [
       KenyanCounty.BUNGOMA,
-      {
-        capital: 'Bungoma',
-        region: 'Western',
-        customaryLaw: [CustomaryLawType.LUHYA],
-        isFormallyUrban: false,
-      },
+      { capital: 'Bungoma', customaryLaw: [CustomaryLawType.LUHYA], isFormallyUrban: false },
     ],
     [
       KenyanCounty.BUSIA,
-      {
-        capital: 'Busia',
-        region: 'Western',
-        customaryLaw: [CustomaryLawType.LUHYA],
-        isFormallyUrban: false,
-      },
+      { capital: 'Busia', customaryLaw: [CustomaryLawType.LUHYA], isFormallyUrban: false },
     ],
-
-    // NYANZA REGION
+    // NYANZA
     [
       KenyanCounty.SIAYA,
-      {
-        capital: 'Siaya',
-        region: 'Nyanza',
-        customaryLaw: [CustomaryLawType.LUO],
-        isFormallyUrban: false,
-      },
+      { capital: 'Siaya', customaryLaw: [CustomaryLawType.LUO], isFormallyUrban: false },
     ],
     [
       KenyanCounty.KISUMU,
-      {
-        capital: 'Kisumu',
-        region: 'Nyanza',
-        customaryLaw: [CustomaryLawType.LUO],
-        isFormallyUrban: true,
-      },
+      { capital: 'Kisumu', customaryLaw: [CustomaryLawType.LUO], isFormallyUrban: true },
     ],
     [
       KenyanCounty.HOMA_BAY,
-      {
-        capital: 'Homa Bay',
-        region: 'Nyanza',
-        customaryLaw: [CustomaryLawType.LUO],
-        isFormallyUrban: false,
-      },
+      { capital: 'Homa Bay', customaryLaw: [CustomaryLawType.LUO], isFormallyUrban: false },
     ],
     [
       KenyanCounty.MIGORI,
-      {
-        capital: 'Migori',
-        region: 'Nyanza',
-        customaryLaw: [CustomaryLawType.LUO],
-        isFormallyUrban: false,
-      },
+      { capital: 'Migori', customaryLaw: [CustomaryLawType.LUO], isFormallyUrban: false },
     ],
     [
       KenyanCounty.KISII,
-      {
-        capital: 'Kisii',
-        region: 'Nyanza',
-        customaryLaw: [CustomaryLawType.KISII],
-        isFormallyUrban: false,
-      },
+      { capital: 'Kisii', customaryLaw: [CustomaryLawType.KISII], isFormallyUrban: false },
     ],
     [
       KenyanCounty.NYAMIRA,
-      {
-        capital: 'Nyamira',
-        region: 'Nyanza',
-        customaryLaw: [CustomaryLawType.KISII],
-        isFormallyUrban: false,
-      },
+      { capital: 'Nyamira', customaryLaw: [CustomaryLawType.KISII], isFormallyUrban: false },
     ],
-
-    // NAIROBI REGION
+    // NAIROBI
     [
       KenyanCounty.NAIROBI,
-      {
-        capital: 'Nairobi',
-        region: 'Nairobi',
-        customaryLaw: [CustomaryLawType.STATUTORY],
-        isFormallyUrban: true,
-      },
+      { capital: 'Nairobi', customaryLaw: [CustomaryLawType.STATUTORY], isFormallyUrban: true },
     ],
   ]);
 
-  // Customary law inheritance patterns
-  private static readonly CUSTOMARY_INHERITANCE_PATTERNS: Record<
-    CustomaryLawType,
-    InheritancePattern
+  private static readonly CUSTOMARY_INHERITANCE_PATTERNS: Readonly<
+    Record<CustomaryLawType, InheritancePattern>
   > = {
-    [CustomaryLawType.KIKUYU]: InheritancePattern.ULTIMOGENITURE, // Last son (mûramati)
-    [CustomaryLawType.LUO]: InheritancePattern.PRIMOGENITURE, // First son (wuon lowo)
-    [CustomaryLawType.LUHYA]: InheritancePattern.EQUAL_DISTRIBUTION, // More egalitarian
+    [CustomaryLawType.KIKUYU]: InheritancePattern.ULTIMOGENITURE,
+    [CustomaryLawType.LUO]: InheritancePattern.PRIMOGENITURE,
+    [CustomaryLawType.LUHYA]: InheritancePattern.EQUAL_DISTRIBUTION,
     [CustomaryLawType.KALENJIN]: InheritancePattern.PRIMOGENITURE,
     [CustomaryLawType.KAMBA]: InheritancePattern.ULTIMOGENITURE,
     [CustomaryLawType.MERU]: InheritancePattern.PRIMOGENITURE,
@@ -571,7 +341,7 @@ export class KenyanLocation extends ValueObject<KenyanLocationProps> {
     [CustomaryLawType.MIIKENDA]: InheritancePattern.MATRILINEAL,
     [CustomaryLawType.SWAHILI]: InheritancePattern.ISLAMIC,
     [CustomaryLawType.ISLAMIC]: InheritancePattern.ISLAMIC,
-    [CustomaryLawType.HINDU]: InheritancePattern.STATUTORY,
+    [CustomaryLawType.HINDU]: InheritancePattern.EQUAL_DISTRIBUTION, // Via Hindu Succession Act
     [CustomaryLawType.STATUTORY]: InheritancePattern.EQUAL_DISTRIBUTION,
     [CustomaryLawType.GENERAL]: InheritancePattern.EQUAL_DISTRIBUTION,
   };
@@ -581,120 +351,95 @@ export class KenyanLocation extends ValueObject<KenyanLocationProps> {
   }
 
   protected validate(): void {
-    // County validation
-    if (!Object.values(KenyanCounty).includes(this._value.county)) {
-      throw new InvalidLocationException(`Invalid Kenyan county: ${this._value.county}`);
+    // 1. Validate County
+    if (!Object.values(KenyanCounty).includes(this.props.county)) {
+      throw new InvalidCountyException(this.props.county, {
+        provided: this.props.county,
+      });
     }
 
-    // Note: Sub-county validation against hardcoded lists has been removed to reduce maintenance overhead.
-    // In a real system, this should optionally validate against a database of administrative units.
-
-    // GPS coordinates validation
-    if (this._value.gpsCoordinates) {
-      const { latitude, longitude } = this._value.gpsCoordinates;
+    // 2. Validate GPS Coordinates
+    if (this.props.gpsCoordinates) {
+      const { latitude, longitude } = this.props.gpsCoordinates;
       this.validateCoordinates(latitude, longitude);
     }
   }
 
   private validateCoordinates(latitude: number, longitude: number): void {
-    // Kenya's geographical bounds (approximate)
-    const KENYA_BOUNDS = {
-      minLat: -4.9, // South
-      maxLat: 5.0, // North
-      minLng: 33.9, // West
-      maxLng: 42.0, // East
-    };
+    // Kenya's Bounding Box (Approximate but inclusive)
+    const MIN_LAT = -4.9; // South
+    const MAX_LAT = 5.0; // North
+    const MIN_LNG = 33.9; // West
+    const MAX_LNG = 42.0; // East
 
-    if (latitude < KENYA_BOUNDS.minLat || latitude > KENYA_BOUNDS.maxLat) {
-      throw new InvalidLocationException(
-        `Latitude ${latitude}° is outside Kenya's bounds (${KENYA_BOUNDS.minLat}° to ${KENYA_BOUNDS.maxLat}°)`,
-      );
+    if (latitude < MIN_LAT || latitude > MAX_LAT) {
+      throw new LocationOutOfBoundsException('latitude', latitude, MIN_LAT, MAX_LAT);
     }
 
-    if (longitude < KENYA_BOUNDS.minLng || longitude > KENYA_BOUNDS.maxLng) {
-      throw new InvalidLocationException(
-        `Longitude ${longitude}° is outside Kenya's bounds (${KENYA_BOUNDS.minLng}° to ${KENYA_BOUNDS.maxLng}°)`,
-      );
+    if (longitude < MIN_LNG || longitude > MAX_LNG) {
+      throw new LocationOutOfBoundsException('longitude', longitude, MIN_LNG, MAX_LNG);
     }
   }
 
-  // Factory methods
+  // --- Factory Methods ---
+
   static fromCounty(county: KenyanCounty): KenyanLocation {
     return new KenyanLocation({ county });
   }
 
   static fromCoordinates(lat: number, lng: number): KenyanLocation {
-    // In production, this would use a reverse geocoding service
-    const detectedCounty = this.detectCountyFromCoordinates(lat, lng);
+    // Heuristic: Assign to County based on coordinates.
+    // In "No MVP" production, this would call a GIS service, but as a Value Object,
+    // we return a valid object with the 'best guess' or require county input.
+    // For now, we allow creation with explicit coordinates and "unknown" county if logic permits,
+    // but our Props require County. So we default to Nairobi if outside heuristic logic for now.
+
+    // NOTE: In strict domain modeling, guessing the county from lat/long inside the VO
+    // is brittle. We should create with known county.
+    // However, if we MUST:
+    const detected = this.detectCountyFromCoordinates(lat, lng);
     return new KenyanLocation({
-      county: detectedCounty,
+      county: detected,
       gpsCoordinates: { latitude: lat, longitude: lng },
     });
   }
 
-  // Business logic methods
-  getCustomaryLawType(): CustomaryLawType[] {
-    const countyData = KenyanLocation.COUNTY_DATA.get(this._value.county);
-    return countyData?.customaryLaw || [CustomaryLawType.GENERAL];
-  }
+  // --- Business Logic ---
 
   getInheritancePattern(): InheritancePattern {
-    // Urban areas generally follow statutory law
+    // 1. Urban areas generally follow Statutory Law (S.35 LSA)
     if (this.isUrbanArea()) {
-      return InheritancePattern.EQUAL_DISTRIBUTION; // S.35 LSA
+      return InheritancePattern.EQUAL_DISTRIBUTION;
     }
 
-    // Rural areas follow customary law
-    const customaryLaws = this.getCustomaryLawType();
-    if (customaryLaws.length === 1) {
-      return KenyanLocation.CUSTOMARY_INHERITANCE_PATTERNS[customaryLaws[0]];
-    }
+    // 2. Rural areas default to Customary Law unless overridden by Will
+    const laws = this.getCustomaryLawType();
 
-    // Mixed customary law areas - use most common pattern
-    const patterns = customaryLaws.map((law) => KenyanLocation.CUSTOMARY_INHERITANCE_PATTERNS[law]);
-    return patterns[0] || InheritancePattern.EQUAL_DISTRIBUTION;
+    // Return the dominant pattern for that county
+    return (
+      KenyanLocation.CUSTOMARY_INHERITANCE_PATTERNS[laws[0]] ||
+      InheritancePattern.EQUAL_DISTRIBUTION
+    );
+  }
+
+  getCustomaryLawType(): CustomaryLawType[] {
+    const data = KenyanLocation.COUNTY_DATA.get(this.props.county);
+    return data ? data.customaryLaw : [CustomaryLawType.GENERAL];
   }
 
   isUrbanArea(): boolean {
-    // Check county-level urban status
-    const countyData = KenyanLocation.COUNTY_DATA.get(this._value.county);
-    if (countyData?.isFormallyUrban) {
-      return true;
-    }
+    const data = KenyanLocation.COUNTY_DATA.get(this.props.county);
+    if (data?.isFormallyUrban) return true;
 
-    // Fallback: Check if sub-county string contains urban indicators if provided
-    if (this._value.subCounty) {
-      const urbanIndicators = ['Town', 'Municipality', 'City', 'Metro'];
-      return urbanIndicators.some((indicator) =>
-        this._value.subCounty!.toLowerCase().includes(indicator.toLowerCase()),
-      );
+    // Check sub-county text for urban markers
+    if (this.props.subCounty) {
+      const markers = ['Town', 'Municipality', 'City', 'Metro'];
+      return markers.some((m) => this.props.subCounty!.includes(m));
     }
-
     return false;
   }
 
-  isAgriculturalArea(): boolean {
-    const agriculturalCounties = [
-      KenyanCounty.TRANS_NZOIA,
-      KenyanCounty.UASIN_GISHU,
-      KenyanCounty.NANDI,
-      KenyanCounty.KERICHO,
-      KenyanCounty.BOMET,
-      KenyanCounty.NAROK,
-      KenyanCounty.LAIKIPIA,
-      KenyanCounty.NYANDARUA,
-      KenyanCounty.NYERI,
-      KenyanCounty.MURANGA,
-      KenyanCounty.KIRINYAGA,
-      KenyanCounty.EMBU,
-      KenyanCounty.MERU,
-      KenyanCounty.TAITA_TAVETA,
-      KenyanCounty.HOMA_BAY,
-    ];
-    return agriculturalCounties.includes(this._value.county);
-  }
-
-  isAridOrSemiAridLand(): boolean {
+  isAridOrSemiArid(): boolean {
     const asalCounties = [
       KenyanCounty.GARISSA,
       KenyanCounty.WAJIR,
@@ -712,151 +457,46 @@ export class KenyanLocation extends ValueObject<KenyanLocationProps> {
       KenyanCounty.LAMU,
       KenyanCounty.KILIFI,
     ];
-    return asalCounties.includes(this._value.county);
+    return asalCounties.includes(this.props.county);
   }
 
-  // For succession court jurisdiction
   getCourtJurisdiction(): string {
-    const countyName = this.getCountyDisplayName();
-    return `High Court of Kenya at ${countyName}`;
-  }
-
-  getProbateRegistry(): string {
-    // Major counties have resident probate registries
-    const probateRegistryCounties = [
-      KenyanCounty.NAIROBI,
-      KenyanCounty.MOMBASA,
-      KenyanCounty.KISUMU,
-      KenyanCounty.NAKURU,
-      KenyanCounty.UASIN_GISHU, // Eldoret is in Uasin Gishu
-      KenyanCounty.KAKAMEGA,
-      KenyanCounty.EMBU,
-      KenyanCounty.MERU,
-      KenyanCounty.NYERI,
-      KenyanCounty.MACHAKOS,
-    ];
-
-    if (probateRegistryCounties.includes(this._value.county)) {
-      return `Probate Registry at ${this.getCountyDisplayName()}`;
-    }
-
-    // Use nearest registry
-    return `Probate Registry at Nairobi (nearest to ${this.getCountyDisplayName()})`;
-  }
-
-  // Formatting methods
-  getFullAddress(): string {
-    const parts = [
-      this._value.village,
-      this._value.location,
-      this._value.subLocation,
-      this._value.ward,
-      this._value.subCounty,
-      `${this.getCountyDisplayName()} County`,
-      'Kenya',
-    ].filter(Boolean);
-
-    return parts.join(', ');
-  }
-
-  getLegalDescription(): string {
-    if (this._value.village && this._value.location) {
-      return `of ${this._value.village} Village, ${this._value.location} Location, ${this.getCountyDisplayName()} County`;
-    }
-    if (this._value.subCounty) {
-      return `of ${this._value.subCounty} Sub-County, ${this.getCountyDisplayName()} County`;
-    }
-    return `of ${this.getCountyDisplayName()} County`;
+    // In Kenya, Succession causes are filed at the High Court or Magistrate Court
+    // within the jurisdiction where the deceased resided or where assets are.
+    const name = this.getCountyDisplayName();
+    return `High Court of Kenya at ${name}`;
   }
 
   getCountyDisplayName(): string {
-    // Convert enum to display name (e.g., "NAIROBI" -> "Nairobi")
-    return this._value.county
-      .toLowerCase()
+    return this.props.county
       .split('_')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
       .join(' ');
   }
 
-  // Helper method for coordinate detection (simplified)
   private static detectCountyFromCoordinates(lat: number, lng: number): KenyanCounty {
-    // Simplified county detection based on coordinates
-    // In production, use a proper geocoding service
+    // Very simplified bounding boxes for major centers
+    // Nairobi
+    if (lat > -1.4 && lat < -1.1 && lng > 36.6 && lng < 37.0) return KenyanCounty.NAIROBI;
+    // Mombasa
+    if (lat > -4.1 && lat < -3.9 && lng > 39.5 && lng < 39.8) return KenyanCounty.MOMBASA;
+    // Kisumu
+    if (lat > -0.2 && lat < 0.2 && lng > 34.6 && lng < 35.0) return KenyanCounty.KISUMU;
 
-    // Nairobi area
-    if (lat > -1.4 && lat < -1.1 && lng > 36.6 && lng < 37.0) {
-      return KenyanCounty.NAIROBI;
-    }
-    // Mombasa area
-    if (lat > -4.1 && lat < -3.9 && lng > 39.5 && lng < 39.8) {
-      return KenyanCounty.MOMBASA;
-    }
-    // Kisumu area
-    if (lat > -0.2 && lat < 0.2 && lng > 34.6 && lng < 35.0) {
-      return KenyanCounty.KISUMU;
-    }
-    // Nakuru area
-    if (lat > -0.5 && lat < -0.1 && lng > 35.9 && lng < 36.3) {
-      return KenyanCounty.NAKURU;
-    }
-    // Default to Nairobi for unknown coordinates
+    // Default fallback
     return KenyanCounty.NAIROBI;
   }
 
-  // Getters
-  get county(): KenyanCounty {
-    return this._value.county;
-  }
-
-  get subCounty(): string | undefined {
-    return this._value.subCounty;
-  }
-
-  get ward(): string | undefined {
-    return this._value.ward;
-  }
-
-  get village(): string | undefined {
-    return this._value.village;
-  }
-
-  get location(): string | undefined {
-    return this._value.location;
-  }
-
-  get coordinates(): { latitude: number; longitude: number } | undefined {
-    return this._value.gpsCoordinates;
-  }
-
-  get region(): string {
-    const countyData = KenyanLocation.COUNTY_DATA.get(this._value.county);
-    return countyData?.region || 'Unknown';
-  }
-
-  get capital(): string {
-    const countyData = KenyanLocation.COUNTY_DATA.get(this._value.county);
-    return countyData?.capital || this.getCountyDisplayName();
-  }
-
-  // For API responses
-  toJSON() {
+  public toJSON(): Record<string, any> {
     return {
-      county: this._value.county,
-      countyDisplayName: this.getCountyDisplayName(),
-      subCounty: this._value.subCounty,
-      ward: this._value.ward,
-      village: this._value.village,
-      location: this._value.location,
-      region: this.region,
-      capital: this.capital,
+      county: this.props.county,
+      countyName: this.getCountyDisplayName(),
+      subCounty: this.props.subCounty,
+      ward: this.props.ward,
+      village: this.props.village,
       isUrban: this.isUrbanArea(),
-      isAgricultural: this.isAgriculturalArea(),
-      isASAL: this.isAridOrSemiAridLand(),
-      customaryLaw: this.getCustomaryLawType(),
       inheritancePattern: this.getInheritancePattern(),
-      courtJurisdiction: this.getCourtJurisdiction(),
-      probateRegistry: this.getProbateRegistry(),
-      coordinates: this._value.gpsCoordinates,
+      coordinates: this.props.gpsCoordinates,
     };
   }
 }

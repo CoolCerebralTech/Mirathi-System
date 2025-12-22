@@ -1221,6 +1221,42 @@ model FamilyRelationship {
   @@index([inheritanceRights], map: "family_relationships_inheritanceRights_idx")
   @@map("family_relationships")
 }
+model Guardianship {
+  id                  String   @id @default(uuid()) @db.Uuid()
+  
+  // Ward reference
+  wardId              String   @unique @db.Uuid()
+  wardInfo            Json     // Snapshot of ward info from Family service
+  
+  // Aggregate state
+  isActive            Boolean  @default(true)
+  establishedDate     DateTime
+  dissolvedDate       DateTime?
+  dissolutionReason   String?
+  
+  // Customary law context
+  customaryLawApplies Boolean  @default(false)
+  customaryDetails    Json?
+  
+  // Court context
+  courtOrder          Json?
+  primaryGuardianId   String?  @db.Uuid()
+  
+  // Versioning
+  version             Int      @default(1)
+  
+  // Timestamps
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
+  polygamousHouses PolygamousHouse[]
+  
+  // Indexes
+  @@index([wardId])
+  @@index([isActive])
+  @@index([establishedDate])
+  @@map("guardianships")
+}
 // =============================================================================
 // GUARDIANSHIP (S. 70-73 LSA)
 // =============================================================================
@@ -1321,6 +1357,8 @@ model PolygamousHouse {
   wivesAgreementDetails  Json?    // {wife1Signed: true, wife2Signed: true}
   // === SUCCESSION PLANNING ===
   successionInstructions String?  @db.Text // Testator instructions per house
+  guardianshipId      String       @db.Uuid()
+  guardianship        Guardianship @relation(fields: [guardianshipId], references: [id], onDelete: Cascade)
   // Audit
   version                 Int      @default(1)
   createdAt               DateTime @default(now())

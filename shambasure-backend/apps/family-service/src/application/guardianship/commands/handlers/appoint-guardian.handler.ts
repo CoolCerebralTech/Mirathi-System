@@ -4,7 +4,7 @@ import { GuardianType } from '@prisma/client';
 
 import { Guardian } from '../../../../domain/entities/guardian.entity';
 import { GuardianDomainException } from '../../../../domain/exceptions/guardianship.exception';
-import { IGuardianRepository } from '../../../../domain/interfaces/repositories/iguardian.repository';
+import { IGuardianRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { AppointGuardianCommand } from '../impl/appoint-guardian.command';
 import { ICommandHandler } from './base.handler';
 

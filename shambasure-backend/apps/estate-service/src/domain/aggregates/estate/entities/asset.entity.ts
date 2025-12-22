@@ -1,15 +1,13 @@
-import { AggregateRoot } from '../../../base/aggregate-root';
-import { UniqueEntityID } from '../../../base/entity';
+// src/domain/aggregates/estate/entities/asset.entity.ts
+import { Entity } from '../../../base/entity';
+import { UniqueEntityID } from '../../../base/unique-entity-id';
 import { Guard } from '../../../core/guard';
 import { Result } from '../../../core/result';
 import { KenyanId } from '../../../shared/kenyan-id.vo';
 import { KenyanLocation } from '../../../shared/kenyan-location.vo';
-import { Currency, Money } from '../../../shared/money.vo';
+import { Money } from '../../../shared/money.vo';
+import { OwnershipPercentage, OwnershipType } from '../../../shared/ownership-percentage.vo';
 import { Percentage } from '../../../shared/percentage.vo';
-import { AssetAddedToEstateEvent } from '../events/asset-added.event';
-import { AssetEncumberedEvent } from '../events/asset-encumbered.event';
-import { AssetLifeInterestCreatedEvent } from '../events/asset-life-interest-created.event';
-import { AssetValueUpdatedEvent } from '../events/asset-value-updated.event';
 import {
   AssetDetails,
   AssetType,
@@ -17,19 +15,10 @@ import {
   FinancialAssetDetails,
   LandAssetDetails,
   VehicleAssetDetails,
-  isBusinessAssetDetails,
-  isFinancialAssetDetails,
   isLandAssetDetails,
   isVehicleAssetDetails,
 } from '../value-objects/asset-details.vo';
 import { Valuation } from '../value-objects/valuation.vo';
-
-export enum AssetOwnershipType {
-  SOLE = 'SOLE',
-  JOINT_TENANCY = 'JOINT_TENANCY',
-  TENANCY_IN_COMMON = 'TENANCY_IN_COMMON',
-  COMMUNITY_PROPERTY = 'COMMUNITY_PROPERTY',
-}
 
 export enum AssetVerificationStatus {
   UNVERIFIED = 'UNVERIFIED',
@@ -48,7 +37,16 @@ export enum AssetEncumbranceType {
   OTHER = 'OTHER',
 }
 
+export enum AssetStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  FROZEN = 'FROZEN', // Court order or dispute
+  TRANSFERRED = 'TRANSFERRED',
+  LIQUIDATED = 'LIQUIDATED',
+}
+
 interface AssetProps {
+  // Core Identifiers
   estateId: UniqueEntityID;
   ownerId: UniqueEntityID;
 
@@ -57,63 +55,100 @@ interface AssetProps {
   description: string | null;
   type: AssetType;
 
-  // Ownership Details
-  ownershipType: AssetOwnershipType;
-  ownershipShare: Percentage;
+  // Ownership Structure (Kenyan Law)
+  ownershipPercentage: OwnershipPercentage;
 
-  // Legal Status
+  // Legal Status (Matrimonial Property Act 2013)
   isMatrimonialProperty: boolean;
   acquiredDuringMarriage: boolean;
   spouseConsentObtained: boolean;
   spouseConsentDate: Date | null;
+  spouseConsentDocumentId: string | null;
 
   // Life Interest (S. 35(1)(b) LSA)
   hasLifeInterest: boolean;
   lifeInterestHolderId: UniqueEntityID | null;
-  lifeInterestEndsAt: Date | null;
+  lifeInterestHolderName: string | null;
+  lifeInterestStartDate: Date | null;
+  lifeInterestEndDate: Date | null;
+  lifeInterestPurpose: string | null;
+  lifeInterestRegistered: boolean; // Registered with Lands Registry
 
-  // Encumbrance
+  // Encumbrance & Security
   isEncumbered: boolean;
   encumbranceType: AssetEncumbranceType | null;
   encumbranceAmount: Money | null;
+  encumbranceDate: Date | null;
   encumbranceDetails: string | null;
+  encumbranceDocumentId: string | null;
 
-  // Probate Requirements
+  // Probate & Succession Requirements
   requiresProbate: boolean;
+  probateRequirementNotes: string | null;
+  includedInEstateInventory: boolean;
+  inventoryDate: Date | null;
 
-  // Verification
+  // Verification & Compliance
   verificationStatus: AssetVerificationStatus;
   verifiedBy: UniqueEntityID | null;
   verifiedAt: Date | null;
+  verificationMethod: string | null; // "TITLE_DEED_VERIFICATION", "BANK_CONFIRMATION", etc.
   rejectionReason: string | null;
+  verificationDocumentId: string | null;
 
-  // Kenyan Identification
+  // Kenyan Registration & Identification
   titleDeedNumber: string | null;
   registrationNumber: string | null;
   kraPin: KenyanId | null;
+  landReferenceNumber: string | null; // For agricultural land
+  parcelNumber: string | null;
   identificationDetails: Record<string, any> | null;
 
-  // Location
+  // Location & Physical Details
   location: KenyanLocation | null;
+  gpsCoordinates: string | null;
+  physicalAddress: string | null;
 
-  // Polymorphic Details
+  // Polymorphic Asset Details
   details: AssetDetails | null;
 
-  // Valuation
+  // Valuation & Financial Tracking
   currentValuation: Valuation | null;
   valuationHistory: Valuation[];
+  purchasePrice: Money | null;
+  purchaseDate: Date | null;
+  acquisitionMethod: string | null; // "PURCHASE", "INHERITANCE", "GIFT", "SETTLEMENT"
 
-  // Co-owners (stored as IDs, managed by separate aggregate)
+  // Co-ownership Structure
   coOwnerIds: UniqueEntityID[];
+  coOwnerShares: Map<string, Percentage>; // coOwnerId -> percentage
 
-  // Management
-  isActive: boolean;
-  deletedAt: Date | null;
+  // Management & Status
+  status: AssetStatus;
+  isManagedByExecutor: boolean;
+  executorManagementStartDate: Date | null;
+
+  // Kenyan Tax Compliance
+  stampDutyPaid: boolean;
+  stampDutyAmount: Money | null;
+  stampDutyReceiptNumber: string | null;
+  capitalGainsTaxLiability: Money | null;
+  cgtPaid: boolean;
+  cgtReceiptNumber: string | null;
+
+  // Transfer & Transmission
+  transferRestrictions: string | null;
+  transmissionRequirements: string[];
+
+  // Audit & Metadata
+  createdBy: UniqueEntityID | null;
+  lastModifiedBy: UniqueEntityID | null;
+  notes: string | null;
 }
 
-export class Asset extends AggregateRoot<AssetProps> {
+export class Asset extends Entity<AssetProps> {
   private constructor(props: AssetProps, id?: UniqueEntityID) {
-    super(props, id);
+    super(id, props);
   }
 
   public static create(
@@ -123,16 +158,15 @@ export class Asset extends AggregateRoot<AssetProps> {
       name: string;
       description?: string;
       type: AssetType;
-      ownershipType?: AssetOwnershipType;
+      ownershipType?: OwnershipType;
       ownershipShare?: number;
-      isMatrimonialProperty?: boolean;
-      acquiredDuringMarriage?: boolean;
       details?: AssetDetails;
       location?: KenyanLocation;
       titleDeedNumber?: string;
       registrationNumber?: string;
       kraPin?: KenyanId;
       requiresProbate?: boolean;
+      createdBy?: string;
     },
     id?: string,
   ): Result<Asset> {
@@ -152,10 +186,15 @@ export class Asset extends AggregateRoot<AssetProps> {
       return Result.fail<Asset>('Asset name must be at least 2 characters');
     }
 
-    // Create ownership share percentage
-    const ownershipShareResult = Percentage.create(props.ownershipShare || 100);
-    if (ownershipShareResult.isFailure) {
-      return Result.fail<Asset>(ownershipShareResult.errorValue());
+    // Validate ownership share percentage
+    const ownershipShare = props.ownershipShare || 100;
+    const ownershipPercentageResult = OwnershipPercentage.create(
+      ownershipShare,
+      props.ownershipType || OwnershipType.SOLE,
+    );
+
+    if (ownershipPercentageResult.isFailure) {
+      return Result.fail<Asset>(ownershipPercentageResult.errorValue());
     }
 
     // Validate details match type
@@ -165,9 +204,21 @@ export class Asset extends AggregateRoot<AssetProps> {
       );
     }
 
+    // Kenyan-specific validations
+    if (props.type === AssetType.LAND_PARCEL && !props.titleDeedNumber) {
+      return Result.warn<Asset>(
+        'Land assets should have a title deed number for proper registration',
+      );
+    }
+
+    if (props.type === AssetType.FINANCIAL_ASSET && !props.registrationNumber) {
+      return Result.warn<Asset>('Financial assets should have account/registration numbers');
+    }
+
     const assetId = id ? new UniqueEntityID(id) : new UniqueEntityID();
     const estateId = new UniqueEntityID(props.estateId);
     const ownerId = new UniqueEntityID(props.ownerId);
+    const createdBy = props.createdBy ? new UniqueEntityID(props.createdBy) : null;
 
     const defaultProps: AssetProps = {
       estateId,
@@ -175,82 +226,103 @@ export class Asset extends AggregateRoot<AssetProps> {
       name: props.name.trim(),
       description: props.description?.trim() || null,
       type: props.type,
-      ownershipType: props.ownershipType || AssetOwnershipType.SOLE,
-      ownershipShare: ownershipShareResult.getValue(),
-      isMatrimonialProperty: props.isMatrimonialProperty || false,
-      acquiredDuringMarriage: props.acquiredDuringMarriage || false,
+      ownershipPercentage: ownershipPercentageResult.getValue(),
+      isMatrimonialProperty: false,
+      acquiredDuringMarriage: false,
       spouseConsentObtained: false,
       spouseConsentDate: null,
+      spouseConsentDocumentId: null,
       hasLifeInterest: false,
       lifeInterestHolderId: null,
-      lifeInterestEndsAt: null,
+      lifeInterestHolderName: null,
+      lifeInterestStartDate: null,
+      lifeInterestEndDate: null,
+      lifeInterestPurpose: null,
+      lifeInterestRegistered: false,
       isEncumbered: false,
       encumbranceType: null,
       encumbranceAmount: null,
+      encumbranceDate: null,
       encumbranceDetails: null,
+      encumbranceDocumentId: null,
       requiresProbate: props.requiresProbate !== undefined ? props.requiresProbate : true,
+      probateRequirementNotes: null,
+      includedInEstateInventory: false,
+      inventoryDate: null,
       verificationStatus: AssetVerificationStatus.UNVERIFIED,
       verifiedBy: null,
       verifiedAt: null,
+      verificationMethod: null,
       rejectionReason: null,
+      verificationDocumentId: null,
       titleDeedNumber: props.titleDeedNumber || null,
       registrationNumber: props.registrationNumber || null,
       kraPin: props.kraPin || null,
+      landReferenceNumber: null,
+      parcelNumber: null,
       identificationDetails: null,
       location: props.location || null,
+      gpsCoordinates: null,
+      physicalAddress: null,
       details: props.details || null,
       currentValuation: null,
       valuationHistory: [],
+      purchasePrice: null,
+      purchaseDate: null,
+      acquisitionMethod: null,
       coOwnerIds: [],
-      isActive: true,
-      deletedAt: null,
+      coOwnerShares: new Map(),
+      status: AssetStatus.ACTIVE,
+      isManagedByExecutor: false,
+      executorManagementStartDate: null,
+      stampDutyPaid: false,
+      stampDutyAmount: null,
+      stampDutyReceiptNumber: null,
+      capitalGainsTaxLiability: null,
+      cgtPaid: false,
+      cgtReceiptNumber: null,
+      transferRestrictions: null,
+      transmissionRequirements: [],
+      createdBy,
+      lastModifiedBy: createdBy,
+      notes: null,
     };
 
     const asset = new Asset(defaultProps, assetId);
-
-    // Add domain event for asset creation
-    asset.addDomainEvent(
-      new AssetAddedToEstateEvent({
-        assetId: asset.id.toString(),
-        estateId: asset.props.estateId.toString(),
-        assetType: asset.props.type,
-        assetName: asset.props.name,
-        createdAt: new Date(),
-      }),
-    );
-
     return Result.ok<Asset>(asset);
   }
 
   // ==================== BUSINESS METHODS ====================
 
-  // Valuation Management
-  public addValuation(valuation: Valuation): Result<void> {
-    // Validate valuation
+  // VALUATION MANAGEMENT
+  public addValuation(valuation: Valuation, valuedBy: string): Result<void> {
     if (!valuation) {
       return Result.fail('Valuation cannot be null');
     }
 
-    // For Kenyan probate, land valuations must be by registered valuer
+    // Kenyan legal requirement: Land valuations for probate must be by registered valuer
     if (this.props.type === AssetType.LAND_PARCEL && this.props.requiresProbate) {
       if (!valuation.props.isRegisteredValuer) {
         return Result.fail('Land assets for probate require valuation by registered valuer');
       }
+
+      if (!valuation.props.valuerRegistrationNumber) {
+        return Result.fail('Registered valuer registration number is required for land valuation');
+      }
     }
 
+    // Update valuation
     this.props.currentValuation = valuation;
     this.props.valuationHistory.push(valuation);
+    this.props.lastModifiedBy = new UniqueEntityID(valuedBy);
 
-    this.addDomainEvent(
-      new AssetValueUpdatedEvent({
-        assetId: this.id.toString(),
-        newValue: valuation.props.value.amount,
-        currency: valuation.props.value.currency,
-        valuedBy: valuation.props.valuedBy,
-        valuationDate: valuation.props.valuationDate,
-        valuationPurpose: valuation.props.purpose,
-      }),
-    );
+    // If valuation shows significant increase, check for capital gains tax
+    if (
+      this.props.purchasePrice &&
+      valuation.props.value.amount > this.props.purchasePrice.amount * 1.1
+    ) {
+      this.props.capitalGainsTaxLiability = this.calculateCapitalGainsTax();
+    }
 
     return Result.ok();
   }
@@ -259,13 +331,39 @@ export class Asset extends AggregateRoot<AssetProps> {
     return this.props.currentValuation?.props.value || null;
   }
 
-  // Encumbrance Management
+  public getNetValue(): Money | null {
+    const currentValue = this.getCurrentValue();
+    if (!currentValue) return null;
+
+    // Subtract encumbrances
+    if (this.props.isEncumbered && this.props.encumbranceAmount) {
+      return currentValue.subtract(this.props.encumbranceAmount);
+    }
+
+    return currentValue;
+  }
+
+  private calculateCapitalGainsTax(): Money | null {
+    if (!this.props.purchasePrice || !this.props.currentValuation) {
+      return null;
+    }
+
+    const gain = this.props.currentValuation.props.value.amount - this.props.purchasePrice.amount;
+    if (gain <= 0) return null;
+
+    // Kenya CGT rate: 5% of gain (subject to exemptions)
+    const cgtAmount = gain * 0.05;
+    return Money.createKES(cgtAmount);
+  }
+
+  // ENCUMBRANCE MANAGEMENT
   public addEncumbrance(
     encumbranceType: AssetEncumbranceType,
     amount: Money,
     details: string,
+    documentId?: string,
+    effectiveDate?: Date,
   ): Result<void> {
-    // Validate
     if (this.props.isEncumbered) {
       return Result.fail('Asset is already encumbered');
     }
@@ -274,7 +372,7 @@ export class Asset extends AggregateRoot<AssetProps> {
       return Result.fail('Encumbrance amount must be positive');
     }
 
-    // For Kenyan law: Mortgage must be registered
+    // Kenyan law: Mortgage must be registered with Lands Registry
     if (
       encumbranceType === AssetEncumbranceType.MORTGAGE &&
       this.props.type === AssetType.LAND_PARCEL
@@ -288,155 +386,167 @@ export class Asset extends AggregateRoot<AssetProps> {
     this.props.encumbranceType = encumbranceType;
     this.props.encumbranceAmount = amount;
     this.props.encumbranceDetails = details;
+    this.props.encumbranceDocumentId = documentId || null;
+    this.props.encumbranceDate = effectiveDate || new Date();
 
-    this.addDomainEvent(
-      new AssetEncumberedEvent({
-        assetId: this.id.toString(),
-        encumbranceType,
-        amount: amount.amount,
-        currency: amount.currency,
-        details,
-        encumberedAt: new Date(),
-      }),
-    );
+    // Encumbered assets may have transfer restrictions
+    this.addTransferRestriction('Subject to encumbrance - Transfer requires lender consent');
 
     return Result.ok();
   }
 
-  public removeEncumbrance(): Result<void> {
+  public releaseEncumbrance(
+    releaseDocumentId: string,
+    releasedBy: string,
+    releaseDate: Date = new Date(),
+  ): Result<void> {
     if (!this.props.isEncumbered) {
       return Result.fail('Asset is not encumbered');
     }
+
+    // Create release note
+    const releaseNote = `Encumbrance released on ${releaseDate.toISOString()} by ${releasedBy}. Document: ${releaseDocumentId}`;
+    this.addNote(releaseNote);
 
     this.props.isEncumbered = false;
     this.props.encumbranceType = null;
     this.props.encumbranceAmount = null;
     this.props.encumbranceDetails = null;
+    this.props.lastModifiedBy = new UniqueEntityID(releasedBy);
+
+    // Remove encumbrance restriction
+    this.removeTransferRestriction('Subject to encumbrance - Transfer requires lender consent');
 
     return Result.ok();
   }
 
-  // Life Interest Management (S. 35(1)(b) LSA)
-  public addLifeInterest(
+  // LIFE INTEREST MANAGEMENT (S. 35(1)(b) LSA)
+  public createLifeInterest(
     holderId: string,
-    endsAt: Date,
-    reason: string = 'Surviving spouse life interest under S.35(1)(b) LSA',
+    holderName: string,
+    endDate: Date,
+    purpose: string = 'Surviving spouse life interest under S.35(1)(b) LSA',
+    startDate?: Date,
   ): Result<void> {
-    // Validate
     if (this.props.hasLifeInterest) {
       return Result.fail('Asset already has a life interest');
     }
 
-    if (endsAt <= new Date()) {
+    if (endDate <= new Date()) {
       return Result.fail('Life interest end date must be in the future');
     }
 
     // Only certain assets can have life interests under Kenyan law
-    if (![AssetType.LAND_PARCEL, AssetType.PROPERTY].includes(this.props.type)) {
-      return Result.fail('Life interests can only be created on land or property assets');
+    if (
+      ![AssetType.LAND_PARCEL, AssetType.PROPERTY, AssetType.BUSINESS_INTEREST].includes(
+        this.props.type,
+      )
+    ) {
+      return Result.fail(
+        'Life interests can only be created on land, property, or business assets',
+      );
     }
 
-    // Must be matrimonial property for spouse life interest
-    if (!this.props.isMatrimonialProperty) {
-      return Result.warn('Creating life interest on non-matrimonial property');
-    }
+    // Land assets: Life interest should be registered
+    const shouldRegister = this.props.type === AssetType.LAND_PARCEL;
 
     this.props.hasLifeInterest = true;
     this.props.lifeInterestHolderId = new UniqueEntityID(holderId);
-    this.props.lifeInterestEndsAt = endsAt;
+    this.props.lifeInterestHolderName = holderName;
+    this.props.lifeInterestStartDate = startDate || new Date();
+    this.props.lifeInterestEndDate = endDate;
+    this.props.lifeInterestPurpose = purpose;
+    this.props.lifeInterestRegistered = shouldRegister;
 
-    this.addDomainEvent(
-      new AssetLifeInterestCreatedEvent({
-        assetId: this.id.toString(),
-        holderId,
-        endsAt,
-        reason,
-        createdAt: new Date(),
-      }),
+    // Add transfer restriction
+    this.addTransferRestriction(
+      'Subject to life interest - Transfer requires life interest holder consent',
+    );
+
+    if (shouldRegister) {
+      this.addTransferRequirement('Life interest registration with Lands Registry');
+    }
+
+    return Result.ok();
+  }
+
+  public terminateLifeInterest(
+    terminationReason: string,
+    terminatedBy: string,
+    terminationDate: Date = new Date(),
+  ): Result<void> {
+    if (!this.props.hasLifeInterest) {
+      return Result.fail('Asset does not have a life interest');
+    }
+
+    // Check if termination is before end date
+    if (this.props.lifeInterestEndDate && terminationDate < this.props.lifeInterestEndDate) {
+      this.addNote(`Life interest terminated early: ${terminationReason}`);
+    }
+
+    this.props.hasLifeInterest = false;
+    this.props.lifeInterestHolderId = null;
+    this.props.lifeInterestHolderName = null;
+    this.props.lifeInterestEndDate = terminationDate;
+    this.props.lastModifiedBy = new UniqueEntityID(terminatedBy);
+
+    // Remove life interest restriction
+    this.removeTransferRestriction(
+      'Subject to life interest - Transfer requires life interest holder consent',
     );
 
     return Result.ok();
   }
 
-  public terminateLifeInterest(): Result<void> {
-    if (!this.props.hasLifeInterest) {
-      return Result.fail('Asset does not have a life interest');
-    }
-
-    this.props.hasLifeInterest = false;
-    this.props.lifeInterestHolderId = null;
-    this.props.lifeInterestEndsAt = null;
-
-    return Result.ok();
-  }
-
-  // Matrimonial Property Management (Matrimonial Property Act 2013)
-  public markAsMatrimonialProperty(
+  // MATRIMONIAL PROPERTY MANAGEMENT (Matrimonial Property Act 2013)
+  public classifyAsMatrimonialProperty(
     acquiredDuringMarriage: boolean,
-    spouseConsentObtained: boolean,
-    spouseConsentDate?: Date,
+    spouseConsentDetails?: {
+      obtained: boolean;
+      consentDate?: Date;
+      documentId?: string;
+    },
   ): Result<void> {
     // Only certain assets can be matrimonial property
-    if (
-      [
-        AssetType.LAND_PARCEL,
-        AssetType.PROPERTY,
-        AssetType.FINANCIAL_ASSET,
-        AssetType.BUSINESS_INTEREST,
-      ].includes(this.props.type)
-    ) {
-      this.props.isMatrimonialProperty = true;
-      this.props.acquiredDuringMarriage = acquiredDuringMarriage;
-      this.props.spouseConsentObtained = spouseConsentObtained;
-      this.props.spouseConsentDate = spouseConsentDate || null;
-      return Result.ok();
+    const eligibleTypes = [
+      AssetType.LAND_PARCEL,
+      AssetType.PROPERTY,
+      AssetType.FINANCIAL_ASSET,
+      AssetType.BUSINESS_INTEREST,
+      AssetType.VEHICLE,
+    ];
+
+    if (!eligibleTypes.includes(this.props.type)) {
+      return Result.fail(
+        'This asset type cannot be classified as matrimonial property under Kenyan law',
+      );
     }
 
-    return Result.fail('This asset type cannot be classified as matrimonial property');
-  }
+    this.props.isMatrimonialProperty = true;
+    this.props.acquiredDuringMarriage = acquiredDuringMarriage;
 
-  // Verification Workflow
-  public markAsVerified(verifiedBy: string, notes?: string): Result<void> {
-    if (this.props.verificationStatus === AssetVerificationStatus.VERIFIED) {
-      return Result.fail('Asset is already verified');
+    if (spouseConsentDetails) {
+      this.props.spouseConsentObtained = spouseConsentDetails.obtained;
+      this.props.spouseConsentDate = spouseConsentDetails.consentDate || null;
+      this.props.spouseConsentDocumentId = spouseConsentDetails.documentId || null;
     }
 
-    // Land assets require title deed verification
-    if (this.props.type === AssetType.LAND_PARCEL && !this.props.titleDeedNumber) {
-      return Result.fail('Land assets require title deed number for verification');
+    // Matrimonial property may have special transfer requirements
+    if (!acquiredDuringMarriage) {
+      this.addTransferRestriction(
+        'Non-matrimonial property - May require court order for transfer',
+      );
     }
-
-    this.props.verificationStatus = AssetVerificationStatus.VERIFIED;
-    this.props.verifiedBy = new UniqueEntityID(verifiedBy);
-    this.props.verifiedAt = new Date();
 
     return Result.ok();
   }
 
-  public rejectVerification(rejectedBy: string, reason: string): Result<void> {
-    if (this.props.verificationStatus === AssetVerificationStatus.REJECTED) {
-      return Result.fail('Asset is already rejected');
-    }
-
-    this.props.verificationStatus = AssetVerificationStatus.REJECTED;
-    this.props.verifiedBy = new UniqueEntityID(rejectedBy);
-    this.props.verifiedAt = new Date();
-    this.props.rejectionReason = reason;
-
-    return Result.ok();
-  }
-
-  // Co-owner Management
-  public addCoOwner(coOwnerId: string, sharePercentage: number): Result<void> {
+  // CO-OWNERSHIP MANAGEMENT
+  public addCoOwner(coOwnerId: string, sharePercentage: number, modifiedBy: string): Result<void> {
     // Validate share percentage
     const shareResult = Percentage.create(sharePercentage);
     if (shareResult.isFailure) {
       return Result.fail(shareResult.errorValue());
-    }
-
-    const totalShare = this.props.coOwnerIds.length * 100 + sharePercentage;
-    if (totalShare > 100) {
-      return Result.fail('Total co-owner shares cannot exceed 100%');
     }
 
     const ownerId = new UniqueEntityID(coOwnerId);
@@ -446,17 +556,48 @@ export class Asset extends AggregateRoot<AssetProps> {
       return Result.fail('User is already a co-owner of this asset');
     }
 
+    // Calculate total shares
+    let totalShare = this.props.ownershipPercentage.percentage;
+    this.props.coOwnerShares.forEach((share) => {
+      totalShare += share.percentage;
+    });
+
+    if (totalShare + sharePercentage > 100) {
+      return Result.fail('Total co-owner shares cannot exceed 100%');
+    }
+
+    // Add co-owner
     this.props.coOwnerIds.push(ownerId);
+    this.props.coOwnerShares.set(coOwnerId, shareResult.getValue());
+    this.props.lastModifiedBy = new UniqueEntityID(modifiedBy);
 
     // Update ownership type if needed
-    if (this.props.coOwnerIds.length > 0 && this.props.ownershipType === AssetOwnershipType.SOLE) {
-      this.props.ownershipType = AssetOwnershipType.TENANCY_IN_COMMON;
+    if (this.props.coOwnerIds.length > 0) {
+      // If it was sole ownership, change to tenancy in common
+      if (this.props.ownershipPercentage.percentage === 100) {
+        // Adjust main owner's share
+        const newMainShare = 100 - sharePercentage;
+        const ownershipResult = OwnershipPercentage.create(
+          newMainShare,
+          OwnershipType.TENANCY_IN_COMMON,
+        );
+
+        if (ownershipResult.isFailure) {
+          return Result.fail(ownershipResult.errorValue());
+        }
+
+        this.props.ownershipPercentage = ownershipResult.getValue();
+      }
     }
 
     return Result.ok();
   }
 
-  public removeCoOwner(coOwnerId: string): Result<void> {
+  public removeCoOwner(
+    coOwnerId: string,
+    modifiedBy: string,
+    redistributionMethod: 'TO_MAIN_OWNER' | 'TO_OTHER_COOWNERS' = 'TO_MAIN_OWNER',
+  ): Result<void> {
     const ownerId = new UniqueEntityID(coOwnerId);
     const index = this.props.coOwnerIds.findIndex((id) => id.equals(ownerId));
 
@@ -464,124 +605,305 @@ export class Asset extends AggregateRoot<AssetProps> {
       return Result.fail('User is not a co-owner of this asset');
     }
 
+    // Get the share of the removed co-owner
+    const removedShare = this.props.coOwnerShares.get(coOwnerId);
+    if (!removedShare) {
+      return Result.fail('Co-owner share not found');
+    }
+
+    // Remove co-owner
     this.props.coOwnerIds.splice(index, 1);
+    this.props.coOwnerShares.delete(coOwnerId);
 
-    // Revert to sole ownership if no co-owners left
+    // Redistribute the share
+    if (redistributionMethod === 'TO_MAIN_OWNER') {
+      // Add to main owner's share
+      const newMainShare = this.props.ownershipPercentage.percentage + removedShare.percentage;
+      const ownershipResult = OwnershipPercentage.create(
+        newMainShare,
+        this.props.ownershipPercentage.ownershipType,
+      );
+
+      if (ownershipResult.isFailure) {
+        return Result.fail(ownershipResult.errorValue());
+      }
+
+      this.props.ownershipPercentage = ownershipResult.getValue();
+    } else {
+      // Distribute equally among remaining co-owners
+      const remainingCoOwners = this.props.coOwnerIds.length;
+      if (remainingCoOwners > 0) {
+        const sharePerCoOwner = removedShare.percentage / remainingCoOwners;
+
+        this.props.coOwnerIds.forEach((id) => {
+          const currentShare = this.props.coOwnerShares.get(id.toString());
+          if (currentShare) {
+            const newShare = currentShare.percentage + sharePerCoOwner;
+            const newShareResult = Percentage.create(newShare);
+            if (newShareResult.isSuccess) {
+              this.props.coOwnerShares.set(id.toString(), newShareResult.getValue());
+            }
+          }
+        });
+      }
+    }
+
+    // If no co-owners left, revert to sole ownership
     if (this.props.coOwnerIds.length === 0) {
-      this.props.ownershipType = AssetOwnershipType.SOLE;
+      const soleResult = OwnershipPercentage.create(
+        this.props.ownershipPercentage.percentage,
+        OwnershipType.SOLE,
+      );
+
+      if (soleResult.isSuccess) {
+        this.props.ownershipPercentage = soleResult.getValue();
+      }
     }
 
+    this.props.lastModifiedBy = new UniqueEntityID(modifiedBy);
     return Result.ok();
   }
 
-  // Kenyan Legal Compliance Methods
-  public getProbateRequirements(): string[] {
-    const requirements: string[] = [];
-
-    if (this.props.requiresProbate) {
-      requirements.push('Requires inclusion in probate inventory');
-
-      if (this.props.type === AssetType.LAND_PARCEL) {
-        requirements.push('Original title deed or certified copy');
-        requirements.push('Land rates clearance certificate');
-        requirements.push('Survey map from Survey of Kenya');
-      }
-
-      if (this.props.type === AssetType.FINANCIAL_ASSET) {
-        requirements.push('Bank statements as at date of death');
-        requirements.push('Death certificate notification to bank');
-      }
-
-      if (this.props.type === AssetType.VEHICLE) {
-        requirements.push('Original logbook');
-        requirements.push('NTSA transfer forms');
-      }
-
-      if (this.props.type === AssetType.BUSINESS_INTEREST) {
-        requirements.push('Company registry search certificate');
-        requirements.push('Share certificate');
-      }
-    }
-
-    return requirements;
-  }
-
-  public calculateNetValue(): Money | null {
-    const currentValue = this.getCurrentValue();
-    if (!currentValue) return null;
-
-    if (this.props.isEncumbered && this.props.encumbranceAmount) {
-      return currentValue.subtract(this.props.encumbranceAmount);
-    }
-
-    return currentValue;
-  }
-
-  public getTransferRequirements(): string[] {
-    const requirements: string[] = [
-      'Grant of representation (probate or letters of administration)',
-    ];
-
-    if (this.props.isEncumbered) {
-      requirements.push('Encumbrance clearance from lender');
-    }
-
-    if (this.props.hasLifeInterest) {
-      requirements.push('Life interest termination or consent');
-    }
-
-    if (this.props.isMatrimonialProperty) {
-      requirements.push('Spouse consent if not the surviving spouse');
-    }
-
-    if (this.props.coOwnerIds.length > 0) {
-      requirements.push('Co-owner consent for transfer');
-    }
-
-    // Type-specific requirements
-    if (isLandAssetDetails(this.props.details)) {
-      requirements.push('Stamp duty payment (KRA)');
-      requirements.push('Capital Gains Tax clearance if applicable');
-      requirements.push('Land control board consent for agricultural land');
-    }
-
-    if (isVehicleAssetDetails(this.props.details)) {
-      requirements.push('NTSA transfer fee payment');
-      requirements.push('Insurance transfer');
-    }
-
-    return requirements;
-  }
-
-  // Soft Delete
-  public delete(deletedBy: string, reason: string): Result<void> {
-    if (this.props.deletedAt) {
-      return Result.fail('Asset is already deleted');
-    }
-
-    // Cannot delete assets with encumbrances
-    if (this.props.isEncumbered) {
-      return Result.fail('Cannot delete encumbered asset');
-    }
-
-    // Cannot delete verified assets without proper authorization
+  // VERIFICATION WORKFLOW
+  public markAsVerified(
+    verifiedBy: string,
+    method: string,
+    documentId?: string,
+    notes?: string,
+  ): Result<void> {
     if (this.props.verificationStatus === AssetVerificationStatus.VERIFIED) {
-      return Result.warn('Deleting verified asset requires audit trail');
+      return Result.fail('Asset is already verified');
     }
 
-    this.props.deletedAt = new Date();
-    this.props.isActive = false;
+    // Asset-specific verification requirements
+    if (this.props.type === AssetType.LAND_PARCEL && !this.props.titleDeedNumber) {
+      return Result.fail('Land assets require title deed number for verification');
+    }
+
+    if (this.props.type === AssetType.FINANCIAL_ASSET && !this.props.registrationNumber) {
+      return Result.warn('Verifying financial asset without registration number');
+    }
+
+    this.props.verificationStatus = AssetVerificationStatus.VERIFIED;
+    this.props.verifiedBy = new UniqueEntityID(verifiedBy);
+    this.props.verifiedAt = new Date();
+    this.props.verificationMethod = method;
+    this.props.verificationDocumentId = documentId || null;
+    this.props.lastModifiedBy = new UniqueEntityID(verifiedBy);
+
+    if (notes) {
+      this.addNote(`Verification: ${notes}`);
+    }
 
     return Result.ok();
   }
 
-  public restore(): Result<void> {
-    if (!this.props.deletedAt) {
-      return Result.fail('Asset is not deleted');
+  public rejectVerification(
+    rejectedBy: string,
+    reason: string,
+    suggestedAction?: string,
+  ): Result<void> {
+    if (this.props.verificationStatus === AssetVerificationStatus.REJECTED) {
+      return Result.fail('Asset is already rejected');
     }
 
-    this.props.deletedAt = null;
-    this.props.isActive = true;
+    this.props.verificationStatus = AssetVerificationStatus.REJECTED;
+    this.props.verifiedBy = new UniqueEntityID(rejectedBy);
+    this.props.verifiedAt = new Date();
+    this.props.rejectionReason = reason;
+    this.props.lastModifiedBy = new UniqueEntityID(rejectedBy);
+
+    const rejectionNote = `Verification rejected: ${reason}`;
+    if (suggestedAction) {
+      this.addNote(`${rejectionNote}. Suggested action: ${suggestedAction}`);
+    } else {
+      this.addNote(rejectionNote);
+    }
+
+    return Result.ok();
+  }
+
+  public markAsDisputed(
+    disputedBy: string,
+    disputeReason: string,
+    caseReference?: string,
+  ): Result<void> {
+    this.props.verificationStatus = AssetVerificationStatus.DISPUTED;
+    this.props.lastModifiedBy = new UniqueEntityID(disputedBy);
+
+    const disputeNote = `Asset disputed by ${disputedBy}: ${disputeReason}`;
+    if (caseReference) {
+      this.addNote(`${disputeNote}. Case reference: ${caseReference}`);
+    } else {
+      this.addNote(disputeNote);
+    }
+
+    // Freeze asset during dispute
+    this.freezeAsset('Asset under legal dispute');
+
+    return Result.ok();
+  }
+
+  // PROBATE & ESTATE MANAGEMENT
+  public includeInEstateInventory(inventoryDate: Date = new Date()): Result<void> {
+    if (this.props.includedInEstateInventory) {
+      return Result.fail('Asset already included in estate inventory');
+    }
+
+    this.props.includedInEstateInventory = true;
+    this.props.inventoryDate = inventoryDate;
+
+    // If asset requires probate but hasn't been verified, flag for attention
+    if (
+      this.props.requiresProbate &&
+      this.props.verificationStatus !== AssetVerificationStatus.VERIFIED
+    ) {
+      this.addNote('Asset included in inventory but requires verification for probate');
+    }
+
+    return Result.ok();
+  }
+
+  public markForProbate(requirements: string[]): Result<void> {
+    this.props.requiresProbate = true;
+    this.props.probateRequirementNotes = requirements.join('; ');
+
+    return Result.ok();
+  }
+
+  // STATUS MANAGEMENT
+  public freezeAsset(reason: string): void {
+    this.props.status = AssetStatus.FROZEN;
+    this.addNote(`Asset frozen: ${reason}`);
+  }
+
+  public unfreezeAsset(): void {
+    if (this.props.status === AssetStatus.FROZEN) {
+      this.props.status = AssetStatus.ACTIVE;
+      this.addNote('Asset unfrozen');
+    }
+  }
+
+  public markAsTransferred(transferredTo: string, transferDate: Date = new Date()): void {
+    this.props.status = AssetStatus.TRANSFERRED;
+    this.addNote(`Asset transferred to ${transferredTo} on ${transferDate.toISOString()}`);
+  }
+
+  public markAsLiquidated(liquidationDetails: string, liquidationDate: Date = new Date()): void {
+    this.props.status = AssetStatus.LIQUIDATED;
+    this.addNote(`Asset liquidated on ${liquidationDate.toISOString()}: ${liquidationDetails}`);
+  }
+
+  public placeUnderExecutorManagement(
+    executorId: string,
+    startDate: Date = new Date(),
+  ): Result<void> {
+    if (this.props.isManagedByExecutor) {
+      return Result.fail('Asset already under executor management');
+    }
+
+    this.props.isManagedByExecutor = true;
+    this.props.executorManagementStartDate = startDate;
+    this.props.lastModifiedBy = new UniqueEntityID(executorId);
+
+    this.addNote(`Asset placed under executor management by ${executorId}`);
+
+    return Result.ok();
+  }
+
+  // TAX COMPLIANCE
+  public recordStampDutyPayment(
+    amount: Money,
+    receiptNumber: string,
+    paymentDate: Date = new Date(),
+  ): Result<void> {
+    if (amount.amount <= 0) {
+      return Result.fail('Stamp duty amount must be positive');
+    }
+
+    this.props.stampDutyPaid = true;
+    this.props.stampDutyAmount = amount;
+    this.props.stampDutyReceiptNumber = receiptNumber;
+
+    this.addNote(
+      `Stamp duty paid: KES ${amount.amount}, Receipt: ${receiptNumber}, Date: ${paymentDate.toISOString()}`,
+    );
+
+    return Result.ok();
+  }
+
+  public recordCapitalGainsTaxPayment(
+    amount: Money,
+    receiptNumber: string,
+    paymentDate: Date = new Date(),
+  ): Result<void> {
+    if (amount.amount <= 0) {
+      return Result.fail('CGT amount must be positive');
+    }
+
+    this.props.cgtPaid = true;
+    this.props.cgtReceiptNumber = receiptNumber;
+
+    this.addNote(
+      `Capital Gains Tax paid: KES ${amount.amount}, Receipt: ${receiptNumber}, Date: ${paymentDate.toISOString()}`,
+    );
+
+    return Result.ok();
+  }
+
+  // TRANSFER REQUIREMENTS MANAGEMENT
+  private addTransferRequirement(requirement: string): void {
+    if (!this.props.transmissionRequirements.includes(requirement)) {
+      this.props.transmissionRequirements.push(requirement);
+    }
+  }
+
+  private addTransferRestriction(restriction: string): void {
+    if (this.props.transferRestrictions) {
+      this.props.transferRestrictions += `; ${restriction}`;
+    } else {
+      this.props.transferRestrictions = restriction;
+    }
+  }
+
+  private removeTransferRestriction(restriction: string): void {
+    if (this.props.transferRestrictions) {
+      this.props.transferRestrictions = this.props.transferRestrictions
+        .split('; ')
+        .filter((r) => r !== restriction)
+        .join('; ');
+    }
+  }
+
+  // HELPER METHODS
+  private addNote(note: string): void {
+    if (this.props.notes) {
+      this.props.notes += `\n${new Date().toISOString()}: ${note}`;
+    } else {
+      this.props.notes = `${new Date().toISOString()}: ${note}`;
+    }
+  }
+
+  public updateLocation(
+    location: KenyanLocation,
+    gpsCoordinates?: string,
+    physicalAddress?: string,
+    updatedBy: string,
+  ): Result<void> {
+    this.props.location = location;
+    this.props.gpsCoordinates = gpsCoordinates || null;
+    this.props.physicalAddress = physicalAddress || null;
+    this.props.lastModifiedBy = new UniqueEntityID(updatedBy);
+
+    return Result.ok();
+  }
+
+  public updateIdentificationDetails(
+    details: Record<string, any>,
+    updatedBy: string,
+  ): Result<void> {
+    this.props.identificationDetails = details;
+    this.props.lastModifiedBy = new UniqueEntityID(updatedBy);
 
     return Result.ok();
   }
@@ -608,12 +930,8 @@ export class Asset extends AggregateRoot<AssetProps> {
     return this.props.type;
   }
 
-  get ownershipType(): AssetOwnershipType {
-    return this.props.ownershipType;
-  }
-
-  get ownershipShare(): Percentage {
-    return this.props.ownershipShare;
+  get ownershipPercentage(): OwnershipPercentage {
+    return this.props.ownershipPercentage;
   }
 
   get isMatrimonialProperty(): boolean {
@@ -648,42 +966,122 @@ export class Asset extends AggregateRoot<AssetProps> {
     return this.props.location;
   }
 
+  get status(): AssetStatus {
+    return this.props.status;
+  }
+
   get coOwnerIds(): UniqueEntityID[] {
     return [...this.props.coOwnerIds];
   }
 
-  get isActive(): boolean {
-    return this.props.isActive;
+  get coOwnerShares(): Map<string, Percentage> {
+    return new Map(this.props.coOwnerShares);
   }
 
-  get deletedAt(): Date | null {
-    return this.props.deletedAt;
-  }
-
-  // Computed properties
+  // COMPUTED PROPERTIES
   get canBeTransferred(): boolean {
     return (
-      this.props.isActive &&
+      this.props.status === AssetStatus.ACTIVE &&
       this.props.verificationStatus === AssetVerificationStatus.VERIFIED &&
-      !this.props.deletedAt
+      !this.props.isEncumbered &&
+      !this.props.hasLifeInterest
     );
-  }
-
-  get isJointTenancy(): boolean {
-    return this.props.ownershipType === AssetOwnershipType.JOINT_TENANCY;
   }
 
   get hasRightOfSurvivorship(): boolean {
     // Joint tenancy assets pass automatically to surviving owners
-    return this.isJointTenancy;
+    return this.props.ownershipPercentage.ownershipType === OwnershipType.JOINT_TENANCY;
   }
 
   get isSubjectToHotchpot(): boolean {
-    // Gifts inter vivos are subject to hotchpot under S.35(3)
-    return false; // This would be determined by GiftInterVivos entity
+    // This would be determined by GiftInterVivos entity
+    return false;
   }
 
-  // Static factory for specific asset types
+  get probateRequirements(): string[] {
+    const requirements: string[] = [];
+
+    if (this.props.requiresProbate) {
+      requirements.push('Requires inclusion in probate inventory');
+
+      if (this.props.type === AssetType.LAND_PARCEL) {
+        requirements.push('Original title deed or certified copy');
+        requirements.push('Land rates clearance certificate');
+        requirements.push('Survey map from Survey of Kenya');
+        requirements.push('Land Control Board consent for agricultural land');
+      }
+
+      if (this.props.type === AssetType.FINANCIAL_ASSET) {
+        requirements.push('Bank statements as at date of death');
+        requirements.push('Death certificate notification to bank');
+        requirements.push('KRA PIN certificate for deceased');
+      }
+
+      if (this.props.type === AssetType.VEHICLE) {
+        requirements.push('Original logbook');
+        requirements.push('NTSA transfer forms');
+        requirements.push('Insurance clearance');
+      }
+
+      if (this.props.type === AssetType.BUSINESS_INTEREST) {
+        requirements.push('Company registry search certificate');
+        requirements.push('Share certificate');
+        requirements.push('Board resolution for transfer');
+      }
+
+      // Add custom requirements
+      if (this.props.probateRequirementNotes) {
+        requirements.push(...this.props.probateRequirementNotes.split('; '));
+      }
+    }
+
+    return requirements;
+  }
+
+  get transferRequirements(): string[] {
+    const requirements: string[] = [
+      'Grant of representation (probate or letters of administration)',
+      'Death certificate',
+      'Identification documents of beneficiaries',
+    ];
+
+    // Add status-specific requirements
+    if (this.props.isEncumbered) {
+      requirements.push('Encumbrance clearance from lender');
+    }
+
+    if (this.props.hasLifeInterest) {
+      requirements.push('Life interest termination or consent');
+    }
+
+    if (this.props.isMatrimonialProperty && !this.props.acquiredDuringMarriage) {
+      requirements.push('Spouse consent or court order');
+    }
+
+    if (this.props.coOwnerIds.length > 0) {
+      requirements.push('Co-owner consent for transfer');
+    }
+
+    // Type-specific requirements
+    if (isLandAssetDetails(this.props.details)) {
+      requirements.push('Stamp duty payment (KRA)');
+      requirements.push('Capital Gains Tax clearance if applicable');
+      requirements.push('Land control board consent for agricultural land');
+    }
+
+    if (isVehicleAssetDetails(this.props.details)) {
+      requirements.push('NTSA transfer fee payment');
+      requirements.push('Insurance transfer');
+      requirements.push('Road license clearance');
+    }
+
+    // Add any custom transmission requirements
+    requirements.push(...this.props.transmissionRequirements);
+
+    return requirements;
+  }
+
+  // STATIC FACTORY METHODS FOR SPECIFIC ASSET TYPES
   public static createLandAsset(props: {
     estateId: string;
     ownerId: string;
@@ -693,6 +1091,7 @@ export class Asset extends AggregateRoot<AssetProps> {
     location: KenyanLocation;
     description?: string;
     ownershipShare?: number;
+    createdBy?: string;
   }): Result<Asset> {
     return Asset.create({
       ...props,
@@ -710,12 +1109,15 @@ export class Asset extends AggregateRoot<AssetProps> {
     financialDetails: FinancialAssetDetails;
     description?: string;
     ownershipShare?: number;
+    registrationNumber: string;
+    createdBy?: string;
   }): Result<Asset> {
     return Asset.create({
       ...props,
       type: AssetType.FINANCIAL_ASSET,
       details: props.financialDetails,
-      requiresProbate: false, // Some financial assets may not require probate
+      registrationNumber: props.registrationNumber,
+      requiresProbate: true,
     });
   }
 
@@ -726,11 +1128,14 @@ export class Asset extends AggregateRoot<AssetProps> {
     vehicleDetails: VehicleAssetDetails;
     description?: string;
     ownershipShare?: number;
+    registrationNumber: string;
+    createdBy?: string;
   }): Result<Asset> {
     return Asset.create({
       ...props,
       type: AssetType.VEHICLE,
       details: props.vehicleDetails,
+      registrationNumber: props.registrationNumber,
     });
   }
 
@@ -741,11 +1146,32 @@ export class Asset extends AggregateRoot<AssetProps> {
     businessDetails: BusinessAssetDetails;
     description?: string;
     ownershipShare?: number;
+    kraPin?: KenyanId;
+    createdBy?: string;
   }): Result<Asset> {
     return Asset.create({
       ...props,
       type: AssetType.BUSINESS_INTEREST,
       details: props.businessDetails,
+      kraPin: props.kraPin,
+      requiresProbate: true,
+    });
+  }
+
+  public static createDigitalAsset(props: {
+    estateId: string;
+    ownerId: string;
+    name: string;
+    description?: string;
+    ownershipShare?: number;
+    accessDetails: Record<string, any>;
+    createdBy?: string;
+  }): Result<Asset> {
+    return Asset.create({
+      ...props,
+      type: AssetType.DIGITAL_ASSET,
+      identificationDetails: props.accessDetails,
+      requiresProbate: false, // Digital assets may have different probate requirements
     });
   }
 }

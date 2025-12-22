@@ -1,9 +1,12 @@
-// src/shared/domain/exceptions/currency-conversion.exception.ts
 import { InvalidValueObjectException } from './base-domain.exception';
 
 export class InvalidCurrencyConversionException extends InvalidValueObjectException {
-  constructor(message: string, field?: string, context?: Record<string, any>) {
-    super(message, 'DOMAIN_CURRENCY_CONV_001', field, context);
+  constructor(
+    message: string,
+    field: string = 'currencyConversion',
+    context?: Record<string, any>,
+  ) {
+    super(message, field, { ...context, code: 'DOMAIN_CURRENCY_CONV_001' });
   }
 }
 

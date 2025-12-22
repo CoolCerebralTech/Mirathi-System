@@ -1,4 +1,3 @@
-// src/shared/domain/value-objects/court-reference.vo.ts
 import { ValueObject } from '../base/value-object';
 import { InvalidCourtReferenceException } from '../exceptions/court-reference.exception';
 import { KenyanCounty } from './kenyan-location.vo';
@@ -38,6 +37,19 @@ export interface CourtReferenceProps {
 }
 
 export class CourtReference extends ValueObject<CourtReferenceProps> {
+  // Static mapping for validation logic
+  private static readonly STATION_COUNTY_MAP: Readonly<Record<CourtStation, KenyanCounty>> = {
+    [CourtStation.NAIROBI_HIGH_COURT]: KenyanCounty.NAIROBI,
+    [CourtStation.MOMBASA_HIGH_COURT]: KenyanCounty.MOMBASA,
+    [CourtStation.KISUMU_HIGH_COURT]: KenyanCounty.KISUMU,
+    [CourtStation.NAKURU_HIGH_COURT]: KenyanCounty.NAKURU,
+    [CourtStation.ELDORET_HIGH_COURT]: KenyanCounty.UASIN_GISHU,
+    [CourtStation.MERU_HIGH_COURT]: KenyanCounty.MERU,
+    [CourtStation.NYERI_HIGH_COURT]: KenyanCounty.NYERI,
+    [CourtStation.MACHAKOS_HIGH_COURT]: KenyanCounty.MACHAKOS,
+    [CourtStation.KAKAMEGA_HIGH_COURT]: KenyanCounty.KAKAMEGA,
+  };
+
   constructor(props: CourtReferenceProps) {
     super(props);
   }
@@ -50,7 +62,7 @@ export class CourtReference extends ValueObject<CourtReferenceProps> {
   }
 
   private validateReferenceNumber(): void {
-    const ref = this._value.referenceNumber.trim();
+    const ref = this.props.referenceNumber.trim();
 
     if (!ref || ref.length === 0) {
       throw new InvalidCourtReferenceException(
@@ -60,7 +72,7 @@ export class CourtReference extends ValueObject<CourtReferenceProps> {
     }
 
     // Validate format based on court level
-    switch (this._value.courtLevel) {
+    switch (this.props.courtLevel) {
       case CourtLevel.HIGH_COURT:
         this.validateHighCourtReference(ref);
         break;
@@ -83,17 +95,14 @@ export class CourtReference extends ValueObject<CourtReferenceProps> {
     // - Succession Cause No. 123 of 2024
     // - HC Succ Cause No. 123/2024
     // - HCSC No. 123 of 2024
-
     const patterns = [
       /^(Succession|Probate)\s+Cause\s+No\.?\s*\d+\s+of\s+\d{4}$/i,
       /^HC\s+(Succ|Prob)\s+Cause\s+No\.?\s*\d+\/\d{4}$/i,
       /^HCSC\s+No\.?\s*\d+\s+of\s+\d{4}$/i,
-      /^E\.?L\.?C\.?\s+No\.?\s*\d+\s+of\s+\d{4}$/i, // Environment & Land Court
+      /^E\.?L\.?C\.?\s+No\.?\s*\d+\s+of\s+\d{4}$/i,
     ];
 
-    const isValid = patterns.some((pattern) => pattern.test(ref));
-
-    if (!isValid) {
+    if (!patterns.some((pattern) => pattern.test(ref))) {
       throw new InvalidCourtReferenceException(
         `Invalid High Court reference format: ${ref}`,
         'referenceNumber',
@@ -103,20 +112,13 @@ export class CourtReference extends ValueObject<CourtReferenceProps> {
   }
 
   private validateMagistrateCourtReference(ref: string): void {
-    // Magistrate Court formats:
-    // - MC Succ Cause No. 123/2024
-    // - CMCC No. 123 of 2024 (Chief Magistrate)
-    // - PMCC No. 123/2024 (Principal Magistrate)
-
     const patterns = [
       /^MC\s+(Succ|Prob)\s+Cause\s+No\.?\s*\d+\/\d{4}$/i,
       /^CMCC\s+No\.?\s*\d+\s+of\s+\d{4}$/i,
       /^PMCC\s+No\.?\s*\d+\/\d{4}$/i,
     ];
 
-    const isValid = patterns.some((pattern) => pattern.test(ref));
-
-    if (!isValid) {
+    if (!patterns.some((pattern) => pattern.test(ref))) {
       throw new InvalidCourtReferenceException(
         `Invalid Magistrate Court reference format: ${ref}`,
         'referenceNumber',
@@ -126,18 +128,12 @@ export class CourtReference extends ValueObject<CourtReferenceProps> {
   }
 
   private validateKadhiCourtReference(ref: string): void {
-    // Kadhi's Court formats (for Islamic succession):
-    // - Kadhi's Court Cause No. 123/2024
-    // - KCC No. 123 of 2024
-
     const patterns = [
       /^Kadhi'?s?\s+Court\s+Cause\s+No\.?\s*\d+\/\d{4}$/i,
       /^KCC\s+No\.?\s*\d+\s+of\s+\d{4}$/i,
     ];
 
-    const isValid = patterns.some((pattern) => pattern.test(ref));
-
-    if (!isValid) {
+    if (!patterns.some((pattern) => pattern.test(ref))) {
       throw new InvalidCourtReferenceException(
         `Invalid Kadhi's Court reference format: ${ref}`,
         'referenceNumber',
@@ -147,18 +143,12 @@ export class CourtReference extends ValueObject<CourtReferenceProps> {
   }
 
   private validateELCReference(ref: string): void {
-    // Environment & Land Court formats:
-    // - ELC No. 123 of 2024
-    // - E&LC Succ Cause No. 123/2024
-
     const patterns = [
       /^E\.?L\.?C\.?\s+No\.?\s*\d+\s+of\s+\d{4}$/i,
       /^E&LC\s+(Succ|Prob)\s+Cause\s+No\.?\s*\d+\/\d{4}$/i,
     ];
 
-    const isValid = patterns.some((pattern) => pattern.test(ref));
-
-    if (!isValid) {
+    if (!patterns.some((pattern) => pattern.test(ref))) {
       throw new InvalidCourtReferenceException(
         `Invalid Environment & Land Court reference format: ${ref}`,
         'referenceNumber',
@@ -168,66 +158,52 @@ export class CourtReference extends ValueObject<CourtReferenceProps> {
   }
 
   private validateGenericCourtReference(ref: string): void {
-    // Generic pattern for other courts
     const genericPattern = /^[A-Za-z\s]+No\.?\s*\d+[\s\\/\\-]?\d{4}$/i;
-
     if (!genericPattern.test(ref)) {
       throw new InvalidCourtReferenceException(
         `Invalid court reference format: ${ref}`,
         'referenceNumber',
-        { reference: ref, courtLevel: this._value.courtLevel },
+        { reference: ref, courtLevel: this.props.courtLevel },
       );
     }
   }
 
   private validateYear(): void {
     const currentYear = new Date().getFullYear();
-
-    if (this._value.year < 1900 || this._value.year > currentYear + 1) {
+    // Allow filing one year into future (e.g. clerical errors near Dec 31st) but mostly historical
+    if (this.props.year < 1900 || this.props.year > currentYear + 1) {
       throw new InvalidCourtReferenceException(
-        `Invalid year in court reference: ${this._value.year}`,
+        `Invalid year in court reference: ${this.props.year}`,
         'year',
-        { year: this._value.year, currentYear },
+        { year: this.props.year, currentYear },
       );
     }
   }
 
   private validateSequenceNumber(): void {
-    if (this._value.sequenceNumber <= 0) {
+    if (this.props.sequenceNumber <= 0) {
       throw new InvalidCourtReferenceException(
-        `Invalid sequence number: ${this._value.sequenceNumber}`,
+        `Invalid sequence number: ${this.props.sequenceNumber}`,
         'sequenceNumber',
-        { sequenceNumber: this._value.sequenceNumber },
+        { sequenceNumber: this.props.sequenceNumber },
       );
     }
   }
 
   private validateCourtStation(): void {
-    // Ensure court station matches county (simplified validation)
-    const stationCountyMap: Record<CourtStation, KenyanCounty> = {
-      [CourtStation.NAIROBI_HIGH_COURT]: KenyanCounty.NAIROBI,
-      [CourtStation.MOMBASA_HIGH_COURT]: KenyanCounty.MOMBASA,
-      [CourtStation.KISUMU_HIGH_COURT]: KenyanCounty.KISUMU,
-      [CourtStation.NAKURU_HIGH_COURT]: KenyanCounty.NAKURU,
-      [CourtStation.ELDORET_HIGH_COURT]: KenyanCounty.UASIN_GISHU,
-      [CourtStation.MERU_HIGH_COURT]: KenyanCounty.MERU,
-      [CourtStation.NYERI_HIGH_COURT]: KenyanCounty.NYERI,
-      [CourtStation.MACHAKOS_HIGH_COURT]: KenyanCounty.MACHAKOS,
-      [CourtStation.KAKAMEGA_HIGH_COURT]: KenyanCounty.KAKAMEGA,
-    };
+    const expectedCounty = CourtReference.STATION_COUNTY_MAP[this.props.courtStation];
 
-    const expectedCounty = stationCountyMap[this._value.courtStation];
-
-    if (expectedCounty && expectedCounty !== this._value.county) {
+    if (expectedCounty && expectedCounty !== this.props.county) {
       throw new InvalidCourtReferenceException(
-        `Court station ${this._value.courtStation} doesn't match county ${this._value.county}`,
+        `Court station ${this.props.courtStation} doesn't match county ${this.props.county}`,
         'courtStation',
-        { courtStation: this._value.courtStation, county: this._value.county },
+        { courtStation: this.props.courtStation, county: this.props.county },
       );
     }
   }
 
-  // Factory methods
+  // --- Factory Methods ---
+
   static createSuccessionCause(
     sequenceNumber: number,
     year: number,
@@ -236,7 +212,6 @@ export class CourtReference extends ValueObject<CourtReferenceProps> {
     judgeName?: string,
   ): CourtReference {
     const ref = `Succession Cause No. ${sequenceNumber} of ${year}`;
-
     return new CourtReference({
       referenceNumber: ref,
       courtLevel: CourtLevel.HIGH_COURT,
@@ -256,7 +231,6 @@ export class CourtReference extends ValueObject<CourtReferenceProps> {
     county: KenyanCounty,
   ): CourtReference {
     const ref = `Probate Cause No. ${sequenceNumber}/${year}`;
-
     return new CourtReference({
       referenceNumber: ref,
       courtLevel: CourtLevel.HIGH_COURT,
@@ -272,16 +246,20 @@ export class CourtReference extends ValueObject<CourtReferenceProps> {
     grantType: 'PROBATE' | 'LETTERS_OF_ADMINISTRATION',
     sequenceNumber: number,
     year: number,
-    courtStation: CourtStation,
+    courtStation: CourtStation, // Added courtStation parameter for context
   ): CourtReference {
     const prefix = grantType === 'PROBATE' ? 'P' : 'LA';
     const ref = `${prefix}.${sequenceNumber}/${year}`;
 
+    // Note: Grants are typically issued by the same station as the cause
+    // We default to Nairobi here if not provided in older systems, but strict factory should require it.
+    // Assuming Nairobi for this specific factory signature or pass it in.
+    // For this implementation, we take Nairobi as default for centralized grants.
     return new CourtReference({
       referenceNumber: ref,
       courtLevel: CourtLevel.HIGH_COURT,
       courtStation,
-      county: KenyanCounty.NAIROBI, // Default
+      county: CourtReference.STATION_COUNTY_MAP[courtStation] || KenyanCounty.NAIROBI,
       year,
       sequenceNumber,
       prefix,
@@ -289,21 +267,18 @@ export class CourtReference extends ValueObject<CourtReferenceProps> {
     });
   }
 
-  // Business logic methods
+  // --- Business Logic ---
+
   isSuccessionCause(): boolean {
-    return this._value.referenceNumber.toLowerCase().includes('succession');
+    return /succession/i.test(this.props.referenceNumber);
   }
 
   isProbateCause(): boolean {
-    return this._value.referenceNumber.toLowerCase().includes('probate');
-  }
-
-  isCurrentYear(): boolean {
-    return this._value.year === new Date().getFullYear();
+    return /probate/i.test(this.props.referenceNumber);
   }
 
   getYearsOld(): number {
-    return new Date().getFullYear() - this._value.year;
+    return new Date().getFullYear() - this.props.year;
   }
 
   isArchivable(): boolean {
@@ -311,63 +286,19 @@ export class CourtReference extends ValueObject<CourtReferenceProps> {
     return this.getYearsOld() > 7;
   }
 
-  // Formatting methods
-  getFormattedReference(): string {
-    return this._value.referenceNumber;
+  getLegalCitation(deceasedName: string): string {
+    return `In the Matter of the Estate of ${deceasedName}, ${this.props.referenceNumber}`;
   }
 
-  getShortReference(): string {
-    const match = this._value.referenceNumber.match(/\d+\s+(of|\/)\s+\d{4}/);
-    return match ? match[0] : this._value.referenceNumber;
-  }
-
-  getCitationFormat(): string {
-    // Legal citation format
-    return `In the Matter of the Estate of [Deceased Name], ${this._value.referenceNumber}`;
-  }
-
-  getCourtDetails(): string {
-    return `${this._value.courtLevel.replace('_', ' ')} at ${this._value.courtStation.replace('_', ' ')}`;
-  }
-
-  // Getters
-  get referenceNumber(): string {
-    return this._value.referenceNumber;
-  }
-
-  get courtLevel(): CourtLevel {
-    return this._value.courtLevel;
-  }
-
-  get courtStation(): CourtStation {
-    return this._value.courtStation;
-  }
-
-  get county(): KenyanCounty {
-    return this._value.county;
-  }
-
-  get year(): number {
-    return this._value.year;
-  }
-
-  get sequenceNumber(): number {
-    return this._value.sequenceNumber;
-  }
-
-  get prefix(): string | undefined {
-    return this._value.prefix;
-  }
-
-  get suffix(): string | undefined {
-    return this._value.suffix;
-  }
-
-  get issuedDate(): Date | undefined {
-    return this._value.issuedDate;
-  }
-
-  get judgeName(): string | undefined {
-    return this._value.judgeName;
+  public toJSON(): Record<string, any> {
+    return {
+      referenceNumber: this.props.referenceNumber,
+      courtLevel: this.props.courtLevel,
+      courtStation: this.props.courtStation,
+      year: this.props.year,
+      sequence: this.props.sequenceNumber,
+      formattedCitation: `In Re Estate, ${this.props.referenceNumber}`,
+      issuedDate: this.props.issuedDate,
+    };
   }
 }

@@ -4,7 +4,7 @@ import { GuardianType, Prisma, PrismaClient } from '@prisma/client';
 import { PrismaService } from '@shamba/database';
 
 import { Guardian } from '../../../domain/entities/guardian.entity';
-import { IGuardianRepository } from '../../../domain/interfaces/repositories/iguardian.repository';
+import { IGuardianRepository } from '../../../domain/interfaces/repositories/iguardianship.repository';
 import { GuardianMapper } from '../mappers/guardianship.mapper';
 
 // This type allows us to use the regular Prisma client or a transactional client.

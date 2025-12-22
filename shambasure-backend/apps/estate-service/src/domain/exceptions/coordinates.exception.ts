@@ -1,9 +1,8 @@
-// src/shared/domain/exceptions/coordinates.exception.ts
 import { InvalidValueObjectException } from './base-domain.exception';
 
 export class InvalidCoordinatesException extends InvalidValueObjectException {
-  constructor(message: string, field?: string, context?: Record<string, any>) {
-    super(message, 'DOMAIN_COORDINATES_001', field, context);
+  constructor(message: string, field: string = 'coordinates', context?: Record<string, any>) {
+    super(message, field, { ...context, code: 'DOMAIN_COORDINATES_001' });
   }
 }
 

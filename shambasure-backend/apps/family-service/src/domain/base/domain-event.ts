@@ -1,42 +1,69 @@
 // domain/base/domain-event.ts
-export abstract class DomainEvent<T = any> {
-  public readonly eventId: string;
-  public readonly timestamp: Date;
-  public readonly eventName: string;
-  public readonly aggregateId: string; // The ID of the aggregate root
-  public readonly aggregateType: string; // e.g., 'FamilyMember', 'Family'
-  public readonly payload: T;
+import { v4 as uuidv4 } from 'uuid';
 
-  constructor(
-    eventName: string,
-    aggregateId: string,
-    aggregateType: string,
-    payload: T,
-    eventId?: string,
-    timestamp?: Date,
-  ) {
-    this.eventId = eventId || this.generateEventId();
-    this.timestamp = timestamp || new Date();
-    this.eventName = eventName;
+/**
+ * Base Domain Event
+ *
+ * Every state change in the system emits an event for:
+ * 1. Legal Audit Trail (S. 83 LSA - executor accountability)
+ * 2. Event Sourcing (rebuild aggregate state)
+ * 3. Integration (notify other bounded contexts)
+ * 4. Temporal Queries (query historical state)
+ *
+ * Kenyan Legal Requirements:
+ * - Events are immutable (can't alter legal history)
+ * - Every event has timestamp (statute of limitations)
+ * - Events form chain of evidence for court disputes
+ */
+export abstract class DomainEvent {
+  public readonly eventId: string;
+  public readonly occurredAt: Date;
+  public readonly aggregateId: string;
+  public readonly aggregateType: string;
+  public readonly version: number;
+
+  constructor(aggregateId: string, aggregateType: string, version: number, occurredAt?: Date) {
+    this.eventId = uuidv4();
+    this.occurredAt = occurredAt ?? new Date();
     this.aggregateId = aggregateId;
     this.aggregateType = aggregateType;
-    this.payload = payload;
+    this.version = version;
   }
 
-  private generateEventId(): string {
-    return crypto.randomUUID
-      ? crypto.randomUUID()
-      : `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  /**
+   * Get event type name (for event store)
+   */
+  public getEventType(): string {
+    return this.constructor.name;
   }
 
-  toJSON(): Record<string, any> {
+  /**
+   * Serialize event for persistence
+   */
+  public toJSON(): Record<string, any> {
     return {
       eventId: this.eventId,
-      timestamp: this.timestamp,
-      eventName: this.eventName,
+      eventType: this.getEventType(),
+      occurredAt: this.occurredAt.toISOString(),
       aggregateId: this.aggregateId,
       aggregateType: this.aggregateType,
-      payload: this.payload,
+      version: this.version,
+      payload: this.getPayload(),
     };
   }
+
+  /**
+   * Get event payload (override in concrete events)
+   */
+  protected abstract getPayload(): Record<string, any>;
+}
+
+/**
+ * Event Metadata for Integration Events
+ */
+export interface EventMetadata {
+  userId?: string;
+  correlationId?: string;
+  causationId?: string;
+  timestamp: Date;
 }

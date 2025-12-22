@@ -1,9 +1,8 @@
-// src/shared/domain/exceptions/document-reference.exception.ts
 import { InvalidValueObjectException } from './base-domain.exception';
 
 export class InvalidDocumentReferenceException extends InvalidValueObjectException {
   constructor(message: string, field: string = 'referenceNumber', context?: Record<string, any>) {
-    super(message, 'DOMAIN_DOC_REF_001', field, context);
+    super(message, field, { ...context, code: 'DOMAIN_DOC_REF_001' });
   }
 }
 

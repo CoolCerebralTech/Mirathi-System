@@ -5,7 +5,7 @@ import { ICommandHandler } from '@nestjs/cqrs/dist/interfaces/commands/command-h
 
 import { GuardianshipAggregate } from '../../../../domain/aggregates/guardianship.aggregate';
 import { InvalidGuardianshipException } from '../../../../domain/exceptions/guardianship.exception';
-import { IGuardianRepository } from '../../../../domain/interfaces/repositories/iguardian.repository';
+import { IGuardianRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { Result } from '../../../common/base/result';
 import { GuardianshipResponse } from '../../dto/response/guardianship.response';
 import { GrantPropertyManagementPowersCommand } from '../impl/grant-property-powers.command';

@@ -1,19 +1,6 @@
-import { AggregateRoot } from '../base/aggregate-root';
-import {
-  FamilyMemberAgeRecalculatedEvent,
-  FamilyMemberArchivedEvent,
-  FamilyMemberContactInfoUpdatedEvent,
-  FamilyMemberCreatedEvent,
-  FamilyMemberDeceasedEvent,
-  FamilyMemberDependencyStatusAssessedEvent,
-  FamilyMemberDisabilityStatusUpdatedEvent,
-  FamilyMemberIdentityVerifiedEvent,
-  FamilyMemberMissingStatusChangedEvent,
-  FamilyMemberPersonalInfoUpdatedEvent,
-  FamilyMemberPolygamousHouseAssignedEvent,
-  FamilyMemberS40PolygamousStatusChangedEvent,
-  IdentityDocumentType,
-} from '../events/family-events';
+// domain/entities/family-member.entity.ts
+import { Entity } from '../base/entity';
+import { UniqueEntityID } from '../base/unique-entity-id';
 import { InvalidFamilyMemberException } from '../exceptions/family.exception';
 import { KenyanLocation } from '../value-objects/geographical/kenyan-location.vo';
 import { BirthCertificate } from '../value-objects/identity/birth-certificate.vo';
@@ -25,20 +12,34 @@ import { AgeCalculation } from '../value-objects/personal/age-calculation.vo';
 import { ContactInfo } from '../value-objects/personal/contact-info.vo';
 import { DemographicInfo } from '../value-objects/personal/demographic-info.vo';
 import { DisabilityStatus } from '../value-objects/personal/disability-status.vo';
+// Value Objects
 import { KenyanName } from '../value-objects/personal/kenyan-name.vo';
 import { LifeStatus } from '../value-objects/personal/life-status.vo';
 
+/**
+ * FamilyMember Entity Props (Immutable)
+ *
+ * Design Decision: FamilyMember is an ENTITY, not an Aggregate Root.
+ * - It belongs to the Family aggregate
+ * - It cannot exist independently
+ * - State changes are coordinated by Family aggregate
+ *
+ * Kenyan Law Context:
+ * - Represents individuals in succession proceedings
+ * - Identity verification critical for S. 35/36/40 distribution
+ * - Dependency status affects S. 29 dependant claims
+ */
 export interface FamilyMemberProps {
-  id: string;
-  userId?: string;
-  familyId: string;
+  // Core References
+  userId?: UniqueEntityID; // Link to accounts-service User
+  familyId: UniqueEntityID; // Parent aggregate
 
-  // The Single Source of Truth (Value Objects)
+  // Single Source of Truth (Value Objects)
   name: KenyanName;
   identity: KenyanIdentity;
   lifeStatus: LifeStatus;
 
-  // Optional VOs
+  // Optional Value Objects
   contactInfo?: ContactInfo;
   demographicInfo?: DemographicInfo;
   ageCalculation?: AgeCalculation;
@@ -46,94 +47,202 @@ export interface FamilyMemberProps {
   birthLocation?: KenyanLocation;
   deathLocation?: KenyanLocation;
 
-  // Domain Fields
+  // Domain Primitives
   occupation?: string;
-  polygamousHouseId?: string;
 
-  // System/Audit
-  version: number;
-  lastEventId?: string;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date;
-  deletedBy?: string;
-  deletionReason?: string;
+  // S. 40 LSA - Polygamous Family Context
+  polygamousHouseId?: UniqueEntityID;
+
+  // Archival (Soft Delete)
   isArchived: boolean;
+  archivedAt?: Date;
+  archivedBy?: UniqueEntityID;
+  archivalReason?: string;
 }
 
+/**
+ * Creation Props (Simplified for Factory)
+ */
 export interface CreateFamilyMemberProps {
   userId?: string;
   familyId: string;
+
+  // Name
   firstName: string;
   lastName: string;
   middleName?: string;
+  maidenName?: string;
+
+  // Identity Documents
   nationalId?: string;
   kraPin?: string;
+  birthCertificateNumber?: string;
+
+  // Demographics
   dateOfBirth?: Date;
-  gender?: string;
-  citizenship?: string;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
+  citizenship?: 'KENYAN' | 'DUAL' | 'FOREIGN';
   religion?: string;
   ethnicity?: string;
   clan?: string;
   subClan?: string;
+
+  // Contact
   phoneNumber?: string;
   email?: string;
   alternativePhone?: string;
+
+  // Location
   placeOfBirth?: string;
   occupation?: string;
-  maidenName?: string;
+
+  // Disability
+  hasDisability?: boolean;
   disabilityType?: string;
   requiresSupportedDecisionMaking?: boolean;
+
+  // Death (if creating deceased member)
   isDeceased?: boolean;
   dateOfDeath?: Date;
-  deathCertificateNumber?: string;
   placeOfDeath?: string;
-  isMinor?: boolean;
-  currentAge?: number;
-  birthCertificateEntryNumber?: string;
+  deathCertificateNumber?: string;
 }
 
-export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
-  private constructor(props: FamilyMemberProps) {
-    super(props.id, props);
+/**
+ * FamilyMember Entity
+ *
+ * Represents an individual within a Kenyan family structure.
+ * Critical for succession law compliance (S. 29, 35, 36, 40 LSA).
+ *
+ * Design Patterns:
+ * - Entity (not Aggregate Root) - belongs to Family aggregate
+ * - Rich domain model - business logic in entity
+ * - Value objects for complex attributes
+ * - Immutable state changes via factory methods
+ *
+ * Kenyan Law Requirements:
+ * - Identity verification (National ID, KRA PIN)
+ * - Dependency assessment (S. 29 LSA)
+ * - Age verification (minors, young adults)
+ * - Disability status (dependant claims)
+ * - Death certification (succession triggers)
+ */
+export class FamilyMember extends Entity<FamilyMemberProps> {
+  private constructor(id: UniqueEntityID, props: FamilyMemberProps, createdAt?: Date) {
+    super(id, props, createdAt);
     this.validate();
   }
 
-  // Factory method for creating a new living family member
-  static create(props: CreateFamilyMemberProps): FamilyMember {
-    const id = props.userId || this.generateId();
+  // =========================================================================
+  // FACTORY METHODS
+  // =========================================================================
+
+  /**
+   * Create new living family member
+   *
+   * Kenyan Law Context:
+   * - Birth certificate for minors (S. 29 dependant proof)
+   * - National ID for adults (identity verification)
+   * - Citizenship affects succession rights
+   */
+  public static create(props: CreateFamilyMemberProps): FamilyMember {
+    const id = new UniqueEntityID();
     const now = new Date();
 
-    // Create Kenyan Identity
+    // Build Value Objects
+    const name = FamilyMember.buildName(props);
+    const identity = FamilyMember.buildIdentity(props);
+    const lifeStatus = FamilyMember.buildLifeStatus(props);
+    const contactInfo = FamilyMember.buildContactInfo(props);
+    const demographicInfo = FamilyMember.buildDemographicInfo(props);
+    const ageCalculation = props.dateOfBirth ? AgeCalculation.create(props.dateOfBirth) : undefined;
+    const disabilityStatus = FamilyMember.buildDisabilityStatus(props);
+    const birthLocation = FamilyMember.buildBirthLocation(props);
+
+    const memberProps: FamilyMemberProps = {
+      userId: props.userId ? new UniqueEntityID(props.userId) : undefined,
+      familyId: new UniqueEntityID(props.familyId),
+      name,
+      identity,
+      lifeStatus,
+      contactInfo,
+      demographicInfo,
+      ageCalculation,
+      disabilityStatus,
+      birthLocation,
+      deathLocation: props.placeOfDeath
+        ? FamilyMember.buildDeathLocation(props.placeOfDeath)
+        : undefined,
+      occupation: props.occupation,
+      isArchived: false,
+    };
+
+    return new FamilyMember(id, memberProps, now);
+  }
+
+  /**
+   * Reconstitute from persistence (Repository)
+   */
+  public static fromPersistence(
+    id: string,
+    props: FamilyMemberProps,
+    createdAt: Date,
+    updatedAt?: Date,
+  ): FamilyMember {
+    const entityId = new UniqueEntityID(id);
+    const member = new FamilyMember(entityId, props, createdAt);
+
+    if (updatedAt) {
+      (member as any)._updatedAt = updatedAt;
+    }
+
+    return member;
+  }
+
+  // =========================================================================
+  // PRIVATE BUILDERS (Factory Helpers)
+  // =========================================================================
+
+  private static buildName(props: CreateFamilyMemberProps): KenyanName {
+    let name = KenyanName.create(props.firstName, props.lastName, props.middleName);
+
+    if (props.maidenName) {
+      name = name.withMaidenName(props.maidenName);
+    }
+
+    return name;
+  }
+
+  private static buildIdentity(props: CreateFamilyMemberProps): KenyanIdentity {
     let identity = KenyanIdentity.create(
       (props.citizenship as 'KENYAN' | 'DUAL' | 'FOREIGN') || 'KENYAN',
     );
 
-    // Add National ID if provided
+    // National ID
     if (props.nationalId) {
       const nationalId = NationalId.createUnverified(props.nationalId);
       identity = identity.withNationalId(nationalId);
     }
 
-    // Add KRA PIN if provided
+    // KRA PIN
     if (props.kraPin) {
       const kraPin = KraPin.create(props.kraPin);
       identity = identity.withKraPin(kraPin);
     }
 
-    // Add Birth Certificate if provided
-    if (props.birthCertificateEntryNumber && props.dateOfBirth) {
-      const birthCertificate = BirthCertificate.create(
-        props.birthCertificateEntryNumber,
+    // Birth Certificate
+    if (props.birthCertificateNumber && props.dateOfBirth) {
+      const birthCert = BirthCertificate.create(
+        props.birthCertificateNumber,
         props.dateOfBirth,
-        new Date(), // date of registration (default to now)
-        '', // mother name (can be updated later)
-        '', // district of birth (can be updated later)
+        new Date(), // registrationDate - default to now
+        '', // motherName - can update later
+        props.placeOfBirth || '',
       );
-      identity = identity.withBirthCertificate(birthCertificate);
+      identity = identity.withBirthCertificate(birthCert);
     }
 
-    // Add cultural details to identity
+    // Cultural Details
     if (props.ethnicity || props.religion || props.clan) {
       identity = identity.withCulturalDetails(
         props.ethnicity || '',
@@ -142,132 +251,115 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
       );
     }
 
-    // Create Kenyan Name (including maiden name)
-    let name = KenyanName.create(props.firstName, props.lastName, props.middleName);
-    if (props.maidenName) {
-      name = name.withMaidenName(props.maidenName);
-    }
+    return identity;
+  }
 
-    // Create Life Status
-    let lifeStatus: LifeStatus;
+  private static buildLifeStatus(props: CreateFamilyMemberProps): LifeStatus {
     if (props.isDeceased && props.dateOfDeath) {
-      lifeStatus = LifeStatus.createDeceased(props.dateOfDeath);
-    } else if (props.isDeceased) {
-      lifeStatus = LifeStatus.createDeceased(new Date());
-    } else {
-      lifeStatus = LifeStatus.createAlive();
+      return LifeStatus.createDeceased(props.dateOfDeath);
     }
-
-    // Create demographic info
-    let demographicInfo = DemographicInfo.create();
-    if (props.gender || props.religion || props.ethnicity) {
-      // Update demographic info
-      demographicInfo = demographicInfo.updateEthnicity(props.ethnicity, props.subClan);
-      if (props.religion) {
-        demographicInfo = demographicInfo.updateReligion(props.religion as any);
-      }
-    }
-
-    // Create contact info if available
-    let contactInfo: ContactInfo | undefined;
-    if (props.phoneNumber) {
-      try {
-        contactInfo = ContactInfo.create(props.phoneNumber, ''); // county can be updated later
-      } catch (error) {
-        console.warn('Invalid phone number format:', error);
-      }
-    }
-
-    // Create disability status if provided
-    let disabilityStatus: DisabilityStatus | undefined;
-    if (props.disabilityType) {
-      disabilityStatus = DisabilityStatus.create(true);
-      // Note: Would need more details to add disability
-    } else if (props.requiresSupportedDecisionMaking) {
-      disabilityStatus = DisabilityStatus.create(false);
-      disabilityStatus = disabilityStatus.setSupportedDecisionMaking(true);
-    }
-
-    // Create birth location if provided
-    let birthLocation: KenyanLocation | undefined;
-    if (props.placeOfBirth) {
-      try {
-        // This is a simplified version - in production, parse the place of birth
-        birthLocation = KenyanLocation.createFromProps({
-          county: 'UNKNOWN' as any,
-          placeName: props.placeOfBirth,
-          isUrban: false,
-          isRural: true,
-        });
-      } catch (error) {
-        console.warn('Could not create birth location:', error);
-      }
-    }
-
-    // Create age calculation
-    let ageCalculation: AgeCalculation | undefined;
-    if (props.dateOfBirth) {
-      ageCalculation = AgeCalculation.create(props.dateOfBirth);
-    }
-
-    const familyMember = new FamilyMember({
-      id,
-      userId: props.userId,
-      familyId: props.familyId,
-      name,
-      identity,
-      contactInfo,
-      disabilityStatus,
-      lifeStatus,
-      demographicInfo,
-      ageCalculation,
-      birthLocation,
-      deathLocation: undefined,
-      occupation: props.occupation,
-      polygamousHouseId: undefined,
-      version: 1,
-      createdAt: now,
-      updatedAt: now,
-      isArchived: false,
-    });
-
-    // Add domain event
-    familyMember.addDomainEvent(
-      new FamilyMemberCreatedEvent({
-        familyMemberId: familyMember.id,
-        familyId: familyMember.familyId,
-        userId: familyMember.userId,
-        firstName: props.firstName,
-        lastName: props.lastName,
-        middleName: props.middleName,
-        dateOfBirth: props.dateOfBirth,
-        gender: props.gender,
-        citizenship: props.citizenship || 'KENYAN',
-        religion: props.religion,
-        ethnicity: props.ethnicity,
-        isDeceased: props.isDeceased || false,
-        isMinor: props.isMinor || false,
-        identityStatus: familyMember.isIdentityVerified ? 'VERIFIED' : 'UNVERIFIED',
-        createdAt: now,
-      }),
-    );
-
-    // Assess and emit dependency status event
-    familyMember.assessAndEmitDependencyStatus();
-
-    return familyMember;
+    return LifeStatus.createAlive();
   }
 
-  // Factory method for creating from existing data (e.g., from database)
-  static createFromProps(props: FamilyMemberProps): FamilyMember {
-    return new FamilyMember(props);
+  private static buildContactInfo(props: CreateFamilyMemberProps): ContactInfo | undefined {
+    if (!props.phoneNumber) return undefined;
+
+    try {
+      let contact = ContactInfo.create(props.phoneNumber, ''); // county can be updated
+
+      if (props.email) {
+        contact = contact.updateEmail(props.email);
+      }
+
+      if (props.alternativePhone) {
+        contact = contact.updateSecondaryPhone(props.alternativePhone);
+      }
+
+      return contact;
+    } catch (error) {
+      console.warn('Invalid contact info:', error);
+      return undefined;
+    }
   }
 
-  private validate(): void {
-    if (!this.props.id) {
-      throw new InvalidFamilyMemberException('Family member ID is required');
+  private static buildDemographicInfo(props: CreateFamilyMemberProps): DemographicInfo | undefined {
+    if (!props.gender && !props.religion && !props.ethnicity) {
+      return undefined;
     }
 
+    let demographic = DemographicInfo.create();
+
+    if (props.ethnicity) {
+      demographic = demographic.updateEthnicity(props.ethnicity, props.subClan);
+    }
+
+    if (props.religion) {
+      demographic = demographic.updateReligion(props.religion as any);
+    }
+
+    return demographic;
+  }
+
+  private static buildDisabilityStatus(
+    props: CreateFamilyMemberProps,
+  ): DisabilityStatus | undefined {
+    if (!props.hasDisability && !props.requiresSupportedDecisionMaking) {
+      return undefined;
+    }
+
+    let disability = DisabilityStatus.create(props.hasDisability || false);
+
+    if (props.requiresSupportedDecisionMaking) {
+      disability = disability.setSupportedDecisionMaking(true);
+    }
+
+    return disability;
+  }
+
+  private static buildBirthLocation(props: CreateFamilyMemberProps): KenyanLocation | undefined {
+    if (!props.placeOfBirth) return undefined;
+
+    try {
+      return KenyanLocation.createFromProps({
+        county: 'NAIROBI' as any, // Default - should be updated
+        placeName: props.placeOfBirth,
+        isUrban: false,
+        isRural: true,
+      });
+    } catch (error) {
+      console.warn('Could not create birth location:', error);
+      return undefined;
+    }
+  }
+
+  private static buildDeathLocation(placeOfDeath: string): KenyanLocation | undefined {
+    try {
+      return KenyanLocation.createFromProps({
+        county: 'NAIROBI' as any, // Default - should be updated
+        placeName: placeOfDeath,
+        isUrban: false,
+        isRural: true,
+      });
+    } catch (error) {
+      console.warn('Could not create death location:', error);
+      return undefined;
+    }
+  }
+
+  // =========================================================================
+  // VALIDATION (Invariants)
+  // =========================================================================
+
+  /**
+   * Validate entity invariants (business rules that must always hold)
+   *
+   * Kenyan Law Requirements:
+   * - Deceased members must have death date
+   * - Date of birth cannot be after date of death
+   * - Identity verification for legal proceedings
+   */
+  public validate(): void {
+    // Core required fields
     if (!this.props.familyId) {
       throw new InvalidFamilyMemberException('Family ID is required');
     }
@@ -284,25 +376,19 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
       throw new InvalidFamilyMemberException('Life status is required');
     }
 
-    // Validate deceased status consistency
+    // Death consistency
     if (this.props.lifeStatus.isDeceased && !this.props.lifeStatus.dateOfDeath) {
       throw new InvalidFamilyMemberException('Date of death is required for deceased members');
     }
 
-    // If deceased, identity should have death certificate
-    if (this.props.lifeStatus.isDeceased && !this.props.identity.deathCertificate?.isVerified) {
-      // Warning, not error - death certificate might be added later
-      console.warn('Deceased member lacks verified death certificate');
-    }
-
-    // Validate age consistency
+    // Timeline consistency
     if (this.props.ageCalculation?.dateOfBirth && this.props.lifeStatus.dateOfDeath) {
       if (this.props.ageCalculation.dateOfBirth > this.props.lifeStatus.dateOfDeath) {
         throw new InvalidFamilyMemberException('Date of birth cannot be after date of death');
       }
     }
 
-    // Validate polygamous house membership
+    // S. 40 LSA - Polygamous house constraints
     if (this.props.polygamousHouseId && this.isDeceased) {
       throw new InvalidFamilyMemberException(
         'Deceased members cannot be assigned to polygamous houses',
@@ -310,29 +396,28 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
     }
   }
 
-  private static generateId(): string {
-    // In production, use a proper UUID generator
-    return `fm-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  }
+  // =========================================================================
+  // BUSINESS LOGIC (State Transitions)
+  // =========================================================================
 
-  // Domain methods
-
-  updatePersonalInfo(params: {
+  /**
+   * Update personal information
+   * Returns new instance (immutable)
+   */
+  public updatePersonalInfo(params: {
     firstName?: string;
     lastName?: string;
     middleName?: string;
     maidenName?: string;
     occupation?: string;
-    gender?: string;
-    religion?: string;
-    ethnicity?: string;
-    clan?: string;
-    subClan?: string;
-  }): void {
-    // Update name
-    let updatedName = this.props.name;
+  }): FamilyMember {
+    this.ensureNotDeleted();
+    this.ensureNotArchived();
+
+    // Build new name
+    let newName = this.props.name;
     if (params.firstName || params.lastName || params.middleName) {
-      updatedName = KenyanName.create(
+      newName = KenyanName.create(
         params.firstName || this.props.name.firstName,
         params.lastName || this.props.name.lastName,
         params.middleName || this.props.name.middleName,
@@ -340,110 +425,46 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
     }
 
     if (params.maidenName) {
-      updatedName = updatedName.withMaidenName(params.maidenName);
+      newName = newName.withMaidenName(params.maidenName);
     }
 
-    // Update demographic info (if it exists, otherwise create)
-    let updatedDemographicInfo = this.props.demographicInfo || DemographicInfo.create();
-
-    // Update ethnicity in demographic info
-    if (params.ethnicity) {
-      updatedDemographicInfo = updatedDemographicInfo.updateEthnicity(
-        params.ethnicity,
-        params.subClan,
-      );
-    }
-
-    // Update religion in demographic info
-    if (params.religion) {
-      updatedDemographicInfo = updatedDemographicInfo.updateReligion(params.religion as any);
-    }
-
-    // Update cultural details in identity
-    if (params.ethnicity || params.religion || params.clan) {
-      this.props.identity = this.props.identity.withCulturalDetails(
-        params.ethnicity || this.props.identity['_value'].ethnicity || '',
-        params.religion || this.props.identity['_value'].religion || '',
-        params.clan || this.props.identity['_value'].clan,
-      );
-    }
-
-    this.props.name = updatedName;
-    this.props.demographicInfo = updatedDemographicInfo;
-    this.props.occupation = params.occupation || this.props.occupation;
-    this.props.updatedAt = new Date();
-    this.props.version++;
-
-    // Emit personal info updated event
-    this.addDomainEvent(
-      new FamilyMemberPersonalInfoUpdatedEvent({
-        familyMemberId: this.id,
-        familyId: this.familyId,
-        updatedFields: params,
-        timestamp: new Date(),
-      }),
-    );
-
-    // Re-assess dependency status if age or disability changed
-    this.assessAndEmitDependencyStatus();
-  }
-
-  updateContactInfo(params: {
-    phoneNumber?: string;
-    email?: string;
-    alternativePhone?: string;
-    emergencyContact?: any;
-  }): void {
-    const oldValues = {
-      phoneNumber: this.props.contactInfo?.primaryPhone,
-      email: this.props.contactInfo?.email,
-      alternativePhone: this.props.contactInfo?.secondaryPhone,
+    // Create new props (immutable update)
+    const newProps: FamilyMemberProps = {
+      ...this.props,
+      name: newName,
+      occupation: params.occupation || this.props.occupation,
     };
 
-    if (!this.props.contactInfo && params.phoneNumber) {
-      // Create new contact info
-      this.props.contactInfo = ContactInfo.create(params.phoneNumber, ''); // County will need to be set
-    } else if (this.props.contactInfo) {
-      // Update existing contact info
-      if (params.phoneNumber) {
-        this.props.contactInfo = this.props.contactInfo.updatePrimaryPhone(params.phoneNumber);
-      }
-      if (params.email !== undefined) {
-        this.props.contactInfo = this.props.contactInfo.updateEmail(params.email);
-      }
-      if (params.alternativePhone !== undefined) {
-        this.props.contactInfo = this.props.contactInfo.updateSecondaryPhone(
-          params.alternativePhone,
-        );
-      }
-    }
-
-    this.props.updatedAt = new Date();
-    this.props.version++;
-
-    // Emit contact info updated event
-    this.addDomainEvent(
-      new FamilyMemberContactInfoUpdatedEvent({
-        familyMemberId: this.id,
-        familyId: this.familyId,
-        oldPhoneNumber: oldValues.phoneNumber,
-        newPhoneNumber: params.phoneNumber,
-        oldEmail: oldValues.email,
-        newEmail: params.email,
-        emergencyContactUpdated: !!params.emergencyContact,
-        timestamp: new Date(),
-      }),
-    );
+    return new FamilyMember(this._id, newProps, this._createdAt);
   }
 
-  addNationalId(idNumber: string): void {
+  /**
+   * Add National ID
+   * Returns new instance
+   */
+  public addNationalId(idNumber: string): FamilyMember {
+    this.ensureNotDeleted();
+    this.ensureNotArchived();
+
     const nationalId = NationalId.createUnverified(idNumber);
-    this.props.identity = this.props.identity.withNationalId(nationalId);
-    this.props.updatedAt = new Date();
-    this.props.version++;
+    const newIdentity = this.props.identity.withNationalId(nationalId);
+
+    const newProps: FamilyMemberProps = {
+      ...this.props,
+      identity: newIdentity,
+    };
+
+    return new FamilyMember(this._id, newProps, this._createdAt);
   }
 
-  verifyNationalId(verifiedBy: string, verificationMethod: string): void {
+  /**
+   * Verify National ID
+   * Critical for S. 35/36/40 inheritance distribution
+   */
+  public verifyNationalId(verifiedBy: string, verificationMethod: string): FamilyMember {
+    this.ensureNotDeleted();
+    this.ensureNotArchived();
+
     if (!this.props.identity.nationalId) {
       throw new InvalidFamilyMemberException('No national ID to verify');
     }
@@ -452,64 +473,69 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
       verifiedBy,
       verificationMethod,
     );
-    this.props.identity = this.props.identity.withNationalId(verifiedNationalId);
-    this.props.updatedAt = new Date();
-    this.props.version++;
+    const newIdentity = this.props.identity.withNationalId(verifiedNationalId);
 
-    // Emit identity verified event
-    this.addDomainEvent(
-      new FamilyMemberIdentityVerifiedEvent({
-        familyMemberId: this.id,
-        familyId: this.familyId,
-        documentType: IdentityDocumentType.NATIONAL_ID,
-        documentNumber: verifiedNationalId.idNumber,
-        verifiedBy,
-        verificationMethod,
-        verificationDate: new Date(),
-        timestamp: new Date(),
-      }),
-    );
+    const newProps: FamilyMemberProps = {
+      ...this.props,
+      identity: newIdentity,
+    };
+
+    return new FamilyMember(this._id, newProps, this._createdAt);
   }
 
-  addKraPin(pinNumber: string): void {
+  /**
+   * Add KRA PIN
+   */
+  public addKraPin(pinNumber: string): FamilyMember {
+    this.ensureNotDeleted();
+    this.ensureNotArchived();
+
     const kraPin = KraPin.create(pinNumber);
-    this.props.identity = this.props.identity.withKraPin(kraPin);
-    this.props.updatedAt = new Date();
-    this.props.version++;
+    const newIdentity = this.props.identity.withKraPin(kraPin);
+
+    const newProps: FamilyMemberProps = {
+      ...this.props,
+      identity: newIdentity,
+    };
+
+    return new FamilyMember(this._id, newProps, this._createdAt);
   }
 
-  verifyKraPin(verifiedBy: string, isTaxCompliant: boolean): void {
+  /**
+   * Verify KRA PIN (iTax system integration)
+   */
+  public verifyKraPin(verifiedBy: string, isTaxCompliant: boolean): FamilyMember {
+    this.ensureNotDeleted();
+    this.ensureNotArchived();
+
     if (!this.props.identity.kraPin) {
       throw new InvalidFamilyMemberException('No KRA PIN to verify');
     }
 
     const verifiedKraPin = this.props.identity.kraPin.verify(verifiedBy, isTaxCompliant);
-    this.props.identity = this.props.identity.withKraPin(verifiedKraPin);
-    this.props.updatedAt = new Date();
-    this.props.version++;
+    const newIdentity = this.props.identity.withKraPin(verifiedKraPin);
 
-    // Emit identity verified event
-    this.addDomainEvent(
-      new FamilyMemberIdentityVerifiedEvent({
-        familyMemberId: this.id,
-        familyId: this.familyId,
-        documentType: IdentityDocumentType.KRA_PIN,
-        documentNumber: verifiedKraPin.pinNumber,
-        verifiedBy,
-        verificationMethod: 'ITAX_SYSTEM',
-        verificationDate: new Date(),
-        timestamp: new Date(),
-      }),
-    );
+    const newProps: FamilyMemberProps = {
+      ...this.props,
+      identity: newIdentity,
+    };
+
+    return new FamilyMember(this._id, newProps, this._createdAt);
   }
 
-  markAsDeceased(params: {
+  /**
+   * Mark as deceased
+   * Critical trigger for succession process (S. 83 LSA)
+   */
+  public markAsDeceased(params: {
     dateOfDeath: Date;
     placeOfDeath?: string;
-    deathCertificateNumber?: string;
     causeOfDeath?: string;
+    deathCertificateNumber?: string;
     issuingAuthority?: string;
-  }): void {
+  }): FamilyMember {
+    this.ensureNotDeleted();
+
     if (this.isDeceased) {
       throw new InvalidFamilyMemberException('Member is already marked as deceased');
     }
@@ -518,316 +544,153 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
       throw new InvalidFamilyMemberException('Date of death cannot be in the future');
     }
 
-    // Calculate age at death
-    const ageAtDeath = this.props.ageCalculation?.age || null;
-
     // Update life status
-    this.props.lifeStatus = this.props.lifeStatus.markDeceased(
+    const newLifeStatus = this.props.lifeStatus.markDeceased(
       params.dateOfDeath,
       params.placeOfDeath,
       params.causeOfDeath,
     );
 
-    // Update death location if provided
-    if (params.placeOfDeath) {
-      this.props.deathLocation = KenyanLocation.createFromProps({
-        county: 'UNKNOWN' as any,
-        placeName: params.placeOfDeath,
-        isUrban: false,
-        isRural: true,
-      });
-    }
-
     // Add death certificate if provided
+    let newIdentity = this.props.identity;
     if (params.deathCertificateNumber) {
       const deathCertificate = DeathCertificate.createStandardCertificate(
         params.deathCertificateNumber,
         params.dateOfDeath,
-        new Date(), // date of registration
+        new Date(), // registrationDate
         params.placeOfDeath || '',
-        params.placeOfDeath || 'UNKNOWN', // registrationDistrict - using placeOfDeath or default
+        'NAIROBI', // registrationDistrict - default
       );
-      this.props.identity = this.props.identity.withDeathCertificate(deathCertificate);
+      newIdentity = newIdentity.withDeathCertificate(deathCertificate);
     }
 
-    this.props.updatedAt = new Date();
-    this.props.version++;
-    this.props.isArchived = true; // Archive deceased members
-
-    // Emit deceased event
-    this.addDomainEvent(
-      new FamilyMemberDeceasedEvent({
-        familyMemberId: this.id,
-        familyId: this.familyId,
-        dateOfDeath: params.dateOfDeath,
-        placeOfDeath: params.placeOfDeath,
-        causeOfDeath: params.causeOfDeath,
-        deathCertificateNumber: params.deathCertificateNumber,
-        ageAtDeath: ageAtDeath || undefined,
-        timestamp: new Date(),
-      }),
-    );
-
-    // Emit age recalculated event
-    this.emitAgeRecalculatedEvent();
-
-    // Emit archived event
-    this.addDomainEvent(
-      new FamilyMemberArchivedEvent({
-        familyMemberId: this.id,
-        familyId: this.familyId,
-        archivedBy: 'SYSTEM',
-        reason: 'Deceased',
-        isDeceased: true,
-        timestamp: new Date(),
-      }),
-    );
-  }
-
-  updateDisabilityStatus(params: {
-    disabilityType: string;
-    requiresSupportedDecisionMaking: boolean;
-    certificateId?: string;
-  }): void {
-    let disabilityStatus = this.props.disabilityStatus || DisabilityStatus.create(true);
-
-    // Add a disability detail
-    const disabilityDetail = {
-      type: params.disabilityType as any,
-      severity: 'MODERATE' as const,
-      requiresAssistance: params.requiresSupportedDecisionMaking,
+    const newProps: FamilyMemberProps = {
+      ...this.props,
+      lifeStatus: newLifeStatus,
+      identity: newIdentity,
+      deathLocation: params.placeOfDeath
+        ? FamilyMember.buildDeathLocation(params.placeOfDeath)
+        : undefined,
+      isArchived: true, // Auto-archive deceased
+      archivedAt: new Date(),
+      archivalReason: 'Deceased',
     };
 
-    disabilityStatus = disabilityStatus.addDisability(disabilityDetail);
-    disabilityStatus = disabilityStatus.setSupportedDecisionMaking(
+    return new FamilyMember(this._id, newProps, this._createdAt);
+  }
+
+  /**
+   * Update disability status (affects S. 29 dependant claims)
+   */
+  public updateDisabilityStatus(params: {
+    disabilityType: string;
+    severity: 'MILD' | 'MODERATE' | 'SEVERE';
+    requiresSupportedDecisionMaking: boolean;
+  }): FamilyMember {
+    this.ensureNotDeleted();
+    this.ensureNotArchived();
+
+    let newDisabilityStatus = this.props.disabilityStatus || DisabilityStatus.create(true);
+
+    newDisabilityStatus = newDisabilityStatus.addDisability({
+      type: params.disabilityType as any,
+      severity: params.severity,
+      requiresAssistance: params.requiresSupportedDecisionMaking,
+    });
+
+    newDisabilityStatus = newDisabilityStatus.setSupportedDecisionMaking(
       params.requiresSupportedDecisionMaking,
     );
 
-    this.props.disabilityStatus = disabilityStatus;
-    this.props.updatedAt = new Date();
-    this.props.version++;
+    const newProps: FamilyMemberProps = {
+      ...this.props,
+      disabilityStatus: newDisabilityStatus,
+    };
 
-    // Emit disability status updated event
-    this.addDomainEvent(
-      new FamilyMemberDisabilityStatusUpdatedEvent({
-        familyMemberId: this.id,
-        familyId: this.familyId,
-        hasDisability: disabilityStatus.hasDisability,
-        disabilityType: params.disabilityType,
-        requiresSupportedDecisionMaking: params.requiresSupportedDecisionMaking,
-        registeredWithNCPWD: disabilityStatus.registeredWithNCPWD,
-        disabilityCardNumber: disabilityStatus.disabilityCardNumber,
-        timestamp: new Date(),
-      }),
-    );
-
-    // Re-assess dependency status
-    this.assessAndEmitDependencyStatus();
+    return new FamilyMember(this._id, newProps, this._createdAt);
   }
 
-  assignToPolygamousHouse(houseId: string, houseName?: string, houseOrder: number = 1): void {
+  /**
+   * Assign to polygamous house (S. 40 LSA)
+   * Only applicable for children in polygamous families
+   */
+  public assignToPolygamousHouse(houseId: string): FamilyMember {
+    this.ensureNotDeleted();
+    this.ensureNotArchived();
+
     if (this.isDeceased) {
       throw new InvalidFamilyMemberException('Cannot assign deceased member to polygamous house');
     }
 
-    if (this.gender !== 'MALE') {
-      throw new InvalidFamilyMemberException('Only male members can be assigned as house heads');
-    }
+    const newProps: FamilyMemberProps = {
+      ...this.props,
+      polygamousHouseId: new UniqueEntityID(houseId),
+    };
 
-    this.props.polygamousHouseId = houseId;
-    this.props.updatedAt = new Date();
-    this.props.version++;
-
-    // Emit polygamous house assigned event
-    this.addDomainEvent(
-      new FamilyMemberPolygamousHouseAssignedEvent({
-        familyMemberId: this.id,
-        familyId: this.familyId,
-        polygamousHouseId: houseId,
-        houseName,
-        houseOrder,
-        assignedAs: 'HOUSE_HEAD',
-        timestamp: new Date(),
-      }),
-    );
-
-    // Emit S.40 status changed event
-    this.addDomainEvent(
-      new FamilyMemberS40PolygamousStatusChangedEvent({
-        familyMemberId: this.id,
-        familyId: this.familyId,
-        polygamousHouseId: houseId,
-        houseOrder,
-        isPolygamousHouseHead: true,
-        s40CertificateNumber: undefined, // Would come from court
-        courtRecognized: false,
-        timestamp: new Date(),
-      }),
-    );
+    return new FamilyMember(this._id, newProps, this._createdAt);
   }
 
-  removeFromPolygamousHouse(): void {
-    this.props.polygamousHouseId = undefined;
-    this.props.updatedAt = new Date();
-    this.props.version++;
+  /**
+   * Mark as missing (presumed alive but missing)
+   */
+  public markAsMissing(missingSince: Date, lastSeenLocation?: string): FamilyMember {
+    this.ensureNotDeleted();
+    this.ensureNotArchived();
 
-    // Note: We need a FamilyMemberPolygamousHouseRemovedEvent or similar
-    // For now, we'll use a generic approach
-    console.warn('Polygamous house removal event not implemented');
+    const newLifeStatus = this.props.lifeStatus.markMissing(missingSince, lastSeenLocation);
+
+    const newProps: FamilyMemberProps = {
+      ...this.props,
+      lifeStatus: newLifeStatus,
+    };
+
+    return new FamilyMember(this._id, newProps, this._createdAt);
   }
 
-  markAsMissing(missingSince: Date, lastSeenLocation?: string): void {
-    this.props.lifeStatus = this.props.lifeStatus.markMissing(missingSince, lastSeenLocation);
-    this.props.updatedAt = new Date();
-    this.props.version++;
+  /**
+   * Archive member (soft delete)
+   * Required for legal retention (Data Protection Act 2019)
+   */
+  public archive(reason: string, archivedBy: string): FamilyMember {
+    this.ensureNotDeleted();
 
-    // Emit missing status changed event
-    this.addDomainEvent(
-      new FamilyMemberMissingStatusChangedEvent({
-        familyMemberId: this.id,
-        familyId: this.familyId,
-        status: 'MISSING',
-        missingSince,
-        lastSeenLocation,
-        timestamp: new Date(),
-      }),
-    );
-  }
-
-  markAsFound(): void {
-    this.props.lifeStatus = this.props.lifeStatus.markAlive();
-    this.props.updatedAt = new Date();
-    this.props.version++;
-
-    // Emit missing status changed event
-    this.addDomainEvent(
-      new FamilyMemberMissingStatusChangedEvent({
-        familyMemberId: this.id,
-        familyId: this.familyId,
-        status: 'FOUND',
-        timestamp: new Date(),
-      }),
-    );
-  }
-
-  archive(reason: string, deletedBy: string): void {
     if (this.props.isArchived) {
       throw new InvalidFamilyMemberException('Member is already archived');
     }
 
-    this.props.isArchived = true;
-    this.props.deletedAt = new Date();
-    this.props.deletedBy = deletedBy;
-    this.props.deletionReason = reason;
-    this.props.updatedAt = new Date();
-    this.props.version++;
+    const newProps: FamilyMemberProps = {
+      ...this.props,
+      isArchived: true,
+      archivedAt: new Date(),
+      archivedBy: new UniqueEntityID(archivedBy),
+      archivalReason: reason,
+    };
 
-    // Emit archived event
-    this.addDomainEvent(
-      new FamilyMemberArchivedEvent({
-        familyMemberId: this.id,
-        familyId: this.familyId,
-        archivedBy: deletedBy,
-        reason,
-        isDeceased: this.isDeceased,
-        timestamp: new Date(),
-      }),
-    );
+    return new FamilyMember(this._id, newProps, this._createdAt);
   }
 
-  unarchive(): void {
-    if (!this.props.isArchived) {
-      throw new InvalidFamilyMemberException('Member is not archived');
+  // =========================================================================
+  // GUARDS
+  // =========================================================================
+
+  private ensureNotArchived(): void {
+    if (this.props.isArchived) {
+      throw new InvalidFamilyMemberException(
+        `Cannot modify archived member [${this._id.toString()}]`,
+      );
     }
-
-    this.props.isArchived = false;
-    this.props.deletedAt = undefined;
-    this.props.deletedBy = undefined;
-    this.props.deletionReason = undefined;
-    this.props.updatedAt = new Date();
-    this.props.version++;
-
-    // Note: We need a FamilyMemberUnarchivedEvent
-    console.warn('Unarchive event not implemented');
   }
 
-  // Helper method to assess and emit dependency status
-  private assessAndEmitDependencyStatus(): void {
-    const isPotentialDependant = this.isPotentialDependant;
-    const assessmentReasons: string[] = [];
+  // =========================================================================
+  // GETTERS (Read-Only Access)
+  // =========================================================================
 
-    if (this.isMinor) assessmentReasons.push('MINOR');
-    if (this.hasDisability) assessmentReasons.push('DISABILITY');
-    if (this.props.ageCalculation?.isYoungAdult) assessmentReasons.push('STUDENT_AGE');
-    if (this.props.disabilityStatus?.qualifiesForDependantStatus)
-      assessmentReasons.push('SEVERE_DISABILITY');
-
-    const qualifiesForS29 = assessmentReasons.length > 0;
-    const dependencyLevel = this.determineDependencyLevel();
-
-    // Emit dependency status assessed event
-    this.addDomainEvent(
-      new FamilyMemberDependencyStatusAssessedEvent({
-        familyMemberId: this.id,
-        familyId: this.familyId,
-        isPotentialDependant,
-        assessmentReasons,
-        qualifiesForS29,
-        dependencyLevel,
-        timestamp: new Date(),
-      }),
-    );
-  }
-
-  private determineDependencyLevel(): 'NONE' | 'PARTIAL' | 'FULL' {
-    if (!this.isPotentialDependant) return 'NONE';
-
-    if (this.hasDisability && this.props.disabilityStatus?.hasSevereDisability) {
-      return 'FULL';
-    }
-
-    if (this.isMinor) {
-      return 'FULL';
-    }
-
-    if (this.props.ageCalculation?.isYoungAdult) {
-      return 'PARTIAL';
-    }
-
-    return 'NONE';
-  }
-
-  private emitAgeRecalculatedEvent(): void {
-    if (!this.props.ageCalculation) return;
-
-    const age = this.props.ageCalculation.age;
-    if (age === null) return;
-
-    this.addDomainEvent(
-      new FamilyMemberAgeRecalculatedEvent({
-        familyMemberId: this.id,
-        familyId: this.familyId,
-        oldAge: undefined, // We don't track old age changes
-        newAge: age,
-        isMinor: this.props.ageCalculation.isMinor,
-        isYoungAdult: this.props.ageCalculation.isYoungAdult,
-        isElderly: this.props.ageCalculation.isElderly,
-        timestamp: new Date(),
-      }),
-    );
-  }
-
-  // Getters
-  get id(): string {
-    return this.props.id;
-  }
-
-  get userId(): string | undefined {
-    return this.props.userId;
-  }
-
-  get familyId(): string {
+  get familyId(): UniqueEntityID {
     return this.props.familyId;
+  }
+
+  get userId(): UniqueEntityID | undefined {
+    return this.props.userId;
   }
 
   get name(): KenyanName {
@@ -838,16 +701,12 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
     return this.props.identity;
   }
 
-  get contactInfo(): ContactInfo | undefined {
-    return this.props.contactInfo;
-  }
-
-  get disabilityStatus(): DisabilityStatus | undefined {
-    return this.props.disabilityStatus;
-  }
-
   get lifeStatus(): LifeStatus {
     return this.props.lifeStatus;
+  }
+
+  get contactInfo(): ContactInfo | undefined {
+    return this.props.contactInfo;
   }
 
   get demographicInfo(): DemographicInfo | undefined {
@@ -856,6 +715,10 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
 
   get ageCalculation(): AgeCalculation | undefined {
     return this.props.ageCalculation;
+  }
+
+  get disabilityStatus(): DisabilityStatus | undefined {
+    return this.props.disabilityStatus;
   }
 
   get birthLocation(): KenyanLocation | undefined {
@@ -870,182 +733,258 @@ export class FamilyMember extends AggregateRoot<FamilyMemberProps> {
     return this.props.occupation;
   }
 
-  get maidenName(): string | undefined {
-    return this.props.name.maidenName;
-  }
-
-  get polygamousHouseId(): string | undefined {
+  get polygamousHouseId(): UniqueEntityID | undefined {
     return this.props.polygamousHouseId;
-  }
-
-  get version(): number {
-    return this.props.version;
-  }
-
-  get lastEventId(): string | undefined {
-    return this.props.lastEventId;
-  }
-
-  get createdAt(): Date {
-    return this.props.createdAt;
-  }
-
-  get updatedAt(): Date {
-    return this.props.updatedAt;
-  }
-
-  get deletedAt(): Date | undefined {
-    return this.props.deletedAt;
-  }
-
-  get deletedBy(): string | undefined {
-    return this.props.deletedBy;
-  }
-
-  get deletionReason(): string | undefined {
-    return this.props.deletionReason;
   }
 
   get isArchived(): boolean {
     return this.props.isArchived;
   }
 
-  // Computed properties
+  get archivedAt(): Date | undefined {
+    return this.props.archivedAt;
+  }
+
+  get archivedBy(): UniqueEntityID | undefined {
+    return this.props.archivedBy;
+  }
+
+  get archivalReason(): string | undefined {
+    return this.props.archivalReason;
+  }
+
+  // =========================================================================
+  // COMPUTED PROPERTIES (Kenyan Law Context)
+  // =========================================================================
+
+  /**
+   * Is deceased (triggers succession process)
+   */
   get isDeceased(): boolean {
     return this.props.lifeStatus.isDeceased;
   }
 
+  /**
+   * Is minor (affects S. 29 dependant status & S. 70 guardianship)
+   * Kenyan Law: Minor = under 18 years
+   */
   get isMinor(): boolean {
     if (this.isDeceased) return false;
     return this.props.ageCalculation?.isMinor || false;
   }
 
+  /**
+   * Current age (for S. 29 dependant assessment)
+   */
   get currentAge(): number | null {
-    if (this.isDeceased) {
-      return this.props.ageCalculation?.age || null;
-    }
     return this.props.ageCalculation?.age || null;
   }
 
+  /**
+   * Date of birth (critical for age verification)
+   */
   get dateOfBirth(): Date | undefined {
     return this.props.ageCalculation?.dateOfBirth;
   }
 
+  /**
+   * Date of death (succession trigger)
+   */
   get dateOfDeath(): Date | undefined {
     return this.props.lifeStatus.dateOfDeath;
   }
 
-  get gender(): string | undefined {
-    return this.props.demographicInfo?.gender;
-  }
-
-  get religion(): string | undefined {
-    return this.props.demographicInfo?.religion;
-  }
-
-  get ethnicity(): string | undefined {
-    return this.props.demographicInfo?.ethnicGroup;
-  }
-
-  get isMuslim(): boolean {
-    return this.props.demographicInfo?.isMuslim || false;
-  }
-
-  get isCustomaryLawApplicable(): boolean {
-    return this.props.identity['_value'].appliesCustomaryLaw || false;
-  }
-
+  /**
+   * Has verified identity (required for inheritance)
+   */
   get isIdentityVerified(): boolean {
-    return this.props.identity['_value'].isLegallyVerified || false;
+    return this.props.identity.isLegallyVerified;
   }
 
+  /**
+   * Has disability (affects S. 29 dependant claims)
+   */
   get hasDisability(): boolean {
     return this.props.disabilityStatus?.hasDisability || false;
   }
 
+  /**
+   * Requires supported decision making (Mental Health Act 1989)
+   */
   get requiresSupportedDecisionMaking(): boolean {
     return this.props.disabilityStatus?.requiresSupportedDecisionMaking || false;
   }
 
-  get isPresumedAlive(): boolean {
-    return this.props.lifeStatus.isAlive;
+  /**
+   * Is active (not archived, not deceased, presumed alive)
+   */
+  get isActive(): boolean {
+    return !this.props.isArchived && !this.isDeceased && this.props.lifeStatus.isAlive;
   }
 
+  /**
+   * Is eligible for inheritance (S. 35/36/40 LSA)
+   * Requirements:
+   * 1. Not deceased
+   * 2. Verified identity
+   * 3. Presumed alive
+   * 4. Not archived
+   */
+  get isEligibleForInheritance(): boolean {
+    return (
+      !this.isDeceased &&
+      this.isIdentityVerified &&
+      this.props.lifeStatus.isAlive &&
+      !this.props.isArchived
+    );
+  }
+
+  /**
+   * Is potential dependant (S. 29 LSA)
+   * Qualifies if:
+   * 1. Minor
+   * 2. Has disability
+   * 3. Student (18-25 years)
+   * 4. Elderly parent
+   */
+  get isPotentialDependant(): boolean {
+    const isStudentAge = this.props.ageCalculation?.isYoungAdult || false;
+    const isElderly = this.props.ageCalculation?.isElderly || false;
+
+    return this.isMinor || this.hasDisability || isStudentAge || isElderly;
+  }
+
+  /**
+   * Dependency level (for S. 29 provision calculation)
+   */
+  get dependencyLevel(): 'NONE' | 'PARTIAL' | 'FULL' {
+    if (!this.isPotentialDependant) return 'NONE';
+
+    // Full dependency: Severe disability or minor
+    if (this.hasDisability && this.props.disabilityStatus?.hasSevereDisability) {
+      return 'FULL';
+    }
+
+    if (this.isMinor) {
+      return 'FULL';
+    }
+
+    // Partial dependency: Student age, mild disability
+    if (this.props.ageCalculation?.isYoungAdult) {
+      return 'PARTIAL';
+    }
+
+    return 'NONE';
+  }
+
+  /**
+   * Missing since (for presumption of death)
+   * Kenyan Law: 7 years missing = presumed dead
+   */
   get missingSince(): Date | undefined {
     return this.props.lifeStatus.missingSince;
   }
 
-  // FIXED: Get from death certificate if it exists
-  get deathCertificateIssued(): boolean {
+  /**
+   * Is Muslim (affects Islamic succession rules)
+   */
+  get isMuslim(): boolean {
+    return this.props.demographicInfo?.isMuslim || false;
+  }
+
+  /**
+   * Applies customary law (affects succession distribution)
+   */
+  get isCustomaryLawApplicable(): boolean {
+    return this.props.identity.appliesCustomaryLaw;
+  }
+
+  /**
+   * Gender (required for S. 40 polygamy rules)
+   */
+  get gender(): 'MALE' | 'FEMALE' | 'OTHER' | undefined {
+    return this.props.demographicInfo?.gender as any;
+  }
+
+  /**
+   * Religion (affects succession preferences)
+   */
+  get religion(): string | undefined {
+    return this.props.demographicInfo?.religion;
+  }
+
+  /**
+   * Ethnic group (for customary law application)
+   */
+  get ethnicGroup(): string | undefined {
+    return this.props.demographicInfo?.ethnicGroup;
+  }
+
+  /**
+   * Has death certificate (required for succession process)
+   */
+  get hasDeathCertificate(): boolean {
     return !!this.props.identity.deathCertificate;
   }
 
-  get isActive(): boolean {
-    return !this.isArchived && !this.isDeceased && this.props.lifeStatus.isAlive;
+  /**
+   * Maiden name (for married women - identity tracking)
+   */
+  get maidenName(): string | undefined {
+    return this.props.name.maidenName;
   }
 
-  get isEligibleForInheritance(): boolean {
-    // For inheritance eligibility under Kenyan law:
-    // 1. Must not be deceased
-    // 2. Must have verified identity
-    // 3. Must be alive (not presumed dead)
-    // 4. Must not be archived
-    return !this.isDeceased && this.isIdentityVerified && this.isPresumedAlive && !this.isArchived;
-  }
+  // =========================================================================
+  // SERIALIZATION
+  // =========================================================================
 
-  // For S.29 dependant qualification
-  get isPotentialDependant(): boolean {
-    // A person is a potential dependant if:
-    // 1. Is a minor
-    // 2. Has disability
-    // 3. Is a student (age 18-25)
-    // 4. Was financially dependent on deceased
-    const isStudentAge = this.props.ageCalculation?.isYoungAdult || false;
-
-    return this.isMinor || this.hasDisability || isStudentAge;
-  }
-
-  toJSON() {
+  /**
+   * Convert to plain object (for persistence/API)
+   */
+  public toPlainObject(): Record<string, any> {
     return {
-      id: this.id,
-      userId: this.userId,
-      familyId: this.familyId,
-      name: this.name.toJSON(),
-      identity: this.identity.toJSON(),
-      contactInfo: this.contactInfo?.toJSON(),
-      disabilityStatus: this.disabilityStatus?.toJSON(),
-      lifeStatus: this.lifeStatus.toJSON(),
-      demographicInfo: this.demographicInfo?.toJSON(),
-      ageCalculation: this.ageCalculation?.toJSON(),
-      birthLocation: this.birthLocation?.toJSON(),
-      deathLocation: this.deathLocation?.toJSON(),
-      occupation: this.occupation,
-      maidenName: this.maidenName,
-      polygamousHouseId: this.polygamousHouseId,
+      id: this._id.toString(),
+      familyId: this.props.familyId.toString(),
+      userId: this.props.userId?.toString(),
+
+      // Value Objects
+      name: this.props.name.toJSON(),
+      identity: this.props.identity.toJSON(),
+      lifeStatus: this.props.lifeStatus.toJSON(),
+      contactInfo: this.props.contactInfo?.toJSON(),
+      demographicInfo: this.props.demographicInfo?.toJSON(),
+      ageCalculation: this.props.ageCalculation?.toJSON(),
+      disabilityStatus: this.props.disabilityStatus?.toJSON(),
+      birthLocation: this.props.birthLocation?.toJSON(),
+      deathLocation: this.props.deathLocation?.toJSON(),
+
+      // Primitives
+      occupation: this.props.occupation,
+      polygamousHouseId: this.props.polygamousHouseId?.toString(),
+
+      // Computed properties
       isDeceased: this.isDeceased,
       isMinor: this.isMinor,
       currentAge: this.currentAge,
-      gender: this.gender,
-      religion: this.religion,
-      ethnicity: this.ethnicity,
-      isMuslim: this.isMuslim,
-      isCustomaryLawApplicable: this.isCustomaryLawApplicable,
       isIdentityVerified: this.isIdentityVerified,
       hasDisability: this.hasDisability,
       requiresSupportedDecisionMaking: this.requiresSupportedDecisionMaking,
-      isPresumedAlive: this.isPresumedAlive,
-      missingSince: this.missingSince,
-      deathCertificateIssued: this.deathCertificateIssued,
       isActive: this.isActive,
       isEligibleForInheritance: this.isEligibleForInheritance,
       isPotentialDependant: this.isPotentialDependant,
-      version: this.version,
-      createdAt: this.createdAt,
-      updatedAt: this.updatedAt,
-      deletedAt: this.deletedAt,
-      deletedBy: this.deletedBy,
-      deletionReason: this.deletionReason,
-      isArchived: this.isArchived,
+      dependencyLevel: this.dependencyLevel,
+
+      // Archival
+      isArchived: this.props.isArchived,
+      archivedAt: this.props.archivedAt,
+      archivedBy: this.props.archivedBy?.toString(),
+      archivalReason: this.props.archivalReason,
+
+      // Audit
+      version: this._version,
+      createdAt: this._createdAt,
+      updatedAt: this._updatedAt,
+      deletedAt: this._deletedAt,
     };
   }
 }

@@ -4,7 +4,7 @@ import { CommandBus, EventBus } from '@nestjs/cqrs';
 import { ICommandHandler } from '@nestjs/cqrs/dist/interfaces/commands/command-handler.interface';
 
 import { InvalidGuardianshipException } from '../../../../domain/exceptions/guardianship.exception';
-import type { IGuardianRepository } from '../../../../domain/interfaces/repositories/iguardian.repository';
+import type { IGuardianRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { Result } from '../../../common/base/result';
 import { GuardianshipResponse } from '../../dto/response/guardianship.response';
 import { PostBondCommand } from '../impl/post-bond.command';

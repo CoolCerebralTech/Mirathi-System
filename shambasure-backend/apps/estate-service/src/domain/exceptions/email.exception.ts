@@ -1,9 +1,8 @@
-// src/shared/domain/exceptions/email.exception.ts
 import { InvalidValueObjectException } from './base-domain.exception';
 
 export class InvalidEmailException extends InvalidValueObjectException {
-  constructor(message: string, field?: string, context?: Record<string, any>) {
-    super(message, 'DOMAIN_EMAIL_001', field, context);
+  constructor(message: string, field: string = 'email', context?: Record<string, any>) {
+    super(message, field, { ...context, code: 'DOMAIN_EMAIL_001' });
   }
 }
 

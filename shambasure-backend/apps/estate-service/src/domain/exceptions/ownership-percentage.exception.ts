@@ -1,9 +1,8 @@
-// src/shared/domain/exceptions/ownership-percentage.exception.ts
 import { InvalidValueObjectException } from './base-domain.exception';
 
 export class InvalidOwnershipPercentageException extends InvalidValueObjectException {
-  constructor(message: string, field?: string, context?: Record<string, any>) {
-    super(message, 'DOMAIN_OWNERSHIP_001', field, context);
+  constructor(message: string, field: string = 'ownership', context?: Record<string, any>) {
+    super(message, field, { ...context, code: 'DOMAIN_OWNERSHIP_001' });
   }
 }
 

@@ -1,13 +1,11 @@
-import { AggregateRoot } from '../../../base/aggregate-root';
-import { UniqueEntityID } from '../../../base/entity';
+// src/domain/aggregates/estate/entities/debt.entity.ts
+import { Entity } from '../../../base/entity';
+import { UniqueEntityID } from '../../../base/unique-entity-id';
 import { Guard } from '../../../core/guard';
 import { Result } from '../../../core/result';
-import { Currency, Money } from '../../../shared/money.vo';
-import { DebtPriorityAssignedEvent } from '../events/debt-priority-assigned.event';
-import { DebtRecordedEvent } from '../events/debt-recorded.event';
-import { DebtSettledEvent } from '../events/debt-settled.event';
-import { DebtStatusUpdatedEvent } from '../events/debt-status-updated.event';
-import { DebtTerms, LiabilityTier } from '../value-objects/debt-terms.vo';
+import { KenyanId } from '../../../shared/kenyan-id.vo';
+import { Money } from '../../../shared/money.vo';
+import { DebtTerms, LiabilityTier, Section45Tier } from '../value-objects/debt-terms.vo';
 
 export enum DebtType {
   MORTGAGE = 'MORTGAGE',
@@ -21,6 +19,10 @@ export enum DebtType {
   UTILITY_BILLS = 'UTILITY_BILLS',
   EMPLOYEE_WAGES = 'EMPLOYEE_WAGES',
   COURT_FINES = 'COURT_FINES',
+  TESTAMENTARY_EXPENSES = 'TESTAMENTARY_EXPENSES',
+  LEGAL_FEES = 'LEGAL_FEES',
+  VALUATION_FEES = 'VALUATION_FEES',
+  ADMINISTRATION_EXPENSES = 'ADMINISTRATION_EXPENSES',
   OTHER = 'OTHER',
 }
 
@@ -32,6 +34,8 @@ export enum KenyanTaxType {
   VALUE_ADDED_TAX = 'VALUE_ADDED_TAX',
   EXCISE_DUTY = 'EXCISE_DUTY',
   CUSTOMS_DUTY = 'CUSTOMS_DUTY',
+  INSTALMENT_TAX = 'INSTALMENT_TAX',
+  CORPORATE_TAX = 'CORPORATE_TAX',
   OTHER = 'OTHER',
 }
 
@@ -43,80 +47,141 @@ export enum DebtStatus {
   DISPUTED = 'DISPUTED',
   STATUTE_BARRED = 'STATUTE_BARRED',
   PENDING_VERIFICATION = 'PENDING_VERIFICATION',
+  UNDER_COURT_REVIEW = 'UNDER_COURT_REVIEW',
+  CLAIM_REJECTED = 'CLAIM_REJECTED',
 }
 
 export enum DebtPriority {
-  HIGHEST = 'HIGHEST', // Funeral expenses, taxes (S.45(a) LSA)
-  HIGH = 'HIGH', // Secured debts (S.45(b) LSA)
-  MEDIUM = 'MEDIUM', // Unsecured priority debts (S.45(c) LSA)
-  LOW = 'LOW', // Unsecured non-priority debts (S.45(d) LSA)
+  HIGHEST = 'HIGHEST', // S.45(a): Funeral & Testamentary expenses
+  HIGH = 'HIGH', // S.45(b): Secured debts
+  MEDIUM = 'MEDIUM', // S.45(c): Taxes, rates, wages
+  LOW = 'LOW', // S.45(d): Unsecured general debts
 }
 
 interface DebtProps {
   estateId: UniqueEntityID;
 
-  // Debt Information
+  // Core Debt Information
   type: DebtType;
   description: string;
+
+  // Section 45 Compliance
+  section45Tier: Section45Tier;
+  liabilityTier: LiabilityTier;
+  priority: DebtPriority;
+  priorityOrder: number; // 1, 2, 3, 4 for payment sequence
+  isMandatoryPayment: boolean; // Must be paid before distribution
 
   // Financial Details
   principalAmount: Money;
   outstandingBalance: Money;
-  currency: Currency;
+  claimedAmount: Money; // Amount claimed by creditor (may differ)
+  maximumPayableAmount: Money; // Cap on payment (e.g., statutory limits)
 
-  // Debt Terms
+  // Debt Terms & Conditions
   terms: DebtTerms;
 
-  // S.45 Priority Classification
-  liabilityTier: LiabilityTier;
-  priority: DebtPriority;
+  // Status & Workflow
   status: DebtStatus;
+  verificationStatus: 'UNVERIFIED' | 'PENDING_VERIFICATION' | 'VERIFIED' | 'REJECTED';
+  verificationNotes: string | null;
+  verifiedBy: UniqueEntityID | null;
+  verifiedAt: Date | null;
 
   // Kenyan Tax-Specific Fields
   taxType: KenyanTaxType | null;
-  kraPin: string | null;
-  taxPeriod: string | null;
+  kraPin: KenyanId | null;
+  taxPeriod: string | null; // "2023-2024", "Q1 2024", "January 2024"
+  taxAssessmentNumber: string | null;
+  taxOffice: string | null;
 
-  // Creditor Information
+  // Creditor Information (Kenyan Context)
   creditorName: string;
+  creditorType: 'INDIVIDUAL' | 'COMPANY' | 'GOVERNMENT' | 'FINANCIAL_INSTITUTION' | 'OTHER';
   creditorContact: string | null;
   creditorAccountNumber: string | null;
-  creditorKraPin: string | null;
+  creditorKraPin: KenyanId | null;
   creditorAddress: string | null;
+  creditorPhone: string | null;
+  creditorEmail: string | null;
+  creditorBankDetails: Record<string, any> | null;
 
   // Asset Linkage (for secured debts)
   securedAssetId: UniqueEntityID | null;
+  securityDetails: string | null;
+  securityDocumentId: string | null;
+  securityRegistrationNumber: string | null; // Charge/Mortgage registration number
 
-  // Payment Tracking
+  // Payment Tracking (Kenyan Banking)
   lastPaymentDate: Date | null;
   lastPaymentAmount: Money | null;
+  lastPaymentMethod: string | null; // "MPESA", "BANK_TRANSFER", "CHEQUE", "CASH"
+  lastPaymentReference: string | null;
   totalPaid: Money;
+  paymentHistory: Array<{
+    date: Date;
+    amount: Money;
+    method: string;
+    reference: string;
+    paidBy: string;
+    notes?: string;
+  }>;
 
-  // Legal & Compliance
+  // Legal & Compliance (Kenyan Law)
   isStatuteBarred: boolean;
   statuteBarredDate: Date | null;
+  limitationPeriodYears: number; // Kenyan Limitation Act
   requiresCourtApproval: boolean;
   courtApprovalObtained: boolean;
   courtApprovalDate: Date | null;
   courtOrderReference: string | null;
+  courtStation: string | null;
+  judgeName: string | null;
 
-  // Dispute Tracking
+  // Dispute & Claim Management
   isDisputed: boolean;
   disputeReason: string | null;
+  disputeFiledBy: string | null;
+  disputeFiledDate: Date | null;
   disputeResolvedAt: Date | null;
+  disputeResolution: string | null;
+  claimRejectionReason: string | null;
 
-  // Timeline
+  // Documentary Evidence
+  supportingDocuments: string[]; // Array of document IDs
+  proofOfDebtSubmitted: boolean;
+  proofOfDebtDocumentId: string | null;
+  creditorAffidavitSubmitted: boolean;
+  affidavitDocumentId: string | null;
+
+  // Timeline & Deadlines
   incurredDate: Date;
   dueDate: Date | null;
+  noticeDate: Date | null; // Date creditor notified of death
+  claimSubmissionDate: Date | null;
+  claimVerificationDeadline: Date | null;
+  paymentDeadline: Date | null;
 
-  // Management
+  // Estate Administration Context
+  includedInEstateInventory: boolean;
+  inventoryDate: Date | null;
+  recommendedForPayment: boolean;
+  paymentRecommendationDate: Date | null;
+  paymentRecommendationBy: UniqueEntityID | null;
+  paymentAuthorizationDate: Date | null;
+  paymentAuthorizedBy: UniqueEntityID | null;
+
+  // Management & Audit
   isActive: boolean;
-  deletedAt: Date | null;
+  requiresExecutorAttention: boolean;
+  executorNotes: string | null;
+  lastModifiedBy: UniqueEntityID | null;
+  notes: string | null;
 }
 
-export class Debt extends AggregateRoot<DebtProps> {
+export class Debt extends Entity<DebtProps> {
   private constructor(props: DebtProps, id?: UniqueEntityID) {
-    super(props, id);
+    super(id, props);
   }
 
   public static create(
@@ -128,16 +193,18 @@ export class Debt extends AggregateRoot<DebtProps> {
       creditorName: string;
       incurredDate: Date;
       terms: DebtTerms;
+      section45Tier?: Section45Tier;
       liabilityTier?: LiabilityTier;
       taxType?: KenyanTaxType;
-      kraPin?: string;
+      kraPin?: KenyanId;
       taxPeriod?: string;
       creditorContact?: string;
       creditorAccountNumber?: string;
-      creditorKraPin?: string;
+      creditorKraPin?: KenyanId;
       creditorAddress?: string;
       securedAssetId?: string;
       dueDate?: Date;
+      createdBy?: string;
     },
     id?: string,
   ): Result<Debt> {
@@ -170,95 +237,150 @@ export class Debt extends AggregateRoot<DebtProps> {
       return Result.fail<Debt>('Incurred date cannot be in the future');
     }
 
-    // Determine liability tier if not provided
+    // Determine liability tier and Section 45 tier
     let liabilityTier = props.liabilityTier;
-    if (!liabilityTier) {
-      liabilityTier = props.terms.getSection45Priority();
+    let section45Tier = props.section45Tier;
+
+    if (!liabilityTier || !section45Tier) {
+      const priorityResult = props.terms.getSection45Priority();
+      liabilityTier = liabilityTier || priorityResult.liabilityTier;
+      section45Tier = section45Tier || priorityResult.section45Tier;
     }
 
     // Determine priority based on tier
-    const priority = Debt.determinePriorityFromTier(liabilityTier);
+    const priority = Debt.determinePriorityFromTier(section45Tier);
+    const priorityOrder = Debt.getPriorityOrderFromTier(section45Tier);
 
-    // Check if tax debt has KRA PIN
-    if (props.taxType && !props.kraPin) {
-      return Result.fail<Debt>('Tax debts require KRA PIN');
+    // Validate tax debt requirements
+    if (props.taxType) {
+      if (!props.kraPin) {
+        return Result.fail<Debt>('Tax debts require KRA PIN');
+      }
+      if (!props.taxPeriod) {
+        return Result.warn<Debt>('Tax period is recommended for tax debts');
+      }
+    }
+
+    // Validate secured debt requirements
+    if (props.terms.isSecured && !props.securedAssetId) {
+      return Result.fail<Debt>('Secured debts must be linked to an asset');
     }
 
     const debtId = id ? new UniqueEntityID(id) : new UniqueEntityID();
     const estateId = new UniqueEntityID(props.estateId);
     const securedAssetId = props.securedAssetId ? new UniqueEntityID(props.securedAssetId) : null;
+    const createdBy = props.createdBy ? new UniqueEntityID(props.createdBy) : null;
+
+    // Determine creditor type based on context
+    const creditorType = Debt.determineCreditorType(props.creditorName, props.taxType);
 
     const defaultProps: DebtProps = {
       estateId,
       type: props.type,
       description: props.description.trim(),
-      principalAmount: props.principalAmount,
-      outstandingBalance: props.principalAmount, // Initially equals principal
-      currency: props.principalAmount.currency,
-      terms: props.terms,
+      section45Tier,
       liabilityTier,
       priority,
+      priorityOrder,
+      isMandatoryPayment: priorityOrder <= 3, // First three tiers are mandatory
+      principalAmount: props.principalAmount,
+      outstandingBalance: props.principalAmount,
+      claimedAmount: props.principalAmount,
+      maximumPayableAmount: props.principalAmount, // Can be adjusted later
+      terms: props.terms,
       status: DebtStatus.OUTSTANDING,
+      verificationStatus: 'UNVERIFIED',
+      verificationNotes: null,
+      verifiedBy: null,
+      verifiedAt: null,
       taxType: props.taxType || null,
       kraPin: props.kraPin || null,
       taxPeriod: props.taxPeriod || null,
+      taxAssessmentNumber: null,
+      taxOffice: null,
       creditorName: props.creditorName.trim(),
+      creditorType,
       creditorContact: props.creditorContact?.trim() || null,
       creditorAccountNumber: props.creditorAccountNumber?.trim() || null,
-      creditorKraPin: props.creditorKraPin?.trim() || null,
+      creditorKraPin: props.creditorKraPin || null,
       creditorAddress: props.creditorAddress?.trim() || null,
+      creditorPhone: null,
+      creditorEmail: null,
+      creditorBankDetails: null,
       securedAssetId,
+      securityDetails: null,
+      securityDocumentId: null,
+      securityRegistrationNumber: null,
       lastPaymentDate: null,
       lastPaymentAmount: null,
+      lastPaymentMethod: null,
+      lastPaymentReference: null,
       totalPaid: Money.zero(props.principalAmount.currency),
+      paymentHistory: [],
       isStatuteBarred: false,
       statuteBarredDate: null,
+      limitationPeriodYears: props.terms.isSecured ? 12 : 6, // Kenyan Limitation Act
       requiresCourtApproval: props.type === DebtType.COURT_FINES || false,
       courtApprovalObtained: false,
       courtApprovalDate: null,
       courtOrderReference: null,
+      courtStation: null,
+      judgeName: null,
       isDisputed: false,
       disputeReason: null,
+      disputeFiledBy: null,
+      disputeFiledDate: null,
       disputeResolvedAt: null,
+      disputeResolution: null,
+      claimRejectionReason: null,
+      supportingDocuments: [],
+      proofOfDebtSubmitted: false,
+      proofOfDebtDocumentId: null,
+      creditorAffidavitSubmitted: false,
+      affidavitDocumentId: null,
       incurredDate: props.incurredDate,
       dueDate: props.dueDate || null,
+      noticeDate: null,
+      claimSubmissionDate: null,
+      claimVerificationDeadline: null,
+      paymentDeadline: null,
+      includedInEstateInventory: false,
+      inventoryDate: null,
+      recommendedForPayment: false,
+      paymentRecommendationDate: null,
+      paymentRecommendationBy: null,
+      paymentAuthorizationDate: null,
+      paymentAuthorizedBy: null,
       isActive: true,
-      deletedAt: null,
+      requiresExecutorAttention: false,
+      executorNotes: null,
+      lastModifiedBy: createdBy,
+      notes: null,
     };
 
     const debt = new Debt(defaultProps, debtId);
-
-    // Add domain event for debt creation
-    debt.addDomainEvent(
-      new DebtRecordedEvent({
-        debtId: debt.id.toString(),
-        estateId: debt.props.estateId.toString(),
-        debtType: debt.props.type,
-        creditorName: debt.props.creditorName,
-        amount: debt.props.principalAmount.amount,
-        currency: debt.props.currency,
-        liabilityTier: debt.props.liabilityTier,
-        priority: debt.props.priority,
-        incurredDate: debt.props.incurredDate,
-      }),
-    );
-
     return Result.ok<Debt>(debt);
   }
 
   // ==================== BUSINESS METHODS ====================
 
-  // Payment Processing
+  // PAYMENT PROCESSING (Section 45 Compliance)
   public recordPayment(
     amount: Money,
-    paymentDate: Date = new Date(),
-    method: string,
-    transactionReference?: string,
+    paymentDetails: {
+      date?: Date;
+      method: string;
+      reference: string;
+      paidBy: string;
+      notes?: string;
+    },
   ): Result<void> {
     // Validate payment
     if (amount.amount <= 0) {
       return Result.fail('Payment amount must be positive');
     }
+
+    const paymentDate = paymentDetails.date || new Date();
 
     if (paymentDate > new Date()) {
       return Result.fail('Payment date cannot be in the future');
@@ -272,9 +394,16 @@ export class Debt extends AggregateRoot<DebtProps> {
       return Result.fail('Cannot make payments on statute-barred debt');
     }
 
+    if (this.props.status === DebtStatus.WRITTEN_OFF) {
+      return Result.fail('Cannot make payments on written-off debt');
+    }
+
     // Check if payment exceeds outstanding balance
     if (amount.amount > this.props.outstandingBalance.amount) {
-      return Result.fail('Payment amount exceeds outstanding balance');
+      return Result.warn(
+        `Payment (${amount.amount}) exceeds outstanding balance (${this.props.outstandingBalance.amount}). Adjusting to balance.`,
+      );
+      amount = this.props.outstandingBalance; // Adjust to outstanding balance
     }
 
     // Process payment
@@ -282,100 +411,105 @@ export class Debt extends AggregateRoot<DebtProps> {
     this.props.totalPaid = this.props.totalPaid.add(amount);
     this.props.lastPaymentDate = paymentDate;
     this.props.lastPaymentAmount = amount;
+    this.props.lastPaymentMethod = paymentDetails.method;
+    this.props.lastPaymentReference = paymentDetails.reference;
+
+    // Record in payment history
+    this.props.paymentHistory.push({
+      date: paymentDate,
+      amount,
+      method: paymentDetails.method,
+      reference: paymentDetails.reference,
+      paidBy: paymentDetails.paidBy,
+      notes: paymentDetails.notes,
+    });
 
     // Update status
     if (this.props.outstandingBalance.amount === 0) {
       this.props.status = DebtStatus.SETTLED;
-
-      this.addDomainEvent(
-        new DebtSettledEvent({
-          debtId: this.id.toString(),
-          estateId: this.props.estateId.toString(),
-          creditorName: this.props.creditorName,
-          settlementDate: paymentDate,
-          totalPaid: this.props.totalPaid.amount,
-          currency: this.props.totalPaid.currency,
-          paymentMethod: method,
-        }),
+      this.addNote(
+        `Debt fully settled on ${paymentDate.toISOString()}. Reference: ${paymentDetails.reference}`,
       );
     } else {
       this.props.status = DebtStatus.PARTIALLY_PAID;
-    }
-
-    this.addDomainEvent(
-      new DebtStatusUpdatedEvent({
-        debtId: this.id.toString(),
-        newStatus: this.props.status,
-        outstandingBalance: this.props.outstandingBalance.amount,
-        lastPaymentAmount: amount.amount,
-        lastPaymentDate: paymentDate,
-      }),
-    );
-
-    return Result.ok();
-  }
-
-  // S.45 Priority Management
-  public updatePriorityBasedOnTier(): Result<void> {
-    const newPriority = Debt.determinePriorityFromTier(this.props.liabilityTier);
-
-    if (newPriority !== this.props.priority) {
-      const oldPriority = this.props.priority;
-      this.props.priority = newPriority;
-
-      this.addDomainEvent(
-        new DebtPriorityAssignedEvent({
-          debtId: this.id.toString(),
-          oldPriority,
-          newPriority,
-          liabilityTier: this.props.liabilityTier,
-          updatedAt: new Date(),
-        }),
+      this.addNote(
+        `Partial payment of ${amount.amount} ${amount.currency} on ${paymentDate.toISOString()}. Outstanding: ${this.props.outstandingBalance.amount}`,
       );
     }
 
+    this.props.lastModifiedBy = new UniqueEntityID(paymentDetails.paidBy);
+
     return Result.ok();
   }
 
-  // Statute of Limitations (Limitation Act)
-  public checkStatuteBarred(): Result<void> {
-    if (this.props.status === DebtStatus.SETTLED) {
-      return Result.fail('Cannot check statute on settled debt');
+  // SECTION 45 PRIORITY MANAGEMENT
+  public updateSection45Classification(
+    section45Tier: Section45Tier,
+    updatedBy: string,
+    reason?: string,
+  ): Result<void> {
+    if (section45Tier === this.props.section45Tier) {
+      return Result.ok(); // No change needed
     }
 
+    // Special validations for tier changes
+    if (this.props.section45Tier === Section45Tier.S45_A_FUNERAL_TESTAMENTARY) {
+      return Result.fail('Cannot change classification of S.45(a) funeral/testamentary expenses');
+    }
+
+    // Update tiers and priority
+    const oldTier = this.props.section45Tier;
+    this.props.section45Tier = section45Tier;
+    this.props.liabilityTier = Debt.mapSection45ToLiabilityTier(section45Tier);
+    this.props.priority = Debt.determinePriorityFromTier(section45Tier);
+    this.props.priorityOrder = Debt.getPriorityOrderFromTier(section45Tier);
+    this.props.isMandatoryPayment = this.props.priorityOrder <= 3;
+
+    this.props.lastModifiedBy = new UniqueEntityID(updatedBy);
+
+    const changeNote = `Section 45 tier changed from ${oldTier} to ${section45Tier}`;
+    if (reason) {
+      this.addNote(`${changeNote}. Reason: ${reason}`);
+    } else {
+      this.addNote(changeNote);
+    }
+
+    return Result.ok();
+  }
+
+  // STATUTE OF LIMITATIONS (Limitation Act, Cap 22)
+  public checkStatuteBarredStatus(checkDate: Date = new Date()): Result<boolean> {
     if (this.props.isStatuteBarred) {
-      return Result.ok();
+      return Result.ok(true);
     }
 
-    // Determine limitation period based on debt type
-    const limitationYears = this.props.terms.isSecured ? 12 : 6;
+    // Calculate limitation period
     const limitationDate = new Date(this.props.incurredDate);
-    limitationDate.setFullYear(limitationDate.getFullYear() + limitationYears);
+    limitationDate.setFullYear(limitationDate.getFullYear() + this.props.limitationPeriodYears);
 
-    if (new Date() > limitationDate) {
+    if (checkDate > limitationDate) {
       this.props.isStatuteBarred = true;
-      this.props.statuteBarredDate = new Date();
+      this.props.statuteBarredDate = checkDate;
       this.props.status = DebtStatus.STATUTE_BARRED;
-
-      this.addDomainEvent(
-        new DebtStatusUpdatedEvent({
-          debtId: this.id.toString(),
-          newStatus: this.props.status,
-          reason: 'Debt is now statute-barred under Limitation Act',
-          updatedAt: new Date(),
-        }),
+      this.addNote(
+        `Debt became statute-barred on ${checkDate.toISOString()} (Limitation period: ${this.props.limitationPeriodYears} years)`,
       );
+      return Result.ok(true);
     }
 
-    return Result.ok();
+    return Result.ok(false);
   }
 
-  // Court Approval Management (for certain debts)
+  // COURT APPROVAL MANAGEMENT (For court-ordered debts)
   public obtainCourtApproval(
-    courtOrderReference: string,
-    approvalDate: Date = new Date(),
-    judgeName?: string,
-    courtStation?: string,
+    courtOrderDetails: {
+      reference: string;
+      date: Date;
+      courtStation: string;
+      judgeName?: string;
+      conditions?: string[];
+    },
+    approvedBy: string,
   ): Result<void> {
     if (!this.props.requiresCourtApproval) {
       return Result.fail('This debt does not require court approval');
@@ -386,14 +520,28 @@ export class Debt extends AggregateRoot<DebtProps> {
     }
 
     this.props.courtApprovalObtained = true;
-    this.props.courtApprovalDate = approvalDate;
-    this.props.courtOrderReference = courtOrderReference;
+    this.props.courtApprovalDate = courtOrderDetails.date;
+    this.props.courtOrderReference = courtOrderDetails.reference;
+    this.props.courtStation = courtOrderDetails.courtStation;
+    this.props.judgeName = courtOrderDetails.judgeName || null;
+    this.props.lastModifiedBy = new UniqueEntityID(approvedBy);
+
+    let approvalNote = `Court approval obtained: ${courtOrderDetails.reference} from ${courtOrderDetails.courtStation}`;
+    if (courtOrderDetails.conditions && courtOrderDetails.conditions.length > 0) {
+      approvalNote += `. Conditions: ${courtOrderDetails.conditions.join(', ')}`;
+    }
+
+    this.addNote(approvalNote);
 
     return Result.ok();
   }
 
-  // Dispute Management
-  public dispute(reason: string): Result<void> {
+  // DISPUTE MANAGEMENT
+  public disputeDebt(
+    disputedBy: string,
+    reason: string,
+    supportingDocuments?: string[],
+  ): Result<void> {
     if (this.props.isDisputed) {
       return Result.fail('Debt is already disputed');
     }
@@ -404,29 +552,58 @@ export class Debt extends AggregateRoot<DebtProps> {
 
     this.props.isDisputed = true;
     this.props.disputeReason = reason.trim();
+    this.props.disputeFiledBy = disputedBy;
+    this.props.disputeFiledDate = new Date();
     this.props.status = DebtStatus.DISPUTED;
+    this.props.lastModifiedBy = new UniqueEntityID(disputedBy);
+
+    if (supportingDocuments && supportingDocuments.length > 0) {
+      this.props.supportingDocuments.push(...supportingDocuments);
+    }
+
+    this.addNote(`Debt disputed by ${disputedBy}: ${reason}`);
 
     return Result.ok();
   }
 
-  public resolveDispute(resolution: string): Result<void> {
+  public resolveDispute(
+    resolution: string,
+    resolvedBy: string,
+    outcome: 'UPHELD' | 'DISMISSED' | 'SETTLED',
+  ): Result<void> {
     if (!this.props.isDisputed) {
       return Result.fail('Debt is not disputed');
     }
 
     this.props.isDisputed = false;
     this.props.disputeResolvedAt = new Date();
+    this.props.disputeResolution = `${outcome}: ${resolution}`;
+    this.props.lastModifiedBy = new UniqueEntityID(resolvedBy);
 
-    // Restore previous status or set to outstanding
-    if (this.props.outstandingBalance.amount > 0) {
+    // Update status based on dispute outcome
+    if (outcome === 'UPHELD') {
       this.props.status = DebtStatus.OUTSTANDING;
+    } else if (outcome === 'DISMISSED') {
+      // Dispute dismissed, debt remains valid
+      this.props.status = DebtStatus.OUTSTANDING;
+    } else if (outcome === 'SETTLED') {
+      // Settled through dispute resolution
+      this.props.status = DebtStatus.SETTLED;
+      this.props.outstandingBalance = Money.zero(this.props.principalAmount.currency);
     }
+
+    this.addNote(`Dispute resolved by ${resolvedBy}: ${outcome}. ${resolution}`);
 
     return Result.ok();
   }
 
-  // Debt Write-off (for irrecoverable debts)
-  public writeOff(reason: string, writtenOffBy: string): Result<void> {
+  // DEBT WRITE-OFF (With Kenyan Legal Restrictions)
+  public writeOffDebt(
+    writtenOffBy: string,
+    reason: string,
+    requiresKRAApproval: boolean = false,
+    kraApprovalReference?: string,
+  ): Result<void> {
     if (this.props.status === DebtStatus.SETTLED) {
       return Result.fail('Cannot write off settled debt');
     }
@@ -439,41 +616,297 @@ export class Debt extends AggregateRoot<DebtProps> {
       return Result.fail('Write-off reason must be at least 10 characters');
     }
 
-    // Kenyan law: Some debts cannot be written off without court approval
-    if (this.props.taxType === KenyanTaxType.INCOME_TAX) {
-      return Result.fail('Tax debts cannot be written off without KRA approval');
+    // Kenyan legal restrictions
+    if (this.props.section45Tier === Section45Tier.S45_A_FUNERAL_TESTAMENTARY) {
+      return Result.fail('Funeral and testamentary expenses cannot be written off under S.45(a)');
     }
 
-    if (this.props.liabilityTier === LiabilityTier.FUNERAL_EXPENSES) {
-      return Result.fail('Funeral expenses cannot be written off under S.45(a)');
+    if (this.props.taxType) {
+      if (!requiresKRAApproval) {
+        return Result.fail('Tax debts require KRA approval for write-off');
+      }
+      if (!kraApprovalReference) {
+        return Result.fail('KRA approval reference is required for tax debt write-off');
+      }
     }
 
     const previousStatus = this.props.status;
     this.props.status = DebtStatus.WRITTEN_OFF;
-    this.props.outstandingBalance = Money.zero(this.props.currency);
+    this.props.outstandingBalance = Money.zero(this.props.principalAmount.currency);
+    this.props.lastModifiedBy = new UniqueEntityID(writtenOffBy);
 
-    this.addDomainEvent(
-      new DebtStatusUpdatedEvent({
-        debtId: this.id.toString(),
-        newStatus: this.props.status,
-        previousStatus,
-        reason: `Written off: ${reason}`,
-        writtenOffBy,
-        updatedAt: new Date(),
-      }),
-    );
+    let writeOffNote = `Debt written off by ${writtenOffBy}: ${reason}`;
+    if (kraApprovalReference) {
+      writeOffNote += ` (KRA Approval: ${kraApprovalReference})`;
+    }
+
+    this.addNote(writeOffNote);
 
     return Result.ok();
   }
 
-  // Interest Calculation
-  public calculateAccruedInterest(asOfDate: Date = new Date()): Money {
-    return this.props.terms.calculateOutstanding(asOfDate);
+  // VERIFICATION WORKFLOW
+  public verifyDebt(
+    verifiedBy: string,
+    verificationMethod: string,
+    documentId?: string,
+    notes?: string,
+  ): Result<void> {
+    if (this.props.verificationStatus === 'VERIFIED') {
+      return Result.fail('Debt is already verified');
+    }
+
+    // Specific verification requirements by debt type
+    if (this.props.taxType && !this.props.taxAssessmentNumber) {
+      return Result.warn('Verifying tax debt without assessment number');
+    }
+
+    if (this.props.terms.isSecured && !this.props.securityRegistrationNumber) {
+      return Result.warn('Verifying secured debt without registration number');
+    }
+
+    this.props.verificationStatus = 'VERIFIED';
+    this.props.verifiedBy = new UniqueEntityID(verifiedBy);
+    this.props.verifiedAt = new Date();
+    this.props.verificationNotes = notes || null;
+    this.props.lastModifiedBy = new UniqueEntityID(verifiedBy);
+
+    if (documentId) {
+      this.props.supportingDocuments.push(documentId);
+    }
+
+    this.addNote(`Debt verified by ${verifiedBy} using ${verificationMethod}`);
+
+    return Result.ok();
   }
 
-  // Kenyan Legal Compliance Methods
+  public rejectVerification(
+    rejectedBy: string,
+    reason: string,
+    suggestedAction?: string,
+  ): Result<void> {
+    if (this.props.verificationStatus === 'REJECTED') {
+      return Result.fail('Debt verification is already rejected');
+    }
+
+    this.props.verificationStatus = 'REJECTED';
+    this.props.verifiedBy = new UniqueEntityID(rejectedBy);
+    this.props.verifiedAt = new Date();
+    this.props.claimRejectionReason = reason;
+    this.props.status = DebtStatus.CLAIM_REJECTED;
+    this.props.lastModifiedBy = new UniqueEntityID(rejectedBy);
+
+    const rejectionNote = `Verification rejected by ${rejectedBy}: ${reason}`;
+    if (suggestedAction) {
+      this.addNote(`${rejectionNote}. Suggested action: ${suggestedAction}`);
+    } else {
+      this.addNote(rejectionNote);
+    }
+
+    return Result.ok();
+  }
+
+  // ESTATE ADMINISTRATION METHODS
+  public includeInEstateInventory(
+    inventoryDate: Date = new Date(),
+    includedBy: string,
+  ): Result<void> {
+    if (this.props.includedInEstateInventory) {
+      return Result.fail('Debt already included in estate inventory');
+    }
+
+    this.props.includedInEstateInventory = true;
+    this.props.inventoryDate = inventoryDate;
+    this.props.lastModifiedBy = new UniqueEntityID(includedBy);
+
+    this.addNote(`Included in estate inventory on ${inventoryDate.toISOString()}`);
+
+    return Result.ok();
+  }
+
+  public recommendForPayment(
+    recommendedBy: string,
+    reason: string,
+    recommendedAmount?: Money,
+  ): Result<void> {
+    if (!this.props.includedInEstateInventory) {
+      return Result.fail('Debt must be included in estate inventory before recommendation');
+    }
+
+    if (this.props.recommendedForPayment) {
+      return Result.fail('Debt already recommended for payment');
+    }
+
+    this.props.recommendedForPayment = true;
+    this.props.paymentRecommendationDate = new Date();
+    this.props.paymentRecommendationBy = new UniqueEntityID(recommendedBy);
+    this.props.lastModifiedBy = new UniqueEntityID(recommendedBy);
+
+    if (recommendedAmount) {
+      this.props.maximumPayableAmount = recommendedAmount;
+    }
+
+    this.addNote(`Recommended for payment by ${recommendedBy}: ${reason}`);
+
+    return Result.ok();
+  }
+
+  public authorizePayment(
+    authorizedBy: string,
+    authorizedAmount: Money,
+    paymentDeadline?: Date,
+  ): Result<void> {
+    if (!this.props.recommendedForPayment) {
+      return Result.fail('Debt must be recommended before authorization');
+    }
+
+    this.props.paymentAuthorizationDate = new Date();
+    this.props.paymentAuthorizedBy = new UniqueEntityID(authorizedBy);
+    this.props.maximumPayableAmount = authorizedAmount;
+    this.props.paymentDeadline = paymentDeadline || null;
+    this.props.lastModifiedBy = new UniqueEntityID(authorizedBy);
+
+    let authNote = `Payment authorized by ${authorizedBy} for amount ${authorizedAmount.amount} ${authorizedAmount.currency}`;
+    if (paymentDeadline) {
+      authNote += `, deadline: ${paymentDeadline.toISOString()}`;
+    }
+
+    this.addNote(authNote);
+
+    return Result.ok();
+  }
+
+  // CREDITOR INFORMATION MANAGEMENT
+  public updateCreditorInformation(
+    updates: Partial<{
+      contact: string;
+      phone: string;
+      email: string;
+      address: string;
+      bankDetails: Record<string, any>;
+    }>,
+    updatedBy: string,
+  ): Result<void> {
+    if (updates.contact) this.props.creditorContact = updates.contact;
+    if (updates.phone) this.props.creditorPhone = updates.phone;
+    if (updates.email) this.props.creditorEmail = updates.email;
+    if (updates.address) this.props.creditorAddress = updates.address;
+    if (updates.bankDetails) this.props.creditorBankDetails = updates.bankDetails;
+
+    this.props.lastModifiedBy = new UniqueEntityID(updatedBy);
+    this.addNote(`Creditor information updated by ${updatedBy}`);
+
+    return Result.ok();
+  }
+
+  // SECURITY REGISTRATION
+  public registerSecurity(
+    registrationNumber: string,
+    documentId: string,
+    registrationDate: Date = new Date(),
+    registeredBy: string,
+  ): Result<void> {
+    if (!this.props.terms.isSecured) {
+      return Result.fail('Only secured debts can have security registration');
+    }
+
+    this.props.securityRegistrationNumber = registrationNumber;
+    this.props.securityDocumentId = documentId;
+    this.props.lastModifiedBy = new UniqueEntityID(registeredBy);
+
+    this.addNote(`Security registered: ${registrationNumber} on ${registrationDate.toISOString()}`);
+
+    return Result.ok();
+  }
+
+  // TAX DEBT SPECIFIC METHODS
+  public recordTaxAssessment(
+    assessmentNumber: string,
+    taxOffice: string,
+    assessedBy: string,
+  ): Result<void> {
+    if (!this.props.taxType) {
+      return Result.fail('Only tax debts can have assessment records');
+    }
+
+    this.props.taxAssessmentNumber = assessmentNumber;
+    this.props.taxOffice = taxOffice;
+    this.props.lastModifiedBy = new UniqueEntityID(assessedBy);
+
+    this.addNote(`Tax assessment recorded: ${assessmentNumber} from ${taxOffice}`);
+
+    return Result.ok();
+  }
+
+  // VALIDATION METHODS
+  public validateForPayment(): Result<{
+    canPay: boolean;
+    reasons: string[];
+    requirements: string[];
+    maximumAmount: Money;
+  }> {
+    const reasons: string[] = [];
+    const requirements: string[] = [];
+
+    // Check status
+    if (this.props.status === DebtStatus.SETTLED) {
+      reasons.push('Debt is already settled');
+    }
+
+    if (this.props.status === DebtStatus.STATUTE_BARRED) {
+      reasons.push('Debt is statute-barred');
+    }
+
+    if (this.props.status === DebtStatus.WRITTEN_OFF) {
+      reasons.push('Debt has been written off');
+    }
+
+    if (this.props.isDisputed) {
+      reasons.push('Debt is under dispute');
+    }
+
+    // Check verification
+    if (this.props.verificationStatus !== 'VERIFIED') {
+      reasons.push('Debt is not verified');
+      requirements.push('Debt verification required');
+    }
+
+    // Check court approval
+    if (this.props.requiresCourtApproval && !this.props.courtApprovalObtained) {
+      reasons.push('Requires court approval');
+      requirements.push('Court order for payment');
+    }
+
+    // Check if included in inventory
+    if (!this.props.includedInEstateInventory) {
+      reasons.push('Debt not included in estate inventory');
+      requirements.push('Include in estate inventory first');
+    }
+
+    // Check authorization
+    if (this.props.requiresCourtApproval && !this.props.paymentAuthorizationDate) {
+      reasons.push('Payment not authorized');
+      requirements.push('Payment authorization required');
+    }
+
+    // S.45 Compliance requirements
+    const compliance = this.getSection45Compliance();
+    if (!compliance.isCompliant) {
+      reasons.push('Not S.45 compliant');
+      requirements.push(
+        ...compliance.requirements.filter((r) => r.startsWith('Requires') || r.startsWith('Must')),
+      );
+    }
+
+    const canPay = reasons.length === 0;
+    const maximumAmount = this.props.maximumPayableAmount;
+
+    return Result.ok({ canPay, reasons, requirements, maximumAmount });
+  }
+
   public getSection45Compliance(): {
-    tier: LiabilityTier;
+    tier: Section45Tier;
+    liabilityTier: LiabilityTier;
     priority: number;
     requirements: string[];
     isCompliant: boolean;
@@ -481,229 +914,171 @@ export class Debt extends AggregateRoot<DebtProps> {
     const requirements: string[] = [];
     let isCompliant = true;
 
-    // S.45(a) requirements
-    if (this.props.liabilityTier === LiabilityTier.FUNERAL_EXPENSES) {
+    // S.45(a) Funeral and testamentary expenses
+    if (this.props.section45Tier === Section45Tier.S45_A_FUNERAL_TESTAMENTARY) {
       requirements.push('Must be reasonable and customary');
       requirements.push('Requires receipts for verification');
-      requirements.push('Priority over all other debts');
+      requirements.push('Priority over all other debts (S.45(a))');
 
-      if (!this.props.description.toLowerCase().includes('funeral')) {
+      if (
+        this.props.type !== DebtType.FUNERAL_EXPENSE &&
+        this.props.type !== DebtType.TESTAMENTARY_EXPENSES
+      ) {
         isCompliant = false;
-        requirements.push('Must be clearly identified as funeral expense');
+        requirements.push('Must be clearly identified as funeral or testamentary expense');
       }
     }
 
-    // S.45(b) requirements
-    if (this.props.liabilityTier === LiabilityTier.SECURED_DEBTS) {
+    // S.45(b) Secured debts
+    if (this.props.section45Tier === Section45Tier.S45_B_SECURED) {
       requirements.push('Must have valid security documentation');
       requirements.push('Asset-backed verification required');
+      requirements.push('Security must be properly registered');
 
       if (!this.props.securedAssetId) {
         isCompliant = false;
         requirements.push('Secured debts must be linked to an asset');
       }
+
+      if (!this.props.securityRegistrationNumber) {
+        isCompliant = false;
+        requirements.push('Security registration number required');
+      }
     }
 
-    // S.45(c) requirements
-    if (this.props.liabilityTier === LiabilityTier.TAXES_RATES_WAGES) {
+    // S.45(c) Taxes, rates, wages
+    if (this.props.section45Tier === Section45Tier.S45_C_TAXES_RATES_WAGES) {
       requirements.push('KRA tax clearance required for tax debts');
       requirements.push('County government rates receipts');
       requirements.push('Employee wage documentation for wage debts');
+      requirements.push('Proof of arrears required');
 
       if (this.props.taxType && !this.props.kraPin) {
         isCompliant = false;
         requirements.push('Tax debts require KRA PIN');
       }
+
+      if (this.props.type === DebtType.EMPLOYEE_WAGES) {
+        requirements.push('NSSF compliance certificate required');
+        requirements.push('NHIF deductions proof required');
+      }
     }
 
-    // Determine priority order
-    const priorityOrder = {
-      [LiabilityTier.FUNERAL_EXPENSES]: 1,
-      [LiabilityTier.SECURED_DEBTS]: 2,
-      [LiabilityTier.TAXES_RATES_WAGES]: 3,
-      [LiabilityTier.UNSECURED_GENERAL]: 4,
-    };
+    // S.45(d) Unsecured general debts
+    if (this.props.section45Tier === Section45Tier.S45_D_UNSECURED_GENERAL) {
+      requirements.push('Proof of debt documentation');
+      requirements.push('Creditor affidavit may be required');
+      requirements.push('Subject to available estate funds');
+
+      if (!this.props.proofOfDebtSubmitted) {
+        requirements.push('Proof of debt submission recommended');
+      }
+    }
 
     return {
-      tier: this.props.liabilityTier,
-      priority: priorityOrder[this.props.liabilityTier],
+      tier: this.props.section45Tier,
+      liabilityTier: this.props.liabilityTier,
+      priority: this.props.priorityOrder,
       requirements,
       isCompliant,
     };
   }
 
-  public getKenyanLegalRequirements(): string[] {
-    const requirements: string[] = [];
-
-    // General requirements
-    if (this.props.terms.isSecured) {
-      requirements.push('Security must be registered with relevant registry');
-    }
-
-    if (this.props.taxType) {
-      requirements.push('Must be verified with Kenya Revenue Authority');
-      requirements.push('Tax clearance certificate required');
-    }
-
-    if (this.props.type === DebtType.LAND_RATES) {
-      requirements.push('County government rates clearance certificate');
-    }
-
-    if (this.props.type === DebtType.EMPLOYEE_WAGES) {
-      requirements.push('Employment records and wage statements');
-      requirements.push('NSSF compliance certificate');
-    }
-
-    // Court-related requirements
-    if (this.props.requiresCourtApproval && !this.props.courtApprovalObtained) {
-      requirements.push('Requires court approval before settlement');
-    }
-
-    return requirements;
+  // INTEREST CALCULATION
+  public calculateAccruedInterest(asOfDate: Date = new Date()): Money {
+    return this.props.terms.calculateOutstanding(asOfDate);
   }
 
-  // Validation for estate distribution
-  public canBePaidFromEstate(): { canPay: boolean; reason?: string } {
-    if (this.props.status === DebtStatus.SETTLED) {
-      return { canPay: false, reason: 'Debt is already settled' };
+  // HELPER METHODS
+  private addNote(note: string): void {
+    if (this.props.notes) {
+      this.props.notes += `\n${new Date().toISOString()}: ${note}`;
+    } else {
+      this.props.notes = `${new Date().toISOString()}: ${note}`;
     }
-
-    if (this.props.status === DebtStatus.STATUTE_BARRED) {
-      return { canPay: false, reason: 'Debt is statute-barred' };
-    }
-
-    if (this.props.status === DebtStatus.WRITTEN_OFF) {
-      return { canPay: false, reason: 'Debt has been written off' };
-    }
-
-    if (this.props.isDisputed) {
-      return { canPay: false, reason: 'Debt is under dispute' };
-    }
-
-    if (this.props.requiresCourtApproval && !this.props.courtApprovalObtained) {
-      return { canPay: false, reason: 'Requires court approval' };
-    }
-
-    return { canPay: true };
   }
 
-  // Soft Delete
-  public delete(deletedBy: string, reason: string): Result<void> {
-    if (this.props.deletedAt) {
-      return Result.fail('Debt is already deleted');
-    }
-
-    // Cannot delete certain types of debts
-    if (this.props.taxType) {
-      return Result.fail('Tax debts cannot be deleted for audit trail');
-    }
-
-    if (this.props.status === DebtStatus.SETTLED) {
-      return Result.fail('Settled debts cannot be deleted for legal compliance');
-    }
-
-    // Check if debt is part of probate proceedings
-    if (this.props.liabilityTier === LiabilityTier.FUNERAL_EXPENSES) {
-      return Result.warn('Funeral expenses deletion requires special authorization');
-    }
-
-    this.props.deletedAt = new Date();
-    this.props.isActive = false;
-
-    return Result.ok();
-  }
-
-  public restore(): Result<void> {
-    if (!this.props.deletedAt) {
-      return Result.fail('Debt is not deleted');
-    }
-
-    this.props.deletedAt = null;
-    this.props.isActive = true;
-
-    return Result.ok();
-  }
-
-  // ==================== HELPER METHODS ====================
-
-  private static determinePriorityFromTier(tier: LiabilityTier): DebtPriority {
+  private static determinePriorityFromTier(tier: Section45Tier): DebtPriority {
     switch (tier) {
-      case LiabilityTier.FUNERAL_EXPENSES:
+      case Section45Tier.S45_A_FUNERAL_TESTAMENTARY:
         return DebtPriority.HIGHEST;
-      case LiabilityTier.SECURED_DEBTS:
+      case Section45Tier.S45_B_SECURED:
         return DebtPriority.HIGH;
-      case LiabilityTier.TAXES_RATES_WAGES:
+      case Section45Tier.S45_C_TAXES_RATES_WAGES:
         return DebtPriority.MEDIUM;
-      case LiabilityTier.UNSECURED_GENERAL:
+      case Section45Tier.S45_D_UNSECURED_GENERAL:
         return DebtPriority.LOW;
       default:
         return DebtPriority.LOW;
     }
   }
 
-  // Factory methods for common debt types
-  public static createFuneralExpense(props: {
-    estateId: string;
-    description: string;
-    amount: Money;
-    creditorName: string;
-    incurredDate: Date;
-  }): Result<Debt> {
-    const terms = DebtTerms.create({
-      principalAmount: props.amount,
-      isSecured: false,
-      requiresCourtApproval: false,
-    }).getValue();
-
-    return Debt.create({
-      ...props,
-      type: DebtType.FUNERAL_EXPENSE,
-      terms,
-      liabilityTier: LiabilityTier.FUNERAL_EXPENSES,
-    });
+  private static getPriorityOrderFromTier(tier: Section45Tier): number {
+    switch (tier) {
+      case Section45Tier.S45_A_FUNERAL_TESTAMENTARY:
+        return 1;
+      case Section45Tier.S45_B_SECURED:
+        return 2;
+      case Section45Tier.S45_C_TAXES_RATES_WAGES:
+        return 3;
+      case Section45Tier.S45_D_UNSECURED_GENERAL:
+        return 4;
+      default:
+        return 4;
+    }
   }
 
-  public static createTaxDebt(props: {
-    estateId: string;
-    taxType: KenyanTaxType;
-    description: string;
-    amount: Money;
-    kraPin: string;
-    taxPeriod: string;
-    incurredDate: Date;
-    dueDate?: Date;
-  }): Result<Debt> {
-    const terms = DebtTerms.create({
-      principalAmount: props.amount,
-      isSecured: false,
-      requiresCourtApproval: false,
-    }).getValue();
-
-    return Debt.create({
-      ...props,
-      type: DebtType.TAX_OBLIGATION,
-      creditorName: 'Kenya Revenue Authority',
-      creditorKraPin: props.kraPin,
-      terms,
-      liabilityTier: LiabilityTier.TAXES_RATES_WAGES,
-    });
+  private static mapSection45ToLiabilityTier(section45Tier: Section45Tier): LiabilityTier {
+    switch (section45Tier) {
+      case Section45Tier.S45_A_FUNERAL_TESTAMENTARY:
+        return LiabilityTier.FUNERAL_EXPENSES;
+      case Section45Tier.S45_B_SECURED:
+        return LiabilityTier.SECURED_DEBTS;
+      case Section45Tier.S45_C_TAXES_RATES_WAGES:
+        return LiabilityTier.TAXES_RATES_WAGES;
+      case Section45Tier.S45_D_UNSECURED_GENERAL:
+        return LiabilityTier.UNSECURED_GENERAL;
+      default:
+        return LiabilityTier.UNSECURED_GENERAL;
+    }
   }
 
-  public static createMortgage(props: {
-    estateId: string;
-    description: string;
-    amount: Money;
-    creditorName: string;
-    securedAssetId: string;
-    terms: DebtTerms;
-    incurredDate: Date;
-    dueDate?: Date;
-  }): Result<Debt> {
-    return Debt.create({
-      ...props,
-      type: DebtType.MORTGAGE,
-      liabilityTier: LiabilityTier.SECURED_DEBTS,
-    });
+  private static determineCreditorType(
+    creditorName: string,
+    taxType?: KenyanTaxType,
+  ): 'INDIVIDUAL' | 'COMPANY' | 'GOVERNMENT' | 'FINANCIAL_INSTITUTION' | 'OTHER' {
+    if (taxType) return 'GOVERNMENT';
+
+    const nameLower = creditorName.toLowerCase();
+
+    if (
+      nameLower.includes('bank') ||
+      nameLower.includes('sacco') ||
+      nameLower.includes('finance') ||
+      nameLower.includes('credit')
+    ) {
+      return 'FINANCIAL_INSTITUTION';
+    }
+
+    if (
+      nameLower.includes('ltd') ||
+      nameLower.includes('limited') ||
+      nameLower.includes('company') ||
+      nameLower.includes('co.')
+    ) {
+      return 'COMPANY';
+    }
+
+    if (
+      nameLower.includes('government') ||
+      nameLower.includes('county') ||
+      nameLower.includes('ministry') ||
+      nameLower.includes('authority')
+    ) {
+      return 'GOVERNMENT';
+    }
+
+    return 'INDIVIDUAL';
   }
 
   // ==================== GETTERS ====================
@@ -724,20 +1099,24 @@ export class Debt extends AggregateRoot<DebtProps> {
     return this.props.description;
   }
 
+  get section45Tier(): Section45Tier {
+    return this.props.section45Tier;
+  }
+
+  get priority(): DebtPriority {
+    return this.props.priority;
+  }
+
+  get priorityOrder(): number {
+    return this.props.priorityOrder;
+  }
+
   get principalAmount(): Money {
     return this.props.principalAmount;
   }
 
   get outstandingBalance(): Money {
     return this.props.outstandingBalance;
-  }
-
-  get liabilityTier(): LiabilityTier {
-    return this.props.liabilityTier;
-  }
-
-  get priority(): DebtPriority {
-    return this.props.priority;
   }
 
   get status(): DebtStatus {
@@ -768,37 +1147,188 @@ export class Debt extends AggregateRoot<DebtProps> {
     return this.props.isActive;
   }
 
-  get deletedAt(): Date | null {
-    return this.props.deletedAt;
+  get verificationStatus(): string {
+    return this.props.verificationStatus;
   }
 
-  // Computed properties
-  get canBeSettled(): boolean {
-    const paymentCheck = this.canBePaidFromEstate();
-    return paymentCheck.canPay;
+  get includedInEstateInventory(): boolean {
+    return this.props.includedInEstateInventory;
   }
 
-  get requiresProbateApproval(): boolean {
-    return (
-      this.props.requiresCourtApproval ||
-      this.props.type === DebtType.COURT_FINES ||
-      this.props.type === DebtType.TAX_OBLIGATION
-    );
+  get recommendedForPayment(): boolean {
+    return this.props.recommendedForPayment;
+  }
+
+  get paymentAuthorized(): boolean {
+    return !!this.props.paymentAuthorizationDate;
+  }
+
+  // COMPUTED PROPERTIES
+  get canBePaid(): boolean {
+    const validation = this.validateForPayment();
+    return validation.isSuccess && validation.getValue().canPay;
+  }
+
+  get requiresCourtApproval(): boolean {
+    return this.props.requiresCourtApproval && !this.props.courtApprovalObtained;
   }
 
   get isHighPriority(): boolean {
     return [DebtPriority.HIGHEST, DebtPriority.HIGH].includes(this.props.priority);
   }
 
+  get isMandatory(): boolean {
+    return this.props.isMandatoryPayment;
+  }
+
   get interestAccrued(): Money {
     return this.calculateAccruedInterest();
   }
 
-  get totalDebtWithInterest(): Money {
-    return this.calculateAccruedInterest();
+  get totalOwed(): Money {
+    return this.props.outstandingBalance.add(this.calculateAccruedInterest());
   }
 
   get isFullyPaid(): boolean {
-    return this.props.status === DebtStatus.SETTLED;
+    return this.props.status === DebtStatus.SETTLED || this.props.outstandingBalance.amount === 0;
+  }
+
+  get paymentRequirements(): string[] {
+    const requirements: string[] = [];
+
+    if (!this.props.includedInEstateInventory) {
+      requirements.push('Include in estate inventory');
+    }
+
+    if (this.props.verificationStatus !== 'VERIFIED') {
+      requirements.push('Verify debt claim');
+    }
+
+    if (this.props.requiresCourtApproval && !this.props.courtApprovalObtained) {
+      requirements.push('Obtain court approval');
+    }
+
+    if (!this.props.recommendedForPayment) {
+      requirements.push('Executor recommendation required');
+    }
+
+    if (!this.props.paymentAuthorizationDate) {
+      requirements.push('Payment authorization required');
+    }
+
+    return requirements;
+  }
+
+  // STATIC FACTORY METHODS
+  public static createFuneralExpense(props: {
+    estateId: string;
+    description: string;
+    amount: Money;
+    creditorName: string;
+    incurredDate: Date;
+    createdBy?: string;
+  }): Result<Debt> {
+    const terms = DebtTerms.create({
+      principalAmount: props.amount,
+      isSecured: false,
+      requiresCourtApproval: false,
+    }).getValue();
+
+    return Debt.create({
+      ...props,
+      type: DebtType.FUNERAL_EXPENSE,
+      terms,
+      section45Tier: Section45Tier.S45_A_FUNERAL_TESTAMENTARY,
+    });
+  }
+
+  public static createTaxDebt(props: {
+    estateId: string;
+    taxType: KenyanTaxType;
+    description: string;
+    amount: Money;
+    kraPin: KenyanId;
+    taxPeriod: string;
+    incurredDate: Date;
+    dueDate?: Date;
+    createdBy?: string;
+  }): Result<Debt> {
+    const terms = DebtTerms.create({
+      principalAmount: props.amount,
+      isSecured: false,
+      requiresCourtApproval: false,
+    }).getValue();
+
+    return Debt.create({
+      ...props,
+      type: DebtType.TAX_OBLIGATION,
+      creditorName: 'Kenya Revenue Authority',
+      creditorKraPin: props.kraPin,
+      terms,
+      section45Tier: Section45Tier.S45_C_TAXES_RATES_WAGES,
+    });
+  }
+
+  public static createMortgage(props: {
+    estateId: string;
+    description: string;
+    amount: Money;
+    creditorName: string;
+    securedAssetId: string;
+    terms: DebtTerms;
+    incurredDate: Date;
+    dueDate?: Date;
+    createdBy?: string;
+  }): Result<Debt> {
+    return Debt.create({
+      ...props,
+      type: DebtType.MORTGAGE,
+      section45Tier: Section45Tier.S45_B_SECURED,
+    });
+  }
+
+  public static createTestamentaryExpense(props: {
+    estateId: string;
+    description: string;
+    amount: Money;
+    creditorName: string;
+    incurredDate: Date;
+    createdBy?: string;
+  }): Result<Debt> {
+    const terms = DebtTerms.create({
+      principalAmount: props.amount,
+      isSecured: false,
+      requiresCourtApproval: false,
+    }).getValue();
+
+    return Debt.create({
+      ...props,
+      type: DebtType.TESTAMENTARY_EXPENSES,
+      terms,
+      section45Tier: Section45Tier.S45_A_FUNERAL_TESTAMENTARY,
+    });
+  }
+
+  public static createLegalFee(props: {
+    estateId: string;
+    description: string;
+    amount: Money;
+    creditorName: string;
+    incurredDate: Date;
+    requiresCourtApproval?: boolean;
+    createdBy?: string;
+  }): Result<Debt> {
+    const terms = DebtTerms.create({
+      principalAmount: props.amount,
+      isSecured: false,
+      requiresCourtApproval: props.requiresCourtApproval || false,
+    }).getValue();
+
+    return Debt.create({
+      ...props,
+      type: DebtType.LEGAL_FEES,
+      terms,
+      section45Tier: Section45Tier.S45_A_FUNERAL_TESTAMENTARY,
+    });
   }
 }

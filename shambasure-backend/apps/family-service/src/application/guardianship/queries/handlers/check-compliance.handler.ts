@@ -4,7 +4,7 @@ import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 
 import { GuardianshipAggregate } from '../../../../domain/aggregates/guardianship.aggregate';
 import { InvalidGuardianshipException } from '../../../../domain/exceptions/guardianship.exception';
-import type { IGuardianRepository } from '../../../../domain/interfaces/repositories/iguardian.repository';
+import type { IGuardianRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { Result } from '../../../common/base/result';
 import { CheckComplianceQuery } from '../impl/check-compliance.query';
 import { BaseQueryHandler } from './base.query-handler';

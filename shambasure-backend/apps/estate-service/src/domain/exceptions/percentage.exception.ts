@@ -1,9 +1,8 @@
-// src/shared/domain/exceptions/percentage.exception.ts
 import { InvalidValueObjectException } from './base-domain.exception';
 
 export class InvalidPercentageException extends InvalidValueObjectException {
-  constructor(message: string, field?: string, context?: Record<string, any>) {
-    super(message, 'DOMAIN_PERCENTAGE_001', field, context);
+  constructor(message: string, field: string = 'percentage', context?: Record<string, any>) {
+    super(message, field, { ...context, code: 'DOMAIN_PERCENTAGE_001' });
   }
 }
 

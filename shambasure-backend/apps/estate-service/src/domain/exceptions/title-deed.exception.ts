@@ -1,9 +1,8 @@
-// src/shared/domain/exceptions/title-deed.exception.ts
 import { InvalidValueObjectException } from './base-domain.exception';
 
 export class InvalidTitleDeedException extends InvalidValueObjectException {
-  constructor(message: string, field?: string, context?: Record<string, any>) {
-    super(message, 'DOMAIN_TITLE_DEED_001', field, context);
+  constructor(message: string, field: string = 'titleDeed', context?: Record<string, any>) {
+    super(message, field, { ...context, code: 'DOMAIN_TITLE_DEED_001' });
   }
 }
 

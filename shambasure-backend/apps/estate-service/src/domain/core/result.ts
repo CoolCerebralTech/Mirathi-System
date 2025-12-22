@@ -1,5 +1,12 @@
 // src/domain/core/result.ts
 
+export interface LegalComplianceIssue {
+  section: string; // e.g., "LSA Section 35(1)(b)"
+  requirement: string; // e.g., "Spouse must retain life interest"
+  severity: 'BLOCKING' | 'WARNING' | 'ADVISORY';
+  details?: string;
+}
+
 /**
  * A generic Result envelope for Domain Operations.
  * Represents the outcome of an operation (Success or Failure).
@@ -30,8 +37,11 @@ export class Result<T> {
     if (!this.isSuccess) {
       throw new Error(`Cannot retrieve value from failed result. Error: ${this.error?.message}`);
     }
-    // We cast here because we checked isSuccess.
     return this._value as T;
+  }
+
+  public getErrorValue(): Error {
+    return this.error as Error;
   }
 
   public static ok<U>(value?: U): Result<U> {
@@ -58,34 +68,34 @@ export class Result<T> {
 
 /**
  * Specialized Result for Kenyan Legal Context.
- * Adds support for specific Compliance Warnings and Violations (e.g. LSA 2012 compliance).
+ * Used by Domain Services (e.g., IntestacyCalculator) to return legally compliant distributions
+ * while flagging warnings (e.g., Customary Law conflicts with Constitution).
  */
 export class KenyanLegalResult<T> extends Result<T> {
-  private _complianceWarnings: string[] = [];
-  private _complianceViolations: string[] = [];
-
-  public get complianceWarnings(): ReadonlyArray<string> {
-    return this._complianceWarnings;
-  }
-
-  public get complianceViolations(): ReadonlyArray<string> {
-    return this._complianceViolations;
-  }
+  private _complianceIssues: LegalComplianceIssue[] = [];
 
   protected constructor(isSuccess: boolean, error: Error | null = null, value: T | null = null) {
     super(isSuccess, error, value);
   }
 
-  public addWarning(section: string, warning: string): void {
-    this._complianceWarnings.push(`[${section}] WARNING: ${warning}`);
+  public get issues(): ReadonlyArray<LegalComplianceIssue> {
+    return this._complianceIssues;
   }
 
-  public addViolation(section: string, violation: string): void {
-    this._complianceViolations.push(`[${section}] VIOLATION: ${violation}`);
+  public get warnings(): LegalComplianceIssue[] {
+    return this._complianceIssues.filter((i) => i.severity === 'WARNING');
   }
 
-  public hasComplianceIssues(): boolean {
-    return this._complianceViolations.length > 0;
+  public get violations(): LegalComplianceIssue[] {
+    return this._complianceIssues.filter((i) => i.severity === 'BLOCKING');
+  }
+
+  public addIssue(issue: LegalComplianceIssue): void {
+    this._complianceIssues.push(issue);
+  }
+
+  public hasBlockingViolations(): boolean {
+    return this._complianceIssues.some((i) => i.severity === 'BLOCKING');
   }
 
   // --- Static Factories ---
@@ -99,20 +109,21 @@ export class KenyanLegalResult<T> extends Result<T> {
     requirement: string,
     detail?: string,
   ): KenyanLegalResult<U> {
-    const message = `Legal Compliance Violation: ${section} - ${requirement} ${detail ? `(${detail})` : ''}`;
+    const message = `Legal Violation [${section}]: ${requirement}`;
     const error = new Error(message);
     error.name = 'LegalComplianceError';
 
     const result = new KenyanLegalResult<U>(false, error);
-    result.addViolation(section, requirement);
+    result.addIssue({
+      section,
+      requirement,
+      severity: 'BLOCKING',
+      details: detail,
+    });
 
     return result;
   }
 
-  /**
-   * Creates a result from an existing generic Result,
-   * useful when converting a standard Domain failure to a Legal result.
-   */
   public static fromResult<U>(result: Result<U>): KenyanLegalResult<U> {
     if (result.isSuccess) {
       return KenyanLegalResult.legalOk<U>(result.getValue());
