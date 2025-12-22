@@ -1,88 +1,30 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
-
+// application/guardianship/commands/impl/record-ward-death.command.ts
 import { BaseCommand } from '../base.command';
 
-export class UpdateRestrictionsCommand extends BaseCommand {
-  @ApiProperty({
-    description: 'Command name',
-    example: 'UpdateRestrictionsCommand',
-  })
-  getCommandName(): string {
-    return 'UpdateRestrictionsCommand';
+export class RecordWardDeathCommand extends BaseCommand {
+  constructor(
+    public readonly guardianshipId: string,
+    public readonly deathDate: Date,
+    public readonly deathCertificateNumber?: string,
+    baseProps: { userId: string; correlationId?: string; causationId?: string },
+  ) {
+    super(baseProps);
+    this.validate();
   }
 
-  @ApiProperty({
-    description: 'Guardianship ID',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  @IsNotEmpty()
-  @IsUUID('4')
-  readonly guardianshipId: string;
+  validate(): void {
+    super.validate();
 
-  @ApiProperty({
-    description: 'New restrictions (JSON format)',
-    example: {
-      travelRestrictions: ['Cannot travel out of county without court approval'],
-      financialLimits: { maximumWithdrawalPerMonth: 50000 },
-      propertyRestrictions: ['Cannot mortgage property'],
-    },
-  })
-  @IsNotEmpty()
-  readonly restrictions: any;
+    if (!this.guardianshipId) {
+      throw new Error('Guardianship ID is required');
+    }
 
-  @ApiPropertyOptional({
-    description: 'Court order number for restriction update',
-    example: 'HC/SUCC/RES/123/2024',
-  })
-  @IsOptional()
-  @IsString()
-  readonly courtOrderNumber?: string;
+    if (!this.deathDate) {
+      throw new Error('Death date is required');
+    }
 
-  @ApiPropertyOptional({
-    description: 'Reason for restriction update',
-    example: 'Concerns about financial mismanagement',
-  })
-  @IsOptional()
-  @IsString()
-  readonly updateReason?: string;
-
-  @ApiPropertyOptional({
-    description: 'Effective date of new restrictions',
-    example: '2024-03-01T00:00:00.000Z',
-  })
-  @IsOptional()
-  @IsString()
-  readonly effectiveDate?: string;
-
-  @ApiPropertyOptional({
-    description: 'Review date for restrictions',
-    example: '2025-03-01T00:00:00.000Z',
-  })
-  @IsOptional()
-  @IsString()
-  readonly reviewDate?: string;
-
-  constructor(
-    commandId: string,
-    timestamp: Date,
-    userId: string,
-    correlationId: string | undefined,
-    data: {
-      guardianshipId: string;
-      restrictions: any;
-      courtOrderNumber?: string;
-      updateReason?: string;
-      effectiveDate?: string;
-      reviewDate?: string;
-    },
-  ) {
-    super(commandId, timestamp, userId, correlationId);
-    this.guardianshipId = data.guardianshipId;
-    this.restrictions = data.restrictions;
-    this.courtOrderNumber = data.courtOrderNumber;
-    this.updateReason = data.updateReason;
-    this.effectiveDate = data.effectiveDate;
-    this.reviewDate = data.reviewDate;
+    if (this.deathDate > new Date()) {
+      throw new Error('Death date cannot be in the future');
+    }
   }
 }

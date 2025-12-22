@@ -1,87 +1,50 @@
-// application/guardianship/commands/impl/approve-annual-report.command.ts
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+// application/guardianship/commands/impl/add-co-guardian.command.ts
+import { GuardianType } from '@prisma/client';
 
+import { GuardianEligibilityInfo } from '../../../../domain/aggregates/guardianship.aggregate';
 import { BaseCommand } from '../base.command';
 
-export class ApproveAnnualReportCommand extends BaseCommand {
-  @ApiProperty({
-    description: 'Command name',
-    example: 'ApproveAnnualReportCommand',
-  })
-  getCommandName(): string {
-    return 'ApproveAnnualReportCommand';
+export class AddCoGuardianCommand extends BaseCommand {
+  constructor(
+    public readonly guardianshipId: string,
+    public readonly guardianId: string,
+    public readonly guardianEligibility: GuardianEligibilityInfo,
+    public readonly type: GuardianType,
+    public readonly appointmentDate: Date,
+    public readonly courtOrderNumber?: string,
+    public readonly hasPropertyManagementPowers?: boolean,
+    public readonly canConsentToMedical?: boolean,
+    public readonly canConsentToMarriage?: boolean,
+    public readonly restrictions?: string[],
+    public readonly bondRequired?: boolean,
+    public readonly bondAmountKES?: number,
+    baseProps: { userId: string; correlationId?: string; causationId?: string },
+  ) {
+    super(baseProps);
+    this.validate();
   }
 
-  @ApiProperty({
-    description: 'Guardianship ID',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  @IsNotEmpty()
-  @IsUUID('4')
-  readonly guardianshipId: string;
+  validate(): void {
+    super.validate();
 
-  @ApiProperty({
-    description: 'Auditor/Registrar ID approving the report',
-    example: 'AUD-001',
-  })
-  @IsNotEmpty()
-  @IsString()
-  readonly auditorId: string;
+    if (!this.guardianshipId) {
+      throw new Error('Guardianship ID is required');
+    }
 
-  @ApiPropertyOptional({
-    description: 'Audit notes or comments',
-    example: 'Report verified, all expenses accounted for',
-  })
-  @IsOptional()
-  @IsString()
-  readonly auditNotes?: string;
+    if (!this.guardianId) {
+      throw new Error('Guardian ID is required');
+    }
 
-  @ApiPropertyOptional({
-    description: 'Court registry reference',
-    example: 'REG/APP/2024/001',
-  })
-  @IsOptional()
-  @IsString()
-  readonly registryReference?: string;
+    if (!this.guardianEligibility) {
+      throw new Error('Guardian eligibility information is required');
+    }
 
-  @ApiPropertyOptional({
-    description: 'Approval certificate number',
-    example: 'CERT/APP/2024/123',
-  })
-  @IsOptional()
-  @IsString()
-  readonly approvalCertificate?: string;
+    if (!this.type) {
+      throw new Error('Guardian type is required');
+    }
 
-  @ApiPropertyOptional({
-    description: 'Recommendations for next period',
-    example: 'Consider increasing educational allowance due to rising school fees',
-  })
-  @IsOptional()
-  @IsString()
-  readonly recommendations?: string;
-
-  constructor(
-    commandId: string,
-    timestamp: Date,
-    userId: string,
-    correlationId: string | undefined,
-    data: {
-      guardianshipId: string;
-      auditorId: string;
-      auditNotes?: string;
-      registryReference?: string;
-      approvalCertificate?: string;
-      recommendations?: string;
-    },
-  ) {
-    super(commandId, timestamp, userId, correlationId);
-
-    this.guardianshipId = data.guardianshipId;
-    this.auditorId = data.auditorId;
-    this.auditNotes = data.auditNotes;
-    this.registryReference = data.registryReference;
-    this.approvalCertificate = data.approvalCertificate;
-    this.recommendations = data.recommendations;
+    if (!this.appointmentDate) {
+      throw new Error('Appointment date is required');
+    }
   }
 }

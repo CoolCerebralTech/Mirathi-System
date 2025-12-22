@@ -3,7 +3,7 @@ export * from './create-guardianship.handler';
 export * from './file-annual-report.handler';
 export * from './remove-guardian.handler';
 export * from './replace-guardian.handler';
-export * from './base.command-handler';
+export * from './base-command.handler';
 export * from './grant-property-powers.handler';
 export * from './post-guardian-bond.handler';
 export * from './record-ward-death.handler';

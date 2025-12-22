@@ -1,447 +1,546 @@
-import { RelationshipType } from '@prisma/client';
+// domain/entities/family-relationship.entity.ts
+import { InheritanceRights, RelationshipType } from '@prisma/client';
 
 import { Entity } from '../base/entity';
-import { NextOfKinDesignatedEvent } from '../events/relationship-events/next-of-kin-designated.event';
-import { RelationshipEstablishedEvent } from '../events/relationship-events/relationship-established.event';
-import { RelationshipVerifiedEvent } from '../events/relationship-events/relationship-verified.event';
-import { InvalidRelationshipException } from '../exceptions/relationship.exception';
-import {
-  InheritanceRights,
-  InheritanceRightsType,
-} from '../value-objects/legal/inheritance-rights.vo';
-import { RelationshipTypeVO } from '../value-objects/legal/relationship-type.vo';
+import { UniqueEntityID } from '../base/unique-entity-id';
+import { InvalidRelationshipException } from '../exceptions/family.exception';
 
-export enum RelationshipStrength {
-  FULL = 'FULL',
-  HALF = 'HALF',
-  STEP = 'STEP',
-  ADOPTED = 'ADOPTED',
-  FOSTER = 'FOSTER',
-}
-
+/**
+ * FamilyRelationship Entity Props (Immutable)
+ *
+ * Design: Directed edge in the family graph
+ * - fromMember -> toMember with specific relationship type
+ * - Example: John (fromMember) is PARENT of Mary (toMember)
+ * - Reciprocal: Mary is CHILD of John (separate edge)
+ *
+ * Kenyan Law Context:
+ * - Determines inheritance rights (S. 35/36 LSA)
+ * - Distinguishes biological vs adopted relationships
+ * - Tracks customary law recognition
+ * - Critical for next-of-kin determination
+ */
 export interface FamilyRelationshipProps {
-  id: string;
-  familyId: string;
+  // References
+  familyId: UniqueEntityID;
+  fromMemberId: UniqueEntityID; // Subject of relationship
+  toMemberId: UniqueEntityID; // Object of relationship
 
-  // Relationship edges
-  fromMemberId: string;
-  toMemberId: string;
+  // Relationship Type
   type: RelationshipType;
+  strength: 'FULL' | 'HALF' | 'STEP' | 'ADOPTED'; // Relationship strength
 
-  // Biological vs Legal
+  // Nature
   isBiological: boolean;
   isAdopted: boolean;
 
-  // Adoption details
+  // Adoption Details (if applicable)
+  adoptionOrderId?: UniqueEntityID;
   adoptionOrderNumber?: string;
   adoptionCourt?: string;
   adoptionDate?: Date;
   isCustomaryAdoption: boolean;
 
-  // Relationship metadata
-  strength: string; // "FULL", "HALF", "STEP", "ADOPTED"
+  // Verification
+  isVerified: boolean;
+  verificationMethod?: string;
+  verificationDocuments?: string[]; // Document IDs
+  verifiedAt?: Date;
+  verifiedBy?: UniqueEntityID;
+
+  // Relationship Timeline
   relationshipStartDate?: Date;
   relationshipEndDate?: Date;
   endReason?: string;
 
-  // Verification
-  isVerified: boolean;
-  verificationMethod?: string;
-  verificationDocuments?: any;
-  verifiedAt?: Date;
-  verifiedBy?: string;
-
-  // Next of Kin
+  // Next-of-Kin Status
   isNextOfKin: boolean;
-  nextOfKinPriority: number;
+  nextOfKinPriority: number; // 1 = primary, 2 = secondary, etc.
 
-  // Customary law
+  // Customary Law Recognition
   recognizedUnderCustomaryLaw: boolean;
-  customaryCeremonyDetails?: any;
+  customaryCeremonyDetails?: CustomaryCeremonyDetails;
 
-  // Legal disputes
+  // Legal Disputes
   isContested: boolean;
   contestationCaseNumber?: string;
   courtValidated: boolean;
+  courtValidationDate?: Date;
 
-  // Inheritance rights (Value Object)
+  // Inheritance Rights (S. 35/36 LSA)
   inheritanceRights: InheritanceRights;
-
-  // Audit
-  version: number;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
-export interface CreateRelationshipProps {
+/**
+ * Customary Ceremony Details
+ * For relationships recognized under customary law
+ */
+export interface CustomaryCeremonyDetails {
+  ceremonyType: string;
+  ceremonyDate: Date;
+  ceremonyLocation: string;
+  elderWitnesses: Array<{
+    name: string;
+    age: number;
+    role: string;
+  }>;
+  clanApproval: boolean;
+}
+
+/**
+ * Factory Props
+ */
+export interface CreateFamilyRelationshipProps {
   familyId: string;
   fromMemberId: string;
   toMemberId: string;
   type: RelationshipType;
-  strength?: string;
+
+  // Nature
   isBiological?: boolean;
   isAdopted?: boolean;
+  strength?: 'FULL' | 'HALF' | 'STEP' | 'ADOPTED';
+
+  // Adoption
+  adoptionOrderId?: string;
   adoptionOrderNumber?: string;
   adoptionCourt?: string;
   adoptionDate?: Date;
   isCustomaryAdoption?: boolean;
+
+  // Verification
+  isVerified?: boolean;
+  verificationMethod?: string;
+  verificationDocuments?: string[];
+
+  // Timeline
   relationshipStartDate?: Date;
-  verificationDocuments?: any;
-  customaryCeremonyDetails?: any;
+
+  // Next-of-Kin
+  isNextOfKin?: boolean;
+  nextOfKinPriority?: number;
+
+  // Customary
+  recognizedUnderCustomaryLaw?: boolean;
+  customaryCeremonyDetails?: {
+    ceremonyType: string;
+    ceremonyDate: Date;
+    ceremonyLocation: string;
+    elderWitnesses: Array<{
+      name: string;
+      age: number;
+      role: string;
+    }>;
+    clanApproval: boolean;
+  };
+
+  // Inheritance
+  inheritanceRights?: InheritanceRights;
 }
 
+/**
+ * FamilyRelationship Entity
+ *
+ * Represents directed edge in family graph.
+ * Critical for S. 35/36 LSA intestate succession calculations.
+ *
+ * Examples:
+ * - John is PARENT of Mary (biological)
+ * - Mary is CHILD of John (reciprocal)
+ * - Alice is SIBLING of Bob (HALF - same mother, different fathers)
+ * - Charles is SPOUSE of Diana (through marriage)
+ * - Adopted child has FULL inheritance rights
+ *
+ * Kenyan Law Considerations:
+ * - Biological children: Full rights (S. 35 LSA)
+ * - Adopted children: Full rights (Children Act 2022)
+ * - Step-children: Limited/no rights (unless adopted)
+ * - Half-siblings: Full rights (S. 38 LSA)
+ * - Customary relationships: Recognized under S. 32 LSA
+ */
 export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
-  private constructor(props: FamilyRelationshipProps) {
-    super(props.id, props);
+  private constructor(id: UniqueEntityID, props: FamilyRelationshipProps, createdAt?: Date) {
+    super(id, props, createdAt);
     this.validate();
   }
 
-  static create(props: CreateRelationshipProps): FamilyRelationship {
-    const id = this.generateId();
+  // =========================================================================
+  // FACTORY METHODS
+  // =========================================================================
+
+  public static create(props: CreateFamilyRelationshipProps): FamilyRelationship {
+    const id = new UniqueEntityID();
     const now = new Date();
 
-    // Determine strength
-    let strength = props.strength || 'FULL';
-    if (props.isAdopted) strength = 'ADOPTED';
+    // Determine relationship strength
+    const strength = FamilyRelationship.determineStrength(props);
 
-    // 1. Create RelationshipTypeVO (Required for InheritanceRights)
-    // We assume RelationshipTypeVO has a create method that accepts the Prisma enum
-    const relationshipTypeVO = RelationshipTypeVO.create(props.type);
+    // Determine inheritance rights
+    const inheritanceRights =
+      props.inheritanceRights ||
+      FamilyRelationship.determineInheritanceRights(props.type, props.isAdopted || false);
 
-    // 2. Determine initial Inheritance Rights Type and Share
-    let rightsType: InheritanceRightsType = 'FULL';
-    let sharePercentage = 100;
-
-    if (props.type === 'STEPCHILD' || props.type === 'EX_SPOUSE') {
-      rightsType = 'PARTIAL';
-      sharePercentage = 50; // Default logic
-    } else if (
-      props.type === 'GUARDIAN' ||
-      props.type === 'OTHER' ||
-      props.type === 'COUSIN' ||
-      props.type === 'AUNT_UNCLE' ||
-      props.type === 'NIECE_NEPHEW'
-    ) {
-      rightsType = 'NONE';
-      sharePercentage = 0;
-    }
-
-    // Override for adopted children (full rights under Children Act)
-    if (props.isAdopted) {
-      rightsType = 'FULL';
-      sharePercentage = 100;
-    }
-
-    // 3. Create InheritanceRights VO
-    const inheritanceRights = InheritanceRights.create(
-      rightsType,
-      relationshipTypeVO,
-      sharePercentage,
-    );
-
-    const relationship = new FamilyRelationship({
-      id,
-      familyId: props.familyId,
-      fromMemberId: props.fromMemberId,
-      toMemberId: props.toMemberId,
+    const relationshipProps: FamilyRelationshipProps = {
+      familyId: new UniqueEntityID(props.familyId),
+      fromMemberId: new UniqueEntityID(props.fromMemberId),
+      toMemberId: new UniqueEntityID(props.toMemberId),
       type: props.type,
+      strength,
+
+      // Nature
       isBiological: props.isBiological ?? true,
       isAdopted: props.isAdopted ?? false,
+
+      // Adoption
+      adoptionOrderId: props.adoptionOrderId
+        ? new UniqueEntityID(props.adoptionOrderId)
+        : undefined,
       adoptionOrderNumber: props.adoptionOrderNumber,
       adoptionCourt: props.adoptionCourt,
       adoptionDate: props.adoptionDate,
       isCustomaryAdoption: props.isCustomaryAdoption ?? false,
-      strength,
-      relationshipStartDate: props.relationshipStartDate || now,
-      isVerified: false,
+
+      // Verification
+      isVerified: props.isVerified ?? false,
+      verificationMethod: props.verificationMethod,
       verificationDocuments: props.verificationDocuments,
-      isNextOfKin: false,
-      nextOfKinPriority: 99,
-      recognizedUnderCustomaryLaw: true,
+
+      // Timeline
+      relationshipStartDate: props.relationshipStartDate || now,
+
+      // Next-of-Kin
+      isNextOfKin: props.isNextOfKin ?? false,
+      nextOfKinPriority: props.nextOfKinPriority ?? 1,
+
+      // Customary
+      recognizedUnderCustomaryLaw: props.recognizedUnderCustomaryLaw ?? true,
       customaryCeremonyDetails: props.customaryCeremonyDetails,
+
+      // Legal
       isContested: false,
       courtValidated: false,
-      inheritanceRights,
-      version: 1,
-      createdAt: now,
-      updatedAt: now,
-    });
 
-    relationship.addDomainEvent(
-      new RelationshipEstablishedEvent({
-        relationshipId: id,
-        familyId: props.familyId,
-        fromMemberId: props.fromMemberId,
-        toMemberId: props.toMemberId,
-        type: props.type,
-        strength,
-        isBiological: props.isBiological ?? true,
-        isAdopted: props.isAdopted ?? false,
-      }),
-    );
+      // Inheritance
+      inheritanceRights,
+    };
+
+    return new FamilyRelationship(id, relationshipProps, now);
+  }
+
+  public static fromPersistence(
+    id: string,
+    props: FamilyRelationshipProps,
+    createdAt: Date,
+    updatedAt?: Date,
+  ): FamilyRelationship {
+    const entityId = new UniqueEntityID(id);
+    const relationship = new FamilyRelationship(entityId, props, createdAt);
+
+    if (updatedAt) {
+      (relationship as any)._updatedAt = updatedAt;
+    }
 
     return relationship;
   }
 
-  static createFromProps(props: FamilyRelationshipProps): FamilyRelationship {
-    return new FamilyRelationship(props);
+  // =========================================================================
+  // PRIVATE HELPERS
+  // =========================================================================
+
+  private static determineStrength(
+    props: CreateFamilyRelationshipProps,
+  ): 'FULL' | 'HALF' | 'STEP' | 'ADOPTED' {
+    if (props.strength) return props.strength;
+
+    if (props.isAdopted) return 'ADOPTED';
+
+    // Default based on type
+    switch (props.type) {
+      case 'HALF_SIBLING':
+        return 'HALF';
+      case 'STEPCHILD':
+      case 'EX_SPOUSE':
+        return 'STEP';
+      default:
+        return 'FULL';
+    }
   }
 
-  // --- Domain Logic ---
+  private static determineInheritanceRights(
+    type: RelationshipType,
+    isAdopted: boolean,
+  ): InheritanceRights {
+    // Adopted children have full rights
+    if (isAdopted) return InheritanceRights.FULL;
 
-  verify(params: { method: string; verifierId: string; documents?: any }): void {
-    if (this.props.isContested) {
-      throw new InvalidRelationshipException(
-        'Cannot verify a relationship that is currently contested in court.',
-      );
+    switch (type) {
+      case 'CHILD':
+      case 'PARENT':
+      case 'SIBLING':
+      case 'HALF_SIBLING':
+      case 'SPOUSE':
+        return InheritanceRights.FULL;
+
+      case 'STEPCHILD':
+        return InheritanceRights.PARTIAL;
+
+      case 'COUSIN':
+      case 'NIECE_NEPHEW':
+      case 'AUNT_UNCLE':
+      case 'GRANDCHILD':
+      case 'GRANDPARENT':
+        return InheritanceRights.CUSTOMARY;
+
+      default:
+        return InheritanceRights.NONE;
     }
-
-    this.props.isVerified = true;
-    this.props.verificationMethod = params.method;
-    this.props.verifiedBy = params.verifierId;
-    this.props.verifiedAt = new Date();
-    if (params.documents) {
-      this.props.verificationDocuments = params.documents;
-    }
-    this.props.updatedAt = new Date();
-    this.props.version++;
-
-    this.addDomainEvent(
-      new RelationshipVerifiedEvent({
-        relationshipId: this.id,
-        method: params.method,
-        verifiedBy: params.verifierId,
-        verificationDocuments: params.documents,
-      }),
-    );
   }
 
-  designateAsNextOfKin(priority: number, legalBasis?: string, documentReference?: string): void {
+  // =========================================================================
+  // VALIDATION
+  // =========================================================================
+
+  public validate(): void {
+    // Cannot relate to self
+    if (this.props.fromMemberId.equals(this.props.toMemberId)) {
+      throw new InvalidRelationshipException('A person cannot have a relationship with themselves');
+    }
+
+    // Adopted relationships must have adoption details
+    if (this.props.isAdopted && !this.props.adoptionOrderId && !this.props.adoptionOrderNumber) {
+      console.warn('Adopted relationship should have adoption order reference');
+    }
+
+    // Verified relationships need verification method
+    if (this.props.isVerified && !this.props.verificationMethod) {
+      console.warn('Verified relationship should have verification method');
+    }
+
+    // Next-of-kin priority must be positive
+    if (this.props.isNextOfKin && this.props.nextOfKinPriority < 1) {
+      throw new InvalidRelationshipException('Next-of-kin priority must be 1 or greater');
+    }
+
+    // Relationship end must be after start
+    if (this.props.relationshipEndDate && this.props.relationshipStartDate) {
+      if (this.props.relationshipEndDate < this.props.relationshipStartDate) {
+        throw new InvalidRelationshipException('Relationship end date cannot be before start date');
+      }
+    }
+  }
+
+  // =========================================================================
+  // BUSINESS LOGIC
+  // =========================================================================
+
+  public verify(
+    verificationMethod: string,
+    verifiedBy: string,
+    documents?: string[],
+  ): FamilyRelationship {
+    this.ensureNotDeleted();
+
+    const newProps: FamilyRelationshipProps = {
+      ...this.props,
+      isVerified: true,
+      verificationMethod,
+      verificationDocuments: documents,
+      verifiedAt: new Date(),
+      verifiedBy: new UniqueEntityID(verifiedBy),
+    };
+
+    return new FamilyRelationship(this._id, newProps, this._createdAt);
+  }
+
+  public designateAsNextOfKin(priority: number): FamilyRelationship {
+    this.ensureNotDeleted();
+
     if (priority < 1) {
-      throw new InvalidRelationshipException('Priority must be 1 or greater.');
+      throw new InvalidRelationshipException('Priority must be 1 or greater');
     }
 
-    this.props.isNextOfKin = true;
-    this.props.nextOfKinPriority = priority;
-    this.props.updatedAt = new Date();
-    this.props.version++;
+    const newProps: FamilyRelationshipProps = {
+      ...this.props,
+      isNextOfKin: true,
+      nextOfKinPriority: priority,
+    };
 
-    this.addDomainEvent(
-      new NextOfKinDesignatedEvent({
-        relationshipId: this.id,
-        familyId: this.props.familyId,
-        memberId: this.props.toMemberId,
-        priority,
-        legalBasis,
-        documentReference,
-      }),
-    );
+    return new FamilyRelationship(this._id, newProps, this._createdAt);
   }
 
-  formalizeAdoption(params: {
-    orderNumber: string;
-    court: string;
-    date: Date;
-    isCustomary: boolean;
-    hasConsents?: any;
-    consentDocuments?: string[];
-    childWelfareReport?: string;
-    suitabilityReport?: string;
-  }): void {
-    this.props.isAdopted = true;
-    this.props.isBiological = false;
-    this.props.adoptionOrderNumber = params.orderNumber;
-    this.props.adoptionCourt = params.court;
-    this.props.adoptionDate = params.date;
-    this.props.isCustomaryAdoption = params.isCustomary;
-    this.props.strength = 'ADOPTED';
+  public removeNextOfKinDesignation(): FamilyRelationship {
+    this.ensureNotDeleted();
 
-    // Update Inheritance Rights to FULL
-    this.props.inheritanceRights = this.props.inheritanceRights.updateRightsType('FULL');
+    const newProps: FamilyRelationshipProps = {
+      ...this.props,
+      isNextOfKin: false,
+    };
 
-    this.props.updatedAt = new Date();
-    this.props.version++;
+    return new FamilyRelationship(this._id, newProps, this._createdAt);
   }
 
-  contest(caseNumber: string): void {
-    this.props.isContested = true;
-    this.props.contestationCaseNumber = caseNumber;
-    // Set rights to PENDING via VO method
-    this.props.inheritanceRights = this.props.inheritanceRights.disputeRights(
-      `Court case: ${caseNumber}`,
-    );
+  public endRelationship(endDate: Date, reason: string): FamilyRelationship {
+    this.ensureNotDeleted();
 
-    this.props.updatedAt = new Date();
-    this.props.version++;
-  }
-
-  resolveContest(isValid: boolean, courtOrderNumber: string): void {
-    this.props.isContested = false;
-    this.props.courtValidated = true;
-    this.props.contestationCaseNumber = undefined;
-
-    if (isValid) {
-      const rightsType =
-        this.props.strength === 'STEP' || this.props.type === 'STEPCHILD' ? 'PARTIAL' : 'FULL';
-
-      this.props.inheritanceRights = this.props.inheritanceRights.resolveDispute(
-        courtOrderNumber,
-        new Date(),
-        rightsType,
-        rightsType === 'FULL' ? 100 : 50,
-      );
-    } else {
-      this.props.inheritanceRights = this.props.inheritanceRights.resolveDispute(
-        courtOrderNumber,
-        new Date(),
-        'NONE',
-        0,
-      );
-      this.props.relationshipEndDate = new Date();
-      this.props.endReason = `Court Ruling: ${courtOrderNumber}`;
+    if (this.props.relationshipEndDate) {
+      throw new InvalidRelationshipException('Relationship already ended');
     }
 
-    this.props.updatedAt = new Date();
-    this.props.version++;
+    const newProps: FamilyRelationshipProps = {
+      ...this.props,
+      relationshipEndDate: endDate,
+      endReason: reason,
+    };
+
+    return new FamilyRelationship(this._id, newProps, this._createdAt);
   }
 
-  updateCustomaryCeremonyDetails(details: any): void {
-    this.props.customaryCeremonyDetails = details;
-    this.props.recognizedUnderCustomaryLaw = true;
-    this.props.updatedAt = new Date();
-    this.props.version++;
+  public contest(caseNumber: string): FamilyRelationship {
+    this.ensureNotDeleted();
+
+    const newProps: FamilyRelationshipProps = {
+      ...this.props,
+      isContested: true,
+      contestationCaseNumber: caseNumber,
+    };
+
+    return new FamilyRelationship(this._id, newProps, this._createdAt);
   }
 
-  markEnded(endDate: Date, reason: string): void {
-    this.props.relationshipEndDate = endDate;
-    this.props.endReason = reason;
-    this.props.updatedAt = new Date();
-    this.props.version++;
+  public validateByCourt(validationDate: Date): FamilyRelationship {
+    this.ensureNotDeleted();
+
+    const newProps: FamilyRelationshipProps = {
+      ...this.props,
+      courtValidated: true,
+      courtValidationDate: validationDate,
+      isContested: false, // Court validation resolves contestation
+    };
+
+    return new FamilyRelationship(this._id, newProps, this._createdAt);
   }
 
-  updateInheritanceRights(rights: InheritanceRights): void {
-    this.props.inheritanceRights = rights;
-    this.props.updatedAt = new Date();
-    this.props.version++;
+  public updateInheritanceRights(rights: InheritanceRights): FamilyRelationship {
+    this.ensureNotDeleted();
+
+    const newProps: FamilyRelationshipProps = {
+      ...this.props,
+      inheritanceRights: rights,
+    };
+
+    return new FamilyRelationship(this._id, newProps, this._createdAt);
   }
 
-  private validate(): void {
-    if (this.props.fromMemberId === this.props.toMemberId) {
-      throw new InvalidRelationshipException(
-        'A member cannot have a relationship with themselves.',
-      );
-    }
+  // =========================================================================
+  // GETTERS
+  // =========================================================================
 
-    // Validate that strength is one of the allowed values
-    const validStrengths = ['FULL', 'HALF', 'STEP', 'ADOPTED', 'FOSTER'];
-    if (!validStrengths.includes(this.props.strength)) {
-      throw new InvalidRelationshipException(
-        `Invalid relationship strength: ${this.props.strength}`,
-      );
-    }
+  get familyId(): UniqueEntityID {
+    return this.props.familyId;
   }
 
-  private static generateId(): string {
-    return crypto.randomUUID
-      ? crypto.randomUUID()
-      : `rel-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  get fromMemberId(): UniqueEntityID {
+    return this.props.fromMemberId;
   }
 
-  // --- Getters ---
-
-  get id(): string {
-    return this.props.id;
+  get toMemberId(): UniqueEntityID {
+    return this.props.toMemberId;
   }
+
   get type(): RelationshipType {
     return this.props.type;
   }
-  get strength(): string {
+
+  get strength(): 'FULL' | 'HALF' | 'STEP' | 'ADOPTED' {
     return this.props.strength;
   }
-  get inheritanceRights(): InheritanceRights {
-    return this.props.inheritanceRights;
-  }
-  get isVerified(): boolean {
-    return this.props.isVerified;
-  }
-  get isContested(): boolean {
-    return this.props.isContested;
-  }
-  get isNextOfKin(): boolean {
-    return this.props.isNextOfKin;
-  }
-  get nextOfKinPriority(): number {
-    return this.props.nextOfKinPriority;
-  }
-  get familyId(): string {
-    return this.props.familyId;
-  }
-  get fromMemberId(): string {
-    return this.props.fromMemberId;
-  }
-  get toMemberId(): string {
-    return this.props.toMemberId;
-  }
+
   get isBiological(): boolean {
     return this.props.isBiological;
   }
+
   get isAdopted(): boolean {
     return this.props.isAdopted;
   }
-  get isCustomaryAdoption(): boolean {
-    return this.props.isCustomaryAdoption;
+
+  get isVerified(): boolean {
+    return this.props.isVerified;
   }
-  get recognizedUnderCustomaryLaw(): boolean {
-    return this.props.recognizedUnderCustomaryLaw;
+
+  get isNextOfKin(): boolean {
+    return this.props.isNextOfKin;
   }
+
+  get nextOfKinPriority(): number {
+    return this.props.nextOfKinPriority;
+  }
+
+  get inheritanceRights(): InheritanceRights {
+    return this.props.inheritanceRights;
+  }
+
+  get isContested(): boolean {
+    return this.props.isContested;
+  }
+
   get courtValidated(): boolean {
     return this.props.courtValidated;
   }
 
-  get qualifiesForInheritance(): boolean {
+  get recognizedUnderCustomaryLaw(): boolean {
+    return this.props.recognizedUnderCustomaryLaw;
+  }
+
+  // =========================================================================
+  // COMPUTED PROPERTIES
+  // =========================================================================
+
+  get isActive(): boolean {
+    return !this.props.relationshipEndDate;
+  }
+
+  get hasFullInheritanceRights(): boolean {
+    return this.props.inheritanceRights === InheritanceRights.FULL;
+  }
+
+  get requiresCourtValidation(): boolean {
+    return this.props.isAdopted || this.props.isContested;
+  }
+
+  get isLegallyRecognized(): boolean {
     return (
-      this.props.inheritanceRights.isEffective && this.props.inheritanceRights.sharePercentage > 0
+      (this.props.isBiological && this.props.isVerified) ||
+      (this.props.isAdopted && !!this.props.adoptionOrderId) ||
+      this.props.courtValidated
     );
   }
 
-  // For S.29 dependency assessment
-  get isDependantRelationship(): boolean {
-    const dependantTypes: RelationshipType[] = [
-      'CHILD',
-      'ADOPTED_CHILD',
-      'STEPCHILD',
-      'SPOUSE',
-      'PARENT',
-    ];
+  // =========================================================================
+  // SERIALIZATION
+  // =========================================================================
 
-    return (
-      dependantTypes.includes(this.props.type) &&
-      (this.props.isBiological || this.props.isAdopted || this.props.type === 'SPOUSE')
-    );
-  }
-
-  toJSON() {
+  public toPlainObject(): Record<string, any> {
     return {
-      id: this.id,
-      familyId: this.props.familyId,
-      fromMemberId: this.props.fromMemberId,
-      toMemberId: this.props.toMemberId,
+      id: this._id.toString(),
+      familyId: this.props.familyId.toString(),
+      fromMemberId: this.props.fromMemberId.toString(),
+      toMemberId: this.props.toMemberId.toString(),
       type: this.props.type,
       strength: this.props.strength,
       isBiological: this.props.isBiological,
       isAdopted: this.props.isAdopted,
+      adoptionOrderId: this.props.adoptionOrderId?.toString(),
       adoptionOrderNumber: this.props.adoptionOrderNumber,
       adoptionCourt: this.props.adoptionCourt,
       adoptionDate: this.props.adoptionDate,
       isCustomaryAdoption: this.props.isCustomaryAdoption,
-      relationshipStartDate: this.props.relationshipStartDate,
-      relationshipEndDate: this.props.relationshipEndDate,
-      endReason: this.props.endReason,
       isVerified: this.props.isVerified,
       verificationMethod: this.props.verificationMethod,
       verificationDocuments: this.props.verificationDocuments,
       verifiedAt: this.props.verifiedAt,
-      verifiedBy: this.props.verifiedBy,
+      verifiedBy: this.props.verifiedBy?.toString(),
+      relationshipStartDate: this.props.relationshipStartDate,
+      relationshipEndDate: this.props.relationshipEndDate,
+      endReason: this.props.endReason,
       isNextOfKin: this.props.isNextOfKin,
       nextOfKinPriority: this.props.nextOfKinPriority,
       recognizedUnderCustomaryLaw: this.props.recognizedUnderCustomaryLaw,
@@ -449,10 +548,16 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
       isContested: this.props.isContested,
       contestationCaseNumber: this.props.contestationCaseNumber,
       courtValidated: this.props.courtValidated,
-      inheritanceRights: this.props.inheritanceRights.toJSON(),
-      version: this.props.version,
-      createdAt: this.props.createdAt,
-      updatedAt: this.props.updatedAt,
+      courtValidationDate: this.props.courtValidationDate,
+      inheritanceRights: this.props.inheritanceRights,
+      isActive: this.isActive,
+      hasFullInheritanceRights: this.hasFullInheritanceRights,
+      requiresCourtValidation: this.requiresCourtValidation,
+      isLegallyRecognized: this.isLegallyRecognized,
+      version: this._version,
+      createdAt: this._createdAt,
+      updatedAt: this._updatedAt,
+      deletedAt: this._deletedAt,
     };
   }
 }

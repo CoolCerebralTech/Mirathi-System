@@ -1,12 +1,12 @@
-// application/guardianship/commands/impl/grant-property-powers.command.ts
+// application/guardianship/commands/impl/check-compliance.command.ts
 import { BaseCommand } from '../base.command';
 
-export class GrantPropertyPowersCommand extends BaseCommand {
+/**
+ * Manual trigger to check compliance status (S.72 & S.73)
+ */
+export class CheckComplianceCommand extends BaseCommand {
   constructor(
     public readonly guardianshipId: string,
-    public readonly guardianId: string,
-    public readonly courtOrderNumber?: string,
-    public readonly restrictions?: string[],
     baseProps: { userId: string; correlationId?: string; causationId?: string },
   ) {
     super(baseProps);
@@ -18,10 +18,6 @@ export class GrantPropertyPowersCommand extends BaseCommand {
 
     if (!this.guardianshipId) {
       throw new Error('Guardianship ID is required');
-    }
-
-    if (!this.guardianId) {
-      throw new Error('Guardian ID is required');
     }
   }
 }

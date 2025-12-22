@@ -1,87 +1,31 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
-
+// application/guardianship/commands/impl/record-ward-capacity-restored.command.ts
 import { BaseCommand } from '../base.command';
 
-export class UpdateSpecialInstructionsCommand extends BaseCommand {
-  @ApiProperty({
-    description: 'Command name',
-    example: 'UpdateSpecialInstructionsCommand',
-  })
-  getCommandName(): string {
-    return 'UpdateSpecialInstructionsCommand';
+export class RecordWardCapacityRestoredCommand extends BaseCommand {
+  constructor(
+    public readonly guardianshipId: string,
+    public readonly recoveryDate: Date,
+    public readonly medicalCertificateNumber?: string,
+    public readonly courtOrderNumber?: string,
+    baseProps: { userId: string; correlationId?: string; causationId?: string },
+  ) {
+    super(baseProps);
+    this.validate();
   }
 
-  @ApiProperty({
-    description: 'Guardianship ID',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  @IsNotEmpty()
-  @IsUUID('4')
-  readonly guardianshipId: string;
+  validate(): void {
+    super.validate();
 
-  @ApiProperty({
-    description: 'New special instructions',
-    example: 'Guardian must consult with family council quarterly and submit minutes',
-  })
-  @IsNotEmpty()
-  @IsString()
-  @MinLength(10)
-  @MaxLength(2000)
-  readonly specialInstructions: string;
+    if (!this.guardianshipId) {
+      throw new Error('Guardianship ID is required');
+    }
 
-  @ApiPropertyOptional({
-    description: 'Court order reference for instructions',
-    example: 'HC/SUCC/INST/123/2024',
-  })
-  @IsOptional()
-  @IsString()
-  readonly courtOrderReference?: string;
+    if (!this.recoveryDate) {
+      throw new Error('Recovery date is required');
+    }
 
-  @ApiPropertyOptional({
-    description: 'Instructions from (e.g., Testator, Court, Family Council)',
-    example: 'FAMILY_COUNCIL',
-  })
-  @IsOptional()
-  @IsString()
-  readonly instructionsFrom?: string;
-
-  @ApiPropertyOptional({
-    description: 'Priority level of instructions',
-    example: 'HIGH',
-  })
-  @IsOptional()
-  @IsString()
-  readonly priority?: string;
-
-  @ApiPropertyOptional({
-    description: 'Instructions effective date',
-    example: '2024-02-01T00:00:00.000Z',
-  })
-  @IsOptional()
-  @IsString()
-  readonly effectiveDate?: string;
-
-  constructor(
-    commandId: string,
-    timestamp: Date,
-    userId: string,
-    correlationId: string | undefined,
-    data: {
-      guardianshipId: string;
-      specialInstructions: string;
-      courtOrderReference?: string;
-      instructionsFrom?: string;
-      priority?: string;
-      effectiveDate?: string;
-    },
-  ) {
-    super(commandId, timestamp, userId, correlationId);
-    this.guardianshipId = data.guardianshipId;
-    this.specialInstructions = data.specialInstructions;
-    this.courtOrderReference = data.courtOrderReference;
-    this.instructionsFrom = data.instructionsFrom;
-    this.priority = data.priority;
-    this.effectiveDate = data.effectiveDate;
+    if (this.recoveryDate > new Date()) {
+      throw new Error('Recovery date cannot be in the future');
+    }
   }
 }

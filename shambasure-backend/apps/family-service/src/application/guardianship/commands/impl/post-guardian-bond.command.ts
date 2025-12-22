@@ -1,96 +1,45 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsDate, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
-
+// application/guardianship/commands/impl/post-guardian-bond.command.ts
 import { BaseCommand } from '../base.command';
 
-export class RenewBondCommand extends BaseCommand {
-  @ApiProperty({
-    description: 'Command name',
-    example: 'RenewBondCommand',
-  })
-  getCommandName(): string {
-    return 'RenewBondCommand';
+export class PostGuardianBondCommand extends BaseCommand {
+  constructor(
+    public readonly guardianshipId: string,
+    public readonly guardianId: string,
+    public readonly provider: string,
+    public readonly policyNumber: string,
+    public readonly amountKES: number,
+    public readonly expiryDate: Date,
+    baseProps: { userId: string; correlationId?: string; causationId?: string },
+  ) {
+    super(baseProps);
+    this.validate();
   }
 
-  @ApiProperty({
-    description: 'Guardianship ID',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  @IsNotEmpty()
-  @IsUUID('4')
-  readonly guardianshipId: string;
+  validate(): void {
+    super.validate();
 
-  @ApiProperty({
-    description: 'New bond expiry date',
-    example: '2025-12-31T00:00:00.000Z',
-  })
-  @IsNotEmpty()
-  @IsDate()
-  @Type(() => Date)
-  readonly newExpiryDate: Date;
+    if (!this.guardianshipId) {
+      throw new Error('Guardianship ID is required');
+    }
 
-  @ApiPropertyOptional({
-    description: 'New bond provider (if changing)',
-    example: 'APA Insurance',
-  })
-  @IsOptional()
-  @IsString()
-  readonly newProvider?: string;
+    if (!this.guardianId) {
+      throw new Error('Guardian ID is required');
+    }
 
-  @ApiPropertyOptional({
-    description: 'New policy number',
-    example: 'BOND-APA-2024-001',
-  })
-  @IsOptional()
-  @IsString()
-  readonly newPolicyNumber?: string;
+    if (!this.provider) {
+      throw new Error('Bond provider is required');
+    }
 
-  @ApiPropertyOptional({
-    description: 'Renewal premium amount (KES)',
-    example: 15000,
-  })
-  @IsOptional()
-  readonly renewalPremiumKES?: number;
+    if (!this.policyNumber) {
+      throw new Error('Policy number is required');
+    }
 
-  @ApiPropertyOptional({
-    description: 'Renewal receipt number',
-    example: 'RENEW-2024-001',
-  })
-  @IsOptional()
-  @IsString()
-  readonly renewalReceiptNumber?: string;
+    if (this.amountKES <= 0) {
+      throw new Error('Bond amount must be positive');
+    }
 
-  @ApiPropertyOptional({
-    description: 'Court approval reference for renewal',
-    example: 'HC/SUCC/BOND/RENEW/123/2024',
-  })
-  @IsOptional()
-  @IsString()
-  readonly courtApprovalReference?: string;
-
-  constructor(
-    commandId: string,
-    timestamp: Date,
-    userId: string,
-    correlationId: string | undefined,
-    data: {
-      guardianshipId: string;
-      newExpiryDate: Date;
-      newProvider?: string;
-      newPolicyNumber?: string;
-      renewalPremiumKES?: number;
-      renewalReceiptNumber?: string;
-      courtApprovalReference?: string;
-    },
-  ) {
-    super(commandId, timestamp, userId, correlationId);
-    this.guardianshipId = data.guardianshipId;
-    this.newExpiryDate = data.newExpiryDate;
-    this.newProvider = data.newProvider;
-    this.newPolicyNumber = data.newPolicyNumber;
-    this.renewalPremiumKES = data.renewalPremiumKES;
-    this.renewalReceiptNumber = data.renewalReceiptNumber;
-    this.courtApprovalReference = data.courtApprovalReference;
+    if (!this.expiryDate || this.expiryDate <= new Date()) {
+      throw new Error('Expiry date must be in the future');
+    }
   }
 }

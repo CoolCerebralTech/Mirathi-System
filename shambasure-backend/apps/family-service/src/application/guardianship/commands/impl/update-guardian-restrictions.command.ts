@@ -1,14 +1,11 @@
-// application/guardianship/commands/impl/file-annual-report.command.ts
+// application/guardianship/commands/impl/update-guardian-restrictions.command.ts
 import { BaseCommand } from '../base.command';
 
-export class FileAnnualReportCommand extends BaseCommand {
+export class UpdateGuardianRestrictionsCommand extends BaseCommand {
   constructor(
     public readonly guardianshipId: string,
     public readonly guardianId: string,
-    public readonly reportDate: Date,
-    public readonly summary: string,
-    public readonly financialStatement?: Record<string, any>,
-    public readonly approvedBy?: string,
+    public readonly restrictions: string[],
     baseProps: { userId: string; correlationId?: string; causationId?: string },
   ) {
     super(baseProps);
@@ -26,12 +23,8 @@ export class FileAnnualReportCommand extends BaseCommand {
       throw new Error('Guardian ID is required');
     }
 
-    if (!this.reportDate) {
-      throw new Error('Report date is required');
-    }
-
-    if (!this.summary || this.summary.trim().length === 0) {
-      throw new Error('Report summary is required');
+    if (!Array.isArray(this.restrictions)) {
+      throw new Error('Restrictions must be an array');
     }
   }
 }

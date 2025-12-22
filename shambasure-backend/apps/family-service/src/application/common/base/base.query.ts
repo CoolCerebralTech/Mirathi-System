@@ -1,7 +1,6 @@
-// application/guardianship/queries/base.query.ts
 import { v4 as uuidv4 } from 'uuid';
 
-import { IQuery } from '../../common/interfaces/use-case.interface';
+import { IQuery } from '../interfaces/use-case.interface';
 
 /**
  * BaseQuery
