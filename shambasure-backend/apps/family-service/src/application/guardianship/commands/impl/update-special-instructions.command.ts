@@ -1,4 +1,3 @@
-// application/guardianship/commands/impl/update-special-instructions.command.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
@@ -77,10 +76,7 @@ export class UpdateSpecialInstructionsCommand extends BaseCommand {
       effectiveDate?: string;
     },
   ) {
-    super(correlationId);
-    this.commandId = commandId;
-    this.timestamp = timestamp;
-    this.userId = userId;
+    super(commandId, timestamp, userId, correlationId);
     this.guardianshipId = data.guardianshipId;
     this.specialInstructions = data.specialInstructions;
     this.courtOrderReference = data.courtOrderReference;

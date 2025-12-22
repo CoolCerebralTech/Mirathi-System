@@ -76,10 +76,8 @@ export class ExtendGuardianshipTermCommand extends BaseCommand {
       reviewConditions?: string;
     },
   ) {
-    super(correlationId);
-    this.commandId = commandId;
-    this.timestamp = timestamp;
-    this.userId = userId;
+    super(commandId, timestamp, userId, correlationId);
+
     this.guardianshipId = data.guardianshipId;
     this.newValidUntil = data.newValidUntil;
     this.courtOrderNumber = data.courtOrderNumber;

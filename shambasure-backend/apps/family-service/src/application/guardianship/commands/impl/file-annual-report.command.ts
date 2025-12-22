@@ -123,10 +123,8 @@ export class FileAnnualReportCommand extends BaseCommand {
       financialSummary?: any;
     },
   ) {
-    super(correlationId);
-    this.commandId = commandId;
-    this.timestamp = timestamp;
-    this.userId = userId;
+    super(commandId, timestamp, userId, correlationId);
+
     this.guardianshipId = data.guardianshipId;
     this.reportDate = data.reportDate;
     this.summary = data.summary;

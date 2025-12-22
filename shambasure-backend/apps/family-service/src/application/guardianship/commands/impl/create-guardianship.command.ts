@@ -210,10 +210,8 @@ export class CreateGuardianshipCommand extends BaseCommand {
       annualAllowanceKES?: number;
     },
   ) {
-    super(correlationId);
-    this.commandId = commandId;
-    this.timestamp = timestamp;
-    this.userId = userId;
+    super(commandId, timestamp, userId, correlationId);
+
     this.wardId = data.wardId;
     this.guardianId = data.guardianId;
     this.type = data.type;

@@ -1,4 +1,3 @@
-// application/guardianship/commands/impl/post-bond.command.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsDate, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
@@ -86,10 +85,7 @@ export class PostBondCommand extends BaseCommand {
       premiumReceiptNumber?: string;
     },
   ) {
-    super(correlationId);
-    this.commandId = commandId;
-    this.timestamp = timestamp;
-    this.userId = userId;
+    super(commandId, timestamp, userId, correlationId);
     this.guardianshipId = data.guardianshipId;
     this.provider = data.provider;
     this.policyNumber = data.policyNumber;

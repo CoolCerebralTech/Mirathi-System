@@ -1,4 +1,3 @@
-// application/guardianship/commands/impl/update-restrictions.command.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
@@ -78,10 +77,7 @@ export class UpdateRestrictionsCommand extends BaseCommand {
       reviewDate?: string;
     },
   ) {
-    super(correlationId);
-    this.commandId = commandId;
-    this.timestamp = timestamp;
-    this.userId = userId;
+    super(commandId, timestamp, userId, correlationId);
     this.guardianshipId = data.guardianshipId;
     this.restrictions = data.restrictions;
     this.courtOrderNumber = data.courtOrderNumber;

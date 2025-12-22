@@ -81,10 +81,8 @@ export class GrantPropertyManagementPowersCommand extends BaseCommand {
       limitations?: string;
     },
   ) {
-    super(correlationId);
-    this.commandId = commandId;
-    this.timestamp = timestamp;
-    this.userId = userId;
+    super(commandId, timestamp, userId, correlationId);
+
     this.guardianshipId = data.guardianshipId;
     this.courtOrderNumber = data.courtOrderNumber;
     this.restrictions = data.restrictions;

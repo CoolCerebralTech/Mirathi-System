@@ -100,21 +100,9 @@ family-service/
 │   │       └── is-cohabitation-qualifying.spec.ts
 │   ├── interfaces/
 │   │   ├── repositories/
-|   |   |   |   ifamily-relationship.repository.ts
-|   |   |   |   Ipolygamous-house.repository.ts
 │   │   │   ├── ifamily.repository.ts
-│   │   │   ├── ifamily-member.repository.ts
-│   │   │   ├── imarriage.repository.ts
 │   │   │   ├── iguardianship.repository.ts
 │   │   │   └── idependancy.repository.ts
-│   │   ├── services/
-|   |   |   |   iadoption.service.ts
-|   |   |   |   inext-of-kin.service.ts
-|   |   |   |   ipolygamy.service.ts
-│   │   │   ├── ikenyan-law.service.ts
-│   │   │   ├── ifamily-validation.service.ts
-│   │   │   ├── iidentity-verification.service.ts
-│   │   │   └── idependency-calculator.service.ts
 │   ├── exceptions/
 │   │   ├── family.exception.ts
 │   │   ├── marriage.exception.ts

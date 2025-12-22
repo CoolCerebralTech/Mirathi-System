@@ -75,10 +75,8 @@ export class ApproveAnnualReportCommand extends BaseCommand {
       recommendations?: string;
     },
   ) {
-    super(correlationId);
-    this.commandId = commandId;
-    this.timestamp = timestamp;
-    this.userId = userId;
+    super(commandId, timestamp, userId, correlationId);
+
     this.guardianshipId = data.guardianshipId;
     this.auditorId = data.auditorId;
     this.auditNotes = data.auditNotes;

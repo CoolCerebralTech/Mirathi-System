@@ -9,7 +9,7 @@ export abstract class BaseCommand {
   })
   @IsNotEmpty()
   @IsUUID('4')
-  abstract readonly commandId: string;
+  readonly commandId: string;
 
   @ApiProperty({
     description: 'Timestamp when command was issued',
@@ -17,7 +17,7 @@ export abstract class BaseCommand {
   })
   @IsNotEmpty()
   @IsDate()
-  abstract readonly timestamp: Date;
+  readonly timestamp: Date;
 
   @ApiProperty({
     description: 'User ID who issued the command',
@@ -25,7 +25,7 @@ export abstract class BaseCommand {
   })
   @IsNotEmpty()
   @IsUUID('4')
-  abstract readonly userId: string;
+  readonly userId: string;
 
   @ApiPropertyOptional({
     description: 'Correlation ID for distributed tracing',
@@ -35,11 +35,11 @@ export abstract class BaseCommand {
   @IsUUID('4')
   readonly correlationId?: string;
 
-  constructor(correlationId?: string) {
-    if (correlationId) {
-      // Using type assertion to bypass readonly restriction in constructor
-      (this as any).correlationId = correlationId;
-    }
+  constructor(commandId: string, timestamp: Date, userId: string, correlationId?: string) {
+    this.commandId = commandId;
+    this.timestamp = timestamp;
+    this.userId = userId;
+    this.correlationId = correlationId;
   }
 
   /**

@@ -1,4 +1,3 @@
-// application/guardianship/commands/impl/terminate-guardianship.command.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -132,10 +131,7 @@ export class TerminateGuardianshipCommand extends BaseCommand {
       propertiesTransferred?: string[];
     },
   ) {
-    super(correlationId);
-    this.commandId = commandId;
-    this.timestamp = timestamp;
-    this.userId = userId;
+    super(commandId, timestamp, userId, correlationId);
     this.guardianshipId = data.guardianshipId;
     this.reason = data.reason;
     this.terminationDate = data.terminationDate;

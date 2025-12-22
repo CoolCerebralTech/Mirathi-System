@@ -1,4 +1,3 @@
-// application/guardianship/commands/impl/update-annual-allowance.command.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
@@ -91,10 +90,7 @@ export class UpdateAnnualAllowanceCommand extends BaseCommand {
       reviewPeriodMonths?: number;
     },
   ) {
-    super(correlationId);
-    this.commandId = commandId;
-    this.timestamp = timestamp;
-    this.userId = userId;
+    super(commandId, timestamp, userId, correlationId);
     this.guardianshipId = data.guardianshipId;
     this.amount = data.amount;
     this.approvedBy = data.approvedBy;

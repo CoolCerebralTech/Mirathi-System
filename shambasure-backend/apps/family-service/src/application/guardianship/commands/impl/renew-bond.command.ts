@@ -1,4 +1,3 @@
-// application/guardianship/commands/impl/renew-bond.command.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsDate, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
@@ -85,10 +84,7 @@ export class RenewBondCommand extends BaseCommand {
       courtApprovalReference?: string;
     },
   ) {
-    super(correlationId);
-    this.commandId = commandId;
-    this.timestamp = timestamp;
-    this.userId = userId;
+    super(commandId, timestamp, userId, correlationId);
     this.guardianshipId = data.guardianshipId;
     this.newExpiryDate = data.newExpiryDate;
     this.newProvider = data.newProvider;
