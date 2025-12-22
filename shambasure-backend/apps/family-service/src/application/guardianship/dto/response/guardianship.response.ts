@@ -1,26 +1,26 @@
 // application/guardianship/dto/response/guardianship.response.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { GuardianType } from '@prisma/client';
-import { Expose, Type } from 'class-transformer';
+import { Expose, Transform } from 'class-transformer';
 
 export class GuardianshipResponse {
   @ApiProperty({
-    description: 'Guardianship ID',
-    example: 'grd-1234567890',
+    description: 'Guardianship unique ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @Expose()
   id: string;
 
   @ApiProperty({
-    description: 'ID of the ward',
-    example: 'ward-123',
+    description: 'Ward ID (FamilyMember ID)',
+    example: '123e4567-e89b-12d3-a456-426614174001',
   })
   @Expose()
   wardId: string;
 
   @ApiProperty({
-    description: 'ID of the guardian',
-    example: 'guardian-456',
+    description: 'Guardian ID (FamilyMember ID)',
+    example: '123e4567-e89b-12d3-a456-426614174002',
   })
   @Expose()
   guardianId: string;
@@ -33,97 +33,65 @@ export class GuardianshipResponse {
   @Expose()
   type: GuardianType;
 
-  // Legal details
-  @ApiPropertyOptional({
-    description: 'Court order number',
+  @ApiProperty({
+    description: 'Court order number (if applicable)',
     example: 'HC/SUCC/123/2024',
+    required: false,
   })
   @Expose()
   courtOrderNumber?: string;
-
-  @ApiPropertyOptional({
-    description: 'Court station',
-    example: 'High Court - Nairobi',
-  })
-  @Expose()
-  courtStation?: string;
 
   @ApiProperty({
     description: 'Appointment date',
     example: '2024-01-15T00:00:00.000Z',
   })
   @Expose()
-  @Type(() => Date)
   appointmentDate: Date;
 
   @ApiPropertyOptional({
-    description: 'Valid until date',
+    description: 'Valid until date (for temporary guardianship)',
     example: '2026-01-15T00:00:00.000Z',
   })
   @Expose()
-  @Type(() => Date)
   validUntil?: Date;
 
-  @ApiPropertyOptional({
-    description: 'Guardian ID number',
-    example: '12345678',
-  })
-  @Expose()
-  guardianIdNumber?: string;
-
-  @ApiPropertyOptional({
-    description: 'Court case number',
-    example: 'SCC 1234 of 2023',
-  })
-  @Expose()
-  courtCaseNumber?: string;
-
-  @ApiPropertyOptional({
-    description: 'Interim order ID',
-    example: 'INT/ORD/456/2023',
-  })
-  @Expose()
-  interimOrderId?: string;
-
-  // Powers
   @ApiProperty({
-    description: 'Has property management powers',
+    description: 'Whether guardian has property management powers',
     example: false,
   })
   @Expose()
   hasPropertyManagementPowers: boolean;
 
   @ApiProperty({
-    description: 'Can consent to medical treatment',
+    description: 'Whether guardian can consent to medical treatment',
     example: true,
   })
   @Expose()
   canConsentToMedical: boolean;
 
   @ApiProperty({
-    description: 'Can consent to marriage',
+    description: 'Whether guardian can consent to marriage',
     example: false,
   })
   @Expose()
   canConsentToMarriage: boolean;
 
   @ApiPropertyOptional({
-    description: 'Restrictions (JSON)',
+    description: 'Restrictions on guardian powers',
     example: { cannotSellProperty: true },
   })
   @Expose()
-  restrictions?: Record<string, any>;
+  restrictions?: any;
 
   @ApiPropertyOptional({
     description: 'Special instructions',
-    example: 'Quarterly reporting required',
+    example: 'Must consult with family council quarterly',
   })
   @Expose()
   specialInstructions?: string;
 
-  // Bond (S.72 LSA)
   @ApiProperty({
-    description: 'Bond required',
+    description: 'Whether bond is required (S.72 LSA)',
     example: true,
   })
   @Expose()
@@ -131,7 +99,7 @@ export class GuardianshipResponse {
 
   @ApiPropertyOptional({
     description: 'Bond amount in KES',
-    example: 500000,
+    example: 1000000,
   })
   @Expose()
   bondAmountKES?: number;
@@ -145,7 +113,7 @@ export class GuardianshipResponse {
 
   @ApiPropertyOptional({
     description: 'Bond policy number',
-    example: 'BOND/2024/001',
+    example: 'BOND-KRC-2024-001',
   })
   @Expose()
   bondPolicyNumber?: string;
@@ -155,51 +123,42 @@ export class GuardianshipResponse {
     example: '2025-01-15T00:00:00.000Z',
   })
   @Expose()
-  @Type(() => Date)
   bondExpiry?: Date;
 
-  // Annual Reporting (S.73 LSA)
-  @ApiPropertyOptional({
-    description: 'Last report date',
-    example: '2024-01-15T00:00:00.000Z',
+  @ApiProperty({
+    description: 'Annual allowance in KES',
+    example: 240000,
+    required: false,
   })
   @Expose()
-  @Type(() => Date)
+  annualAllowanceKES?: number;
+
+  @ApiProperty({
+    description: 'Last annual report submission date',
+    example: '2024-12-31T00:00:00.000Z',
+    required: false,
+  })
+  @Expose()
   lastReportDate?: Date;
 
-  @ApiPropertyOptional({
-    description: 'Next report due date',
-    example: '2025-01-15T00:00:00.000Z',
+  @ApiProperty({
+    description: 'Next annual report due date (S.73 LSA)',
+    example: '2025-12-31T00:00:00.000Z',
+    required: false,
   })
   @Expose()
-  @Type(() => Date)
   nextReportDue?: Date;
 
   @ApiProperty({
     description: 'Report status',
+    enum: ['PENDING', 'SUBMITTED', 'APPROVED', 'OVERDUE'],
     example: 'PENDING',
   })
   @Expose()
   reportStatus: string;
 
-  // Allowances
-  @ApiPropertyOptional({
-    description: 'Annual allowance in KES',
-    example: 120000,
-  })
-  @Expose()
-  annualAllowanceKES?: number;
-
-  @ApiPropertyOptional({
-    description: 'Allowance approved by',
-    example: 'court-clerk-123',
-  })
-  @Expose()
-  allowanceApprovedBy?: string;
-
-  // Status
   @ApiProperty({
-    description: 'Is active',
+    description: 'Whether guardianship is active',
     example: true,
   })
   @Expose()
@@ -207,92 +166,153 @@ export class GuardianshipResponse {
 
   @ApiPropertyOptional({
     description: 'Termination date',
-    example: '2024-01-15T00:00:00.000Z',
+    example: '2024-12-31T00:00:00.000Z',
   })
   @Expose()
-  @Type(() => Date)
   terminationDate?: Date;
 
   @ApiPropertyOptional({
     description: 'Termination reason',
-    example: 'Ward reached majority age',
+    example: 'WARD_CAME_OF_AGE',
   })
   @Expose()
   terminationReason?: string;
 
-  // Computed properties
+  // --- Computed Properties ---
+
   @ApiProperty({
-    description: 'Is bond posted',
+    description: 'Whether bond has been posted',
     example: true,
   })
   @Expose()
   isBondPosted: boolean;
 
   @ApiProperty({
-    description: 'Is bond expired',
+    description: 'Whether bond is expired',
     example: false,
   })
   @Expose()
   isBondExpired: boolean;
 
   @ApiProperty({
-    description: 'Is report overdue',
+    description: 'Whether annual report is overdue',
     example: false,
   })
   @Expose()
   isReportOverdue: boolean;
 
   @ApiProperty({
-    description: 'Is term expired',
+    description: 'Whether term has expired',
     example: false,
   })
   @Expose()
   isTermExpired: boolean;
 
   @ApiProperty({
-    description: 'Requires annual report',
-    example: true,
+    description: 'S.73 compliance status',
+    enum: ['COMPLIANT', 'NON_COMPLIANT', 'NOT_REQUIRED'],
+    example: 'NOT_REQUIRED',
   })
   @Expose()
-  requiresAnnualReport: boolean;
+  s73ComplianceStatus: string;
 
-  // Kenyan Law Compliance
   @ApiProperty({
-    description: 'S.73 compliance status',
+    description: 'S.72 compliance status',
     enum: ['COMPLIANT', 'NON_COMPLIANT', 'NOT_REQUIRED'],
     example: 'COMPLIANT',
   })
   @Expose()
-  s73ComplianceStatus: 'COMPLIANT' | 'NON_COMPLIANT' | 'NOT_REQUIRED';
+  s72ComplianceStatus: string;
 
   @ApiProperty({
-    description: 'Is compliant with Kenyan law',
+    description: 'Overall compliance with Kenyan law',
     example: true,
   })
   @Expose()
   isCompliantWithKenyanLaw: boolean;
 
-  // Audit
   @ApiProperty({
-    description: 'Version for optimistic concurrency',
+    description: 'Version for optimistic concurrency control',
     example: 1,
   })
   @Expose()
   version: number;
 
   @ApiProperty({
-    description: 'Created at',
-    example: '2024-01-15T00:00:00.000Z',
+    description: 'Created timestamp',
+    example: '2024-01-15T10:30:00.000Z',
   })
   @Expose()
-  @Type(() => Date)
   createdAt: Date;
 
   @ApiProperty({
-    description: 'Updated at',
-    example: '2024-01-15T00:00:00.000Z',
+    description: 'Last updated timestamp',
+    example: '2024-01-15T10:30:00.000Z',
   })
   @Expose()
-  @Type(() => Date)
   updatedAt: Date;
+
+  // --- Denormalized Data for UI ---
+
+  @ApiPropertyOptional({
+    description: 'Ward full name (denormalized)',
+    example: 'John Doe',
+  })
+  @Expose()
+  wardName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Guardian full name (denormalized)',
+    example: 'Jane Smith',
+  })
+  @Expose()
+  guardianName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Ward age',
+    example: 15,
+  })
+  @Expose()
+  wardAge?: number;
+
+  @ApiPropertyOptional({
+    description: 'Ward date of birth',
+    example: '2009-05-20T00:00:00.000Z',
+  })
+  @Expose()
+  wardDateOfBirth?: Date;
+
+  @ApiPropertyOptional({
+    description: 'Days until next report due',
+    example: 45,
+  })
+  @Expose()
+  @Transform(({ obj }) => {
+    if (!obj.nextReportDue) return null;
+    const diff = new Date(obj.nextReportDue).getTime() - Date.now();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  })
+  daysUntilNextReport?: number;
+
+  @ApiPropertyOptional({
+    description: 'Days until bond expiry',
+    example: 120,
+  })
+  @Expose()
+  @Transform(({ obj }) => {
+    if (!obj.bondExpiry) return null;
+    const diff = new Date(obj.bondExpiry).getTime() - Date.now();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  })
+  daysUntilBondExpiry?: number;
+  @ApiPropertyOptional({
+    description: 'Court station where order was issued',
+    example: 'Milimani Law Courts',
+  })
+  @Expose()
+  courtStation?: string;
+
+  constructor(partial: Partial<GuardianshipResponse>) {
+    Object.assign(this, partial);
+  }
 }

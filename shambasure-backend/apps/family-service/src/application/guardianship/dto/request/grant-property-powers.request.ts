@@ -1,33 +1,33 @@
 // application/guardianship/dto/request/grant-property-powers.request.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class GrantPropertyPowersRequest {
-  @ApiProperty({
-    description: 'Guardianship ID',
-    example: 'grd-1234567890',
-  })
-  @IsString()
-  @IsNotEmpty()
-  guardianshipId: string;
-
   @ApiPropertyOptional({
     description: 'Court order number granting property powers',
-    example: 'HC/PROP/789/2024',
+    example: 'HC/SUCC/PROP/123/2024',
   })
   @IsOptional()
   @IsString()
   courtOrderNumber?: string;
 
-  @ApiPropertyOptional({
-    description: 'Restrictions on property powers (JSON)',
+  @ApiProperty({
+    description: 'Specific powers being granted (JSON format)',
     example: {
-      maximumTransactionAmount: 1000000,
-      requiresCourtApprovalForSale: true,
-      investmentRestrictions: ['no_high_risk'],
+      canSellProperty: false,
+      canMortgageProperty: false,
+      canLeaseProperty: true,
+      maximumLeaseTerm: '2 years',
+      requiresFamilyConsent: true,
     },
   })
+  @IsNotEmpty()
+  restrictions: any;
+
+  @ApiPropertyOptional({
+    description: 'Bond amount increase (if required for property powers)',
+    example: 2000000,
+  })
   @IsOptional()
-  @IsObject()
-  restrictions?: Record<string, any>;
+  increasedBondAmountKES?: number;
 }

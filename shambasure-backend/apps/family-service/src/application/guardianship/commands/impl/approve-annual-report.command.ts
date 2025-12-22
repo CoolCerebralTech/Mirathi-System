@@ -1,38 +1,89 @@
 // application/guardianship/commands/impl/approve-annual-report.command.ts
-import { Command } from '../base.command';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
-export interface ApproveAnnualReportCommandProps {
-  guardianshipId: string;
-  auditorId: string;
+import { BaseCommand } from '../base.command';
 
-  correlationId?: string;
-  timestamp?: Date;
-  metadata?: Record<string, any>;
-}
-
-export class ApproveAnnualReportCommand extends Command<ApproveAnnualReportCommandProps> {
-  constructor(props: ApproveAnnualReportCommandProps) {
-    super(props);
-  }
-
+export class ApproveAnnualReportCommand extends BaseCommand {
+  @ApiProperty({
+    description: 'Command name',
+    example: 'ApproveAnnualReportCommand',
+  })
   getCommandName(): string {
     return 'ApproveAnnualReportCommand';
   }
 
-  get guardianshipId(): string {
-    return this.props.guardianshipId;
-  }
+  @ApiProperty({
+    description: 'Guardianship ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @IsNotEmpty()
+  @IsUUID('4')
+  readonly guardianshipId: string;
 
-  get auditorId(): string {
-    return this.props.auditorId;
-  }
+  @ApiProperty({
+    description: 'Auditor/Registrar ID approving the report',
+    example: 'AUD-001',
+  })
+  @IsNotEmpty()
+  @IsString()
+  readonly auditorId: string;
 
-  validate(): string[] {
-    const errors: string[] = [];
+  @ApiPropertyOptional({
+    description: 'Audit notes or comments',
+    example: 'Report verified, all expenses accounted for',
+  })
+  @IsOptional()
+  @IsString()
+  readonly auditNotes?: string;
 
-    if (!this.guardianshipId) errors.push('Guardianship ID is required');
-    if (!this.auditorId) errors.push('Auditor ID is required');
+  @ApiPropertyOptional({
+    description: 'Court registry reference',
+    example: 'REG/APP/2024/001',
+  })
+  @IsOptional()
+  @IsString()
+  readonly registryReference?: string;
 
-    return errors;
+  @ApiPropertyOptional({
+    description: 'Approval certificate number',
+    example: 'CERT/APP/2024/123',
+  })
+  @IsOptional()
+  @IsString()
+  readonly approvalCertificate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Recommendations for next period',
+    example: 'Consider increasing educational allowance due to rising school fees',
+  })
+  @IsOptional()
+  @IsString()
+  readonly recommendations?: string;
+
+  constructor(
+    commandId: string,
+    timestamp: Date,
+    userId: string,
+    correlationId: string | undefined,
+    data: {
+      guardianshipId: string;
+      auditorId: string;
+      auditNotes?: string;
+      registryReference?: string;
+      approvalCertificate?: string;
+      recommendations?: string;
+    },
+  ) {
+    super(correlationId);
+    this.commandId = commandId;
+    this.timestamp = timestamp;
+    this.userId = userId;
+    this.guardianshipId = data.guardianshipId;
+    this.auditorId = data.auditorId;
+    this.auditNotes = data.auditNotes;
+    this.registryReference = data.registryReference;
+    this.approvalCertificate = data.approvalCertificate;
+    this.recommendations = data.recommendations;
   }
 }

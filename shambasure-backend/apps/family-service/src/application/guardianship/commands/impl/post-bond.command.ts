@@ -1,54 +1,101 @@
 // application/guardianship/commands/impl/post-bond.command.ts
-import { Command } from '../base.command';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsDate, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
-export interface PostBondCommandProps {
-  guardianshipId: string;
-  provider: string;
-  policyNumber: string;
-  expiryDate: Date;
+import { BaseCommand } from '../base.command';
 
-  correlationId?: string;
-  timestamp?: Date;
-  metadata?: Record<string, any>;
-}
-
-export class PostBondCommand extends Command<PostBondCommandProps> {
-  constructor(props: PostBondCommandProps) {
-    super(props);
-  }
-
+export class PostBondCommand extends BaseCommand {
+  @ApiProperty({
+    description: 'Command name',
+    example: 'PostBondCommand',
+  })
   getCommandName(): string {
     return 'PostBondCommand';
   }
 
-  get guardianshipId(): string {
-    return this.props.guardianshipId;
-  }
+  @ApiProperty({
+    description: 'Guardianship ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @IsNotEmpty()
+  @IsUUID('4')
+  readonly guardianshipId: string;
 
-  get provider(): string {
-    return this.props.provider;
-  }
+  @ApiProperty({
+    description: 'Insurance company or bond provider name',
+    example: 'Kenya Reinsurance Corporation',
+  })
+  @IsNotEmpty()
+  @IsString()
+  readonly provider: string;
 
-  get policyNumber(): string {
-    return this.props.policyNumber;
-  }
+  @ApiProperty({
+    description: 'Bond policy number',
+    example: 'BOND-KRC-2024-001',
+  })
+  @IsNotEmpty()
+  @IsString()
+  readonly policyNumber: string;
 
-  get expiryDate(): Date {
-    return this.props.expiryDate;
-  }
+  @ApiProperty({
+    description: 'Bond expiry date (must be in future)',
+    example: '2025-01-15T00:00:00.000Z',
+  })
+  @IsNotEmpty()
+  @IsDate()
+  @Type(() => Date)
+  readonly expiryDate: Date;
 
-  validate(): string[] {
-    const errors: string[] = [];
+  @ApiPropertyOptional({
+    description: 'Bond amount override (if different from original)',
+    example: 1500000,
+  })
+  @IsOptional()
+  @Min(0)
+  readonly bondAmountKES?: number;
 
-    if (!this.guardianshipId) errors.push('Guardianship ID is required');
-    if (!this.provider) errors.push('Bond provider is required');
-    if (!this.policyNumber) errors.push('Bond policy number is required');
-    if (!this.expiryDate) errors.push('Bond expiry date is required');
+  @ApiPropertyOptional({
+    description: 'Court order reference for bond approval',
+    example: 'HC/SUCC/BOND/123/2024',
+  })
+  @IsOptional()
+  @IsString()
+  readonly courtOrderReference?: string;
 
-    if (this.expiryDate && this.expiryDate <= new Date()) {
-      errors.push('Bond expiry date must be in the future');
-    }
+  @ApiPropertyOptional({
+    description: 'Premium payment receipt number',
+    example: 'REC-KRA-2024-123456',
+  })
+  @IsOptional()
+  @IsString()
+  readonly premiumReceiptNumber?: string;
 
-    return errors;
+  constructor(
+    commandId: string,
+    timestamp: Date,
+    userId: string,
+    correlationId: string | undefined,
+    data: {
+      guardianshipId: string;
+      provider: string;
+      policyNumber: string;
+      expiryDate: Date;
+      bondAmountKES?: number;
+      courtOrderReference?: string;
+      premiumReceiptNumber?: string;
+    },
+  ) {
+    super(correlationId);
+    this.commandId = commandId;
+    this.timestamp = timestamp;
+    this.userId = userId;
+    this.guardianshipId = data.guardianshipId;
+    this.provider = data.provider;
+    this.policyNumber = data.policyNumber;
+    this.expiryDate = data.expiryDate;
+    this.bondAmountKES = data.bondAmountKES;
+    this.courtOrderReference = data.courtOrderReference;
+    this.premiumReceiptNumber = data.premiumReceiptNumber;
   }
 }

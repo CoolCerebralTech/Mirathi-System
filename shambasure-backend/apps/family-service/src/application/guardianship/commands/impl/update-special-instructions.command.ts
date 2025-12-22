@@ -1,40 +1,91 @@
 // application/guardianship/commands/impl/update-special-instructions.command.ts
-import { Command } from '../base.command';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
-export interface UpdateSpecialInstructionsCommandProps {
-  guardianshipId: string;
-  instructions: string;
+import { BaseCommand } from '../base.command';
 
-  correlationId?: string;
-  timestamp?: Date;
-  metadata?: Record<string, any>;
-}
-
-export class UpdateSpecialInstructionsCommand extends Command<UpdateSpecialInstructionsCommandProps> {
-  constructor(props: UpdateSpecialInstructionsCommandProps) {
-    super(props);
-  }
-
+export class UpdateSpecialInstructionsCommand extends BaseCommand {
+  @ApiProperty({
+    description: 'Command name',
+    example: 'UpdateSpecialInstructionsCommand',
+  })
   getCommandName(): string {
     return 'UpdateSpecialInstructionsCommand';
   }
 
-  get guardianshipId(): string {
-    return this.props.guardianshipId;
-  }
+  @ApiProperty({
+    description: 'Guardianship ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @IsNotEmpty()
+  @IsUUID('4')
+  readonly guardianshipId: string;
 
-  get instructions(): string {
-    return this.props.instructions;
-  }
+  @ApiProperty({
+    description: 'New special instructions',
+    example: 'Guardian must consult with family council quarterly and submit minutes',
+  })
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(10)
+  @MaxLength(2000)
+  readonly specialInstructions: string;
 
-  validate(): string[] {
-    const errors: string[] = [];
+  @ApiPropertyOptional({
+    description: 'Court order reference for instructions',
+    example: 'HC/SUCC/INST/123/2024',
+  })
+  @IsOptional()
+  @IsString()
+  readonly courtOrderReference?: string;
 
-    if (!this.guardianshipId) errors.push('Guardianship ID is required');
-    if (!this.instructions || this.instructions.trim().length === 0) {
-      errors.push('Instructions are required');
-    }
+  @ApiPropertyOptional({
+    description: 'Instructions from (e.g., Testator, Court, Family Council)',
+    example: 'FAMILY_COUNCIL',
+  })
+  @IsOptional()
+  @IsString()
+  readonly instructionsFrom?: string;
 
-    return errors;
+  @ApiPropertyOptional({
+    description: 'Priority level of instructions',
+    example: 'HIGH',
+  })
+  @IsOptional()
+  @IsString()
+  readonly priority?: string;
+
+  @ApiPropertyOptional({
+    description: 'Instructions effective date',
+    example: '2024-02-01T00:00:00.000Z',
+  })
+  @IsOptional()
+  @IsString()
+  readonly effectiveDate?: string;
+
+  constructor(
+    commandId: string,
+    timestamp: Date,
+    userId: string,
+    correlationId: string | undefined,
+    data: {
+      guardianshipId: string;
+      specialInstructions: string;
+      courtOrderReference?: string;
+      instructionsFrom?: string;
+      priority?: string;
+      effectiveDate?: string;
+    },
+  ) {
+    super(correlationId);
+    this.commandId = commandId;
+    this.timestamp = timestamp;
+    this.userId = userId;
+    this.guardianshipId = data.guardianshipId;
+    this.specialInstructions = data.specialInstructions;
+    this.courtOrderReference = data.courtOrderReference;
+    this.instructionsFrom = data.instructionsFrom;
+    this.priority = data.priority;
+    this.effectiveDate = data.effectiveDate;
   }
 }

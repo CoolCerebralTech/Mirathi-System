@@ -1,31 +1,24 @@
-// application/guardianship/commands/base.command.ts
+// application/guardianship/queries/base.query.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDate, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
+import { IQuery } from '../../common/interfaces/use-case.interface';
 
-export abstract class BaseCommand {
+export abstract class BaseQuery implements IQuery {
   @ApiProperty({
-    description: 'Unique command identifier for tracing',
-    example: 'cmd-123e4567-e89b-12d3-a456-426614174000',
+    description: 'Unique query identifier for tracing',
+    example: 'qry-123e4567-e89b-12d3-a456-426614174000',
   })
   @IsNotEmpty()
   @IsUUID('4')
-  abstract readonly commandId: string;
+  abstract readonly queryId: string;
 
   @ApiProperty({
-    description: 'Timestamp when command was issued',
+    description: 'Timestamp when query was issued',
     example: '2024-01-15T10:30:00.000Z',
   })
   @IsNotEmpty()
   @IsDate()
   abstract readonly timestamp: Date;
-
-  @ApiProperty({
-    description: 'User ID who issued the command',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  @IsNotEmpty()
-  @IsUUID('4')
-  abstract readonly userId: string;
 
   @ApiPropertyOptional({
     description: 'Correlation ID for distributed tracing',
@@ -35,15 +28,22 @@ export abstract class BaseCommand {
   @IsUUID('4')
   readonly correlationId?: string;
 
+  @ApiProperty({
+    description: 'User ID who issued the query',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @IsNotEmpty()
+  @IsUUID('4')
+  abstract readonly userId: string;
+
   constructor(correlationId?: string) {
     if (correlationId) {
-      // Using type assertion to bypass readonly restriction in constructor
       (this as any).correlationId = correlationId;
     }
   }
 
   /**
-   * Abstract method to get command name for logging and auditing
+   * Abstract method to get query name for logging and auditing
    */
-  abstract getCommandName(): string;
+  abstract getQueryName(): string;
 }

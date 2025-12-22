@@ -1,40 +1,92 @@
 // application/guardianship/commands/impl/update-restrictions.command.ts
-import { Command } from '../base.command';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
-export interface UpdateRestrictionsCommandProps {
-  guardianshipId: string;
-  restrictions: Record<string, any>;
+import { BaseCommand } from '../base.command';
 
-  correlationId?: string;
-  timestamp?: Date;
-  metadata?: Record<string, any>;
-}
-
-export class UpdateRestrictionsCommand extends Command<UpdateRestrictionsCommandProps> {
-  constructor(props: UpdateRestrictionsCommandProps) {
-    super(props);
-  }
-
+export class UpdateRestrictionsCommand extends BaseCommand {
+  @ApiProperty({
+    description: 'Command name',
+    example: 'UpdateRestrictionsCommand',
+  })
   getCommandName(): string {
     return 'UpdateRestrictionsCommand';
   }
 
-  get guardianshipId(): string {
-    return this.props.guardianshipId;
-  }
+  @ApiProperty({
+    description: 'Guardianship ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @IsNotEmpty()
+  @IsUUID('4')
+  readonly guardianshipId: string;
 
-  get restrictions(): Record<string, any> {
-    return this.props.restrictions;
-  }
+  @ApiProperty({
+    description: 'New restrictions (JSON format)',
+    example: {
+      travelRestrictions: ['Cannot travel out of county without court approval'],
+      financialLimits: { maximumWithdrawalPerMonth: 50000 },
+      propertyRestrictions: ['Cannot mortgage property'],
+    },
+  })
+  @IsNotEmpty()
+  readonly restrictions: any;
 
-  validate(): string[] {
-    const errors: string[] = [];
+  @ApiPropertyOptional({
+    description: 'Court order number for restriction update',
+    example: 'HC/SUCC/RES/123/2024',
+  })
+  @IsOptional()
+  @IsString()
+  readonly courtOrderNumber?: string;
 
-    if (!this.guardianshipId) errors.push('Guardianship ID is required');
-    if (!this.restrictions || typeof this.restrictions !== 'object') {
-      errors.push('Valid restrictions object is required');
-    }
+  @ApiPropertyOptional({
+    description: 'Reason for restriction update',
+    example: 'Concerns about financial mismanagement',
+  })
+  @IsOptional()
+  @IsString()
+  readonly updateReason?: string;
 
-    return errors;
+  @ApiPropertyOptional({
+    description: 'Effective date of new restrictions',
+    example: '2024-03-01T00:00:00.000Z',
+  })
+  @IsOptional()
+  @IsString()
+  readonly effectiveDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Review date for restrictions',
+    example: '2025-03-01T00:00:00.000Z',
+  })
+  @IsOptional()
+  @IsString()
+  readonly reviewDate?: string;
+
+  constructor(
+    commandId: string,
+    timestamp: Date,
+    userId: string,
+    correlationId: string | undefined,
+    data: {
+      guardianshipId: string;
+      restrictions: any;
+      courtOrderNumber?: string;
+      updateReason?: string;
+      effectiveDate?: string;
+      reviewDate?: string;
+    },
+  ) {
+    super(correlationId);
+    this.commandId = commandId;
+    this.timestamp = timestamp;
+    this.userId = userId;
+    this.guardianshipId = data.guardianshipId;
+    this.restrictions = data.restrictions;
+    this.courtOrderNumber = data.courtOrderNumber;
+    this.updateReason = data.updateReason;
+    this.effectiveDate = data.effectiveDate;
+    this.reviewDate = data.reviewDate;
   }
 }

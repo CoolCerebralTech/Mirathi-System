@@ -1,38 +1,95 @@
 // application/guardianship/commands/impl/grant-property-powers.command.ts
-import { Command } from '../base.command';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
-export interface GrantPropertyPowersCommandProps {
-  guardianshipId: string;
-  courtOrderNumber?: string;
-  restrictions?: Record<string, any>;
+import { BaseCommand } from '../base.command';
 
-  correlationId?: string;
-  timestamp?: Date;
-  metadata?: Record<string, any>;
-}
-
-export class GrantPropertyPowersCommand extends Command<GrantPropertyPowersCommandProps> {
-  constructor(props: GrantPropertyPowersCommandProps) {
-    super(props);
-  }
-
+export class GrantPropertyManagementPowersCommand extends BaseCommand {
+  @ApiProperty({
+    description: 'Command name',
+    example: 'GrantPropertyManagementPowersCommand',
+  })
   getCommandName(): string {
-    return 'GrantPropertyPowersCommand';
+    return 'GrantPropertyManagementPowersCommand';
   }
 
-  get guardianshipId(): string {
-    return this.props.guardianshipId;
-  }
+  @ApiProperty({
+    description: 'Guardianship ID',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @IsNotEmpty()
+  @IsUUID('4')
+  readonly guardianshipId: string;
 
-  get courtOrderNumber(): string | undefined {
-    return this.props.courtOrderNumber;
-  }
+  @ApiPropertyOptional({
+    description: 'Court order number granting property powers',
+    example: 'HC/SUCC/PROP/123/2024',
+  })
+  @IsOptional()
+  @IsString()
+  readonly courtOrderNumber?: string;
 
-  validate(): string[] {
-    const errors: string[] = [];
+  @ApiProperty({
+    description: 'Specific powers being granted (JSON format)',
+    example: {
+      canSellProperty: false,
+      canMortgageProperty: false,
+      canLeaseProperty: true,
+      maximumLeaseTerm: '2 years',
+      requiresFamilyConsent: true,
+      investmentRestrictions: 'Only government bonds allowed',
+    },
+  })
+  @IsNotEmpty()
+  readonly restrictions: any;
 
-    if (!this.guardianshipId) errors.push('Guardianship ID is required');
+  @ApiPropertyOptional({
+    description: 'Bond amount increase (if required for property powers)',
+    example: 2000000,
+  })
+  @IsOptional()
+  @Min(0)
+  readonly increasedBondAmountKES?: number;
 
-    return errors;
+  @ApiPropertyOptional({
+    description: 'Effective date of property powers',
+    example: '2024-02-01T00:00:00.000Z',
+  })
+  @IsOptional()
+  @IsString()
+  readonly effectiveDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Limitations on property management',
+    example: 'Cannot sell ancestral land without family council approval',
+  })
+  @IsOptional()
+  @IsString()
+  readonly limitations?: string;
+
+  constructor(
+    commandId: string,
+    timestamp: Date,
+    userId: string,
+    correlationId: string | undefined,
+    data: {
+      guardianshipId: string;
+      courtOrderNumber?: string;
+      restrictions: any;
+      increasedBondAmountKES?: number;
+      effectiveDate?: string;
+      limitations?: string;
+    },
+  ) {
+    super(correlationId);
+    this.commandId = commandId;
+    this.timestamp = timestamp;
+    this.userId = userId;
+    this.guardianshipId = data.guardianshipId;
+    this.courtOrderNumber = data.courtOrderNumber;
+    this.restrictions = data.restrictions;
+    this.increasedBondAmountKES = data.increasedBondAmountKES;
+    this.effectiveDate = data.effectiveDate;
+    this.limitations = data.limitations;
   }
 }

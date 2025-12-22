@@ -1,47 +1,62 @@
 // application/guardianship/dto/request/file-annual-report.request.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class FileAnnualReportRequest {
   @ApiProperty({
-    description: 'Guardianship ID',
-    example: 'grd-1234567890',
+    description: 'Date of report submission',
+    example: '2024-12-31T00:00:00.000Z',
   })
-  @IsString()
   @IsNotEmpty()
-  guardianshipId: string;
-
-  @ApiProperty({
-    description: 'Date of the report',
-    example: '2024-01-15T00:00:00.000Z',
-  })
   @IsDate()
   @Type(() => Date)
   reportDate: Date;
 
   @ApiProperty({
-    description: 'Report summary/content',
-    example:
-      "Annual report covering the ward's welfare, education, and property management for 2023",
+    description: 'Report summary and activities performed',
+    example: 'Managed ward education expenses, medical bills, and property maintenance',
   })
-  @IsString()
   @IsNotEmpty()
+  @IsString()
+  @MinLength(50)
+  @MaxLength(5000)
   summary: string;
 
   @ApiPropertyOptional({
-    description: 'Optional attachments/metadata',
-    example: { attachments: ['report.pdf', 'expenses.xlsx'] },
+    description: 'Total expenses incurred during period (KES)',
+    example: 450000,
   })
   @IsOptional()
-  @IsObject()
-  metadata?: Record<string, any>;
+  expensesKES?: number;
 
   @ApiPropertyOptional({
-    description: 'ID of person approving the report (if applicable)',
-    example: 'auditor-123',
+    description: 'Total income generated from ward property (KES)',
+    example: 120000,
+  })
+  @IsOptional()
+  incomeKES?: number;
+
+  @ApiPropertyOptional({
+    description: 'Bank statements or receipts (array of document IDs)',
+    example: ['doc-id-1', 'doc-id-2'],
+  })
+  @IsOptional()
+  supportingDocuments?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Court registrar ID for immediate approval',
+    example: 'REG-001',
   })
   @IsOptional()
   @IsString()
   approvedBy?: string;
+
+  @ApiPropertyOptional({
+    description: 'Welfare assessment by Children Officer',
+    example: 'Ward is progressing well in school and shows good health',
+  })
+  @IsOptional()
+  @IsString()
+  welfareAssessment?: string;
 }
