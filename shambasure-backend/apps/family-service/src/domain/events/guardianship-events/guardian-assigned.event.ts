@@ -1,24 +1,23 @@
-// domain/events/guardianship-events/guardianship-created.event.ts (updated)
+// domain/events/guardianship-events/guardian-assigned.event.ts (updated)
 import { DomainEvent } from '../../base/domain-event';
 
-export interface GuardianshipCreatedEventPayload {
+export interface GuardianAssignedEventPayload {
   guardianshipId: string;
   wardId: string;
-  wardName: string;
   guardianId: string;
   guardianName: string;
-  type: string;
-  establishedDate: Date;
+  isPrimary: boolean;
   appointmentSource: string;
-  customaryLawApplies: boolean;
+  canManageProperty: boolean;
+  canConsentToMedical: boolean;
 }
 
-export class GuardianshipCreatedEvent extends DomainEvent<GuardianshipCreatedEventPayload> {
+export class GuardianAssignedEvent extends DomainEvent<GuardianAssignedEventPayload> {
   constructor(
     aggregateId: string,
     aggregateType: string,
     eventVersion: number,
-    payload: GuardianshipCreatedEventPayload,
+    payload: GuardianAssignedEventPayload,
     occurredAt?: Date,
   ) {
     super(aggregateId, aggregateType, eventVersion, payload, occurredAt);

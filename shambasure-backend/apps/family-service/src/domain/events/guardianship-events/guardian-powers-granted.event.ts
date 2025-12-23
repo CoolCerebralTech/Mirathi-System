@@ -1,27 +1,22 @@
+// domain/events/guardianship-events/guardian-powers-granted.event.ts
 import { DomainEvent } from '../../base/domain-event';
 
-// domain/events/guardianship-events/guardian-powers-granted.event.ts
-export class GuardianPowersGrantedEvent extends DomainEvent {
+export interface GuardianPowersGrantedEventPayload {
+  guardianshipId: string;
+  guardianId: string;
+  powerType: string;
+  courtOrderNumber?: string;
+  restrictions?: string[];
+}
+
+export class GuardianPowersGrantedEvent extends DomainEvent<GuardianPowersGrantedEventPayload> {
   constructor(
     aggregateId: string,
     aggregateType: string,
-    version: number,
-    public readonly payload: {
-      guardianshipId: string;
-      powerType: string;
-      courtOrderNumber?: string;
-      restrictions?: string[];
-    },
+    eventVersion: number,
+    payload: GuardianPowersGrantedEventPayload,
+    occurredAt?: Date,
   ) {
-    super(aggregateId, aggregateType, version);
-  }
-
-  protected getPayload(): Record<string, any> {
-    return {
-      guardianshipId: this.payload.guardianshipId,
-      powerType: this.payload.powerType,
-      courtOrderNumber: this.payload.courtOrderNumber,
-      restrictions: this.payload.restrictions,
-    };
+    super(aggregateId, aggregateType, eventVersion, payload, occurredAt);
   }
 }

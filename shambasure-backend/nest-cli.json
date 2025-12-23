@@ -131,22 +131,13 @@
         "tsConfigPath": "libs/observability/tsconfig.lib.json"
       }
     },
-    "succession-process-service": {
+    "succession-automation-service": {
       "type": "application",
-      "root": "apps/succession-process-service",
+      "root": "apps/succession-automation-service",
       "entryFile": "main",
-      "sourceRoot": "apps/succession-process-service/src",
+      "sourceRoot": "apps/succession-automation-service/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/succession-process-service/tsconfig.app.json"
-      }
-    },
-    "succession-service": {
-      "type": "application",
-      "root": "apps/succession-service",
-      "entryFile": "main",
-      "sourceRoot": "apps/succession-service/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/succession-service/tsconfig.app.json"
+        "tsConfigPath": "apps/succession-automation-service/tsconfig.app.json"
       }
     }
   },

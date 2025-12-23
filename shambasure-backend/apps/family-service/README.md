@@ -1,21 +1,32 @@
-src/
-└── domain/
-    ├── aggregates/
-    │   ├── family.aggregate.ts            # The Kinship Graph
-    │   └── guardianship.aggregate.ts      # The Legal Authority Lifecycle
-    │
-    ├── entities/
-    │   // --- Belongs to Family Aggregate ---
-    │   ├── family-member.entity.ts        # The Person (Identity)
-    │   ├── marriage.entity.ts             # The Union (Civil/Customary)
-    │   ├── polygamous-house.entity.ts     # S.40 Structure (Wife + Kids grouping)
-    │   ├── family-relationship.entity.ts  # The Edges (Parent/Child/Sibling)
-    │   ├── cohabitation-record.entity.ts  # Fact of living together (Not yet a marriage)
-    │   ├── adoption-record.entity.ts      # Legal adoption details
-    │   ├── next-of-kin.entity.ts          # Designated NOK
-    │
-    │   // --- Belongs to Guardianship Aggregate ---
-    │   ├── guardian-assignment.entity.ts  # Who is acting? (The User)
-    │   └── compliance-check.entity.ts     # Annual report filing status
-    │
-    └── value-objects/
+src/family-service/src/domain/
+│
+├── aggregates/
+│   ├── family.aggregate.ts            # [ROOT] Kinship Graph & S.40 Houses
+│   └── guardianship.aggregate.ts      # [ROOT] Care Authority (Children Act)
+│
+├── entities/
+│   // --- Owned by FAMILY Aggregate ---
+│   ├── family-member.entity.ts        # Identity & Vital Status
+│   ├── marriage.entity.ts             # Union (Civil/Customary/Islamic)
+│   ├── polygamous-house.entity.ts     # S.40 Unit (Wife + Kids)
+│   ├── family-relationship.entity.ts  # Biological/Legal Edges
+│   ├── cohabitation-record.entity.ts  # "Come-we-stay" facts
+│   ├── adoption-record.entity.ts      # Legal adoption
+│   ├── next-of-kin.entity.ts          # Emergency Contact
+│
+│   // --- Owned by GUARDIANSHIP Aggregate ---
+│   ├── guardian-assignment.entity.ts  # The Actor (User/Member)
+│   ├── compliance-check.entity.ts     # Annual Welfare Reports
+│
+├── value-objects/
+│   ├── person-name.vo.ts
+│   ├── kenyan-identity.vo.ts          # ID Validation
+│   ├── family-enums.vo.ts             # Enums
+│   └── guardianship-status.vo.ts
+│
+├── services/
+│   └── kinship-verification.service.ts # Biological logic validation
+│
+└── repositories/
+    ├── i-family.repository.ts
+    └── i-guardianship.repository.ts

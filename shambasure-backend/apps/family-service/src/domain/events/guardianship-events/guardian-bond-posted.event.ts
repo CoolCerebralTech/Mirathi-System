@@ -1,29 +1,23 @@
+// domain/events/guardianship-events/guardian-bond-posted.event.ts
 import { DomainEvent } from '../../base/domain-event';
 
-// domain/events/guardianship-events/guardian-bond-posted.event.ts
-export class GuardianBondPostedEvent extends DomainEvent {
+export interface GuardianBondPostedEventPayload {
+  guardianshipId: string;
+  guardianId: string;
+  bondAmountKES: number;
+  bondProvider: string;
+  bondPolicyNumber: string;
+  expiryDate: Date;
+}
+
+export class GuardianBondPostedEvent extends DomainEvent<GuardianBondPostedEventPayload> {
   constructor(
     aggregateId: string,
     aggregateType: string,
-    version: number,
-    public readonly payload: {
-      guardianshipId: string;
-      amount: number;
-      provider: string;
-      policyNumber: string;
-      expiryDate: Date;
-    },
+    eventVersion: number,
+    payload: GuardianBondPostedEventPayload,
+    occurredAt?: Date,
   ) {
-    super(aggregateId, aggregateType, version);
-  }
-
-  protected getPayload(): Record<string, any> {
-    return {
-      guardianshipId: this.payload.guardianshipId,
-      amount: this.payload.amount,
-      provider: this.payload.provider,
-      policyNumber: this.payload.policyNumber,
-      expiryDate: this.payload.expiryDate.toISOString(),
-    };
+    super(aggregateId, aggregateType, eventVersion, payload, occurredAt);
   }
 }

@@ -1,139 +1,115 @@
 // domain/aggregates/guardianship.aggregate.ts
-import { GuardianType } from '@prisma/client';
+import { GuardianType, GuardianshipStatus } from '@prisma/client';
 
 import { AggregateRoot } from '../base/aggregate-root';
 import { DomainEvent } from '../base/domain-event';
 import { UniqueEntityID } from '../base/unique-entity-id';
+import { ComplianceCheck, ComplianceCheckStatus } from '../entities/compliance-check.entity';
 // Entities
-import { Guardian, TerminationReason } from '../entities/guardian-assignment.entity';
-// Events
-import { AnnualReportFiledEvent } from '../events/guardianship-events/annual-report-filed.event';
-import { GuardianAppointedEvent } from '../events/guardianship-events/guardian-appointed.event';
+import {
+  GuardianAppointmentSource,
+  GuardianAssignment,
+} from '../entities/guardian-assignment.entity';
+import { ComplianceCheckFiledEvent } from '../events/guardianship-events/compliance-check-filed.event';
+import { GuardianAssignedEvent } from '../events/guardianship-events/guardian-assigned.event';
 import { GuardianBondPostedEvent } from '../events/guardianship-events/guardian-bond-posted.event';
-import { GuardianReplacedEvent } from '../events/guardianship-events/guardian-replaced.event';
+import { GuardianPowersGrantedEvent } from '../events/guardianship-events/guardian-powers-granted.event';
+import { GuardianRemovedEvent } from '../events/guardianship-events/guardian-removed.event';
 import { GuardianshipCreatedEvent } from '../events/guardianship-events/guardianship-created.event';
-import { GuardianshipDissolvedEvent } from '../events/guardianship-events/guardianship-dissolved.event';
-import { MultipleGuardiansAssignedEvent } from '../events/guardianship-events/multiple-guardians-assigned.event';
-import { WardMajorityReachedEvent } from '../events/guardianship-events/ward-majority-reached.event';
+import { GuardianshipTerminatedEvent } from '../events/guardianship-events/guardianship-terminated.event';
 // Exceptions
 import {
-  GuardianIneligibleException,
-  GuardianNotFoundException,
+  GuardianAssignmentNotFoundException,
   InvalidGuardianshipException,
-  MultipleGuardiansException,
+  WardIneligibleException,
   WardNotFoundException,
-  WardNotMinorException,
 } from '../exceptions/guardianship.exception';
 // Value Objects
 import { CourtOrder } from '../value-objects/legal/court-order.vo';
 
 /**
- * Ward Information (Snapshot from Family Service)
+ * Ward Information Snapshot (READ-ONLY from Family Service)
  */
-export interface WardInfo {
+export interface WardInfoSnapshot {
   wardId: string;
+  fullName: string;
   dateOfBirth: Date;
-  isDeceased: boolean;
+  isAlive: boolean;
   isIncapacitated: boolean;
-  currentAge: number;
-  updatedAt: Date; // Track when this info was last updated
+  disabilityStatus?: string;
+  isMissing: boolean;
+  ageAtSnapshot: number;
+  snapshotDate: Date;
 }
 
 /**
- * Guardian Eligibility Information
+ * Guardian Eligibility Check Result
  */
-export interface GuardianEligibilityInfo {
+export interface GuardianEligibilityCheck {
   guardianId: string;
+  fullName: string;
   age: number;
-  isBankrupt: boolean;
-  hasCriminalRecord: boolean;
-  isIncapacitated: boolean;
-  criminalRecordDetails?: string; // Type of criminal record
-  bankruptcyDate?: Date; // When declared bankrupt
+  isEligible: boolean;
+  eligibilityReasons: string[];
+  checkedAt: Date;
 }
 
 /**
  * Customary Law Details
  */
 export interface CustomaryLawDetails {
-  ethnicGroup: string; // e.g., "KIKUYU", "LUO", "KALENJIN"
-  customaryAuthority: string; // e.g., "Council of Elders", "Clan Head"
+  ethnicGroup: string;
+  customaryAuthority: string;
   ceremonyDate?: Date;
   witnessNames?: string[];
-  elderApprovalRecords: {
-    elderName: string;
+  communityApprovalRecord?: {
+    approvedBy: string;
     approvalDate: Date;
-    role: string; // e.g., "Chief", "Elder", "Family Head"
-  }[];
-  specialConditions?: Record<string, any>;
+    communityPosition: string;
+  };
 }
 
 /**
  * Guardianship Aggregate Props
  */
 export interface GuardianshipAggregateProps {
-  // Ward Information (immutable snapshot)
-  wardInfo: WardInfo;
-
-  // Guardians (can have multiple for co-guardianship)
-  guardians: Map<string, Guardian>; // guardianId -> Guardian
-  primaryGuardianId?: string;
-
-  // Guardianship Metadata
+  wardInfo: WardInfoSnapshot;
+  status: GuardianshipStatus;
   establishedDate: Date;
-
-  // Customary Law Context
-  customaryLawApplies: boolean;
-  customaryDetails?: CustomaryLawDetails;
-
-  // Court Context
+  terminationDate?: Date;
+  terminationReason?: string;
+  type: GuardianType;
   courtOrder?: CourtOrder;
-
-  // Status
-  isActive: boolean;
-  dissolvedDate?: Date;
-  dissolutionReason?: string;
-
-  // S.73 Reporting Compliance
-  lastComplianceCheck?: Date;
-  complianceWarnings: string[]; // Track compliance issues
+  customaryDetails?: CustomaryLawDetails;
+  guardianAssignments: Map<string, GuardianAssignment>;
+  complianceChecks: Map<string, ComplianceCheck>;
+  version: number;
 }
 
 /**
  * Props for Creating Guardianship
  */
 export interface CreateGuardianshipProps {
-  // Ward info (from Family Service)
-  wardInfo: WardInfo;
-
-  // Primary guardian
+  wardId: string;
+  wardFullName: string;
+  wardDateOfBirth: Date;
+  wardIsIncapacitated?: boolean;
+  wardDisabilityStatus?: string;
   guardianId: string;
-  guardianEligibility: GuardianEligibilityInfo;
+  guardianFullName: string;
+  guardianEligibility: GuardianEligibilityCheck;
   type: GuardianType;
-  appointmentDate: Date;
-
-  // Legal details
   courtOrderNumber?: string;
   courtStation?: string;
-  validUntil?: Date;
-
-  // Powers
+  customaryLawApplies?: boolean;
+  customaryDetails?: CustomaryLawDetails;
   hasPropertyManagementPowers?: boolean;
   canConsentToMedical?: boolean;
   canConsentToMarriage?: boolean;
   restrictions?: string[];
-  specialInstructions?: string;
-
-  // S.72 Bond
   bondRequired?: boolean;
-  bondAmountKES?: number;
-
-  // Allowance
   annualAllowanceKES?: number;
-
-  // Customary law
-  customaryLawApplies?: boolean;
-  customaryDetails?: CustomaryLawDetails;
+  allowanceApprovedBy?: string;
 }
 
 /**
@@ -149,104 +125,123 @@ export class GuardianshipAggregate extends AggregateRoot<GuardianshipAggregatePr
   // FACTORY METHODS
   // ============================================================================
 
-  /**
-   * Create new Guardianship
-   */
   public static create(props: CreateGuardianshipProps): GuardianshipAggregate {
     const guardianshipId = new UniqueEntityID();
+    const now = new Date();
 
     // Validate ward eligibility
-    GuardianshipAggregate.validateWardEligibility(props.wardInfo);
+    const wardAge = GuardianshipAggregate.calculateAge(props.wardDateOfBirth, now);
+    GuardianshipAggregate.validateWardEligibility({
+      isAlive: true,
+      age: wardAge,
+      isIncapacitated: props.wardIsIncapacitated ?? false,
+      disabilityStatus: props.wardDisabilityStatus,
+    });
 
     // Validate guardian eligibility
-    GuardianshipAggregate.validateGuardianEligibility(props.guardianEligibility);
-
-    // Validate customary law if applicable
-    if (props.customaryLawApplies && props.customaryDetails) {
-      GuardianshipAggregate.validateCustomaryLawDetails(props.customaryDetails);
+    if (!props.guardianEligibility.isEligible) {
+      throw new InvalidGuardianshipException(
+        `Guardian ${props.guardianFullName} is not eligible: ${props.guardianEligibility.eligibilityReasons.join(', ')}`,
+      );
     }
 
     // Guardian cannot be ward
-    if (props.guardianId === props.wardInfo.wardId) {
+    if (props.guardianId === props.wardId) {
       throw new InvalidGuardianshipException('A person cannot be their own guardian');
     }
 
-    // Create primary guardian entity
-    const guardian = Guardian.create({
-      wardId: props.wardInfo.wardId,
-      guardianId: props.guardianId,
-      guardianshipId: guardianshipId.toString(),
-      type: props.type,
-      appointmentDate: props.appointmentDate,
-      courtOrderNumber: props.courtOrderNumber,
-      courtStation: props.courtStation,
-      validUntil: props.validUntil,
-      hasPropertyManagementPowers: props.hasPropertyManagementPowers,
-      canConsentToMedical: props.canConsentToMedical,
-      canConsentToMarriage: props.canConsentToMarriage,
-      restrictions: props.restrictions,
-      specialInstructions: props.specialInstructions,
-      bondRequired: props.bondRequired,
-      bondAmountKES: props.bondAmountKES,
-      annualAllowanceKES: props.annualAllowanceKES,
-      customaryLawApplies: props.customaryLawApplies,
-      customaryDetails: props.customaryDetails,
-    });
-
-    // Build guardians map
-    const guardians = new Map<string, Guardian>();
-    guardians.set(props.guardianId, guardian);
-
-    // Build court order if provided
+    // Create court order if provided
     let courtOrder: CourtOrder | undefined;
     if (props.courtOrderNumber && props.courtStation) {
       courtOrder = CourtOrder.create({
         orderNumber: props.courtOrderNumber,
         courtStation: props.courtStation,
-        orderDate: props.appointmentDate,
+        orderDate: now,
         orderType: 'GUARDIAN_APPOINTMENT',
       });
     }
 
-    const aggregate = new GuardianshipAggregate(guardianshipId, {
-      wardInfo: {
-        ...props.wardInfo,
-        updatedAt: new Date(), // Set initial update time
-      },
-      guardians,
-      primaryGuardianId: props.guardianId,
-      establishedDate: props.appointmentDate,
-      customaryLawApplies: props.customaryLawApplies ?? false,
-      customaryDetails: props.customaryDetails,
+    // Determine appointment source
+    const appointmentSource = GuardianshipAggregate.determineAppointmentSource(
+      props.type,
       courtOrder,
-      isActive: true,
-      complianceWarnings: [],
+      props.customaryLawApplies,
+    );
+
+    // Create initial guardian assignment
+    const guardianAssignment = GuardianAssignment.create({
+      guardianId: props.guardianId,
+      isPrimary: true,
+      appointmentSource,
+      hasPropertyManagementPowers: props.hasPropertyManagementPowers ?? false,
+      canConsentToMedical: props.canConsentToMedical ?? true,
+      canConsentToMarriage: props.canConsentToMarriage ?? false,
+      restrictions: props.restrictions,
+      bondRequired: props.bondRequired ?? false,
+      annualAllowanceKES: props.annualAllowanceKES,
+      allowanceApprovedBy: props.allowanceApprovedBy,
     });
 
-    // Emit creation event with proper version (0 -> 1)
-    aggregate.incrementVersion();
+    // Create compliance check if guardian manages property
+    const complianceChecks = new Map<string, ComplianceCheck>();
+    if (guardianAssignment.canManageProperty()) {
+      const currentYear = now.getFullYear();
+      const complianceCheckKey = `${currentYear}-${props.guardianId}`;
+      const complianceCheck = ComplianceCheck.create({
+        guardianId: props.guardianId, // FIXED: Added guardianId
+        year: currentYear,
+        status: ComplianceCheckStatus.PENDING,
+      });
+      complianceChecks.set(complianceCheckKey, complianceCheck);
+    }
+
+    // Create aggregate
+    const aggregate = new GuardianshipAggregate(guardianshipId, {
+      wardInfo: {
+        wardId: props.wardId,
+        fullName: props.wardFullName,
+        dateOfBirth: props.wardDateOfBirth,
+        isAlive: true,
+        isIncapacitated: props.wardIsIncapacitated ?? false,
+        disabilityStatus: props.wardDisabilityStatus,
+        isMissing: false,
+        ageAtSnapshot: wardAge,
+        snapshotDate: now,
+      },
+      status: 'ACTIVE',
+      establishedDate: now,
+      type: props.type,
+      courtOrder,
+      customaryDetails: props.customaryDetails,
+      guardianAssignments: new Map([[props.guardianId, guardianAssignment]]),
+      complianceChecks,
+      version: 1,
+    });
+
+    // Emit creation event
     aggregate.addDomainEvent(
       new GuardianshipCreatedEvent(
         guardianshipId.toString(),
         'GuardianshipAggregate',
-        aggregate._version,
+        1,
         {
           guardianshipId: guardianshipId.toString(),
-          wardId: props.wardInfo.wardId,
-          primaryGuardianId: props.guardianId,
-          guardianType: props.type,
-          appointmentDate: props.appointmentDate,
+          wardId: props.wardId,
+          wardName: props.wardFullName,
+          guardianId: props.guardianId,
+          guardianName: props.guardianFullName,
+          type: props.type,
+          establishedDate: now,
+          appointmentSource,
           customaryLawApplies: props.customaryLawApplies ?? false,
         },
+        now,
       ),
     );
 
     return aggregate;
   }
 
-  /**
-   * Reconstitute from persistence
-   */
   public static fromPersistence(
     id: string,
     props: GuardianshipAggregateProps,
@@ -255,588 +250,373 @@ export class GuardianshipAggregate extends AggregateRoot<GuardianshipAggregatePr
     return new GuardianshipAggregate(new UniqueEntityID(id), props, createdAt);
   }
 
-  /**
-   * Helper method to safely update immutable props
-   */
-  private updateProps(updates: Partial<GuardianshipAggregateProps>): void {
-    const newProps = {
-      ...this.props,
-      ...updates,
-    };
-    (this as any)._props = Object.freeze(newProps);
-    this.incrementVersion();
-  }
-
-  /**
-   * Clone guardian with updated properties (immutable pattern)
-   */
-  private cloneGuardianWithUpdates(
-    guardian: Guardian,
-    updates: Partial<Guardian['props']>,
-  ): Guardian {
-    return Guardian.fromPersistence(
-      guardian.id.toString(),
-      {
-        ...guardian.props,
-        ...updates,
-      },
-      guardian.createdAt,
-    );
-  }
-
   // ============================================================================
-  // AGGREGATE COMMANDS - GUARDIAN MANAGEMENT
+  // DOMAIN LOGIC
   // ============================================================================
 
-  /**
-   * Add Co-Guardian
-   */
-  public addCoGuardian(params: {
+  public assignGuardian(params: {
     guardianId: string;
-    guardianEligibility: GuardianEligibilityInfo;
-    type: GuardianType;
-    appointmentDate: Date;
-    courtOrderNumber?: string;
+    guardianFullName: string;
+    guardianEligibility: GuardianEligibilityCheck;
+    isPrimary?: boolean;
+    appointmentSource: GuardianAppointmentSource;
     hasPropertyManagementPowers?: boolean;
     canConsentToMedical?: boolean;
     canConsentToMarriage?: boolean;
     restrictions?: string[];
     bondRequired?: boolean;
-    bondAmountKES?: number;
+    annualAllowanceKES?: number;
+    allowanceApprovedBy?: string;
   }): void {
-    this.ensureNotDeleted();
     this.ensureActive();
 
     // Validate guardian eligibility
-    GuardianshipAggregate.validateGuardianEligibility(params.guardianEligibility);
-
-    // Cannot add same guardian twice
-    if (this.props.guardians.has(params.guardianId)) {
-      throw new MultipleGuardiansException(
-        `Guardian ${params.guardianId} is already assigned to this ward`,
+    if (!params.guardianEligibility.isEligible) {
+      throw new InvalidGuardianshipException(
+        `Guardian ${params.guardianFullName} is not eligible: ${params.guardianEligibility.eligibilityReasons.join(', ')}`,
       );
     }
 
-    // Guardian cannot be ward
-    if (params.guardianId === this.props.wardInfo.wardId) {
-      throw new InvalidGuardianshipException('A person cannot be their own guardian');
+    // Check not already assigned
+    if (this.props.guardianAssignments.has(params.guardianId)) {
+      const existing = this.props.guardianAssignments.get(params.guardianId)!;
+      if (existing.isActive) {
+        throw new InvalidGuardianshipException(
+          `Guardian ${params.guardianFullName} is already assigned to this ward`,
+        );
+      }
     }
 
-    // Validate co-guardian compatibility
-    this.validateCoGuardianCompatibility(params);
+    // If assigning as primary, demote current primary
+    if (params.isPrimary) {
+      this.demoteCurrentPrimary();
+    }
 
-    // Create co-guardian entity
-    const coGuardian = Guardian.create({
-      wardId: this.props.wardInfo.wardId,
+    // Create guardian assignment
+    const guardianAssignment = GuardianAssignment.create({
       guardianId: params.guardianId,
-      guardianshipId: this._id.toString(),
-      type: params.type,
-      appointmentDate: params.appointmentDate,
-      courtOrderNumber: params.courtOrderNumber,
-      hasPropertyManagementPowers: params.hasPropertyManagementPowers,
-      canConsentToMedical: params.canConsentToMedical,
-      canConsentToMarriage: params.canConsentToMarriage,
+      isPrimary: params.isPrimary ?? false,
+      appointmentSource: params.appointmentSource,
+      hasPropertyManagementPowers: params.hasPropertyManagementPowers ?? false,
+      canConsentToMedical: params.canConsentToMedical ?? true,
+      canConsentToMarriage: params.canConsentToMarriage ?? false,
       restrictions: params.restrictions,
-      bondRequired: params.bondRequired,
-      bondAmountKES: params.bondAmountKES,
-      customaryLawApplies: this.props.customaryLawApplies,
-      customaryDetails: this.props.customaryDetails,
+      bondRequired: params.bondRequired ?? false,
+      annualAllowanceKES: params.annualAllowanceKES,
+      allowanceApprovedBy: params.allowanceApprovedBy,
     });
 
-    // Create new guardians map with new guardian
-    const newGuardians = new Map(this.props.guardians);
-    newGuardians.set(params.guardianId, coGuardian);
+    // Add to map
+    const newAssignments = new Map(this.props.guardianAssignments);
+    newAssignments.set(params.guardianId, guardianAssignment);
 
-    // Update props
+    // Create compliance check if needed
+    const newComplianceChecks = new Map(this.props.complianceChecks);
+    if (guardianAssignment.canManageProperty()) {
+      const currentYear = new Date().getFullYear();
+      const complianceCheckKey = `${currentYear}-${params.guardianId}`;
+      if (!newComplianceChecks.has(complianceCheckKey)) {
+        const complianceCheck = ComplianceCheck.create({
+          guardianId: params.guardianId, // FIXED: Added guardianId
+          year: currentYear,
+          status: ComplianceCheckStatus.PENDING,
+        });
+        newComplianceChecks.set(complianceCheckKey, complianceCheck);
+      }
+    }
+
+    // Update aggregate
     this.updateProps({
-      guardians: newGuardians,
+      guardianAssignments: newAssignments,
+      complianceChecks: newComplianceChecks,
     });
 
+    // Emit event
     this.addDomainEvent(
-      new MultipleGuardiansAssignedEvent(
+      new GuardianAssignedEvent(
         this._id.toString(),
         'GuardianshipAggregate',
         this._version,
         {
           guardianshipId: this._id.toString(),
           wardId: this.props.wardInfo.wardId,
-          newGuardianId: params.guardianId,
-          guardianType: params.type,
-          appointmentDate: params.appointmentDate,
-          totalGuardians: newGuardians.size,
+          guardianId: params.guardianId,
+          guardianName: params.guardianFullName,
+          isPrimary: params.isPrimary ?? false,
+          appointmentSource: params.appointmentSource,
+          canManageProperty: guardianAssignment.canManageProperty(),
+          canConsentToMedical: guardianAssignment.canConsentToMedical(),
         },
+        new Date(),
       ),
     );
   }
 
-  /**
-   * Replace Guardian with proper bond handling
-   */
-  public replaceGuardian(params: {
-    outgoingGuardianId: string;
-    replacementGuardianId: string;
-    replacementEligibility: GuardianEligibilityInfo;
-    reason: TerminationReason;
-    appointmentDate: Date;
-    courtOrderNumber?: string;
-  }): void {
-    this.ensureNotDeleted();
+  public removeGuardian(params: { guardianId: string; removalReason: string }): void {
     this.ensureActive();
 
-    // Find outgoing guardian
-    const outgoingGuardian = this.props.guardians.get(params.outgoingGuardianId);
-    if (!outgoingGuardian) {
-      throw new GuardianNotFoundException(params.outgoingGuardianId);
+    const guardianAssignment = this.props.guardianAssignments.get(params.guardianId);
+    if (!guardianAssignment) {
+      throw new GuardianAssignmentNotFoundException(params.guardianId);
     }
 
-    // Validate replacement eligibility
-    GuardianshipAggregate.validateGuardianEligibility(params.replacementEligibility);
-
-    // Replacement cannot be ward
-    if (params.replacementGuardianId === this.props.wardInfo.wardId) {
-      throw new InvalidGuardianshipException('A person cannot be their own guardian');
-    }
-
-    // Terminate outgoing guardian (create new instance)
-    const terminatedOutgoingGuardian = this.cloneGuardianWithUpdates(outgoingGuardian, {
-      isActive: false,
-      terminationDate: new Date(),
-      terminationReason: params.reason,
-    });
-
-    // Create replacement guardian with same powers
-    const powers = outgoingGuardian.getPowers();
-    const replacementGuardian = Guardian.create({
-      wardId: this.props.wardInfo.wardId,
-      guardianId: params.replacementGuardianId,
-      guardianshipId: this._id.toString(),
-      type: outgoingGuardian.type,
-      appointmentDate: params.appointmentDate,
-      courtOrderNumber: params.courtOrderNumber,
-      hasPropertyManagementPowers: powers.hasPropertyManagementPowers,
-      canConsentToMedical: powers.canConsentToMedical,
-      canConsentToMarriage: powers.canConsentToMarriage,
-      restrictions: [...powers.restrictions],
-      bondRequired: outgoingGuardian.requiresBond(),
-      bondAmountKES: outgoingGuardian.getBond()?.amount.getAmount(),
-      annualAllowanceKES: outgoingGuardian.props.annualAllowance?.getAmount(),
-      customaryLawApplies: this.props.customaryLawApplies,
-      customaryDetails: this.props.customaryDetails,
-    });
-
-    // If outgoing guardian had bond, post bond for replacement
-    if (outgoingGuardian.isBondPosted() && replacementGuardian.requiresBond()) {
-      const oldBond = outgoingGuardian.getBond()!;
-      const newExpiryDate = new Date();
-      newExpiryDate.setFullYear(newExpiryDate.getFullYear() + 1); // 1 year from now
-
-      try {
-        // Create a new instance with bond posted
-        const guardianWithBond = Guardian.fromPersistence(
-          replacementGuardian.id.toString(),
-          {
-            ...replacementGuardian.props,
-            bond: replacementGuardian.getBond(), // Should be undefined initially
-          },
-          replacementGuardian.createdAt,
-        );
-
-        (guardianWithBond as any).postBond({
-          provider: oldBond.provider,
-          policyNumber: `RENEWAL-${oldBond.policyNumber}`,
-          amountKES: oldBond.amount.getAmount(),
-          expiryDate: newExpiryDate,
-        });
-
-        // Replace with guardian who has bond
-        Object.assign(replacementGuardian, guardianWithBond);
-      } catch (error) {
-        // If bond posting fails, still continue but add warning
-        this.addComplianceWarning(`Failed to post bond for replacement guardian: ${error.message}`);
-      }
-    }
-
-    // Create new guardians map
-    const newGuardians = new Map(this.props.guardians);
-    newGuardians.set(params.outgoingGuardianId, terminatedOutgoingGuardian);
-    newGuardians.set(params.replacementGuardianId, replacementGuardian);
-
-    // Determine new primary guardian ID
-    let newPrimaryGuardianId = this.props.primaryGuardianId;
-    if (this.props.primaryGuardianId === params.outgoingGuardianId) {
-      newPrimaryGuardianId = params.replacementGuardianId;
-    }
-
-    // Update props
-    this.updateProps({
-      guardians: newGuardians,
-      primaryGuardianId: newPrimaryGuardianId,
-    });
-
-    this.addDomainEvent(
-      new GuardianReplacedEvent(this._id.toString(), 'GuardianshipAggregate', this._version, {
-        guardianshipId: this._id.toString(),
-        wardId: this.props.wardInfo.wardId,
-        outgoingGuardianId: params.outgoingGuardianId,
-        replacementGuardianId: params.replacementGuardianId,
-        reason: params.reason,
-        appointmentDate: params.appointmentDate,
-      }),
-    );
-  }
-
-  /**
-   * Remove Guardian (without replacement)
-   */
-  public removeGuardian(params: {
-    guardianId: string;
-    reason: TerminationReason;
-    terminationDate: Date;
-  }): void {
-    this.ensureNotDeleted();
-    this.ensureActive();
-
-    const guardian = this.props.guardians.get(params.guardianId);
-    if (!guardian) {
-      throw new GuardianNotFoundException(params.guardianId);
-    }
-
-    // Cannot remove last guardian (must dissolve instead)
-    if (this.props.guardians.size === 1) {
+    // Cannot remove last active guardian
+    const activeGuardians = this.getActiveGuardians();
+    if (
+      activeGuardians.length === 1 &&
+      activeGuardians[0].guardianId.toString() === params.guardianId
+    ) {
       throw new InvalidGuardianshipException(
-        'Cannot remove last guardian. Use dissolveGuardianship() instead.',
+        'Cannot remove the last active guardian. Terminate guardianship instead.',
       );
     }
 
-    // Terminate guardian (create new instance)
-    const terminatedGuardian = this.cloneGuardianWithUpdates(guardian, {
-      isActive: false,
-      terminationDate: params.terminationDate,
-      terminationReason: params.reason,
-    });
+    // Deactivate guardian assignment
+    const deactivatedAssignment = GuardianAssignment.fromPersistence(
+      guardianAssignment.id.toString(),
+      { ...guardianAssignment.props, isActive: false },
+      guardianAssignment.createdAt,
+    );
+    deactivatedAssignment.deactivate(params.removalReason);
 
-    // Create new guardians map
-    const newGuardians = new Map(this.props.guardians);
-    newGuardians.set(params.guardianId, terminatedGuardian);
+    // Update map
+    const newAssignments = new Map(this.props.guardianAssignments);
+    newAssignments.set(params.guardianId, deactivatedAssignment);
 
-    // Determine new primary guardian ID
-    let newPrimaryGuardianId = this.props.primaryGuardianId;
-    if (this.props.primaryGuardianId === params.guardianId) {
-      // Set first remaining ACTIVE guardian as primary
-      const remainingGuardianIds = Array.from(newGuardians.keys())
-        .filter((id) => id !== params.guardianId)
-        .filter((id) => newGuardians.get(id)?.isActive);
-
-      if (remainingGuardianIds.length > 0) {
-        newPrimaryGuardianId = remainingGuardianIds[0];
-      } else {
-        newPrimaryGuardianId = undefined;
-      }
-    }
-
-    // Update props
-    this.updateProps({
-      guardians: newGuardians,
-      primaryGuardianId: newPrimaryGuardianId,
-    });
-  }
-
-  // ============================================================================
-  // AGGREGATE COMMANDS - LIFECYCLE MANAGEMENT
-  // ============================================================================
-
-  /**
-   * Update Ward Information (called when ward status changes)
-   */
-  public updateWardInfo(updatedWardInfo: Partial<WardInfo>): void {
-    this.ensureNotDeleted();
-
-    const newWardInfo = {
-      ...this.props.wardInfo,
-      ...updatedWardInfo,
-      updatedAt: new Date(),
-    };
-
-    // If guardianship is active, validate ward eligibility
-    if (this.props.isActive) {
-      try {
-        GuardianshipAggregate.validateWardEligibility(newWardInfo);
-      } catch (error) {
-        // Ward is no longer eligible - automatically dissolve
-        this.handleAutomaticDissolution(
-          error instanceof WardNotMinorException
-            ? 'WARD_REACHED_MAJORITY'
-            : error instanceof WardNotFoundException
-              ? 'WARD_DECEASED'
-              : 'INELIGIBLE_WARD',
-          new Date(),
+    // If primary was removed, assign new primary
+    if (guardianAssignment.isPrimary) {
+      const newPrimary = this.findNewPrimaryCandidate(params.guardianId);
+      if (newPrimary) {
+        const updatedPrimary = GuardianAssignment.fromPersistence(
+          newPrimary.id.toString(),
+          { ...newPrimary.props, isPrimary: true },
+          newPrimary.createdAt,
         );
-        return;
-      }
-
-      // Check if ward reached majority (18 years)
-      if (newWardInfo.currentAge >= 18 && this.props.wardInfo.currentAge < 18) {
-        this.handleWardReachedMajority(new Date());
-        return;
+        newAssignments.set(newPrimary.guardianId.toString(), updatedPrimary);
       }
     }
 
-    // Update ward info
+    // Update aggregate
     this.updateProps({
-      wardInfo: newWardInfo,
-    });
-  }
-
-  /**
-   * Handle Ward Reaching Majority
-   */
-  public handleWardReachedMajority(majorityDate: Date): void {
-    this.ensureNotDeleted();
-
-    if (!this.props.isActive) {
-      return;
-    }
-
-    // Create new guardians map with terminated guardians
-    const newGuardians = new Map<string, Guardian>();
-    this.props.guardians.forEach((guardian, guardianId) => {
-      if (guardian.isActive) {
-        const terminatedGuardian = this.cloneGuardianWithUpdates(guardian, {
-          isActive: false,
-          terminationDate: majorityDate,
-          terminationReason: TerminationReason.WARD_REACHED_MAJORITY,
-        });
-        newGuardians.set(guardianId, terminatedGuardian);
-      } else {
-        newGuardians.set(guardianId, guardian);
-      }
+      guardianAssignments: newAssignments,
     });
 
-    // Update props
-    this.updateProps({
-      isActive: false,
-      dissolvedDate: majorityDate,
-      dissolutionReason: 'WARD_REACHED_MAJORITY',
-      guardians: newGuardians,
-    });
-
+    // Emit event
     this.addDomainEvent(
-      new WardMajorityReachedEvent(this._id.toString(), 'GuardianshipAggregate', this._version, {
-        guardianshipId: this._id.toString(),
-        wardId: this.props.wardInfo.wardId,
-        majorityDate,
-      }),
-    );
-
-    this.addDomainEvent(
-      new GuardianshipDissolvedEvent(this._id.toString(), 'GuardianshipAggregate', this._version, {
-        guardianshipId: this._id.toString(),
-        wardId: this.props.wardInfo.wardId,
-        reason: 'WARD_REACHED_MAJORITY',
-        dissolvedDate: majorityDate,
-      }),
-    );
-  }
-
-  /**
-   * Handle Ward Death
-   */
-  public handleWardDeath(deathDate: Date): void {
-    this.ensureNotDeleted();
-
-    if (!this.props.isActive) {
-      return;
-    }
-
-    // Update ward info first
-    this.updateProps({
-      wardInfo: {
-        ...this.props.wardInfo,
-        isDeceased: true,
-        updatedAt: new Date(),
-      },
-    });
-
-    // Create new guardians map with terminated guardians
-    const newGuardians = new Map<string, Guardian>();
-    this.props.guardians.forEach((guardian, guardianId) => {
-      if (guardian.isActive) {
-        const terminatedGuardian = this.cloneGuardianWithUpdates(guardian, {
-          isActive: false,
-          terminationDate: deathDate,
-          terminationReason: TerminationReason.WARD_DECEASED,
-        });
-        newGuardians.set(guardianId, terminatedGuardian);
-      } else {
-        newGuardians.set(guardianId, guardian);
-      }
-    });
-
-    // Update props
-    this.updateProps({
-      isActive: false,
-      dissolvedDate: deathDate,
-      dissolutionReason: 'WARD_DECEASED',
-      guardians: newGuardians,
-    });
-
-    this.addDomainEvent(
-      new GuardianshipDissolvedEvent(this._id.toString(), 'GuardianshipAggregate', this._version, {
-        guardianshipId: this._id.toString(),
-        wardId: this.props.wardInfo.wardId,
-        reason: 'WARD_DECEASED',
-        dissolvedDate: deathDate,
-      }),
-    );
-  }
-
-  /**
-   * Handle Ward Regaining Capacity
-   */
-  public handleWardRegainedCapacity(recoveryDate: Date): void {
-    this.ensureNotDeleted();
-
-    if (!this.props.isActive) {
-      return;
-    }
-
-    // Only dissolve if ward is not a minor
-    if (this.props.wardInfo.currentAge >= 18) {
-      // Update ward info
-      this.updateProps({
-        wardInfo: {
-          ...this.props.wardInfo,
-          isIncapacitated: false,
-          updatedAt: new Date(),
+      new GuardianRemovedEvent(
+        this._id.toString(),
+        'GuardianshipAggregate',
+        this._version,
+        {
+          guardianshipId: this._id.toString(),
+          wardId: this.props.wardInfo.wardId,
+          guardianId: params.guardianId,
+          removalReason: params.removalReason,
+          wasPrimary: guardianAssignment.isPrimary,
         },
-      });
-
-      // Create new guardians map with terminated guardians
-      const newGuardians = new Map<string, Guardian>();
-      this.props.guardians.forEach((guardian, guardianId) => {
-        if (guardian.isActive) {
-          const terminatedGuardian = this.cloneGuardianWithUpdates(guardian, {
-            isActive: false,
-            terminationDate: recoveryDate,
-            terminationReason: TerminationReason.WARD_REGAINED_CAPACITY,
-          });
-          newGuardians.set(guardianId, terminatedGuardian);
-        } else {
-          newGuardians.set(guardianId, guardian);
-        }
-      });
-
-      // Update props
-      this.updateProps({
-        isActive: false,
-        dissolvedDate: recoveryDate,
-        dissolutionReason: 'WARD_REGAINED_CAPACITY',
-        guardians: newGuardians,
-      });
-
-      this.addDomainEvent(
-        new GuardianshipDissolvedEvent(
-          this._id.toString(),
-          'GuardianshipAggregate',
-          this._version,
-          {
-            guardianshipId: this._id.toString(),
-            wardId: this.props.wardInfo.wardId,
-            reason: 'WARD_REGAINED_CAPACITY',
-            dissolvedDate: recoveryDate,
-          },
-        ),
-      );
-    }
+        new Date(),
+      ),
+    );
   }
 
-  /**
-   * Dissolve Guardianship (Manual)
-   */
-  public dissolveGuardianship(params: {
-    reason: string;
-    dissolvedDate: Date;
-    courtOrderNumber?: string;
+  public fileComplianceReport(params: {
+    guardianId: string;
+    year: number;
+    filingDate: Date;
+    reportDocumentId: string;
+    notes?: string;
+    assetsUnderManagementKES?: number;
+    guardianExpensesKES?: number;
+    guardianAllowanceKES?: number;
+    estateIncomeKES?: number;
+    estateExpensesKES?: number;
   }): void {
-    this.ensureNotDeleted();
     this.ensureActive();
 
-    // Create new guardians map with terminated guardians
-    const newGuardians = new Map<string, Guardian>();
-    this.props.guardians.forEach((guardian, guardianId) => {
-      if (guardian.isActive) {
-        const terminatedGuardian = this.cloneGuardianWithUpdates(guardian, {
-          isActive: false,
-          terminationDate: params.dissolvedDate,
-          terminationReason: TerminationReason.COURT_REMOVAL,
-        });
-        newGuardians.set(guardianId, terminatedGuardian);
-      } else {
-        newGuardians.set(guardianId, guardian);
-      }
+    // Validate guardian exists and is active
+    const guardianAssignment = this.props.guardianAssignments.get(params.guardianId);
+    if (!guardianAssignment || !guardianAssignment.isActive) {
+      throw new GuardianAssignmentNotFoundException(params.guardianId);
+    }
+
+    // Validate guardian can manage property
+    if (!guardianAssignment.canManageProperty()) {
+      throw new InvalidGuardianshipException(
+        `Guardian ${params.guardianId} does not have property management powers. S.73 reports not required.`,
+      );
+    }
+
+    // Find or create compliance check
+    const complianceCheckKey = `${params.year}-${params.guardianId}`;
+    let complianceCheck = this.props.complianceChecks.get(complianceCheckKey);
+
+    if (!complianceCheck) {
+      complianceCheck = ComplianceCheck.create({
+        guardianId: params.guardianId, // FIXED: Added guardianId
+        year: params.year,
+        status: ComplianceCheckStatus.PENDING,
+      });
+    }
+
+    // File the report
+    const updatedComplianceCheck = ComplianceCheck.fromPersistence(
+      complianceCheck.id.toString(),
+      { ...complianceCheck.props },
+      complianceCheck.createdAt,
+    );
+    updatedComplianceCheck.fileReport({
+      filingDate: params.filingDate,
+      reportDocumentId: params.reportDocumentId,
+      notes: params.notes,
+      assetsUnderManagementKES: params.assetsUnderManagementKES,
+      guardianExpensesKES: params.guardianExpensesKES,
+      guardianAllowanceKES: params.guardianAllowanceKES,
+      estateIncomeKES: params.estateIncomeKES,
+      estateExpensesKES: params.estateExpensesKES,
     });
 
-    // Update props
+    // Update compliance checks map
+    const newComplianceChecks = new Map(this.props.complianceChecks);
+    newComplianceChecks.set(complianceCheckKey, updatedComplianceCheck);
+
+    // Update aggregate
     this.updateProps({
-      isActive: false,
-      dissolvedDate: params.dissolvedDate,
-      dissolutionReason: params.reason,
-      guardians: newGuardians,
+      complianceChecks: newComplianceChecks,
     });
 
+    // Emit event
     this.addDomainEvent(
-      new GuardianshipDissolvedEvent(this._id.toString(), 'GuardianshipAggregate', this._version, {
-        guardianshipId: this._id.toString(),
-        wardId: this.props.wardInfo.wardId,
-        reason: params.reason,
-        dissolvedDate: params.dissolvedDate,
-        courtOrderNumber: params.courtOrderNumber,
-      }),
+      new ComplianceCheckFiledEvent(
+        this._id.toString(),
+        'GuardianshipAggregate',
+        this._version,
+        {
+          guardianshipId: this._id.toString(),
+          wardId: this.props.wardInfo.wardId,
+          guardianId: params.guardianId,
+          year: params.year,
+          filingDate: params.filingDate,
+          reportDocumentId: params.reportDocumentId,
+        },
+        new Date(),
+      ),
     );
   }
 
-  /**
-   * Automatic dissolution handler
-   */
-  private handleAutomaticDissolution(reason: string, date: Date): void {
-    const newGuardians = new Map<string, Guardian>();
-    this.props.guardians.forEach((guardian, guardianId) => {
-      if (guardian.isActive) {
-        const terminatedGuardian = this.cloneGuardianWithUpdates(guardian, {
-          isActive: false,
-          terminationDate: date,
-          terminationReason: TerminationReason.COURT_REMOVAL,
-        });
-        newGuardians.set(guardianId, terminatedGuardian);
+  public terminate(params: {
+    terminationReason: string;
+    terminationDate: Date;
+    courtOrderNumber?: string;
+  }): void {
+    if (this.props.status !== 'ACTIVE') {
+      throw new InvalidGuardianshipException(
+        `Guardianship is already ${this.props.status.toLowerCase()}`,
+      );
+    }
+
+    // Deactivate all guardian assignments
+    const newAssignments = new Map<string, GuardianAssignment>();
+    this.props.guardianAssignments.forEach((assignment, guardianId) => {
+      if (assignment.isActive) {
+        const deactivatedAssignment = GuardianAssignment.fromPersistence(
+          assignment.id.toString(),
+          { ...assignment.props, isActive: false },
+          assignment.createdAt,
+        );
+        deactivatedAssignment.deactivate(params.terminationReason);
+        newAssignments.set(guardianId, deactivatedAssignment);
       } else {
-        newGuardians.set(guardianId, guardian);
+        newAssignments.set(guardianId, assignment);
       }
     });
 
+    // Update aggregate status
     this.updateProps({
-      isActive: false,
-      dissolvedDate: date,
-      dissolutionReason: reason,
-      guardians: newGuardians,
+      status: 'TERMINATED',
+      terminationDate: params.terminationDate,
+      terminationReason: params.terminationReason,
+      guardianAssignments: newAssignments,
     });
 
+    // Emit event
     this.addDomainEvent(
-      new GuardianshipDissolvedEvent(this._id.toString(), 'GuardianshipAggregate', this._version, {
-        guardianshipId: this._id.toString(),
-        wardId: this.props.wardInfo.wardId,
-        reason,
-        dissolvedDate: date,
-      }),
+      new GuardianshipTerminatedEvent(
+        this._id.toString(),
+        'GuardianshipAggregate',
+        this._version,
+        {
+          guardianshipId: this._id.toString(),
+          wardId: this.props.wardInfo.wardId,
+          terminationReason: params.terminationReason,
+          terminationDate: params.terminationDate,
+          courtOrderNumber: params.courtOrderNumber,
+          activeGuardiansCount: this.getActiveGuardians().length,
+        },
+        new Date(),
+      ),
     );
   }
 
-  // ============================================================================
-  // AGGREGATE COMMANDS - DELEGATION TO GUARDIANS
-  // ============================================================================
+  public grantPropertyManagementPowers(params: {
+    guardianId: string;
+    restrictions?: string[];
+    courtOrderNumber?: string;
+  }): void {
+    this.ensureActive();
 
-  /**
-   * Post Bond for Specific Guardian (S.72 LSA)
-   */
+    const guardianAssignment = this.getActiveGuardianAssignment(params.guardianId);
+
+    // Grant powers
+    const updatedAssignment = GuardianAssignment.fromPersistence(
+      guardianAssignment.id.toString(),
+      { ...guardianAssignment.props },
+      guardianAssignment.createdAt,
+    );
+    updatedAssignment.grantPropertyManagementPowers(params.restrictions);
+
+    // Update assignment
+    const newAssignments = new Map(this.props.guardianAssignments);
+    newAssignments.set(params.guardianId, updatedAssignment);
+
+    // Create compliance check for current year
+    const currentYear = new Date().getFullYear();
+    const complianceCheckKey = `${currentYear}-${params.guardianId}`;
+    if (!this.props.complianceChecks.has(complianceCheckKey)) {
+      const complianceCheck = ComplianceCheck.create({
+        guardianId: params.guardianId, // FIXED: Added guardianId
+        year: currentYear,
+        status: ComplianceCheckStatus.PENDING,
+      });
+      const newComplianceChecks = new Map(this.props.complianceChecks);
+      newComplianceChecks.set(complianceCheckKey, complianceCheck);
+      this.updateProps({
+        guardianAssignments: newAssignments,
+        complianceChecks: newComplianceChecks,
+      });
+    } else {
+      this.updateProps({
+        guardianAssignments: newAssignments,
+      });
+    }
+
+    // Emit event
+    this.addDomainEvent(
+      new GuardianPowersGrantedEvent(
+        this._id.toString(),
+        'GuardianshipAggregate',
+        this._version,
+        {
+          guardianshipId: this._id.toString(),
+          guardianId: params.guardianId,
+          powerType: 'PROPERTY_MANAGEMENT',
+          courtOrderNumber: params.courtOrderNumber,
+          restrictions: params.restrictions,
+        },
+        new Date(),
+      ),
+    );
+  }
+
   public postGuardianBond(params: {
     guardianId: string;
     provider: string;
@@ -844,13 +624,12 @@ export class GuardianshipAggregate extends AggregateRoot<GuardianshipAggregatePr
     amountKES: number;
     expiryDate: Date;
   }): void {
-    this.ensureNotDeleted();
     this.ensureActive();
 
-    const guardian = this.getGuardian(params.guardianId);
+    const guardianAssignment = this.getActiveGuardianAssignment(params.guardianId);
 
     try {
-      guardian.postBond({
+      guardianAssignment.postBond({
         provider: params.provider,
         policyNumber: params.policyNumber,
         amountKES: params.amountKES,
@@ -858,317 +637,41 @@ export class GuardianshipAggregate extends AggregateRoot<GuardianshipAggregatePr
       });
 
       // Update the guardian in the map with new instance
-      const newGuardians = new Map(this.props.guardians);
-      newGuardians.set(params.guardianId, guardian);
-      this.updateProps({ guardians: newGuardians });
+      const newAssignments = new Map(this.props.guardianAssignments);
+      newAssignments.set(params.guardianId, guardianAssignment);
+      this.updateProps({ guardianAssignments: newAssignments });
     } catch (error) {
-      this.addComplianceWarning(
+      throw new InvalidGuardianshipException(
         `Failed to post bond for guardian ${params.guardianId}: ${error.message}`,
       );
-      throw error;
-    }
-  }
-  /**
-   * Renew Guardian Bond (S.72 LSA Maintenance)
-   * Essential for keeping the guardianship compliant when a bond expires.
-   */
-  public renewGuardianBond(params: {
-    guardianId: string;
-    newExpiryDate: Date;
-    newPolicyNumber?: string;
-  }): void {
-    this.ensureNotDeleted();
-    this.ensureActive();
-
-    const guardian = this.getGuardian(params.guardianId);
-
-    try {
-      // 1. Delegate logic to the Entity
-      guardian.renewBond(params.newExpiryDate, params.newPolicyNumber);
-
-      // 2. Update the immutable map in the Aggregate
-      const newGuardians = new Map(this.props.guardians);
-      newGuardians.set(params.guardianId, guardian);
-
-      // 3. Update Aggregate state
-      this.updateProps({ guardians: newGuardians });
-
-      // 4. (Optional) Clear specific warnings if bond is now valid
-      const updatedWarnings = this.props.complianceWarnings.filter(
-        (w) => !w.includes('bond expires') && !w.includes('without valid bond'),
-      );
-      this.updateProps({ complianceWarnings: updatedWarnings });
-    } catch (error) {
-      this.addComplianceWarning(
-        `Failed to renew bond for guardian ${params.guardianId}: ${error.message}`,
-      );
-      throw error;
-    }
-  }
-  /**
-   * Update Guardian Restrictions (Variation of Orders)
-   * Used when the court changes what a guardian can/cannot do.
-   */
-  public updateGuardianRestrictions(params: {
-    guardianId: string;
-    restrictions: string[];
-    courtOrderNumber?: string; // Optional: Track which order authorized this change
-  }): void {
-    this.ensureNotDeleted();
-    this.ensureActive();
-
-    const guardian = this.getGuardian(params.guardianId);
-
-    try {
-      // 1. Delegate logic to the Entity
-      guardian.updateRestrictions(params.restrictions);
-
-      // 2. Update the immutable map
-      const newGuardians = new Map(this.props.guardians);
-      newGuardians.set(params.guardianId, guardian);
-
-      // 3. Update Court Order info if provided (Variation Order)
-      const currentCourtOrder = this.props.courtOrder;
-      if (params.courtOrderNumber && currentCourtOrder) {
-        // Note: You might want a method on CourtOrder VO to add a variation note
-        // For now, we just proceed with updating the guardian
-      }
-
-      // 4. Update Aggregate state
-      this.updateProps({ guardians: newGuardians });
-    } catch (error) {
-      throw new InvalidGuardianshipException(
-        `Failed to update restrictions for guardian ${params.guardianId}: ${error.message}`,
-      );
-    }
-  }
-
-  /**
-   * File Annual Report for Specific Guardian (S.73 LSA)
-   */
-  public fileAnnualReport(params: {
-    guardianId: string;
-    reportDate: Date;
-    summary: string;
-    financialStatement?: Record<string, any>;
-    approvedBy?: string;
-  }): void {
-    this.ensureNotDeleted();
-    this.ensureActive();
-
-    const guardian = this.getGuardian(params.guardianId);
-
-    try {
-      guardian.fileAnnualReport({
-        reportDate: params.reportDate,
-        summary: params.summary,
-        financialStatement: params.financialStatement,
-        approvedBy: params.approvedBy,
-      });
-
-      // Update the guardian in the map with new instance
-      const newGuardians = new Map(this.props.guardians);
-      newGuardians.set(params.guardianId, guardian);
-      this.updateProps({ guardians: newGuardians });
-    } catch (error) {
-      this.addComplianceWarning(
-        `Failed to file annual report for guardian ${params.guardianId}: ${error.message}`,
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Grant Property Management Powers to Guardian
-   */
-  public grantPropertyPowers(params: {
-    guardianId: string;
-    courtOrderNumber?: string;
-    restrictions?: string[];
-  }): void {
-    this.ensureNotDeleted();
-    this.ensureActive();
-
-    const guardian = this.getGuardian(params.guardianId);
-
-    try {
-      guardian.grantPropertyManagementPowers({
-        courtOrderNumber: params.courtOrderNumber,
-        restrictions: params.restrictions,
-      });
-
-      // Update the guardian in the map with new instance
-      const newGuardians = new Map(this.props.guardians);
-      newGuardians.set(params.guardianId, guardian);
-      this.updateProps({ guardians: newGuardians });
-    } catch (error) {
-      this.addComplianceWarning(
-        `Failed to grant property powers to guardian ${params.guardianId}: ${error.message}`,
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Update Guardian Allowance
-   */
-  public updateGuardianAllowance(params: {
-    guardianId: string;
-    amountKES: number;
-    approvedBy: string;
-  }): void {
-    this.ensureNotDeleted();
-    this.ensureActive();
-
-    const guardian = this.getGuardian(params.guardianId);
-
-    try {
-      guardian.updateAllowance(params.amountKES, params.approvedBy);
-
-      // Update the guardian in the map with new instance
-      const newGuardians = new Map(this.props.guardians);
-      newGuardians.set(params.guardianId, guardian);
-      this.updateProps({ guardians: newGuardians });
-    } catch (error) {
-      this.addComplianceWarning(
-        `Failed to update allowance for guardian ${params.guardianId}: ${error.message}`,
-      );
-      throw error;
-    }
-  }
-
-  // ============================================================================
-  // VALIDATION & INVARIANTS
-  // ============================================================================
-
-  /**
-   * Validate Ward Eligibility
-   */
-  private static validateWardEligibility(wardInfo: WardInfo): void {
-    if (wardInfo.isDeceased) {
-      throw new WardNotFoundException(
-        `Ward ${wardInfo.wardId} is deceased - cannot appoint guardian`,
-      );
     }
 
-    const isMinor = wardInfo.currentAge < 18;
-    const isIncapacitated = wardInfo.isIncapacitated;
-
-    if (!isMinor && !isIncapacitated) {
-      throw new WardNotMinorException(wardInfo.currentAge);
-    }
-  }
-
-  /**
-   * Validate Guardian Eligibility
-   */
-  private static validateGuardianEligibility(eligibility: GuardianEligibilityInfo): void {
-    if (eligibility.age < 18) {
-      throw new GuardianIneligibleException('Guardian must be at least 18 years old');
-    }
-
-    if (eligibility.isBankrupt) {
-      throw new GuardianIneligibleException('Guardian cannot be bankrupt');
-    }
-
-    if (eligibility.isIncapacitated) {
-      throw new GuardianIneligibleException('Guardian cannot be incapacitated');
-    }
-
-    // Criminal record doesn't automatically disqualify, but requires court review
-    if (eligibility.hasCriminalRecord && !eligibility.criminalRecordDetails) {
-      throw new GuardianIneligibleException('Criminal record details required for court review');
-    }
-  }
-
-  /**
-   * Validate Customary Law Details
-   */
-  private static validateCustomaryLawDetails(details: CustomaryLawDetails): void {
-    if (!details.ethnicGroup) {
-      throw new InvalidGuardianshipException(
-        'Ethnic group is required for customary law guardianship',
-      );
-    }
-
-    if (!details.customaryAuthority) {
-      throw new InvalidGuardianshipException(
-        'Customary authority is required for customary law guardianship',
-      );
-    }
-
-    if (!details.elderApprovalRecords || details.elderApprovalRecords.length === 0) {
-      throw new InvalidGuardianshipException(
-        'At least one elder approval record is required for customary law guardianship',
-      );
-    }
-
-    // Validate specific ethnic group requirements
-    switch (details.ethnicGroup.toUpperCase()) {
-      case 'KIKUYU':
-        if (!details.elderApprovalRecords.some((record) => record.role.includes('Elder'))) {
-          throw new InvalidGuardianshipException(
-            'Kikuyu customary guardianship requires elder approval',
-          );
-        }
-        break;
-      case 'LUO':
-        if (!details.elderApprovalRecords.some((record) => record.role.includes('Clan'))) {
-          throw new InvalidGuardianshipException(
-            'Luo customary guardianship requires clan head approval',
-          );
-        }
-        break;
-      // Add other ethnic groups as needed
-    }
-  }
-
-  /**
-   * Validate Co-Guardian Compatibility
-   */
-  private validateCoGuardianCompatibility(params: {
-    hasPropertyManagementPowers?: boolean;
-    canConsentToMedical?: boolean;
-    canConsentToMarriage?: boolean;
-  }): void {
-    const existingGuardians = Array.from(this.props.guardians.values());
-
-    // Check for conflicting marriage consent powers
-    const hasExistingMarriageConsent = existingGuardians.some(
-      (g) => g.getPowers().canConsentToMarriage,
+    // Emit event
+    this.addDomainEvent(
+      new GuardianBondPostedEvent(
+        this._id.toString(),
+        'GuardianshipAggregate',
+        this._version,
+        {
+          guardianshipId: this._id.toString(),
+          guardianId: params.guardianId,
+          bondAmountKES: params.amountKES,
+          bondProvider: params.provider,
+          bondPolicyNumber: params.policyNumber,
+          expiryDate: params.expiryDate,
+        },
+        new Date(),
+      ),
     );
-
-    if (hasExistingMarriageConsent && params.canConsentToMarriage) {
-      throw new MultipleGuardiansException('Only one guardian can have marriage consent powers');
-    }
-
-    // Check property management powers consistency
-    if (params.hasPropertyManagementPowers) {
-      const guardiansWithPropertyPowers = existingGuardians.filter(
-        (g) => g.getPowers().hasPropertyManagementPowers,
-      );
-
-      if (guardiansWithPropertyPowers.length > 0) {
-        // All guardians with property powers must have co-management agreement
-        // This would require additional documentation
-        this.addComplianceWarning(
-          'Multiple guardians with property management powers require co-management agreement',
-        );
-      }
-    }
   }
 
-  /**
-   * Aggregate-level validation
-   */
-  public validate(): void {
-    // Must have ward info
-    if (!this.props.wardInfo) {
-      throw new InvalidGuardianshipException('Ward information is required');
-    }
+  // ============================================================================
+  // VALIDATION - CHANGED FROM PRIVATE TO PUBLIC
+  // ============================================================================
 
-    // Active guardianship must have at least one active guardian
-    if (this.props.isActive) {
+  public validate(): void {
+    // 1. Active guardianship must have at least one active guardian
+    if (this.props.status === 'ACTIVE') {
       const activeGuardians = this.getActiveGuardians();
       if (activeGuardians.length === 0) {
         throw new InvalidGuardianshipException(
@@ -1176,144 +679,49 @@ export class GuardianshipAggregate extends AggregateRoot<GuardianshipAggregatePr
         );
       }
 
-      // Ward must be eligible
-      try {
-        GuardianshipAggregate.validateWardEligibility(this.props.wardInfo);
-      } catch (error) {
-        // If ward is ineligible, guardianship should be dissolved
-        this.addComplianceWarning(`Ward is no longer eligible: ${error.message}`);
-      }
-
-      // All guardians with property powers must have bonds (S.72)
-      this.props.guardians.forEach((guardian) => {
-        if (guardian.isActive && guardian.requiresBond() && !guardian.isBondPosted()) {
-          this.addComplianceWarning(
-            `Guardian ${guardian.guardianId.toString()} requires S.72 bond but hasn't posted it`,
-          );
-        }
-      });
-    }
-
-    // Validate customary law if applicable
-    if (this.props.customaryLawApplies && this.props.customaryDetails) {
-      try {
-        GuardianshipAggregate.validateCustomaryLawDetails(this.props.customaryDetails);
-      } catch (error) {
-        this.addComplianceWarning(`Customary law validation failed: ${error.message}`);
-      }
-    }
-  }
-
-  /**
-   * Check compliance and update warnings
-   */
-  public checkCompliance(): void {
-    if (!this.props.isActive) return;
-
-    const complianceWarnings: string[] = [];
-
-    // Check S.72 compliance
-    const s72Violators = this.getActiveGuardians().filter(
-      (g) => g.requiresBond() && (!g.isBondPosted() || g.isBondExpired()),
-    );
-    if (s72Violators.length > 0) {
-      complianceWarnings.push(
-        `S.72 LSA Violation: ${s72Violators.length} guardian(s) without valid bond`,
+      // 2. Ward must be eligible (re-validate with current age)
+      const currentAge = GuardianshipAggregate.calculateAge(
+        this.props.wardInfo.dateOfBirth,
+        new Date(),
       );
-    }
 
-    // Check S.73 compliance
-    const overdueReports = this.getActiveGuardians().filter((g) => g.isReportOverdue());
-    if (overdueReports.length > 0) {
-      complianceWarnings.push(
-        `S.73 LSA Violation: ${overdueReports.length} guardian(s) with overdue annual reports`,
-      );
-    }
+      const isMinor = currentAge < 18;
+      const isEligibleAdult = currentAge >= 18 && this.props.wardInfo.isIncapacitated;
 
-    // Check ward eligibility
-    if (this.props.wardInfo.currentAge >= 18 && !this.props.wardInfo.isIncapacitated) {
-      complianceWarnings.push('Ward has reached majority - guardianship should be dissolved');
-    }
-
-    // Check bond expiry warnings
-    this.props.guardians.forEach((guardian) => {
-      if (guardian.isActive && guardian.isBondPosted()) {
-        const bond = guardian.getBond()!;
-        const daysUntilExpiry = Math.ceil(
-          (bond.expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+      if (!isMinor && !isEligibleAdult) {
+        // Ward is no longer eligible - should be terminated
+        console.warn(
+          `Ward ${this.props.wardInfo.wardId} is no longer eligible for guardianship (age: ${currentAge}, incapacitated: ${this.props.wardInfo.isIncapacitated})`,
         );
-        if (daysUntilExpiry <= 30) {
-          complianceWarnings.push(
-            `Guardian ${guardian.guardianId.toString()}'s bond expires in ${daysUntilExpiry} days`,
-          );
-        }
       }
-    });
+    }
 
-    this.updateProps({
-      complianceWarnings,
-      lastComplianceCheck: new Date(),
-    });
+    // 3. Court-appointed guardianships must have court order
+    if (this.props.type === 'COURT_APPOINTED' && !this.props.courtOrder) {
+      console.warn('Court-appointed guardianship should have court order');
+    }
+
+    // 4. Customary law guardianships must have customary details
+    if (this.props.customaryDetails && !this.props.courtOrder) {
+      if (
+        !this.props.customaryDetails.ethnicGroup ||
+        !this.props.customaryDetails.customaryAuthority
+      ) {
+        console.warn('Customary law guardianship missing required details');
+      }
+    }
   }
 
-  /**
-   * Apply event for event sourcing
-   */
+  // ============================================================================
+  // EVENT SOURCING - applyEvent method
+  // ============================================================================
+
   protected applyEvent(event: DomainEvent): void {
-    // Increment version for each applied event
     this.incrementVersion();
 
-    switch (event.constructor.name) {
-      case 'GuardianshipCreatedEvent':
-        this.applyGuardianshipCreated(event as any);
-        break;
-      case 'GuardianAppointedEvent':
-        this.applyGuardianAppointed(event as any);
-        break;
-      case 'GuardianBondPostedEvent':
-        this.applyGuardianBondPosted(event as any);
-        break;
-      case 'AnnualReportFiledEvent':
-        this.applyAnnualReportFiled(event as any);
-        break;
-      case 'GuardianshipDissolvedEvent':
-        this.applyGuardianshipDissolved(event as any);
-        break;
-      // Add other event handlers as needed
-      default:
-        console.warn(`Unhandled event type: ${event.constructor.name}`);
-    }
-  }
-
-  private applyGuardianshipCreated(event: GuardianshipCreatedEvent): void {
-    const { payload } = event;
-    // State would be reconstructed from event payload
-    // This is a simplified implementation
-    console.log('Applying GuardianshipCreatedEvent', payload);
-  }
-
-  private applyGuardianAppointed(event: GuardianAppointedEvent): void {
-    const { payload } = event;
-    console.log('Applying GuardianAppointedEvent', payload);
-  }
-
-  private applyGuardianBondPosted(event: GuardianBondPostedEvent): void {
-    const { payload } = event;
-    console.log('Applying GuardianBondPostedEvent', payload);
-  }
-
-  private applyAnnualReportFiled(event: AnnualReportFiledEvent): void {
-    const { payload } = event;
-    console.log('Applying AnnualReportFiledEvent', payload);
-  }
-
-  private applyGuardianshipDissolved(event: GuardianshipDissolvedEvent): void {
-    const { payload } = event;
-    this.updateProps({
-      isActive: false,
-      dissolvedDate: new Date(payload.dissolvedDate),
-      dissolutionReason: payload.reason,
-    });
+    // Apply event to aggregate state
+    // This is simplified - in a real implementation, you would apply the event to the state
+    console.log(`Applying event: ${event.constructor.name}`, event);
   }
 
   // ============================================================================
@@ -1321,24 +729,107 @@ export class GuardianshipAggregate extends AggregateRoot<GuardianshipAggregatePr
   // ============================================================================
 
   private ensureActive(): void {
-    if (!this.props.isActive) {
+    if (this.props.status !== 'ACTIVE') {
       throw new InvalidGuardianshipException(
-        'Guardianship is not active - cannot perform this operation',
+        `Guardianship is ${this.props.status.toLowerCase()} - operation not allowed`,
       );
     }
   }
 
-  private getGuardian(guardianId: string): Guardian {
-    const guardian = this.props.guardians.get(guardianId);
-    if (!guardian) {
-      throw new GuardianNotFoundException(guardianId);
+  private getActiveGuardianAssignment(guardianId: string): GuardianAssignment {
+    const assignment = this.props.guardianAssignments.get(guardianId);
+    if (!assignment || !assignment.isActive) {
+      throw new GuardianAssignmentNotFoundException(guardianId);
     }
-    return guardian;
+    return assignment;
   }
 
-  private addComplianceWarning(warning: string): void {
-    const warnings = [...this.props.complianceWarnings, warning];
-    this.updateProps({ complianceWarnings: warnings });
+  private demoteCurrentPrimary(): void {
+    const currentPrimary = this.getPrimaryGuardian();
+    if (currentPrimary) {
+      const demotedAssignment = GuardianAssignment.fromPersistence(
+        currentPrimary.id.toString(),
+        { ...currentPrimary.props, isPrimary: false },
+        currentPrimary.createdAt,
+      );
+      const newAssignments = new Map(this.props.guardianAssignments);
+      newAssignments.set(currentPrimary.guardianId.toString(), demotedAssignment);
+      this.updateProps({ guardianAssignments: newAssignments });
+    }
+  }
+
+  private findNewPrimaryCandidate(excludedGuardianId: string): GuardianAssignment | undefined {
+    for (const [guardianId, assignment] of this.props.guardianAssignments) {
+      if (guardianId !== excludedGuardianId && assignment.isActive) {
+        return assignment;
+      }
+    }
+    return undefined;
+  }
+
+  private updateProps(updates: Partial<GuardianshipAggregateProps>): void {
+    const newProps = {
+      ...this.props,
+      ...updates,
+      version: this.props.version + 1,
+    };
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
+  }
+
+  // ============================================================================
+  // STATIC HELPER METHODS
+  // ============================================================================
+
+  private static validateWardEligibility(params: {
+    isAlive: boolean;
+    age: number;
+    isIncapacitated: boolean;
+    disabilityStatus?: string;
+  }): void {
+    if (!params.isAlive) {
+      throw new WardNotFoundException('Cannot appoint guardian for deceased ward');
+    }
+
+    const isMinor = params.age < 18;
+    const isEligibleAdult = params.age >= 18 && params.isIncapacitated;
+
+    if (!isMinor && !isEligibleAdult) {
+      throw new WardIneligibleException(
+        `Ward is ${params.age} years old and not incapacitated. Guardianship only for minors (<18) or incapacitated adults.`,
+      );
+    }
+
+    if (params.disabilityStatus && params.disabilityStatus !== 'NONE') {
+      console.log(`Guardianship for ward with disability: ${params.disabilityStatus}`);
+    }
+  }
+
+  private static determineAppointmentSource(
+    type: GuardianType,
+    courtOrder?: CourtOrder,
+    customaryLawApplies?: boolean,
+  ): GuardianAppointmentSource {
+    if (customaryLawApplies) {
+      return GuardianAppointmentSource.CUSTOMARY_LAW;
+    }
+
+    switch (type) {
+      case 'TESTAMENTARY':
+        return GuardianAppointmentSource.WILL;
+      case 'COURT_APPOINTED':
+        return GuardianAppointmentSource.COURT;
+      case 'NATURAL_PARENT':
+        return GuardianAppointmentSource.FAMILY;
+      default:
+        return GuardianAppointmentSource.FAMILY;
+    }
+  }
+
+  private static calculateAge(dateOfBirth: Date, referenceDate: Date): number {
+    const diffMs = referenceDate.getTime() - dateOfBirth.getTime();
+    const ageDate = new Date(diffMs);
+    return Math.abs(ageDate.getUTCFullYear() - 1970);
   }
 
   // ============================================================================
@@ -1349,149 +840,68 @@ export class GuardianshipAggregate extends AggregateRoot<GuardianshipAggregatePr
     return this.props.wardInfo.wardId;
   }
 
-  get isActive(): boolean {
-    return this.props.isActive;
+  get status(): GuardianshipStatus {
+    return this.props.status;
   }
 
   get establishedDate(): Date {
     return this.props.establishedDate;
   }
 
-  get dissolvedDate(): Date | undefined {
-    return this.props.dissolvedDate;
+  get terminationDate(): Date | undefined {
+    return this.props.terminationDate;
   }
 
-  /**
-   * Get all active guardians
-   */
-  public getActiveGuardians(): Guardian[] {
-    return Array.from(this.props.guardians.values()).filter((g) => g.isActive);
+  get terminationReason(): string | undefined {
+    return this.props.terminationReason;
   }
 
-  /**
-   * Get primary guardian
-   */
-  public getPrimaryGuardian(): Guardian | undefined {
-    if (!this.props.primaryGuardianId) return undefined;
-    const guardian = this.props.guardians.get(this.props.primaryGuardianId);
-    return guardian?.isActive ? guardian : undefined;
-  }
-
-  /**
-   * Get specific guardian
-   */
-  public getGuardianById(guardianId: string): Guardian | undefined {
-    return this.props.guardians.get(guardianId);
-  }
-
-  /**
-   * Check if has multiple guardians
-   */
-  public hasMultipleGuardians(): boolean {
-    return this.getActiveGuardians().length > 1;
-  }
-
-  /**
-   * Check overall S.72 compliance
-   */
-  public isS72Compliant(): boolean {
-    const guardiansWithPowers = this.getActiveGuardians().filter((g) => g.requiresBond());
-
-    if (guardiansWithPowers.length === 0) return true;
-
-    return guardiansWithPowers.every((g) => g.isBondPosted() && !g.isBondExpired());
-  }
-
-  /**
-   * Check overall S.73 compliance
-   */
-  public isS73Compliant(): boolean {
-    const guardiansRequiringReports = this.getActiveGuardians().filter((g) =>
-      g.requiresAnnualReport(),
+  public getActiveGuardians(): GuardianAssignment[] {
+    return Array.from(this.props.guardianAssignments.values()).filter(
+      (assignment) => assignment.isActive,
     );
-
-    if (guardiansRequiringReports.length === 0) return true;
-
-    return guardiansRequiringReports.every((g) => !g.isReportOverdue());
   }
 
-  /**
-   * Get overall compliance status
-   */
-  public getComplianceStatus(): {
-    s72Compliant: boolean;
-    s73Compliant: boolean;
-    isFullyCompliant: boolean;
-    warnings: string[];
-    lastCheck?: Date;
-  } {
-    const s72 = this.isS72Compliant();
-    const s73 = this.isS73Compliant();
-
-    return {
-      s72Compliant: s72,
-      s73Compliant: s73,
-      isFullyCompliant: s72 && s73,
-      warnings: this.props.complianceWarnings,
-      lastCheck: this.props.lastComplianceCheck,
-    };
+  public getPrimaryGuardian(): GuardianAssignment | undefined {
+    return this.getActiveGuardians().find((guardian) => guardian.isPrimary);
   }
 
-  /**
-   * Get customary law details
-   */
-  public getCustomaryLawDetails(): CustomaryLawDetails | undefined {
-    return this.props.customaryDetails;
+  public getGuardianById(guardianId: string): GuardianAssignment | undefined {
+    return this.props.guardianAssignments.get(guardianId);
   }
 
-  /**
-   * Check if guardianship is under customary law
-   */
-  public isCustomaryLawGuardianship(): boolean {
-    return this.props.customaryLawApplies;
-  }
+  // ============================================================================
+  // SERIALIZATION
+  // ============================================================================
 
-  /**
-   * Check if ward is a minor
-   */
-  public isWardMinor(): boolean {
-    return this.props.wardInfo.currentAge < 18;
-  }
-
-  /**
-   * Serialize to JSON
-   */
   public toJSON(): Record<string, any> {
+    const activeGuardians = this.getActiveGuardians();
+    const primaryGuardian = this.getPrimaryGuardian();
+
     return {
       id: this._id.toString(),
-      wardId: this.props.wardInfo.wardId,
       wardInfo: {
+        wardId: this.props.wardInfo.wardId,
+        fullName: this.props.wardInfo.fullName,
         dateOfBirth: this.props.wardInfo.dateOfBirth.toISOString(),
-        currentAge: this.props.wardInfo.currentAge,
-        isDeceased: this.props.wardInfo.isDeceased,
+        isAlive: this.props.wardInfo.isAlive,
         isIncapacitated: this.props.wardInfo.isIncapacitated,
-        infoUpdatedAt: this.props.wardInfo.updatedAt.toISOString(),
+        disabilityStatus: this.props.wardInfo.disabilityStatus,
+        snapshotDate: this.props.wardInfo.snapshotDate.toISOString(),
       },
-      guardians: Array.from(this.props.guardians.values()).map((g) => g.toJSON()),
-      primaryGuardianId: this.props.primaryGuardianId,
+      status: this.props.status,
       establishedDate: this.props.establishedDate.toISOString(),
-      customaryLawApplies: this.props.customaryLawApplies,
-      customaryDetails: this.props.customaryDetails,
+      terminationDate: this.props.terminationDate?.toISOString(),
+      terminationReason: this.props.terminationReason,
+      type: this.props.type,
       courtOrder: this.props.courtOrder?.toJSON(),
-      isActive: this.props.isActive,
-      dissolvedDate: this.props.dissolvedDate?.toISOString(),
-      dissolutionReason: this.props.dissolutionReason,
-      complianceWarnings: this.props.complianceWarnings,
-      lastComplianceCheck: this.props.lastComplianceCheck?.toISOString(),
-
-      // Computed properties
-      activeGuardiansCount: this.getActiveGuardians().length,
-      hasMultipleGuardians: this.hasMultipleGuardians(),
-      complianceStatus: this.getComplianceStatus(),
-      isWardMinor: this.isWardMinor(),
-      isCustomaryLaw: this.isCustomaryLawGuardianship(),
-
-      // Metadata
+      customaryDetails: this.props.customaryDetails,
+      guardians: activeGuardians.map((guardian) => guardian.toJSON()),
+      primaryGuardian: primaryGuardian?.toJSON(),
+      complianceChecks: Array.from(this.props.complianceChecks.values()).map((check) =>
+        check.toJSON(),
+      ),
+      activeGuardiansCount: activeGuardians.length,
       version: this._version,
       createdAt: this._createdAt.toISOString(),
       updatedAt: this._updatedAt.toISOString(),

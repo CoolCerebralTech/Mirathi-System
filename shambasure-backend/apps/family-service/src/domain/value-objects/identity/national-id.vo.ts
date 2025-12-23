@@ -104,18 +104,18 @@ export class NationalId extends ValueObject<NationalIdProps> {
   // --- Getters ---
 
   get idNumber(): string {
-    return this._value.idNumber;
+    return this.props.idNumber;
   }
 
   get isVerified(): boolean {
-    return this._value.isVerified;
+    return this.props.isVerified;
   }
 
   get verificationDetails() {
     return {
-      method: this._value.verificationMethod,
-      at: this._value.verifiedAt,
-      by: this._value.verifiedBy,
+      method: this.props.verificationMethod,
+      at: this.props.verifiedAt,
+      by: this.props.verifiedBy,
     };
   }
 
@@ -126,11 +126,11 @@ export class NationalId extends ValueObject<NationalIdProps> {
 
   toJSON(): Record<string, unknown> {
     return {
-      idNumber: this._value.idNumber,
-      isVerified: this._value.isVerified,
-      verifiedAt: this._value.verifiedAt?.toISOString(),
-      verifiedBy: this._value.verifiedBy,
-      verificationMethod: this._value.verificationMethod,
+      idNumber: this.props.idNumber,
+      isVerified: this.props.isVerified,
+      verifiedAt: this.props.verifiedAt?.toISOString(),
+      verifiedBy: this.props.verifiedBy,
+      verificationMethod: this.props.verificationMethod,
       issueDate: this._value.issueDate?.toISOString(),
       issuingStation: this._value.issuingStation,
     };

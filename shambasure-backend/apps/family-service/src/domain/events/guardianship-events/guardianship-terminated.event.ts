@@ -1,29 +1,23 @@
+// domain/events/guardianship-events/guardianship-terminated.event.ts (updated)
 import { DomainEvent } from '../../base/domain-event';
 
-// domain/events/guardianship-events/guardianship-terminated.event.ts
-export class GuardianshipTerminatedEvent extends DomainEvent {
+export interface GuardianshipTerminatedEventPayload {
+  guardianshipId: string;
+  wardId: string;
+  terminationReason: string;
+  terminationDate: Date;
+  courtOrderNumber?: string;
+  activeGuardiansCount: number;
+}
+
+export class GuardianshipTerminatedEvent extends DomainEvent<GuardianshipTerminatedEventPayload> {
   constructor(
     aggregateId: string,
     aggregateType: string,
-    version: number,
-    public readonly payload: {
-      guardianshipId: string;
-      wardId: string;
-      guardianId: string;
-      reason: string;
-      terminationDate: Date;
-    },
+    eventVersion: number,
+    payload: GuardianshipTerminatedEventPayload,
+    occurredAt?: Date,
   ) {
-    super(aggregateId, aggregateType, version);
-  }
-
-  protected getPayload(): Record<string, any> {
-    return {
-      guardianshipId: this.payload.guardianshipId,
-      wardId: this.payload.wardId,
-      guardianId: this.payload.guardianId,
-      reason: this.payload.reason,
-      terminationDate: this.payload.terminationDate.toISOString(),
-    };
+    super(aggregateId, aggregateType, eventVersion, payload, occurredAt);
   }
 }

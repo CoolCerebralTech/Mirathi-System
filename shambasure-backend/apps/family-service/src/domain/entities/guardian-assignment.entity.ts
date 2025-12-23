@@ -1,193 +1,101 @@
 // domain/entities/guardian-assignment.entity.ts
-import {
-  GuardianAppointmentSource,
-  GuardianReportStatus,
-  GuardianType,
-  GuardianshipTerminationReason,
-} from '@prisma/client';
-
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
-// Domain Events
-import { AnnualReportFiledEvent } from '../events/guardianship-events/annual-report-filed.event';
-import { GuardianAllowanceUpdatedEvent } from '../events/guardianship-events/guardian-allowance-updated.event';
-import { GuardianAppointedEvent } from '../events/guardianship-events/guardian-appointed.event';
-import { GuardianBondPostedEvent } from '../events/guardianship-events/guardian-bond-posted.event';
-import { GuardianPowersGrantedEvent } from '../events/guardianship-events/guardian-powers-granted.event';
-import { GuardianshipTerminatedEvent } from '../events/guardianship-events/guardianship-terminated.event';
-// Exceptions
 import { InvalidGuardianshipException } from '../exceptions/guardianship.exception';
-// Value Objects
 import { KenyanMoney } from '../value-objects/financial/kenyan-money.vo';
-import { CourtOrder } from '../value-objects/legal/court-order.vo';
 import { GuardianBond } from '../value-objects/legal/guardian-bond.vo';
 import { GuardianPowers } from '../value-objects/legal/guardian-powers.vo';
-import { KenyanLawSection } from '../value-objects/legal/kenyan-law-section.vo';
-import { ReportingSchedule } from '../value-objects/legal/reporting-schedule.vo';
-
-/**
- * Guardianship of Person vs Property (Kenyan Law Distinction)
- */
-export enum GuardianshipCategory {
-  PERSON_ONLY = 'PERSON_ONLY', // Care and welfare only (no property)
-  PROPERTY_ONLY = 'PROPERTY_ONLY', // Property management only (e.g., trustee)
-  PERSON_AND_PROPERTY = 'PERSON_AND_PROPERTY', // Both care and property
-  LIMITED_CUSTODIAL = 'LIMITED_CUSTODIAL', // Temporary/customary arrangement
-}
-
-/**
- * Kenyan Customary Law Recognition Status
- */
-export enum CustomaryRecognitionStatus {
-  NOT_RECOGNIZED = 'NOT_RECOGNIZED',
-  COMMUNITY_RECOGNIZED = 'COMMUNITY_RECOGNIZED',
-  ELDERS_COUNCIL_CERTIFIED = 'ELDERS_COUNCIL_CERTIFIED',
-  COURT_RECOGNIZED = 'COURT_RECOGNIZED',
-  STATUTORY_INTEGRATED = 'STATUTORY_INTEGRATED',
-}
 
 /**
  * Guardian Assignment Entity Props
- * Entity within Guardianship Aggregate Root
+ * Represents a specific guardian's role within a guardianship
  */
 export interface GuardianAssignmentProps {
-  // === AGGREGATE RELATIONSHIPS ===
-  guardianshipId: UniqueEntityID; // Parent aggregate root
-  wardId: UniqueEntityID; // Reference to FamilyMember (ward)
-  guardianId: UniqueEntityID; // Reference to FamilyMember (guardian)
+  // === CORE IDENTITY ===
+  guardianId: UniqueEntityID; // The FamilyMember ID of the guardian
+  isPrimary: boolean; // Is this the primary guardian?
 
-  // === APPOINTMENT CONTEXT ===
-  appointmentSource: GuardianAppointmentSource; // FAMILY, COURT, WILL, CUSTOMARY_LAW
-  isPrimary: boolean; // Primary vs secondary guardian
-  orderOfPrecedence: number; // 1, 2, 3 for succession
+  // === ROLE DETAILS ===
+  appointmentDate: Date; // When this guardian was appointed
+  appointmentSource: GuardianAppointmentSource; // How they were appointed
 
-  // === LEGAL CLASSIFICATION ===
-  type: GuardianType; // TESTAMENTARY, COURT_APPOINTED, etc.
-  category: GuardianshipCategory; // PERSON_ONLY, PROPERTY_ONLY, etc.
+  // === POWERS (Children Act) ===
+  powers: GuardianPowers; // What this guardian can do
 
-  // === COURT INTEGRATION ===
-  courtOrder?: CourtOrder; // S.71 court order (if court-appointed)
-  courtFileNumber?: string; // Children's Court file reference
-  appointmentDate: Date;
-  termExpiryDate?: Date; // For temporary appointments
+  // === BONDING (S.72 LSA requirement for guardians of property) ===
+  bondRequired: boolean; // If false, Estate Service appoints Trustee
+  bond?: GuardianBond; // Document ID
 
-  // === GUARDIAN POWERS (S.70 & S.71 LSA) ===
-  powers: GuardianPowers;
+  // === FINANCIAL ALLOWANCE ===
+  annualAllowance?: KenyanMoney; // Guardian's compensation
+  allowanceApprovedBy?: UniqueEntityID; // Who approved allowance
 
-  // === S.72 LSA - GUARDIAN BOND FOR PROPERTY ===
-  bond?: GuardianBond;
-  bondRequired: boolean;
-  bondWaived: boolean; // Court waived bond requirement
-  bondWaiverOrderNumber?: string;
-
-  // === S.73 LSA - ANNUAL REPORTING COMPLIANCE ===
-  reportingSchedule?: ReportingSchedule;
-  lastReportFiledDate?: Date;
-  nextReportDueDate?: Date;
-
-  // === FINANCIAL MANAGEMENT ===
-  hasFinancialPowers: boolean;
-  financialLimit?: KenyanMoney; // Maximum amount guardian can manage
-  annualAllowance?: KenyanMoney; // Guardian compensation
-  allowanceApprovedByCourt: boolean;
-  allowanceOrderNumber?: string;
-
-  // === KENYAN CUSTOMARY LAW INTEGRATION ===
-  customaryLawApplies: boolean;
-  customaryRecognitionStatus: CustomaryRecognitionStatus;
-  customaryAuthority?: string; // Clan elders, council name
-  customaryInstallationDate?: Date;
-  customaryConditions?: Record<string, any>;
-
-  // === CROSS-SERVICE INTEGRATION FLAGS ===
-  estateServiceNotified: boolean; // Notified estate-service for asset management
-  notificationSentAt?: Date;
-
-  // === STATUS MANAGEMENT ===
+  // === STATUS ===
   isActive: boolean;
-  activationDate?: Date;
-  deactivationDate?: Date;
-  deactivationReason?: GuardianshipTerminationReason;
-  deactivationNotes?: string;
+  removedDate?: Date;
+  removalReason?: string;
 
-  // === AUDIT & COMPLIANCE ===
-  lastComplianceCheckDate?: Date;
-  complianceScore: number; // 0-100 score based on filings
-  requiresCourtSupervision: boolean;
-  nextCourtReviewDate?: Date;
+  // === RESTRICTIONS ===
+  restrictions?: string[]; // Court-imposed restrictions
+}
 
-  // === LEGAL BASIS TRACKING ===
-  applicableLawSections: KenyanLawSection[]; // S.70, S.71, S.72, S.73
+/**
+ * Guardian Appointment Source (Kenyan Legal Context)
+ */
+export enum GuardianAppointmentSource {
+  FAMILY = 'FAMILY', // Appointed by family/elders
+  COURT = 'COURT', // Appointed by Children's Court
+  WILL = 'WILL', // Appointed by deceased parent's will (S.70 LSA)
+  CUSTOMARY_LAW = 'CUSTOMARY_LAW', // Recognized by clan elders
 }
 
 /**
  * Props for Creating Guardian Assignment
  */
 export interface CreateGuardianAssignmentProps {
-  // Required references
-  guardianshipId: string;
-  wardId: string;
   guardianId: string;
-
-  // Appointment details
-  appointmentSource: GuardianAppointmentSource;
   isPrimary?: boolean;
-  type: GuardianType;
-  category?: GuardianshipCategory;
+  appointmentSource: GuardianAppointmentSource;
 
-  // Legal context
-  courtOrderNumber?: string;
-  courtStation?: string;
-  courtFileNumber?: string;
-  appointmentDate?: Date;
-  termDurationMonths?: number; // For temporary appointments
-
-  // Powers configuration
+  // Powers (defaults to minimal)
   hasPropertyManagementPowers?: boolean;
-  hasMedicalConsentPowers?: boolean;
-  hasEducationalConsentPowers?: boolean;
-  hasTravelConsentPowers?: boolean;
+  canConsentToMedical?: boolean;
+  canConsentToMarriage?: boolean;
   restrictions?: string[];
   specialInstructions?: string;
 
-  // Financial limits
-  financialLimitKES?: number;
-  requiresBond?: boolean;
+  // Bond
+  bondRequired?: boolean;
   bondAmountKES?: number;
+  bondProvider?: string;
+  bondPolicyNumber?: string;
+  bondExpiryDate?: Date;
 
-  // Customary law
-  customaryLawApplies?: boolean;
-  customaryAuthority?: string;
-  customaryInstallationDate?: Date;
-
-  // Compliance
-  requiresCourtSupervision?: boolean;
+  // Allowance
+  annualAllowanceKES?: number;
+  allowanceApprovedBy?: string;
 }
 
 /**
  * GUARDIAN ASSIGNMENT ENTITY
  *
- * Represents a specific guardian appointment within a Guardianship aggregate.
+ * Represents a specific guardian's role within a Guardianship aggregate
+ * under Kenyan Children Act and S.70-73 Law of Succession Act
  *
- * LEGAL CONTEXT:
+ * IMPORTANT: This is an ENTITY, not an Aggregate Root
+ * It belongs to the Guardianship aggregate and cannot exist independently
+ *
+ * LEGAL BASIS:
+ * - Children Act: Legal authority and care responsibility
  * - S.70 LSA: Testamentary guardians appointed by will
- * - S.71 LSA: Court-appointed guardians (Children Act Section 73)
- * - S.72 LSA: Bond requirements for property guardians
- * - S.73 LSA: Annual accounting and reporting
+ * - S.71 LSA: Court-appointed guardians for minors/incapacitated
+ * - S.72 LSA: Guardian must post bond if managing property
  *
- * REAL-WORLD CONSIDERATIONS:
- * 1. Multiple guardians can be appointed (primary + alternates)
- * 2. Guardianship of person vs property distinction
- * 3. Kenyan customary law integration (clan elders recognition)
- * 4. Court supervision requirements for contentious cases
- * 5. Temporary vs permanent guardianship
- *
- * INVARIANTS:
- * 1. Cannot appoint minor as guardian (must be 18+)
- * 2. Property management requires S.72 bond (unless waived by court)
- * 3. Active property guardians must file S.73 annual reports
- * 4. Guardian cannot have conflict of interest with ward
- * 5. Customary guardians must be recognized by community
+ * INVARIANTS (Enforced by Guardianship Aggregate):
+ * - Guardian must be an adult (18+ years)
+ * - Guardian cannot be the ward themselves
+ * - Property management requires bond posting (S.72)
+ * - Only one primary guardian per active guardianship
  */
 export class GuardianAssignment extends Entity<GuardianAssignmentProps> {
   private constructor(id: UniqueEntityID, props: GuardianAssignmentProps, createdAt?: Date) {
@@ -201,136 +109,67 @@ export class GuardianAssignment extends Entity<GuardianAssignmentProps> {
 
   /**
    * Create new Guardian Assignment
-   * Validates Kenyan legal requirements
    */
   public static create(props: CreateGuardianAssignmentProps): GuardianAssignment {
     const id = new UniqueEntityID();
-    const appointmentDate = props.appointmentDate || new Date();
-
-    // Calculate term expiry if temporary
-    let termExpiryDate: Date | undefined;
-    if (props.termDurationMonths) {
-      termExpiryDate = new Date(appointmentDate);
-      termExpiryDate.setMonth(termExpiryDate.getMonth() + props.termDurationMonths);
-    }
-
-    // Build court order if provided
-    let courtOrder: CourtOrder | undefined;
-    if (props.courtOrderNumber && props.courtStation) {
-      courtOrder = CourtOrder.create({
-        orderNumber: props.courtOrderNumber,
-        courtStation: props.courtStation,
-        orderDate: appointmentDate,
-        courtFileNumber: props.courtFileNumber,
-      });
-    }
-
-    // Determine category based on powers
-    const hasPropertyPowers = props.hasPropertyManagementPowers || false;
-    const category =
-      props.category ||
-      (hasPropertyPowers
-        ? GuardianshipCategory.PERSON_AND_PROPERTY
-        : GuardianshipCategory.PERSON_ONLY);
+    const guardianId = new UniqueEntityID(props.guardianId);
 
     // Build guardian powers
     const powers = GuardianPowers.create({
-      hasPropertyManagementPowers: hasPropertyPowers,
-      canConsentToMedical: props.hasMedicalConsentPowers ?? true,
-      canConsentToEducation: props.hasEducationalConsentPowers ?? true,
-      canConsentToTravel: props.hasTravelConsentPowers ?? false,
+      hasPropertyManagementPowers: props.hasPropertyManagementPowers ?? false,
+      canConsentToMedical: props.canConsentToMedical ?? true,
+      canConsentToMarriage: props.canConsentToMarriage ?? false,
       restrictions: props.restrictions ?? [],
       specialInstructions: props.specialInstructions,
     });
 
-    // Build reporting schedule if property powers
-    let reportingSchedule: ReportingSchedule | undefined;
-    if (hasPropertyPowers) {
-      const nextReportDue = new Date(appointmentDate);
-      nextReportDue.setFullYear(nextReportDue.getFullYear() + 1);
-
-      reportingSchedule = ReportingSchedule.create({
-        firstReportDue: nextReportDue,
-        frequency: 'ANNUAL',
-        reportingEntity: 'GUARDIAN',
-        jurisdiction: 'KENYA',
-        gracePeriodDays: 60, // S.73 allows 60 days after year end
+    // Build bond if required and details provided
+    let bond: GuardianBond | undefined;
+    if (
+      props.bondRequired &&
+      props.bondAmountKES &&
+      props.bondProvider &&
+      props.bondPolicyNumber &&
+      props.bondExpiryDate &&
+      powers.hasPropertyManagementPowers
+    ) {
+      bond = GuardianBond.create({
+        provider: props.bondProvider,
+        policyNumber: props.bondPolicyNumber,
+        amount: KenyanMoney.create(props.bondAmountKES),
+        issuedDate: new Date(),
+        expiryDate: props.bondExpiryDate,
       });
     }
 
-    // Determine applicable law sections
-    const applicableLawSections: KenyanLawSection[] = [];
-    if (props.type === 'TESTAMENTARY') {
-      applicableLawSections.push(KenyanLawSection.S70_TESTAMENTARY_GUARDIAN);
-    } else if (props.type === 'COURT_APPOINTED') {
-      applicableLawSections.push(KenyanLawSection.S71_COURT_GUARDIAN);
-    }
-    if (hasPropertyPowers) {
-      applicableLawSections.push(KenyanLawSection.S72_GUARDIAN_BOND);
-      applicableLawSections.push(KenyanLawSection.S73_GUARDIAN_ACCOUNTS);
+    // Build allowance if provided
+    let annualAllowance: KenyanMoney | undefined;
+    let allowanceApprovedBy: UniqueEntityID | undefined;
+
+    if (props.annualAllowanceKES) {
+      annualAllowance = KenyanMoney.create(props.annualAllowanceKES);
+      if (props.allowanceApprovedBy) {
+        allowanceApprovedBy = new UniqueEntityID(props.allowanceApprovedBy);
+      }
     }
 
-    // Build financial limit if provided
-    let financialLimit: KenyanMoney | undefined;
-    if (props.financialLimitKES) {
-      financialLimit = KenyanMoney.create(props.financialLimitKES);
-    }
-
-    const assignment = new GuardianAssignment(id, {
-      guardianshipId: new UniqueEntityID(props.guardianshipId),
-      wardId: new UniqueEntityID(props.wardId),
-      guardianId: new UniqueEntityID(props.guardianId),
+    return new GuardianAssignment(id, {
+      guardianId,
+      isPrimary: props.isPrimary ?? false,
+      appointmentDate: new Date(),
       appointmentSource: props.appointmentSource,
-      isPrimary: props.isPrimary ?? true,
-      orderOfPrecedence: props.isPrimary ? 1 : 2,
-      type: props.type,
-      category,
-      courtOrder,
-      courtFileNumber: props.courtFileNumber,
-      appointmentDate,
-      termExpiryDate,
       powers,
-      bondRequired: props.requiresBond ?? hasPropertyPowers,
-      bondWaived: false,
-      reportingSchedule,
-      hasFinancialPowers: hasPropertyPowers,
-      financialLimit,
-      annualAllowance: undefined,
-      allowanceApprovedByCourt: false,
-      customaryLawApplies: props.customaryLawApplies ?? false,
-      customaryRecognitionStatus: props.customaryLawApplies
-        ? CustomaryRecognitionStatus.COMMUNITY_RECOGNIZED
-        : CustomaryRecognitionStatus.NOT_RECOGNIZED,
-      customaryAuthority: props.customaryAuthority,
-      customaryInstallationDate: props.customaryInstallationDate,
-      estateServiceNotified: false,
+      bondRequired: props.bondRequired ?? false,
+      bond,
+      annualAllowance,
+      allowanceApprovedBy,
       isActive: true,
-      activationDate: new Date(),
-      complianceScore: 100, // Start with perfect score
-      requiresCourtSupervision: props.requiresCourtSupervision ?? false,
-      applicableLawSections,
+      restrictions: props.restrictions,
     });
-
-    // Emit domain event
-    assignment.addDomainEvent(
-      new GuardianAppointedEvent(id.toString(), 'GuardianAssignment', 1, {
-        guardianshipId: props.guardianshipId,
-        wardId: props.wardId,
-        guardianId: props.guardianId,
-        type: props.type,
-        category,
-        appointmentSource: props.appointmentSource,
-        courtOrderNumber: props.courtOrderNumber,
-        hasPropertyPowers,
-        customaryLawApplies: props.customaryLawApplies ?? false,
-      }),
-    );
-
-    return assignment;
   }
 
   /**
-   * Reconstitute from persistence
+   * Reconstitute from database (existing guardian assignment)
    */
   public static fromPersistence(
     id: string,
@@ -341,262 +180,149 @@ export class GuardianAssignment extends Entity<GuardianAssignmentProps> {
   }
 
   // ============================================================================
-  // DOMAIN LOGIC - S.72 BOND MANAGEMENT
+  // DOMAIN LOGIC - BOND MANAGEMENT (S.72 LSA)
   // ============================================================================
 
   /**
-   * Post Guardian Bond (S.72 LSA)
-   * Required for property management guardians
+   * Post Guardian Bond (S.72 LSA Requirement)
+   * Required if guardian has property management powers
    */
   public postBond(params: {
     provider: string;
     policyNumber: string;
     amountKES: number;
     expiryDate: Date;
-    suretyCompany?: string;
-    courtApprovalNumber?: string;
   }): void {
     this.ensureNotDeleted();
 
+    // Validation
     if (!this.requiresBond()) {
-      throw new InvalidGuardianshipException('Bond not required for this guardianship category.');
-    }
-
-    if (this.props.bondWaived) {
-      throw new InvalidGuardianshipException('Bond requirement waived by court. Cannot post bond.');
+      throw new InvalidGuardianshipException(
+        'Bond is not required for this guardianship (no property management powers).',
+      );
     }
 
     if (this.isBondPosted()) {
-      throw new InvalidGuardianshipException('Bond already posted. Use renewBond() for extension.');
+      throw new InvalidGuardianshipException('Bond already posted. Use renewBond() to extend.');
     }
 
-    // Create bond with Kenyan legal requirements
+    if (params.expiryDate <= new Date()) {
+      throw new InvalidGuardianshipException('Bond expiry date must be in the future.');
+    }
+
+    // Create bond value object
     const bond = GuardianBond.create({
       provider: params.provider,
       policyNumber: params.policyNumber,
       amount: KenyanMoney.create(params.amountKES),
       issuedDate: new Date(),
       expiryDate: params.expiryDate,
-      suretyCompany: params.suretyCompany,
-      courtApprovalNumber: params.courtApprovalNumber,
-      bondType: 'GUARDIAN_PROPERTY',
-      jurisdiction: 'KENYA',
     });
 
-    this.updateProps({ bond });
-
-    this.addDomainEvent(
-      new GuardianBondPostedEvent(this._id.toString(), 'GuardianAssignment', this._version, {
-        guardianAssignmentId: this._id.toString(),
-        guardianshipId: this.props.guardianshipId.toString(),
-        amountKES: params.amountKES,
-        provider: params.provider,
-        policyNumber: params.policyNumber,
-        expiryDate: params.expiryDate,
-      }),
-    );
-  }
-
-  /**
-   * Request Bond Waiver from Court
-   * (For guardians with limited property or family appointments)
-   */
-  public requestBondWaiver(_params: {
-    waiverReason: string;
-    supportingAffidavitId?: string;
-    requestedBy: string;
-  }): void {
-    this.ensureNotDeleted();
-
-    if (!this.requiresBond()) {
-      throw new InvalidGuardianshipException('Bond not required for this assignment.');
-    }
-
-    if (this.props.bondWaived) {
-      throw new InvalidGuardianshipException('Bond already waived.');
-    }
-
-    // In real system, this would trigger court filing workflow
-    this.updateProps({
-      bondWaived: true,
-      bondWaiverOrderNumber: `WAIVER-${Date.now()}-${this._id.toString().slice(0, 8)}`,
-    });
-  }
-
-  // ============================================================================
-  // DOMAIN LOGIC - S.73 ANNUAL REPORTING
-  // ============================================================================
-
-  /**
-   * File Annual Report (S.73 LSA)
-   * With Kenyan court formatting requirements
-   */
-  public fileAnnualReport(params: {
-    reportDate: Date;
-    reportPeriod: string; // e.g., "2024-2025"
-    financialSummary: {
-      assetsUnderManagementKES: number;
-      incomeReceivedKES: number;
-      expensesPaidKES: number;
-      netChangeKES: number;
+    // Update props
+    const newProps = {
+      ...this.cloneProps(),
+      bond,
     };
-    wardWelfareUpdate: {
-      healthStatus: string;
-      educationProgress: string;
-      livingConditions: string;
-    };
-    challengesEncountered?: string[];
-    supportingDocuments?: string[]; // Document IDs
-    filedBy: string;
-    courtReceiptNumber?: string;
-  }): void {
+
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
+  }
+
+  /**
+   * Renew Bond (before expiry)
+   */
+  public renewBond(newExpiryDate: Date, newPolicyNumber?: string): void {
     this.ensureNotDeleted();
 
-    if (!this.requiresAnnualReport()) {
-      throw new InvalidGuardianshipException(
-        'Annual reports not required for this guardianship category.',
-      );
+    if (!this.isBondPosted()) {
+      throw new InvalidGuardianshipException('No bond to renew. Use postBond() first.');
     }
 
-    if (!this.props.isActive) {
-      throw new InvalidGuardianshipException('Cannot file report for inactive guardianship.');
+    if (newExpiryDate <= new Date()) {
+      throw new InvalidGuardianshipException('New expiry date must be in the future.');
     }
 
-    const schedule = this.props.reportingSchedule!;
+    const currentBond = this.props.bond!;
+    const renewedBond = currentBond.renew(newExpiryDate, newPolicyNumber);
 
-    // Validate report timing
-    if (params.reportDate > new Date()) {
-      throw new InvalidGuardianshipException('Report date cannot be in future.');
-    }
+    const newProps = {
+      ...this.cloneProps(),
+      bond: renewedBond,
+    };
 
-    // Update reporting schedule
-    const nextDueDate = new Date(params.reportDate);
-    nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
-
-    const updatedSchedule = schedule.fileReport(
-      params.reportDate,
-      params.courtReceiptNumber ? GuardianReportStatus.APPROVED : GuardianReportStatus.SUBMITTED,
-      params.courtReceiptNumber,
-    );
-
-    // Update compliance score (penalize late filings)
-    const daysLate = schedule.calculateDaysLate(params.reportDate);
-    const compliancePenalty = daysLate > 0 ? Math.min(daysLate * 0.5, 20) : 0;
-    const newComplianceScore = Math.max(0, this.props.complianceScore - compliancePenalty + 10);
-
-    this.updateProps({
-      reportingSchedule: updatedSchedule,
-      lastReportFiledDate: params.reportDate,
-      nextReportDueDate: nextDueDate,
-      complianceScore: newComplianceScore,
-      lastComplianceCheckDate: new Date(),
-    });
-
-    this.addDomainEvent(
-      new AnnualReportFiledEvent(this._id.toString(), 'GuardianAssignment', this._version, {
-        guardianAssignmentId: this._id.toString(),
-        guardianshipId: this.props.guardianshipId.toString(),
-        reportPeriod: params.reportPeriod,
-        reportDate: params.reportDate,
-        financialSummary: params.financialSummary,
-        nextReportDue: nextDueDate,
-        filedBy: params.filedBy,
-        courtReceiptNumber: params.courtReceiptNumber,
-        complianceScore: newComplianceScore,
-      }),
-    );
-
-    // Trigger notification to estate-service for asset reconciliation
-    if (this.props.hasFinancialPowers) {
-      this.triggerEstateServiceNotification('ANNUAL_REPORT_FILED', {
-        reportId: this._id.toString(),
-        reportDate: params.reportDate,
-        financialSummary: params.financialSummary,
-      });
-    }
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
   }
 
   // ============================================================================
-  // DOMAIN LOGIC - POWERS & AUTHORITY MANAGEMENT
+  // DOMAIN LOGIC - POWERS MANAGEMENT
   // ============================================================================
 
   /**
-   * Grant Additional Powers with Court Approval
+   * Grant Property Management Powers
+   *
+   * LEGAL REQUIREMENT: S.72 Bond must be posted if managing property
    */
-  public grantAdditionalPowers(params: {
-    powerType: 'MEDICAL' | 'EDUCATIONAL' | 'TRAVEL' | 'FINANCIAL';
-    scope: string;
-    limitKES?: number;
-    courtOrderNumber?: string;
-    effectiveDate: Date;
-    grantedBy: string;
-  }): void {
+  public grantPropertyManagementPowers(restrictions?: string[]): void {
     this.ensureNotDeleted();
 
-    if (!this.props.isActive) {
-      throw new InvalidGuardianshipException('Cannot modify powers of inactive guardianship.');
+    if (this.props.powers.hasPropertyManagementPowers) {
+      throw new InvalidGuardianshipException('Guardian already has property management powers.');
     }
 
-    const updatedPowers = this.props.powers.grantAdditionalPower(
-      params.powerType,
-      params.scope,
-      params.limitKES,
-    );
+    const updatedPowers = this.props.powers.grantPropertyManagement(restrictions);
 
-    // Update financial limit if financial powers granted
-    let financialLimit = this.props.financialLimit;
-    if (params.powerType === 'FINANCIAL' && params.limitKES) {
-      financialLimit = KenyanMoney.create(params.limitKES);
-      this.updateProps({ hasFinancialPowers: true });
-    }
-
-    this.updateProps({
+    // Update props
+    const newProps = {
+      ...this.cloneProps(),
       powers: updatedPowers,
-      financialLimit,
-    });
+    };
 
-    // Update applicable law sections
-    if (!this.props.applicableLawSections.includes(KenyanLawSection.S71_COURT_GUARDIAN)) {
-      const updatedSections = [
-        ...this.props.applicableLawSections,
-        KenyanLawSection.S71_COURT_GUARDIAN,
-      ];
-      this.updateProps({ applicableLawSections: updatedSections });
-    }
-
-    this.addDomainEvent(
-      new GuardianPowersGrantedEvent(this._id.toString(), 'GuardianAssignment', this._version, {
-        guardianAssignmentId: this._id.toString(),
-        powerType: params.powerType,
-        scope: params.scope,
-        limitKES: params.limitKES,
-        courtOrderNumber: params.courtOrderNumber,
-        grantedBy: params.grantedBy,
-      }),
-    );
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
   }
 
   /**
-   * Restrict Guardian Powers (Court Order)
+   * Update Guardian Restrictions (court-imposed)
    */
-  public restrictPowers(params: {
-    restrictions: string[];
-    courtOrderNumber: string;
-    effectiveDate: Date;
-    reason: string;
-  }): void {
+  public updateRestrictions(restrictions: string[]): void {
     this.ensureNotDeleted();
 
-    const updatedPowers = this.props.powers.addRestrictions(params.restrictions);
-    this.updateProps({ powers: updatedPowers });
+    const updatedPowers = this.props.powers.updateRestrictions(restrictions);
 
-    // Update compliance requirements
-    if (params.restrictions.includes('NO_PROPERTY_MANAGEMENT')) {
-      this.updateProps({
-        bondRequired: false,
-        hasFinancialPowers: false,
-      });
+    const newProps = {
+      ...this.cloneProps(),
+      powers: updatedPowers,
+      restrictions,
+    };
+
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
+  }
+
+  // ============================================================================
+  // DOMAIN LOGIC - ALLOWANCE MANAGEMENT
+  // ============================================================================
+
+  /**
+   * Update Annual Allowance (Court-approved)
+   */
+  public updateAllowance(amountKES: number, approvedBy: string): void {
+    this.ensureNotDeleted();
+
+    if (amountKES < 0) {
+      throw new InvalidGuardianshipException('Allowance amount cannot be negative.');
     }
+
+    const newProps = {
+      ...this.cloneProps(),
+      annualAllowance: KenyanMoney.create(amountKES),
+      allowanceApprovedBy: new UniqueEntityID(approvedBy),
+    };
+
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
   }
 
   // ============================================================================
@@ -604,219 +330,45 @@ export class GuardianAssignment extends Entity<GuardianAssignmentProps> {
   // ============================================================================
 
   /**
-   * Activate Guardianship (After Court Approval)
+   * Deactivate Guardian Assignment
    */
-  public activate(params: {
-    activationDate: Date;
-    activatedBy: string;
-    courtOrderNumber?: string;
-  }): void {
+  public deactivate(removalReason: string): void {
+    this.ensureNotDeleted();
+
+    if (!this.props.isActive) {
+      throw new InvalidGuardianshipException('Guardian assignment is already inactive.');
+    }
+
+    const newProps = {
+      ...this.cloneProps(),
+      isActive: false,
+      removedDate: new Date(),
+      removalReason,
+    };
+
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
+  }
+
+  /**
+   * Reactivate Guardian Assignment (with court approval)
+   */
+  public reactivate(): void {
     this.ensureNotDeleted();
 
     if (this.props.isActive) {
-      throw new InvalidGuardianshipException('Guardianship already active.');
+      throw new InvalidGuardianshipException('Guardian assignment is already active.');
     }
 
-    this.updateProps({
+    const newProps = {
+      ...this.cloneProps(),
       isActive: true,
-      activationDate: params.activationDate,
-    });
+      removedDate: undefined,
+      removalReason: undefined,
+    };
 
-    // Notify estate-service for asset management setup
-    this.triggerEstateServiceNotification('GUARDIANSHIP_ACTIVATED', {
-      activationDate: params.activationDate,
-      guardianId: this.props.guardianId.toString(),
-      wardId: this.props.wardId.toString(),
-      hasFinancialPowers: this.props.hasFinancialPowers,
-    });
-  }
-
-  /**
-   * Terminate Guardianship Assignment
-   */
-  public terminate(params: {
-    reason: GuardianshipTerminationReason;
-    terminationDate: Date;
-    terminatedBy: string;
-    courtOrderNumber?: string;
-    handoverToGuardianId?: string;
-    notes?: string;
-  }): void {
-    this.ensureNotDeleted();
-
-    if (!this.props.isActive) {
-      throw new InvalidGuardianshipException('Guardianship already terminated.');
-    }
-
-    // Validate termination reason
-    if (params.reason === GuardianshipTerminationReason.WARD_REACHED_MAJORITY) {
-      // Would need ward's DOB to validate
-      console.warn('Verify ward age before termination for majority.');
-    }
-
-    this.updateProps({
-      isActive: false,
-      deactivationDate: params.terminationDate,
-      deactivationReason: params.reason,
-      deactivationNotes: params.notes,
-    });
-
-    // Release bond if posted
-    if (this.isBondPosted()) {
-      console.log(`Bond ${this.props.bond!.policyNumber} should be released.`);
-    }
-
-    // Notify estate-service to freeze asset management
-    this.triggerEstateServiceNotification('GUARDIANSHIP_TERMINATED', {
-      terminationDate: params.terminationDate,
-      reason: params.reason,
-      handoverToGuardianId: params.handoverToGuardianId,
-    });
-
-    this.addDomainEvent(
-      new GuardianshipTerminatedEvent(this._id.toString(), 'GuardianAssignment', this._version, {
-        guardianAssignmentId: this._id.toString(),
-        guardianshipId: this.props.guardianshipId.toString(),
-        wardId: this.props.wardId.toString(),
-        guardianId: this.props.guardianId.toString(),
-        reason: params.reason,
-        terminationDate: params.terminationDate,
-        terminatedBy: params.terminatedBy,
-        courtOrderNumber: params.courtOrderNumber,
-      }),
-    );
-  }
-
-  /**
-   * Suspend Guardianship (Temporary)
-   */
-  public suspend(params: {
-    reason: string;
-    suspensionDate: Date;
-    expectedResumptionDate?: Date;
-    suspendedBy: string;
-  }): void {
-    this.ensureNotDeleted();
-
-    this.updateProps({
-      isActive: false,
-      deactivationDate: params.suspensionDate,
-      deactivationReason: GuardianshipTerminationReason.GUARDIAN_INCAPACITATED,
-      deactivationNotes: `Suspended: ${params.reason}. Expected resumption: ${params.expectedResumptionDate}`,
-    });
-
-    // Notify estate-service to restrict asset access
-    this.triggerEstateServiceNotification('GUARDIANSHIP_SUSPENDED', {
-      suspensionDate: params.suspensionDate,
-      reason: params.reason,
-      expectedResumptionDate: params.expectedResumptionDate,
-    });
-  }
-
-  // ============================================================================
-  // DOMAIN LOGIC - FINANCIAL MANAGEMENT
-  // ============================================================================
-
-  /**
-   * Set Annual Allowance (Court-Approved)
-   */
-  public setAllowance(params: {
-    amountKES: number;
-    paymentFrequency: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL';
-    effectiveDate: Date;
-    courtOrderNumber: string;
-    approvedBy: string;
-    reviewDate?: Date;
-  }): void {
-    this.ensureNotDeleted();
-
-    if (!this.props.isActive) {
-      throw new InvalidGuardianshipException('Cannot set allowance for inactive guardianship.');
-    }
-
-    if (params.amountKES < 0) {
-      throw new InvalidGuardianshipException('Allowance amount cannot be negative.');
-    }
-
-    // Kenyan law: Allowance must be reasonable and court-approved
-    if (params.amountKES > 500000) {
-      // Example threshold
-      console.warn('High guardian allowance - ensure court approval documented.');
-    }
-
-    this.updateProps({
-      annualAllowance: KenyanMoney.create(params.amountKES),
-      allowanceApprovedByCourt: true,
-      allowanceOrderNumber: params.courtOrderNumber,
-    });
-
-    this.addDomainEvent(
-      new GuardianAllowanceUpdatedEvent(this._id.toString(), 'GuardianAssignment', this._version, {
-        guardianAssignmentId: this._id.toString(),
-        newAmountKES: params.amountKES,
-        paymentFrequency: params.paymentFrequency,
-        courtOrderNumber: params.courtOrderNumber,
-        approvedBy: params.approvedBy,
-      }),
-    );
-  }
-
-  /**
-   * Update Financial Management Limit
-   */
-  public updateFinancialLimit(params: {
-    newLimitKES: number;
-    effectiveDate: Date;
-    courtOrderNumber?: string;
-    reason: string;
-  }): void {
-    this.ensureNotDeleted();
-
-    if (!this.props.hasFinancialPowers) {
-      throw new InvalidGuardianshipException('Guardian does not have financial management powers.');
-    }
-
-    this.updateProps({
-      financialLimit: KenyanMoney.create(params.newLimitKES),
-    });
-
-    // Log change for audit trail
-    console.log(`Financial limit updated for guardian ${this._id.toString()}: ${params.reason}`);
-  }
-
-  // ============================================================================
-  // DOMAIN LOGIC - CUSTOMARY LAW INTEGRATION
-  // ============================================================================
-
-  /**
-   * Recognize Customary Guardianship
-   */
-  public recognizeCustomaryGuardianship(params: {
-    recognitionStatus: CustomaryRecognitionStatus;
-    recognizedBy: string; // Elders council, community leader
-    recognitionDate: Date;
-    customaryConditions: Record<string, any>;
-    integrationNotes?: string;
-  }): void {
-    this.ensureNotDeleted();
-
-    if (!this.props.customaryLawApplies) {
-      throw new InvalidGuardianshipException(
-        'Guardianship not marked as customary law applicable.',
-      );
-    }
-
-    this.updateProps({
-      customaryRecognitionStatus: params.recognitionStatus,
-      customaryAuthority: params.recognizedBy,
-      customaryInstallationDate: params.recognitionDate,
-      customaryConditions: params.customaryConditions,
-    });
-
-    // If court-recognized, update legal basis
-    if (params.recognitionStatus === CustomaryRecognitionStatus.COURT_RECOGNIZED) {
-      console.log('Customary guardianship recognized by court - updating legal status.');
-    }
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
   }
 
   // ============================================================================
@@ -824,60 +376,26 @@ export class GuardianAssignment extends Entity<GuardianAssignmentProps> {
   // ============================================================================
 
   private validate(): void {
-    // Core invariants
-    if (this.props.wardId.equals(this.props.guardianId)) {
-      throw new InvalidGuardianshipException('Guardian cannot be the same person as ward.');
-    }
-
-    // Court appointment validation
-    if (this.props.type === 'COURT_APPOINTED' && !this.props.courtOrder) {
-      console.warn(`Court-appointed guardian ${this._id.toString()} should have court order.`);
-    }
-
-    // S.72 Bond requirement validation
+    // Property management powers require bond if bondRequired is true
     if (
-      this.props.category === GuardianshipCategory.PERSON_AND_PROPERTY &&
+      this.props.powers.hasPropertyManagementPowers &&
       this.props.bondRequired &&
-      !this.isBondPosted() &&
-      !this.props.bondWaived &&
-      this.props.isActive
+      !this.props.bond
     ) {
-      console.warn(`Active property guardian ${this._id.toString()} requires S.72 bond.`);
-    }
-
-    // S.73 Reporting requirement validation
-    if (this.requiresAnnualReport() && !this.props.reportingSchedule && this.props.isActive) {
       console.warn(
-        `Active property guardian ${this._id.toString()} requires S.73 reporting schedule.`,
+        `Guardian Assignment ${this._id.toString()}: Property management requires S.72 bond posting`,
       );
     }
 
-    // Term expiry check
-    if (
-      this.props.termExpiryDate &&
-      this.props.termExpiryDate < new Date() &&
-      this.props.isActive
-    ) {
-      console.warn(`Guardianship term expired but still active: ${this._id.toString()}`);
-    }
-
-    // Financial powers without bond check
-    if (this.props.hasFinancialPowers && !this.props.bondRequired && !this.props.bondWaived) {
-      console.warn(`Financial management powers without bond requirement: ${this._id.toString()}`);
+    // Bond expiry check
+    if (this.props.bond && this.props.bond.isExpired()) {
+      console.warn(`Guardian Assignment ${this._id.toString()}: Bond has expired`);
     }
   }
 
   // ============================================================================
-  // QUERY METHODS
+  // QUERY METHODS (GETTERS)
   // ============================================================================
-
-  get guardianshipId(): UniqueEntityID {
-    return this.props.guardianshipId;
-  }
-
-  get wardId(): UniqueEntityID {
-    return this.props.wardId;
-  }
 
   get guardianId(): UniqueEntityID {
     return this.props.guardianId;
@@ -885,14 +403,6 @@ export class GuardianAssignment extends Entity<GuardianAssignmentProps> {
 
   get isPrimary(): boolean {
     return this.props.isPrimary;
-  }
-
-  get type(): GuardianType {
-    return this.props.type;
-  }
-
-  get category(): GuardianshipCategory {
-    return this.props.category;
   }
 
   get isActive(): boolean {
@@ -903,16 +413,24 @@ export class GuardianAssignment extends Entity<GuardianAssignmentProps> {
     return this.props.appointmentDate;
   }
 
+  get appointmentSource(): GuardianAppointmentSource {
+    return this.props.appointmentSource;
+  }
+
+  get removedDate(): Date | undefined {
+    return this.props.removedDate;
+  }
+
+  get removalReason(): string | undefined {
+    return this.props.removalReason;
+  }
+
   /**
    * Check if bond posting is required
+   * (Required if has property management powers AND bondRequired is true)
    */
   public requiresBond(): boolean {
-    return (
-      this.props.bondRequired &&
-      (this.props.category === GuardianshipCategory.PERSON_AND_PROPERTY ||
-        this.props.category === GuardianshipCategory.PROPERTY_ONLY) &&
-      !this.props.bondWaived
-    );
+    return this.props.bondRequired && this.props.powers.hasPropertyManagementPowers;
   }
 
   /**
@@ -930,256 +448,85 @@ export class GuardianAssignment extends Entity<GuardianAssignmentProps> {
   }
 
   /**
-   * Check if annual reports are required (S.73)
+   * Check if guardian can manage property
+   * (And if bond is valid if required)
    */
-  public requiresAnnualReport(): boolean {
-    return (
-      this.props.isActive &&
-      (this.props.category === GuardianshipCategory.PERSON_AND_PROPERTY ||
-        this.props.category === GuardianshipCategory.PROPERTY_ONLY)
-    );
+  public canManageProperty(): boolean {
+    if (!this.props.powers.hasPropertyManagementPowers) return false;
+
+    if (this.props.bondRequired) {
+      return this.isBondPosted() && !this.isBondExpired();
+    }
+
+    return true;
   }
 
   /**
-   * Check if report is overdue
+   * Check if guardian can consent to medical treatment
    */
-  public isReportOverdue(): boolean {
-    if (!this.props.reportingSchedule) return false;
-    return this.props.reportingSchedule.isOverdue();
+  public canConsentToMedical(): boolean {
+    return this.props.powers.canConsentToMedical;
   }
 
   /**
-   * Get S.73 compliance status with Kenyan court standards
+   * Check if guardian can consent to marriage (for wards 16-18 with court permission)
    */
-  public getS73ComplianceStatus(): {
-    status: 'COMPLIANT' | 'NON_COMPLIANT' | 'NOT_REQUIRED' | 'GRACE_PERIOD';
-    daysRemaining?: number;
-    nextAction?: string;
-  } {
-    if (!this.requiresAnnualReport()) {
-      return { status: 'NOT_REQUIRED' };
-    }
-
-    if (!this.props.reportingSchedule) {
-      return { status: 'NON_COMPLIANT', nextAction: 'Establish reporting schedule' };
-    }
-
-    const schedule = this.props.reportingSchedule;
-
-    if (schedule.isOverdue()) {
-      const daysOverdue = schedule.calculateDaysOverdue();
-      return {
-        status: 'NON_COMPLIANT',
-        daysRemaining: -daysOverdue,
-        nextAction: 'File overdue report immediately',
-      };
-    }
-
-    if (schedule.isInGracePeriod()) {
-      const daysRemaining = schedule.daysRemainingInGracePeriod();
-      return {
-        status: 'GRACE_PERIOD',
-        daysRemaining,
-        nextAction: `File within ${daysRemaining} days`,
-      };
-    }
-
-    const currentStatus = schedule.status;
-    if (currentStatus === GuardianReportStatus.APPROVED) {
-      return { status: 'COMPLIANT' };
-    } else if (currentStatus === GuardianReportStatus.SUBMITTED) {
-      return {
-        status: 'COMPLIANT',
-        nextAction: 'Awaiting court approval',
-      };
-    }
-
-    return {
-      status: 'NON_COMPLIANT',
-      nextAction: 'File annual report',
-    };
+  public canConsentToMarriage(): boolean {
+    return this.props.powers.canConsentToMarriage;
   }
 
   /**
-   * Check if guardianship requires court supervision
+   * Get powers (read-only)
    */
-  public requiresCourtSupervision(): boolean {
-    return (
-      this.props.requiresCourtSupervision ||
-      this.props.complianceScore < 70 ||
-      this.isReportOverdue()
-    );
+  public getPowers(): GuardianPowers {
+    return this.props.powers;
   }
 
   /**
-   * Get powers summary for UI/API
+   * Get bond details (if posted)
    */
-  public getPowersSummary(): Record<string, any> {
-    return {
-      ...this.props.powers.toJSON(),
-      financialLimit: this.props.financialLimit?.toJSON(),
-      hasFinancialPowers: this.props.hasFinancialPowers,
-      requiresBond: this.requiresBond(),
-      bondPosted: this.isBondPosted(),
-      bondExpired: this.isBondExpired(),
-    };
+  public getBond(): GuardianBond | undefined {
+    return this.props.bond;
   }
 
   /**
-   * Get next required action
+   * Get annual allowance
    */
-  public getNextRequiredAction(): string | null {
-    if (!this.props.isActive) return null;
-
-    if (this.requiresBond() && !this.isBondPosted()) {
-      return 'Post S.72 guardian bond';
-    }
-
-    if (this.isBondExpired()) {
-      return 'Renew expired guardian bond';
-    }
-
-    if (this.isReportOverdue()) {
-      return 'File overdue S.73 annual report';
-    }
-
-    if (this.props.nextReportDueDate && this.props.nextReportDueDate < new Date()) {
-      return `File annual report (due ${this.props.nextReportDueDate.toLocaleDateString()})`;
-    }
-
-    if (this.props.nextCourtReviewDate && this.props.nextCourtReviewDate < new Date()) {
-      return 'Schedule court review';
-    }
-
-    return null;
+  public getAnnualAllowance(): KenyanMoney | undefined {
+    return this.props.annualAllowance;
   }
 
   // ============================================================================
-  // INTEGRATION METHODS
+  // HELPER METHODS
   // ============================================================================
 
   /**
-   * Trigger notification to estate-service
-   */
-  private triggerEstateServiceNotification(eventType: string, payload: Record<string, any>): void {
-    // In real implementation, this would publish to event bus
-    console.log(`[EVENT BUS] Publishing to estate-service: ${eventType}`, payload);
-
-    // Update notification flag
-    if (!this.props.estateServiceNotified) {
-      this.updateProps({
-        estateServiceNotified: true,
-        notificationSentAt: new Date(),
-      });
-    }
-  }
-
-  /**
-   * Mark estate-service notification as sent
-   */
-  public markEstateServiceNotified(): void {
-    this.updateProps({
-      estateServiceNotified: true,
-      notificationSentAt: new Date(),
-    });
-  }
-
-  /**
-   * Schedule court review
-   */
-  public scheduleCourtReview(reviewDate: Date, reason: string): void {
-    this.updateProps({
-      requiresCourtSupervision: true,
-      nextCourtReviewDate: reviewDate,
-    });
-
-    console.log(`Court review scheduled for ${reviewDate.toLocaleDateString()}: ${reason}`);
-  }
-
-  // ============================================================================
-  // SERIALIZATION
-  // ============================================================================
-
-  /**
-   * Serialize for API response
+   * Serialize to JSON for API responses
    */
   public toJSON(): Record<string, any> {
-    const compliance = this.getS73ComplianceStatus();
-
     return {
       id: this._id.toString(),
-      guardianshipId: this.props.guardianshipId.toString(),
-      wardId: this.props.wardId.toString(),
       guardianId: this.props.guardianId.toString(),
-
-      // Appointment details
-      appointmentSource: this.props.appointmentSource,
       isPrimary: this.props.isPrimary,
-      orderOfPrecedence: this.props.orderOfPrecedence,
-      type: this.props.type,
-      category: this.props.category,
-
-      // Legal context
-      courtOrder: this.props.courtOrder?.toJSON(),
-      courtFileNumber: this.props.courtFileNumber,
       appointmentDate: this.props.appointmentDate.toISOString(),
-      termExpiryDate: this.props.termExpiryDate?.toISOString(),
-
-      // Powers and authority
+      appointmentSource: this.props.appointmentSource,
       powers: this.props.powers.toJSON(),
-      hasFinancialPowers: this.props.hasFinancialPowers,
-      financialLimit: this.props.financialLimit?.toJSON(),
-
-      // Bond information
       bondRequired: this.props.bondRequired,
-      bondWaived: this.props.bondWaived,
-      bondWaiverOrderNumber: this.props.bondWaiverOrderNumber,
       bond: this.props.bond?.toJSON(),
-
-      // Reporting
-      reportingSchedule: this.props.reportingSchedule?.toJSON(),
-      lastReportFiledDate: this.props.lastReportFiledDate?.toISOString(),
-      nextReportDueDate: this.props.nextReportDueDate?.toISOString(),
-
-      // Allowance
       annualAllowance: this.props.annualAllowance?.toJSON(),
-      allowanceApprovedByCourt: this.props.allowanceApprovedByCourt,
-      allowanceOrderNumber: this.props.allowanceOrderNumber,
-
-      // Customary law
-      customaryLawApplies: this.props.customaryLawApplies,
-      customaryRecognitionStatus: this.props.customaryRecognitionStatus,
-      customaryAuthority: this.props.customaryAuthority,
-      customaryInstallationDate: this.props.customaryInstallationDate?.toISOString(),
-
-      // Status
+      allowanceApprovedBy: this.props.allowanceApprovedBy?.toString(),
       isActive: this.props.isActive,
-      activationDate: this.props.activationDate?.toISOString(),
-      deactivationDate: this.props.deactivationDate?.toISOString(),
-      deactivationReason: this.props.deactivationReason,
-      deactivationNotes: this.props.deactivationNotes,
-
-      // Compliance
-      complianceScore: this.props.complianceScore,
-      s73ComplianceStatus: compliance.status,
-      requiresCourtSupervision: this.props.requiresCourtSupervision,
-      nextCourtReviewDate: this.props.nextCourtReviewDate?.toISOString(),
-      lastComplianceCheckDate: this.props.lastComplianceCheckDate?.toISOString(),
-
-      // Legal basis
-      applicableLawSections: this.props.applicableLawSections,
+      removedDate: this.props.removedDate?.toISOString(),
+      removalReason: this.props.removalReason,
+      restrictions: this.props.restrictions,
 
       // Computed properties
-      requiresAnnualReport: this.requiresAnnualReport(),
-      isReportOverdue: this.isReportOverdue(),
       requiresBond: this.requiresBond(),
       isBondPosted: this.isBondPosted(),
       isBondExpired: this.isBondExpired(),
-      nextRequiredAction: this.getNextRequiredAction(),
-
-      // Integration
-      estateServiceNotified: this.props.estateServiceNotified,
-      notificationSentAt: this.props.notificationSentAt?.toISOString(),
+      canManageProperty: this.canManageProperty(),
+      canConsentToMedical: this.canConsentToMedical(),
+      canConsentToMarriage: this.canConsentToMarriage(),
 
       // Metadata
       version: this._version,
@@ -1187,18 +534,5 @@ export class GuardianAssignment extends Entity<GuardianAssignmentProps> {
       updatedAt: this._updatedAt.toISOString(),
       deletedAt: this._deletedAt?.toISOString(),
     };
-  }
-
-  // ============================================================================
-  // PRIVATE HELPER
-  // ============================================================================
-
-  private updateProps(updates: Partial<GuardianAssignmentProps>): void {
-    const newProps = {
-      ...this.cloneProps(),
-      ...updates,
-    };
-    (this as any)._props = Object.freeze(newProps);
-    this.incrementVersion();
   }
 }

@@ -1,88 +1,79 @@
-src/domain/
+src/estate-service/src/domain/
+│
 ├── aggregates/
-│   ├── estate/                     # ASSET CATALOG & VALUATION (Pre-death)
-│   │   ├── estate.aggregate.ts     # Root: Manages net worth, liability summary
-│   │   ├── entities/
-│   │   │   ├── asset.entity.ts     # Base asset with polymorphic details
-│   │   │   ├── debt.entity.ts      # For planning/debt categorization
-│   │   │   └── gift-inter-vivos.entity.ts # For S.35(3) Hotchpot tracking
-│   │   ├── value-objects/
-│   │   │   ├── asset-details.vo.ts # Polymorphic: Land, Vehicle, Business, etc.
-│   │   │   ├── liability-tier.vo.ts # Pre-categorization for S.45 planning
-│   │   │   └── valuation.vo.ts     # Value + date + method + valuer info
-│   │   └── events/
-│   │       ├── estate-created.event.ts
-│   │       ├── asset-added.event.ts
-│   │       └── debt-recorded.event.ts
+│   ├── estate.aggregate.ts             # [ROOT 1] The "Net Worth" Manager.
+│   │                                   # RESPONSIBILITY: Enforces Solvency (Assets >= Debts).
+│   │                                   # INVARIANT: An asset cannot belong to two estates.
 │   │
-│   ├── will/                       # LEGAL INSTRUMENT AGGREGATE
-│   │   ├── will.aggregate.ts       # Root: Manages validity, execution, revocation
-│   │   ├── entities/
-│   │   │   ├── codicil.entity.ts   # Amendments
-│   │   │   ├── testamentary-executor.entity.ts  # Will-appointed executor
-│   │   │   ├── will-witness.entity.ts
-│   │   │   └── bequest.entity.ts   # Testamentary disposition (renamed)
-│   │   ├── value-objects/
-│   │   │   ├── witness-signature.vo.ts
-│   │   │   ├── legal-capacity.vo.ts # Section 7 LSA compliance
-│   │   │   └── revocation-details.vo.ts
-│   │   └── events/
-│   │       ├── will-executed.event.ts
-│   │       ├── bequest-added.event.ts
-│   │       └── will-revoked.event.ts
+│   └── will.aggregate.ts               # [ROOT 2] The "Instruction" Manager.
+│                                       # RESPONSIBILITY: Validates S.11 LSA (Witnessing).
+│                                       # INVARIANT: Only one Will can be active per user.
+│
+├── entities/
+│   // =========================================================================
+│   // 🟢 OWNED BY ESTATE AGGREGATE (Inventory & Claims)
+│   // =========================================================================
 │   │
-│   └── inheritance-calculation/    # THE BLUEPRINT ENGINE
-│       ├── inheritance-calculation.aggregate.ts  # Root: Computed distribution PLAN
-│       ├── entities/
-│       │   ├── computed-share.entity.ts     # Calculated entitlement
-│       │   └── distribution-scenario.entity.ts # "What-if" scenarios
-│       ├── value-objects/
-│       │   ├── section35-calculation.vo.ts  # Spouse + children math
-│       │   ├── section40-calculation.vo.ts  # Polygamous house ratios
-│       │   ├── hotchpot-adjustment.vo.ts    # S.35(3) calculations
-│       │   └── dependency-entitlement.vo.ts # S.29 calculations
-│       └── events/
-│           ├── inheritance-calculated.event.ts
-│           └── hotchpot-applied.event.ts
+│   // --- Asset Core & Details (Polymorphic) ---
+│   ├── asset.entity.ts                 # The generic parent (ID, Type, Value, Owner).
+│   ├── land-asset-details.entity.ts    # Specifics: Title Deed No, County, Acreage.
+│   ├── vehicle-asset-details.entity.ts # Specifics: Logbook No, Chassis No.
+│   ├── financial-asset-details.entity.ts # Specifics: Bank Name, Account No.
+│   ├── business-asset-details.entity.ts  # Specifics: Shares, Registration No.
+│   │
+│   // --- Asset Metadata & History ---
+│   ├── asset-valuation.entity.ts       # History: Tracks value changes over time.
+│   ├── asset-co-owner.entity.ts        # Facts: "Owned 50% with Spouse".
+│   ├── asset-liquidation.entity.ts     # Process: Tracks conversion from Property -> Cash.
+│   │                                   # WHY: Keeps Net Value accurate after a sale.
+│   │
+│   // --- Liabilities & Compliance ---
+│   ├── debt.entity.ts                  # Liabilities.
+│   │                                   # LOGIC: Categorized by S.45 Priority (Funeral > Secured > Unsecured).
+│   ├── estate-tax-compliance.entity.ts # KRA Status.
+│   │                                   # WHY: Distribution is blocked until this is "Clear".
+│   │
+│   // --- S.35 & S.26 Specifics ---
+│   ├── gift-inter-vivos.entity.ts      # Past Gifts.
+│   │                                   # WHY: Required for "Hotchpot" (S.35(3)) math.
+│   ├── legal-dependant.entity.ts       # S.29 Claimant (Spouse/Child claiming support).
+│   │                                   # WHY: Moved inside Estate because a claim must target an Estate.
+│   └── dependant-evidence.entity.ts    # Proof: School receipts, medical reports.
 │
-├── shared/                         # SHARED KERNEL (Cross-Aggregate)
-│   ├── money.vo.ts                     # Currency-aware monetary values (KES focus)
-|   ├── percentage.vo.ts                # Percentage validation (0-100%)
-|   ├── kenyan-id.vo.ts                 # National ID & KRA PIN validation
-|   ├── kenyan-location.vo.ts           # County/SubCounty/Ward/Village with validation
-|   ├── title-deed.vo.ts               # Kenyan title deed format validation
-|   ├── document-reference.vo.ts        # Legal document references
-|   ├── court-reference.vo.ts           # Court case/grant number validation
-|   ├── date-range.vo.ts               # Date ranges with business logic
-|   ├── address.vo.ts                  # Physical address with Kenyan specifics
-|   ├── phone-number.vo.ts             # Kenyan phone number validation
-|   ├── email.vo.ts                    # Email with custom Kenyan domain validation
-|   ├── gps-coordinates.vo.ts          # GPS coordinates validation
-|   ├── ownership-percentage.vo.ts     # Ownership share calculations
-|   ├── currency-conversion.vo.ts      # Forex conversions (KES to USD, etc.)
-|   └── kenyan-customary-law.vo.ts     # Customary law classification
+│   // =========================================================================
+│   // 🔵 OWNED BY WILL AGGREGATE (Instructions)
+│   // =========================================================================
+│   ├── codicil.entity.ts               # Amendments. Changes specific clauses without rewriting the Will.
+│   ├── executor-nomination.entity.ts   # "I nominate John". (Not yet an administrator).
+│   ├── will-witness.entity.ts          # "I saw him sign". (Validation).
+│   ├── beneficiary-assignment.entity.ts # The Link: "Give Asset A to Person B".
+│   └── disinheritance-record.entity.ts # "I leave nothing to X because...".
 │
-├── services/                       # DOMAIN SERVICES (Stateless business logic)
-│   ├── kenyan-intestacy-calculator.service.ts  # Pure S.35, 36, 38, 40 math
-│   ├── hotchpot-calculation.service.ts         # S.35(3) implementation
-│   ├── dependency-entitlement.service.ts       # S.29 implementation
-│   ├── will-legal-compliance.service.ts        # Validates against LSA
-│   └── asset-classification.service.ts         # Matrimonial vs. separate property
+├── services/
+│   // =========================================================================
+│   // 🧠 DOMAIN SERVICES (Pure Logic / The "Brain")
+│   // =========================================================================
+│   ├── distribution-calculator.service.ts 
+│   │   # The Engine. Takes Inventory + Instructions -> Outputs Shares.
+│   │   # Implements: S.35 (Intestate), S.40 (Polygamy), and Will Rules.
+│   │
+│   └── solvency-checker.service.ts
+│       # Checks if Estate has enough liquidity to pay S.45 priority debts.
 │
-├── policies/                       # BUSINESS RULES ENFORCEMENT
-│   ├── legal-policies/
-│   │   ├── section-7-policy.ts    # Testator capacity rules
-│   │   ├── section-11-policy.ts   # Undue influence detection
-│   │   ├── section-26-policy.ts   # Dependant provision
-│   │   ├── section-35-policy.ts   # Intestate distribution
-│   │   ├── section-40-policy.ts   # Polygamous succession
-│   │   └── section-45-policy.ts   # Debt priority (PLANNING version)
-│   ├── validation-policies/
-│   │   ├── will-execution-policy.ts
-│   │   ├── witness-eligibility-policy.ts
-│   │   └── asset-verification-policy.ts
+├── value-objects/
+│   // =========================================================================
+│   // 🧱 VALUE OBJECTS (Immutable Standards)
+│   // =========================================================================
+│   ├── money.vo.ts                     # Prevents floating-point math errors.
+│   ├── asset-type.vo.ts                # Enum: LAND, VEHICLE, etc.
+│   ├── debt-priority.vo.ts             # Enum: S.45(a), S.45(b), etc.
+│   ├── tax-status.vo.ts                # Enum: PENDING, CLEARED.
+│   ├── kenyan-county.vo.ts             # List of 47 Counties.
+│   └── succession-law-section.vo.ts    # Enum: S35, S40, S26.
 │
-└── repositories/                   # REPOSITORY INTERFACES
-    ├── estate-repository.interface.ts
-    ├── will-repository.interface.ts
-    ├── inheritance-calculation-repository.interface.ts
+└── read-models/
+    // =========================================================================
+    // 📸 READ MODELS (Snapshots for UI/Reporting)
+    // =========================================================================
+    ├── distribution-scenario.read-model.ts # A saved "What-If" calculation.
+    └── computed-share.read-model.ts        # The final result row: "Wanjiku gets 20%".

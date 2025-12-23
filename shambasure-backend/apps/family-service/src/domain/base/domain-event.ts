@@ -1,4 +1,4 @@
-// domain/base/domain-event.ts
+// domain/base/domain-event.ts (updated)
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -15,19 +15,27 @@ import { v4 as uuidv4 } from 'uuid';
  * - Every event has timestamp (statute of limitations)
  * - Events form chain of evidence for court disputes
  */
-export abstract class DomainEvent {
+export abstract class DomainEvent<T = any> {
   public readonly eventId: string;
   public readonly occurredAt: Date;
   public readonly aggregateId: string;
   public readonly aggregateType: string;
   public readonly version: number;
+  protected readonly payload: T;
 
-  constructor(aggregateId: string, aggregateType: string, version: number, occurredAt?: Date) {
+  constructor(
+    aggregateId: string,
+    aggregateType: string,
+    version: number,
+    payload: T,
+    occurredAt?: Date,
+  ) {
     this.eventId = uuidv4();
     this.occurredAt = occurredAt ?? new Date();
     this.aggregateId = aggregateId;
     this.aggregateType = aggregateType;
     this.version = version;
+    this.payload = payload;
   }
 
   /**
@@ -35,6 +43,13 @@ export abstract class DomainEvent {
    */
   public getEventType(): string {
     return this.constructor.name;
+  }
+
+  /**
+   * Get event payload
+   */
+  protected getPayload(): T {
+    return this.payload;
   }
 
   /**
@@ -51,11 +66,6 @@ export abstract class DomainEvent {
       payload: this.getPayload(),
     };
   }
-
-  /**
-   * Get event payload (override in concrete events)
-   */
-  protected abstract getPayload(): Record<string, any>;
 }
 
 /**
