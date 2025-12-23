@@ -1,546 +1,1108 @@
-// domain/entities/adoption-order.entity.ts
+// src/family-service/src/domain/entities/adoption-record.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
-import { InvalidRelationshipException } from '../exceptions/family.exception';
+import {
+  AdoptionBiologicalParentConsentEvent,
+  AdoptionFinalizedEvent,
+  AdoptionRevokedEvent,
+  AdoptionUpdatedEvent,
+} from '../events/family-events';
+import { KenyanLawSection } from '../value-objects/family-enums.vo';
 
 /**
- * AdoptionOrder Entity Props (Immutable)
+ * Adoption Record Entity
  *
- * Design: Legal adoption creates parent-child relationship
- * - Adopted children have FULL inheritance rights (Children Act 2022)
- * - Severs legal ties with biological parents
- * - Creates new legal family relationship
- *
- * Kenyan Law Context:
- * - Children Act 2022: Governs adoption process
- * - Court order required for legal adoption
- * - Customary adoption also recognized
- * - Inter-country adoption has special rules
- * - Adopted child = biological child for succession (S. 35 LSA)
- *
- * Types of Adoption:
- * 1. STATUTORY: Court-ordered under Children Act
- * 2. CUSTOMARY: Traditional adoption (recognized)
- * 3. INTER_COUNTRY: International adoption
- * 4. KINSHIP: Adoption by relative
+ * Innovations:
+ * 1. Multi-type adoption support (Statutory, Customary, International, Foster-to-Adopt)
+ * 2. Complete legal compliance with Children Act and Adoption Act
+ * 3. Biological parent tracking with consent management
+ * 4. Court order and social worker integration
+ * 5. Post-adoption monitoring and reporting
  */
-export interface AdoptionOrderProps {
-  // References
+export interface AdoptionRecordProps {
+  // Core Information
   familyId: UniqueEntityID;
-  adopteeId: UniqueEntityID; // Child being adopted
-  adopterId: UniqueEntityID; // Adoptive parent
+  adopteeId: UniqueEntityID; // The child being adopted
+  adoptiveParentId: UniqueEntityID; // Primary adoptive parent
 
-  // Adoption Type
-  adoptionType: 'STATUTORY' | 'CUSTOMARY' | 'INTER_COUNTRY' | 'KINSHIP';
+  // Adoption Details
+  adoptionType:
+    | 'STATUTORY'
+    | 'CUSTOMARY'
+    | 'INTERNATIONAL'
+    | 'KINSHIP'
+    | 'FOSTER_TO_ADOPT'
+    | 'STEP_PARENT'
+    | 'RELATIVE';
+  adoptionStatus: 'PENDING' | 'IN_PROGRESS' | 'FINALIZED' | 'REVOKED' | 'ANNULED' | 'APPEALED';
 
-  // Court Order (Statutory)
+  // Dates
+  applicationDate: Date;
+  hearingDate?: Date;
+  finalizationDate?: Date;
+  effectiveDate?: Date; // When adoption becomes legally effective
+
+  // Legal Framework
+  legalBasis: KenyanLawSection[]; // Usually S. 154-165 Children Act
   courtOrderNumber?: string;
-  courtStation?: string;
-  adoptionDate: Date;
-  registrationDate?: Date;
+  courtStation: string;
+  presidingJudge?: string;
 
-  // Consents Required
-  hasConsents: AdoptionConsents;
-  consentDocuments: string[]; // Document IDs
+  // Biological Parents
+  biologicalMotherId?: UniqueEntityID;
+  biologicalFatherId?: UniqueEntityID;
+  parentalConsentStatus: {
+    mother: 'CONSENTED' | 'WITHHELD' | 'UNKNOWN' | 'DECEASED' | 'TERMINATED';
+    father: 'CONSENTED' | 'WITHHELD' | 'UNKNOWN' | 'DECEASED' | 'TERMINATED';
+  };
+  consentDocuments: string[]; // Consent affidavits, relinquishment forms
 
-  // Child Welfare Assessment
-  childWelfareReportId?: UniqueEntityID;
-  suitabilityReportId?: UniqueEntityID;
-  socialWorkerName?: string;
-  socialWorkerLicenseNumber?: string;
+  // Social Welfare
+  socialWorkerId?: string;
+  socialWorkerReportId?: string;
+  homeStudyReportId?: string;
+  postAdoptionMonitoring: boolean;
+  monitoringPeriodMonths: number;
 
-  // Adoption Agreement
-  adoptionAgreementSigned: boolean;
-  adoptionAgreementDate?: Date;
+  // Adoption Agency (if applicable)
+  adoptionAgencyId?: string;
+  agencySocialWorker?: string;
+  agencyApprovalNumber?: string;
 
-  // Customary Adoption Details
-  customaryDetails?: CustomaryAdoptionDetails;
-
-  // Inter-Country Adoption Details
-  interCountryDetails?: InterCountryAdoptionDetails;
-
-  // Legal Effects
-  seversbiologicalTies: boolean;
-  createsNewLegalRelationship: boolean;
-  inheritanceRights: 'FULL' | 'PARTIAL';
-
-  // Post-Adoption
-  postAdoptionSupportRequired: boolean;
-  followUpSchedule?: FollowUpSchedule;
-}
-
-/**
- * Adoption Consents
- * All required consents must be obtained
- */
-export interface AdoptionConsents {
-  biologicalParents: boolean; // Birth parents consent
-  spouse: boolean; // Adopter's spouse consent (if married)
-  adoptee: boolean; // Child's consent (if over 14)
-  guardian: boolean; // Legal guardian consent
-  childrenOfficer: boolean; // Children's Officer approval
-}
-
-/**
- * Customary Adoption Details
- */
-export interface CustomaryAdoptionDetails {
-  ethnicGroup: string;
-  customaryProcedure: string;
-  elderApproval: boolean;
-  elderNames: string[];
-  ceremonyDate: Date;
-  ceremonyLocation: string;
-  witnessCount: number;
-}
-
-/**
- * Inter-Country Adoption Details
- */
-export interface InterCountryAdoptionDetails {
-  originCountry: string;
-  destinationCountry: string;
+  // International Adoption Specific
+  receivingCountry?: string;
+  sendingCountry?: string;
   hagueConventionCompliant: boolean;
-  centralAuthorityApproval: boolean;
-  homeStudyCompleted: boolean;
-  immigrationClearance: boolean;
+  immigrationDocumentId?: string;
+
+  // Customary Adoption Specific
+  clanInvolved: boolean;
+  clanElders: string[];
+  customaryRitesPerformed: string[];
+  bridePriceConsideration?: boolean; // For adult adoption in some cultures
+
+  // Financial Aspects
+  adoptionExpenses: number;
+  governmentFeesPaid: boolean;
+  legalFeesPaid: boolean;
+  subsidyReceived: boolean;
+  subsidyAmount?: number;
+
+  // Child Information at Adoption
+  childAgeAtAdoption: number; // In months
+  childSpecialNeeds: boolean;
+  specialNeedsDescription?: string;
+  medicalHistoryProvided: boolean;
+
+  // Sibling Groups
+  siblingGroupAdoption: boolean;
+  siblingAdoptionRecordIds: UniqueEntityID[]; // Other adoption records for siblings
+
+  // Previous Care
+  previousCareArrangement: 'ORPHANAGE' | 'FOSTER_CARE' | 'RELATIVE_CARE' | 'STREET' | 'INSTITUTION';
+  timeInPreviousCareMonths: number;
+
+  // Post-Adointment Contact
+  openAdoption: boolean; // Contact with biological family maintained
+  contactAgreement?: string; // Terms of contact
+  visitationSchedule?: string;
+
+  // Inheritance Rights
+  inheritanceRightsEstablished: boolean;
+  inheritanceDocumentId?: string;
+
+  // Citizenship & Documentation
+  newBirthCertificateIssued: boolean;
+  newBirthCertificateNumber?: string;
+  passportIssued: boolean;
+  passportNumber?: string;
+
+  // Appeals and Challenges
+  appealFiled: boolean;
+  appealCaseNumber?: string;
+  challengePeriodExpired: boolean; // Usually 30 days after finalization
+
+  // Verification
+  verificationStatus: 'UNVERIFIED' | 'PENDING_VERIFICATION' | 'VERIFIED' | 'DISPUTED';
+  verificationNotes?: string;
+  verifiedBy?: UniqueEntityID;
+  lastVerifiedAt?: Date;
+
+  // Metadata
+  createdBy: UniqueEntityID;
+  lastUpdatedBy: UniqueEntityID;
+  isArchived: boolean;
 }
 
-/**
- * Follow-Up Schedule
- */
-export interface FollowUpSchedule {
-  sixMonthVisit?: Date;
-  oneYearVisit?: Date;
-  twoYearVisit?: Date;
-  lastVisitDate?: Date;
-  nextVisitDue?: Date;
-}
+export class AdoptionRecord extends Entity<AdoptionRecordProps> {
+  private static readonly CHALLENGE_PERIOD_DAYS = 30;
 
-/**
- * Factory Props
- */
-export interface CreateAdoptionOrderProps {
-  familyId: string;
-  adopteeId: string;
-  adopterId: string;
-  adoptionType: 'STATUTORY' | 'CUSTOMARY' | 'INTER_COUNTRY' | 'KINSHIP';
-  adoptionDate: Date;
-
-  // Court Order
-  courtOrderNumber?: string;
-  courtStation?: string;
-  registrationDate?: Date;
-
-  // Consents
-  biologicalParentsConsent: boolean;
-  spouseConsent?: boolean;
-  adopteeConsent?: boolean;
-  guardianConsent?: boolean;
-  childrenOfficerApproval?: boolean;
-  consentDocuments: string[];
-
-  // Reports
-  childWelfareReportId?: string;
-  suitabilityReportId?: string;
-  socialWorkerName?: string;
-  socialWorkerLicenseNumber?: string;
-
-  // Customary
-  customaryDetails?: {
-    ethnicGroup: string;
-    customaryProcedure: string;
-    elderApproval: boolean;
-    elderNames: string[];
-    ceremonyDate: Date;
-    ceremonyLocation: string;
-    witnessCount: number;
-  };
-
-  // Inter-Country
-  interCountryDetails?: {
-    originCountry: string;
-    destinationCountry: string;
-    hagueConventionCompliant: boolean;
-    centralAuthorityApproval: boolean;
-    homeStudyCompleted: boolean;
-    immigrationClearance: boolean;
-  };
-
-  // Legal Effects
-  seversbiologicalTies?: boolean;
-  postAdoptionSupportRequired?: boolean;
-}
-
-/**
- * AdoptionOrder Entity
- *
- * Represents legal adoption creating parent-child relationship.
- * Critical for inheritance rights under S. 35 LSA.
- *
- * Children Act 2022 Requirements:
- * 1. Best interest of child paramount
- * 2. Court approval required (statutory)
- * 3. Biological parents' consent (unless rights terminated)
- * 4. Home study assessment
- * 5. Post-adoption follow-up
- *
- * Succession Implications:
- * - Adopted child = biological child (full rights)
- * - Severs inheritance from biological parents
- * - Creates inheritance rights from adoptive parents
- * - Affects S. 35/36 LSA calculations
- */
-export class AdoptionOrder extends Entity<AdoptionOrderProps> {
-  private constructor(id: UniqueEntityID, props: AdoptionOrderProps, createdAt?: Date) {
-    super(id, props, createdAt);
-    this.validate();
+  private constructor(props: AdoptionRecordProps, id?: UniqueEntityID, createdAt?: Date) {
+    super(id || new UniqueEntityID(), props, createdAt);
   }
 
-  // =========================================================================
-  // FACTORY METHODS
-  // =========================================================================
+  /**
+   * Factory method to create a new Adoption Record
+   */
+  public static create(props: AdoptionRecordProps, id?: UniqueEntityID): AdoptionRecord {
+    // Validate creation invariants
+    AdoptionRecord.validateCreation(props);
 
-  public static create(props: CreateAdoptionOrderProps): AdoptionOrder {
-    const id = new UniqueEntityID();
-    const now = new Date();
+    const record = new AdoptionRecord(props, id);
 
-    const hasConsents: AdoptionConsents = {
-      biologicalParents: props.biologicalParentsConsent,
-      spouse: props.spouseConsent ?? false,
-      adoptee: props.adopteeConsent ?? false,
-      guardian: props.guardianConsent ?? false,
-      childrenOfficer: props.childrenOfficerApproval ?? false,
-    };
+    // Calculate child age at adoption
+    if (!props.childAgeAtAdoption) {
+      // Would need child's birth date from FamilyMember
+    }
 
-    // Statutory adoption severs biological ties
-    const seversbiologicalTies =
-      props.seversbiologicalTies ??
-      (props.adoptionType === 'STATUTORY' || props.adoptionType === 'INTER_COUNTRY');
+    // Record creation event
+    record.addDomainEvent({
+      eventId: new UniqueEntityID().toString(),
+      occurredAt: new Date(),
+      aggregateId: record.id.toString(),
+      aggregateType: 'AdoptionRecord',
+      version: record.version,
+      payload: {
+        action: 'ADOPTION_RECORD_CREATED',
+        adopteeId: record.props.adopteeId.toString(),
+        adoptiveParentId: record.props.adoptiveParentId.toString(),
+        adoptionType: record.props.adoptionType,
+        createdBy: record.props.createdBy.toString(),
+      },
+    } as any);
 
-    const orderProps: AdoptionOrderProps = {
-      familyId: new UniqueEntityID(props.familyId),
-      adopteeId: new UniqueEntityID(props.adopteeId),
-      adopterId: new UniqueEntityID(props.adopterId),
-      adoptionType: props.adoptionType,
-      adoptionDate: props.adoptionDate,
-      registrationDate: props.registrationDate,
-
-      // Court Order
-      courtOrderNumber: props.courtOrderNumber,
-      courtStation: props.courtStation,
-
-      // Consents
-      hasConsents,
-      consentDocuments: props.consentDocuments,
-
-      // Reports
-      childWelfareReportId: props.childWelfareReportId
-        ? new UniqueEntityID(props.childWelfareReportId)
-        : undefined,
-      suitabilityReportId: props.suitabilityReportId
-        ? new UniqueEntityID(props.suitabilityReportId)
-        : undefined,
-      socialWorkerName: props.socialWorkerName,
-      socialWorkerLicenseNumber: props.socialWorkerLicenseNumber,
-
-      // Agreement
-      adoptionAgreementSigned: false,
-
-      // Type-Specific Details
-      customaryDetails: props.customaryDetails,
-      interCountryDetails: props.interCountryDetails,
-
-      // Legal Effects
-      seversbiologicalTies,
-      createsNewLegalRelationship: true,
-      inheritanceRights: 'FULL',
-
-      // Post-Adoption
-      postAdoptionSupportRequired: props.postAdoptionSupportRequired ?? true,
-    };
-
-    return new AdoptionOrder(id, orderProps, now);
+    return record;
   }
 
-  public static fromPersistence(
-    id: string,
-    props: AdoptionOrderProps,
+  /**
+   * Restore from persistence
+   */
+  public static restore(
+    props: AdoptionRecordProps,
+    id: UniqueEntityID,
     createdAt: Date,
-    updatedAt?: Date,
-  ): AdoptionOrder {
-    const entityId = new UniqueEntityID(id);
-    const order = new AdoptionOrder(entityId, props, createdAt);
-
-    if (updatedAt) {
-      (order as any)._updatedAt = updatedAt;
-    }
-
-    return order;
+  ): AdoptionRecord {
+    return new AdoptionRecord(props, id, createdAt);
   }
 
-  // =========================================================================
-  // VALIDATION
-  // =========================================================================
+  /**
+   * Update adoption information
+   */
+  public updateInformation(updates: Partial<AdoptionRecordProps>, updatedBy: UniqueEntityID): void {
+    this.ensureNotArchived();
+    this.ensureNotFinalized(); // Can't update after finalization without court order
 
-  public validate(): void {
-    // Cannot adopt self
-    if (this.props.adopteeId.equals(this.props.adopterId)) {
-      throw new InvalidRelationshipException('Cannot adopt oneself');
-    }
+    const changes: Record<string, any> = {};
 
-    // Adoption date cannot be future
-    if (this.props.adoptionDate > new Date()) {
-      throw new InvalidRelationshipException('Adoption date cannot be in the future');
-    }
+    // Validate updates
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined) {
+        const oldValue = (this.props as any)[key];
 
-    // Statutory adoption requires court order
-    if (this.props.adoptionType === 'STATUTORY' && !this.props.courtOrderNumber) {
-      console.warn('Statutory adoption should have court order number');
-    }
+        // Skip if no change
+        if (JSON.stringify(oldValue) === JSON.stringify(value)) return;
 
-    // Inter-country adoption requires special details
-    if (this.props.adoptionType === 'INTER_COUNTRY' && !this.props.interCountryDetails) {
-      console.warn('Inter-country adoption should have inter-country details');
-    }
+        // Apply update
+        (this.props as any)[key] = value;
+        changes[key] = { old: oldValue, new: value };
+      }
+    });
 
-    // Customary adoption requires customary details
-    if (this.props.adoptionType === 'CUSTOMARY' && !this.props.customaryDetails) {
-      console.warn('Customary adoption should have customary details');
-    }
+    if (Object.keys(changes).length > 0) {
+      this.props.lastUpdatedBy = updatedBy;
 
-    // Must have biological parents consent (unless rights terminated)
-    if (!this.props.hasConsents.biologicalParents && this.props.adoptionType !== 'CUSTOMARY') {
-      console.warn('Statutory adoption typically requires biological parents consent');
-    }
-  }
-
-  // =========================================================================
-  // BUSINESS LOGIC
-  // =========================================================================
-
-  public signAdoptionAgreement(signatureDate: Date): AdoptionOrder {
-    this.ensureNotDeleted();
-
-    if (this.props.adoptionAgreementSigned) {
-      return this; // Already signed
-    }
-
-    const newProps: AdoptionOrderProps = {
-      ...this.props,
-      adoptionAgreementSigned: true,
-      adoptionAgreementDate: signatureDate,
-    };
-
-    return new AdoptionOrder(this._id, newProps, this._createdAt);
-  }
-
-  public scheduleFollowUp(schedule: FollowUpSchedule): AdoptionOrder {
-    this.ensureNotDeleted();
-
-    const newProps: AdoptionOrderProps = {
-      ...this.props,
-      followUpSchedule: schedule,
-    };
-
-    return new AdoptionOrder(this._id, newProps, this._createdAt);
-  }
-
-  public recordFollowUpVisit(visitDate: Date, nextVisitDue: Date): AdoptionOrder {
-    this.ensureNotDeleted();
-
-    const updatedSchedule: FollowUpSchedule = {
-      ...this.props.followUpSchedule,
-      lastVisitDate: visitDate,
-      nextVisitDue: nextVisitDue,
-    };
-
-    const newProps: AdoptionOrderProps = {
-      ...this.props,
-      followUpSchedule: updatedSchedule,
-    };
-
-    return new AdoptionOrder(this._id, newProps, this._createdAt);
-  }
-
-  public addConsentDocument(documentId: string): AdoptionOrder {
-    this.ensureNotDeleted();
-
-    const newProps: AdoptionOrderProps = {
-      ...this.props,
-      consentDocuments: [...this.props.consentDocuments, documentId],
-    };
-
-    return new AdoptionOrder(this._id, newProps, this._createdAt);
-  }
-
-  public updateConsents(consents: Partial<AdoptionConsents>): AdoptionOrder {
-    this.ensureNotDeleted();
-
-    const newConsents: AdoptionConsents = {
-      ...this.props.hasConsents,
-      ...consents,
-    };
-
-    const newProps: AdoptionOrderProps = {
-      ...this.props,
-      hasConsents: newConsents,
-    };
-
-    return new AdoptionOrder(this._id, newProps, this._createdAt);
-  }
-
-  // =========================================================================
-  // GETTERS
-  // =========================================================================
-
-  get familyId(): UniqueEntityID {
-    return this.props.familyId;
-  }
-
-  get adopteeId(): UniqueEntityID {
-    return this.props.adopteeId;
-  }
-
-  get adopterId(): UniqueEntityID {
-    return this.props.adopterId;
-  }
-
-  get adoptionType(): string {
-    return this.props.adoptionType;
-  }
-
-  get adoptionDate(): Date {
-    return this.props.adoptionDate;
-  }
-
-  get courtOrderNumber(): string | undefined {
-    return this.props.courtOrderNumber;
-  }
-
-  get hasConsents(): AdoptionConsents {
-    return this.props.hasConsents;
-  }
-
-  get seversbiologicalTies(): boolean {
-    return this.props.seversbiologicalTies;
-  }
-
-  get inheritanceRights(): 'FULL' | 'PARTIAL' {
-    return this.props.inheritanceRights;
-  }
-
-  get adoptionAgreementSigned(): boolean {
-    return this.props.adoptionAgreementSigned;
-  }
-
-  // =========================================================================
-  // COMPUTED PROPERTIES
-  // =========================================================================
-
-  get isStatutory(): boolean {
-    return this.props.adoptionType === 'STATUTORY';
-  }
-
-  get isCustomary(): boolean {
-    return this.props.adoptionType === 'CUSTOMARY';
-  }
-
-  get isInterCountry(): boolean {
-    return this.props.adoptionType === 'INTER_COUNTRY';
-  }
-
-  get isKinship(): boolean {
-    return this.props.adoptionType === 'KINSHIP';
-  }
-
-  get hasAllRequiredConsents(): boolean {
-    const consents = this.props.hasConsents;
-
-    // Statutory requires all consents
-    if (this.isStatutory) {
-      return (
-        consents.biologicalParents && consents.childrenOfficer && (consents.guardian || true) // Guardian if applicable
+      this.addDomainEvent(
+        new AdoptionUpdatedEvent({
+          recordId: this.id.toString(),
+          changes,
+          updatedBy: updatedBy.toString(),
+          timestamp: new Date(),
+        }),
       );
     }
-
-    // Customary requires elder approval
-    if (this.isCustomary) {
-      return !!this.props.customaryDetails?.elderApproval;
-    }
-
-    // Inter-country requires central authority
-    if (this.isInterCountry) {
-      return (
-        consents.biologicalParents &&
-        consents.childrenOfficer &&
-        (this.props.interCountryDetails?.centralAuthorityApproval ?? false)
-      );
-    }
-
-    return consents.biologicalParents;
   }
 
-  get isLegallyValid(): boolean {
-    return (
-      this.hasAllRequiredConsents &&
-      (this.props.courtOrderNumber !== undefined || this.isCustomary) &&
-      this.props.adoptionDate <= new Date()
+  /**
+   * Finalize adoption (court order received)
+   */
+  public finalizeAdoption(
+    finalizationDate: Date,
+    courtOrderNumber: string,
+    courtDetails: {
+      courtStation: string;
+      judgeName: string;
+      caseNumber: string;
+    },
+    finalizedBy: UniqueEntityID,
+  ): void {
+    this.ensureNotArchived();
+
+    if (this.props.adoptionStatus === 'FINALIZED') {
+      throw new Error('Adoption already finalized');
+    }
+
+    if (finalizationDate < this.props.applicationDate) {
+      throw new Error('Finalization date cannot be before application date');
+    }
+
+    // Validate all requirements met based on adoption type
+    this.validateFinalizationRequirements();
+
+    const previousStatus = this.props.adoptionStatus;
+    this.props.adoptionStatus = 'FINALIZED';
+    this.props.finalizationDate = finalizationDate;
+    this.props.effectiveDate = finalizationDate;
+    this.props.courtOrderNumber = courtOrderNumber;
+    this.props.courtStation = courtDetails.courtStation;
+    this.props.presidingJudge = courtDetails.judgeName;
+    this.props.challengePeriodExpired = false; // Starts now
+    this.props.lastUpdatedBy = finalizedBy;
+
+    // Record finalization event
+    this.addDomainEvent(
+      new AdoptionFinalizedEvent({
+        recordId: this.id.toString(),
+        adopteeId: this.props.adopteeId.toString(),
+        adoptiveParentId: this.props.adoptiveParentId.toString(),
+        finalizationDate,
+        courtOrderNumber,
+        previousStatus,
+        finalizedBy: finalizedBy.toString(),
+        timestamp: new Date(),
+      }),
     );
   }
 
-  get requiresFollowUp(): boolean {
-    return this.props.postAdoptionSupportRequired;
+  /**
+   * Record biological parent consent
+   */
+  public recordBiologicalParentConsent(
+    parentType: 'MOTHER' | 'FATHER',
+    consentStatus: 'CONSENTED' | 'WITHHELD' | 'TERMINATED',
+    consentDocumentId: string,
+    consentDate: Date,
+    recordedBy: UniqueEntityID,
+  ): void {
+    this.ensureNotArchived();
+    this.ensureNotFinalized();
+
+    // Update consent status
+    if (parentType === 'MOTHER') {
+      this.props.parentalConsentStatus.mother = consentStatus;
+    } else {
+      this.props.parentalConsentStatus.father = consentStatus;
+    }
+
+    // Add consent document
+    this.props.consentDocuments.push(consentDocumentId);
+    this.props.lastUpdatedBy = recordedBy;
+
+    // Record consent event
+    this.addDomainEvent(
+      new AdoptionBiologicalParentConsentEvent({
+        recordId: this.id.toString(),
+        adopteeId: this.props.adopteeId.toString(),
+        parentType,
+        consentStatus,
+        consentDocumentId,
+        recordedBy: recordedBy.toString(),
+        timestamp: new Date(),
+      }),
+    );
   }
 
-  get isFollowUpOverdue(): boolean {
-    if (!this.props.followUpSchedule?.nextVisitDue) return false;
+  /**
+   * Revoke adoption (rare, but possible)
+   */
+  public revokeAdoption(
+    revocationDate: Date,
+    reason: 'FRAUD' | 'COERCION' | 'BEST_INTERESTS' | 'PARENTAL_RECLAMATION' | 'OTHER',
+    courtOrderId: string,
+    courtDetails: {
+      caseNumber: string;
+      judgeName: string;
+      revocationGrounds: string[];
+    },
+    revokedBy: UniqueEntityID,
+  ): void {
+    if (this.props.adoptionStatus !== 'FINALIZED') {
+      throw new Error('Only finalized adoptions can be revoked');
+    }
 
-    return this.props.followUpSchedule.nextVisitDue < new Date();
+    if (!this.props.challengePeriodExpired) {
+      throw new Error('Adoption still within challenge period, use appeal instead');
+    }
+
+    const previousStatus = this.props.adoptionStatus;
+    this.props.adoptionStatus = 'REVOKED';
+    this.props.verificationStatus = 'DISPUTED';
+    this.props.lastUpdatedBy = revokedBy;
+
+    // Record revocation event
+    this.addDomainEvent(
+      new AdoptionRevokedEvent({
+        recordId: this.id.toString(),
+        adopteeId: this.props.adopteeId.toString(),
+        adoptiveParentId: this.props.adoptiveParentId.toString(),
+        revocationDate,
+        reason,
+        courtOrderId,
+        previousStatus,
+        revokedBy: revokedBy.toString(),
+        timestamp: new Date(),
+      }),
+    );
   }
 
-  // =========================================================================
-  // SERIALIZATION
-  // =========================================================================
+  /**
+   * File appeal against adoption
+   */
+  public fileAppeal(
+    appealDate: Date,
+    appellant: 'BIOLOGICAL_PARENT' | 'ADOPTEE' | 'SOCIAL_WORKER' | 'OTHER',
+    grounds: string[],
+    courtCaseNumber: string,
+    filedBy: UniqueEntityID,
+  ): void {
+    if (this.props.adoptionStatus !== 'FINALIZED') {
+      throw new Error('Only finalized adoptions can be appealed');
+    }
 
-  public toPlainObject(): Record<string, any> {
+    if (this.props.challengePeriodExpired) {
+      throw new Error('Challenge period has expired, cannot file appeal');
+    }
+
+    this.props.appealFiled = true;
+    this.props.appealCaseNumber = courtCaseNumber;
+    this.props.adoptionStatus = 'APPEALED';
+    this.props.lastUpdatedBy = filedBy;
+  }
+
+  /**
+   * Update post-adoption monitoring
+   */
+  public updatePostAdoptionMonitoring(
+    reportId: string,
+    reportDate: Date,
+    findings: {
+      childWellBeing: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR';
+      familyAdjustment: 'SMOOTH' | 'CHALLENGING' | 'DIFFICULT';
+      recommendations?: string[];
+    },
+    reportedBy: UniqueEntityID,
+  ): void {
+    if (!this.props.postAdoptionMonitoring) {
+      throw new Error('Post-adoption monitoring not required for this adoption');
+    }
+
+    if (this.props.adoptionStatus !== 'FINALIZED') {
+      throw new Error('Only finalized adoptions have post-adoption monitoring');
+    }
+
+    // Calculate months since adoption
+    const monthsSinceAdoption = this.calculateMonthsSinceAdoption();
+
+    if (monthsSinceAdoption > this.props.monitoringPeriodMonths) {
+      throw new Error('Monitoring period has ended');
+    }
+
+    // Update monitoring record
+    // In practice, would create a separate monitoring entity
+    this.props.lastUpdatedBy = reportedBy;
+  }
+
+  /**
+   * Issue new birth certificate
+   */
+  public issueNewBirthCertificate(
+    certificateNumber: string,
+    issueDate: Date,
+    issuingAuthority: string,
+    issuedBy: UniqueEntityID,
+  ): void {
+    if (this.props.adoptionStatus !== 'FINALIZED') {
+      throw new Error('Cannot issue birth certificate for non-finalized adoption');
+    }
+
+    this.props.newBirthCertificateIssued = true;
+    this.props.newBirthCertificateNumber = certificateNumber;
+    this.props.lastUpdatedBy = issuedBy;
+  }
+
+  /**
+   * Check if adoption is legally valid
+   */
+  public isLegallyValid(): boolean {
+    return (
+      this.props.adoptionStatus === 'FINALIZED' &&
+      this.props.courtOrderNumber !== undefined &&
+      this.props.challengePeriodExpired &&
+      !this.props.appealFiled
+    );
+  }
+
+  /**
+   * Get adoption completeness score (0-100)
+   */
+  public calculateCompletenessScore(): number {
+    let score = 0;
+
+    // Documentation (max 30)
+    if (this.props.courtOrderNumber) score += 15;
+    if (this.props.consentDocuments.length >= 2) score += 10;
+    if (this.props.socialWorkerReportId) score += 5;
+
+    // Legal status (max 30)
+    if (this.props.adoptionStatus === 'FINALIZED') score += 30;
+    else if (this.props.adoptionStatus === 'IN_PROGRESS') score += 20;
+    else if (this.props.adoptionStatus === 'PENDING') score += 10;
+
+    // Parental consent (max 20)
+    if (this.props.parentalConsentStatus.mother === 'CONSENTED') score += 10;
+    if (this.props.parentalConsentStatus.father === 'CONSENTED') score += 10;
+
+    // Child documentation (max 20)
+    if (this.props.newBirthCertificateIssued) score += 10;
+    if (this.props.medicalHistoryProvided) score += 5;
+    if (this.props.childSpecialNeeds && this.props.specialNeedsDescription) score += 5;
+
+    return Math.min(score, 100);
+  }
+
+  /**
+   * Get adoption type specific requirements
+   */
+  public getTypeSpecificRequirements(): string[] {
+    const requirements: string[] = [];
+
+    switch (this.props.adoptionType) {
+      case 'STATUTORY':
+        requirements.push("Court order from Children's Court");
+        requirements.push('Social worker home study report');
+        requirements.push(
+          'Consent from biological parents or court termination of parental rights',
+        );
+        requirements.push('Medical examination of child');
+        break;
+
+      case 'CUSTOMARY':
+        requirements.push('Clan elder approval');
+        requirements.push('Customary rites performed');
+        requirements.push('Community acknowledgment');
+        if (this.props.bridePriceConsideration) {
+          requirements.push('Bride price consideration documented');
+        }
+        break;
+
+      case 'INTERNATIONAL':
+        requirements.push('Hague Convention compliance certificate');
+        requirements.push('Approval from Adoption Society of Kenya');
+        requirements.push('Immigration clearance');
+        requirements.push('Home country approval');
+        break;
+
+      case 'KINSHIP':
+        requirements.push('Proof of kinship relationship');
+        requirements.push('Social worker assessment');
+        requirements.push('Family council approval');
+        break;
+
+      case 'FOSTER_TO_ADOPT':
+        requirements.push('Minimum 6-month foster care period');
+        requirements.push('Foster care assessment reports');
+        requirements.push('Transition plan');
+        break;
+
+      case 'STEP_PARENT':
+        requirements.push('Marriage certificate of step-parent');
+        requirements.push('Consent from biological parent if applicable');
+        requirements.push('Home study report');
+        break;
+
+      case 'RELATIVE':
+        requirements.push('Proof of relative relationship');
+        requirements.push('Family agreement document');
+        requirements.push('Social worker recommendation');
+        break;
+    }
+
+    return requirements;
+  }
+
+  /**
+   * Check if requirements are met for finalization
+   */
+  public validateFinalizationRequirements(): void {
+    const requirements = this.getTypeSpecificRequirements();
+    const missingRequirements: string[] = [];
+
+    // Check court order for statutory adoptions
+    if (this.props.adoptionType === 'STATUTORY' && !this.props.courtOrderNumber) {
+      missingRequirements.push('Missing court order');
+    }
+
+    // Check parental consent
+    if (
+      this.props.parentalConsentStatus.mother === 'WITHHELD' ||
+      this.props.parentalConsentStatus.father === 'WITHHELD'
+    ) {
+      missingRequirements.push('Parental consent withheld');
+    }
+
+    // Check social worker report for statutory adoptions
+    if (this.props.adoptionType === 'STATUTORY' && !this.props.socialWorkerReportId) {
+      missingRequirements.push('Missing social worker report');
+    }
+
+    // Check clan involvement for customary adoptions
+    if (this.props.adoptionType === 'CUSTOMARY' && !this.props.clanInvolved) {
+      missingRequirements.push('Clan not involved in customary adoption');
+    }
+
+    // Check Hague compliance for international adoptions
+    if (this.props.adoptionType === 'INTERNATIONAL' && !this.props.hagueConventionCompliant) {
+      missingRequirements.push('Not Hague Convention compliant');
+    }
+
+    if (missingRequirements.length > 0) {
+      throw new Error(
+        `Cannot finalize adoption. Missing requirements: ${missingRequirements.join(', ')}`,
+      );
+    }
+  }
+
+  /**
+   * Calculate months since adoption finalization
+   */
+  private calculateMonthsSinceAdoption(): number {
+    if (!this.props.finalizationDate) return 0;
+
+    const today = new Date();
+    const finalizationDate = new Date(this.props.finalizationDate);
+
+    let months = (today.getFullYear() - finalizationDate.getFullYear()) * 12;
+    months += today.getMonth() - finalizationDate.getMonth();
+
+    if (today.getDate() < finalizationDate.getDate()) {
+      months--;
+    }
+
+    return Math.max(months, 0);
+  }
+
+  /**
+   * Check if challenge period has expired
+   */
+  public updateChallengePeriod(): void {
+    if (!this.props.finalizationDate || this.props.challengePeriodExpired) {
+      return;
+    }
+
+    const challengeEndDate = new Date(this.props.finalizationDate);
+    challengeEndDate.setDate(challengeEndDate.getDate() + AdoptionRecord.CHALLENGE_PERIOD_DAYS);
+
+    if (new Date() > challengeEndDate) {
+      this.props.challengePeriodExpired = true;
+    }
+  }
+
+  /**
+   * Validate creation invariants
+   */
+  private static validateCreation(props: AdoptionRecordProps): void {
+    // Adoptee and adoptive parent cannot be the same
+    if (props.adopteeId.equals(props.adoptiveParentId)) {
+      throw new Error('Adoptee and adoptive parent cannot be the same person');
+    }
+
+    // Application date cannot be in future
+    if (props.applicationDate > new Date()) {
+      throw new Error('Application date cannot be in the future');
+    }
+
+    // Finalization date must be after application date if provided
+    if (props.finalizationDate && props.finalizationDate < props.applicationDate) {
+      throw new Error('Finalization date cannot be before application date');
+    }
+
+    // Hearing date must be after application date if provided
+    if (props.hearingDate && props.hearingDate < props.applicationDate) {
+      throw new Error('Hearing date cannot be before application date');
+    }
+
+    // Child age must be reasonable (0-18 years)
+    if (props.childAgeAtAdoption < 0 || props.childAgeAtAdoption > 216) {
+      // 18 years in months
+      throw new Error('Child age at adoption must be between 0 and 216 months (18 years)');
+    }
+
+    // Monitoring period must be reasonable (0-24 months)
+    if (props.monitoringPeriodMonths < 0 || props.monitoringPeriodMonths > 24) {
+      throw new Error('Monitoring period must be between 0 and 24 months');
+    }
+
+    // Adoption expenses must be positive
+    if (props.adoptionExpenses < 0) {
+      throw new Error('Adoption expenses cannot be negative');
+    }
+
+    // Time in previous care must be reasonable
+    if (props.timeInPreviousCareMonths < 0 || props.timeInPreviousCareMonths > 240) {
+      // 20 years
+      throw new Error('Time in previous care must be between 0 and 240 months (20 years)');
+    }
+  }
+
+  private ensureNotArchived(): void {
+    if (this.props.isArchived) {
+      throw new Error(`Cannot modify archived adoption record: ${this.id.toString()}`);
+    }
+  }
+
+  private ensureNotFinalized(): void {
+    if (this.props.adoptionStatus === 'FINALIZED') {
+      throw new Error(`Cannot modify finalized adoption record: ${this.id.toString()}`);
+    }
+  }
+
+  /**
+   * Archive adoption record (soft delete)
+   */
+  public archive(reason: string, archivedBy: UniqueEntityID): void {
+    if (this.props.isArchived) {
+      throw new Error('Adoption record is already archived');
+    }
+
+    this.props.isArchived = true;
+    this.props.lastUpdatedBy = archivedBy;
+    this.props.verificationNotes = `${this.props.verificationNotes || ''}\nArchived: ${reason}`;
+  }
+
+  /**
+   * Restore from archive
+   */
+  public restoreFromArchive(restoredBy: UniqueEntityID): void {
+    if (!this.props.isArchived) {
+      throw new Error('Adoption record is not archived');
+    }
+
+    this.props.isArchived = false;
+    this.props.lastUpdatedBy = restoredBy;
+  }
+
+  /**
+   * Get adoption summary for display
+   */
+  public getSummary(): Record<string, any> {
+    const completenessScore = this.calculateCompletenessScore();
+
     return {
-      id: this._id.toString(),
-      familyId: this.props.familyId.toString(),
+      id: this.id.toString(),
       adopteeId: this.props.adopteeId.toString(),
-      adopterId: this.props.adopterId.toString(),
+      adoptiveParentId: this.props.adoptiveParentId.toString(),
       adoptionType: this.props.adoptionType,
-      courtOrderNumber: this.props.courtOrderNumber,
-      courtStation: this.props.courtStation,
-      adoptionDate: this.props.adoptionDate,
-      registrationDate: this.props.registrationDate,
-      hasConsents: this.props.hasConsents,
-      consentDocuments: this.props.consentDocuments,
-      childWelfareReportId: this.props.childWelfareReportId?.toString(),
-      suitabilityReportId: this.props.suitabilityReportId?.toString(),
-      socialWorkerName: this.props.socialWorkerName,
-      socialWorkerLicenseNumber: this.props.socialWorkerLicenseNumber,
-      adoptionAgreementSigned: this.props.adoptionAgreementSigned,
-      adoptionAgreementDate: this.props.adoptionAgreementDate,
-      customaryDetails: this.props.customaryDetails,
-      interCountryDetails: this.props.interCountryDetails,
-      seversbiologicalTies: this.props.seversbiologicalTies,
-      createsNewLegalRelationship: this.props.createsNewLegalRelationship,
-      inheritanceRights: this.props.inheritanceRights,
-      postAdoptionSupportRequired: this.props.postAdoptionSupportRequired,
-      followUpSchedule: this.props.followUpSchedule,
-      isStatutory: this.isStatutory,
-      isCustomary: this.isCustomary,
-      isInterCountry: this.isInterCountry,
-      isKinship: this.isKinship,
-      hasAllRequiredConsents: this.hasAllRequiredConsents,
-      isLegallyValid: this.isLegallyValid,
-      requiresFollowUp: this.requiresFollowUp,
-      isFollowUpOverdue: this.isFollowUpOverdue,
-      version: this._version,
-      createdAt: this._createdAt,
-      updatedAt: this._updatedAt,
-      deletedAt: this._deletedAt,
+      adoptionStatus: this.props.adoptionStatus,
+      dates: {
+        application: this.props.applicationDate,
+        hearing: this.props.hearingDate,
+        finalization: this.props.finalizationDate,
+        effective: this.props.effectiveDate,
+      },
+      legal: {
+        courtOrderNumber: this.props.courtOrderNumber,
+        courtStation: this.props.courtStation,
+        legallyValid: this.isLegallyValid(),
+        challengePeriodExpired: this.props.challengePeriodExpired,
+      },
+      parentalConsent: this.props.parentalConsentStatus,
+      childInfo: {
+        ageAtAdoption: this.props.childAgeAtAdoption,
+        specialNeeds: this.props.childSpecialNeeds,
+        siblingGroup: this.props.siblingGroupAdoption,
+      },
+      completenessScore,
+      verificationStatus: this.props.verificationStatus,
+      isArchived: this.props.isArchived,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    };
+  }
+
+  /**
+   * Get computed properties for business logic
+   */
+  public get computedProperties() {
+    return {
+      completenessScore: this.calculateCompletenessScore(),
+      legallyValid: this.isLegallyValid(),
+      typeSpecificRequirements: this.getTypeSpecificRequirements(),
+      timeline: this.getTimeline(),
+      legalRights: this.getLegalRights(),
+      monitoringStatus: this.getMonitoringStatus(),
+      appealStatus: this.getAppealStatus(),
+      inheritanceAnalysis: this.getInheritanceAnalysis(),
+      recommendations: this.getRecommendations(),
+    };
+  }
+
+  private getTimeline(): Array<{
+    date: Date;
+    event: string;
+    details: string;
+  }> {
+    const timeline = [];
+
+    timeline.push({
+      date: this.props.applicationDate,
+      event: 'Adoption Application Filed',
+      details: `Type: ${this.props.adoptionType}, Court: ${this.props.courtStation}`,
+    });
+
+    if (this.props.hearingDate) {
+      timeline.push({
+        date: this.props.hearingDate,
+        event: 'Court Hearing',
+        details: `Judge: ${this.props.presidingJudge || 'Not specified'}`,
+      });
+    }
+
+    if (this.props.finalizationDate) {
+      timeline.push({
+        date: this.props.finalizationDate,
+        event: 'Adoption Finalized',
+        details: `Court Order: ${this.props.courtOrderNumber}`,
+      });
+
+      // Challenge period end
+      const challengeEndDate = new Date(this.props.finalizationDate);
+      challengeEndDate.setDate(challengeEndDate.getDate() + AdoptionRecord.CHALLENGE_PERIOD_DAYS);
+
+      timeline.push({
+        date: challengeEndDate,
+        event: 'Challenge Period Ends',
+        details: '30-day appeal window closes',
+      });
+    }
+
+    // Add verification events
+    if (this.props.lastVerifiedAt) {
+      timeline.push({
+        date: this.props.lastVerifiedAt,
+        event: 'Record Verified',
+        details: `Status: ${this.props.verificationStatus}`,
+      });
+    }
+
+    // Sort by date
+    return timeline.sort((a, b) => a.date.getTime() - b.date.getTime());
+  }
+
+  private getLegalRights(): Record<string, any> {
+    return {
+      inheritanceRights: this.props.inheritanceRightsEstablished,
+      parentalRights: this.getParentalRightsStatus(),
+      citizenshipRights: this.getCitizenshipRights(),
+      contactRights: this.getContactRights(),
+      legalPresumption: this.getLegalPresumption(),
+    };
+  }
+
+  private getParentalRightsStatus(): string {
+    if (this.props.adoptionStatus === 'FINALIZED') {
+      return 'PARENTAL_RIGHTS_TRANSFERRED';
+    }
+
+    if (this.props.adoptionStatus === 'IN_PROGRESS') {
+      return 'PARENTAL_RIGHTS_SUSPENDED';
+    }
+
+    return 'PARENTAL_RIGHTS_RETAINED';
+  }
+
+  private getCitizenshipRights(): Record<string, boolean> {
+    return {
+      birthCertificate: this.props.newBirthCertificateIssued,
+      passport: this.props.passportIssued,
+      citizenshipEstablished: this.isCitizenshipEstablished(),
+    };
+  }
+
+  private isCitizenshipEstablished(): boolean {
+    if (this.props.adoptionType === 'INTERNATIONAL') {
+      return !!this.props.immigrationDocumentId;
+    }
+
+    return this.props.newBirthCertificateIssued;
+  }
+
+  private getContactRights(): Record<string, any> {
+    return {
+      openAdoption: this.props.openAdoption,
+      contactAgreement: !!this.props.contactAgreement,
+      visitationSchedule: !!this.props.visitationSchedule,
+      biologicalParentAccess: this.getBiologicalParentAccess(),
+    };
+  }
+
+  private getBiologicalParentAccess(): string {
+    if (this.props.openAdoption) {
+      return 'AGREED_CONTACT';
+    }
+
+    if (this.props.adoptionStatus === 'FINALIZED') {
+      return 'TERMINATED';
+    }
+
+    return 'LIMITED';
+  }
+
+  private getLegalPresumption(): string {
+    if (this.isLegallyValid()) {
+      return 'IRREBUTTABLE_PRESUMPTION';
+    }
+
+    if (this.props.adoptionStatus === 'FINALIZED' && !this.props.challengePeriodExpired) {
+      return 'REBUTTABLE_PRESUMPTION';
+    }
+
+    return 'NO_PRESUMPTION';
+  }
+
+  private getMonitoringStatus(): Record<string, any> {
+    const monthsSinceAdoption = this.calculateMonthsSinceAdoption();
+
+    return {
+      required: this.props.postAdoptionMonitoring,
+      periodMonths: this.props.monitoringPeriodMonths,
+      monthsCompleted: monthsSinceAdoption,
+      ongoing: monthsSinceAdoption <= this.props.monitoringPeriodMonths,
+      nextReportDue: this.getNextReportDueDate(),
+    };
+  }
+
+  private getNextReportDueDate(): Date | null {
+    if (!this.props.postAdoptionMonitoring || !this.props.finalizationDate) {
+      return null;
+    }
+
+    const monthsSinceAdoption = this.calculateMonthsSinceAdoption();
+    const nextReportMonth = Math.floor(monthsSinceAdoption / 6) * 6 + 6; // Every 6 months
+
+    if (nextReportMonth > this.props.monitoringPeriodMonths) {
+      return null;
+    }
+
+    const nextDate = new Date(this.props.finalizationDate);
+    nextDate.setMonth(nextDate.getMonth() + nextReportMonth);
+
+    return nextDate;
+  }
+
+  private getAppealStatus(): Record<string, any> {
+    return {
+      appealFiled: this.props.appealFiled,
+      appealCaseNumber: this.props.appealCaseNumber,
+      canAppeal: this.canStillAppeal(),
+      appealDeadline: this.getAppealDeadline(),
+    };
+  }
+
+  private canStillAppeal(): boolean {
+    return (
+      this.props.adoptionStatus === 'FINALIZED' &&
+      !this.props.challengePeriodExpired &&
+      !this.props.appealFiled
+    );
+  }
+
+  private getAppealDeadline(): Date | null {
+    if (!this.props.finalizationDate || this.props.challengePeriodExpired) {
+      return null;
+    }
+
+    const deadline = new Date(this.props.finalizationDate);
+    deadline.setDate(deadline.getDate() + AdoptionRecord.CHALLENGE_PERIOD_DAYS);
+
+    return deadline;
+  }
+
+  private getInheritanceAnalysis(): Record<string, any> {
+    return {
+      inheritanceRightsEstablished: this.props.inheritanceRightsEstablished,
+      inheritanceDocumentId: this.props.inheritanceDocumentId,
+      legalBasis: this.props.legalBasis,
+      inheritanceStrength: this.calculateInheritanceStrength(),
+      recommendations: this.getInheritanceRecommendations(),
+    };
+  }
+
+  private calculateInheritanceStrength(): number {
+    let strength = 0;
+
+    if (this.props.inheritanceRightsEstablished) strength += 40;
+    if (this.props.newBirthCertificateIssued) strength += 30;
+    if (this.props.adoptionStatus === 'FINALIZED') strength += 30;
+
+    return strength;
+  }
+
+  private getInheritanceRecommendations(): string[] {
+    const recommendations: string[] = [];
+
+    if (!this.props.inheritanceRightsEstablished) {
+      recommendations.push('Establish inheritance rights through court order');
+    }
+
+    if (!this.props.newBirthCertificateIssued) {
+      recommendations.push('Apply for new birth certificate showing adoptive parents');
+    }
+
+    if (!this.props.inheritanceDocumentId) {
+      recommendations.push('Create inheritance documentation for estate planning');
+    }
+
+    return recommendations;
+  }
+
+  private getRecommendations(): string[] {
+    const recommendations: string[] = [];
+    const completenessScore = this.calculateCompletenessScore();
+
+    if (completenessScore < 80) {
+      recommendations.push('Complete missing documentation for adoption record');
+    }
+
+    if (this.props.adoptionStatus === 'PENDING' && !this.props.hearingDate) {
+      recommendations.push('Schedule court hearing for adoption');
+    }
+
+    if (this.props.adoptionStatus === 'IN_PROGRESS' && !this.props.socialWorkerReportId) {
+      recommendations.push('Obtain social worker assessment report');
+    }
+
+    if (this.props.adoptionStatus === 'FINALIZED' && !this.props.newBirthCertificateIssued) {
+      recommendations.push('Apply for amended birth certificate');
+    }
+
+    if (this.props.postAdoptionMonitoring && this.getNextReportDueDate()) {
+      recommendations.push('Schedule next post-adoption monitoring report');
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Get adoption for export/API response
+   */
+  public toJSON(): Record<string, any> {
+    return {
+      id: this.id.toString(),
+      familyId: this.props.familyId.toString(),
+      parties: {
+        adopteeId: this.props.adopteeId.toString(),
+        adoptiveParentId: this.props.adoptiveParentId.toString(),
+        biologicalMotherId: this.props.biologicalMotherId?.toString(),
+        biologicalFatherId: this.props.biologicalFatherId?.toString(),
+      },
+      adoption: {
+        type: this.props.adoptionType,
+        status: this.props.adoptionStatus,
+        legalBasis: this.props.legalBasis,
+      },
+      timeline: {
+        applicationDate: this.props.applicationDate,
+        hearingDate: this.props.hearingDate,
+        finalizationDate: this.props.finalizationDate,
+        effectiveDate: this.props.effectiveDate,
+      },
+      legal: {
+        courtOrderNumber: this.props.courtOrderNumber,
+        courtStation: this.props.courtStation,
+        presidingJudge: this.props.presidingJudge,
+        challengePeriodExpired: this.props.challengePeriodExpired,
+      },
+      parentalConsent: {
+        status: this.props.parentalConsentStatus,
+        documents: this.props.consentDocuments,
+      },
+      socialWelfare: {
+        socialWorkerId: this.props.socialWorkerId,
+        socialWorkerReportId: this.props.socialWorkerReportId,
+        homeStudyReportId: this.props.homeStudyReportId,
+        postAdoptionMonitoring: this.props.postAdoptionMonitoring,
+        monitoringPeriodMonths: this.props.monitoringPeriodMonths,
+      },
+      agency: {
+        adoptionAgencyId: this.props.adoptionAgencyId,
+        agencySocialWorker: this.props.agencySocialWorker,
+        agencyApprovalNumber: this.props.agencyApprovalNumber,
+      },
+      international: {
+        receivingCountry: this.props.receivingCountry,
+        sendingCountry: this.props.sendingCountry,
+        hagueConventionCompliant: this.props.hagueConventionCompliant,
+        immigrationDocumentId: this.props.immigrationDocumentId,
+      },
+      customary: {
+        clanInvolved: this.props.clanInvolved,
+        clanElders: this.props.clanElders,
+        customaryRitesPerformed: this.props.customaryRitesPerformed,
+        bridePriceConsideration: this.props.bridePriceConsideration,
+      },
+      financial: {
+        adoptionExpenses: this.props.adoptionExpenses,
+        governmentFeesPaid: this.props.governmentFeesPaid,
+        legalFeesPaid: this.props.legalFeesPaid,
+        subsidyReceived: this.props.subsidyReceived,
+        subsidyAmount: this.props.subsidyAmount,
+      },
+      childInfo: {
+        ageAtAdoption: this.props.childAgeAtAdoption,
+        specialNeeds: this.props.childSpecialNeeds,
+        specialNeedsDescription: this.props.specialNeedsDescription,
+        medicalHistoryProvided: this.props.medicalHistoryProvided,
+        siblingGroupAdoption: this.props.siblingGroupAdoption,
+        siblingAdoptionRecordIds: this.props.siblingAdoptionRecordIds.map((id) => id.toString()),
+        previousCareArrangement: this.props.previousCareArrangement,
+        timeInPreviousCareMonths: this.props.timeInPreviousCareMonths,
+      },
+      postAdoption: {
+        openAdoption: this.props.openAdoption,
+        contactAgreement: this.props.contactAgreement,
+        visitationSchedule: this.props.visitationSchedule,
+      },
+      inheritance: {
+        inheritanceRightsEstablished: this.props.inheritanceRightsEstablished,
+        inheritanceDocumentId: this.props.inheritanceDocumentId,
+      },
+      documentation: {
+        newBirthCertificateIssued: this.props.newBirthCertificateIssued,
+        newBirthCertificateNumber: this.props.newBirthCertificateNumber,
+        passportIssued: this.props.passportIssued,
+        passportNumber: this.props.passportNumber,
+      },
+      appeals: {
+        appealFiled: this.props.appealFiled,
+        appealCaseNumber: this.props.appealCaseNumber,
+      },
+      computedProperties: this.computedProperties,
+      verification: {
+        status: this.props.verificationStatus,
+        notes: this.props.verificationNotes,
+        verifiedBy: this.props.verifiedBy?.toString(),
+        lastVerifiedAt: this.props.lastVerifiedAt,
+      },
+      audit: {
+        createdBy: this.props.createdBy.toString(),
+        lastUpdatedBy: this.props.lastUpdatedBy.toString(),
+        createdAt: this.createdAt,
+        updatedAt: this.updatedAt,
+        isArchived: this.props.isArchived,
+      },
+      metadata: {
+        version: this.version,
+        isDeleted: this.isDeleted,
+      },
     };
   }
 }

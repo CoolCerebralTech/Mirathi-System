@@ -1,403 +1,538 @@
-// domain/entities/guardian-assignment.entity.ts
+// src/domain/entities/guardian-assignment.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
-import { InvalidGuardianshipException } from '../exceptions/guardianship.exception';
-import { KenyanMoney } from '../value-objects/financial/kenyan-money.vo';
-import { GuardianBond } from '../value-objects/legal/guardian-bond.vo';
-import { GuardianPowers } from '../value-objects/legal/guardian-powers.vo';
+import { GuardianContactVO } from '../value-objects/guardian-contact.vo';
+import { GuardianshipBondVO } from '../value-objects/guardianship-bond.vo';
+import { GuardianshipPowersVO } from '../value-objects/guardianship-powers.vo';
 
-/**
- * Guardian Assignment Entity Props
- * Represents a specific guardian's role within a guardianship
- */
 export interface GuardianAssignmentProps {
-  // === CORE IDENTITY ===
-  guardianId: UniqueEntityID; // The FamilyMember ID of the guardian
-  isPrimary: boolean; // Is this the primary guardian?
+  // Core Identity
+  guardianId: string; // FamilyMember ID
+  guardianUserId?: string; // User ID if guardian has account
+  guardianName: string; // Denormalized for performance
 
-  // === ROLE DETAILS ===
-  appointmentDate: Date; // When this guardian was appointed
-  appointmentSource: GuardianAppointmentSource; // How they were appointed
-
-  // === POWERS (Children Act) ===
-  powers: GuardianPowers; // What this guardian can do
-
-  // === BONDING (S.72 LSA requirement for guardians of property) ===
-  bondRequired: boolean; // If false, Estate Service appoints Trustee
-  bond?: GuardianBond; // Document ID
-
-  // === FINANCIAL ALLOWANCE ===
-  annualAllowance?: KenyanMoney; // Guardian's compensation
-  allowanceApprovedBy?: UniqueEntityID; // Who approved allowance
-
-  // === STATUS ===
-  isActive: boolean;
-  removedDate?: Date;
-  removalReason?: string;
-
-  // === RESTRICTIONS ===
-  restrictions?: string[]; // Court-imposed restrictions
-}
-
-/**
- * Guardian Appointment Source (Kenyan Legal Context)
- */
-export enum GuardianAppointmentSource {
-  FAMILY = 'FAMILY', // Appointed by family/elders
-  COURT = 'COURT', // Appointed by Children's Court
-  WILL = 'WILL', // Appointed by deceased parent's will (S.70 LSA)
-  CUSTOMARY_LAW = 'CUSTOMARY_LAW', // Recognized by clan elders
-}
-
-/**
- * Props for Creating Guardian Assignment
- */
-export interface CreateGuardianAssignmentProps {
-  guardianId: string;
-  isPrimary?: boolean;
+  // Role Configuration
+  role: GuardianRole;
+  isPrimary: boolean;
+  isAlternate: boolean;
+  appointmentDate: Date;
   appointmentSource: GuardianAppointmentSource;
 
-  // Powers (defaults to minimal)
-  hasPropertyManagementPowers?: boolean;
-  canConsentToMedical?: boolean;
-  canConsentToMarriage?: boolean;
-  restrictions?: string[];
+  // Legal Framework
+  powers: GuardianshipPowersVO;
+  bond?: GuardianshipBondVO;
+
+  // Contact & Communication
+  contactInfo: GuardianContactVO;
+
+  // Status & Compliance
+  status: GuardianAssignmentStatus;
+  activationDate?: Date; // When they become active
+  deactivationDate?: Date; // When role ends
+  deactivationReason?: string;
+
+  // Performance & Tracking
+  lastActivityDate?: Date;
+  tasksCompleted: number;
+  complianceScore: number; // 0-100
+
+  // 🎯 INNOVATIVE: Conflict of Interest Detection
+  conflictOfInterestFlags: ConflictOfInterest[];
+  conflictResolution?: string;
+
+  // 🎯 INNOVATIVE: Digital Verification
+  digitalSignatureUrl?: string;
+  verificationMethod?: 'OTP' | 'BIO' | 'LEGAL' | 'CUSTOMARY';
+
+  // Metadata
+  notes?: string;
   specialInstructions?: string;
-
-  // Bond
-  bondRequired?: boolean;
-  bondAmountKES?: number;
-  bondProvider?: string;
-  bondPolicyNumber?: string;
-  bondExpiryDate?: Date;
-
-  // Allowance
-  annualAllowanceKES?: number;
-  allowanceApprovedBy?: string;
+  courtOrderReference?: string;
 }
 
-/**
- * GUARDIAN ASSIGNMENT ENTITY
- *
- * Represents a specific guardian's role within a Guardianship aggregate
- * under Kenyan Children Act and S.70-73 Law of Succession Act
- *
- * IMPORTANT: This is an ENTITY, not an Aggregate Root
- * It belongs to the Guardianship aggregate and cannot exist independently
- *
- * LEGAL BASIS:
- * - Children Act: Legal authority and care responsibility
- * - S.70 LSA: Testamentary guardians appointed by will
- * - S.71 LSA: Court-appointed guardians for minors/incapacitated
- * - S.72 LSA: Guardian must post bond if managing property
- *
- * INVARIANTS (Enforced by Guardianship Aggregate):
- * - Guardian must be an adult (18+ years)
- * - Guardian cannot be the ward themselves
- * - Property management requires bond posting (S.72)
- * - Only one primary guardian per active guardianship
- */
-export class GuardianAssignment extends Entity<GuardianAssignmentProps> {
-  private constructor(id: UniqueEntityID, props: GuardianAssignmentProps, createdAt?: Date) {
-    super(id, props, createdAt);
+export enum GuardianRole {
+  CARETAKER = 'CARETAKER', // Daily care responsibilities
+  PROPERTY_MANAGER = 'PROPERTY_MANAGER', // Manages ward's assets
+  EDUCATIONAL_GUARDIAN = 'EDUCATIONAL_GUARDIAN', // School decisions
+  MEDICAL_CONSENT = 'MEDICAL_CONSENT', // Healthcare decisions
+  LEGAL_REPRESENTATIVE = 'LEGAL_REPRESENTATIVE', // Court representation
+  EMERGENCY = 'EMERGENCY', // Temporary emergency authority
+  CUSTOMARY = 'CUSTOMARY', // Clan/customary role
+}
+
+export enum GuardianAssignmentStatus {
+  PENDING = 'PENDING', // Appointed but not yet active
+  ACTIVE = 'ACTIVE', // Currently fulfilling role
+  SUSPENDED = 'SUSPENDED', // Temporarily inactive
+  TERMINATED = 'TERMINATED', // Role ended
+  REVOKED = 'REVOKED', // Removed by court/authority
+  DECEASED = 'DECEASED', // Guardian passed away
+  RESIGNED = 'RESIGNED', // Voluntary resignation
+}
+
+export enum GuardianAppointmentSource {
+  WILL = 'WILL', // Testamentary appointment
+  COURT = 'COURT', // Court order
+  FAMILY_AGREEMENT = 'FAMILY_AGREEMENT', // Family consensus
+  CUSTOMARY_COUNCIL = 'CUSTOMARY_COUNCIL', // Clan elders
+  EMERGENCY = 'EMERGENCY', // Emergency situation
+  MUTUAL = 'MUTUAL', // Mutual agreement
+}
+
+export interface ConflictOfInterest {
+  type: ConflictType;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  description: string;
+  detectedAt: Date;
+  resolvedAt?: Date;
+  mitigationPlan?: string;
+}
+
+export enum ConflictType {
+  FINANCIAL_INTEREST = 'FINANCIAL_INTEREST', // Guardian benefits financially
+  RELATIONSHIP_CONFLICT = 'RELATIONSHIP_CONFLICT', // Personal relationship affects judgment
+  COMPETING_GUARDIANSHIP = 'COMPETING_GUARDIANSHIP', // Multiple conflicting roles
+  ASSET_CONFLICT = 'ASSET_CONFLICT', // Guardian has interest in ward's assets
+  LEGAL_CONFLICT = 'LEGAL_CONFLICT', // Conflicting legal obligations
+  FAMILY_CONFLICT = 'FAMILY_CONFLICT', // Family disputes affecting role
+}
+
+export class GuardianAssignmentEntity extends Entity<GuardianAssignmentProps> {
+  constructor(id: UniqueEntityID, props: GuardianAssignmentProps) {
+    super(id, props);
     this.validate();
   }
 
-  // ============================================================================
-  // FACTORY METHODS
-  // ============================================================================
+  private validate(): void {
+    this.ensureNotDeleted();
 
-  /**
-   * Create new Guardian Assignment
-   */
-  public static create(props: CreateGuardianAssignmentProps): GuardianAssignment {
-    const id = new UniqueEntityID();
-    const guardianId = new UniqueEntityID(props.guardianId);
-
-    // Build guardian powers
-    const powers = GuardianPowers.create({
-      hasPropertyManagementPowers: props.hasPropertyManagementPowers ?? false,
-      canConsentToMedical: props.canConsentToMedical ?? true,
-      canConsentToMarriage: props.canConsentToMarriage ?? false,
-      restrictions: props.restrictions ?? [],
-      specialInstructions: props.specialInstructions,
-    });
-
-    // Build bond if required and details provided
-    let bond: GuardianBond | undefined;
-    if (
-      props.bondRequired &&
-      props.bondAmountKES &&
-      props.bondProvider &&
-      props.bondPolicyNumber &&
-      props.bondExpiryDate &&
-      powers.hasPropertyManagementPowers
-    ) {
-      bond = GuardianBond.create({
-        provider: props.bondProvider,
-        policyNumber: props.bondPolicyNumber,
-        amount: KenyanMoney.create(props.bondAmountKES),
-        issuedDate: new Date(),
-        expiryDate: props.bondExpiryDate,
-      });
+    // Validate appointment date
+    if (this.props.appointmentDate > new Date()) {
+      throw new Error('Appointment date cannot be in the future');
     }
 
-    // Build allowance if provided
-    let annualAllowance: KenyanMoney | undefined;
-    let allowanceApprovedBy: UniqueEntityID | undefined;
+    // Validate deactivation date
+    if (this.props.deactivationDate && this.props.deactivationDate <= this.props.appointmentDate) {
+      throw new Error('Deactivation date must be after appointment date');
+    }
 
-    if (props.annualAllowanceKES) {
-      annualAllowance = KenyanMoney.create(props.annualAllowanceKES);
-      if (props.allowanceApprovedBy) {
-        allowanceApprovedBy = new UniqueEntityID(props.allowanceApprovedBy);
+    // Validate activation date if set
+    if (this.props.activationDate && this.props.activationDate < this.props.appointmentDate) {
+      throw new Error('Activation date cannot be before appointment date');
+    }
+
+    // Validate role configuration
+    if (this.props.isPrimary && this.props.isAlternate) {
+      throw new Error('Guardian cannot be both primary and alternate');
+    }
+
+    // Validate compliance score
+    if (this.props.complianceScore < 0 || this.props.complianceScore > 100) {
+      throw new Error('Compliance score must be between 0 and 100');
+    }
+  }
+
+  // 🎯 INNOVATIVE: Smart activation system
+  public activate(activationDate: Date = new Date()): void {
+    if (this.props.status === GuardianAssignmentStatus.ACTIVE) {
+      throw new Error('Guardian assignment is already active');
+    }
+
+    if (
+      this.props.status === GuardianAssignmentStatus.TERMINATED ||
+      this.props.status === GuardianAssignmentStatus.REVOKED ||
+      this.props.status === GuardianAssignmentStatus.DECEASED
+    ) {
+      throw new Error('Cannot activate a terminated, revoked, or deceased guardian');
+    }
+
+    // Check for unresolved critical conflicts
+    const criticalConflicts = this.props.conflictOfInterestFlags.filter(
+      (conflict) => conflict.severity === 'CRITICAL' && !conflict.resolvedAt,
+    );
+
+    if (criticalConflicts.length > 0) {
+      throw new Error('Cannot activate guardian with unresolved critical conflicts');
+    }
+
+    this.props.activationDate = activationDate;
+    this.props.status = GuardianAssignmentStatus.ACTIVE;
+    this.props.lastActivityDate = activationDate;
+
+    this.incrementVersion();
+    this.addDomainEvent({
+      type: 'GUARDIAN_ASSIGNMENT_ACTIVATED',
+      payload: {
+        assignmentId: this.id.toString(),
+        guardianId: this.props.guardianId,
+        activationDate,
+      },
+    });
+  }
+
+  // 🎯 INNOVATIVE: Smart deactivation with reason tracking
+  public deactivate(reason: string, effectiveDate: Date = new Date()): void {
+    if (
+      this.props.status !== GuardianAssignmentStatus.ACTIVE &&
+      this.props.status !== GuardianAssignmentStatus.PENDING
+    ) {
+      throw new Error('Can only deactivate active or pending assignments');
+    }
+
+    if (effectiveDate < this.props.appointmentDate) {
+      throw new Error('Deactivation date cannot be before appointment date');
+    }
+
+    // Check if this is the primary guardian
+    if (this.props.isPrimary && this.props.status === GuardianAssignmentStatus.ACTIVE) {
+      // Log a warning but allow - aggregate root will handle primary guardian replacement
+      console.warn('Deactivating primary guardian. Ensure replacement is appointed.');
+    }
+
+    this.props.deactivationDate = effectiveDate;
+    this.props.deactivationReason = reason;
+    this.props.status = GuardianAssignmentStatus.TERMINATED;
+    this.props.lastActivityDate = effectiveDate;
+
+    this.incrementVersion();
+    this.addDomainEvent({
+      type: 'GUARDIAN_ASSIGNMENT_DEACTIVATED',
+      payload: {
+        assignmentId: this.id.toString(),
+        guardianId: this.props.guardianId,
+        reason,
+        effectiveDate,
+        wasPrimary: this.props.isPrimary,
+      },
+    });
+  }
+
+  // 🎯 INNOVATIVE: Conflict of interest detection and management
+  public addConflictOfInterest(
+    type: ConflictType,
+    description: string,
+    severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'MEDIUM',
+  ): ConflictOfInterest {
+    const conflict: ConflictOfInterest = {
+      type,
+      severity,
+      description,
+      detectedAt: new Date(),
+    };
+
+    this.props.conflictOfInterestFlags.push(conflict);
+    this.props.complianceScore = Math.max(
+      0,
+      this.props.complianceScore - this.getConflictPenalty(severity),
+    );
+
+    this.incrementVersion();
+    this.addDomainEvent({
+      type: 'CONFLICT_OF_INTEREST_DETECTED',
+      payload: {
+        assignmentId: this.id.toString(),
+        conflictType: type,
+        severity,
+        description,
+      },
+    });
+
+    // Auto-suspend for critical conflicts
+    if (severity === 'CRITICAL' && this.props.status === GuardianAssignmentStatus.ACTIVE) {
+      this.suspend('Critical conflict of interest detected');
+    }
+
+    return conflict;
+  }
+
+  public resolveConflict(index: number, resolution: string, mitigationPlan?: string): void {
+    if (index < 0 || index >= this.props.conflictOfInterestFlags.length) {
+      throw new Error('Invalid conflict index');
+    }
+
+    const conflict = this.props.conflictOfInterestFlags[index];
+    if (conflict.resolvedAt) {
+      throw new Error('Conflict already resolved');
+    }
+
+    conflict.resolvedAt = new Date();
+    conflict.mitigationPlan = mitigationPlan;
+    conflict.resolution = resolution;
+
+    // Restore compliance score
+    this.props.complianceScore = Math.min(
+      100,
+      this.props.complianceScore + this.getConflictPenalty(conflict.severity),
+    );
+
+    this.incrementVersion();
+    this.addDomainEvent({
+      type: 'CONFLICT_OF_INTEREST_RESOLVED',
+      payload: {
+        assignmentId: this.id.toString(),
+        conflictType: conflict.type,
+        resolution,
+      },
+    });
+
+    // Auto-reactivate if was suspended due to critical conflict
+    if (
+      conflict.severity === 'CRITICAL' &&
+      this.props.status === GuardianAssignmentStatus.SUSPENDED
+    ) {
+      this.reactivate();
+    }
+  }
+
+  private getConflictPenalty(severity: string): number {
+    const penalties = {
+      LOW: 5,
+      MEDIUM: 15,
+      HIGH: 30,
+      CRITICAL: 50,
+    };
+    return penalties[severity] || 10;
+  }
+
+  // 🎯 INNOVATIVE: Smart suspension system
+  public suspend(reason: string): void {
+    if (this.props.status !== GuardianAssignmentStatus.ACTIVE) {
+      throw new Error('Can only suspend active guardians');
+    }
+
+    this.props.status = GuardianAssignmentStatus.SUSPENDED;
+    this.props.lastActivityDate = new Date();
+
+    this.incrementVersion();
+    this.addDomainEvent({
+      type: 'GUARDIAN_ASSIGNMENT_SUSPENDED',
+      payload: {
+        assignmentId: this.id.toString(),
+        reason,
+        suspensionDate: new Date(),
+      },
+    });
+  }
+
+  public reactivate(): void {
+    if (this.props.status !== GuardianAssignmentStatus.SUSPENDED) {
+      throw new Error('Can only reactivate suspended guardians');
+    }
+
+    this.props.status = GuardianAssignmentStatus.ACTIVE;
+    this.props.lastActivityDate = new Date();
+
+    this.incrementVersion();
+    this.addDomainEvent({
+      type: 'GUARDIAN_ASSIGNMENT_REACTIVATED',
+      payload: {
+        assignmentId: this.id.toString(),
+        reactivationDate: new Date(),
+      },
+    });
+  }
+
+  // 🎯 INNOVATIVE: Task tracking and performance metrics
+  public recordTaskCompletion(
+    taskType: string,
+    complexity: 'SIMPLE' | 'MEDIUM' | 'COMPLEX' = 'MEDIUM',
+  ): void {
+    this.props.tasksCompleted++;
+    this.props.lastActivityDate = new Date();
+
+    // Update compliance score based on task completion
+    const scoreIncrement = complexity === 'COMPLEX' ? 2 : complexity === 'MEDIUM' ? 1 : 0.5;
+    this.props.complianceScore = Math.min(100, this.props.complianceScore + scoreIncrement);
+
+    this.incrementVersion();
+    this.addDomainEvent({
+      type: 'GUARDIAN_TASK_COMPLETED',
+      payload: {
+        assignmentId: this.id.toString(),
+        taskType,
+        complexity,
+        newScore: this.props.complianceScore,
+      },
+    });
+  }
+
+  // 🎯 INNOVATIVE: Power modification with validation
+  public updatePowers(newPowers: GuardianshipPowersVO): void {
+    if (
+      this.props.status !== GuardianAssignmentStatus.ACTIVE &&
+      this.props.status !== GuardianAssignmentStatus.PENDING
+    ) {
+      throw new Error('Can only update powers for active or pending assignments');
+    }
+
+    // Validate power reduction doesn't violate existing responsibilities
+    if (this.props.powers.canManageProperty && !newPowers.getValue().canManageProperty) {
+      throw new Error('Cannot remove property management powers without court order');
+    }
+
+    this.props.powers = newPowers;
+    this.props.lastActivityDate = new Date();
+
+    this.incrementVersion();
+    this.addDomainEvent({
+      type: 'GUARDIAN_POWERS_UPDATED',
+      payload: {
+        assignmentId: this.id.toString(),
+        oldPowers: this.props.powers.toJSON(),
+        newPowers: newPowers.toJSON(),
+      },
+    });
+  }
+
+  // 🎯 INNOVATIVE: Bond management
+  public updateBond(bond: GuardianshipBondVO): void {
+    this.props.bond = bond;
+    this.props.lastActivityDate = new Date();
+
+    this.incrementVersion();
+    this.addDomainEvent({
+      type: 'GUARDIAN_BOND_UPDATED',
+      payload: {
+        assignmentId: this.id.toString(),
+        bondStatus: bond.getValue().status,
+        amount: bond.getValue().amount,
+      },
+    });
+  }
+
+  // 🎯 INNOVATIVE: Emergency contact update with verification
+  public updateContactInfo(contactInfo: GuardianContactVO, verifiedBy?: string): void {
+    this.props.contactInfo = contactInfo;
+    this.props.lastActivityDate = new Date();
+
+    this.incrementVersion();
+    this.addDomainEvent({
+      type: 'GUARDIAN_CONTACT_UPDATED',
+      payload: {
+        assignmentId: this.id.toString(),
+        verifiedBy,
+        newPhone: contactInfo.getValue().primaryPhone,
+      },
+    });
+  }
+
+  // 🎯 INNOVATIVE: Status check with health indicators
+  public getHealthIndicator(): {
+    status: 'HEALTHY' | 'WARNING' | 'CRITICAL';
+    reasons: string[];
+    recommendations: string[];
+  } {
+    const reasons: string[] = [];
+    const recommendations: string[] = [];
+
+    // Check compliance score
+    if (this.props.complianceScore < 60) {
+      reasons.push(`Low compliance score: ${this.props.complianceScore}`);
+      recommendations.push('Complete pending tasks and address conflicts');
+    }
+
+    // Check for unresolved conflicts
+    const unresolvedConflicts = this.props.conflictOfInterestFlags.filter((c) => !c.resolvedAt);
+    if (unresolvedConflicts.length > 0) {
+      reasons.push(`${unresolvedConflicts.length} unresolved conflicts`);
+      recommendations.push('Resolve conflicts of interest immediately');
+    }
+
+    // Check activity
+    if (this.props.status === GuardianAssignmentStatus.ACTIVE) {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      if (!this.props.lastActivityDate || this.props.lastActivityDate < thirtyDaysAgo) {
+        reasons.push('No activity in last 30 days');
+        recommendations.push('Update activity or review guardian engagement');
       }
     }
 
-    return new GuardianAssignment(id, {
-      guardianId,
-      isPrimary: props.isPrimary ?? false,
-      appointmentDate: new Date(),
-      appointmentSource: props.appointmentSource,
-      powers,
-      bondRequired: props.bondRequired ?? false,
-      bond,
-      annualAllowance,
-      allowanceApprovedBy,
-      isActive: true,
-      restrictions: props.restrictions,
-    });
+    // Check bond status if required
+    if (this.props.powers.requiresPropertyBond() && this.props.bond) {
+      const bondStatus = this.props.bond.getValue().status;
+      if (bondStatus === 'REQUIRED' || bondStatus === 'FORFEITED') {
+        reasons.push(`Bond status: ${bondStatus}`);
+        recommendations.push('Post or renew guardian bond');
+      }
+    }
+
+    // Determine overall status
+    let status: 'HEALTHY' | 'WARNING' | 'CRITICAL' = 'HEALTHY';
+
+    if (reasons.length > 0) {
+      const hasCritical = unresolvedConflicts.some((c) => c.severity === 'CRITICAL');
+      const hasHigh = unresolvedConflicts.some((c) => c.severity === 'HIGH');
+
+      if (hasCritical || this.props.complianceScore < 40) {
+        status = 'CRITICAL';
+      } else if (hasHigh || this.props.complianceScore < 60) {
+        status = 'WARNING';
+      } else {
+        status = 'WARNING';
+      }
+    }
+
+    return { status, reasons, recommendations };
   }
 
-  /**
-   * Reconstitute from database (existing guardian assignment)
-   */
-  public static fromPersistence(
-    id: string,
-    props: GuardianAssignmentProps,
-    createdAt: Date,
-  ): GuardianAssignment {
-    return new GuardianAssignment(new UniqueEntityID(id), props, createdAt);
-  }
+  // 🎯 INNOVATIVE: Generate guardian report
+  public generateReport(): {
+    summary: Record<string, any>;
+    activities: Array<{ date: Date; type: string; details: string }>;
+    conflicts: ConflictOfInterest[];
+    recommendations: string[];
+  } {
+    const health = this.getHealthIndicator();
 
-  // ============================================================================
-  // DOMAIN LOGIC - BOND MANAGEMENT (S.72 LSA)
-  // ============================================================================
-
-  /**
-   * Post Guardian Bond (S.72 LSA Requirement)
-   * Required if guardian has property management powers
-   */
-  public postBond(params: {
-    provider: string;
-    policyNumber: string;
-    amountKES: number;
-    expiryDate: Date;
-  }): void {
-    this.ensureNotDeleted();
-
-    // Validation
-    if (!this.requiresBond()) {
-      throw new InvalidGuardianshipException(
-        'Bond is not required for this guardianship (no property management powers).',
-      );
-    }
-
-    if (this.isBondPosted()) {
-      throw new InvalidGuardianshipException('Bond already posted. Use renewBond() to extend.');
-    }
-
-    if (params.expiryDate <= new Date()) {
-      throw new InvalidGuardianshipException('Bond expiry date must be in the future.');
-    }
-
-    // Create bond value object
-    const bond = GuardianBond.create({
-      provider: params.provider,
-      policyNumber: params.policyNumber,
-      amount: KenyanMoney.create(params.amountKES),
-      issuedDate: new Date(),
-      expiryDate: params.expiryDate,
-    });
-
-    // Update props
-    const newProps = {
-      ...this.cloneProps(),
-      bond,
+    return {
+      summary: {
+        guardianName: this.props.guardianName,
+        role: this.props.role,
+        status: this.props.status,
+        appointmentDate: this.props.appointmentDate,
+        tasksCompleted: this.props.tasksCompleted,
+        complianceScore: this.props.complianceScore,
+        healthStatus: health.status,
+      },
+      activities: this.generateActivityLog(),
+      conflicts: this.props.conflictOfInterestFlags,
+      recommendations: health.recommendations,
     };
-
-    (this as any)._props = Object.freeze(newProps);
-    this.incrementVersion();
   }
 
-  /**
-   * Renew Bond (before expiry)
-   */
-  public renewBond(newExpiryDate: Date, newPolicyNumber?: string): void {
-    this.ensureNotDeleted();
-
-    if (!this.isBondPosted()) {
-      throw new InvalidGuardianshipException('No bond to renew. Use postBond() first.');
-    }
-
-    if (newExpiryDate <= new Date()) {
-      throw new InvalidGuardianshipException('New expiry date must be in the future.');
-    }
-
-    const currentBond = this.props.bond!;
-    const renewedBond = currentBond.renew(newExpiryDate, newPolicyNumber);
-
-    const newProps = {
-      ...this.cloneProps(),
-      bond: renewedBond,
-    };
-
-    (this as any)._props = Object.freeze(newProps);
-    this.incrementVersion();
+  private generateActivityLog(): Array<{ date: Date; type: string; details: string }> {
+    // This would be populated from domain events in a real implementation
+    return [
+      {
+        date: this.props.appointmentDate,
+        type: 'APPOINTMENT',
+        details: `Appointed as ${this.props.role} by ${this.props.appointmentSource}`,
+      },
+      ...(this.props.activationDate
+        ? [
+            {
+              date: this.props.activationDate,
+              type: 'ACTIVATION',
+              details: 'Guardian assignment activated',
+            },
+          ]
+        : []),
+      ...(this.props.lastActivityDate
+        ? [
+            {
+              date: this.props.lastActivityDate,
+              type: 'LAST_ACTIVITY',
+              details: 'Last recorded activity',
+            },
+          ]
+        : []),
+    ];
   }
 
-  // ============================================================================
-  // DOMAIN LOGIC - POWERS MANAGEMENT
-  // ============================================================================
-
-  /**
-   * Grant Property Management Powers
-   *
-   * LEGAL REQUIREMENT: S.72 Bond must be posted if managing property
-   */
-  public grantPropertyManagementPowers(restrictions?: string[]): void {
-    this.ensureNotDeleted();
-
-    if (this.props.powers.hasPropertyManagementPowers) {
-      throw new InvalidGuardianshipException('Guardian already has property management powers.');
-    }
-
-    const updatedPowers = this.props.powers.grantPropertyManagement(restrictions);
-
-    // Update props
-    const newProps = {
-      ...this.cloneProps(),
-      powers: updatedPowers,
-    };
-
-    (this as any)._props = Object.freeze(newProps);
-    this.incrementVersion();
-  }
-
-  /**
-   * Update Guardian Restrictions (court-imposed)
-   */
-  public updateRestrictions(restrictions: string[]): void {
-    this.ensureNotDeleted();
-
-    const updatedPowers = this.props.powers.updateRestrictions(restrictions);
-
-    const newProps = {
-      ...this.cloneProps(),
-      powers: updatedPowers,
-      restrictions,
-    };
-
-    (this as any)._props = Object.freeze(newProps);
-    this.incrementVersion();
-  }
-
-  // ============================================================================
-  // DOMAIN LOGIC - ALLOWANCE MANAGEMENT
-  // ============================================================================
-
-  /**
-   * Update Annual Allowance (Court-approved)
-   */
-  public updateAllowance(amountKES: number, approvedBy: string): void {
-    this.ensureNotDeleted();
-
-    if (amountKES < 0) {
-      throw new InvalidGuardianshipException('Allowance amount cannot be negative.');
-    }
-
-    const newProps = {
-      ...this.cloneProps(),
-      annualAllowance: KenyanMoney.create(amountKES),
-      allowanceApprovedBy: new UniqueEntityID(approvedBy),
-    };
-
-    (this as any)._props = Object.freeze(newProps);
-    this.incrementVersion();
-  }
-
-  // ============================================================================
-  // DOMAIN LOGIC - STATUS MANAGEMENT
-  // ============================================================================
-
-  /**
-   * Deactivate Guardian Assignment
-   */
-  public deactivate(removalReason: string): void {
-    this.ensureNotDeleted();
-
-    if (!this.props.isActive) {
-      throw new InvalidGuardianshipException('Guardian assignment is already inactive.');
-    }
-
-    const newProps = {
-      ...this.cloneProps(),
-      isActive: false,
-      removedDate: new Date(),
-      removalReason,
-    };
-
-    (this as any)._props = Object.freeze(newProps);
-    this.incrementVersion();
-  }
-
-  /**
-   * Reactivate Guardian Assignment (with court approval)
-   */
-  public reactivate(): void {
-    this.ensureNotDeleted();
-
-    if (this.props.isActive) {
-      throw new InvalidGuardianshipException('Guardian assignment is already active.');
-    }
-
-    const newProps = {
-      ...this.cloneProps(),
-      isActive: true,
-      removedDate: undefined,
-      removalReason: undefined,
-    };
-
-    (this as any)._props = Object.freeze(newProps);
-    this.incrementVersion();
-  }
-
-  // ============================================================================
-  // VALIDATION
-  // ============================================================================
-
-  private validate(): void {
-    // Property management powers require bond if bondRequired is true
-    if (
-      this.props.powers.hasPropertyManagementPowers &&
-      this.props.bondRequired &&
-      !this.props.bond
-    ) {
-      console.warn(
-        `Guardian Assignment ${this._id.toString()}: Property management requires S.72 bond posting`,
-      );
-    }
-
-    // Bond expiry check
-    if (this.props.bond && this.props.bond.isExpired()) {
-      console.warn(`Guardian Assignment ${this._id.toString()}: Bond has expired`);
-    }
-  }
-
-  // ============================================================================
-  // QUERY METHODS (GETTERS)
-  // ============================================================================
-
-  get guardianId(): UniqueEntityID {
+  // Getters for easy access
+  get guardianId(): string {
     return this.props.guardianId;
   }
 
@@ -405,134 +540,66 @@ export class GuardianAssignment extends Entity<GuardianAssignmentProps> {
     return this.props.isPrimary;
   }
 
-  get isActive(): boolean {
-    return this.props.isActive;
+  get status(): GuardianAssignmentStatus {
+    return this.props.status;
   }
 
-  get appointmentDate(): Date {
-    return this.props.appointmentDate;
-  }
-
-  get appointmentSource(): GuardianAppointmentSource {
-    return this.props.appointmentSource;
-  }
-
-  get removedDate(): Date | undefined {
-    return this.props.removedDate;
-  }
-
-  get removalReason(): string | undefined {
-    return this.props.removalReason;
-  }
-
-  /**
-   * Check if bond posting is required
-   * (Required if has property management powers AND bondRequired is true)
-   */
-  public requiresBond(): boolean {
-    return this.props.bondRequired && this.props.powers.hasPropertyManagementPowers;
-  }
-
-  /**
-   * Check if bond has been posted
-   */
-  public isBondPosted(): boolean {
-    return !!this.props.bond;
-  }
-
-  /**
-   * Check if bond is expired
-   */
-  public isBondExpired(): boolean {
-    return this.props.bond?.isExpired() ?? false;
-  }
-
-  /**
-   * Check if guardian can manage property
-   * (And if bond is valid if required)
-   */
-  public canManageProperty(): boolean {
-    if (!this.props.powers.hasPropertyManagementPowers) return false;
-
-    if (this.props.bondRequired) {
-      return this.isBondPosted() && !this.isBondExpired();
-    }
-
-    return true;
-  }
-
-  /**
-   * Check if guardian can consent to medical treatment
-   */
-  public canConsentToMedical(): boolean {
-    return this.props.powers.canConsentToMedical;
-  }
-
-  /**
-   * Check if guardian can consent to marriage (for wards 16-18 with court permission)
-   */
-  public canConsentToMarriage(): boolean {
-    return this.props.powers.canConsentToMarriage;
-  }
-
-  /**
-   * Get powers (read-only)
-   */
-  public getPowers(): GuardianPowers {
+  get powers(): GuardianshipPowersVO {
     return this.props.powers;
   }
 
-  /**
-   * Get bond details (if posted)
-   */
-  public getBond(): GuardianBond | undefined {
-    return this.props.bond;
+  get complianceScore(): number {
+    return this.props.complianceScore;
   }
 
-  /**
-   * Get annual allowance
-   */
-  public getAnnualAllowance(): KenyanMoney | undefined {
-    return this.props.annualAllowance;
+  get hasActiveConflicts(): boolean {
+    return this.props.conflictOfInterestFlags.some((conflict) => !conflict.resolvedAt);
   }
 
-  // ============================================================================
-  // HELPER METHODS
-  // ============================================================================
-
-  /**
-   * Serialize to JSON for API responses
-   */
-  public toJSON(): Record<string, any> {
-    return {
-      id: this._id.toString(),
-      guardianId: this.props.guardianId.toString(),
-      isPrimary: this.props.isPrimary,
-      appointmentDate: this.props.appointmentDate.toISOString(),
-      appointmentSource: this.props.appointmentSource,
-      powers: this.props.powers.toJSON(),
-      bondRequired: this.props.bondRequired,
-      bond: this.props.bond?.toJSON(),
-      annualAllowance: this.props.annualAllowance?.toJSON(),
-      allowanceApprovedBy: this.props.allowanceApprovedBy?.toString(),
-      isActive: this.props.isActive,
-      removedDate: this.props.removedDate?.toISOString(),
-      removalReason: this.props.removalReason,
-      restrictions: this.props.restrictions,
-
-      // Computed properties
-      requiresBond: this.requiresBond(),
-      isBondPosted: this.isBondPosted(),
-      isBondExpired: this.isBondExpired(),
-      canManageProperty: this.canManageProperty(),
-      canConsentToMedical: this.canConsentToMedical(),
-      canConsentToMarriage: this.canConsentToMarriage(),
-
-      // Metadata
-      version: this._version,
-      createdAt: this._createdAt.toISOString(),
-      updatedAt: this._updatedAt.toISOString(),
-      deletedAt: this._deletedAt?.toISOString(),
+  // 🎯 INNOVATIVE: Factory method for creating assignments
+  public static create(
+    props: Omit<
+      GuardianAssignmentProps,
+      'status' | 'tasksCompleted' | 'complianceScore' | 'conflictOfInterestFlags'
+    > & {
+      id?: string;
+    },
+  ): GuardianAssignmentEntity {
+    const defaultProps: Partial<GuardianAssignmentProps> = {
+      status: GuardianAssignmentStatus.PENDING,
+      tasksCompleted: 0,
+      complianceScore: 100, // Start with perfect score
+      conflictOfInterestFlags: [],
     };
+
+    const entityProps: GuardianAssignmentProps = {
+      ...props,
+      ...defaultProps,
+    } as GuardianAssignmentProps;
+
+    return new GuardianAssignmentEntity(new UniqueEntityID(props.id), entityProps);
+  }
+
+  // 🎯 INNOVATIVE: Clone for alternate guardian creation
+  public cloneForAlternate(
+    alternateGuardianId: string,
+    alternateGuardianName: string,
+  ): GuardianAssignmentEntity {
+    const alternateProps: GuardianAssignmentProps = {
+      ...this.props,
+      guardianId: alternateGuardianId,
+      guardianName: alternateGuardianName,
+      isPrimary: false,
+      isAlternate: true,
+      status: GuardianAssignmentStatus.PENDING,
+      activationDate: undefined,
+      deactivationDate: undefined,
+      deactivationReason: undefined,
+      tasksCompleted: 0,
+      complianceScore: 100,
+      conflictOfInterestFlags: [],
+    };
+
+    return new GuardianAssignmentEntity(new UniqueEntityID(), alternateProps);
   }
 }

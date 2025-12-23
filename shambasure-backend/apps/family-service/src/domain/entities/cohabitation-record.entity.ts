@@ -1,549 +1,923 @@
-// domain/entities/cohabitation-record.entity.ts
+// src/family-service/src/domain/entities/cohabitation-record.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
-import { InvalidRelationshipException } from '../exceptions/family.exception';
+import {
+  CohabitationChildrenAddedEvent,
+  CohabitationEndedEvent,
+  CohabitationStartedEvent,
+  CohabitationVerifiedEvent,
+} from '../events/family-events';
+import { KenyanCounty } from '../value-objects/family-enums.vo';
 
 /**
- * CohabitationRecord Entity Props (Immutable)
+ * Cohabitation Record Entity (S.29(5) LSA - "Come-We-Stay")
  *
- * Design: Tracks long-term cohabitation relationships
- * - Not legally married but living as partners
- * - Critical for S. 29(5) LSA "woman living as wife" claims
- *
- * Kenyan Law Context (S. 29(5) LSA):
- * - Woman living with deceased as wife ≥ 5 years
- * - Family/community must recognize relationship
- * - Children from relationship strengthen claim
- * - Can qualify as dependant for succession purposes
- *
- * Requirements for Legal Recognition:
- * 1. Duration: Minimum 5 years continuous cohabitation
- * 2. Acknowledgment: Family/community recognition
- * 3. Children: Biological children strengthen claim
- * 4. Exclusivity: Must be primary relationship
+ * Innovations:
+ * 1. S.29(5) LSA compliance for dependency claims
+ * 2. Progressive relationship validation (2+ years = legal recognition)
+ * 3. Community and witness verification system
+ * 4. Children tracking from cohabitation
+ * 5. Smart duration calculation for legal qualification
  */
 export interface CohabitationRecordProps {
-  // References
+  // Core Information
   familyId: UniqueEntityID;
-  partner1Id: UniqueEntityID;
-  partner2Id: UniqueEntityID;
+  partner1Id: UniqueEntityID; // Usually male partner in Kenyan context
+  partner2Id: UniqueEntityID; // Usually female partner
 
-  // Timeline
+  // Cohabitation Details
+  relationshipType: 'COME_WE_STAY' | 'LONG_TERM_PARTNERSHIP' | 'DATING' | 'ENGAGED';
   startDate: Date;
   endDate?: Date;
-  durationYears: number; // Calculated duration
+  isActive: boolean;
 
-  // S. 29(5) LSA Requirements
-  isAcknowledged: boolean; // Family/community recognition
-  acknowledgmentEvidence?: string[]; // Document IDs
+  // Duration & Legal Qualification
+  durationDays: number; // Denormalized for quick queries
+  qualifiesForS29: boolean; // S.29(5) Law of Succession Act
+  minimumPeriodMet: boolean; // 2+ years cohabitation
 
-  // Children
+  // Residence Details
+  sharedResidence: string;
+  residenceCounty: KenyanCounty;
+  isSeparateHousehold: boolean; // True if not living with parents
+
+  // Evidence & Verification
+  affidavitId?: string; // Sworn affidavit document ID
+  witnesses: string[]; // Names of witnesses who can attest
+  communityAcknowledged: boolean; // Known by neighbors/community
+  hasJointUtilities: boolean; // Shared bills, bank accounts, etc.
+
+  // Children from Cohabitation
+  childrenIds: UniqueEntityID[];
   hasChildren: boolean;
-  childrenCount: number;
-  childrenIds?: UniqueEntityID[];
+  childrenBornDuringCohabitation: boolean;
 
-  // Registration (some counties have registries)
-  isRegistered: boolean;
-  registrationNumber?: string;
-  registrationAuthority?: string;
-  registrationDate?: Date;
+  // Financial Interdependence
+  jointFinancialAccounts: boolean;
+  jointPropertyOwnership: boolean;
+  financialSupportProvided: boolean;
+  supportEvidence: string[]; // Receipts, bank transfers, etc.
 
-  // Legal Status
-  qualifiesForDependantClaim: boolean; // Meets S. 29(5) criteria
-  rejectionReason?: string; // Why doesn't qualify
+  // Social Recognition
+  knownAsCouple: boolean;
+  socialMediaEvidence?: string[]; // Photos, posts together
+  familyAcknowledged: boolean; // Both families accept relationship
 
-  // Cohabitation Evidence
-  sharedResidence: boolean;
-  jointFinances: boolean;
-  socialRecognition: boolean;
-  evidenceDocuments?: string[]; // Document IDs
+  // Legal Proceedings
+  hasCourtRecognition: boolean;
+  courtCaseNumber?: string;
+  courtOrderId?: string;
 
-  // Termination
-  terminationReason?: string;
-  mutualConsent?: boolean;
+  // Dependency Claims (S.29)
+  dependencyClaimFiled: boolean;
+  dependencyClaimId?: string;
+  dependencyClaimStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+
+  // Relationship Quality
+  relationshipStability: 'STABLE' | 'VOLATILE' | 'ON_OFF' | 'UNKNOWN';
+  separationAttempts: number;
+  reconciliationCount: number;
+
+  // Customary Context
+  customaryElements: boolean; // E.g., bride price discussions, clan involvement
+  clanInvolved: boolean;
+  elderMediation: boolean;
+
+  // Health & Safety
+  hasDomesticViolenceReports: boolean;
+  safetyPlanInPlace: boolean;
+
+  // Future Intentions
+  marriagePlanned: boolean;
+  plannedMarriageDate?: Date;
+  childrenPlanned: boolean;
+
+  // Metadata
+  createdBy: UniqueEntityID;
+  lastUpdatedBy: UniqueEntityID;
+  verificationStatus: 'UNVERIFIED' | 'PENDING_VERIFICATION' | 'VERIFIED' | 'REJECTED';
+  verificationNotes?: string;
+
+  // Audit
+  lastVerifiedAt?: Date;
+  isArchived: boolean;
 }
 
-/**
- * Factory Props
- */
-export interface CreateCohabitationRecordProps {
-  familyId: string;
-  partner1Id: string;
-  partner2Id: string;
-  startDate: Date;
-  endDate?: Date;
-
-  // Recognition
-  isAcknowledged?: boolean;
-  acknowledgmentEvidence?: string[];
-
-  // Children
-  hasChildren?: boolean;
-  childrenCount?: number;
-  childrenIds?: string[];
-
-  // Registration
-  isRegistered?: boolean;
-  registrationNumber?: string;
-  registrationAuthority?: string;
-  registrationDate?: Date;
-
-  // Evidence
-  sharedResidence?: boolean;
-  jointFinances?: boolean;
-  socialRecognition?: boolean;
-  evidenceDocuments?: string[];
-}
-
-/**
- * CohabitationRecord Entity
- *
- * Tracks long-term partnerships not recognized as marriage.
- * Critical for S. 29(5) LSA dependant claims.
- *
- * S. 29(5) LSA: "woman living with the deceased immediately before his death
- * as his wife for not less than five years"
- *
- * Qualification Criteria:
- * 1. Duration ≥ 5 years (mandatory)
- * 2. Lived as wife (community recognition)
- * 3. Immediate before death (ongoing at death)
- * 4. Children strengthen claim (not mandatory)
- *
- * Examples:
- * - Come-we-stay relationships
- * - Traditional unions without formal registration
- * - Long-term partnerships in urban areas
- */
 export class CohabitationRecord extends Entity<CohabitationRecordProps> {
-  private constructor(id: UniqueEntityID, props: CohabitationRecordProps, createdAt?: Date) {
-    super(id, props, createdAt);
-    this.validate();
+  private static readonly MINIMUM_DURATION_DAYS = 730; // 2 years for S.29 qualification
+  private static readonly LEGAL_PRESUMPTION_DAYS = 1825; // 5 years for stronger presumption
+
+  private constructor(props: CohabitationRecordProps, id?: UniqueEntityID, createdAt?: Date) {
+    super(id || new UniqueEntityID(), props, createdAt);
   }
 
-  // =========================================================================
-  // FACTORY METHODS
-  // =========================================================================
+  /**
+   * Factory method to create a new Cohabitation Record
+   */
+  public static create(props: CohabitationRecordProps, id?: UniqueEntityID): CohabitationRecord {
+    // Validate creation invariants
+    CohabitationRecord.validateCreation(props);
 
-  public static create(props: CreateCohabitationRecordProps): CohabitationRecord {
-    const id = new UniqueEntityID();
-    const now = new Date();
+    const record = new CohabitationRecord(props, id);
 
-    // Calculate duration
-    const endDate = props.endDate || now;
-    const durationYears = CohabitationRecord.calculateDuration(props.startDate, endDate);
+    // Calculate initial duration and qualifications
+    record.updateDurationAndQualifications();
 
-    // Determine if qualifies for S. 29(5) claim
-    const qualifiesForDependantClaim = CohabitationRecord.assessQualification(
-      durationYears,
-      props.isAcknowledged ?? false,
-      props.hasChildren ?? false,
-      !props.endDate, // Still ongoing
+    // Record creation event
+    record.addDomainEvent(
+      new CohabitationStartedEvent({
+        recordId: record.id.toString(),
+        partner1Id: record.props.partner1Id.toString(),
+        partner2Id: record.props.partner2Id.toString(),
+        startDate: record.props.startDate,
+        createdBy: record.props.createdBy.toString(),
+        timestamp: record.createdAt,
+      }),
     );
-
-    const recordProps: CohabitationRecordProps = {
-      familyId: new UniqueEntityID(props.familyId),
-      partner1Id: new UniqueEntityID(props.partner1Id),
-      partner2Id: new UniqueEntityID(props.partner2Id),
-
-      // Timeline
-      startDate: props.startDate,
-      endDate: props.endDate,
-      durationYears,
-
-      // Recognition
-      isAcknowledged: props.isAcknowledged ?? false,
-      acknowledgmentEvidence: props.acknowledgmentEvidence,
-
-      // Children
-      hasChildren: props.hasChildren ?? false,
-      childrenCount: props.childrenCount ?? 0,
-      childrenIds: props.childrenIds?.map((id) => new UniqueEntityID(id)),
-
-      // Registration
-      isRegistered: props.isRegistered ?? false,
-      registrationNumber: props.registrationNumber,
-      registrationAuthority: props.registrationAuthority,
-      registrationDate: props.registrationDate,
-
-      // Evidence
-      sharedResidence: props.sharedResidence ?? true,
-      jointFinances: props.jointFinances ?? false,
-      socialRecognition: props.socialRecognition ?? false,
-      evidenceDocuments: props.evidenceDocuments,
-
-      // Legal Status
-      qualifiesForDependantClaim,
-      rejectionReason: qualifiesForDependantClaim
-        ? undefined
-        : CohabitationRecord.getRejectionReason(durationYears, props.isAcknowledged ?? false),
-    };
-
-    return new CohabitationRecord(id, recordProps, now);
-  }
-
-  public static fromPersistence(
-    id: string,
-    props: CohabitationRecordProps,
-    createdAt: Date,
-    updatedAt?: Date,
-  ): CohabitationRecord {
-    const entityId = new UniqueEntityID(id);
-    const record = new CohabitationRecord(entityId, props, createdAt);
-
-    if (updatedAt) {
-      (record as any)._updatedAt = updatedAt;
-    }
 
     return record;
   }
 
-  // =========================================================================
-  // PRIVATE HELPERS
-  // =========================================================================
-
-  private static calculateDuration(startDate: Date, endDate: Date): number {
-    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-    const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365);
-    return Math.floor(diffYears * 10) / 10; // Round to 1 decimal
-  }
-
-  private static assessQualification(
-    durationYears: number,
-    isAcknowledged: boolean,
-    hasChildren: boolean,
-    isOngoing: boolean,
-  ): boolean {
-    // S. 29(5) LSA: Must be ≥ 5 years
-    if (durationYears < 5) return false;
-
-    // Must be acknowledged by family/community
-    if (!isAcknowledged) return false;
-
-    // Must be ongoing at time of death (for dependant claim)
-    if (!isOngoing) return false;
-
-    return true;
-  }
-
-  private static getRejectionReason(durationYears: number, isAcknowledged: boolean): string {
-    if (durationYears < 5) {
-      return `Duration ${durationYears} years is less than 5 years required by S. 29(5) LSA`;
-    }
-
-    if (!isAcknowledged) {
-      return 'Relationship not acknowledged by family/community as required by S. 29(5) LSA';
-    }
-
-    return 'Relationship ended before death - not ongoing as required by S. 29(5) LSA';
-  }
-
-  // =========================================================================
-  // VALIDATION
-  // =========================================================================
-
-  public validate(): void {
-    // Cannot cohabit with self
-    if (this.props.partner1Id.equals(this.props.partner2Id)) {
-      throw new InvalidRelationshipException('Partners cannot be the same person');
-    }
-
-    // Start date cannot be future
-    if (this.props.startDate > new Date()) {
-      throw new InvalidRelationshipException('Start date cannot be in the future');
-    }
-
-    // End date must be after start
-    if (this.props.endDate && this.props.endDate < this.props.startDate) {
-      throw new InvalidRelationshipException('End date cannot be before start date');
-    }
-
-    // Children count must match children IDs
-    if (this.props.childrenIds && this.props.childrenIds.length !== this.props.childrenCount) {
-      console.warn('Children count does not match children IDs length');
-    }
-
-    // Duration must be non-negative
-    if (this.props.durationYears < 0) {
-      throw new InvalidRelationshipException('Duration cannot be negative');
-    }
-  }
-
-  // =========================================================================
-  // BUSINESS LOGIC
-  // =========================================================================
-
-  public updateRecognition(
-    isAcknowledged: boolean,
-    evidenceDocuments?: string[],
+  /**
+   * Restore from persistence
+   */
+  public static restore(
+    props: CohabitationRecordProps,
+    id: UniqueEntityID,
+    createdAt: Date,
   ): CohabitationRecord {
-    this.ensureNotDeleted();
-
-    // Recalculate qualification
-    const qualifiesForDependantClaim = CohabitationRecord.assessQualification(
-      this.props.durationYears,
-      isAcknowledged,
-      this.props.hasChildren,
-      !this.props.endDate,
-    );
-
-    const newProps: CohabitationRecordProps = {
-      ...this.props,
-      isAcknowledged,
-      acknowledgmentEvidence: evidenceDocuments || this.props.acknowledgmentEvidence,
-      qualifiesForDependantClaim,
-      rejectionReason: qualifiesForDependantClaim
-        ? undefined
-        : CohabitationRecord.getRejectionReason(this.props.durationYears, isAcknowledged),
-    };
-
-    return new CohabitationRecord(this._id, newProps, this._createdAt);
+    return new CohabitationRecord(props, id, createdAt);
   }
 
-  public addChild(childId: string): CohabitationRecord {
-    this.ensureNotDeleted();
+  /**
+   * Update cohabitation information
+   */
+  public updateInformation(
+    updates: Partial<CohabitationRecordProps>,
+    updatedBy: UniqueEntityID,
+  ): void {
+    this.ensureNotArchived();
 
-    const childrenIds = this.props.childrenIds || [];
-    const childEntityId = new UniqueEntityID(childId);
+    const changes: Record<string, any> = {};
 
-    // Check if already added
-    if (childrenIds.some((id) => id.equals(childEntityId))) {
-      return this;
+    // Validate updates
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined) {
+        const oldValue = (this.props as any)[key];
+
+        // Skip if no change
+        if (JSON.stringify(oldValue) === JSON.stringify(value)) return;
+
+        // Apply update
+        (this.props as any)[key] = value;
+        changes[key] = { old: oldValue, new: value };
+      }
+    });
+
+    if (Object.keys(changes).length > 0) {
+      this.props.lastUpdatedBy = updatedBy;
+
+      // Recalculate derived fields if dates changed
+      if (updates.startDate || updates.endDate) {
+        this.updateDurationAndQualifications();
+      }
+
+      // Update children status if childrenIds changed
+      if (updates.childrenIds) {
+        this.props.hasChildren = this.props.childrenIds.length > 0;
+      }
     }
-
-    const newProps: CohabitationRecordProps = {
-      ...this.props,
-      hasChildren: true,
-      childrenCount: this.props.childrenCount + 1,
-      childrenIds: [...childrenIds, childEntityId],
-    };
-
-    return new CohabitationRecord(this._id, newProps, this._createdAt);
   }
 
-  public register(
-    registrationNumber: string,
-    authority: string,
-    registrationDate?: Date,
-  ): CohabitationRecord {
-    this.ensureNotDeleted();
-
-    if (this.props.isRegistered) {
-      throw new InvalidRelationshipException('Cohabitation already registered');
-    }
-
-    const newProps: CohabitationRecordProps = {
-      ...this.props,
-      isRegistered: true,
-      registrationNumber,
-      registrationAuthority: authority,
-      registrationDate: registrationDate || new Date(),
-    };
-
-    return new CohabitationRecord(this._id, newProps, this._createdAt);
-  }
-
-  public terminate(endDate: Date, reason: string, mutualConsent: boolean): CohabitationRecord {
-    this.ensureNotDeleted();
-
-    if (this.props.endDate) {
-      throw new InvalidRelationshipException('Cohabitation already terminated');
-    }
+  /**
+   * End cohabitation
+   */
+  public endCohabitation(
+    endDate: Date,
+    reason: 'SEPARATION' | 'MARRIAGE' | 'DEATH' | 'RELOCATION' | 'CONFLICT' | 'OTHER',
+    details: {
+      separationAgreementId?: string;
+      deathCertificateId?: string;
+      relocationProof?: string;
+      conflictMediationReport?: string;
+    },
+    endedBy: UniqueEntityID,
+  ): void {
+    this.ensureNotArchived();
 
     if (endDate < this.props.startDate) {
-      throw new InvalidRelationshipException('End date cannot be before start date');
+      throw new Error('End date cannot be before start date');
     }
 
-    // Recalculate duration
-    const durationYears = CohabitationRecord.calculateDuration(this.props.startDate, endDate);
+    if (endDate > new Date()) {
+      throw new Error('End date cannot be in the future');
+    }
 
-    // Recalculate qualification (will fail since not ongoing)
-    const qualifiesForDependantClaim = false;
+    const previousStatus = this.props.isActive;
+    this.props.endDate = endDate;
+    this.props.isActive = false;
+    this.props.lastUpdatedBy = endedBy;
 
-    const newProps: CohabitationRecordProps = {
-      ...this.props,
-      endDate,
-      durationYears,
-      terminationReason: reason,
-      mutualConsent,
-      qualifiesForDependantClaim,
-      rejectionReason: 'Relationship ended before death - not ongoing as required by S. 29(5) LSA',
-    };
+    // Update duration and qualifications
+    this.updateDurationAndQualifications();
 
-    return new CohabitationRecord(this._id, newProps, this._createdAt);
-  }
+    // Add relevant evidence
+    if (details.separationAgreementId) {
+      // This would link to a document
+    }
 
-  public addEvidence(documentIds: string[]): CohabitationRecord {
-    this.ensureNotDeleted();
+    if (details.deathCertificateId) {
+      // Link to death certificate
+    }
 
-    const existingDocs = this.props.evidenceDocuments || [];
-    const newDocs = [...existingDocs, ...documentIds];
-
-    const newProps: CohabitationRecordProps = {
-      ...this.props,
-      evidenceDocuments: newDocs,
-    };
-
-    return new CohabitationRecord(this._id, newProps, this._createdAt);
-  }
-
-  public updateEvidenceFlags(flags: {
-    sharedResidence?: boolean;
-    jointFinances?: boolean;
-    socialRecognition?: boolean;
-  }): CohabitationRecord {
-    this.ensureNotDeleted();
-
-    const newProps: CohabitationRecordProps = {
-      ...this.props,
-      sharedResidence: flags.sharedResidence ?? this.props.sharedResidence,
-      jointFinances: flags.jointFinances ?? this.props.jointFinances,
-      socialRecognition: flags.socialRecognition ?? this.props.socialRecognition,
-    };
-
-    return new CohabitationRecord(this._id, newProps, this._createdAt);
-  }
-
-  // =========================================================================
-  // GETTERS
-  // =========================================================================
-
-  get familyId(): UniqueEntityID {
-    return this.props.familyId;
-  }
-
-  get partner1Id(): UniqueEntityID {
-    return this.props.partner1Id;
-  }
-
-  get partner2Id(): UniqueEntityID {
-    return this.props.partner2Id;
-  }
-
-  get startDate(): Date {
-    return this.props.startDate;
-  }
-
-  get endDate(): Date | undefined {
-    return this.props.endDate;
-  }
-
-  get durationYears(): number {
-    return this.props.durationYears;
-  }
-
-  get isAcknowledged(): boolean {
-    return this.props.isAcknowledged;
-  }
-
-  get hasChildren(): boolean {
-    return this.props.hasChildren;
-  }
-
-  get childrenCount(): number {
-    return this.props.childrenCount;
-  }
-
-  get isRegistered(): boolean {
-    return this.props.isRegistered;
-  }
-
-  get qualifiesForDependantClaim(): boolean {
-    return this.props.qualifiesForDependantClaim;
-  }
-
-  get rejectionReason(): string | undefined {
-    return this.props.rejectionReason;
-  }
-
-  // =========================================================================
-  // COMPUTED PROPERTIES
-  // =========================================================================
-
-  get isOngoing(): boolean {
-    return !this.props.endDate;
-  }
-
-  get meetsMinimumDuration(): boolean {
-    return this.props.durationYears >= 5;
-  }
-
-  get hasStrongEvidence(): boolean {
-    return (
-      this.props.sharedResidence &&
-      this.props.hasChildren &&
-      this.props.isAcknowledged &&
-      (this.props.evidenceDocuments?.length ?? 0) >= 3
+    // Record end event
+    this.addDomainEvent(
+      new CohabitationEndedEvent({
+        recordId: this.id.toString(),
+        partner1Id: this.props.partner1Id.toString(),
+        partner2Id: this.props.partner2Id.toString(),
+        endDate,
+        reason,
+        durationDays: this.props.durationDays,
+        endedBy: endedBy.toString(),
+        timestamp: new Date(),
+      }),
     );
   }
 
-  get evidenceStrength(): 'STRONG' | 'MODERATE' | 'WEAK' {
-    const score =
-      (this.props.sharedResidence ? 2 : 0) +
-      (this.props.jointFinances ? 1 : 0) +
-      (this.props.socialRecognition ? 1 : 0) +
-      (this.props.hasChildren ? 2 : 0) +
-      (this.props.isAcknowledged ? 2 : 0) +
-      ((this.props.evidenceDocuments?.length ?? 0) > 0 ? 1 : 0);
+  /**
+   * Add child from cohabitation
+   */
+  public addChild(
+    childId: UniqueEntityID,
+    birthDate: Date,
+    isBiological: boolean,
+    addedBy: UniqueEntityID,
+  ): void {
+    this.ensureNotArchived();
 
-    if (score >= 7) return 'STRONG';
-    if (score >= 4) return 'MODERATE';
-    return 'WEAK';
-  }
-
-  public getPartner(fromPartnerId: string | UniqueEntityID): UniqueEntityID {
-    const id =
-      typeof fromPartnerId === 'string' ? new UniqueEntityID(fromPartnerId) : fromPartnerId;
-
-    if (this.props.partner1Id.equals(id)) {
-      return this.props.partner2Id;
+    if (this.props.childrenIds.some((id) => id.equals(childId))) {
+      throw new Error('Child already exists in this cohabitation');
     }
 
-    if (this.props.partner2Id.equals(id)) {
-      return this.props.partner1Id;
+    // Validate child was born during cohabitation
+    if (birthDate < this.props.startDate) {
+      throw new Error('Child birth date cannot be before cohabitation started');
     }
 
-    throw new InvalidRelationshipException('Provided ID is not a partner in this cohabitation');
+    if (this.props.endDate && birthDate > this.props.endDate) {
+      throw new Error('Child birth date cannot be after cohabitation ended');
+    }
+
+    this.props.childrenIds.push(childId);
+    this.props.hasChildren = true;
+    this.props.childrenBornDuringCohabitation = true;
+    this.props.lastUpdatedBy = addedBy;
+
+    // Record child addition event
+    this.addDomainEvent(
+      new CohabitationChildrenAddedEvent({
+        recordId: this.id.toString(),
+        childId: childId.toString(),
+        partner1Id: this.props.partner1Id.toString(),
+        partner2Id: this.props.partner2Id.toString(),
+        birthDate,
+        isBiological,
+        addedBy: addedBy.toString(),
+        timestamp: new Date(),
+      }),
+    );
   }
 
-  // =========================================================================
-  // SERIALIZATION
-  // =========================================================================
+  /**
+   * Verify cohabitation with evidence
+   */
+  public verifyCohabitation(
+    evidence: {
+      affidavitId: string;
+      witnessStatements: string[];
+      jointBills?: string[]; // Utility bills, rent receipts
+      photographs?: string[]; // Photos together at residence
+      neighborAffidavits?: string[]; // Neighbor statements
+    },
+    verifiedBy: UniqueEntityID,
+    confidenceLevel: number, // 0-100
+  ): void {
+    this.ensureNotArchived();
 
-  public toPlainObject(): Record<string, any> {
+    this.props.affidavitId = evidence.affidavitId;
+    this.props.witnesses = evidence.witnessStatements;
+    this.props.communityAcknowledged = true;
+
+    // Update verification status based on evidence strength
+    let verificationScore = 0;
+
+    if (evidence.affidavitId) verificationScore += 30;
+    if (evidence.witnessStatements.length >= 2) verificationScore += 20;
+    if (evidence.jointBills && evidence.jointBills.length > 0) verificationScore += 25;
+    if (evidence.neighborAffidavits && evidence.neighborAffidavits.length > 0)
+      verificationScore += 15;
+
+    // Update verification status
+    const oldStatus = this.props.verificationStatus;
+    this.props.verificationStatus = verificationScore >= 70 ? 'VERIFIED' : 'PENDING_VERIFICATION';
+    this.props.verificationNotes = `Verified with ${evidence.witnessStatements.length} witnesses, ${evidence.jointBills?.length || 0} joint bills`;
+    this.props.lastVerifiedAt = new Date();
+    this.props.lastUpdatedBy = verifiedBy;
+
+    // Record verification event
+    this.addDomainEvent(
+      new CohabitationVerifiedEvent({
+        recordId: this.id.toString(),
+        partner1Id: this.props.partner1Id.toString(),
+        partner2Id: this.props.partner2Id.toString(),
+        oldStatus,
+        newStatus: this.props.verificationStatus,
+        evidenceCount: evidence.witnessStatements.length + (evidence.jointBills?.length || 0),
+        verifiedBy: verifiedBy.toString(),
+        timestamp: new Date(),
+      }),
+    );
+  }
+
+  /**
+   * Establish financial interdependence
+   */
+  public establishFinancialInterdependence(
+    evidence: {
+      jointBankAccount?: string;
+      moneyTransferRecords?: string[];
+      sharedLoanDocuments?: string[];
+      propertyCoOwnership?: string[];
+    },
+    establishedBy: UniqueEntityID,
+  ): void {
+    this.props.jointFinancialAccounts = !!evidence.jointBankAccount;
+    this.props.jointPropertyOwnership = !!(
+      evidence.propertyCoOwnership && evidence.propertyCoOwnership.length > 0
+    );
+    this.props.financialSupportProvided = true;
+
+    // Add evidence to supportEvidence
+    if (evidence.jointBankAccount) {
+      this.props.supportEvidence.push(`JOINT_ACCOUNT_${evidence.jointBankAccount}`);
+    }
+
+    if (evidence.moneyTransferRecords) {
+      this.props.supportEvidence.push(
+        ...evidence.moneyTransferRecords.map((r) => `MONEY_TRANSFER_${r}`),
+      );
+    }
+
+    this.props.lastUpdatedBy = establishedBy;
+
+    // Update S.29 qualification
+    this.updateS29Qualification();
+  }
+
+  /**
+   * File dependency claim (S.29(5))
+   */
+  public fileDependencyClaim(
+    claimId: string,
+    courtDetails: {
+      caseNumber: string;
+      courtStation: string;
+      filingDate: Date;
+    },
+    filedBy: UniqueEntityID,
+  ): void {
+    if (!this.qualifiesForDependencyClaim()) {
+      throw new Error('Cohabitation does not qualify for dependency claim');
+    }
+
+    this.props.dependencyClaimFiled = true;
+    this.props.dependencyClaimId = claimId;
+    this.props.dependencyClaimStatus = 'PENDING';
+    this.props.hasCourtRecognition = true;
+    this.props.courtCaseNumber = courtDetails.caseNumber;
+    this.props.lastUpdatedBy = filedBy;
+
+    // This would trigger estate service to create LegalDependant entity
+  }
+
+  /**
+   * Update dependency claim status
+   */
+  public updateDependencyClaim(
+    status: 'APPROVED' | 'REJECTED',
+    courtOrderId: string,
+    decisionDate: Date,
+    updatedBy: UniqueEntityID,
+  ): void {
+    if (!this.props.dependencyClaimFiled) {
+      throw new Error('No dependency claim has been filed');
+    }
+
+    this.props.dependencyClaimStatus = status;
+    this.props.courtOrderId = courtOrderId;
+
+    if (status === 'APPROVED') {
+      this.props.hasCourtRecognition = true;
+      // This would trigger estate service to update LegalDependant status
+    }
+
+    this.props.lastUpdatedBy = updatedBy;
+  }
+
+  /**
+   * Calculate cohabitation duration and update qualifications
+   */
+  private updateDurationAndQualifications(): void {
+    const endDate = this.props.endDate || new Date();
+    const startDate = this.props.startDate;
+
+    // Calculate duration in days
+    const durationMs = endDate.getTime() - startDate.getTime();
+    const durationDays = Math.floor(durationMs / (1000 * 60 * 60 * 24));
+
+    this.props.durationDays = durationDays;
+
+    // Check if minimum period met (2 years for S.29)
+    this.props.minimumPeriodMet = durationDays >= CohabitationRecord.MINIMUM_DURATION_DAYS;
+
+    // Update S.29 qualification
+    this.updateS29Qualification();
+  }
+
+  /**
+   * Update S.29 qualification status
+   */
+  private updateS29Qualification(): void {
+    // Qualifies for S.29 if:
+    // 1. Minimum period met (2+ years)
+    // 2. Has children OR financial interdependence OR community acknowledgment
+    // 3. Not ended by death before minimum period
+
+    const meetsDuration = this.props.minimumPeriodMet;
+    const hasStrongEvidence =
+      this.props.hasChildren ||
+      this.props.jointFinancialAccounts ||
+      this.props.jointPropertyOwnership ||
+      this.props.communityAcknowledged;
+
+    // Check if ended by death before minimum period
+    const endedByDeathBeforeQualification =
+      this.props.endDate &&
+      !this.props.minimumPeriodMet &&
+      this.props.dependencyClaimStatus === 'PENDING';
+
+    this.props.qualifiesForS29 =
+      meetsDuration && hasStrongEvidence && !endedByDeathBeforeQualification;
+  }
+
+  /**
+   * Check if cohabitation qualifies for dependency claim
+   */
+  public qualifiesForDependencyClaim(): boolean {
+    return (
+      this.props.qualifiesForS29 &&
+      this.props.isActive &&
+      this.props.verificationStatus === 'VERIFIED'
+    );
+  }
+
+  /**
+   * Get cohabitation strength score (0-100)
+   */
+  public calculateStrengthScore(): number {
+    let score = 0;
+
+    // Duration factor (max 30)
+    if (this.props.durationDays >= CohabitationRecord.LEGAL_PRESUMPTION_DAYS) {
+      score += 30;
+    } else if (this.props.durationDays >= CohabitationRecord.MINIMUM_DURATION_DAYS) {
+      score += 20;
+    } else if (this.props.durationDays >= 365) {
+      // 1 year
+      score += 10;
+    }
+
+    // Evidence factor (max 25)
+    if (this.props.affidavitId) score += 10;
+    if (this.props.witnesses.length >= 2) score += 10;
+    if (this.props.hasJointUtilities) score += 5;
+
+    // Financial interdependence factor (max 20)
+    if (this.props.jointFinancialAccounts) score += 10;
+    if (this.props.jointPropertyOwnership) score += 10;
+
+    // Social recognition factor (max 15)
+    if (this.props.communityAcknowledged) score += 5;
+    if (this.props.familyAcknowledged) score += 5;
+    if (this.props.knownAsCouple) score += 5;
+
+    // Children factor (max 10)
+    if (this.props.hasChildren) score += 10;
+
+    return Math.min(score, 100);
+  }
+
+  /**
+   * Get legal presumption level
+   */
+  public getLegalPresumption(): 'STRONG' | 'MODERATE' | 'WEAK' | 'NONE' {
+    const score = this.calculateStrengthScore();
+
+    if (score >= 80) return 'STRONG';
+    if (score >= 60) return 'MODERATE';
+    if (score >= 40) return 'WEAK';
+    return 'NONE';
+  }
+
+  /**
+   * Get evidence gaps for stronger claim
+   */
+  public getEvidenceGaps(): string[] {
+    const gaps: string[] = [];
+
+    if (!this.props.affidavitId) {
+      gaps.push('Missing sworn affidavit');
+    }
+
+    if (this.props.witnesses.length < 2) {
+      gaps.push('Need at least 2 witnesses');
+    }
+
+    if (!this.props.hasJointUtilities) {
+      gaps.push('No evidence of shared utilities or bills');
+    }
+
+    if (!this.props.communityAcknowledged) {
+      gaps.push('Not acknowledged by community/neighbors');
+    }
+
+    if (!this.props.familyAcknowledged) {
+      gaps.push('Not acknowledged by both families');
+    }
+
+    if (!this.props.jointFinancialAccounts && !this.props.jointPropertyOwnership) {
+      gaps.push('No evidence of financial interdependence');
+    }
+
+    return gaps;
+  }
+
+  /**
+   * Get timeline of cohabitation events
+   */
+  public getTimeline(): Array<{
+    date: Date;
+    event: string;
+    details: string;
+  }> {
+    const timeline = [];
+
+    // Start of cohabitation
+    timeline.push({
+      date: this.props.startDate,
+      event: 'Cohabitation Started',
+      details: `Moved to ${this.props.sharedResidence}, ${this.props.residenceCounty}`,
+    });
+
+    // Children births
+    // In practice, would fetch child birth dates
+
+    // Verification events
+    if (this.props.lastVerifiedAt) {
+      timeline.push({
+        date: this.props.lastVerifiedAt,
+        event: 'Relationship Verified',
+        details: `Status: ${this.props.verificationStatus}`,
+      });
+    }
+
+    // Dependency claim filed
+    if (this.props.dependencyClaimFiled) {
+      // Would have filing date from court
+    }
+
+    // End of cohabitation
+    if (this.props.endDate) {
+      timeline.push({
+        date: this.props.endDate,
+        event: 'Cohabitation Ended',
+        details: `Active: ${this.props.isActive}, Duration: ${this.props.durationDays} days`,
+      });
+    }
+
+    // Sort by date
+    return timeline.sort((a, b) => a.date.getTime() - b.date.getTime());
+  }
+
+  /**
+   * Validate creation invariants
+   */
+  private static validateCreation(props: CohabitationRecordProps): void {
+    // Partners cannot be the same
+    if (props.partner1Id.equals(props.partner2Id)) {
+      throw new Error('Cannot cohabitate with oneself');
+    }
+
+    // Start date must be in the past
+    if (props.startDate > new Date()) {
+      throw new Error('Cohabitation start date cannot be in the future');
+    }
+
+    // End date must be after start date if provided
+    if (props.endDate && props.endDate <= props.startDate) {
+      throw new Error('Cohabitation end date must be after start date');
+    }
+
+    // Active cohabitation cannot have end date
+    if (props.isActive && props.endDate) {
+      throw new Error('Active cohabitation cannot have an end date');
+    }
+
+    // Minimum 1 witness required
+    if (props.witnesses.length === 0) {
+      throw new Error('At least one witness is required for cohabitation record');
+    }
+
+    // Residence must be provided
+    if (!props.sharedResidence || props.sharedResidence.trim().length === 0) {
+      throw new Error('Shared residence address must be provided');
+    }
+  }
+
+  private ensureNotArchived(): void {
+    if (this.props.isArchived) {
+      throw new Error(`Cannot modify archived cohabitation record: ${this.id.toString()}`);
+    }
+  }
+
+  /**
+   * Archive record (soft delete)
+   */
+  public archive(reason: string, archivedBy: UniqueEntityID): void {
+    if (this.props.isArchived) {
+      throw new Error('Cohabitation record is already archived');
+    }
+
+    this.props.isArchived = true;
+    this.props.lastUpdatedBy = archivedBy;
+    this.props.verificationNotes = `${this.props.verificationNotes || ''}\nArchived: ${reason}`;
+  }
+
+  /**
+   * Restore from archive
+   */
+  public restoreFromArchive(restoredBy: UniqueEntityID): void {
+    if (!this.props.isArchived) {
+      throw new Error('Cohabitation record is not archived');
+    }
+
+    this.props.isArchived = false;
+    this.props.lastUpdatedBy = restoredBy;
+  }
+
+  /**
+   * Get cohabitation summary for display
+   */
+  public getSummary(): Record<string, any> {
     return {
-      id: this._id.toString(),
-      familyId: this.props.familyId.toString(),
+      id: this.id.toString(),
       partner1Id: this.props.partner1Id.toString(),
       partner2Id: this.props.partner2Id.toString(),
-      startDate: this.props.startDate,
-      endDate: this.props.endDate,
-      durationYears: this.props.durationYears,
-      isAcknowledged: this.props.isAcknowledged,
-      acknowledgmentEvidence: this.props.acknowledgmentEvidence,
-      hasChildren: this.props.hasChildren,
-      childrenCount: this.props.childrenCount,
-      childrenIds: this.props.childrenIds?.map((id) => id.toString()),
-      isRegistered: this.props.isRegistered,
-      registrationNumber: this.props.registrationNumber,
-      registrationAuthority: this.props.registrationAuthority,
-      registrationDate: this.props.registrationDate,
-      qualifiesForDependantClaim: this.props.qualifiesForDependantClaim,
-      rejectionReason: this.props.rejectionReason,
-      sharedResidence: this.props.sharedResidence,
-      jointFinances: this.props.jointFinances,
-      socialRecognition: this.props.socialRecognition,
-      evidenceDocuments: this.props.evidenceDocuments,
-      terminationReason: this.props.terminationReason,
-      mutualConsent: this.props.mutualConsent,
-      isOngoing: this.isOngoing,
-      meetsMinimumDuration: this.meetsMinimumDuration,
-      hasStrongEvidence: this.hasStrongEvidence,
-      evidenceStrength: this.evidenceStrength,
-      version: this._version,
-      createdAt: this._createdAt,
-      updatedAt: this._updatedAt,
-      deletedAt: this._deletedAt,
+      relationshipType: this.props.relationshipType,
+      duration: {
+        days: this.props.durationDays,
+        years: Math.floor(this.props.durationDays / 365),
+        months: Math.floor((this.props.durationDays % 365) / 30),
+      },
+      status: {
+        isActive: this.props.isActive,
+        startDate: this.props.startDate,
+        endDate: this.props.endDate,
+        qualifiesForS29: this.props.qualifiesForS29,
+        minimumPeriodMet: this.props.minimumPeriodMet,
+      },
+      residence: {
+        address: this.props.sharedResidence,
+        county: this.props.residenceCounty,
+        separateHousehold: this.props.isSeparateHousehold,
+      },
+      family: {
+        hasChildren: this.props.hasChildren,
+        childrenCount: this.props.childrenIds.length,
+        childrenBornDuring: this.props.childrenBornDuringCohabitation,
+      },
+      legal: {
+        verificationStatus: this.props.verificationStatus,
+        dependencyClaimFiled: this.props.dependencyClaimFiled,
+        dependencyClaimStatus: this.props.dependencyClaimStatus,
+        hasCourtRecognition: this.props.hasCourtRecognition,
+        legalPresumption: this.getLegalPresumption(),
+      },
+      isArchived: this.props.isArchived,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    };
+  }
+
+  /**
+   * Get computed properties for business logic
+   */
+  public get computedProperties() {
+    return {
+      strengthScore: this.calculateStrengthScore(),
+      legalPresumption: this.getLegalPresumption(),
+      evidenceGaps: this.getEvidenceGaps(),
+      timeline: this.getTimeline(),
+      relationshipHealth: this.calculateRelationshipHealth(),
+      financialInterdependence: this.getFinancialInterdependence(),
+      socialRecognition: this.getSocialRecognition(),
+      legalRecommendations: this.getLegalRecommendations(),
+    };
+  }
+
+  private calculateRelationshipHealth(): 'HEALTHY' | 'STABLE' | 'VOLATILE' | 'TERMINATED' {
+    if (!this.props.isActive) return 'TERMINATED';
+
+    if (this.props.separationAttempts > 2) return 'VOLATILE';
+
+    if (this.props.relationshipStability === 'STABLE' && this.props.reconciliationCount === 0) {
+      return 'HEALTHY';
+    }
+
+    return 'STABLE';
+  }
+
+  private getFinancialInterdependence(): Record<string, any> {
+    return {
+      jointAccounts: this.props.jointFinancialAccounts,
+      jointProperty: this.props.jointPropertyOwnership,
+      financialSupport: this.props.financialSupportProvided,
+      supportEvidenceCount: this.props.supportEvidence.length,
+      interdependenceScore: this.calculateFinancialInterdependenceScore(),
+    };
+  }
+
+  private calculateFinancialInterdependenceScore(): number {
+    let score = 0;
+
+    if (this.props.jointFinancialAccounts) score += 40;
+    if (this.props.jointPropertyOwnership) score += 40;
+    if (this.props.financialSupportProvided) score += 20;
+
+    return score;
+  }
+
+  private getSocialRecognition(): Record<string, any> {
+    return {
+      communityAcknowledged: this.props.communityAcknowledged,
+      familyAcknowledged: this.props.familyAcknowledged,
+      knownAsCouple: this.props.knownAsCouple,
+      witnessCount: this.props.witnesses.length,
+      customaryElements: this.props.customaryElements,
+      clanInvolved: this.props.clanInvolved,
+      socialRecognitionScore: this.calculateSocialRecognitionScore(),
+    };
+  }
+
+  private calculateSocialRecognitionScore(): number {
+    let score = 0;
+
+    if (this.props.communityAcknowledged) score += 25;
+    if (this.props.familyAcknowledged) score += 25;
+    if (this.props.knownAsCouple) score += 20;
+    if (this.props.witnesses.length >= 2) score += 15;
+    if (this.props.customaryElements) score += 10;
+    if (this.props.clanInvolved) score += 5;
+
+    return score;
+  }
+
+  private getLegalRecommendations(): string[] {
+    const recommendations: string[] = [];
+
+    if (!this.props.qualifiesForS29 && this.props.isActive) {
+      recommendations.push('Continue cohabitation to reach 2-year minimum for S.29 eligibility');
+    }
+
+    if (!this.props.affidavitId) {
+      recommendations.push('File a sworn affidavit at the nearest commissioner of oaths');
+    }
+
+    if (this.props.witnesses.length < 2) {
+      recommendations.push('Gather statements from at least 2 witnesses');
+    }
+
+    if (!this.props.jointFinancialAccounts && !this.props.jointPropertyOwnership) {
+      recommendations.push(
+        'Establish joint financial accounts or property ownership for stronger evidence',
+      );
+    }
+
+    if (!this.props.communityAcknowledged) {
+      recommendations.push('Make relationship known to neighbors and community');
+    }
+
+    if (this.props.hasChildren && !this.props.dependencyClaimFiled) {
+      recommendations.push("Consider filing dependency claim for children's rights");
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Get cohabitation for export/API response
+   */
+  public toJSON(): Record<string, any> {
+    return {
+      id: this.id.toString(),
+      familyId: this.props.familyId.toString(),
+      partners: {
+        partner1Id: this.props.partner1Id.toString(),
+        partner2Id: this.props.partner2Id.toString(),
+      },
+      relationship: {
+        type: this.props.relationshipType,
+        isActive: this.props.isActive,
+        startDate: this.props.startDate,
+        endDate: this.props.endDate,
+        stability: this.props.relationshipStability,
+        separationAttempts: this.props.separationAttempts,
+        reconciliationCount: this.props.reconciliationCount,
+      },
+      duration: {
+        days: this.props.durationDays,
+        years: Math.floor(this.props.durationDays / 365),
+        qualifiesForS29: this.props.qualifiesForS29,
+        minimumPeriodMet: this.props.minimumPeriodMet,
+      },
+      residence: {
+        address: this.props.sharedResidence,
+        county: this.props.residenceCounty,
+        isSeparateHousehold: this.props.isSeparateHousehold,
+      },
+      evidence: {
+        affidavitId: this.props.affidavitId,
+        witnesses: this.props.witnesses,
+        hasJointUtilities: this.props.hasJointUtilities,
+        supportEvidence: this.props.supportEvidence,
+        socialMediaEvidence: this.props.socialMediaEvidence,
+      },
+      children: {
+        childrenIds: this.props.childrenIds.map((id) => id.toString()),
+        hasChildren: this.props.hasChildren,
+        childrenBornDuringCohabitation: this.props.childrenBornDuringCohabitation,
+      },
+      financial: {
+        jointFinancialAccounts: this.props.jointFinancialAccounts,
+        jointPropertyOwnership: this.props.jointPropertyOwnership,
+        financialSupportProvided: this.props.financialSupportProvided,
+      },
+      social: {
+        communityAcknowledged: this.props.communityAcknowledged,
+        familyAcknowledged: this.props.familyAcknowledged,
+        knownAsCouple: this.props.knownAsCouple,
+      },
+      legal: {
+        verificationStatus: this.props.verificationStatus,
+        dependencyClaimFiled: this.props.dependencyClaimFiled,
+        dependencyClaimId: this.props.dependencyClaimId,
+        dependencyClaimStatus: this.props.dependencyClaimStatus,
+        hasCourtRecognition: this.props.hasCourtRecognition,
+        courtCaseNumber: this.props.courtCaseNumber,
+        courtOrderId: this.props.courtOrderId,
+      },
+      customary: {
+        customaryElements: this.props.customaryElements,
+        clanInvolved: this.props.clanInvolved,
+        elderMediation: this.props.elderMediation,
+      },
+      safety: {
+        hasDomesticViolenceReports: this.props.hasDomesticViolenceReports,
+        safetyPlanInPlace: this.props.safetyPlanInPlace,
+      },
+      future: {
+        marriagePlanned: this.props.marriagePlanned,
+        plannedMarriageDate: this.props.plannedMarriageDate,
+        childrenPlanned: this.props.childrenPlanned,
+      },
+      computedProperties: this.computedProperties,
+      verification: {
+        status: this.props.verificationStatus,
+        notes: this.props.verificationNotes,
+        lastVerifiedAt: this.props.lastVerifiedAt,
+      },
+      audit: {
+        createdBy: this.props.createdBy.toString(),
+        lastUpdatedBy: this.props.lastUpdatedBy.toString(),
+        createdAt: this.createdAt,
+        updatedAt: this.updatedAt,
+        isArchived: this.props.isArchived,
+      },
+      metadata: {
+        version: this.version,
+        isDeleted: this.isDeleted,
+      },
     };
   }
 }

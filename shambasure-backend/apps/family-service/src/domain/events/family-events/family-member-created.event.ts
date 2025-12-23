@@ -1,26 +1,21 @@
-// domain/events/family-events/family-member-created.event.ts
 import { DomainEvent } from '../../base/domain-event';
 
 export interface FamilyMemberCreatedEventPayload {
-  familyMemberId: string;
-  familyId: string;
-  userId?: string;
-  firstName: string;
-  lastName: string;
-  middleName?: string;
-  dateOfBirth?: Date;
-  gender?: string;
-  citizenship: string;
-  religion?: string;
-  ethnicity?: string;
-  isDeceased: boolean;
-  isMinor: boolean;
-  identityStatus: 'VERIFIED' | 'UNVERIFIED';
-  createdAt: Date;
+  memberId: string;
+  fullName: string;
+  nationalId?: string;
+  createdBy: string;
+  timestamp: Date;
 }
 
+/**
+ * Family Member Created Event
+ *
+ * Signals the creation of a new digital identity in the family system.
+ * This is the start of the legal audit trail.
+ */
 export class FamilyMemberCreatedEvent extends DomainEvent<FamilyMemberCreatedEventPayload> {
   constructor(payload: FamilyMemberCreatedEventPayload) {
-    super('FamilyMemberCreated', payload.familyMemberId, 'FamilyMember', payload);
+    super(payload.memberId, 'FamilyMember', 1, payload, payload.timestamp);
   }
 }

@@ -1,563 +1,1219 @@
-// domain/entities/family-relationship.entity.ts
-import { InheritanceRights, RelationshipType } from '@prisma/client';
-
+// src/family-service/src/domain/entities/family-relationship.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
-import { InvalidRelationshipException } from '../exceptions/family.exception';
+import {
+  RelationshipCreatedEvent,
+  RelationshipDissolvedEvent,
+  RelationshipUpdatedEvent,
+  RelationshipVerifiedEvent,
+} from '../events/family-events';
+import { KenyanLawSection, RelationshipType } from '../value-objects/family-enums.vo';
 
 /**
- * FamilyRelationship Entity Props (Immutable)
+ * Family Relationship Entity
  *
- * Design: Directed edge in the family graph
- * - fromMember -> toMember with specific relationship type
- * - Example: John (fromMember) is PARENT of Mary (toMember)
- * - Reciprocal: Mary is CHILD of John (separate edge)
- *
- * Kenyan Law Context:
- * - Determines inheritance rights (S. 35/36 LSA)
- * - Distinguishes biological vs adopted relationships
- * - Tracks customary law recognition
- * - Critical for next-of-kin determination
+ * Innovations:
+ * 1. Multi-dimensional relationship tracking (biological, legal, customary)
+ * 2. Relationship strength and verification scoring
+ * 3. Temporal relationship tracking (relationships that change over time)
+ * 4. Legal entitlement mapping (S.26, S.29, S.35, S.40)
+ * 5. Smart relationship inference and validation
  */
 export interface FamilyRelationshipProps {
-  // References
+  // Core Relationship
   familyId: UniqueEntityID;
-  fromMemberId: UniqueEntityID; // Subject of relationship
-  toMemberId: UniqueEntityID; // Object of relationship
+  fromMemberId: UniqueEntityID;
+  toMemberId: UniqueEntityID;
 
   // Relationship Type
-  type: RelationshipType;
-  strength: 'FULL' | 'HALF' | 'STEP' | 'ADOPTED'; // Relationship strength
+  relationshipType: RelationshipType;
+  inverseRelationshipType: RelationshipType; // Auto-calculated but stored for performance
 
-  // Nature
+  // Relationship Dimensions
   isBiological: boolean;
-  isAdopted: boolean;
+  isLegal: boolean;
+  isCustomary: boolean;
+  isSpiritual: boolean; // Godparent, etc.
 
-  // Adoption Details (if applicable)
-  adoptionOrderId?: UniqueEntityID;
-  adoptionOrderNumber?: string;
-  adoptionCourt?: string;
-  adoptionDate?: Date;
-  isCustomaryAdoption: boolean;
+  // Temporal Aspects
+  startDate?: Date; // When relationship began (birth, marriage, adoption)
+  endDate?: Date; // When relationship ended (death, divorce, emancipation)
+  isActive: boolean;
 
-  // Verification
-  isVerified: boolean;
-  verificationMethod?: string;
-  verificationDocuments?: string[]; // Document IDs
-  verifiedAt?: Date;
+  // Legal Context
+  legalBasis?: KenyanLawSection[]; // Which laws recognize this relationship
+  legalDocuments: string[]; // IDs of documents proving relationship
+  courtOrderId?: string; // For court-established relationships
+
+  // Verification Status
+  verificationLevel: 'UNVERIFIED' | 'PARTIALLY_VERIFIED' | 'FULLY_VERIFIED' | 'DISPUTED';
+  verificationMethod?: 'DNA' | 'DOCUMENT' | 'FAMILY_CONSENSUS' | 'COURT_ORDER' | 'TRADITIONAL';
+  verificationScore: number; // 0-100
+  lastVerifiedAt?: Date;
   verifiedBy?: UniqueEntityID;
 
-  // Relationship Timeline
-  relationshipStartDate?: Date;
-  relationshipEndDate?: Date;
-  endReason?: string;
+  // Biological Details (if applicable)
+  biologicalConfidence?: number; // 0-100% confidence of biological connection
+  dnaTestId?: string;
+  dnaMatchPercentage?: number;
 
-  // Next-of-Kin Status
-  isNextOfKin: boolean;
-  nextOfKinPriority: number; // 1 = primary, 2 = secondary, etc.
-
-  // Customary Law Recognition
-  recognizedUnderCustomaryLaw: boolean;
-  customaryCeremonyDetails?: CustomaryCeremonyDetails;
-
-  // Legal Disputes
-  isContested: boolean;
-  contestationCaseNumber?: string;
-  courtValidated: boolean;
-  courtValidationDate?: Date;
-
-  // Inheritance Rights (S. 35/36 LSA)
-  inheritanceRights: InheritanceRights;
-}
-
-/**
- * Customary Ceremony Details
- * For relationships recognized under customary law
- */
-export interface CustomaryCeremonyDetails {
-  ceremonyType: string;
-  ceremonyDate: Date;
-  ceremonyLocation: string;
-  elderWitnesses: Array<{
-    name: string;
-    age: number;
-    role: string;
-  }>;
-  clanApproval: boolean;
-}
-
-/**
- * Factory Props
- */
-export interface CreateFamilyRelationshipProps {
-  familyId: string;
-  fromMemberId: string;
-  toMemberId: string;
-  type: RelationshipType;
-
-  // Nature
-  isBiological?: boolean;
-  isAdopted?: boolean;
-  strength?: 'FULL' | 'HALF' | 'STEP' | 'ADOPTED';
-
-  // Adoption
+  // Legal Details (if applicable)
   adoptionOrderId?: string;
-  adoptionOrderNumber?: string;
-  adoptionCourt?: string;
-  adoptionDate?: Date;
-  isCustomaryAdoption?: boolean;
+  guardianshipOrderId?: string;
+  marriageId?: UniqueEntityID; // Link to marriage entity
 
-  // Verification
-  isVerified?: boolean;
-  verificationMethod?: string;
-  verificationDocuments?: string[];
+  // Customary Details
+  customaryRecognition: boolean;
+  clanRecognized: boolean;
+  elderWitnesses: string[];
+  traditionalRite?: string;
 
-  // Timeline
-  relationshipStartDate?: Date;
+  // Relationship Strength
+  relationshipStrength: number; // 0-100, based on factors
+  closenessIndex: number; // 0-100, perceived closeness
+  contactFrequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'RARELY' | 'NEVER';
 
-  // Next-of-Kin
-  isNextOfKin?: boolean;
-  nextOfKinPriority?: number;
-
-  // Customary
-  recognizedUnderCustomaryLaw?: boolean;
-  customaryCeremonyDetails?: {
-    ceremonyType: string;
-    ceremonyDate: Date;
-    ceremonyLocation: string;
-    elderWitnesses: Array<{
-      name: string;
-      age: number;
-      role: string;
-    }>;
-    clanApproval: boolean;
+  // Dependency & Support
+  isFinancialDependent: boolean;
+  isCareDependent: boolean;
+  dependencyLevel?: 'FULL' | 'PARTIAL' | 'TEMPORARY';
+  supportProvided?: {
+    financial: boolean;
+    housing: boolean;
+    medical: boolean;
+    educational: boolean;
   };
 
-  // Inheritance
-  inheritanceRights?: InheritanceRights;
+  // Inheritance Rights
+  inheritanceRights: 'FULL' | 'PARTIAL' | 'CUSTOMARY' | 'NONE' | 'PENDING';
+  inheritancePercentage?: number;
+  disinherited: boolean;
+  disinheritanceReason?: string;
+
+  // Communication & Conflict
+  communicationLanguage?: string;
+  hasConflict: boolean;
+  conflictResolutionStatus?: 'RESOLVED' | 'PENDING' | 'MEDIATION' | 'COURT';
+
+  // Cultural Context
+  relationshipTerm?: string; // Local language term (e.g., "Mama mdogo")
+  culturalSignificance?: string;
+  taboos?: string[]; // Cultural taboos related to this relationship
+
+  // Metadata
+  createdBy: UniqueEntityID;
+  lastUpdatedBy: UniqueEntityID;
+  notes?: string;
+
+  // Audit
+  isArchived: boolean;
 }
 
-/**
- * FamilyRelationship Entity
- *
- * Represents directed edge in family graph.
- * Critical for S. 35/36 LSA intestate succession calculations.
- *
- * Examples:
- * - John is PARENT of Mary (biological)
- * - Mary is CHILD of John (reciprocal)
- * - Alice is SIBLING of Bob (HALF - same mother, different fathers)
- * - Charles is SPOUSE of Diana (through marriage)
- * - Adopted child has FULL inheritance rights
- *
- * Kenyan Law Considerations:
- * - Biological children: Full rights (S. 35 LSA)
- * - Adopted children: Full rights (Children Act 2022)
- * - Step-children: Limited/no rights (unless adopted)
- * - Half-siblings: Full rights (S. 38 LSA)
- * - Customary relationships: Recognized under S. 32 LSA
- */
 export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
-  private constructor(id: UniqueEntityID, props: FamilyRelationshipProps, createdAt?: Date) {
-    super(id, props, createdAt);
-    this.validate();
+  private constructor(props: FamilyRelationshipProps, id?: UniqueEntityID, createdAt?: Date) {
+    super(id || new UniqueEntityID(), props, createdAt);
   }
 
-  // =========================================================================
-  // FACTORY METHODS
-  // =========================================================================
+  /**
+   * Factory method to create a new Family Relationship
+   */
+  public static create(props: FamilyRelationshipProps, id?: UniqueEntityID): FamilyRelationship {
+    // Validate creation invariants
+    FamilyRelationship.validateCreation(props);
 
-  public static create(props: CreateFamilyRelationshipProps): FamilyRelationship {
-    const id = new UniqueEntityID();
-    const now = new Date();
+    const relationship = new FamilyRelationship(props, id);
 
-    // Determine relationship strength
-    const strength = FamilyRelationship.determineStrength(props);
-
-    // Determine inheritance rights
-    const inheritanceRights =
-      props.inheritanceRights ||
-      FamilyRelationship.determineInheritanceRights(props.type, props.isAdopted || false);
-
-    const relationshipProps: FamilyRelationshipProps = {
-      familyId: new UniqueEntityID(props.familyId),
-      fromMemberId: new UniqueEntityID(props.fromMemberId),
-      toMemberId: new UniqueEntityID(props.toMemberId),
-      type: props.type,
-      strength,
-
-      // Nature
-      isBiological: props.isBiological ?? true,
-      isAdopted: props.isAdopted ?? false,
-
-      // Adoption
-      adoptionOrderId: props.adoptionOrderId
-        ? new UniqueEntityID(props.adoptionOrderId)
-        : undefined,
-      adoptionOrderNumber: props.adoptionOrderNumber,
-      adoptionCourt: props.adoptionCourt,
-      adoptionDate: props.adoptionDate,
-      isCustomaryAdoption: props.isCustomaryAdoption ?? false,
-
-      // Verification
-      isVerified: props.isVerified ?? false,
-      verificationMethod: props.verificationMethod,
-      verificationDocuments: props.verificationDocuments,
-
-      // Timeline
-      relationshipStartDate: props.relationshipStartDate || now,
-
-      // Next-of-Kin
-      isNextOfKin: props.isNextOfKin ?? false,
-      nextOfKinPriority: props.nextOfKinPriority ?? 1,
-
-      // Customary
-      recognizedUnderCustomaryLaw: props.recognizedUnderCustomaryLaw ?? true,
-      customaryCeremonyDetails: props.customaryCeremonyDetails,
-
-      // Legal
-      isContested: false,
-      courtValidated: false,
-
-      // Inheritance
-      inheritanceRights,
-    };
-
-    return new FamilyRelationship(id, relationshipProps, now);
-  }
-
-  public static fromPersistence(
-    id: string,
-    props: FamilyRelationshipProps,
-    createdAt: Date,
-    updatedAt?: Date,
-  ): FamilyRelationship {
-    const entityId = new UniqueEntityID(id);
-    const relationship = new FamilyRelationship(entityId, props, createdAt);
-
-    if (updatedAt) {
-      (relationship as any)._updatedAt = updatedAt;
+    // Calculate initial verification score
+    if (relationship.props.verificationScore === undefined) {
+      relationship.props.verificationScore = relationship.calculateInitialVerificationScore();
     }
+
+    // Calculate relationship strength
+    if (relationship.props.relationshipStrength === undefined) {
+      relationship.props.relationshipStrength = relationship.calculateRelationshipStrength();
+    }
+
+    // Record creation event
+    relationship.addDomainEvent(
+      new RelationshipCreatedEvent({
+        relationshipId: relationship.id.toString(),
+        fromMemberId: relationship.props.fromMemberId.toString(),
+        toMemberId: relationship.props.toMemberId.toString(),
+        relationshipType: relationship.props.relationshipType,
+        createdBy: relationship.props.createdBy.toString(),
+        timestamp: relationship.createdAt,
+      }),
+    );
 
     return relationship;
   }
 
-  // =========================================================================
-  // PRIVATE HELPERS
-  // =========================================================================
+  /**
+   * Restore from persistence
+   */
+  public static restore(
+    props: FamilyRelationshipProps,
+    id: UniqueEntityID,
+    createdAt: Date,
+  ): FamilyRelationship {
+    return new FamilyRelationship(props, id, createdAt);
+  }
 
-  private static determineStrength(
-    props: CreateFamilyRelationshipProps,
-  ): 'FULL' | 'HALF' | 'STEP' | 'ADOPTED' {
-    if (props.strength) return props.strength;
+  /**
+   * Update relationship information
+   */
+  public updateInformation(
+    updates: Partial<FamilyRelationshipProps>,
+    updatedBy: UniqueEntityID,
+  ): void {
+    this.ensureNotArchived();
 
-    if (props.isAdopted) return 'ADOPTED';
+    const changes: Record<string, any> = {};
 
-    // Default based on type
-    switch (props.type) {
-      case 'HALF_SIBLING':
-        return 'HALF';
-      case 'STEPCHILD':
-      case 'EX_SPOUSE':
-        return 'STEP';
-      default:
-        return 'FULL';
+    // Validate updates
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined) {
+        const oldValue = (this.props as any)[key];
+
+        // Skip if no change
+        if (JSON.stringify(oldValue) === JSON.stringify(value)) return;
+
+        // Special handling for relationship type changes
+        if (key === 'relationshipType') {
+          this.validateRelationshipTypeChange(value as RelationshipType);
+        }
+
+        // Apply update
+        (this.props as any)[key] = value;
+        changes[key] = { old: oldValue, new: value };
+      }
+    });
+
+    if (Object.keys(changes).length > 0) {
+      this.props.lastUpdatedBy = updatedBy;
+
+      // Recalculate derived fields
+      if (
+        Object.keys(changes).some((k) =>
+          [
+            'isBiological',
+            'isLegal',
+            'isCustomary',
+            'verificationMethod',
+            'legalDocuments',
+          ].includes(k),
+        )
+      ) {
+        this.props.verificationScore = this.calculateVerificationScore();
+      }
+
+      if (
+        Object.keys(changes).some((k) =>
+          ['contactFrequency', 'closenessIndex', 'hasConflict', 'supportProvided'].includes(k),
+        )
+      ) {
+        this.props.relationshipStrength = this.calculateRelationshipStrength();
+      }
+
+      this.addDomainEvent(
+        new RelationshipUpdatedEvent({
+          relationshipId: this.id.toString(),
+          changes,
+          updatedBy: updatedBy.toString(),
+          timestamp: new Date(),
+        }),
+      );
     }
   }
 
-  private static determineInheritanceRights(
-    type: RelationshipType,
-    isAdopted: boolean,
-  ): InheritanceRights {
-    // Adopted children have full rights
-    if (isAdopted) return InheritanceRights.FULL;
+  /**
+   * Verify relationship with evidence
+   */
+  public verifyRelationship(
+    verificationMethod: FamilyRelationshipProps['verificationMethod'],
+    evidence: {
+      documentIds?: string[];
+      dnaTestId?: string;
+      witnessStatements?: string[];
+      courtOrderId?: string;
+    },
+    verifiedBy: UniqueEntityID,
+    confidenceLevel: number, // 0-100
+  ): void {
+    this.ensureNotArchived();
 
-    switch (type) {
-      case 'CHILD':
-      case 'PARENT':
-      case 'SIBLING':
-      case 'HALF_SIBLING':
-      case 'SPOUSE':
-        return InheritanceRights.FULL;
+    // Update verification details
+    this.props.verificationMethod = verificationMethod;
+    this.props.lastVerifiedAt = new Date();
+    this.props.verifiedBy = verifiedBy;
 
-      case 'STEPCHILD':
-        return InheritanceRights.PARTIAL;
-
-      case 'COUSIN':
-      case 'NIECE_NEPHEW':
-      case 'AUNT_UNCLE':
-      case 'GRANDCHILD':
-      case 'GRANDPARENT':
-        return InheritanceRights.CUSTOMARY;
-
-      default:
-        return InheritanceRights.NONE;
+    // Add evidence
+    if (evidence.documentIds) {
+      this.props.legalDocuments = [
+        ...new Set([...this.props.legalDocuments, ...evidence.documentIds]),
+      ];
     }
+
+    if (evidence.dnaTestId) {
+      this.props.dnaTestId = evidence.dnaTestId;
+      this.props.isBiological = true;
+    }
+
+    if (evidence.courtOrderId) {
+      this.props.courtOrderId = evidence.courtOrderId;
+      this.props.isLegal = true;
+    }
+
+    // Update verification level
+    const newVerificationScore = this.calculateVerificationScore();
+    const oldVerificationScore = this.props.verificationScore;
+
+    this.props.verificationScore = newVerificationScore;
+    this.props.verificationLevel = this.mapVerificationScoreToLevel(newVerificationScore);
+
+    // Record verification event
+    this.addDomainEvent(
+      new RelationshipVerifiedEvent({
+        relationshipId: this.id.toString(),
+        fromMemberId: this.props.fromMemberId.toString(),
+        toMemberId: this.props.toMemberId.toString(),
+        verificationMethod,
+        oldScore: oldVerificationScore,
+        newScore: newVerificationScore,
+        verifiedBy: verifiedBy.toString(),
+        timestamp: new Date(),
+      }),
+    );
+
+    this.props.lastUpdatedBy = verifiedBy;
   }
 
-  // =========================================================================
-  // VALIDATION
-  // =========================================================================
+  /**
+   * Mark relationship as biologically confirmed
+   */
+  public confirmBiologicalRelationship(
+    dnaTestId: string,
+    matchPercentage: number,
+    testingLab: string,
+    testDate: Date,
+    confirmedBy: UniqueEntityID,
+  ): void {
+    this.props.isBiological = true;
+    this.props.biologicalConfidence = matchPercentage;
+    this.props.dnaTestId = dnaTestId;
+    this.props.dnaMatchPercentage = matchPercentage;
 
-  public validate(): void {
-    // Cannot relate to self
-    if (this.props.fromMemberId.equals(this.props.toMemberId)) {
-      throw new InvalidRelationshipException('A person cannot have a relationship with themselves');
+    // Add DNA test as legal document
+    this.props.legalDocuments.push(`DNA_TEST_${dnaTestId}`);
+
+    this.verifyRelationship('DNA', { dnaTestId }, confirmedBy, matchPercentage);
+  }
+
+  /**
+   * Establish legal relationship (adoption, guardianship)
+   */
+  public establishLegalRelationship(
+    courtOrderId: string,
+    orderType: 'ADOPTION' | 'GUARDIANSHIP' | 'CUSTODY' | 'PARENTAGE',
+    orderDate: Date,
+    courtDetails: {
+      caseNumber: string;
+      courtStation: string;
+      judgeName: string;
+    },
+    establishedBy: UniqueEntityID,
+  ): void {
+    this.props.isLegal = true;
+    this.props.courtOrderId = courtOrderId;
+    this.props.startDate = orderDate;
+
+    // Set appropriate relationship type based on order type
+    switch (orderType) {
+      case 'ADOPTION':
+        if (this.props.relationshipType === RelationshipType.PARENT) {
+          this.props.relationshipType = RelationshipType.ADOPTED_CHILD;
+        } else if (this.props.relationshipType === RelationshipType.CHILD) {
+          this.props.relationshipType = RelationshipType.ADOPTED_CHILD;
+        }
+        this.props.adoptionOrderId = courtOrderId;
+        break;
+      case 'GUARDIANSHIP':
+        this.props.relationshipType = RelationshipType.GUARDIAN;
+        this.props.guardianshipOrderId = courtOrderId;
+        break;
     }
 
-    // Adopted relationships must have adoption details
-    if (this.props.isAdopted && !this.props.adoptionOrderId && !this.props.adoptionOrderNumber) {
-      console.warn('Adopted relationship should have adoption order reference');
+    // Add court order as legal document
+    this.props.legalDocuments.push(`COURT_ORDER_${courtOrderId}`);
+
+    this.verifyRelationship(
+      'COURT_ORDER',
+      { courtOrderId },
+      establishedBy,
+      100, // Court orders are 100% confidence
+    );
+  }
+
+  /**
+   * Recognize customary relationship
+   */
+  public recognizeCustomaryRelationship(
+    elders: string[],
+    recognitionDate: Date,
+    customaryRite: string,
+    clanRepresentatives: string[],
+    recognizedBy: UniqueEntityID,
+  ): void {
+    this.props.isCustomary = true;
+    this.props.customaryRecognition = true;
+    this.props.clanRecognized = true;
+    this.props.elderWitnesses = elders;
+    this.props.traditionalRite = customaryRite;
+    this.props.startDate = recognitionDate;
+
+    // Generate customary document reference
+    const customaryDocId = `CUSTOMARY_RECOGNITION_${this.id.toString().substring(0, 8)}`;
+    this.props.legalDocuments.push(customaryDocId);
+
+    this.verifyRelationship(
+      'TRADITIONAL',
+      { witnessStatements: elders },
+      recognizedBy,
+      80, // Customary recognition is high confidence
+    );
+  }
+
+  /**
+   * Dissolve relationship (death, divorce, emancipation)
+   */
+  public dissolveRelationship(
+    endDate: Date,
+    reason:
+      | 'DEATH'
+      | 'DIVORCE'
+      | 'ANNULMENT'
+      | 'EMANCIPATION'
+      | 'ADOPTION_REVERSAL'
+      | 'CUSTOMARY_DISSOLUTION',
+    details: {
+      deathCertificateId?: string;
+      divorceDecreeId?: string;
+      courtOrderId?: string;
+      customaryDissolutionDetails?: string;
+    },
+    dissolvedBy: UniqueEntityID,
+  ): void {
+    this.ensureNotArchived();
+
+    if (endDate < (this.props.startDate || new Date(0))) {
+      throw new Error('End date cannot be before start date');
     }
 
-    // Verified relationships need verification method
-    if (this.props.isVerified && !this.props.verificationMethod) {
-      console.warn('Verified relationship should have verification method');
+    const previousStatus = this.props.isActive;
+    this.props.endDate = endDate;
+    this.props.isActive = false;
+    this.props.lastUpdatedBy = dissolvedBy;
+
+    // Add relevant documents
+    if (details.deathCertificateId) {
+      this.props.legalDocuments.push(details.deathCertificateId);
     }
 
-    // Next-of-kin priority must be positive
-    if (this.props.isNextOfKin && this.props.nextOfKinPriority < 1) {
-      throw new InvalidRelationshipException('Next-of-kin priority must be 1 or greater');
+    if (details.divorceDecreeId) {
+      this.props.legalDocuments.push(details.divorceDecreeId);
     }
 
-    // Relationship end must be after start
-    if (this.props.relationshipEndDate && this.props.relationshipStartDate) {
-      if (this.props.relationshipEndDate < this.props.relationshipStartDate) {
-        throw new InvalidRelationshipException('Relationship end date cannot be before start date');
+    if (details.courtOrderId) {
+      this.props.courtOrderId = details.courtOrderId;
+    }
+
+    // Record dissolution event
+    this.addDomainEvent(
+      new RelationshipDissolvedEvent({
+        relationshipId: this.id.toString(),
+        fromMemberId: this.props.fromMemberId.toString(),
+        toMemberId: this.props.toMemberId.toString(),
+        relationshipType: this.props.relationshipType,
+        endDate,
+        reason,
+        dissolvedBy: dissolvedBy.toString(),
+        timestamp: new Date(),
+      }),
+    );
+  }
+
+  /**
+   * Update dependency status
+   */
+  public updateDependencyStatus(
+    isFinancialDependent: boolean,
+    isCareDependent: boolean,
+    dependencyLevel: FamilyRelationshipProps['dependencyLevel'],
+    supportDetails: FamilyRelationshipProps['supportProvided'],
+    updatedBy: UniqueEntityID,
+  ): void {
+    this.props.isFinancialDependent = isFinancialDependent;
+    this.props.isCareDependent = isCareDependent;
+    this.props.dependencyLevel = dependencyLevel;
+    this.props.supportProvided = supportDetails;
+    this.props.lastUpdatedBy = updatedBy;
+
+    // Recalculate relationship strength
+    this.props.relationshipStrength = this.calculateRelationshipStrength();
+  }
+
+  /**
+   * Update inheritance rights
+   */
+  public updateInheritanceRights(
+    inheritanceRights: FamilyRelationshipProps['inheritanceRights'],
+    inheritancePercentage?: number,
+    disinherited?: boolean,
+    disinheritanceReason?: string,
+    updatedBy: UniqueEntityID,
+  ): void {
+    this.props.inheritanceRights = inheritanceRights;
+    this.props.inheritancePercentage = inheritancePercentage;
+
+    if (disinherited !== undefined) {
+      this.props.disinherited = disinherited;
+      this.props.disinheritanceReason = disinheritanceReason;
+    }
+
+    this.props.lastUpdatedBy = updatedBy;
+  }
+
+  /**
+   * Record conflict or resolution
+   */
+  public recordConflict(
+    hasConflict: boolean,
+    resolutionStatus?: FamilyRelationshipProps['conflictResolutionStatus'],
+    mediationDetails?: {
+      mediator?: string;
+      mediationDate?: Date;
+      outcome?: string;
+    },
+    recordedBy: UniqueEntityID,
+  ): void {
+    this.props.hasConflict = hasConflict;
+    this.props.conflictResolutionStatus = resolutionStatus;
+    this.props.lastUpdatedBy = recordedBy;
+
+    // Recalculate relationship strength
+    this.props.relationshipStrength = this.calculateRelationshipStrength();
+  }
+
+  /**
+   * Calculate relationship eligibility for legal claims
+   */
+  public getLegalEligibility(): {
+    s29Eligible: boolean; // Dependency claim
+    s35Eligible: boolean; // Spousal/child share
+    s40Eligible: boolean; // Polygamous house distribution
+    reasons: string[];
+  } {
+    const reasons: string[] = [];
+    let s29Eligible = false;
+    let s35Eligible = false;
+    let s40Eligible = false;
+
+    // Check basic requirements
+    if (!this.props.isActive) {
+      reasons.push('Relationship is not active');
+      return { s29Eligible, s35Eligible, s40Eligible, reasons };
+    }
+
+    if (this.props.disinherited) {
+      reasons.push('Member has been disinherited');
+      return { s29Eligible, s35Eligible, s40Eligible, reasons };
+    }
+
+    // S.29 Eligibility (Dependency)
+    if (this.props.isFinancialDependent || this.props.isCareDependent) {
+      s29Eligible = true;
+      reasons.push('Qualifies as dependent under S.29');
+    }
+
+    // S.35 Eligibility (Spouse/Child share)
+    if (
+      this.props.relationshipType === RelationshipType.SPOUSE ||
+      this.props.relationshipType === RelationshipType.CHILD ||
+      this.props.relationshipType === RelationshipType.ADOPTED_CHILD
+    ) {
+      s35Eligible = true;
+      reasons.push('Qualifies for share under S.35');
+    }
+
+    // S.40 Eligibility (Polygamous house)
+    if (
+      this.props.relationshipType === RelationshipType.CHILD &&
+      this.props.isCustomary &&
+      this.props.customaryRecognition
+    ) {
+      s40Eligible = true;
+      reasons.push('Child in polygamous house under S.40');
+    }
+
+    // Additional checks
+    if (this.props.verificationLevel !== 'FULLY_VERIFIED') {
+      reasons.push('Relationship not fully verified');
+    }
+
+    if (this.props.hasConflict && this.props.conflictResolutionStatus !== 'RESOLVED') {
+      reasons.push('Active conflict may affect claims');
+    }
+
+    return { s29Eligible, s35Eligible, s40Eligible, reasons };
+  }
+
+  /**
+   * Get relationship timeline
+   */
+  public getTimeline(): Array<{
+    date: Date;
+    event: string;
+    details: string;
+  }> {
+    const timeline = [];
+
+    if (this.props.startDate) {
+      timeline.push({
+        date: this.props.startDate,
+        event: 'Relationship Started',
+        details: `Type: ${this.props.relationshipType}`,
+      });
+    }
+
+    if (this.props.lastVerifiedAt) {
+      timeline.push({
+        date: this.props.lastVerifiedAt,
+        event: 'Relationship Verified',
+        details: `Method: ${this.props.verificationMethod}, Score: ${this.props.verificationScore}`,
+      });
+    }
+
+    if (this.props.endDate) {
+      timeline.push({
+        date: this.props.endDate,
+        event: 'Relationship Ended',
+        details: `Active: ${this.props.isActive}`,
+      });
+    }
+
+    // Sort by date
+    return timeline.sort((a, b) => a.date.getTime() - b.date.getTime());
+  }
+
+  /**
+   * Calculate verification score (0-100)
+   */
+  private calculateVerificationScore(): number {
+    let score = 0;
+
+    // Evidence-based scoring
+    if (this.props.legalDocuments.length > 0) {
+      score += Math.min(this.props.legalDocuments.length * 10, 40);
+    }
+
+    if (this.props.dnaTestId) {
+      score += Math.min(this.props.dnaMatchPercentage || 0, 30);
+    }
+
+    if (this.props.courtOrderId) {
+      score += 30;
+    }
+
+    // Recognition-based scoring
+    if (this.props.isBiological) score += 20;
+    if (this.props.isLegal) score += 20;
+    if (this.props.isCustomary && this.props.clanRecognized) score += 15;
+
+    // Method-based scoring
+    switch (this.props.verificationMethod) {
+      case 'DNA':
+        score += 25;
+        break;
+      case 'COURT_ORDER':
+        score += 30;
+        break;
+      case 'DOCUMENT':
+        score += 20;
+        break;
+      case 'FAMILY_CONSENSUS':
+        score += 15;
+        break;
+      case 'TRADITIONAL':
+        score += 10;
+        break;
+    }
+
+    // Cap at 100
+    return Math.min(Math.max(score, 0), 100);
+  }
+
+  /**
+   * Calculate initial verification score
+   */
+  private calculateInitialVerificationScore(): number {
+    // Base score based on relationship type
+    let baseScore = 0;
+
+    switch (this.props.relationshipType) {
+      case RelationshipType.PARENT:
+      case RelationshipType.CHILD:
+        baseScore = 30; // Usually well-documented
+        break;
+      case RelationshipType.SPOUSE:
+        baseScore = 40; // Usually legally documented
+        break;
+      case RelationshipType.SIBLING:
+        baseScore = 25;
+        break;
+      default:
+        baseScore = 10;
+    }
+
+    // Adjust based on dimensions
+    if (this.props.isBiological) baseScore += 20;
+    if (this.props.isLegal) baseScore += 25;
+    if (this.props.isCustomary) baseScore += 15;
+
+    return Math.min(baseScore, 100);
+  }
+
+  /**
+   * Calculate relationship strength (0-100)
+   */
+  private calculateRelationshipStrength(): number {
+    let strength = 50; // Base strength
+
+    // Contact frequency factor
+    const contactScores = {
+      DAILY: 30,
+      WEEKLY: 25,
+      MONTHLY: 20,
+      YEARLY: 10,
+      RARELY: 5,
+      NEVER: 0,
+    };
+    strength += contactScores[this.props.contactFrequency] || 0;
+
+    // Closeness index factor
+    strength += (this.props.closenessIndex || 0) * 0.2;
+
+    // Dependency factor
+    if (this.props.isFinancialDependent || this.props.isCareDependent) {
+      strength += 15;
+    }
+
+    // Support provided factor
+    if (this.props.supportProvided) {
+      let supportScore = 0;
+      if (this.props.supportProvided.financial) supportScore += 5;
+      if (this.props.supportProvided.housing) supportScore += 5;
+      if (this.props.supportProvided.medical) supportScore += 5;
+      if (this.props.supportProvided.educational) supportScore += 5;
+      strength += supportScore;
+    }
+
+    // Conflict factor (negative)
+    if (this.props.hasConflict && this.props.conflictResolutionStatus !== 'RESOLVED') {
+      strength -= 20;
+    }
+
+    // Cap at 0-100
+    return Math.min(Math.max(strength, 0), 100);
+  }
+
+  /**
+   * Map verification score to level
+   */
+  private mapVerificationScoreToLevel(score: number): FamilyRelationshipProps['verificationLevel'] {
+    if (score >= 90) return 'FULLY_VERIFIED';
+    if (score >= 70) return 'PARTIALLY_VERIFIED';
+    if (score >= 30) return 'UNVERIFIED';
+    return 'DISPUTED';
+  }
+
+  /**
+   * Validate relationship type change
+   */
+  private validateRelationshipTypeChange(newType: RelationshipType): void {
+    const oldType = this.props.relationshipType;
+
+    // Some changes are not allowed
+    const forbiddenTransitions = [
+      [RelationshipType.PARENT, RelationshipType.CHILD], // Can't swap parent-child
+      [RelationshipType.CHILD, RelationshipType.PARENT],
+    ];
+
+    for (const [from, to] of forbiddenTransitions) {
+      if (oldType === from && newType === to) {
+        throw new Error(`Cannot change relationship from ${from} to ${to}`);
+      }
+    }
+
+    // Update inverse relationship
+    this.props.inverseRelationshipType = this.calculateInverseRelationshipType(newType);
+  }
+
+  /**
+   * Calculate inverse relationship type
+   */
+  private calculateInverseRelationshipType(type: RelationshipType): RelationshipType {
+    const inverseMap: Record<RelationshipType, RelationshipType> = {
+      [RelationshipType.SPOUSE]: RelationshipType.SPOUSE,
+      [RelationshipType.CHILD]: RelationshipType.PARENT,
+      [RelationshipType.PARENT]: RelationshipType.CHILD,
+      [RelationshipType.SIBLING]: RelationshipType.SIBLING,
+      [RelationshipType.GRANDPARENT]: RelationshipType.GRANDCHILD,
+      [RelationshipType.GRANDCHILD]: RelationshipType.GRANDPARENT,
+      [RelationshipType.AUNT_UNCLE]: RelationshipType.NIECE_NEPHEW,
+      [RelationshipType.NIECE_NEPHEW]: RelationshipType.AUNT_UNCLE,
+      [RelationshipType.COUSIN]: RelationshipType.COUSIN,
+      [RelationshipType.GUARDIAN]: RelationshipType.WARD,
+      [RelationshipType.WARD]: RelationshipType.GUARDIAN,
+      [RelationshipType.STEPCHILD]: RelationshipType.PARENT,
+      [RelationshipType.ADOPTED_CHILD]: RelationshipType.PARENT,
+      [RelationshipType.FOSTER_CHILD]: RelationshipType.PARENT,
+      [RelationshipType.CLAN_ELDER]: RelationshipType.CLAN_ELDER,
+      [RelationshipType.AGE_MATE]: RelationshipType.AGE_MATE,
+      [RelationshipType.GODPARENT]: RelationshipType.GODPARENT,
+      [RelationshipType.PARTNER]: RelationshipType.PARTNER,
+      [RelationshipType.COHABITANT]: RelationshipType.COHABITANT,
+      [RelationshipType.EX_SPOUSE]: RelationshipType.EX_SPOUSE,
+    };
+
+    return inverseMap[type] || RelationshipType.COUSIN;
+  }
+
+  /**
+   * Validate creation invariants
+   */
+  private static validateCreation(props: FamilyRelationshipProps): void {
+    // Members cannot be the same
+    if (props.fromMemberId.equals(props.toMemberId)) {
+      throw new Error('Cannot create relationship to self');
+    }
+
+    // Must have at least one dimension
+    if (!props.isBiological && !props.isLegal && !props.isCustomary && !props.isSpiritual) {
+      throw new Error(
+        'Relationship must have at least one dimension (biological, legal, customary, or spiritual)',
+      );
+    }
+
+    // Start date cannot be in future
+    if (props.startDate && props.startDate > new Date()) {
+      throw new Error('Relationship start date cannot be in the future');
+    }
+
+    // End date must be after start date if both exist
+    if (props.startDate && props.endDate && props.endDate < props.startDate) {
+      throw new Error('Relationship end date cannot be before start date');
+    }
+
+    // Active relationships cannot have end date
+    if (props.isActive && props.endDate) {
+      throw new Error('Active relationship cannot have an end date');
+    }
+
+    // Verification score must be 0-100
+    if (props.verificationScore < 0 || props.verificationScore > 100) {
+      throw new Error('Verification score must be between 0 and 100');
+    }
+
+    // Biological confidence must be 0-100 if provided
+    if (props.biologicalConfidence !== undefined) {
+      if (props.biologicalConfidence < 0 || props.biologicalConfidence > 100) {
+        throw new Error('Biological confidence must be between 0 and 100');
+      }
+    }
+
+    // DNA match percentage must be 0-100 if provided
+    if (props.dnaMatchPercentage !== undefined) {
+      if (props.dnaMatchPercentage < 0 || props.dnaMatchPercentage > 100) {
+        throw new Error('DNA match percentage must be between 0 and 100');
       }
     }
   }
 
-  // =========================================================================
-  // BUSINESS LOGIC
-  // =========================================================================
-
-  public verify(
-    verificationMethod: string,
-    verifiedBy: string,
-    documents?: string[],
-  ): FamilyRelationship {
-    this.ensureNotDeleted();
-
-    const newProps: FamilyRelationshipProps = {
-      ...this.props,
-      isVerified: true,
-      verificationMethod,
-      verificationDocuments: documents,
-      verifiedAt: new Date(),
-      verifiedBy: new UniqueEntityID(verifiedBy),
-    };
-
-    return new FamilyRelationship(this._id, newProps, this._createdAt);
+  private ensureNotArchived(): void {
+    if (this.props.isArchived) {
+      throw new Error(`Cannot modify archived relationship: ${this.id.toString()}`);
+    }
   }
 
-  public designateAsNextOfKin(priority: number): FamilyRelationship {
-    this.ensureNotDeleted();
-
-    if (priority < 1) {
-      throw new InvalidRelationshipException('Priority must be 1 or greater');
+  /**
+   * Archive relationship (soft delete)
+   */
+  public archive(reason: string, archivedBy: UniqueEntityID): void {
+    if (this.props.isArchived) {
+      throw new Error('Relationship is already archived');
     }
 
-    const newProps: FamilyRelationshipProps = {
-      ...this.props,
-      isNextOfKin: true,
-      nextOfKinPriority: priority,
-    };
-
-    return new FamilyRelationship(this._id, newProps, this._createdAt);
+    this.props.isArchived = true;
+    this.props.lastUpdatedBy = archivedBy;
+    this.props.notes = `${this.props.notes || ''}\nArchived: ${reason}`;
   }
 
-  public removeNextOfKinDesignation(): FamilyRelationship {
-    this.ensureNotDeleted();
-
-    const newProps: FamilyRelationshipProps = {
-      ...this.props,
-      isNextOfKin: false,
-    };
-
-    return new FamilyRelationship(this._id, newProps, this._createdAt);
-  }
-
-  public endRelationship(endDate: Date, reason: string): FamilyRelationship {
-    this.ensureNotDeleted();
-
-    if (this.props.relationshipEndDate) {
-      throw new InvalidRelationshipException('Relationship already ended');
+  /**
+   * Restore from archive
+   */
+  public restoreFromArchive(restoredBy: UniqueEntityID): void {
+    if (!this.props.isArchived) {
+      throw new Error('Relationship is not archived');
     }
 
-    const newProps: FamilyRelationshipProps = {
-      ...this.props,
-      relationshipEndDate: endDate,
-      endReason: reason,
-    };
-
-    return new FamilyRelationship(this._id, newProps, this._createdAt);
+    this.props.isArchived = false;
+    this.props.lastUpdatedBy = restoredBy;
   }
 
-  public contest(caseNumber: string): FamilyRelationship {
-    this.ensureNotDeleted();
+  /**
+   * Get relationship summary for display
+   */
+  public getSummary(): Record<string, any> {
+    const eligibility = this.getLegalEligibility();
 
-    const newProps: FamilyRelationshipProps = {
-      ...this.props,
-      isContested: true,
-      contestationCaseNumber: caseNumber,
-    };
-
-    return new FamilyRelationship(this._id, newProps, this._createdAt);
-  }
-
-  public validateByCourt(validationDate: Date): FamilyRelationship {
-    this.ensureNotDeleted();
-
-    const newProps: FamilyRelationshipProps = {
-      ...this.props,
-      courtValidated: true,
-      courtValidationDate: validationDate,
-      isContested: false, // Court validation resolves contestation
-    };
-
-    return new FamilyRelationship(this._id, newProps, this._createdAt);
-  }
-
-  public updateInheritanceRights(rights: InheritanceRights): FamilyRelationship {
-    this.ensureNotDeleted();
-
-    const newProps: FamilyRelationshipProps = {
-      ...this.props,
-      inheritanceRights: rights,
-    };
-
-    return new FamilyRelationship(this._id, newProps, this._createdAt);
-  }
-
-  // =========================================================================
-  // GETTERS
-  // =========================================================================
-
-  get familyId(): UniqueEntityID {
-    return this.props.familyId;
-  }
-
-  get fromMemberId(): UniqueEntityID {
-    return this.props.fromMemberId;
-  }
-
-  get toMemberId(): UniqueEntityID {
-    return this.props.toMemberId;
-  }
-
-  get type(): RelationshipType {
-    return this.props.type;
-  }
-
-  get strength(): 'FULL' | 'HALF' | 'STEP' | 'ADOPTED' {
-    return this.props.strength;
-  }
-
-  get isBiological(): boolean {
-    return this.props.isBiological;
-  }
-
-  get isAdopted(): boolean {
-    return this.props.isAdopted;
-  }
-
-  get isVerified(): boolean {
-    return this.props.isVerified;
-  }
-
-  get isNextOfKin(): boolean {
-    return this.props.isNextOfKin;
-  }
-
-  get nextOfKinPriority(): number {
-    return this.props.nextOfKinPriority;
-  }
-
-  get inheritanceRights(): InheritanceRights {
-    return this.props.inheritanceRights;
-  }
-
-  get isContested(): boolean {
-    return this.props.isContested;
-  }
-
-  get courtValidated(): boolean {
-    return this.props.courtValidated;
-  }
-
-  get recognizedUnderCustomaryLaw(): boolean {
-    return this.props.recognizedUnderCustomaryLaw;
-  }
-
-  // =========================================================================
-  // COMPUTED PROPERTIES
-  // =========================================================================
-
-  get isActive(): boolean {
-    return !this.props.relationshipEndDate;
-  }
-
-  get hasFullInheritanceRights(): boolean {
-    return this.props.inheritanceRights === InheritanceRights.FULL;
-  }
-
-  get requiresCourtValidation(): boolean {
-    return this.props.isAdopted || this.props.isContested;
-  }
-
-  get isLegallyRecognized(): boolean {
-    return (
-      (this.props.isBiological && this.props.isVerified) ||
-      (this.props.isAdopted && !!this.props.adoptionOrderId) ||
-      this.props.courtValidated
-    );
-  }
-
-  // =========================================================================
-  // SERIALIZATION
-  // =========================================================================
-
-  public toPlainObject(): Record<string, any> {
     return {
-      id: this._id.toString(),
-      familyId: this.props.familyId.toString(),
+      id: this.id.toString(),
       fromMemberId: this.props.fromMemberId.toString(),
       toMemberId: this.props.toMemberId.toString(),
-      type: this.props.type,
-      strength: this.props.strength,
-      isBiological: this.props.isBiological,
-      isAdopted: this.props.isAdopted,
-      adoptionOrderId: this.props.adoptionOrderId?.toString(),
-      adoptionOrderNumber: this.props.adoptionOrderNumber,
-      adoptionCourt: this.props.adoptionCourt,
-      adoptionDate: this.props.adoptionDate,
-      isCustomaryAdoption: this.props.isCustomaryAdoption,
-      isVerified: this.props.isVerified,
-      verificationMethod: this.props.verificationMethod,
-      verificationDocuments: this.props.verificationDocuments,
-      verifiedAt: this.props.verifiedAt,
-      verifiedBy: this.props.verifiedBy?.toString(),
-      relationshipStartDate: this.props.relationshipStartDate,
-      relationshipEndDate: this.props.relationshipEndDate,
-      endReason: this.props.endReason,
-      isNextOfKin: this.props.isNextOfKin,
-      nextOfKinPriority: this.props.nextOfKinPriority,
-      recognizedUnderCustomaryLaw: this.props.recognizedUnderCustomaryLaw,
-      customaryCeremonyDetails: this.props.customaryCeremonyDetails,
-      isContested: this.props.isContested,
-      contestationCaseNumber: this.props.contestationCaseNumber,
-      courtValidated: this.props.courtValidated,
-      courtValidationDate: this.props.courtValidationDate,
+      relationshipType: this.props.relationshipType,
+      inverseType: this.props.inverseRelationshipType,
+      dimensions: {
+        biological: this.props.isBiological,
+        legal: this.props.isLegal,
+        customary: this.props.isCustomary,
+        spiritual: this.props.isSpiritual,
+      },
+      verification: {
+        level: this.props.verificationLevel,
+        score: this.props.verificationScore,
+        method: this.props.verificationMethod,
+        lastVerifiedAt: this.props.lastVerifiedAt,
+      },
+      status: {
+        isActive: this.props.isActive,
+        startDate: this.props.startDate,
+        endDate: this.props.endDate,
+        hasConflict: this.props.hasConflict,
+        conflictResolution: this.props.conflictResolutionStatus,
+      },
+      strength: {
+        relationshipStrength: this.props.relationshipStrength,
+        closenessIndex: this.props.closenessIndex,
+        contactFrequency: this.props.contactFrequency,
+      },
+      legalEligibility: eligibility,
+      inheritance: {
+        rights: this.props.inheritanceRights,
+        percentage: this.props.inheritancePercentage,
+        disinherited: this.props.disinherited,
+      },
+      isArchived: this.props.isArchived,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    };
+  }
+
+  /**
+   * Get computed properties for business logic
+   */
+  public get computedProperties() {
+    const eligibility = this.getLegalEligibility();
+    const timeline = this.getTimeline();
+
+    return {
+      eligibility,
+      timeline,
+      relationshipHealth: this.calculateRelationshipHealth(),
+      evidenceSummary: this.getEvidenceSummary(),
+      culturalContext: this.getCulturalContext(),
+      dependencyAnalysis: this.getDependencyAnalysis(),
+      inheritanceAnalysis: this.getInheritanceAnalysis(),
+      relationshipQuality: this.getRelationshipQuality(),
+    };
+  }
+
+  private calculateRelationshipHealth(): string {
+    const strength = this.props.relationshipStrength;
+    const verification = this.props.verificationScore;
+    const conflict = this.props.hasConflict;
+
+    if (conflict && this.props.conflictResolutionStatus !== 'RESOLVED') {
+      return 'CONFLICTED';
+    }
+
+    if (strength >= 80 && verification >= 90) {
+      return 'EXCELLENT';
+    }
+
+    if (strength >= 60 && verification >= 70) {
+      return 'GOOD';
+    }
+
+    if (strength >= 40 && verification >= 50) {
+      return 'FAIR';
+    }
+
+    return 'POOR';
+  }
+
+  private getEvidenceSummary(): Record<string, any> {
+    return {
+      documentCount: this.props.legalDocuments.length,
+      hasDNAEvidence: !!this.props.dnaTestId,
+      hasCourtOrder: !!this.props.courtOrderId,
+      hasCustomaryRecognition: this.props.customaryRecognition,
+      elderWitnesses: this.props.elderWitnesses.length,
+      evidenceGaps: this.identifyEvidenceGaps(),
+    };
+  }
+
+  private identifyEvidenceGaps(): string[] {
+    const gaps: string[] = [];
+
+    if (this.props.isBiological && !this.props.dnaTestId) {
+      gaps.push('Missing DNA evidence for biological claim');
+    }
+
+    if (this.props.isLegal && !this.props.courtOrderId) {
+      gaps.push('Missing court order for legal claim');
+    }
+
+    if (this.props.isCustomary && this.props.elderWitnesses.length < 2) {
+      gaps.push('Insufficient elder witnesses for customary claim');
+    }
+
+    if (this.props.legalDocuments.length === 0) {
+      gaps.push('No supporting documents');
+    }
+
+    return gaps;
+  }
+
+  private getCulturalContext(): Record<string, any> {
+    return {
+      relationshipTerm: this.props.relationshipTerm,
+      culturalSignificance: this.props.culturalSignificance,
+      taboos: this.props.taboos,
+      clanRecognized: this.props.clanRecognized,
+      traditionalRite: this.props.traditionalRite,
+      communicationLanguage: this.props.communicationLanguage,
+    };
+  }
+
+  private getDependencyAnalysis(): Record<string, any> {
+    return {
+      isDependent: this.props.isFinancialDependent || this.props.isCareDependent,
+      dependencyLevel: this.props.dependencyLevel,
+      supportAreas: this.props.supportProvided,
+      s29Eligibility: this.props.isFinancialDependent || this.props.isCareDependent,
+      dependencyScore: this.calculateDependencyScore(),
+    };
+  }
+
+  private calculateDependencyScore(): number {
+    let score = 0;
+
+    if (this.props.isFinancialDependent) score += 40;
+    if (this.props.isCareDependent) score += 40;
+
+    if (this.props.dependencyLevel === 'FULL') score += 20;
+    else if (this.props.dependencyLevel === 'PARTIAL') score += 10;
+
+    return Math.min(score, 100);
+  }
+
+  private getInheritanceAnalysis(): Record<string, any> {
+    return {
       inheritanceRights: this.props.inheritanceRights,
-      isActive: this.isActive,
-      hasFullInheritanceRights: this.hasFullInheritanceRights,
-      requiresCourtValidation: this.requiresCourtValidation,
-      isLegallyRecognized: this.isLegallyRecognized,
-      version: this._version,
-      createdAt: this._createdAt,
-      updatedAt: this._updatedAt,
-      deletedAt: this._deletedAt,
+      inheritancePercentage: this.props.inheritancePercentage,
+      disinherited: this.props.disinherited,
+      disinheritanceReason: this.props.disinheritanceReason,
+      legalBasis: this.props.legalBasis,
+      inheritanceStrength: this.calculateInheritanceStrength(),
+    };
+  }
+
+  private calculateInheritanceStrength(): number {
+    let strength = 0;
+
+    switch (this.props.inheritanceRights) {
+      case 'FULL':
+        strength = 100;
+        break;
+      case 'PARTIAL':
+        strength = 70;
+        break;
+      case 'CUSTOMARY':
+        strength = 60;
+        break;
+      case 'NONE':
+        strength = 0;
+        break;
+      case 'PENDING':
+        strength = 30;
+        break;
+    }
+
+    if (this.props.disinherited) {
+      strength = 0;
+    }
+
+    return strength;
+  }
+
+  private getRelationshipQuality(): Record<string, any> {
+    return {
+      health: this.calculateRelationshipHealth(),
+      strength: this.props.relationshipStrength,
+      closeness: this.props.closenessIndex,
+      contact: this.props.contactFrequency,
+      trustLevel: this.calculateTrustLevel(),
+      resilience: this.calculateResilience(),
+      recommendations: this.getRelationshipRecommendations(),
+    };
+  }
+
+  private calculateTrustLevel(): string {
+    const verification = this.props.verificationScore;
+    const strength = this.props.relationshipStrength;
+
+    if (verification >= 90 && strength >= 80) return 'HIGH';
+    if (verification >= 70 && strength >= 60) return 'MEDIUM';
+    return 'LOW';
+  }
+
+  private calculateResilience(): string {
+    const conflict = this.props.hasConflict;
+    const resolution = this.props.conflictResolutionStatus;
+    const strength = this.props.relationshipStrength;
+
+    if (!conflict && strength >= 70) return 'RESILIENT';
+    if (conflict && resolution === 'RESOLVED' && strength >= 60) return 'RECOVERING';
+    if (conflict && resolution === 'PENDING') return 'VULNERABLE';
+    return 'FRAGILE';
+  }
+
+  private getRelationshipRecommendations(): string[] {
+    const recommendations: string[] = [];
+
+    if (this.props.verificationScore < 70) {
+      recommendations.push('Gather additional evidence to verify relationship');
+    }
+
+    if (this.props.hasConflict && this.props.conflictResolutionStatus !== 'RESOLVED') {
+      recommendations.push('Consider mediation to resolve conflicts');
+    }
+
+    if (this.props.contactFrequency === 'NEVER' || this.props.contactFrequency === 'RARELY') {
+      recommendations.push('Increase contact to strengthen relationship');
+    }
+
+    if (this.props.inheritanceRights === 'PENDING') {
+      recommendations.push('Clarify inheritance rights through legal channels');
+    }
+
+    if (this.props.legalDocuments.length === 0) {
+      recommendations.push('Collect supporting documents for legal protection');
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Get relationship for export/API response
+   */
+  public toJSON(): Record<string, any> {
+    return {
+      id: this.id.toString(),
+      familyId: this.props.familyId.toString(),
+      members: {
+        fromMemberId: this.props.fromMemberId.toString(),
+        toMemberId: this.props.toMemberId.toString(),
+      },
+      relationship: {
+        type: this.props.relationshipType,
+        inverseType: this.props.inverseRelationshipType,
+        dimensions: {
+          biological: this.props.isBiological,
+          legal: this.props.isLegal,
+          customary: this.props.isCustomary,
+          spiritual: this.props.isSpiritual,
+        },
+      },
+      timeline: {
+        startDate: this.props.startDate,
+        endDate: this.props.endDate,
+        isActive: this.props.isActive,
+      },
+      verification: {
+        level: this.props.verificationLevel,
+        score: this.props.verificationScore,
+        method: this.props.verificationMethod,
+        lastVerifiedAt: this.props.lastVerifiedAt,
+        verifiedBy: this.props.verifiedBy?.toString(),
+      },
+      evidence: {
+        legalDocuments: this.props.legalDocuments,
+        dnaTestId: this.props.dnaTestId,
+        dnaMatchPercentage: this.props.dnaMatchPercentage,
+        biologicalConfidence: this.props.biologicalConfidence,
+        courtOrderId: this.props.courtOrderId,
+        adoptionOrderId: this.props.adoptionOrderId,
+        guardianshipOrderId: this.props.guardianshipOrderId,
+        marriageId: this.props.marriageId?.toString(),
+      },
+      customary: {
+        customaryRecognition: this.props.customaryRecognition,
+        clanRecognized: this.props.clanRecognized,
+        elderWitnesses: this.props.elderWitnesses,
+        traditionalRite: this.props.traditionalRite,
+      },
+      strength: {
+        relationshipStrength: this.props.relationshipStrength,
+        closenessIndex: this.props.closenessIndex,
+        contactFrequency: this.props.contactFrequency,
+      },
+      dependency: {
+        isFinancialDependent: this.props.isFinancialDependent,
+        isCareDependent: this.props.isCareDependent,
+        dependencyLevel: this.props.dependencyLevel,
+        supportProvided: this.props.supportProvided,
+      },
+      inheritance: {
+        inheritanceRights: this.props.inheritanceRights,
+        inheritancePercentage: this.props.inheritancePercentage,
+        disinherited: this.props.disinherited,
+        disinheritanceReason: this.props.disinheritanceReason,
+        legalBasis: this.props.legalBasis,
+      },
+      conflict: {
+        hasConflict: this.props.hasConflict,
+        resolutionStatus: this.props.conflictResolutionStatus,
+      },
+      cultural: {
+        relationshipTerm: this.props.relationshipTerm,
+        culturalSignificance: this.props.culturalSignificance,
+        taboos: this.props.taboos,
+        communicationLanguage: this.props.communicationLanguage,
+      },
+      computedProperties: this.computedProperties,
+      audit: {
+        createdBy: this.props.createdBy.toString(),
+        lastUpdatedBy: this.props.lastUpdatedBy.toString(),
+        notes: this.props.notes,
+        createdAt: this.createdAt,
+        updatedAt: this.updatedAt,
+        isArchived: this.props.isArchived,
+      },
+      metadata: {
+        version: this.version,
+        isDeleted: this.isDeleted,
+      },
     };
   }
 }
