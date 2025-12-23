@@ -1,4 +1,4 @@
-// domain/base/domain-event.ts (updated)
+// domain/base/domain-event.ts
 import { v4 as uuidv4 } from 'uuid';
 
 /**
