@@ -20,6 +20,78 @@ enum Gender {
   FEMALE
   OTHERS
 }
+enum RoadmapPhase {
+  PRE_FILING           
+  FILING_AND_GAZETTE   
+  CONFIRMATION         
+  DISTRIBUTION         
+  CLOSED
+}
+enum TaskStatus {
+  LOCKED
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+enum ProbateApplicationType {
+  GRANT_OF_PROBATE           // P&A 1
+  LETTERS_OF_ADMINISTRATION  // P&A 80
+  SUMMARY_ADMINISTRATION     // P&A 5
+  LIMITED_GRANT              // Ad Litem / Collection
+}
+enum KenyanFormType {
+  PA1_PETITION
+  PA5_PETITION_SUMMARY
+  PA80_PETITION_INTESTATE
+  PA12_AFFIDAVIT_MEANS
+  PA38_CONSENT
+  PA57_GUARANTEE
+  CHIEFS_LETTER_TEMPLATE
+}
+enum ConsentStatus {
+  PENDING
+  GRANTED
+  DECLINED
+  NOT_REQUIRED
+}
+enum SuccessionRegime {
+  TESTATE              // Valid Will exists
+  INTESTATE            // No Will
+  PARTIALLY_INTESTATE  // Will exists but doesn't cover all assets
+  CUSTOMARY            // Managed by elders (rare but valid)
+}
+enum SuccessionMarriageType {
+  MONOGAMOUS
+  POLYGAMOUS           // Triggers S.40 Logic
+  COHABITATION         // Triggers S.3(5) & S.29 Logic (Likely Dispute)
+  SINGLE
+}
+enum SuccessionReligion {
+  STATUTORY            // Law of Succession Act (General)
+  ISLAMIC              // Subject to Sharia (Kadhi's Court)
+  HINDU                // Hindu Succession Act
+  AFRICAN_CUSTOMARY    // Customary Law
+  CHRISTIAN            // Often Statutory
+}
+enum RiskSeverity {
+  CRITICAL             // Cannot file (e.g. No Death Cert)
+  HIGH                 // Likely dispute
+  MEDIUM               // Warning
+  LOW                  // Info
+}
+enum RiskSource {
+  FAMILY_SERVICE       // e.g. "Found a minor child with no guardian"
+  ESTATE_SERVICE       // e.g. "Asset value requires higher court"
+  WILL_SERVICE         // e.g. "Will witness is also a beneficiary"
+  DOCUMENT_SERVICE     // e.g. "ID scan is blurry"
+  EXTERNAL_REGISTRY    // e.g. "KRA PIN is inactive"
+}
+enum ReadinessStatus {
+  IN_PROGRESS
+  READY_TO_FILE
+  BLOCKED
+}
 enum DocumentStatus {
   PENDING_VERIFICATION
   VERIFIED
@@ -334,231 +406,11 @@ enum DebtStatus {
   DISPUTED
   STATUTE_BARRED          // Time-barred under Limitation Act
 }
-enum KenyanTaxType {
-  INCOME_TAX
-  CAPITAL_GAINS_TAX
-  STAMP_DUTY
-  WITHHOLDING_TAX
-  VALUE_ADDED_TAX
-  OTHER
-}
-enum ExecutorStatus {
-  NOMINATED               // Named in will, not yet acting
-  ACTIVE                  // Currently serving
-  DECLINED                // Refused to serve
-  RENUNCIATED             // Formally renounced (legal term)
-  REMOVED                 // Removed by court/testator
-  COMPLETED               // Finished duties
-}
 enum ExecutorAppointmentType {
   TESTAMENTARY            // Appointed by will
   COURT_APPOINTED         // Appointed by court
   ADMINISTRATOR           // Letters of administration
   SPECIAL_EXECUTOR        // For specific purposes
-}
-enum ExecutorCompensationType {
-  FIXED_AMOUNT
-  PERCENTAGE_OF_ESTATE
-  HOURLY_RATE
-  STATUTORY_SCALE         // Kenyan LSA Section 83 scale
-  NONE
-}
-enum ExecutorEligibilityStatus {
-  ELIGIBLE
-  INELIGIBLE_MINOR
-  INELIGIBLE_BANKRUPT
-  INELIGIBLE_CRIMINAL_RECORD
-  INELIGIBLE_NON_RESIDENT
-  PENDING_VERIFICATION
-}
-enum GrantStatus {
-  ISSUED
-  CONFIRMED               // S. 71 LSA confirmation
-  REVOKED
-  EXPIRED
-  AMENDED
-  REPLACED
-}
-enum GrantType {
-  PROBATE                               // Form P&A 1: Valid Will + Executor willing to act
-  LETTERS_OF_ADMINISTRATION             // Form P&A 80: Intestacy (No Will)
-  LETTERS_OF_ADMINISTRATION_WITH_WILL   // Will exists, but no Executor (Admon. Cum Testamento Annexo)
-  LIMITED_GRANT                         // Form P&A 80A: Specific purpose (e.g., filing suit)
-  SPECIAL_GRANT                         // For preservation or temporary administration
-}
-enum CaseStatus {
-  DRAFT_FILING
-  FILED
-  GAZETTED
-  OBJECTION_PERIOD
-  OBJECTION_RECEIVED
-  HEARING_SCHEDULED
-  HEARING_COMPLETED
-  GRANT_ISSUED
-  CONFIRMATION_HEARING
-  CONFIRMED
-  APPEALED
-  CLOSED
-  WITHDRAWN
-}
-enum CasePriority {
-  NORMAL
-  URGENT                   // S. 86 - Urgent preservation
-  EXPEDITED                // Court-ordered expedited handling
-}
-enum GazetteNoticeType {
-  PROBATE
-  LETTERS_OF_ADMINISTRATION
-}
-enum ObjectionStatus {
-  PENDING
-  WITHDRAWN
-  DISMISSED
-  UPHELD
-}
-enum HearingType {
-  MENTION
-  DIRECTIONS
-  HEARING
-  RULING
-  JUDGMENT
-  APPEAL
-  REVIEW
-  CONFIRMATION            // S. 71 confirmation hearing
-  OTHER
-}
-enum HearingStatus {
-  SCHEDULED
-  COMPLETED
-  ADJOURNED
-  CANCELLED
-  IN_PROGRESS
-}
-enum DisputeType {
-  VALIDITY_CHALLENGE      // Will validity questioned
-  UNDUE_INFLUENCE         // Coercion alleged
-  LACK_CAPACITY           // Testator mental capacity
-  FRAUD                   // Forgery or misrepresentation
-  OMITTED_HEIR            // Heir left out
-  ASSET_VALUATION         // Dispute over asset worth
-  EXECUTOR_MISCONDUCT     // Executor breach of duty
-  DEPENDANT_PROVISION     // S. 26 dependant claim
-  OTHER
-}
-enum DisputeStatus {
-  FILED
-  UNDER_REVIEW
-  MEDIATION
-  COURT_PROCEEDING
-  RESOLVED
-  DISMISSED
-}
-enum ClaimStatus {
-  PENDING                 // Claim filed, awaiting review
-  ACCEPTED                // Administrator accepted claim
-  REJECTED                // Administrator rejected claim
-  DISPUTED                // Claim is being contested
-  PAID                    // Claim has been settled
-  PARTIALLY_PAID          // Partial payment made
-  STATUTE_BARRED          // Claim is time-barred
-}
-enum ClaimPriority {
-  PREFERRED               // S. 45(a) - Funeral, testamentary expenses
-  SECURED                 // S. 45(b) - Mortgage, secured loans
-  ORDINARY_PREFERENTIAL   // S. 45(c) - Rates, taxes, wages
-  ORDINARY                // S. 45(d) - Unsecured debts
-}
-enum ExecutorDutyType {
-  FILE_INVENTORY          // S. 83(1)(a) - File inventory within 90 days
-  PAY_FUNERAL_EXPENSES    // S. 45(a) - Pay funeral costs
-  PAY_DEBTS               // S. 45 - Settle creditor claims
-  DISTRIBUTE_ASSETS       // S. 83(1)(b) - Distribute to beneficiaries
-  FILE_ACCOUNTS           // S. 83(1)(c) - File estate accounts
-  OBTAIN_GRANT            // Initial duty - Apply for grant
-  NOTIFY_BENEFICIARIES    // S. 83 - Notify all beneficiaries
-  MANAGE_PROPERTY         // S. 83 - Preserve estate assets
-  SETTLE_TAXES            // Pay estate taxes (CGT, stamp duty)
-  CLOSE_ESTATE            // Final closure
-  OTHER
-}
-enum DutyStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  OVERDUE
-  WAIVED                  // Court waived requirement
-  EXTENDED                // Court granted extension
-}
-enum PriorityLevel {
-  HIGH                    // Must be done immediately
-  MEDIUM                  // Normal timeline
-  LOW                     // Can be deferred
-}
-enum LegalBasis {
-  SECTION_83              // Law of Succession Act S. 83
-  SECTION_79              // Executor powers
-  SECTION_45              // Debt payment priority
-  SECTION_71              // Grant confirmation
-  COURT_ORDER             // Court-mandated duty
-  WILL_PROVISION          // Testator's instructions
-  CUSTOMARY_LAW           // Customary succession rules
-}
-enum EntitlementBasis {
-  TESTATE_WILL            // From will
-  INTESTATE_S35           // S. 35 - Surviving spouse & children
-  INTESTATE_S36           // S. 36 - Parents only
-  INTESTATE_S38           // S. 38 - Siblings
-  INTESTATE_S39           // S. 39 - Other relatives
-  INTESTATE_S40           // S. 40 - Polygamous family
-  CUSTOMARY_LAW           // Customary succession
-  COURT_ORDER             // Court-determined distribution
-}
-enum DistributionStatus {
-  PENDING                 // Not yet distributed
-  IN_PROGRESS             // Being transferred
-  COMPLETED               // Transfer done
-  DISPUTED                // Under contestation
-  DEFERRED                // Delayed by condition
-}
-enum TransmissionStatus {
-  PENDING                 // Awaiting processing
-  IN_PROGRESS             // Being transferred
-  COMPLETED               // Transfer complete
-  BLOCKED                 // Legal obstacle
-  REJECTED                // Registry rejected
-}
-enum CourtLevel {
-  HIGH_COURT
-  MAGISTRATE_COURT
-  KADHI_COURT
-}
-enum CaseClosureReason {
-  GRANT_ISSUED
-  WITHDRAWN
-  DISMISSED
-  APPEALED
-  OTHER
-}
-enum TransmissionMethod {
-  LAND_REGISTRY
-  MOTOR_VEHICLE_REGISTRATION
-  FINANCIAL_INSTRUMENT_TRANSFER
-  COURT_ORDER
-  MANUAL_TRANSFER
-}
-enum CourtOrderType {
-  GRANT_CONFIRMATION
-  DEBT_PAYMENT_APPROVAL
-  DEPENDANT_PROVISION
-  ASSET_PRESERVATION
-  EXECUTOR_REMOVAL
-  OTHER
-}
-enum Section45Tier {
-  S45_A_FUNERAL_TESTAMENTARY // Funeral & testamentary expenses
-  S45_B_SECURED              // Secured debts
-  S45_C_TAXES_RATES_WAGES    // Taxes, rates, wages
-  S45_D_UNSECURED_GENERAL    // Unsecured debts
 }
 enum KenyanCounty {
   BARINGO
@@ -667,12 +519,6 @@ model User {
   willExecutorRoles   WillExecutor[] @relation("ExecutorUser")
   witnessRoles        WillWitness[]  @relation("WitnessUser")
   beneficiaryOf       BeneficiaryAssignment[] @relation("AssignmentBeneficiaryUser")
-  // Back-relations from Succession-Process-Service
-  disputesFiled           Dispute[]              @relation("DisputeFiler")
-  executorDuties          ExecutorDuty[]         @relation("ExecutorDuties")
-  claimsFiledByUser       CreditorClaim[]        @relation("ClaimFiledBy")
-  claimsReviewedByUser    CreditorClaim[]        @relation("ClaimReviewedBy")
-
   @@index([email, isActive], map: "users_email_isActive_idx")
   @@index([createdAt], map: "users_createdAt_idx")
   @@index([deletedAt], map: "users_deletedAt_idx")
@@ -1039,8 +885,6 @@ model FamilyMember {
   dependencyClaimsAgainstMe LegalDependant[] @relation("DeceasedDependant")
   myDependencyClaims  LegalDependant[] @relation("DependantOf")
   CustodialParent  LegalDependant[] @relation("CustodialParent")
-  beneficiaryEntitlements BeneficiaryEntitlement[] @relation("Entitled")
-  assetTransmissions AssetTransmission[] @relation("Beneficiary")
   // Customary Roles
   houseHeadOf           PolygamousHouse?     @relation("HouseHead")
   
@@ -1289,2096 +1133,763 @@ model FamilyLegalEvent {
   @@map("family_legal_events")
 }
 // ============================================================================
-// ESTATE-SERVICE 
-// Owner: estate-service
-// Purpose: Manages Wills, Assets, Liabilities, Executors, and the central Estate entity.
-// Domain: Estate planning, asset management, testamentary documents, beneficiary assignments
-// Incorporates normalized assets and hotchpot (S. 35(3)) compliance.
+// ESTATE-SERVICE MODELS
+// Purpose: Manages the Inventory (Estate) and Instructions (Will).
+// Strict Boundaries: No Court Processes, No Grants, No Transmissions.
 // ============================================================================
+
 // =============================================================================
-// CORE ESTATE MODELS
+// AGGREGATE ROOT 1: ESTATE
+// Purpose: The Inventory & Net Worth.
+// Invariants: Assets >= Debts (Solvency), Total Ownership = 100%
 // =============================================================================
-/// The central legal entity representing the deceased's property and liabilities.
-/// Created PRE-DEATH for estate planning, activated POST-DEATH for succession.
 model Estate {
   id                     String   @id @default(uuid()) @db.Uuid()
   
-  // Deceased Identity (FamilyMember from Family-Service)
+  // --- Deceased Identity (Link to Family Service) ---
   deceasedId             String   @unique(map: "estates_deceasedId_unique") @db.Uuid()
-  // Denormalized Deceased Info
+  // Denormalized for search performance
   deceasedFullName       String   @db.VarChar(200)
-  deceasedNationalId     String?  @unique(map: "estates_deceasedNatId_unique") @db.VarChar(20)
-  deceasedDateOfBirth    DateTime?
   deceasedDateOfDeath    DateTime?
-  deceasedDeathCertNumber String? @unique(map: "estates_deathCert_unique") @db.VarChar(50)
-  // Estate Type
-  isTestate               Boolean                @default(false) // Has valid will?
-  isIntestate             Boolean                @default(false) // No will?
-  
-  // Succession Process Linkage (owned by succession-process-service)
-  successionCaseId        String?                @unique @db.Uuid
-  
-  // Aggregation of Assets and Liabilities
-  assets                  Asset[]
-  debts                   Debt[]
-  giftsInterVivos         GiftInterVivos[]
-  estateTaxCompliances EstateTaxCompliance[]
-  successionCases SuccessionCase[]
-  distributionScenarios DistributionScenario[]
-  
-  // Financial Summary (Updated via triggers/events)
-  grossValueKES           Float                  @default(0)
-  totalLiabilitiesKES     Float                  @default(0)
-  netEstateValueKES       Float                  @default(0) // Gross - Liabilities
-  
-  // Hotchpot Adjusted Value (S. 35(3) LSA)
-  hotchpotAdjustedValueKES Float?                // Gross value + gifts inter vivos
-  
-  // Estate Status
-  isFrozen                Boolean                @default(false) // Frozen on death
-  frozenAt                DateTime?
-  
-  // Audit
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
-  
-  @@index([deceasedId], map: "estates_deceasedId_idx")
-  @@index([deceasedNationalId], map: "estates_deceasedNationalId_idx")
-  @@index([deceasedDeathCertNumber], map: "estates_deathCertNumber_idx")
-  @@index([isFrozen], map: "estates_isFrozen_idx")
-  @@index([isTestate, isIntestate], map: "estates_testate_intestate_idx")
-  @@index([createdAt], map: "estates_createdAt_idx")
-  @@map("estates")
-}
-// =============================================================================
-// WILLS & TESTAMENTARY DOCUMENTS
-// =============================================================================
 
-model Will {
-  id                     String   @id @default(uuid()) @db.Uuid()
+  // --- Estate Status ---
+  isTestate              Boolean  @default(false) // Fact: derived from Will existence
+  isIntestate            Boolean  @default(false)
+  isFrozen               Boolean  @default(false) 
+  frozenAt               DateTime?
   
-  // Core Identity
-  title                  String   @db.VarChar(200)
-  testatorId             String   @db.Uuid()
-  testator               User     @relation("TestatorWills", fields: [testatorId], references: [id], onDelete: Cascade)
-  // Will Classification
-  type                   WillType @default(STANDARD)
-  status                 WillStatus @default(DRAFT)
-  // Legal Capacity (Section 7 LSA)
-  legalCapacityStatus    LegalCapacityStatus @default(PENDING_ASSESSMENT)
-  capacityAssessedBy     String?  @db.Uuid()
-  capacityAssessedAt     DateTime?
-  capacityNotes          String?  @db.Text
-  // Will Dates & Versioning
-  willDate                    DateTime               @default(now())
-  executionDate               DateTime?              // When testator signed
-  versionNumber               Int                    @default(1)
-  // Will Supersession Chain
-  supersedesId           String?  @db.Uuid()
-  supersededWill         Will?    @relation("WillSupersession", fields: [supersedesId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  supersededBy           Will[]   @relation("WillSupersession")
-  // Revocation (Section 16 LSA)
-  isRevoked              Boolean @default(false)
-  revokedAt              DateTime?
-  revocationMethod       RevocationMethod?
-  revocationReason       String? @db.Text
-  revokedBy              String? @db.Uuid()
-  // Kenyan-Specific Content
-  funeralWishes          String? @db.Text
-  burialLocation         String? @db.VarChar(255)
-  cremationInstructions  String? @db.Text
-  organDonation          Boolean @default(false)
-  organDonationDetails   String? @db.Text
-  // Estate Distribution
-  residuaryClause        String? @db.Text
-  digitalAssetInstructions Json?
-  specialInstructions    String? @db.Text
-  // Storage & Security
-  storageLocation        WillStorageLocation?
-  storageDetails         String? @db.Text
-  physicalWillLocation   String? @db.VarChar(500)
-  digitalCopyStoragePath String? @db.Text
-  isEncrypted            Boolean @default(false)
-  encryptionKeyId        String? @db.VarChar(100)
-  // Witness Tracking
-  requiresWitnesses      Boolean @default(true)
-  witnessCount           Int @default(0)
-  hasAllWitnesses        Boolean @default(false)
-  minimumWitnessesRequired Int @default(2)
-  allWitnessedAt         DateTime?
-  // Court & Probate
-  probateCaseNumber      String? @unique(map: "wills_probateCase_unique") @db.VarChar(100)
-  grantOfProbateIssued   Boolean @default(false)
-  grantOfProbateDate     DateTime?
-  courtRegistry          String? @db.VarChar(100)
-  // Dependant Provision (S. 26 LSA)
-  hasDependantProvision  Boolean @default(false)
-  dependantProvisionDetails String? @db.Text
-  // Holographic Will Details
-  isHolographic          Boolean @default(false)
-  isWrittenInTestatorsHand Boolean @default(false)
-  // Legal Formalities Compliance
-  hasTestatorSignature   Boolean @default(false)
-  signatureWitnessed     Boolean @default(false)
-  meetsKenyanFormalities Boolean @default(false)
-  // Activation
-  isActive               Boolean @default(false)
-  activatedAt            DateTime?
-  activatedBy            String? @db.Uuid()
-  // Relations
-  documents                   Document[]
-  codicils                    Codicil[]
-  executors                   WillExecutor[]
-  witnesses                   WillWitness[]
-  beneficiaryAssignments      BeneficiaryAssignment[]
-  disinheritanceRecords       DisinheritanceRecord[]
+  // --- Financial Summary (Updated via Domain Service events) ---
+  grossValueKES          Float    @default(0)
+  totalLiabilitiesKES    Float    @default(0)
+  netEstateValueKES      Float    @default(0)
   
-  // Audit
-  createdAt                   DateTime               @default(now())
-  updatedAt                   DateTime               @updatedAt
-  deletedAt                   DateTime?              // Soft delete
+  // --- Hotchpot (S. 35(3) LSA) ---
+  hotchpotAdjustedValueKES Float? // Gross + Gifts Inter Vivos
   
-  @@index([testatorId, status], map: "wills_testator_status_idx")
-  @@index([isActive, isRevoked], map: "wills_active_revoked_idx")
-  @@index([status, deletedAt], map: "wills_status_deletedAt_idx")
-  @@index([probateCaseNumber], map: "wills_probateCaseNumber_idx")
-  @@index([type], map: "wills_type_idx")
-  @@index([legalCapacityStatus], map: "wills_legalCapacityStatus_idx")
-  @@index([createdAt], map: "wills_createdAt_idx")
-  @@map("wills")
-}
-model Codicil {
-  id                     String   @id @default(uuid()) @db.Uuid()
-  willId                 String   @db.Uuid()
-  will                   Will     @relation(fields: [willId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Aggregate Members (Entities) ---
+  assets                 Asset[]
+  debts                  Debt[]
+  giftsInterVivos        GiftInterVivos[]
+  legalDependants        LegalDependant[]       // MOVED HERE: Estate owns the claims against it
   
-  title                  String   @db.VarChar(200)
-  content                String   @db.Text
-  codicilDate            DateTime
-  versionNumber          Int @default(1)
-  // Legal Status
-  isExecuted             Boolean @default(false)
-  executedDate           DateTime?
-  // Witness Requirements
-  requiresWitnesses      Boolean @default(true)
-  witnessCount           Int @default(0)
-  
+  // --- Simulation Snapshots (Read Models) ---
+  distributionScenarios  DistributionScenario[] 
+
+  estateTaxCompliance    EstateTaxCompliance?
+
+  // --- Audit ---
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
+  
+  @@index([deceasedId])
+  @@map("estates")
+}
 
-  @@index([willId], map: "codicils_willId_idx")
-  @@index([codicilDate], map: "codicils_codicilDate_idx")
-  @@map("codicils")
-}
-model WillExecutor {
-  id                         String   @id @default(uuid()) @db.Uuid()
-  willId                     String   @db.Uuid()
-  will                       Will     @relation(fields: [willId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  
-  // Identity
-  executorId                 String?  @db.Uuid()
-  executor                   User?    @relation("ExecutorUser", fields: [executorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  // External executor details
-  fullName                   String?  @db.VarChar(200)
-  email                      String?  @db.VarChar(255)
-  phone                      String?  @db.VarChar(20)
-  nationalId                 String?  @db.VarChar(20)
-  kraPin                     String?  @db.VarChar(20)
-  // Professional Executor
-  isProfessional             Boolean @default(false)
-  professionalQualification  String? @db.VarChar(100)
-  practicingCertificateNumber String? @db.VarChar(100)
-  // Address
-  physicalAddress            String? @db.Text
-  postalAddress              String? @db.VarChar(100)
-  // Role Configuration
-  isPrimary                   Boolean                   @default(false)
-  orderOfPriority             Int                       @default(1)
-  appointmentType             ExecutorAppointmentType   @default(TESTAMENTARY)
-  // Legal Eligibility (Kenyan LSA)
-  eligibilityStatus           ExecutorEligibilityStatus @default(PENDING_VERIFICATION)
-  eligibilityVerifiedAt       DateTime?
-  eligibilityVerifiedBy       String?                   @db.Uuid
-  ineligibilityReason         String?                   @db.Text
-  // Service Status
-  status                      ExecutorStatus            @default(NOMINATED)
-  nominatedAt                 DateTime?
-  appointedAt                 DateTime?                 // Court appointment
-  acceptedAt                  DateTime?
-  declinedAt                  DateTime?
-  declineReason               String?                   @db.Text
-  removedAt                   DateTime?
-  removalReason               String?                   @db.Text
-  completedAt                 DateTime?
-  // Compensation (Kenyan LSA Section 83)
-  compensationType            ExecutorCompensationType  @default(STATUTORY_SCALE)
-  compensationAmount          Float?
-  compensationPercentage      Float?
-  hourlyRate                  Float?
-  estimatedHours              Int?
-  courtApprovedCompensation   Boolean                   @default(false)
-  
-  // Bond & Security (Kenyan Probate)
-  requiresBond                Boolean                   @default(false)
-  bondAmount                  Float?
-  bondProvided                Boolean                   @default(false)
-  bondProvider                String?                   // Insurance company
-  bondExpiryDate              DateTime?
-  
-  // Duties & Responsibilities
-  specificDuties              String?                   @db.Text
-  limitations                 String?                   @db.Text
-  specialPowers               String?                   @db.Text
-  
-  createdAt                   DateTime                  @default(now())
-  updatedAt                   DateTime                  @updatedAt
-  
-  @@unique([willId, executorId], map: "will_executors_will_executor_unique")
-  @@index([willId], map: "will_executors_willId_idx")
-  @@index([executorId], map: "will_executors_executorId_idx")
-  @@index([isPrimary, status], map: "will_executors_primary_status_idx")
-  @@index([eligibilityStatus], map: "will_executors_eligibilityStatus_idx")
-  @@index([status], map: "will_executors_status_idx")
-  @@map("will_executors")
-}
-model WillWitness {
-  id                         String   @id @default(uuid()) @db.Uuid()
-  willId                     String   @db.Uuid()
-  will                       Will     @relation(fields: [willId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  
-  // Identity
-  witnessType                WitnessType
-  witnessId                  String?  @db.Uuid()
-  witness                    User?    @relation("WitnessUser", fields: [witnessId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  // External witness details
-  fullName                   String   @db.VarChar(200)
-  email                      String?  @db.VarChar(255)
-  phone                      String?  @db.VarChar(20)
-  // Kenyan Identification
-  idNumber                   String?  @db.VarChar(20)
-  idType                     String?  @db.VarChar(50)
-  idVerified                 Boolean  @default(false)
-  // Professional witness details
-  isProfessionalWitness      Boolean @default(false)
-  professionalCapacity       String? @db.VarChar(100)
-  professionalLicense        String? @db.VarChar(100)
-  // Relationship Context
-  relationship               String? @db.VarChar(100)
-  relationshipDuration       String? @db.VarChar(50)
-  knowsTestatorWell          Boolean @default(true)
-  // Address
-  physicalAddress            String? @db.Text
-  residentialCounty          String? @db.VarChar(100)
-  // Legal Eligibility
-  eligibilityStatus          WitnessEligibilityStatus @default(PENDING_ELIGIBILITY_CHECK)
-  eligibilityVerifiedAt      DateTime?
-  eligibilityVerifiedBy      String? @db.Uuid()
-  ineligibilityReason        String? @db.Text
-  // Witnessing Process
-  status                     WitnessStatus @default(PENDING)
-  signedAt                   DateTime?
-  signatureType              SignatureType?
-  signatureData              String? @db.Text
-  signatureLocation          String? @db.VarChar(255)
-  witnessingMethod           String? @db.VarChar(100)                   // "In Person", "Video Conference"
-  // Verification
-  verifiedAt                 DateTime?
-  verifiedBy                 String? @db.Uuid()
-  verificationMethod         String? @db.VarChar(100)
-  verificationNotes          String? @db.Text
-  // Legal Requirements Tracking
-  isEligible                 Boolean @default(true)
-  hasConflictOfInterest      Boolean @default(false)
-  conflictDetails            String? @db.Text
-  understandsObligation      Boolean @default(false)
-  obligationAcknowledgedAt   DateTime?
-  // Communication
-  invitationSentAt           DateTime?
-  invitationMethod           String? @db.VarChar(50)
-  reminderSentAt             DateTime?
-  responseReceivedAt         DateTime?
-  createdAt                   DateTime                  @default(now())
-  updatedAt                   DateTime                  @updatedAt
-  
-  documents Document[] @relation("WitnessIdentityDocuments")
-
-  @@index([willId], map: "will_witnesses_willId_idx")
-  @@index([witnessId], map: "will_witnesses_witnessId_idx")
-  @@index([witnessType], map: "will_witnesses_witnessType_idx")
-  @@index([eligibilityStatus], map: "will_witnesses_eligibilityStatus_idx")
-  @@index([status], map: "will_witnesses_status_idx")
-  @@index([idNumber], map: "will_witnesses_idNumber_idx")
-  @@map("will_witnesses")
-}
-model WitnessSignature {
-  id           String   @id @default(uuid()) @db.Uuid
-  witnessId    String   @db.Uuid
-  // Encryption metadata:
-  encryptedData String @db.Text
-  encryptionKeyId String @db.VarChar(100)
-  iv            String @db.VarChar(100)
-  // Legal retention:
-  retainedUntil DateTime // Auto-purge per DPA
-  purpose       String @db.VarChar(100) // "WILL_EXECUTION"
-}
-model WillFraudCheck {
-  id          String   @id @default(uuid()) @db.Uuid()
-  willId      String   @db.Uuid()
-  
-  checkType   String   @db.VarChar(50) // "EXECUTOR_CONFLICT", "UNUSUAL_BENEFICIARY"
-  riskScore   Float    @default(0)
-  // S. 11 LSA - Undue influence detection:
-  beneficiaryCountThreshold Boolean @default(false)
-  executorIsBeneficiary Boolean @default(false) // Requires court approval
-  
-  flaggedAt   DateTime @default(now())
-  requiresManualReview Boolean @default(false)
-}
-// =============================================================================
-// ASSETS & LIABILITIES (Normalized)
-// =============================================================================
+// -----------------------------------------------------------------------------
+// Entity: Asset (Polymorphic)
+// Owned by: Estate
+// -----------------------------------------------------------------------------
 model Asset {
   id                   String   @id @default(uuid()) @db.Uuid()
   
-  // Core Links
+  // --- Parent Aggregate ---
   estateId             String   @db.Uuid()
-  estate               Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  estate               Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
   
-  ownerId              String   @db.Uuid()
-  owner                User     @relation("AssetOwner", fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Core Asset Data
+  // --- Ownership ---
+  ownerId              String   @db.Uuid() 
+  owner                User     @relation("AssetOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  // --- Asset Details ---
   name                 String   @db.VarChar(200)
   description          String?  @db.Text
   type                 AssetType
+  
+  // --- Value ---
   currentValue         Float
   currency             String   @default("KES") @db.VarChar(10)
   valuationDate        DateTime?
-  valuationSource      String?  @db.VarChar(100)
-  // Ownership & Legal Status
-  ownershipType        AssetOwnershipType @default(SOLE)
-  ownershipShare       Float  @default(100)
-  // Kenyan Location Data
-  county               KenyanCounty?
-  subCounty            String?  @db.VarChar(100)
-  ward                 String?  @db.VarChar(100)
-  village              String?  @db.VarChar(100)
-  gpsCoordinates       String?  @db.VarChar(100)
-  // Identification
-  titleDeedNumber      String?  @db.VarChar(100)
-  registrationNumber   String?  @db.VarChar(100)
-  kraPin               String?  @db.VarChar(20)
-  identificationDetails Json?
-  // Verification Status
-  verificationStatus   AssetVerificationStatus @default(UNVERIFIED)
-  verifiedBy           String?  @db.Uuid()
-  verifiedAt           DateTime?
-  rejectionReason      String?  @db.Text
-  // Encumbrance
-  isEncumbered         Boolean @default(false)
-  encumbranceType      AssetEncumbranceType?
-  encumbranceAmount    Float?
-  encumbranceDetails   String? @db.Text
-  // Matrimonial Property
-  isMatrimonialProperty    Boolean @default(false)
-  acquiredDuringMarriage   Boolean @default(false)
-  spouseConsentRequired    Boolean @default(false)
-  spouseConsentObtained    Boolean @default(false)
-  spouseConsentDate        DateTime?
-  // Life Interest Support
-  hasLifeInterest      Boolean @default(false)
-  lifeInterestHolderId String? @db.Uuid()
-  lifeInterestHolder   FamilyMember? @relation("FamilyMemberLifeInterest", fields: [lifeInterestHolderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  lifeInterestEndsAt   DateTime?
-  // Probate Requirements
-  requiresProbate      Boolean @default(true)
-  // Management
-  isActive             Boolean @default(true)
-  // Relations (Polymorphic Details)
+  
+  // --- Encumbrance & Status ---
+  isEncumbered         Boolean  @default(false)
+  encumbranceDetails   String?  @db.Text
+  isActive             Boolean  @default(true) // Logical deletion
+  
+  // --- Polymorphic Relations (Asset Details) ---
   landDetails          LandAssetDetails?
   financialDetails     FinancialAssetDetails?
   vehicleDetails       VehicleAssetDetails?
   businessDetails      BusinessAssetDetails?
-  // Back-relations
-  documents               Document[]
-  coOwners                AssetCoOwner[]
-  debts                   Debt[]
-  beneficiaryAssignments  BeneficiaryAssignment[]
-  valuationHistory        AssetValuation[]
-  assetLiquidations AssetLiquidation[]
-  estateInventories EstateInventory[] @relation("InventoryAsset")
+  
+  // --- Child Entities ---
+  valuations           AssetValuation[] // History of value
+  coOwners             AssetCoOwner[]   // Ownership facts
+  
+  familyMembers        FamilyMember[] @relation("FamilyMemberLifeInterest")
+  // --- Weak Links to other contexts ---
+  // These exist to support the DB constraints but logic belongs to other aggregates
+  debts                  Debt[]           @relation("SecuredDebtAsset")
+  beneficiaryAssignments BeneficiaryAssignment[]
+  
+  // --- Succession Process Links (Kept for Referential Integrity) ---
+  documents              Document[]
+  assetLiquidations      AssetLiquidation[]
 
-  // Back-relations from Succession-Process-Service
-  securedClaims           CreditorClaim[]        @relation("SecuredAsset")
-  inventoryEntries        EstateInventory[]      @relation("AssetInventoryEntries")
-  transmissions           AssetTransmission[]    @relation("TransmittedAsset")
-  
-  // Audit
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
-  deletedAt               DateTime?              // Soft delete
-  
-  @@index([estateId, type], map: "assets_estate_type_idx")
-  @@index([ownerId, verificationStatus], map: "assets_owner_verification_idx")
-  @@index([isMatrimonialProperty], map: "assets_isMatrimonialProperty_idx")
-  @@index([hasLifeInterest], map: "assets_hasLifeInterest_idx")
-  @@index([requiresProbate], map: "assets_requiresProbate_idx")
-  @@index([type, isActive], map: "assets_type_isActive_idx")
-  @@index([county, subCounty], map: "assets_county_subCounty_idx")
-  @@index([titleDeedNumber], map: "assets_titleDeedNumber_idx")
-  @@index([registrationNumber], map: "assets_registrationNumber_idx")
-  @@index([currentValue], map: "assets_currentValue_idx")
-  @@index([deletedAt], map: "assets_deletedAt_idx")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([estateId, type])
   @@map("assets")
+  
 }
-// Normalized Land Asset Details
+// --- Asset Detail Tables (Polymorphic extensions) ---
 model LandAssetDetails {
   id                  String   @id @default(uuid()) @db.Uuid()
-  assetId             String   @unique(map: "land_asset_details_assetId_unique") @db.Uuid()
-  asset               Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  assetId             String   @unique @db.Uuid()
+  asset               Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
   
-  titleDeedNumber     String   @unique(map: "land_asset_details_titleDeed_unique") @db.VarChar(100)
-  parcelNumber        String   @db.VarChar(100)
-  landReferenceNumber String?  @db.VarChar(100)
-  acreage             Float
+  titleDeedNumber     String   @db.VarChar(100)
+  parcelNumber        String?  @db.VarChar(100)
   county              KenyanCounty
-  subCounty           String?  @db.VarChar(100)
-  ward                String?  @db.VarChar(100)
-  // Land Use
-  landUse             String?  @db.VarChar(100)
+  subCounty           String?
+  acreage             Float
+  landUse             String?
   
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  @@index([titleDeedNumber], map: "land_asset_details_titleDeed_idx")
-  @@index([parcelNumber], map: "land_asset_details_parcelNumber_idx")
   @@map("land_asset_details")
 }
-// Normalized Financial Asset Details
 model FinancialAssetDetails {
   id              String   @id @default(uuid()) @db.Uuid()
-  assetId         String   @unique(map: "financial_asset_details_assetId_unique") @db.Uuid()
-  asset           Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  assetId         String   @unique @db.Uuid()
+  asset           Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
   
   institutionName String   @db.VarChar(200)
   accountNumber   String   @db.VarChar(100)
   accountType     String   @db.VarChar(100)
-  branchName      String?  @db.VarChar(100)
+  branchName      String?
   
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([institutionName], map: "financial_asset_details_institutionName_idx")
   @@map("financial_asset_details")
 }
-// Vehicle Asset Details
 model VehicleAssetDetails {
   id                 String   @id @default(uuid()) @db.Uuid()
-  assetId            String   @unique(map: "vehicle_asset_details_assetId_unique") @db.Uuid()
-  asset              Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  assetId            String   @unique @db.Uuid()
+  asset              Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
   
-  registrationNumber String   @unique(map: "vehicle_asset_details_regNumber_unique") @db.VarChar(20)
+  registrationNumber String   @unique @db.VarChar(20)
   make               String   @db.VarChar(100)
   model              String   @db.VarChar(100)
-  year               Int
-  chassisNumber      String?  @db.VarChar(100)
-  engineNumber       String?  @db.VarChar(100)
-  color              String?  @db.VarChar(50)
+  chassisNumber      String?
   
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  @@index([registrationNumber], map: "vehicle_asset_details_regNumber_idx")
   @@map("vehicle_asset_details")
 }
-// Business Asset Details
 model BusinessAssetDetails {
   id                 String   @id @default(uuid()) @db.Uuid()
-  assetId            String   @unique(map: "business_asset_details_assetId_unique") @db.Uuid()
-  asset              Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  assetId            String   @unique @db.Uuid()
+  asset              Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
   
   businessName       String   @db.VarChar(200)
-  registrationNumber String?  @db.VarChar(100)
-  kraPin             String?  @db.VarChar(20)
+  registrationNumber String?
   sharePercentage    Float
-  numberOfShares     Int?
   
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  @@index([businessName], map: "business_asset_details_businessName_idx")
-  @@index([registrationNumber], map: "business_asset_details_regNumber_idx")
   @@map("business_asset_details")
 }
-model DigitalAssetCredential {
-  id               String   @id @default(uuid()) @db.Uuid()
-  assetId          String   @db.Uuid()
+model AssetValuation {
+  id            String   @id @default(uuid()) @db.Uuid()
+  assetId       String   @db.Uuid()
+  asset         Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
   
-  credentialType   String   @db.VarChar(50) // "PRIVATE_KEY", "API_KEY", "PASSWORD"
-  encryptedValue   String   @db.Text // Encrypted at rest (separate KMS)
-  // Legal guardianship:
-  requiresBeneficiaryKyc Boolean @default(true)
-  beneficiaryMustProvideDeathCert Boolean @default(true)
+  value         Float
+  valuationDate DateTime
+  source        String?  @db.VarChar(100) // e.g. "Registered Valuer", "Market Estimate"
+  notes         String?  @db.Text
   
-  escrowActivatedAt DateTime?
-  escrowReleasedTo  String?  @db.Uuid() // Beneficiary who received
-  
-  @@index([assetId, credentialType])
+  createdAt     DateTime @default(now())
+  @@map("asset_valuations")
 }
 model AssetCoOwner {
   id           String   @id @default(uuid()) @db.Uuid()
   assetId      String   @db.Uuid()
-  asset        Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  asset        Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
   
-  userId       String?  @db.Uuid()
-  user         User?    @relation("CoOwnerUser", fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  userId       String?  @db.Uuid() 
+  user         User?    @relation("CoOwnerUser", fields: [userId], references: [id])
   
-  // External co-owner details
-  fullName     String?  @db.VarChar(200)
-  email        String?  @db.VarChar(255)
-  phone        String?  @db.VarChar(20)
-  nationalId   String?  @db.VarChar(20)
-  
-  // Ownership details
+  externalName String?  @db.VarChar(200) // If not a system user
   sharePercent Float
-  relationship String?  @db.VarChar(100)
   
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@unique([assetId, userId], map: "asset_co_owners_asset_user_unique")
-  @@index([assetId], map: "asset_co_owners_assetId_idx")
-  @@index([userId], map: "asset_co_owners_userId_idx")
+  @@unique([assetId, userId])
   @@map("asset_co_owners")
 }
-model AssetValuation {
-  id                      String   @id @default(uuid()) @db.Uuid()
-  assetId                 String   @db.Uuid()
-  asset                   Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  value                   Float
-  currency                String   @default("KES") @db.VarChar(10)
-  valuationDate           DateTime
-  valuedBy                String?  @db.VarChar(200)
-  method                  String?  @db.VarChar(100)
-  purpose                 String?  @db.VarChar(100)
-  // Kenyan Valuation Standards
-  isRegisteredValuer      Boolean @default(false)
-  valuerRegistrationNumber String? @db.VarChar(100)
-  reportUrl               String? @db.Text
-  notes                   String? @db.Text
+// -----------------------------------------------------------------------------
+// Entity: Asset Liquidation
+// Owned by: Estate
+// Purpose: Tracks the conversion of an Asset (Inventory) into Cash (Inventory)
+// -----------------------------------------------------------------------------
+model AssetLiquidation {
+  id              String   @id @default(uuid()) @db.Uuid()
   
-  createdAt               DateTime @default(now())
+  // --- Inventory Links ---
+  assetId         String   @db.Uuid()
+  asset           Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  
+  // --- Financial Result ---
+  liquidationType String   @db.VarChar(50) // "SALE", "AUCTION"
+  targetAmount    Float
+  actualAmount    Float?   // This becomes "Cash" in the estate value
+  currency        String   @default("KES") @db.VarChar(10)
+  
+  // --- Buyer (Optional) ---
+  buyerName       String?  @db.VarChar(200)
+  buyerIdNumber   String?  @db.VarChar(50)
+  
+  // --- Process Metadata ---
+  saleDate        DateTime?
+  approvedByCourt Boolean  @default(false) 
+  courtOrderRef   String?  @db.VarChar(100) // Reference only, strictly text
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  @@index([assetId, valuationDate], map: "asset_valuations_asset_date_idx")
-  @@index([valuationDate, purpose], map: "asset_valuations_date_purpose_idx")
-  @@map("asset_valuations")
+  @@index([assetId])
+  @@map("asset_liquidations")
 }
-model Debt {
-  id                    String   @id @default(uuid()) @db.Uuid()
-  
-  // Core Links
-  estateId              String   @db.Uuid()
-  estate                Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Debt Information
-  type                  DebtType
-  description           String   @db.Text
-  debtTier              DebtTier @default(UNSECURED_GENERAL)
-  tierFullyPaidBefore   DateTime? // Validates sequential payment
-  tierRequiresReceipt   Boolean @default(true) // KRA requires receipts for taxes
-  // Financial Details
-  principalAmount       Float
-  outstandingBalance    Float
-  currency              String   @default("KES") @db.VarChar(10)
-  // Kenyan Tax-Specific Fields
-  taxType               KenyanTaxType?
-  kraPin                String?  @db.VarChar(20)
-  taxPeriod             String?  @db.VarChar(50)               // "2023-2024", "Q1 2024"
-  // Kenyan Succession Priority (S. 45 LSA)
-  priority              DebtPriority @default(MEDIUM)
-  status                DebtStatus @default(OUTSTANDING)
-  // Creditor Information
-  creditorName          String   @db.VarChar(200)
-  creditorContact       String?  @db.VarChar(100)
-  creditorAccountNumber String?  @db.VarChar(100)
-  creditorKraPin        String?  @db.VarChar(20)
-  creditorAddress       String?  @db.Text
-  // Loan Terms
-  dueDate               DateTime?
-  interestRate          Float?
-  interestType          String?  @db.VarChar(50)
-  compoundingFrequency  String?  @db.VarChar(50)
-  // Legal & Compliance
-  isStatuteBarred       Boolean @default(false)
-  statuteBarredDate     DateTime?
-  requiresCourtApproval Boolean @default(false)
-  courtApprovalObtained Boolean @default(false)
-  // Security & Collateral
-  isSecured             Boolean @default(false)
-  securityDetails       String? @db.Text
-  collateralDescription String? @db.Text
-  // Asset Linkage (Secured Debt)
-  assetId               String? @db.Uuid()
-  asset                 Asset?  @relation(fields: [assetId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  // Payment Tracking
-  lastPaymentDate       DateTime?
-  lastPaymentAmount     Float?
-  totalPaid             Float @default(0)
-  // Settlement
-  isPaid                Boolean @default(false)
-  paidAt                DateTime?
-  settlementMethod      String? @db.VarChar(50)
-  // Dispute
-  isDisputed            Boolean @default(false)
-  disputeReason         String? @db.Text
-  disputeResolvedAt     DateTime?
-  
-  // Audit
-  incurredDate          DateTime?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  @@index([estateId, status], map: "debts_estate_status_idx")
-  @@index([assetId], map: "debts_assetId_idx")
-  @@index([type, priority], map: "debts_type_priority_idx")
-  @@index([dueDate], map: "debts_dueDate_idx")
-  @@index([isSecured], map: "debts_isSecured_idx")
-  @@index([isStatuteBarred], map: "debts_isStatuteBarred_idx")
-  @@index([creditorName], map: "debts_creditorName_idx")
-  @@map("debts")
-}
-// =============================================================================
-// BEQUESTS & INHERITANCE
-// =============================================================================
-model BeneficiaryAssignment {
-  id                    String   @id @default(uuid()) @db.Uuid()
-  
-  // Will & Asset linkage
-  willId                String   @db.Uuid()
-  will                  Will     @relation(fields: [willId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  assetId               String   @db.Uuid()
-  asset                 Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Beneficiary Identity (Polymorphic)
-  beneficiaryType       BeneficiaryType
-  // For USER type
-  userId                String?  @db.Uuid()
-  beneficiaryUser       User?    @relation("AssignmentBeneficiaryUser", fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  // For FAMILY_MEMBER type
-  familyMemberId        String?  @db.Uuid()
-  beneficiaryFamilyMember FamilyMember? @relation("BeneficiaryFamilyMember", fields: [familyMemberId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  // For EXTERNAL/CHARITY/ORGANIZATION types
-  externalName          String?  @db.VarChar(200)
-  externalContact       String?  @db.VarChar(100)
-  externalIdentification String? @db.VarChar(100)
-  externalAddress       String?  @db.Text
-  // Kenyan Relationship Context
-  relationshipToDeceased String? @db.VarChar(100)
-  isDependant           Boolean @default(false)
-  // Bequest Configuration
-  bequestType           BequestType @default(SPECIFIC)
-  sharePercent          Float?
-  specificAmount        Float?
-  currency              String @default("KES") @db.VarChar(10)
-  // Conditions
-  conditionType         BequestConditionType @default(NONE)
-  conditionDetails      String? @db.Text
-  conditionMet          Boolean?
-  conditionDeadline     DateTime?
-  // Life Interest
-  hasLifeInterest       Boolean @default(false)
-  lifeInterestEndsAt    DateTime?
-  // Alternate Beneficiary
-  alternateAssignmentId String? @db.Uuid()
-  alternateAssignment   BeneficiaryAssignment? @relation("AlternateBeneficiary", fields: [alternateAssignmentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  alternateFor          BeneficiaryAssignment[] @relation("AlternateBeneficiary")
-  // Distribution Tracking
-  distributionStatus    DistributionStatus @default(PENDING)
-  distributedAt         DateTime?
-  distributionMethod    String? @db.VarChar(100)
-  distributionNotes     String? @db.Text
-  // Computed Output
-  computedSharePercent  Float?
-  computedShareValueKES Float?
-  // Priority
-  priority              BequestPriority @default(PRIMARY)
-  
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-
-  @@index([willId, assetId], map: "beneficiary_assignments_will_asset_idx")
-  @@index([beneficiaryType], map: "beneficiary_assignments_beneficiaryType_idx")
-  @@index([userId], map: "beneficiary_assignments_userId_idx")
-  @@index([familyMemberId], map: "beneficiary_assignments_familyMemberId_idx")
-  @@index([isDependant], map: "beneficiary_assignments_isDependant_idx")
-  @@index([distributionStatus], map: "beneficiary_assignments_distributionStatus_idx")
-  @@index([priority], map: "beneficiary_assignments_priority_idx")
-  @@map("beneficiary_assignments")
-}
-model DisinheritanceRecord {
-  id                     String   @id @default(uuid()) @db.Uuid()
-  willId                 String   @db.Uuid()
-  will                   Will     @relation(fields: [willId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  
-  // Person being disinherited
-  disinheritedMemberId   String   @db.Uuid()
-  disinheritedMember     FamilyMember @relation("DisinheritedMember", fields: [disinheritedMemberId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  
-  reason                 String? @db.Text
-  // Legal Notice
-  wasNotified            Boolean @default(false)
-  notifiedAt             DateTime?
-  notificationMethod     String? @db.VarChar(50)
-  
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@unique([willId, disinheritedMemberId], map: "disinheritance_records_will_member_unique")
-  @@index([willId], map: "disinheritance_records_willId_idx")
-  @@index([disinheritedMemberId], map: "disinheritance_records_memberId_idx")
-  @@map("disinheritance_records")
-}
-// =============================================================================
-// GIFTS INTER VIVOS (HOTCHPOT - S. 35(3) LSA)
-// =============================================================================
-model GiftInterVivos {
-  id                String   @id @default(uuid()) @db.Uuid()
-  estateId          String   @db.Uuid()
-  estate            Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Recipient
-  recipientId       String   @db.Uuid()
-  recipient         FamilyMember @relation("GiftRecipient", fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  assetType         AssetType
-  description       String   @db.Text
-  valueAtGiftTimeKES Float
-  dateOfGift        DateTime
-  // Legal Context
-  isAdvancement     Boolean @default(true)
-  isSubjectToHotchpot Boolean @default(true)
-  // Documentation
-  giftDeedReference String? @db.VarChar(100)
-  witnessDetails    String? @db.Text
-  // Kenyan law specifics:
-  inflationAdjustedValueKES Float? // Apply Kenya CPI index
-  reconciliationDate        DateTime // Date of death or computation
-  conditionMet              Boolean?
-  conditionMetDate          DateTime?
-  revertsToEstate           Boolean @default(false) // If condition fails
-  customaryLawExemption     Boolean @default(false) // Many Kenyan communities exempt
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@index([estateId, recipientId], map: "gifts_inter_vivos_estate_recipient_idx")
-  @@index([dateOfGift], map: "gifts_inter_vivos_dateOfGift_idx")
-  @@index([isAdvancement], map: "gifts_inter_vivos_isAdvancement_idx")
-  @@map("gifts_inter_vivos")
-}
-// =============================================================================
-// INTESTATE INHERITANCE COMPUTATION OUTPUT
-// =============================================================================
-// ============================================================================
-// SIMULATION & PLANNING MODELS
-// ============================================================================
-
-model DistributionScenario {
-  id                      String   @id @default(uuid()) @db.Uuid()
-  
-  // Parent
-  estateId                String   @db.Uuid()
-  estate                  Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
-  
-  // Metadata
-  scenarioName            String   @db.VarChar(100)
-  scenarioType            String   @default("INTESTATE") @db.VarChar(50) // "TESTATE", "INTESTATE_S35", "INTESTATE_S40"
-  description             String?  @db.Text
-  
-  // --- INPUT PARAMETERS (The "What-If" Settings) ---
-  
-  // Simulation Filters
-  includedAssetIds        String[] // Array of UUIDs from Asset table
-  excludedAssetIds        String[] // Assets hidden from this calculation
-  
-  // S.45 Debt Simulation
-  assumeAllDebtsPaid      Boolean  @default(true) // If false, use the slider below
-  debtAdjustmentPercent   Float?   // e.g., "Only pay 50% of unsecured debts"
-  
-  // S.35(3) Hotchpot Settings
-  // Stores IDs of GiftInterVivos entities that must be refunded to estate
-  activeHotchpotGiftIds   String[] 
-  
-  // Law Configuration
-  appliedLawSection       KenyanLawSection // S35, S40, CUSTOMARY
-  polygamousHouseCount    Int      @default(0)
-  
-  // --- OUTPUT RESULTS (The Header) ---
-  totalGrossValueKES      Float    @default(0)
-  totalNetValueKES        Float    @default(0)
-  computationDate         DateTime @default(now())
-
-  // --- RELATIONS ---
-  // Direct link to the calculated shares
-  computedShares          ComputedShareDetail[]
-
-  // Audit
-  createdBy               String?  @db.Uuid()
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  
-  // Constraints
-  @@unique([estateId, scenarioName], map: "unique_scenario_name_per_estate")
-  @@index([estateId, scenarioType])
-  @@map("distribution_scenarios")
-}
-
-model ComputedShareDetail {
-  id                      String   @id @default(uuid()) @db.Uuid()
-  
-  // Parent (Direct link to Scenario)
-  scenarioId              String   @db.Uuid()
-  scenario                DistributionScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
-  
-  // Beneficiary Info 
-  // (We store ID + Name snapshot. If User deletes account, this report remains valid)
-  heirId                  String?  @db.Uuid() 
-  heirName                String   @db.VarChar(200)
-  heirRelationship        String   @db.VarChar(100) // "SPOUSE", "CHILD", "HOUSE_HEAD"
-  
-  // --- THE MATH (The Audit Trail) ---
-  
-  // 1. Starting Point
-  grossEntitlementPercent Float    // "S.35 gives 100% of residue to children"
-  
-  // 2. Adjustments (Critical for Legal Audit)
-  hotchpotDeductionKES    Float?   // S.35(3): Deduct previous gifts
-  customaryAdjustmentKES  Float?   // Customary deviations
-  dependencySupportKES    Float?   // S.29: Added support for dependants
-  
-  // 3. Final Result
-  finalSharePercent       Float
-  finalShareValueKES      Float
-  currency                String   @default("KES") @db.VarChar(10)
-  
-  // --- LEGAL NATURE OF SHARE ---
-  
-  // S.35(1)(b): Life Interest Tracking
-  shareType               String   @default("ABSOLUTE") @db.VarChar(50) // "ABSOLUTE", "LIFE_INTEREST", "CONDITIONAL"
-  lifeInterestEndsAt      DateTime? // e.g., Computed expectation or hard date
-  lifeInterestCondition   String?   @db.Text // "Terminates on remarriage"
-  
-  // Polygamous Context (S.40)
-  polygamousHouseId       String?  @db.Uuid()
-  houseName               String?  @db.VarChar(100)
-  
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  
-  @@index([scenarioId, heirId])
-  @@index([polygamousHouseId])
-  @@map("computed_share_details")
-}
-// KRA tax compliance for estates
+// -----------------------------------------------------------------------------
+// Entity: Estate Tax Compliance
+// Owned by: Estate
+// Purpose: Tracks the tax liability status of the Estate (KRA)
+// -----------------------------------------------------------------------------
 model EstateTaxCompliance {
   id                         String   @id @default(uuid()) @db.Uuid()
-  estateId                   String   @unique(map: "estate_tax_compliance_estateId_unique") @db.Uuid()
-  estate                     Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // KRA Integration
-  kraPin                     String?  @unique(map: "estate_tax_compliance_kraPin_unique") @db.VarChar(20)
+  
+  // --- Parent Aggregate ---
+  estateId                   String   @unique @db.Uuid()
+  estate                     Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  
+  // --- KRA Identity ---
+  kraPin                     String?  @unique @db.VarChar(20)
+  
+  // --- Liability Status (Facts) ---
   incomeTaxPaid              Boolean  @default(false)
   capitalGainsTaxPaid        Boolean  @default(false)
   stampDutyPaid              Boolean  @default(false)
-  // Certificates
-  taxClearanceCertificateNumber String? @db.VarChar(100)
+  
+  // --- Certificates ---
+  taxClearanceCertificateNo  String?  @db.VarChar(100)
   taxClearanceIssuedAt       DateTime?
-  // Integration Status
+  
+  // --- Sync Status ---
   lastKraSyncAt              DateTime?
-  kraSyncStatus              String? @db.VarChar(50)
+  kraSyncStatus              String?  @db.VarChar(50)
   
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
 
   @@map("estate_tax_compliance")
 }
-
-// Track asset sales/liquidations
-model AssetLiquidation {
-  id              String   @id @default(uuid()) @db.Uuid()
-  assetId         String   @db.Uuid()
-  asset           Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+// -----------------------------------------------------------------------------
+// Entity: Debt
+// Owned by: Estate
+// -----------------------------------------------------------------------------
+model Debt {
+  id                  String       @id @default(uuid()) @db.Uuid()
   
-  liquidationType String   @db.VarChar(50)
-  targetAmount    Float
-  actualAmount    Float?
-  // Buyer Information
-  buyerName       String?  @db.VarChar(200)
-  buyerIdNumber   String?  @db.VarChar(50)
-  // Court Approval
-  approvedByCourt Boolean  @default(false)
-  courtOrderReference String? @db.VarChar(100)
-  // Timeline
-  saleDate        DateTime?
+  // --- Parent Aggregate ---
+  estateId            String       @db.Uuid()
+  estate              Estate       @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  
+  // --- Details ---
+  description         String       @db.Text
+  type                DebtType
+  amount              Float
+  outstandingBalance  Float
+  
+  // --- S.45 Priority Logic ---
+  // The service calculates this, but we store the result for querying
+  priority            DebtPriority @default(MEDIUM) 
+  tier                DebtTier     // FUNERAL, SECURED, UNSECURED
+  
+  // --- Security ---
+  isSecured           Boolean      @default(false)
+  securedAssetId      String?      @db.Uuid()
+  securedAsset        Asset?       @relation("SecuredDebtAsset", fields: [securedAssetId], references: [id])
+  
+  // --- Status ---
+  dueDate             DateTime?
+  isStatuteBarred     Boolean      @default(false) // Validated by Domain Service
+  status              DebtStatus   @default(OUTSTANDING)
+  
+  // --- Creditor Info ---
+  creditorName        String
+  
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@index([estateId, tier])
+  @@map("debts")
+}
+// -----------------------------------------------------------------------------
+// Entity: Gift Inter Vivos (For S.35 Hotchpot)
+// Owned by: Estate
+// -----------------------------------------------------------------------------
+model GiftInterVivos {
+  id              String   @id @default(uuid()) @db.Uuid()
+  estateId        String   @db.Uuid()
+  estate          Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  
+  // --- Recipient ---
+  recipientId     String   @db.Uuid() 
+  recipient       FamilyMember @relation("GiftRecipient", fields: [recipientId], references: [id])
+  
+  // --- Value ---
+  assetType       AssetType
+  valueAtGiftTimeKES Float
+  dateOfGift      DateTime
+  description     String?
+  
+  // --- Logic ---
+  // Should this be added back to estate value?
+  isSubjectToHotchpot Boolean @default(true) 
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  
+  @@map("gifts_inter_vivos")
+}
 
-  @@index([assetId], map: "asset_liquidations_assetId_idx")
-  @@map("asset_liquidations")
-}
-model PolygamousEstateDistribution {
-  id               String   @id @default(uuid()) @db.Uuid()
-  estateId         String   @db.Uuid()
-  
-  // S. 40(2) Formula: Total Estate / Number of Houses = Per-House Share
-  totalHouses      Int
-  perHouseShareKES Float
-  unallocatedSurplusKES Float?
-  
-  // Auto-calculate from marriages/kids
-  houseAllocations Json // [{houseId, share, debtAllocation}]
-  
-  @@unique([estateId])
-}
-// In infrastructure layer for event sourcing
-model LegalDomainEvent {
-  id              String   @id @default(uuid()) @db.Uuid
-  aggregateId     String   @db.Uuid() // Will ID, Estate ID, etc.
-  aggregateType   String   @db.VarChar(50) // "WILL", "ESTATE", "GRANT"
-  
-  eventType       String   @db.VarChar(100) // "WILL_EXECUTED", "GRANT_CONFIRMED"
-  eventVersion    Int      @default(1)
-  payload         Json     // Immutable event data
-  
-  legalEffectDate DateTime // When legally effective
-  recordedAt      DateTime @default(now())
-  recordedBy      String?  @db.Uuid
-  
-  @@index([aggregateId, eventVersion])
-  @@unique([aggregateId, eventVersion, eventType])
-}
-// =============================================================================
-// S. 29 LEGAL DEPENDANT STRUCTURE
-// =============================================================================
+// -----------------------------------------------------------------------------
+// Entity: Legal Dependant (S.26 / S.29)
+// Owned by: Estate (MOVED from separate aggregate)
+// -----------------------------------------------------------------------------
 model LegalDependant {
   id              String   @id @default(uuid()) @db.Uuid()
-  // Legal
-  basisSection KenyanLawSection? // Which LSA section applies
-  // The Deceased
+  
+  // --- Parent Aggregate ---
+  estateId        String   @db.Uuid()
+  estate          Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  
+  // --- Claimant Identity ---
+  dependantId     String   @db.Uuid() // FamilyMember ID
+  dependant       FamilyMember @relation("DependantOf", fields: [dependantId], references: [id])
+  
+  // We keep the deceased relation for direct lookup, but ownership is via Estate
   deceasedId      String   @db.Uuid()
-  deceased        FamilyMember @relation("DeceasedDependant", fields: [deceasedId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // The Dependant
-  dependantId     String   @db.Uuid()
-  dependant       FamilyMember @relation("DependantOf", fields: [dependantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Basis of Dependency
-  dependencyBasis  String   @db.VarChar(100)
-  dependencyLevel  DependencyLevel
-  isMinor          Boolean  @default(false)
-  // S. 26 Court Provision Tracking
-  isClaimant       Boolean  @default(false)
-  claimAmount      Float?
-  provisionAmount  Float?
-  currency         String   @default("KES") @db.VarChar(10)
-  courtOrderReference String? @db.VarChar(100)
-  courtOrderDate   DateTime?
-  // Financial Dependency Evidence
-  monthlySupport          Float?                 // How much deceased provided monthly
-  supportStartDate        DateTime?
-  supportEndDate          DateTime?              // Date of death
-  // === DEPENDENCY CALCULATION ===
-  assessmentDate          DateTime @default(now())
-  assessmentMethod        String?  @db.VarChar(100) // "INCOME_PERCENTAGE", "EXPENDITURE_AUDIT"
-  dependencyPercentage    Float    @default(100) // How much they depended on deceased
-  // === AGE & CIRCUMSTANCES ===
-  ageLimit                Int?     // When dependency terminates (e.g., 18, 21, 25)
-  isStudent               Boolean @default(false)
-  studentUntil            DateTime?
-  // === CUSTODIAL PARENT (for minors) ===
-  custodialParentId       String? @db.Uuid()
-  custodialParent         FamilyMember? @relation("CustodialParent", fields: [custodialParentId], references: [id])
-  // === COURT PROCEEDINGS ===
-  provisionOrderIssued    Boolean @default(false)
-  provisionOrderNumber    String? @db.VarChar(100)
-  courtApprovedAmount     Float?
-  // === COMPUTED FIELDS ===
-  monthlySupportEvidence  Float?   // Calculated from receipts
-  dependencyRatio         Float?   // Support / Deceased income
-  // Special Circumstances (S. 29(2) LSA)
-  hasPhysicalDisability   Boolean                @default(false)
-  hasMentalDisability     Boolean                @default(false)
-  requiresOngoingCare     Boolean                @default(false)
-  disabilityDetails       String?                @db.Text
-  // Verification
-  dependencyProofDocuments Json?                 // Array of document IDs
-  verifiedByCourtAt       DateTime?
-  // Audit
-  version         Int      @default(1)
+  deceased        FamilyMember @relation("DeceasedDependant", fields: [deceasedId], references: [id])
+  
+  // --- Dependency Facts ---
+  basisSection    KenyanLawSection // S.29(a) Spouse, S.29(b) Child, etc.
+  dependencyLevel DependencyLevel  // FULL, PARTIAL
+  
+  // --- Financials ---
+  monthlyNeeds    Float?
+  dependencyPercentage Float @default(100)
+  
+  // --- Verification ---
+  isVerified      Boolean  @default(false)
+  evidences       DependantEvidence[]
+  
+  // --- Custodial (if minor) ---
+  custodialParentId String? @db.Uuid()
+  custodialParent   FamilyMember? @relation("CustodialParent", fields: [custodialParentId], references: [id])
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  
-  dependantEvidences DependantEvidence[]
-  @@index([assessmentDate])
-  @@index([isStudent])
-  @@index([dependencyPercentage])
-  @@unique([deceasedId, dependantId], map: "legal_dependants_deceased_dependant_unique")
-  @@index([deceasedId], map: "legal_dependants_deceasedId_idx")
-  @@index([dependantId], map: "legal_dependants_dependantId_idx")
-  @@index([isClaimant], map: "legal_dependants_isClaimant_idx")
-  @@index([dependencyLevel], map: "legal_dependants_dependencyLevel_idx")
+
+  @@unique([estateId, dependantId])
   @@map("legal_dependants")
 }
-// Store evidence for S.29 dependants
 model DependantEvidence {
-  id            String   @id @default(uuid()) @db.Uuid
-  dependantId   String   @db.Uuid
-  dependant     LegalDependant @relation(fields: [dependantId], references: [id], onDelete: Cascade)
+  id              String   @id @default(uuid()) @db.Uuid()
+  dependantId     String   @db.Uuid()
+  dependant       LegalDependant @relation(fields: [dependantId], references: [id], onDelete: Cascade)
   
-  evidenceType  String   @db.VarChar(100)// "BIRTH_CERTIFICATE", "SCHOOL_FEES_RECEIPTS", "MEDICAL_RECORDS"
-  documentId    String?  @db.Uuid // Reference to documents-service
-  verifiedBy    String?  @db.Uuid
-  verifiedAt    DateTime?
+  evidenceType    String   // "SCHOOL_RECEIPT", "MEDICAL_REPORT"
+  documentId      String?  @db.Uuid() // Link to Documents Service
+  description     String?
   
-  createdAt     DateTime @default(now())
-  
-  @@index([dependantId], map: "dependant_evidence_dependantId_idx")
+  createdAt       DateTime @default(now())
   @@map("dependant_evidence")
 }
-// ============================================================================
-// SUCCESSION-PROCESS-SERVICE
-// Owner: succession-process-service
-// Purpose: Manages the legal workflow from petition filing to grant confirmation and final asset transmission.
-// Domain: Court proceedings, probate cases, creditor claims, estate accounting, executor duties, asset transmission
-// ============================================================================
 // =============================================================================
-// CORE SUCCESSION PROCESS MODELS
+// AGGREGATE ROOT 2: WILL
+// Purpose: Testamentary Instructions.
+// Invariants: Only 1 active will per user. Must have 2 witnesses.
 // =============================================================================
-/// The central entity for the court process
-model SuccessionCase {
-  id                      String   @id @default(uuid()) @db.Uuid()
-  
-  // Estate Linkage
-  estateId                String   @unique(map: "succession_cases_estateId_unique") @db.Uuid()
-  estate                  Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Case Identification
-  caseNumber              String   @unique(map: "succession_cases_caseNumber_unique") @db.VarChar(100)
-  courtLevel              String   @db.VarChar(50)
-  courtStation            String   @db.VarChar(100)
-  courtCounty             KenyanCounty
-  // Application Details
-  applicationType         GrantType
-  status                  CaseStatus @default(DRAFT_FILING)
-  priority                CasePriority @default(NORMAL)
-  // Key Dates
-  filingDate              DateTime
-  gazettePublicationDate  DateTime?
-  objectionDeadline       DateTime?
-  grantIssuedDate         DateTime?
-  confirmationDate        DateTime?
-  closureDate             DateTime?
-  // Applicant Information
-  applicantUserId         String?  @db.Uuid()
-  applicantName           String?  @db.VarChar(200)
-  applicantRelationship   String?  @db.VarChar(100)
-  applicantContact        String?  @db.VarChar(100)
-  applicantNationalId     String?  @db.VarChar(20)
-  // Legal Representation
-  lawyerName              String?  @db.VarChar(200)
-  lawyerFirm              String?  @db.VarChar(200)
-  lawyerContactInfo       String?  @db.VarChar(255)
-  lawyerLicenseNumber     String?  @db.VarChar(100)
-  // Section 86 LSA - Urgent Preservation Orders
-  isPreservationOrderIssued Boolean @default(false)
-  preservationOrderExpiry   DateTime?
-  
-  // Court Performance Tracking (Kenyan courts)
-  isExpedited             Boolean                @default(false)
-  requiresConfirmationHearing Boolean            @default(false)
-  confirmationHearingDate DateTime?
-  
-  // Case Closure
-  closureReason           String?                @db.Text
-  closedBy                String?                @db.Uuid
-  // Event Sourcing & Concurrency
-  version                 Int                    @default(1)
-  lastEventId             String?                @db.Uuid()
-  
-  // Relations
-  grant                   Grant?
-  gazetteNotices          GazetteNotice[]
-  objections              Objection[]
-  hearings                Hearing[]
-  courtFilings            CourtFiling[]
-  courtOrders             CourtOrder[]
-  disputes                Dispute[]
-  creditorClaims          CreditorClaim[]
-  inventories             EstateInventory[]
-  accounting              EstateAccounting?
-  executorDuties          ExecutorDuty[]
-  beneficiaryEntitlements BeneficiaryEntitlement[]
-  distributionSchedule    DistributionSchedule[]
-  transmissions           AssetTransmission[]
-  gazetteIntegrations     GazetteIntegration[]
-  courtIntegrationQueues  CourtIntegrationQueue[]
-  dependantProvisionOrders DependantProvisionOrder[]
-  debtPrioritySchedules   DebtPrioritySchedule[]
-  // Audit
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
-  deletedAt               DateTime?              // Soft delete for legal compliance
-
-  @@index([courtStation, status, priority, filingDate], map: "succession_cases_court_workload_idx")
-  @@index([applicantUserId, status], map: "succession_cases_applicant_status_idx")
-  @@index([courtCounty, status], map: "succession_cases_county_status_idx")
-  @@index([status, priority, createdAt], map: "succession_cases_status_priority_createdAt_idx")
-  @@index([caseNumber], map: "succession_cases_caseNumber_idx")
-  @@index([estateId], map: "succession_cases_estateId_idx")
-  @@index([filingDate], map: "succession_cases_filingDate_idx")
-  @@index([status, createdAt], map: "succession_cases_status_createdAt_idx")
-  @@map("succession_cases")
-}
-model Grant {
-  id                      String   @id @default(uuid()) @db.Uuid()
-  caseId                  String   @unique(map: "grants_caseId_unique") @db.Uuid()
-  case                    SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  
-  grantType               GrantType
-  grantNumber             String   @unique(map: "grants_grantNumber_unique") @db.VarChar(100)
-  issueDate               DateTime
-  status                  GrantStatus @default(ISSUED)
-  // Confirmation Details
-  confirmationDate        DateTime?
-  confirmedByCourtOrderId String?  @db.Uuid()
-  confirmedByCourtOrder   CourtOrder? @relation("GrantConfirmation", fields: [confirmedByCourtOrderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  // Administrator/Executor Details
-  administratorUserId     String?  @db.Uuid()
-  administratorName       String?  @db.VarChar(200)
-  administratorNationalId String?  @db.VarChar(20)
-  administratorKraPin     String?  @db.VarChar(20)
-  administratorContact    String?  @db.VarChar(100)
-  administratorAddress    String?  @db.Text
-  // Bond & Security
-  requiresBond            Boolean @default(false)
-  bondAmount              Float?
-  bondProvided            Boolean @default(false)
-  bondProvider            String? @db.VarChar(100)
-  bondPolicyNumber        String? @db.VarChar(100)
-  bondExpiryDate          DateTime?
-  // Revocation/Amendment
-  revokedAt               DateTime?
-  revocationReason        String? @db.Text
-  revokedBy               String? @db.Uuid()
-  revocationCourtOrder    String? @db.VarChar(100)
-  
-  amendedAt               DateTime?
-  amendmentReason         String? @db.Text
-  amendmentHistory        Json?
-  // Replacement Tracking
-  replacedByGrantId       String? @db.Uuid()
-  replacementReason       String? @db.Text
-  // Conditions Attached
-  conditions              Json?                  // Array of court-imposed conditions
-  // S. 45 Debt Priority Compliance
-  section45Compliant      Boolean @default(false)
-  section45VerifiedAt     DateTime?
-  // Event Sourcing & Concurrency
-  version                 Int                    @default(1)
-  lastEventId             String?                @db.Uuid()
-  // Relations
-  transmissions           AssetTransmission[]
-  executorBonds           ExecutorBond[]
-  debtPrioritySchedules   DebtPrioritySchedule[]
-  // Audit
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
-  deletedAt               DateTime?
-  
-  @@index([grantNumber], map: "grants_grantNumber_idx")
-  @@index([status, issueDate], map: "grants_status_issueDate_idx")
-  @@index([caseId], map: "grants_caseId_idx")
-  @@index([administratorUserId], map: "grants_administratorUserId_idx")
-  @@index([status, confirmationDate], map: "grants_status_confirmation_idx")
-  @@map("grants")
-}
-// =============================================================================
-// COURT PROCESS & DOCUMENTATION
-// =============================================================================
-model GazetteNotice {
-  id                   String   @id @default(uuid()) @db.Uuid()
-  
-  caseId               String   @db.Uuid()
-  case                 SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  
-  noticeType           GazetteNoticeType
-  gazetteDate          DateTime
-  gazetteVolume        String @db.VarChar(50)
-  gazetteIssue         String @db.VarChar(50)
-  gazettePageNumber    String? @db.VarChar(50)
-  // Objection Period Tracking
-  objectionDeadline    DateTime
-  objectionPeriodDays  Int @default(30)
-  // Publication Details
-  publicationReference String? @db.VarChar(100)
-  noticeText           String? @db.Text
-  // Event Sourcing
-  lastEventId          String? @db.Uuid()
-  
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  deletedAt            DateTime?
-  
-  @@index([objectionDeadline, caseId], map: "gazette_notices_deadline_case_idx")
-  @@index([gazetteDate, noticeType], map: "gazette_notices_date_type_idx")
-  @@index([caseId, gazetteDate], map: "gazette_notices_case_date_idx")
-  @@index([objectionDeadline], map: "gazette_notices_objectionDeadline_idx")
-  @@index([publicationReference], map: "gazette_notices_publicationReference_idx")
-  @@map("gazette_notices")
-}
-model Objection {
+model Will {
   id                     String   @id @default(uuid()) @db.Uuid()
   
-  caseId                 String   @db.Uuid()
-  case                   SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Objector Information
-  objectorUserId         String?  @db.Uuid()
-  objectorName           String   @db.VarChar(200)
-  objectorContact        String?  @db.VarChar(100)
-  objectorNationalId     String?  @db.VarChar(20)
-  objectorRelationship   String?  @db.VarChar(100)
-  // Kenyan Legal Grounds
-  grounds                Json?
-  groundsDescription     String @db.Text
-  supportingEvidence     String? @db.Text
-  // Resolution Tracking - CRITICAL FOR S. 71
-  resolutionHearingId    String?  @db.Uuid()
-  resolutionHearing      Hearing? @relation(fields: [resolutionHearingId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  // Objection Management
-  status                 ObjectionStatus @default(PENDING)
-  filedDate              DateTime @default(now())
-  hearingDate            DateTime?
-  hearingOutcome         String? @db.Text
+  // --- Testator Identity ---
+  testatorId             String   @db.Uuid() 
+  testator               User     @relation("TestatorWills", fields: [testatorId], references: [id])
   
-  resolvedDate           DateTime?
-  resolutionDetails      String? @db.Text
-  // Legal Representation
-  objectorLawyerName     String? @db.VarChar(200)
-  objectorLawyerFirm     String? @db.VarChar(200)
-  objectorLawyerContact  String? @db.VarChar(255)
-  // Withdrawal/Dismissal
-  withdrawnAt            DateTime?
-  withdrawalReason       String? @db.Text
-  dismissedAt            DateTime?
-  dismissalReason        String? @db.Text
-  upheldAt               DateTime?
-  // Event Sourcing
-  version                Int @default(1)
-  lastEventId            String? @db.Uuid()
+  // --- Lifecycle ---
+  status                 WillStatus @default(DRAFT)
+  type                   WillType   @default(STANDARD)
+  versionNumber          Int        @default(1)
   
+  // --- Revocation ---
+  isRevoked              Boolean    @default(false)
+  revocationMethod       RevocationMethod?
+  revokedAt              DateTime?
+  supersedesId           String?    @db.Uuid()
+  supersededWill         Will?      @relation("WillSupersession", fields: [supersedesId], references: [id])
+  supersededBy           Will[]     @relation("WillSupersession")
+
+  // --- Instructions ---
+  funeralWishes          String?  @db.Text
+  burialLocation         String?
+  residuaryClause        String?  @db.Text // "Everything else goes to..."
+  
+  // --- Aggregate Members ---
+  executors              WillExecutor[]
+  witnesses              WillWitness[]
+  beneficiaryAssignments BeneficiaryAssignment[]
+  codicils               Codicil[]
+  disinheritanceRecords  DisinheritanceRecord[]
+  
+  // --- Metadata ---
+  documents              Document[]
+  probateCaseNumber      String? // Informational only
+
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
-  deletedAt              DateTime?
   
-  @@index([caseId, status], map: "objections_case_status_idx")
-  @@index([filedDate], map: "objections_filedDate_idx")
-  @@index([objectorName], map: "objections_objectorName_idx")
-  @@index([status, filedDate], map: "objections_status_filedDate_idx")
-  @@index([resolutionHearingId], map: "objections_resolutionHearing_idx")
-  @@map("objections")
+  @@index([testatorId, status])
+  @@map("wills")
 }
-model Hearing {
-  id                  String   @id @default(uuid()) @db.Uuid()
-  
-  caseId              String   @db.Uuid()
-  case                SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Kenyan Court Identification
-  hearingNumber       String @unique(map: "hearings_hearingNumber_unique") @db.VarChar(100)
-  causeListNumber     String? @db.VarChar(100)
-  courtStation        String @db.VarChar(100)
-  courtroom           String? @db.VarChar(50)
-  // Scheduling & Timing
-  hearingDate         DateTime
-  startTime           String @default("09:00") @db.VarChar(10)
-  endTime             String @default("10:00") @db.VarChar(10)
-  hearingType         HearingType
-  status              HearingStatus @default(SCHEDULED)
-  // Judicial Officers
-  judgeName           String? @db.VarChar(200)
-  presidedBy          String? @db.VarChar(200)
-  clerkName           String? @db.VarChar(200)
-  // Hearing Management
-  virtualLink         String? @db.Text
-  minutesTaken        Boolean @default(false)
-  ordersIssued        Boolean @default(false)
-  // Adjournment Tracking
-  adjournmentCount    Int @default(0)
-  adjournmentReasons  Json?
-  nextHearingDate     DateTime?
-  // Hearing Outcome
-  outcomeNotes        String? @db.Text
-  outcome             Json?   // { orders: [], rulings: [], nextSteps: [] }
-  // Attendance
-  partiesPresent      Json?   // Array of attendees
-  // Compliance Tracking
-  complianceDeadline  DateTime?
-  complianceStatus    ComplianceStatus @default(PENDING)
-  
-  notes               String? @db.Text
-  // Event Sourcing
-  version             Int @default(1)
-  lastEventId         String? @db.Uuid()
-  // Relations
-  objections Objection[]
-  disputes Dispute[]
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
-  
-  @@index([caseId, hearingDate], map: "hearings_case_date_idx")
-  @@index([hearingDate, status], map: "hearings_date_status_idx")
-  @@index([courtStation, hearingDate], map: "hearings_court_date_idx")
-  @@index([hearingNumber], map: "hearings_hearingNumber_idx")
-  @@index([complianceDeadline], map: "hearings_complianceDeadline_idx")
-  @@index([status, hearingDate], map: "hearings_status_date_idx")
-  @@map("hearings")
-}
-model CourtOrder {
-  id                 String   @id @default(uuid()) @db.Uuid()
-  
-  caseId             String   @db.Uuid()
-  case               SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  
-  orderDate          DateTime
-  orderReference     String @unique(map: "court_orders_orderReference_unique") @db.VarChar(100)
-  orderType          CourtOrderType
-  summary            String @db.Text
-  fullText           String? @db.Text
-  fullDocumentUrl    String?
-  // Judicial Authority
-  issuedBy           String? @db.VarChar(200)
-  courtStation       String? @db.VarChar(100)
-  // Compliance
-  requiresCompliance Boolean @default(false)
-  complianceDeadline DateTime?
-  complianceStatus   ComplianceStatus @default(PENDING)
-  // Relations
-  grantsConfirmed    Grant[] @relation("GrantConfirmation")
-  // Event Sourcing
-  version            Int @default(1)
-  lastEventId        String? @db.Uuid()
-  
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  deletedAt          DateTime?
-
-  @@index([caseId], map: "court_orders_caseId_idx")
-  @@index([orderReference], map: "court_orders_orderReference_idx")
-  @@index([orderDate], map: "court_orders_orderDate_idx")
-  @@index([complianceStatus, complianceDeadline], map: "court_orders_compliance_idx")
-  @@map("court_orders")
-}
-model CourtFiling {
-  id            String   @id @default(uuid()) @db.Uuid()
-  
-  caseId        String   @db.Uuid()
-  case          SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  
-  formType      String @db.VarChar(50)
-  formTitle     String? @db.VarChar(200)
-  filingDate    DateTime
-  filedBy       String? @db.Uuid()
-  documentUrl   String?
-  // Filing Fees
-  filingFee     Decimal? @db.Decimal(15,2)
-  feeReceipt    String? @db.VarChar(100)
-  // Status
-  isAccepted    Boolean @default(false)
-  rejectionReason String? @db.Text
-  // Event Sourcing
-  version       Int @default(1)
-  lastEventId   String? @db.Uuid()
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  deletedAt     DateTime?
-
-  @@index([caseId, formType], map: "court_filings_case_formType_idx")
-  @@index([filingDate], map: "court_filings_filingDate_idx")
-  @@index([isAccepted, filingDate], map: "court_filings_accepted_date_idx")
-  @@map("court_filings")
-}
-model Dispute {
-  id                  String   @id @default(uuid()) @db.Uuid()
-  
-  caseId              String   @db.Uuid()
-  case                SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Disputing party
-  disputantId         String   @db.Uuid()
-  disputant           User     @relation("DisputeFiler", fields: [disputantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Dispute details
-  type                DisputeType
-  status              DisputeStatus @default(FILED)
-  description         String @db.Text
-  // Resolution Tracking - CRITICAL FOR LEGAL AUDIT
-  resolutionHearingId String?  @db.Uuid()
-  resolutionHearing   Hearing? @relation(fields: [resolutionHearingId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  // Legal representation
-  lawyerName          String? @db.VarChar(200)
-  lawyerFirm          String? @db.VarChar(200)
-  lawyerContact       String? @db.VarChar(255)
-  caseNumber          String? @db.VarChar(100)
-  // Supporting Evidence
-  supportingDocuments Json?
-  filedAt             DateTime @default(now())
-  resolvedAt          DateTime?
-  resolution          String? @db.Text
-  // Event Sourcing
-  version             Int @default(1)
-  lastEventId         String? @db.Uuid()
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
-
-  @@index([caseId, status], map: "disputes_case_status_idx")
-  @@index([disputantId], map: "disputes_disputantId_idx")
-  @@index([type, status], map: "disputes_type_status_idx")
-  @@index([resolutionHearingId], map: "disputes_resolutionHearing_idx")
-  @@map("disputes")
-}
-// =============================================================================
-// CREDITOR CLAIMS & DEBT MANAGEMENT (S. 45-46 LSA)
-// =============================================================================
-model CreditorClaim {
-  id                      String   @id @default(uuid()) @db.Uuid()
-  
-  caseId                  String   @db.Uuid()
-  case                    SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Creditor Information
-  creditorName            String @db.VarChar(200)
-  creditorContact         String? @db.VarChar(100)
-  creditorKraPin          String? @db.VarChar(20)
-  creditorAccountNumber   String? @db.VarChar(100)
-  creditorAddress         String? @db.Text
-  // Claim Details
-  claimType               String @db.VarChar(100)
-  description             String @db.Text
-  priority                ClaimPriority
-  // Financial Details
-  amountClaimed           Decimal @db.Decimal(15,2)
-  currency                String @default("KES") @db.VarChar(10)
-  interestRate            Float?
-  interestType            String? @db.VarChar(50)
-  compoundingFrequency    String? @db.VarChar(50)
-  // Due Date & Time Limitations
-  dueDate                 DateTime?
-  isStatuteBarred         Boolean @default(false)
-  statuteBarredDate       DateTime?
-  // Security & Collateral
-  isSecured               Boolean @default(false)
-  securedAssetId          String? @db.Uuid()
-  securedAsset            Asset?  @relation("SecuredAsset", fields: [securedAssetId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  securityDetails         String? @db.Text
-  collateralDescription   String? @db.Text
-  // Supporting Evidence
-  supportingDocuments     Json?
-  proofOfDebtDocument     String? @db.Text
-  courtCaseNumber         String? @db.VarChar(100)
-  courtStation            String? @db.VarChar(100)
-  // Claim Workflow
-  status                  ClaimStatus @default(PENDING)
-  // Filed By
-  filedByUserId           String? @db.Uuid()
-  filedBy                 User?   @relation("ClaimFiledBy", fields: [filedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  filedDate               DateTime @default(now())
-  // Review & Approval
-  reviewedByUserId        String? @db.Uuid()
-  reviewedBy              User?   @relation("ClaimReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  reviewedAt              DateTime?
-  rejectionReason         String? @db.Text
-  // Dispute Tracking
-  isDisputed              Boolean @default(false)
-  disputeReason           String? @db.Text
-  disputeResolvedAt       DateTime?
-  // Payment Tracking
-  paidAmount              Decimal @default(0) @db.Decimal(15,2)
-  paymentDate             DateTime?
-  paymentMethod           String? @db.VarChar(50)
-  transactionReference    String? @db.VarChar(100)
-  paymentNotes            String? @db.Text
-  // Legal Compliance
-  requiresCourtApproval   Boolean @default(false)
-  courtApprovalObtained   Boolean @default(false)
-  courtApprovalDate       DateTime?
-  courtOrderReference     String? @db.VarChar(100)
-  // S. 45 Tier Compliance
-  section45Tier           Section45Tier
-  tierFullyPaidBefore     DateTime?
-  tierRequiresReceipt     Boolean @default(true)
-  // Audit Trail
-  resolvedAt              DateTime?
-  createdAt               DateTime               @default(now())
-  updatedAt               DateTime               @updatedAt
-  // Event Sourcing
-  version                 Int @default(1)
-  lastEventId             String? @db.Uuid()
-  // Relations
-  paymentHistory          ClaimPayment[]
-  debtPrioritySchedule    DebtPrioritySchedule? @relation(fields: [debtPriorityScheduleId], references: [id])
-  debtPriorityScheduleId  String? @db.Uuid()
-  
-  @@index([caseId, status], map: "creditor_claims_case_status_idx")
-  @@index([priority, status, section45Tier], map: "creditor_claims_priority_status_tier_idx")
-  @@index([status, priority, caseId], map: "creditor_claims_status_priority_case_idx")
-  @@index([isStatuteBarred], map: "creditor_claims_isStatuteBarred_idx")
-  @@index([creditorName], map: "creditor_claims_creditorName_idx")
-  @@index([filedDate], map: "creditor_claims_filedDate_idx")
-  @@index([isSecured], map: "creditor_claims_isSecured_idx")
-  @@index([section45Tier], map: "creditor_claims_section45Tier_idx")
-  @@index([reviewedAt], map: "creditor_claims_reviewedAt_idx")
-  @@map("creditor_claims")
-}
-model ClaimPayment {
-  id                      String   @id @default(uuid()) @db.Uuid()
-  
-  creditorClaimId         String   @db.Uuid()
-  creditorClaim           CreditorClaim @relation(fields: [creditorClaimId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  
-  paymentDate             DateTime
-  amount                  Decimal @db.Decimal(15,2)
-  currency                String @default("KES") @db.VarChar(10)
-  paymentMethod           String @db.VarChar(50)
-  transactionReference    String? @db.VarChar(100)
-  paidBy                  String? @db.Uuid()
-  notes                   String? @db.Text
-  // Kenyan Banking Details
-  bankName                String? @db.VarChar(100)
-  accountNumber           String? @db.VarChar(100)
-  branchName              String? @db.VarChar(100)
-  chequeNumber            String? @db.VarChar(100)
-  mpesaReference          String? @db.VarChar(100)
-  // Receipt
-  receiptNumber           String? @db.VarChar(100)
-  receiptUrl              String?
-  // Event Sourcing
-  lastEventId             String? @db.Uuid()
-  
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  
-  @@index([creditorClaimId, paymentDate], map: "claim_payments_claim_date_idx")
-  @@index([paymentDate], map: "claim_payments_paymentDate_idx")
-  @@index([transactionReference], map: "claim_payments_transactionReference_idx")
-  @@index([receiptNumber], map: "claim_payments_receiptNumber_idx")
-  @@map("claim_payments")
-}
-// =============================================================================
-// ESTATE INVENTORY & ACCOUNTING (S. 83 LSA)
-// =============================================================================
-model EstateAccounting {
-  id                      String   @id @default(uuid()) @db.Uuid()
-  
-  caseId                  String   @unique(map: "estate_accounting_caseId_unique") @db.Uuid()
-  case                    SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Financial Summary
-  totalAssets             Decimal @db.Decimal(15,2)
-  totalLiabilities        Decimal @db.Decimal(15,2)
-  netEstateValue          Decimal @db.Decimal(15,2)
-  // Detailed Breakdown
-  assetBreakdown          Json
-  liabilityBreakdown      Json
-  // Estate Administration Costs
-  executorFees            Decimal? @db.Decimal(15,2)
-  legalFees               Decimal? @db.Decimal(15,2)
-  valuationFees           Decimal? @db.Decimal(15,2)
-  courtFees               Decimal? @db.Decimal(15,2)
-  funeralExpenses         Decimal? @db.Decimal(15,2)
-  totalAdministrationCosts Decimal? @db.Decimal(15,2)
-  // Distribution Summary
-  totalDistributed        Decimal @default(0) @db.Decimal(15,2)
-  remainingForDistribution Decimal @db.Decimal(15,2)
-  // Court Submission
-  preparedBy              String? @db.Uuid()
-  preparedAt              DateTime?
-  submittedToCourtAt      DateTime?
-  courtApprovedAt         DateTime?
-  courtFileReference      String? @db.VarChar(100)
-  courtRejectionReason    String? @db.Text
-  // Audit & Compliance
-  auditedBy               String? @db.VarChar(200)
-  auditedAt               DateTime?
-  auditReportUrl          String?
-  auditFindings           String? @db.Text
-  
-  notes                   String? @db.Text
-  // Event Sourcing
-  version                 Int @default(1)
-  lastEventId             String? @db.Uuid()
-  
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  deletedAt               DateTime?
-  // Relations (within aggregate)
-  inventories             EstateInventory[]
-  debtPrioritySchedules   DebtPrioritySchedule[]
-  
-  @@index([preparedBy], map: "estate_accountings_preparedBy_idx")
-  @@index([submittedToCourtAt], map: "estate_accountings_submitted_idx")
-  @@index([courtApprovedAt], map: "estate_accountings_approved_idx")
-  @@index([auditedAt], map: "estate_accountings_audited_idx")
-  @@map("estate_accountings")
-}
-model EstateInventory {
-  id                      String   @id @default(uuid()) @db.Uuid()
-  
-  caseId                  String   @db.Uuid()
-  case                    SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  estateAccounting        EstateAccounting? @relation(fields: [estateAccountingId], references: [id])
-  estateAccountingId      String? @db.Uuid()
-  // Inventory Details
-  inventoryDate           DateTime
-  preparedBy              String? @db.Uuid()
-  // Asset Reference
-  assetId                 String @db.Uuid()
-  asset                   Asset @relation("InventoryAsset", fields: [assetId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  description             String @db.Text
-  estimatedValue          Decimal @db.Decimal(15,2)
-  currency                String @default("KES") @db.VarChar(10)
-  // Ownership Verification
-  isVerified              Boolean @default(false)
-  verificationDocuments   Json?
-  verificationMethod      String? @db.VarChar(100)
-  // Court Submission
-  submittedToCourtAt      DateTime?
-  courtFileReference      String? @db.VarChar(100)
-  courtAccepted           Boolean @default(false)
-  courtRejectionReason    String? @db.Text
-  // Event Sourcing
-  version                 Int @default(1)
-  lastEventId             String? @db.Uuid()
-  
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  deletedAt               DateTime?
-  // Asset reference for quick lookup
-  assets                 Asset[] @relation("AssetInventoryEntries")
-
-  @@index([caseId, inventoryDate], map: "estate_inventories_case_date_idx")
-  @@index([assetId], map: "estate_inventories_assetId_idx")
-  @@index([submittedToCourtAt], map: "estate_inventories_submitted_idx")
-  @@index([courtAccepted], map: "estate_inventories_courtAccepted_idx")
-  @@index([isVerified], map: "estate_inventories_isVerified_idx")
-  @@map("estate_inventories")
-}
-// =============================================================================
-// EXECUTOR DUTY TRACKING (S. 83 LSA)
-// =============================================================================
-model ExecutorDuty {
+// -----------------------------------------------------------------------------
+// Entity: Will Executor (Nomination)
+// Owned by: Will
+// -----------------------------------------------------------------------------
+model WillExecutor {
   id              String   @id @default(uuid()) @db.Uuid()
+  willId          String   @db.Uuid()
+  will            Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
   
-  caseId          String   @db.Uuid()
-  case            SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // Identity (Optional link to user, otherwise external details)
+  executorId      String?  @db.Uuid()
+  executorUser    User?    @relation("ExecutorUser", fields: [executorId], references: [id])
   
-  executorUserId  String   @db.Uuid()
-  executor        User     @relation("ExecutorDuties", fields: [executorUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Core Duty Information
-  type            ExecutorDutyType
-  description     String @db.Text
-  stepOrder       Int
-  deadline        DateTime
-  status          DutyStatus @default(PENDING)
-  priority        PriorityLevel @default(MEDIUM)
-  legalBasis      LegalBasis @default(SECTION_83)
-  // Timing & Progress
-  startedAt       DateTime?
-  estimatedCompletion DateTime?
-  completedAt     DateTime?
-  // Documentation & References
-  notes           String? @db.Text
-  supportingDocuments Json?
-  courtOrderNumber String? @db.VarChar(100)
-  // Extension Tracking
-  previousDeadline DateTime?
-  extensionReason  String? @db.Text
-  extendedBy       String? @db.Uuid()
-  extensionDate    DateTime?
-  // Overdue Tracking
-  overdueNotificationsSent Int @default(0)
-  lastOverdueNotification DateTime?
-  // Event Sourcing
-  version         Int @default(1)
-  lastEventId     String? @db.Uuid()
+  fullName        String?
+  email           String?
+  phone           String?
+  
+  isPrimary       Boolean  @default(false)
+  appointmentType ExecutorAppointmentType @default(TESTAMENTARY)
+  
+  @@map("will_executors")
+}
+
+// -----------------------------------------------------------------------------
+// Entity: Will Witness
+// Owned by: Will
+// -----------------------------------------------------------------------------
+model WillWitness {
+  id              String   @id @default(uuid()) @db.Uuid()
+  willId          String   @db.Uuid()
+  will            Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  
+  // Identity
+  witnessId       String?  @db.Uuid()
+  witnessUser     User?    @relation("WitnessUser", fields: [witnessId], references: [id])
+  
+  fullName        String
+  nationalId      String?
+  
+  status          WitnessStatus @default(PENDING)
+  signedAt        DateTime?
+  
+  documents       Document[] @relation("WitnessIdentityDocuments")
+  
+  @@map("will_witnesses")
+}
+
+// -----------------------------------------------------------------------------
+// Entity: Beneficiary Assignment
+// Owned by: Will
+// -----------------------------------------------------------------------------
+model BeneficiaryAssignment {
+  id              String   @id @default(uuid()) @db.Uuid()
+  willId          String   @db.Uuid()
+  will            Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  
+  // --- What (Weak Link to Asset) ---
+  assetId         String?  @db.Uuid() 
+  asset           Asset?   @relation(fields: [assetId], references: [id]) // Logic controlled by Service
+  isResiduary     Boolean  @default(false)
+  sharePercentage Float?
+  specificAmount  Float?
+  
+  // --- Who ---
+  beneficiaryType BeneficiaryType
+  userId          String?  @db.Uuid()
+  beneficiaryUser User?    @relation("AssignmentBeneficiaryUser", fields: [userId], references: [id])
+  
+  familyMemberId  String?  @db.Uuid()
+  beneficiaryFamilyMember FamilyMember? @relation("BeneficiaryFamilyMember", fields: [familyMemberId], references: [id])
+  
+  externalName    String?
+  
+  // --- Conditions ---
+  conditionType   BequestConditionType @default(NONE)
+  conditionDetails String? @db.Text 
+  
+  // --- Alternate ---
+  alternateAssignmentId String? @db.Uuid()
+  alternateAssignment   BeneficiaryAssignment? @relation("AlternateBeneficiary", fields: [alternateAssignmentId], references: [id])
+  alternateFor          BeneficiaryAssignment[] @relation("AlternateBeneficiary")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("beneficiary_assignments")
+}
+
+// -----------------------------------------------------------------------------
+// Entity: Codicil
+// Owned by: Will
+// -----------------------------------------------------------------------------
+model Codicil {
+  id              String   @id @default(uuid()) @db.Uuid()
+  willId          String   @db.Uuid()
+  will            Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
+  
+  title           String   @db.VarChar(200)
+  content         String   @db.Text
+  codicilDate     DateTime
+  versionNumber   Int      @default(1)
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  
+  @@map("codicils")
+}
 
-  @@index([caseId, status, deadline], map: "executor_duties_case_status_deadline_idx")
-  @@index([executorUserId, deadline], map: "executor_duties_executor_deadline_idx")
-  @@index([status, priority], map: "executor_duties_status_priority_idx")
-  @@index([deadline], map: "executor_duties_deadline_idx")
-  @@index([type], map: "executor_duties_type_idx")
-  @@index([status, completedAt], map: "executor_duties_status_completed_idx")
-  @@map("executor_duties")
-}
-model ExecutorBond {
-  id                  String   @id @default(uuid()) @db.Uuid()
-  
-  executorId          String   @db.Uuid()
-  grantId             String   @db.Uuid()
-  grant               Grant @relation(fields: [grantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Surety details
-  suretyType          String @db.VarChar(50) // "INSURER", "BANK_GUARANTEE"
-  suretyCompany       String @db.VarChar(200)
-  policyNumber        String @unique(map: "executor_bond_policy_unique") @db.VarChar(100)
-  // Court review
-  initialAmountKES    Decimal @db.Decimal(15,2)
-  reviewedAmountKES   Decimal? @db.Decimal(15,2)
-  reviewDate          DateTime?
-  reviewOrderReference String? @db.VarChar(100)
-  // Renewal
-  annualRenewalDue    DateTime?
-  lastRenewedAt       DateTime?
-  // Event Sourcing
-  version             Int @default(1)
-  lastEventId         String? @db.Uuid()
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
-  
-  @@index([executorId, suretyCompany], map: "executor_bonds_executor_surety_idx")
-  @@index([grantId], map: "executor_bonds_grant_idx")
-  @@index([annualRenewalDue], map: "executor_bonds_renewalDue_idx")
-  @@map("executor_bonds")
-}
-// =============================================================================
-// BENEFICIARY ENTITLEMENTS (OUTPUT OF INHERITANCE ENGINE)
-// =============================================================================
-model BeneficiaryEntitlement {
-  id                  String   @id @default(uuid()) @db.Uuid()
-  
-  caseId              String   @db.Uuid()
-  case                SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Beneficiary Reference (FamilyMember from family-service)
-  beneficiaryId       String @db.Uuid()
-  beneficiary         FamilyMember @relation("Entitled", fields: [beneficiaryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Legal Basis
-  entitlementBasis    EntitlementBasis
-  sectionApplied      String? @db.VarChar(50)
-  section45Tier       Section45Tier? // For S. 45 tracking
-  // Computed Share - 
-  sharePercent        Float // Keep as Float for percentage
-  shareValueKES       Decimal @db.Decimal(15,2)
-  // Life Interest
-  isLifeInterest      Boolean @default(false)
-  lifeInterestEndsAt  DateTime?
-  
-  // Distribution Status
-  distributionStatus  DistributionStatus @default(PENDING)
-  distributedAt       DateTime?
-  distributionMethod  TransmissionMethod?
-  // Special Conditions
-  heldInTrust         Boolean @default(false)
-  trusteeId           String? @db.Uuid()
-  trustConditions     String? @db.Text
-  trustValidUntil     DateTime?
-  // Priority
-  priority            Int @default(1)
-  // Polygamous Context
-  polygamousHouseId   String? @db.Uuid()
-  // Event Sourcing
-  version             Int @default(1)
-  lastEventId         String? @db.Uuid()
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
-  
-  @@unique([caseId, beneficiaryId, priority], map: "beneficiary_entitlements_case_beneficiary_priority_unique")
-  @@index([caseId, distributionStatus], map: "beneficiary_entitlements_case_status_idx")
-  @@index([entitlementBasis], map: "beneficiary_entitlements_entitlementBasis_idx")
-  @@index([distributionStatus], map: "beneficiary_entitlements_distributionStatus_idx")
-  @@index([beneficiaryId], map: "beneficiary_entitlements_beneficiary_idx")
-  @@index([polygamousHouseId], map: "beneficiary_entitlements_polygamous_idx")
-  @@map("beneficiary_entitlements")
-}
-// =============================================================================
-// DISTRIBUTION SCHEDULE
-// =============================================================================
-model DistributionSchedule {
+// -----------------------------------------------------------------------------
+// Entity: Disinheritance Record
+// Owned by: Will
+// -----------------------------------------------------------------------------
+model DisinheritanceRecord {
   id              String   @id @default(uuid()) @db.Uuid()
+  willId          String   @db.Uuid()
+  will            Will     @relation(fields: [willId], references: [id], onDelete: Cascade)
   
-  caseId          String   @db.Uuid()
-  case            SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  disinheritedMemberId String @db.Uuid()
+  disinheritedMember   FamilyMember @relation("DisinheritedMember", fields: [disinheritedMemberId], references: [id])
   
-  stepOrder       Int
-  stepType        String @db.VarChar(100)
-  description     String @db.Text
-  // Timing
+  reason          String?  @db.Text
+  
+  @@map("disinheritance_records")
+}
+
+// =============================================================================
+// READ MODELS / SNAPSHOTS
+// Domain Service Output Storage (Attached to Estate)
+// NOT an Aggregate.
+// =============================================================================
+
+model DistributionScenario {
+  id                      String   @id @default(uuid()) @db.Uuid()
+  
+  // --- Owner ---
+  estateId                String   @db.Uuid()
+  estate                  Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  
+  // --- Metadata ---
+  scenarioName            String   @db.VarChar(100)
+  scenarioType            String   @default("INTESTATE") // "TESTATE", "INTESTATE_S35", "INTESTATE_S40"
+  description             String?  
+  
+  // --- Input Config (Snapshot of parameters) ---
+  appliedLawSection       KenyanLawSection
+  polygamousHouseCount    Int      @default(0)
+  
+  // --- Output Results ---
+  totalNetValueKES        Float
+  computedShares          ComputedShareDetail[]
+
+  createdAt               DateTime @default(now())
+  
+  @@unique([estateId, scenarioName])
+  @@map("distribution_scenarios")
+}
+model ComputedShareDetail {
+  id                      String   @id @default(uuid()) @db.Uuid()
+  
+  scenarioId              String   @db.Uuid()
+  scenario                DistributionScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  
+  // --- Snapshot of Beneficiary ---
+  heirId                  String?  @db.Uuid() 
+  heirName                String
+  heirRelationship        String   
+  
+  // --- The Math ---
+  finalSharePercent       Float
+  finalShareValueKES      Float
+  
+  // --- Legal Nature ---
+  shareType               String   // "ABSOLUTE", "LIFE_INTEREST"
+  polygamousHouseId       String?  @db.Uuid()
+  
+  @@map("computed_share_details")
+}
+// ============================================================================
+// SUCCESSION-AUTOMATION SERVICE
+// Purpose: "The Digital Lawyer". Generates forms, tracks readiness, guides the user.
+// Updates: Includes SuccessionContext and RiskSource for traceability.
+// ============================================================================
+
+// =============================================================================
+// AGGREGATE 1: READINESS ASSESSMENT
+// Purpose: Analyzes Family + Estate to tell user if they are ready to go to court.
+// =============================================================================
+model ReadinessAssessment {
+  id                  String   @id @default(uuid()) @db.Uuid()
+  
+  // --- Target ---
+  estateId            String   @unique @db.Uuid() 
+  
+  // --- Scorecard ---
+  readinessScore      Int      @default(0) // 0-100%
+  status              ReadinessStatus @default(IN_PROGRESS)
+  
+  // --- [NEW] SUCCESSION CONTEXT (Value Object Flattened) ---
+  // This drives the entire logic engine (e.g., Islamic cases need different forms)
+  contextRegime       SuccessionRegime   // TESTATE, INTESTATE
+  contextMarriage     SuccessionMarriageType // MONOGAMOUS, POLYGAMOUS
+  contextReligion     SuccessionReligion // STATUTORY, ISLAMIC, HINDU, CUSTOMARY
+  
+  // --- Findings ---
+  missingDocuments    Json?    // ["DeathCert", "ChiefLetter"]
+  blockingIssues      Json?    // ["MinorWithoutGuardian", "DisputedAsset"]
+  recommendedStrategy String?  // e.g. "Apply to Kadhi's Court for Grant"
+  
+  // --- Child Entities ---
+  riskFlags           RiskFlag[]
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@map("readiness_assessments")
+}
+model RiskFlag {
+  id              String   @id @default(uuid()) @db.Uuid()
+  assessmentId    String   @db.Uuid()
+  assessment      ReadinessAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  
+  // --- Risk Details ---
+  severity        RiskSeverity @default(HIGH)
+  category        String   // "DOCUMENT", "FAMILY_DISPUTE", "ASSET_VERIFICATION"
+  description     String   @db.Text
+  mitigationSteps String?  @db.Text
+  
+  // --- [NEW] EVIDENCE SOURCE ---
+  // Where did we find this risk? (Traceability)
+  source          RiskSource
+  sourceId        String?  @db.Uuid() // ID of the specific entity (e.g., Will ID, Asset ID)
+  
+  isResolved      Boolean  @default(false)
+  resolvedAt      DateTime?
+  
+  @@map("risk_flags")
+}
+// =============================================================================
+// AGGREGATE 2: PROBATE APPLICATION (The Generator)
+// Purpose: Compiles the "Bundle" for court based on the Context.
+// =============================================================================
+
+model ProbateApplication {
+  id                  String   @id @default(uuid()) @db.Uuid()
+  estateId            String   @db.Uuid()
+  
+  // --- Application Details ---
+  // The system suggests this based on ReadinessAssessment Context
+  applicationType     ProbateApplicationType 
+  applicantUserId     String   @db.Uuid()    
+  
+  // --- Court Interaction ---
+  courtStation        String   @db.VarChar(100)
+  caseNumber          String?  @db.VarChar(100) 
+  filingDate          DateTime?
+  
+  // --- Automation Status ---
+  formsGenerated      Boolean  @default(false)
+  allConsentsReceived Boolean  @default(false)
+  
+  // --- Child Entities ---
+  generatedForms      GeneratedForm[]
+  familyConsents      FamilyConsent[]
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@index([estateId])
+  @@map("probate_applications")
+}
+
+model GeneratedForm {
+  id              String   @id @default(uuid()) @db.Uuid()
+  applicationId   String   @db.Uuid()
+  application     ProbateApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  formType        KenyanFormType
+  s3Url           String   @db.Text
+  generatedAt     DateTime @default(now())
+  
+  metadata        Json?    
+  
+  @@map("generated_forms")
+}
+
+model FamilyConsent {
+  id              String   @id @default(uuid()) @db.Uuid()
+  applicationId   String   @db.Uuid()
+  application     ProbateApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  familyMemberId  String   @db.Uuid()
+  role            String   // "Beneficiary", "HouseholdHead"
+  
+  consentStatus   ConsentStatus @default(PENDING)
+  consentGivenAt  DateTime?
+  digitalSignatureId String? 
+  rejectionReason String?  @db.Text
+  
+  createdAt       DateTime @default(now())
+  @@map("family_consents")
+}
+// =============================================================================
+// AGGREGATE 3: EXECUTOR ROADMAP (The GPS)
+// Purpose: Dynamic Task List based on Context.
+// =============================================================================
+model ExecutorRoadmap {
+  id                  String   @id @default(uuid()) @db.Uuid()
+  estateId            String   @unique @db.Uuid()
+  
+  currentPhase        RoadmapPhase @default(PRE_FILING)
+  percentComplete     Int          @default(0)
+  
+  tasks               RoadmapTask[]
+  
+  updatedAt           DateTime @updatedAt
+  @@map("executor_roadmaps")
+}
+model RoadmapTask {
+  id              String   @id @default(uuid()) @db.Uuid()
+  roadmapId       String   @db.Uuid()
+  roadmap         ExecutorRoadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  
+  title           String   
+  description     String   @db.Text
+  category        String   
+  
+  status          TaskStatus @default(PENDING)
   dueDate         DateTime?
-  scheduledDate   DateTime?
   completedAt     DateTime?
-  // Status
-  isCompleted     Boolean @default(false)
-  status          String @default("PENDING") @db.VarChar(50)
-  // Dependencies
-  dependsOnStep   Int?
-  blockingReason  String? @db.Text
-  // Financial Tracking
-  estimatedAmount Decimal? @db.Decimal(15,2)
-  actualAmount    Decimal? @db.Decimal(15,2)
-  currency        String @default("KES") @db.VarChar(10)
   
-  notes           String? @db.Text
-  // Event Sourcing
-  version         Int @default(1)
-  lastEventId     String? @db.Uuid()
+  dependsOnTaskId String?  @db.Uuid() 
+  proofDocumentId String?  @db.Uuid() 
   
   createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
-
-  @@unique([caseId, stepOrder], map: "distribution_schedules_case_step_unique")
-  @@index([caseId, isCompleted], map: "distribution_schedules_case_completed_idx")
-  @@index([status, dueDate], map: "distribution_schedules_status_dueDate_idx")
-  @@index([dependsOnStep], map: "distribution_schedules_dependencies_idx")
-  @@map("distribution_schedules")
-}
-// =============================================================================
-// ASSET TRANSMISSION WORKFLOW
-// =============================================================================
-model AssetTransmission {
-  id                      String   @id @default(uuid()) @db.Uuid()
-  
-  caseId                  String   @db.Uuid()
-  case                    SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  
-  grantId                 String   @db.Uuid()
-  grant                   Grant @relation(fields: [grantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Asset Reference
-  assetId                 String   @db.Uuid()
-  asset                   Asset @relation("TransmittedAsset", fields: [assetId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Beneficiary Reference
-  beneficiaryId           String @db.Uuid()
-  beneficiary             FamilyMember @relation("Beneficiary", fields: [beneficiaryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Polygamous Context - CRITICAL FOR S. 40 COMPLIANCE
-  polygamousHouseId       String? @db.Uuid()
-  // Transmission Details
-  status                  TransmissionStatus @default(PENDING)
-  transmissionDate        DateTime?
-  scheduledDate           DateTime?
-  // Registry/Legal References
-  registryType            String? @db.VarChar(100)
-  registryReference       String? @db.VarChar(100)
-  previousReference       String? @db.VarChar(100)
-  registryLocation        String? @db.VarChar(200)
-  // Transfer Method
-  transmissionMethod      TransmissionMethod
-  transferDocumentUrl     String?
-  transferCertificateNumber String? @db.VarChar(100)
-  // Financial Tracking 
-  stampDutyPaid           Boolean @default(false)
-  stampDutyAmount         Decimal? @db.Decimal(15,2)
-  stampDutyReceipt        String? @db.VarChar(100)
-  capitalGainsTaxPaid     Boolean @default(false)
-  cgtAmount               Decimal? @db.Decimal(15,2)
-  cgtReceipt              String? @db.VarChar(100)
-  transferFee             Decimal? @db.Decimal(15,2)
-  transferFeeReceipt      String? @db.VarChar(100)
-  // Compliance
-  isComplete              Boolean @default(false)
-  completedBy             String? @db.Uuid()
-  verifiedBy              String? @db.Uuid()
-  verifiedAt              DateTime?
-  // Obstacles
-  blockingReason          String? @db.Text
-  rejectionReason         String? @db.Text
-  notes                   String? @db.Text
-  // Event Sourcing
-  version                 Int @default(1)
-  lastEventId             String? @db.Uuid()
-  
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  deletedAt               DateTime?
-
-  @@unique([assetId, beneficiaryId, grantId], map: "asset_transmissions_unique_transfer")
-  @@index([caseId, status, scheduledDate], map: "asset_transmissions_case_status_scheduled_idx")
-  @@index([status, scheduledDate], map: "asset_transmissions_status_scheduled_idx")
-  @@index([grantId], map: "asset_transmissions_grantId_idx")
-  @@index([assetId], map: "asset_transmissions_assetId_idx")
-  @@index([beneficiaryId], map: "asset_transmissions_beneficiary_idx")
-  @@index([polygamousHouseId], map: "asset_transmissions_polygamous_idx")
-  @@index([status], map: "asset_transmissions_status_idx")
-  @@index([transmissionMethod], map: "asset_transmissions_method_idx")
-  @@map("asset_transmissions")
-}
-// Kenya Gazette integration
-model GazetteIntegration {
-  id                 String   @id @default(uuid()) @db.Uuid()
-  
-  caseId             String   @db.Uuid()
-  case               SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Gazette Integration
-  gazetteReference   String? @unique(map: "gazette_integrations_gazetteReference_unique") @db.VarChar(100)
-  publicationStatus  String @default("PENDING") @db.VarChar(50)
-  submissionDate     DateTime?
-  publicationDate    DateTime?
-  // Digital Integration
-  ecitizenReference  String? @db.VarChar(100)
-  ardhisasaReference String? @db.VarChar(100)
-  paymentReference   String? @db.VarChar(100)
-  // Proof of Publication
-  gazettePdfUrl      String?
-  newspaperCuttingUrl String?
-  receiptUrl         String?
-  // Event Sourcing
-  version            Int @default(1)
-  lastEventId        String? @db.Uuid()
-  
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  deletedAt          DateTime?
-
-  @@index([caseId, publicationStatus], map: "gazette_integrations_case_status_idx")
-  @@index([publicationDate], map: "gazette_integrations_publicationDate_idx")
-  @@index([ecitizenReference], map: "gazette_integrations_ecitizen_idx")
-  @@map("gazette_integrations")
-}
-
-// Queue for court system integrations
-model CourtIntegrationQueue {
-  id                 String   @id @default(uuid()) @db.Uuid()
-  
-  caseId             String   @db.Uuid()
-  case               SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Integration Details
-  integrationType    String @db.VarChar(50)
-  targetSystem       String @db.VarChar(100) // "eFiling", "GazetteAPI", "LandRegistry"
-  // Payload
-  payload            Json
-  documentUrls       Json?
-  // Status
-  status             String @default("PENDING") @db.VarChar(50)
-  attempts           Int @default(0)
-  lastAttemptAt      DateTime?
-  nextRetryAt        DateTime?
-  // Response
-  responseCode       String? @db.VarChar(50)
-  responseMessage    String? @db.Text
-  externalReference  String? @db.VarChar(100)
-  // Audit
-  createdBy          String? @db.Uuid()
-  processedBy        String? @db.VarChar(100)
-  processedAt        DateTime?
-  // Event Sourcing
-  version            Int @default(1)
-  lastEventId        String? @db.Uuid()
-  
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  deletedAt          DateTime?
-
-  @@index([caseId, status, integrationType], map: "court_integration_queue_case_status_type_idx")
-  @@index([status, nextRetryAt], map: "court_integration_queue_status_retry_idx")
-  @@index([externalReference], map: "court_integration_queue_externalReference_idx")
-  @@index([targetSystem, status], map: "court_integration_queue_system_status_idx")
-  @@map("court_integration_queue")
-}
-// Court orders for dependant provision
-model DependantProvisionOrder {
-  id                  String   @id @default(uuid()) @db.Uuid()
-  
-  caseId              String   @db.Uuid()
-  case                SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Dependant Reference (UUID only - cross-service)
-  dependantId         String @db.Uuid()
-  // Court Order Details
-  courtOrderNumber    String @unique(map: "dependant_provision_orders_orderNumber_unique") @db.VarChar(100)
-  orderDate           DateTime
-  provisionAmount     Decimal @db.Decimal(15,2)
-  provisionType       String @db.VarChar(100)
-  // Payment Schedule
-  paymentSchedule     Json?
-  totalPaid           Decimal @default(0) @db.Decimal(15,2)
-  // Compliance Tracking
-  isCompliant         Boolean @default(false)
-  lastComplianceCheck DateTime?
-  // Event Sourcing
-  version             Int @default(1)
-  lastEventId         String? @db.Uuid()
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
-
-  @@index([caseId, dependantId], map: "dependant_provision_orders_case_dependant_idx")
-  @@index([courtOrderNumber], map: "dependant_provision_orders_orderNumber_idx")
-  @@index([isCompliant], map: "dependant_provision_orders_compliant_idx")
-  @@map("dependant_provision_orders")
-}
-// Track S.45 debt priority compliance
-model DebtPrioritySchedule {
-  id                      String   @id @default(uuid()) @db.Uuid()
-  
-  caseId                  String   @db.Uuid()
-  case                    SuccessionCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // CRITICAL: Explicit S. 45 Tier tracking for court compliance
-  section45Tier           Section45Tier
-  priorityOrder           Int // 1,2,3,4 for S. 45(a)-(d)
-  // Financial Tracking 
-  totalAmount             Decimal @db.Decimal(15,2)
-  paidAmount              Decimal @default(0) @db.Decimal(15,2)
-  // Court Compliance
-  courtApprovedSchedule   Boolean @default(false)
-  courtOrderReference     String? @db.VarChar(100)
-  // Timeline
-  scheduledPaymentDate    DateTime?
-  actualPaymentDate       DateTime?
-  // S. 45(4) - Rejected claims appeal period
-  appealDeadline          DateTime?
-  appealStatus            String? @db.VarChar(50)
-  // Event Sourcing
-  version                 Int @default(1)
-  lastEventId             String? @db.Uuid()
-  
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  deletedAt               DateTime?
-  // Relations
-  grant                   Grant? @relation(fields: [grantId], references: [id])
-  grantId                 String? @db.Uuid()
-  claims                  CreditorClaim[]
-  estateAccountings EstateAccounting[]
-
-  @@unique([caseId, section45Tier], map: "debt_priority_schedules_case_tier_unique")
-  @@index([caseId, priorityOrder], map: "debt_priority_schedules_case_priority_idx")
-  @@index([section45Tier, actualPaymentDate], map: "debt_priority_schedules_tier_payment_idx")
-  @@index([courtApprovedSchedule], map: "debt_priority_schedules_courtApproved_idx")
-  @@index([appealDeadline], map: "debt_priority_schedules_appealDeadline_idx")
-  @@map("debt_priority_schedules")
-}
-// Monitor court performance
-model CourtProcessingMetric {
-  id                      String   @id @default(uuid()) @db.Uuid()
-  courtStation            String @db.VarChar(100)
-  monthYear               String @db.VarChar(10)
-  // Performance Metrics
-  totalCases              Int
-  avgProcessingDays       Float
-  grantIssuanceRate       Float
-  confirmationRate        Float
-  objectionRate           Float
-  // SLA Compliance
-  casesWithinSLA          Int
-  casesOutsideSLA         Int
-  avgDaysToFirstHearing   Float
-  // Event Sourcing
-  lastEventId             String? @db.Uuid()
-  
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  deletedAt               DateTime?
-
-  @@unique([courtStation, monthYear], map: "court_processing_metrics_station_month_unique")
-  @@index([courtStation, createdAt], map: "court_metrics_station_date_idx")
-  @@index([monthYear], map: "court_metrics_monthYear_idx")
-  @@map("court_processing_metrics")
+  @@map("roadmap_tasks")
 }
 // =============================================================================
 // NOTIFICATIONS SERVICE MODELS
