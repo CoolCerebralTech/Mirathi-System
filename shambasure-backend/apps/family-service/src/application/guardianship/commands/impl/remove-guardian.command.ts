@@ -1,5 +1,5 @@
 // application/guardianship/commands/impl/remove-guardian.command.ts
-import { TerminationReason } from '../../../../domain/entities/guardian.entity';
+import { TerminationReason } from '../../../../domain/entities/guardian-assignment.entity';
 import { BaseCommand } from '../base.command';
 
 export interface RemoveGuardianCommandPayload {

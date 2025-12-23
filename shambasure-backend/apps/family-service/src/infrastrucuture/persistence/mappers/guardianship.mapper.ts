@@ -5,8 +5,8 @@ import { GuardianshipAggregate } from '../../../domain/aggregates/guardianship.a
 import { CustomaryLawDetails, WardInfo } from '../../../domain/aggregates/guardianship.aggregate';
 import { DomainEvent } from '../../../domain/base/domain-event';
 import { UniqueEntityID } from '../../../domain/base/unique-entity-id';
-import { Guardian } from '../../../domain/entities/guardian.entity';
-import { GuardianReportStatus } from '../../../domain/entities/guardian.entity';
+import { Guardian } from '../../../domain/entities/guardian-assignment.entity';
+import { GuardianReportStatus } from '../../../domain/entities/guardian-assignment.entity';
 import { AnnualReportFiledEvent } from '../../../domain/events/guardianship-events/annual-report-filed.event';
 import { GuardianAllowanceUpdatedEvent } from '../../../domain/events/guardianship-events/guardian-allowance-updated.event';
 import { GuardianAppointedEvent } from '../../../domain/events/guardianship-events/guardian-appointed.event';

@@ -4,7 +4,7 @@ import { KenyanCounty as PrismaKenyanCounty } from '@prisma/client';
 import { AggregateRoot } from '../base/aggregate-root';
 import { DomainEvent } from '../base/domain-event';
 import { UniqueEntityID } from '../base/unique-entity-id';
-import { AdoptionOrder } from '../entities/adoption-order.entity';
+import { AdoptionOrder } from '../entities/adoption-record.entity';
 import { CohabitationRecord } from '../entities/cohabitation-record.entity';
 // Entities
 import { FamilyMember } from '../entities/family-member.entity';

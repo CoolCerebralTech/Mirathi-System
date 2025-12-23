@@ -2,6 +2,9 @@
 CREATE TYPE "UserRole" AS ENUM ('USER', 'ADMIN', 'VERIFIER', 'AUDITOR');
 
 -- CreateEnum
+CREATE TYPE "Gender" AS ENUM ('MALE', 'FEMALE', 'OTHERS');
+
+-- CreateEnum
 CREATE TYPE "DocumentStatus" AS ENUM ('PENDING_VERIFICATION', 'VERIFIED', 'REJECTED');
 
 -- CreateEnum
@@ -17,13 +20,13 @@ CREATE TYPE "RelationshipType" AS ENUM ('SPOUSE', 'EX_SPOUSE', 'CHILD', 'ADOPTED
 CREATE TYPE "RelationshipGuardianshipType" AS ENUM ('TEMPORARY', 'PERMANENT', 'TESTAMENTARY', 'CUSTOMARY');
 
 -- CreateEnum
-CREATE TYPE "MarriageType" AS ENUM ('CUSTOMARY', 'CHRISTIAN', 'CIVIL', 'ISLAMIC', 'TRADITIONAL');
+CREATE TYPE "MarriageType" AS ENUM ('CIVIL', 'CHRISTIAN', 'CUSTOMARY', 'ISLAMIC', 'HINDU', 'OTHER');
 
 -- CreateEnum
 CREATE TYPE "MarriageEndReason" AS ENUM ('DEATH_OF_SPOUSE', 'DIVORCE', 'ANNULMENT', 'CUSTOMARY_DISSOLUTION', 'STILL_ACTIVE');
 
 -- CreateEnum
-CREATE TYPE "MarriageStatus" AS ENUM ('SINGLE', 'MARRIED', 'DIVORCED', 'WIDOWED', 'SEPARATED', 'CUSTOMARY_MARRIAGE', 'CIVIL_UNION', 'ISLAMIC', 'CHRISTIAN');
+CREATE TYPE "MarriageStatus" AS ENUM ('SINGLE', 'MARRIED', 'DIVORCED', 'WIDOWED', 'SEPARATED');
 
 -- CreateEnum
 CREATE TYPE "KenyanRelationshipCategory" AS ENUM ('SPOUSE', 'CHILDREN', 'PARENTS', 'SIBLINGS', 'EXTENDED_FAMILY', 'NON_FAMILY');
@@ -41,13 +44,19 @@ CREATE TYPE "GuardianReportStatus" AS ENUM ('PENDING', 'DUE', 'SUBMITTED', 'APPR
 CREATE TYPE "GuardianshipTerminationReason" AS ENUM ('WARD_REACHED_MAJORITY', 'WARD_DECEASED', 'GUARDIAN_DECEASED', 'GUARDIAN_INCAPACITATED', 'COURT_REMOVAL', 'VOLUNTARY_RESIGNATION', 'WARD_REGAINED_CAPACITY', 'ADOPTION_FINALIZED', 'CUSTOMARY_TRANSFER');
 
 -- CreateEnum
-CREATE TYPE "GuardianType" AS ENUM ('TESTAMENTARY', 'COURT_APPOINTED', 'NATURAL_PARENT', 'DE_FACTO');
+CREATE TYPE "GuardianType" AS ENUM ('TESTAMENTARY', 'COURT_APPOINTED', 'CUSTOMARY', 'NATURAL_PARENT');
 
 -- CreateEnum
 CREATE TYPE "InheritanceRights" AS ENUM ('FULL', 'PARTIAL', 'CUSTOMARY', 'NONE', 'PENDING');
 
 -- CreateEnum
 CREATE TYPE "GuardianAppointmentSource" AS ENUM ('FAMILY', 'COURT', 'WILL', 'CUSTOMARY_LAW');
+
+-- CreateEnum
+CREATE TYPE "ComplianceStatus" AS ENUM ('PENDING', 'FILED', 'OVERDUE', 'REJECTED');
+
+-- CreateEnum
+CREATE TYPE "GuardianshipStatus" AS ENUM ('ACTIVE', 'SUSPENDED', 'TERMINATED', 'EXPIRED_WARD_MAJORITY');
 
 -- CreateEnum
 CREATE TYPE "WillStatus" AS ENUM ('DRAFT', 'PENDING_WITNESS', 'WITNESSED', 'ACTIVE', 'REVOKED', 'SUPERSEDED', 'EXECUTED', 'CONTESTED', 'PROBATE');
@@ -192,9 +201,6 @@ CREATE TYPE "CourtLevel" AS ENUM ('HIGH_COURT', 'MAGISTRATE_COURT', 'KADHI_COURT
 
 -- CreateEnum
 CREATE TYPE "CaseClosureReason" AS ENUM ('GRANT_ISSUED', 'WITHDRAWN', 'DISMISSED', 'APPEALED', 'OTHER');
-
--- CreateEnum
-CREATE TYPE "ComplianceStatus" AS ENUM ('PENDING', 'COMPLIED', 'EXEMPTED', 'OVERDUE');
 
 -- CreateEnum
 CREATE TYPE "TransmissionMethod" AS ENUM ('LAND_REGISTRY', 'MOTOR_VEHICLE_REGISTRATION', 'FINANCIAL_INSTRUMENT_TRANSFER', 'COURT_ORDER', 'MANUAL_TRANSFER');
@@ -433,14 +439,8 @@ CREATE TABLE "families" (
     "familyTotem" VARCHAR(100),
     "homeCounty" "KenyanCounty",
     "memberCount" INTEGER NOT NULL DEFAULT 0,
-    "livingMemberCount" INTEGER NOT NULL DEFAULT 0,
-    "deceasedMemberCount" INTEGER NOT NULL DEFAULT 0,
-    "minorCount" INTEGER NOT NULL DEFAULT 0,
-    "dependantCount" INTEGER NOT NULL DEFAULT 0,
     "isPolygamous" BOOLEAN NOT NULL DEFAULT false,
-    "polygamousHouseCount" INTEGER NOT NULL DEFAULT 0,
     "version" INTEGER NOT NULL DEFAULT 1,
-    "lastEventId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "deletedAt" TIMESTAMP(3),
@@ -451,53 +451,44 @@ CREATE TABLE "families" (
 -- CreateTable
 CREATE TABLE "family_members" (
     "id" UUID NOT NULL,
-    "userId" UUID,
     "familyId" UUID NOT NULL,
-    "firstName" VARCHAR(100),
-    "lastName" VARCHAR(100),
+    "userId" UUID,
+    "firstName" VARCHAR(100) NOT NULL,
     "middleName" VARCHAR(100),
+    "lastName" VARCHAR(100) NOT NULL,
+    "maidenName" VARCHAR(100),
     "nationalId" VARCHAR(20),
     "kraPin" VARCHAR(20),
-    "religion" VARCHAR(50),
-    "citizenship" VARCHAR(50) NOT NULL DEFAULT 'KENYAN',
-    "occupation" VARCHAR(100),
-    "maidenName" VARCHAR(100),
-    "disabilityStatus" VARCHAR(50),
-    "disabilityCertificate" UUID,
-    "requiresSupportedDecisionMaking" BOOLEAN NOT NULL DEFAULT false,
     "nationalIdVerified" BOOLEAN NOT NULL DEFAULT false,
-    "nationalIdVerifiedAt" TIMESTAMP(3),
-    "kraPinVerified" BOOLEAN NOT NULL DEFAULT false,
-    "presumedAlive" BOOLEAN NOT NULL DEFAULT true,
-    "missingSince" TIMESTAMP(3),
-    "deathCertificateIssued" BOOLEAN NOT NULL DEFAULT false,
-    "customaryEthnicGroup" VARCHAR(50),
-    "customaryClan" VARCHAR(100),
-    "phoneNumber" VARCHAR(20),
-    "email" VARCHAR(255),
-    "alternativePhone" VARCHAR(20),
-    "emergencyContact" JSONB,
     "dateOfBirth" TIMESTAMP(3),
-    "gender" VARCHAR(20),
+    "gender" "Gender",
     "placeOfBirth" VARCHAR(100),
+    "religion" VARCHAR(50),
+    "isAlive" BOOLEAN NOT NULL DEFAULT true,
     "dateOfDeath" TIMESTAMP(3),
-    "placeOfDeath" VARCHAR(100),
-    "deathCertificateNumber" VARCHAR(50),
-    "isDeceased" BOOLEAN NOT NULL DEFAULT false,
-    "ageAtDeath" INTEGER,
-    "currentAge" INTEGER,
-    "isMinor" BOOLEAN NOT NULL DEFAULT false,
-    "version" INTEGER NOT NULL DEFAULT 1,
-    "lastEventId" UUID,
+    "deathCertNo" VARCHAR(50),
+    "isMissing" BOOLEAN NOT NULL DEFAULT false,
+    "disabilityStatus" VARCHAR(50),
     "polygamousHouseId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3),
-    "deletedBy" UUID,
-    "deletionReason" TEXT,
-    "isArchived" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "family_members_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "polygamous_houses" (
+    "id" UUID NOT NULL,
+    "familyId" UUID NOT NULL,
+    "houseName" VARCHAR(100) NOT NULL,
+    "houseOrder" INTEGER NOT NULL,
+    "houseHeadId" UUID,
+    "establishedDate" TIMESTAMP(3) NOT NULL,
+    "courtRecognized" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "polygamous_houses_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -508,49 +499,14 @@ CREATE TABLE "marriages" (
     "spouse2Id" UUID NOT NULL,
     "marriageType" "MarriageType" NOT NULL,
     "registrationNumber" VARCHAR(100),
-    "issuingAuthority" VARCHAR(100),
-    "certificateIssueDate" TIMESTAMP(3),
-    "registrationDistrict" VARCHAR(100),
     "startDate" TIMESTAMP(3) NOT NULL,
     "endDate" TIMESTAMP(3),
     "endReason" "MarriageEndReason" NOT NULL DEFAULT 'STILL_ACTIVE',
-    "deceasedSpouseId" UUID,
-    "divorceDecreeNumber" VARCHAR(100),
-    "divorceCourt" VARCHAR(100),
-    "divorceDate" TIMESTAMP(3),
-    "bridePricePaid" BOOLEAN NOT NULL DEFAULT false,
-    "bridePriceAmount" DOUBLE PRECISION,
-    "bridePriceCurrency" VARCHAR(10) DEFAULT 'KES',
-    "elderWitnesses" JSONB,
-    "ceremonyLocation" VARCHAR(200),
-    "traditionalCeremonyType" VARCHAR(100),
-    "clanApproval" BOOLEAN NOT NULL DEFAULT false,
-    "familyConsent" BOOLEAN NOT NULL DEFAULT false,
+    "isPolygamous" BOOLEAN NOT NULL DEFAULT false,
     "polygamousHouseId" UUID,
-    "isMatrimonialPropertyRegime" BOOLEAN NOT NULL DEFAULT true,
-    "matrimonialPropertySettled" BOOLEAN NOT NULL DEFAULT false,
-    "isPolygamousUnderS40" BOOLEAN NOT NULL DEFAULT false,
-    "s40CertificateNumber" VARCHAR(100),
-    "isIslamicUnion" BOOLEAN NOT NULL DEFAULT false,
-    "nikahDate" TIMESTAMP(3),
-    "waliName" VARCHAR(200),
-    "mahrAmount" DOUBLE PRECISION,
-    "mahrCurrency" VARCHAR(10) DEFAULT 'KES',
-    "talaqIssued" BOOLEAN NOT NULL DEFAULT false,
-    "customaryType" VARCHAR(100),
-    "elderCouncilMembers" JSONB,
-    "spouse1MaritalStatusAtMarriage" "MarriageStatus",
-    "spouse2MaritalStatusAtMarriage" "MarriageStatus",
-    "separationDate" TIMESTAMP(3),
-    "separationReason" TEXT,
-    "maintenanceOrderIssued" BOOLEAN NOT NULL DEFAULT false,
-    "maintenanceOrderNumber" VARCHAR(100),
-    "courtValidationDate" TIMESTAMP(3),
-    "isValidUnderKenyanLaw" BOOLEAN NOT NULL DEFAULT true,
-    "invalidityReason" TEXT,
-    "matrimonialRegime" VARCHAR(50) NOT NULL DEFAULT 'MONOGAMOUS',
+    "bridePricePaid" BOOLEAN NOT NULL DEFAULT false,
+    "customaryDetails" JSONB,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "version" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -565,29 +521,7 @@ CREATE TABLE "family_relationships" (
     "toMemberId" UUID NOT NULL,
     "type" "RelationshipType" NOT NULL,
     "isBiological" BOOLEAN NOT NULL DEFAULT true,
-    "isAdopted" BOOLEAN NOT NULL DEFAULT false,
-    "adoptionOrderNumber" VARCHAR(100),
-    "adoptionCourt" VARCHAR(100),
-    "adoptionDate" TIMESTAMP(3),
-    "isCustomaryAdoption" BOOLEAN NOT NULL DEFAULT false,
     "isVerified" BOOLEAN NOT NULL DEFAULT false,
-    "verificationMethod" VARCHAR(100),
-    "verificationDocuments" JSONB,
-    "verifiedAt" TIMESTAMP(3),
-    "verifiedBy" UUID,
-    "strength" VARCHAR(20) NOT NULL DEFAULT 'FULL',
-    "relationshipStartDate" TIMESTAMP(3),
-    "relationshipEndDate" TIMESTAMP(3),
-    "endReason" TEXT,
-    "isNextOfKin" BOOLEAN NOT NULL DEFAULT false,
-    "nextOfKinPriority" INTEGER NOT NULL DEFAULT 1,
-    "recognizedUnderCustomaryLaw" BOOLEAN NOT NULL DEFAULT true,
-    "customaryCeremonyDetails" JSONB,
-    "isContested" BOOLEAN NOT NULL DEFAULT false,
-    "contestationCaseNumber" VARCHAR(100),
-    "courtValidated" BOOLEAN NOT NULL DEFAULT false,
-    "inheritanceRights" "InheritanceRights" NOT NULL DEFAULT 'FULL',
-    "version" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -595,205 +529,98 @@ CREATE TABLE "family_relationships" (
 );
 
 -- CreateTable
-CREATE TABLE "guardianships" (
-    "id" UUID NOT NULL,
-    "wardId" UUID NOT NULL,
-    "wardInfo" JSONB NOT NULL,
-    "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "establishedDate" TIMESTAMP(3) NOT NULL,
-    "dissolvedDate" TIMESTAMP(3),
-    "dissolutionReason" TEXT,
-    "customaryLawApplies" BOOLEAN NOT NULL DEFAULT false,
-    "customaryDetails" JSONB,
-    "courtOrder" JSONB,
-    "primaryGuardianId" UUID,
-    "complianceWarnings" TEXT[],
-    "lastComplianceCheck" TIMESTAMP(3),
-    "version" INTEGER NOT NULL DEFAULT 1,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-    "deletedAt" TIMESTAMP(3),
-
-    CONSTRAINT "guardianships_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "guardians" (
-    "id" UUID NOT NULL,
-    "wardId" UUID NOT NULL,
-    "guardianId" UUID NOT NULL,
-    "type" "GuardianType" NOT NULL,
-    "courtOrderNumber" VARCHAR(100),
-    "courtStation" VARCHAR(100),
-    "appointmentDate" TIMESTAMP(3) NOT NULL,
-    "validUntil" TIMESTAMP(3),
-    "hasPropertyManagementPowers" BOOLEAN NOT NULL DEFAULT false,
-    "canConsentToMedical" BOOLEAN NOT NULL DEFAULT true,
-    "canConsentToMarriage" BOOLEAN NOT NULL DEFAULT false,
-    "restrictions" JSONB,
-    "specialInstructions" TEXT,
-    "guardianIdNumber" VARCHAR(20),
-    "courtCaseNumber" VARCHAR(100),
-    "interimOrderId" UUID,
-    "bondRequired" BOOLEAN NOT NULL DEFAULT false,
-    "bondAmountKES" DOUBLE PRECISION,
-    "bondProvider" VARCHAR(100),
-    "bondPolicyNumber" VARCHAR(100),
-    "bondExpiry" TIMESTAMP(3),
-    "lastReportDate" TIMESTAMP(3),
-    "nextReportDue" TIMESTAMP(3),
-    "reportStatus" "GuardianReportStatus" NOT NULL,
-    "annualAllowanceKES" DOUBLE PRECISION,
-    "allowanceApprovedBy" UUID,
-    "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "terminationDate" TIMESTAMP(3),
-    "terminationReason" "GuardianshipTerminationReason" NOT NULL,
-    "guardianshipId" UUID NOT NULL,
-    "version" INTEGER NOT NULL DEFAULT 1,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "guardians_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "polygamous_houses" (
-    "id" UUID NOT NULL,
-    "familyId" UUID NOT NULL,
-    "houseName" VARCHAR(100) NOT NULL,
-    "houseOrder" INTEGER NOT NULL,
-    "houseHeadId" UUID,
-    "establishedDate" TIMESTAMP(3) NOT NULL,
-    "courtRecognized" BOOLEAN NOT NULL DEFAULT false,
-    "courtOrderNumber" VARCHAR(100),
-    "houseSharePercentage" DOUBLE PRECISION,
-    "houseDissolvedAt" TIMESTAMP(3),
-    "houseAssetsFrozen" BOOLEAN NOT NULL DEFAULT false,
-    "s40CertificateNumber" VARCHAR(100),
-    "certificateIssuedDate" TIMESTAMP(3),
-    "certificateIssuingCourt" VARCHAR(100),
-    "houseBusinessName" VARCHAR(200),
-    "houseBusinessKraPin" VARCHAR(20),
-    "separateProperty" BOOLEAN NOT NULL DEFAULT false,
-    "wivesConsentObtained" BOOLEAN NOT NULL DEFAULT false,
-    "wivesConsentDocument" UUID,
-    "wivesAgreementDetails" JSONB,
-    "successionInstructions" TEXT,
-    "version" INTEGER NOT NULL DEFAULT 1,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "polygamous_houses_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "legal_dependants" (
-    "id" UUID NOT NULL,
-    "basisSection" "KenyanLawSection",
-    "deceasedId" UUID NOT NULL,
-    "dependantId" UUID NOT NULL,
-    "dependencyBasis" VARCHAR(100) NOT NULL,
-    "dependencyLevel" "DependencyLevel" NOT NULL,
-    "isMinor" BOOLEAN NOT NULL DEFAULT false,
-    "isClaimant" BOOLEAN NOT NULL DEFAULT false,
-    "claimAmount" DOUBLE PRECISION,
-    "provisionAmount" DOUBLE PRECISION,
-    "currency" VARCHAR(10) NOT NULL DEFAULT 'KES',
-    "courtOrderReference" VARCHAR(100),
-    "courtOrderDate" TIMESTAMP(3),
-    "monthlySupport" DOUBLE PRECISION,
-    "supportStartDate" TIMESTAMP(3),
-    "supportEndDate" TIMESTAMP(3),
-    "assessmentDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "assessmentMethod" VARCHAR(100),
-    "dependencyPercentage" DOUBLE PRECISION NOT NULL DEFAULT 100,
-    "ageLimit" INTEGER,
-    "isStudent" BOOLEAN NOT NULL DEFAULT false,
-    "studentUntil" TIMESTAMP(3),
-    "custodialParentId" UUID,
-    "provisionOrderIssued" BOOLEAN NOT NULL DEFAULT false,
-    "provisionOrderNumber" VARCHAR(100),
-    "courtApprovedAmount" DOUBLE PRECISION,
-    "monthlySupportEvidence" DOUBLE PRECISION,
-    "dependencyRatio" DOUBLE PRECISION,
-    "hasPhysicalDisability" BOOLEAN NOT NULL DEFAULT false,
-    "hasMentalDisability" BOOLEAN NOT NULL DEFAULT false,
-    "requiresOngoingCare" BOOLEAN NOT NULL DEFAULT false,
-    "disabilityDetails" TEXT,
-    "dependencyProofDocuments" JSONB,
-    "verifiedByCourtAt" TIMESTAMP(3),
-    "version" INTEGER NOT NULL DEFAULT 1,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "legal_dependants_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "dependant_evidence" (
-    "id" UUID NOT NULL,
-    "dependantId" UUID NOT NULL,
-    "evidenceType" VARCHAR(100) NOT NULL,
-    "documentId" UUID,
-    "verifiedBy" UUID,
-    "verifiedAt" TIMESTAMP(3),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "dependant_evidence_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "CohabitationRecord" (
+CREATE TABLE "cohabitation_records" (
     "id" UUID NOT NULL,
     "familyId" UUID NOT NULL,
     "partner1Id" UUID NOT NULL,
     "partner2Id" UUID NOT NULL,
     "startDate" TIMESTAMP(3) NOT NULL,
     "endDate" TIMESTAMP(3),
-    "durationYears" INTEGER NOT NULL,
-    "isAcknowledged" BOOLEAN NOT NULL,
+    "isAcknowledged" BOOLEAN NOT NULL DEFAULT false,
     "hasChildren" BOOLEAN NOT NULL DEFAULT false,
-    "childrenCount" INTEGER NOT NULL DEFAULT 0,
-    "isRegistered" BOOLEAN NOT NULL DEFAULT false,
-    "rejectionReason" TEXT,
-    "version" INTEGER NOT NULL DEFAULT 1,
+    "affidavitFileId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "CohabitationRecord_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "cohabitation_records_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "NextOfKinDesignation" (
-    "id" UUID NOT NULL,
-    "familyId" UUID NOT NULL,
-    "memberId" UUID NOT NULL,
-    "designationLevel" INTEGER NOT NULL DEFAULT 1,
-    "legalBasis" TEXT,
-    "documentReference" TEXT,
-
-    CONSTRAINT "NextOfKinDesignation_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "AdoptionOrder" (
+CREATE TABLE "adoption_orders" (
     "id" UUID NOT NULL,
     "familyId" UUID NOT NULL,
     "adopteeId" UUID NOT NULL,
     "adopterId" UUID NOT NULL,
-    "adoptionType" TEXT NOT NULL,
-    "courtOrderNumber" TEXT,
+    "courtOrderNo" TEXT,
     "adoptionDate" TIMESTAMP(3) NOT NULL,
-    "registrationDate" TIMESTAMP(3),
-    "hasConsents" JSONB NOT NULL,
-    "consentDocuments" TEXT[],
-    "childWelfareReport" UUID,
-    "suitabilityReport" UUID,
+    "type" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "adoption_orders_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "next_of_kin_designations" (
+    "id" UUID NOT NULL,
+    "familyId" UUID NOT NULL,
+    "designatorId" UUID NOT NULL,
+    "nomineeId" UUID NOT NULL,
+    "priority" INTEGER NOT NULL DEFAULT 1,
+    "relationType" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "next_of_kin_designations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "guardianships" (
+    "id" UUID NOT NULL,
+    "wardId" UUID NOT NULL,
+    "status" "GuardianshipStatus" NOT NULL DEFAULT 'ACTIVE',
+    "establishedDate" TIMESTAMP(3) NOT NULL,
+    "validUntil" TIMESTAMP(3),
+    "basis" "GuardianType" NOT NULL,
+    "courtOrderNumber" VARCHAR(100),
+    "courtStation" VARCHAR(100),
     "version" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "AdoptionOrder_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "guardianships_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "guardian_assignments" (
+    "id" UUID NOT NULL,
+    "guardianshipId" UUID NOT NULL,
+    "guardianId" UUID NOT NULL,
+    "isPrimary" BOOLEAN NOT NULL DEFAULT true,
+    "appointmentDate" TIMESTAMP(3) NOT NULL,
+    "canManageProperty" BOOLEAN NOT NULL DEFAULT false,
+    "canConsentMedical" BOOLEAN NOT NULL DEFAULT true,
+    "bondRequired" BOOLEAN NOT NULL DEFAULT false,
+    "bondReference" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "guardian_assignments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "compliance_checks" (
+    "id" UUID NOT NULL,
+    "guardianshipId" UUID NOT NULL,
+    "year" INTEGER NOT NULL,
+    "filingDate" TIMESTAMP(3),
+    "status" "ComplianceStatus" NOT NULL DEFAULT 'PENDING',
+    "notes" TEXT,
+    "reportDocumentId" UUID,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "compliance_checks_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -803,12 +630,8 @@ CREATE TABLE "family_legal_events" (
     "eventType" VARCHAR(100) NOT NULL,
     "description" TEXT NOT NULL,
     "metadata" JSONB,
-    "relatedUserId" UUID,
-    "relatedEstateId" UUID,
-    "relatedCaseId" UUID,
-    "version" INTEGER NOT NULL DEFAULT 1,
+    "recordedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "recordedBy" UUID,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "family_legal_events_pkey" PRIMARY KEY ("id")
 );
@@ -1442,6 +1265,62 @@ CREATE TABLE "LegalDomainEvent" (
     "recordedBy" UUID,
 
     CONSTRAINT "LegalDomainEvent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "legal_dependants" (
+    "id" UUID NOT NULL,
+    "basisSection" "KenyanLawSection",
+    "deceasedId" UUID NOT NULL,
+    "dependantId" UUID NOT NULL,
+    "dependencyBasis" VARCHAR(100) NOT NULL,
+    "dependencyLevel" "DependencyLevel" NOT NULL,
+    "isMinor" BOOLEAN NOT NULL DEFAULT false,
+    "isClaimant" BOOLEAN NOT NULL DEFAULT false,
+    "claimAmount" DOUBLE PRECISION,
+    "provisionAmount" DOUBLE PRECISION,
+    "currency" VARCHAR(10) NOT NULL DEFAULT 'KES',
+    "courtOrderReference" VARCHAR(100),
+    "courtOrderDate" TIMESTAMP(3),
+    "monthlySupport" DOUBLE PRECISION,
+    "supportStartDate" TIMESTAMP(3),
+    "supportEndDate" TIMESTAMP(3),
+    "assessmentDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "assessmentMethod" VARCHAR(100),
+    "dependencyPercentage" DOUBLE PRECISION NOT NULL DEFAULT 100,
+    "ageLimit" INTEGER,
+    "isStudent" BOOLEAN NOT NULL DEFAULT false,
+    "studentUntil" TIMESTAMP(3),
+    "custodialParentId" UUID,
+    "provisionOrderIssued" BOOLEAN NOT NULL DEFAULT false,
+    "provisionOrderNumber" VARCHAR(100),
+    "courtApprovedAmount" DOUBLE PRECISION,
+    "monthlySupportEvidence" DOUBLE PRECISION,
+    "dependencyRatio" DOUBLE PRECISION,
+    "hasPhysicalDisability" BOOLEAN NOT NULL DEFAULT false,
+    "hasMentalDisability" BOOLEAN NOT NULL DEFAULT false,
+    "requiresOngoingCare" BOOLEAN NOT NULL DEFAULT false,
+    "disabilityDetails" TEXT,
+    "dependencyProofDocuments" JSONB,
+    "verifiedByCourtAt" TIMESTAMP(3),
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "legal_dependants_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "dependant_evidence" (
+    "id" UUID NOT NULL,
+    "dependantId" UUID NOT NULL,
+    "evidenceType" VARCHAR(100) NOT NULL,
+    "documentId" UUID,
+    "verifiedBy" UUID,
+    "verifiedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "dependant_evidence_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -2162,6 +2041,22 @@ CREATE TABLE "_WitnessIdentityDocuments" (
 );
 
 -- CreateTable
+CREATE TABLE "_FamilyCreator" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_FamilyCreator_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
+CREATE TABLE "_FamilyMemberUser" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_FamilyMemberUser_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
 CREATE TABLE "_AssetInventoryEntries" (
     "A" UUID NOT NULL,
     "B" UUID NOT NULL,
@@ -2310,247 +2205,34 @@ CREATE INDEX "document_verification_attempts_verifierId_idx" ON "document_verifi
 CREATE INDEX "document_verification_attempts_createdAt_idx" ON "document_verification_attempts"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "families_creatorId_idx" ON "families"("creatorId");
+CREATE UNIQUE INDEX "family_members_userId_key" ON "family_members"("userId");
 
 -- CreateIndex
-CREATE INDEX "families_isPolygamous_idx" ON "families"("isPolygamous");
+CREATE UNIQUE INDEX "family_members_nationalId_key" ON "family_members"("nationalId");
 
 -- CreateIndex
-CREATE INDEX "families_homeCounty_idx" ON "families"("homeCounty");
+CREATE UNIQUE INDEX "family_members_kraPin_key" ON "family_members"("kraPin");
 
 -- CreateIndex
-CREATE INDEX "families_deletedAt_idx" ON "families"("deletedAt");
+CREATE UNIQUE INDEX "polygamous_houses_houseHeadId_key" ON "polygamous_houses"("houseHeadId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "family_members_userId_unique" ON "family_members"("userId");
+CREATE UNIQUE INDEX "polygamous_houses_familyId_houseOrder_key" ON "polygamous_houses"("familyId", "houseOrder");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "family_members_nationalId_unique" ON "family_members"("nationalId");
+CREATE UNIQUE INDEX "marriages_registrationNumber_key" ON "marriages"("registrationNumber");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "family_members_kraPin_unique" ON "family_members"("kraPin");
+CREATE UNIQUE INDEX "family_relationships_fromMemberId_toMemberId_type_key" ON "family_relationships"("fromMemberId", "toMemberId", "type");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "family_members_deathCert_unique" ON "family_members"("deathCertificateNumber");
+CREATE UNIQUE INDEX "adoption_orders_courtOrderNo_key" ON "adoption_orders"("courtOrderNo");
 
 -- CreateIndex
-CREATE INDEX "family_members_religion_idx" ON "family_members"("religion");
+CREATE UNIQUE INDEX "next_of_kin_designations_designatorId_priority_key" ON "next_of_kin_designations"("designatorId", "priority");
 
 -- CreateIndex
-CREATE INDEX "family_members_disabilityStatus_idx" ON "family_members"("disabilityStatus");
-
--- CreateIndex
-CREATE INDEX "family_members_presumedAlive_idx" ON "family_members"("presumedAlive");
-
--- CreateIndex
-CREATE INDEX "family_members_nationalIdVerified_idx" ON "family_members"("nationalIdVerified");
-
--- CreateIndex
-CREATE INDEX "family_members_familyId_idx" ON "family_members"("familyId");
-
--- CreateIndex
-CREATE INDEX "family_members_nationalId_idx" ON "family_members"("nationalId");
-
--- CreateIndex
-CREATE INDEX "family_members_kraPin_idx" ON "family_members"("kraPin");
-
--- CreateIndex
-CREATE INDEX "family_members_dateOfDeath_idx" ON "family_members"("dateOfDeath");
-
--- CreateIndex
-CREATE INDEX "family_members_minor_deceased_idx" ON "family_members"("isMinor", "isDeceased");
-
--- CreateIndex
-CREATE INDEX "family_members_phoneNumber_idx" ON "family_members"("phoneNumber");
-
--- CreateIndex
-CREATE INDEX "family_members_email_idx" ON "family_members"("email");
-
--- CreateIndex
-CREATE INDEX "family_members_dateOfBirth_idx" ON "family_members"("dateOfBirth");
-
--- CreateIndex
-CREATE INDEX "family_members_deletedAt_idx" ON "family_members"("deletedAt");
-
--- CreateIndex
-CREATE UNIQUE INDEX "marriages_regNumber_unique" ON "marriages"("registrationNumber");
-
--- CreateIndex
-CREATE UNIQUE INDEX "marriages_s40CertificateNumber_key" ON "marriages"("s40CertificateNumber");
-
--- CreateIndex
-CREATE INDEX "marriages_isPolygamousUnderS40_idx" ON "marriages"("isPolygamousUnderS40");
-
--- CreateIndex
-CREATE INDEX "marriages_s40CertificateNumber_idx" ON "marriages"("s40CertificateNumber");
-
--- CreateIndex
-CREATE INDEX "marriages_nikahDate_idx" ON "marriages"("nikahDate");
-
--- CreateIndex
-CREATE INDEX "marriages_customaryType_idx" ON "marriages"("customaryType");
-
--- CreateIndex
-CREATE INDEX "marriages_familyId_idx" ON "marriages"("familyId");
-
--- CreateIndex
-CREATE INDEX "marriages_polygamousHouseId_idx" ON "marriages"("polygamousHouseId");
-
--- CreateIndex
-CREATE INDEX "marriages_endReason_isActive_idx" ON "marriages"("endReason", "isActive");
-
--- CreateIndex
-CREATE INDEX "marriages_marriageType_idx" ON "marriages"("marriageType");
-
--- CreateIndex
-CREATE INDEX "marriages_startDate_idx" ON "marriages"("startDate");
-
--- CreateIndex
-CREATE UNIQUE INDEX "marriages_spouses_startDate_unique" ON "marriages"("spouse1Id", "spouse2Id", "startDate");
-
--- CreateIndex
-CREATE INDEX "family_relationships_strength_idx" ON "family_relationships"("strength");
-
--- CreateIndex
-CREATE INDEX "family_relationships_isNextOfKin_nextOfKinPriority_idx" ON "family_relationships"("isNextOfKin", "nextOfKinPriority");
-
--- CreateIndex
-CREATE INDEX "family_relationships_isContested_idx" ON "family_relationships"("isContested");
-
--- CreateIndex
-CREATE INDEX "family_relationships_familyId_idx" ON "family_relationships"("familyId");
-
--- CreateIndex
-CREATE INDEX "family_relationships_type_idx" ON "family_relationships"("type");
-
--- CreateIndex
-CREATE INDEX "family_relationships_isVerified_idx" ON "family_relationships"("isVerified");
-
--- CreateIndex
-CREATE INDEX "family_relationships_inheritanceRights_idx" ON "family_relationships"("inheritanceRights");
-
--- CreateIndex
-CREATE UNIQUE INDEX "family_relationships_unique_relation" ON "family_relationships"("fromMemberId", "toMemberId", "type");
-
--- CreateIndex
-CREATE UNIQUE INDEX "guardianships_wardId_key" ON "guardianships"("wardId");
-
--- CreateIndex
-CREATE INDEX "guardianships_wardId_idx" ON "guardianships"("wardId");
-
--- CreateIndex
-CREATE INDEX "guardianships_isActive_idx" ON "guardianships"("isActive");
-
--- CreateIndex
-CREATE INDEX "guardianships_establishedDate_idx" ON "guardianships"("establishedDate");
-
--- CreateIndex
-CREATE UNIQUE INDEX "guardians_courtCaseNumber_key" ON "guardians"("courtCaseNumber");
-
--- CreateIndex
-CREATE INDEX "guardians_ward_isActive_idx" ON "guardians"("wardId", "isActive");
-
--- CreateIndex
-CREATE INDEX "guardians_guardianId_idx" ON "guardians"("guardianId");
-
--- CreateIndex
-CREATE INDEX "guardians_type_idx" ON "guardians"("type");
-
--- CreateIndex
-CREATE INDEX "guardians_validUntil_idx" ON "guardians"("validUntil");
-
--- CreateIndex
-CREATE INDEX "guardians_nextReportDue_idx" ON "guardians"("nextReportDue");
-
--- CreateIndex
-CREATE INDEX "guardians_reportStatus_idx" ON "guardians"("reportStatus");
-
--- CreateIndex
-CREATE UNIQUE INDEX "guardians_ward_guardian_type_unique" ON "guardians"("wardId", "guardianId", "type");
-
--- CreateIndex
-CREATE UNIQUE INDEX "polygamous_houses_houseHeadId_unique" ON "polygamous_houses"("houseHeadId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "polygamous_houses_s40CertificateNumber_key" ON "polygamous_houses"("s40CertificateNumber");
-
--- CreateIndex
-CREATE INDEX "polygamous_houses_s40CertificateNumber_idx" ON "polygamous_houses"("s40CertificateNumber");
-
--- CreateIndex
-CREATE INDEX "polygamous_houses_houseBusinessKraPin_idx" ON "polygamous_houses"("houseBusinessKraPin");
-
--- CreateIndex
-CREATE INDEX "polygamous_houses_familyId_idx" ON "polygamous_houses"("familyId");
-
--- CreateIndex
-CREATE INDEX "polygamous_houses_courtRecognized_idx" ON "polygamous_houses"("courtRecognized");
-
--- CreateIndex
-CREATE UNIQUE INDEX "polygamous_houses_family_houseName_unique" ON "polygamous_houses"("familyId", "houseName");
-
--- CreateIndex
-CREATE UNIQUE INDEX "polygamous_houses_family_houseOrder_unique" ON "polygamous_houses"("familyId", "houseOrder");
-
--- CreateIndex
-CREATE INDEX "legal_dependants_assessmentDate_idx" ON "legal_dependants"("assessmentDate");
-
--- CreateIndex
-CREATE INDEX "legal_dependants_isStudent_idx" ON "legal_dependants"("isStudent");
-
--- CreateIndex
-CREATE INDEX "legal_dependants_dependencyPercentage_idx" ON "legal_dependants"("dependencyPercentage");
-
--- CreateIndex
-CREATE INDEX "legal_dependants_deceasedId_idx" ON "legal_dependants"("deceasedId");
-
--- CreateIndex
-CREATE INDEX "legal_dependants_dependantId_idx" ON "legal_dependants"("dependantId");
-
--- CreateIndex
-CREATE INDEX "legal_dependants_isClaimant_idx" ON "legal_dependants"("isClaimant");
-
--- CreateIndex
-CREATE INDEX "legal_dependants_dependencyLevel_idx" ON "legal_dependants"("dependencyLevel");
-
--- CreateIndex
-CREATE UNIQUE INDEX "legal_dependants_deceased_dependant_unique" ON "legal_dependants"("deceasedId", "dependantId");
-
--- CreateIndex
-CREATE INDEX "dependant_evidence_dependantId_idx" ON "dependant_evidence"("dependantId");
-
--- CreateIndex
-CREATE INDEX "CohabitationRecord_familyId_startDate_idx" ON "CohabitationRecord"("familyId", "startDate");
-
--- CreateIndex
-CREATE UNIQUE INDEX "CohabitationRecord_partner1Id_partner2Id_startDate_key" ON "CohabitationRecord"("partner1Id", "partner2Id", "startDate");
-
--- CreateIndex
-CREATE INDEX "NextOfKinDesignation_familyId_designationLevel_idx" ON "NextOfKinDesignation"("familyId", "designationLevel");
-
--- CreateIndex
-CREATE UNIQUE INDEX "NextOfKinDesignation_familyId_memberId_key" ON "NextOfKinDesignation"("familyId", "memberId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "AdoptionOrder_courtOrderNumber_key" ON "AdoptionOrder"("courtOrderNumber");
-
--- CreateIndex
-CREATE INDEX "AdoptionOrder_familyId_adoptionDate_idx" ON "AdoptionOrder"("familyId", "adoptionDate");
-
--- CreateIndex
-CREATE INDEX "AdoptionOrder_adopteeId_idx" ON "AdoptionOrder"("adopteeId");
-
--- CreateIndex
-CREATE INDEX "AdoptionOrder_adopterId_idx" ON "AdoptionOrder"("adopterId");
-
--- CreateIndex
-CREATE INDEX "AdoptionOrder_courtOrderNumber_idx" ON "AdoptionOrder"("courtOrderNumber");
-
--- CreateIndex
-CREATE INDEX "AdoptionOrder_adoptionType_idx" ON "AdoptionOrder"("adoptionType");
-
--- CreateIndex
-CREATE INDEX "family_legal_events_family_event_createdAt_idx" ON "family_legal_events"("familyId", "eventType", "createdAt");
+CREATE UNIQUE INDEX "compliance_checks_guardianshipId_year_key" ON "compliance_checks"("guardianshipId", "year");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "estates_deceasedId_unique" ON "estates"("deceasedId");
@@ -2824,6 +2506,33 @@ CREATE INDEX "LegalDomainEvent_aggregateId_eventVersion_idx" ON "LegalDomainEven
 
 -- CreateIndex
 CREATE UNIQUE INDEX "LegalDomainEvent_aggregateId_eventVersion_eventType_key" ON "LegalDomainEvent"("aggregateId", "eventVersion", "eventType");
+
+-- CreateIndex
+CREATE INDEX "legal_dependants_assessmentDate_idx" ON "legal_dependants"("assessmentDate");
+
+-- CreateIndex
+CREATE INDEX "legal_dependants_isStudent_idx" ON "legal_dependants"("isStudent");
+
+-- CreateIndex
+CREATE INDEX "legal_dependants_dependencyPercentage_idx" ON "legal_dependants"("dependencyPercentage");
+
+-- CreateIndex
+CREATE INDEX "legal_dependants_deceasedId_idx" ON "legal_dependants"("deceasedId");
+
+-- CreateIndex
+CREATE INDEX "legal_dependants_dependantId_idx" ON "legal_dependants"("dependantId");
+
+-- CreateIndex
+CREATE INDEX "legal_dependants_isClaimant_idx" ON "legal_dependants"("isClaimant");
+
+-- CreateIndex
+CREATE INDEX "legal_dependants_dependencyLevel_idx" ON "legal_dependants"("dependencyLevel");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "legal_dependants_deceased_dependant_unique" ON "legal_dependants"("deceasedId", "dependantId");
+
+-- CreateIndex
+CREATE INDEX "dependant_evidence_dependantId_idx" ON "dependant_evidence"("dependantId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "succession_cases_estateId_unique" ON "succession_cases"("estateId");
@@ -3195,6 +2904,12 @@ CREATE INDEX "audit_logs_action_timestamp_idx" ON "audit_logs"("action", "timest
 CREATE INDEX "_WitnessIdentityDocuments_B_index" ON "_WitnessIdentityDocuments"("B");
 
 -- CreateIndex
+CREATE INDEX "_FamilyCreator_B_index" ON "_FamilyCreator"("B");
+
+-- CreateIndex
+CREATE INDEX "_FamilyMemberUser_B_index" ON "_FamilyMemberUser"("B");
+
+-- CreateIndex
 CREATE INDEX "_AssetInventoryEntries_B_index" ON "_AssetInventoryEntries"("B");
 
 -- CreateIndex
@@ -3249,46 +2964,10 @@ ALTER TABLE "document_verification_attempts" ADD CONSTRAINT "document_verificati
 ALTER TABLE "document_verification_attempts" ADD CONSTRAINT "document_verification_attempts_verifierId_fkey" FOREIGN KEY ("verifierId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "families" ADD CONSTRAINT "families_creatorId_fkey" FOREIGN KEY ("creatorId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "family_members" ADD CONSTRAINT "family_members_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "family_members" ADD CONSTRAINT "family_members_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "family_members" ADD CONSTRAINT "family_members_polygamousHouseId_fkey" FOREIGN KEY ("polygamousHouseId") REFERENCES "polygamous_houses"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "marriages" ADD CONSTRAINT "marriages_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "marriages" ADD CONSTRAINT "marriages_spouse1Id_fkey" FOREIGN KEY ("spouse1Id") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "marriages" ADD CONSTRAINT "marriages_spouse2Id_fkey" FOREIGN KEY ("spouse2Id") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "marriages" ADD CONSTRAINT "marriages_polygamousHouseId_fkey" FOREIGN KEY ("polygamousHouseId") REFERENCES "polygamous_houses"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "family_relationships" ADD CONSTRAINT "family_relationships_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "family_relationships" ADD CONSTRAINT "family_relationships_fromMemberId_fkey" FOREIGN KEY ("fromMemberId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "family_relationships" ADD CONSTRAINT "family_relationships_toMemberId_fkey" FOREIGN KEY ("toMemberId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "guardians" ADD CONSTRAINT "guardians_wardId_fkey" FOREIGN KEY ("wardId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "guardians" ADD CONSTRAINT "guardians_guardianId_fkey" FOREIGN KEY ("guardianId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "guardians" ADD CONSTRAINT "guardians_guardianshipId_fkey" FOREIGN KEY ("guardianshipId") REFERENCES "guardianships"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "polygamous_houses" ADD CONSTRAINT "polygamous_houses_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -3297,43 +2976,52 @@ ALTER TABLE "polygamous_houses" ADD CONSTRAINT "polygamous_houses_familyId_fkey"
 ALTER TABLE "polygamous_houses" ADD CONSTRAINT "polygamous_houses_houseHeadId_fkey" FOREIGN KEY ("houseHeadId") REFERENCES "family_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "legal_dependants" ADD CONSTRAINT "legal_dependants_deceasedId_fkey" FOREIGN KEY ("deceasedId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "marriages" ADD CONSTRAINT "marriages_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "legal_dependants" ADD CONSTRAINT "legal_dependants_dependantId_fkey" FOREIGN KEY ("dependantId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "marriages" ADD CONSTRAINT "marriages_spouse1Id_fkey" FOREIGN KEY ("spouse1Id") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "legal_dependants" ADD CONSTRAINT "legal_dependants_custodialParentId_fkey" FOREIGN KEY ("custodialParentId") REFERENCES "family_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "marriages" ADD CONSTRAINT "marriages_spouse2Id_fkey" FOREIGN KEY ("spouse2Id") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "dependant_evidence" ADD CONSTRAINT "dependant_evidence_dependantId_fkey" FOREIGN KEY ("dependantId") REFERENCES "legal_dependants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "marriages" ADD CONSTRAINT "marriages_polygamousHouseId_fkey" FOREIGN KEY ("polygamousHouseId") REFERENCES "polygamous_houses"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CohabitationRecord" ADD CONSTRAINT "CohabitationRecord_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "family_relationships" ADD CONSTRAINT "family_relationships_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CohabitationRecord" ADD CONSTRAINT "CohabitationRecord_partner1Id_fkey" FOREIGN KEY ("partner1Id") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "family_relationships" ADD CONSTRAINT "family_relationships_fromMemberId_fkey" FOREIGN KEY ("fromMemberId") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CohabitationRecord" ADD CONSTRAINT "CohabitationRecord_partner2Id_fkey" FOREIGN KEY ("partner2Id") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "family_relationships" ADD CONSTRAINT "family_relationships_toMemberId_fkey" FOREIGN KEY ("toMemberId") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "NextOfKinDesignation" ADD CONSTRAINT "NextOfKinDesignation_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "cohabitation_records" ADD CONSTRAINT "cohabitation_records_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "NextOfKinDesignation" ADD CONSTRAINT "NextOfKinDesignation_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "adoption_orders" ADD CONSTRAINT "adoption_orders_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "AdoptionOrder" ADD CONSTRAINT "AdoptionOrder_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "next_of_kin_designations" ADD CONSTRAINT "next_of_kin_designations_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "AdoptionOrder" ADD CONSTRAINT "AdoptionOrder_adopteeId_fkey" FOREIGN KEY ("adopteeId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "guardianships" ADD CONSTRAINT "guardianships_wardId_fkey" FOREIGN KEY ("wardId") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "AdoptionOrder" ADD CONSTRAINT "AdoptionOrder_adopterId_fkey" FOREIGN KEY ("adopterId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "guardian_assignments" ADD CONSTRAINT "guardian_assignments_guardianshipId_fkey" FOREIGN KEY ("guardianshipId") REFERENCES "guardianships"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "guardian_assignments" ADD CONSTRAINT "guardian_assignments_guardianId_fkey" FOREIGN KEY ("guardianId") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "compliance_checks" ADD CONSTRAINT "compliance_checks_guardianshipId_fkey" FOREIGN KEY ("guardianshipId") REFERENCES "guardianships"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "family_legal_events" ADD CONSTRAINT "family_legal_events_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "wills" ADD CONSTRAINT "wills_testatorId_fkey" FOREIGN KEY ("testatorId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "wills" ADD CONSTRAINT "wills_supersedesId_fkey" FOREIGN KEY ("supersedesId") REFERENCES "wills"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -3427,6 +3115,18 @@ ALTER TABLE "estate_tax_compliance" ADD CONSTRAINT "estate_tax_compliance_estate
 
 -- AddForeignKey
 ALTER TABLE "asset_liquidations" ADD CONSTRAINT "asset_liquidations_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "legal_dependants" ADD CONSTRAINT "legal_dependants_deceasedId_fkey" FOREIGN KEY ("deceasedId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "legal_dependants" ADD CONSTRAINT "legal_dependants_dependantId_fkey" FOREIGN KEY ("dependantId") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "legal_dependants" ADD CONSTRAINT "legal_dependants_custodialParentId_fkey" FOREIGN KEY ("custodialParentId") REFERENCES "family_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "dependant_evidence" ADD CONSTRAINT "dependant_evidence_dependantId_fkey" FOREIGN KEY ("dependantId") REFERENCES "legal_dependants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "succession_cases" ADD CONSTRAINT "succession_cases_estateId_fkey" FOREIGN KEY ("estateId") REFERENCES "estates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -3553,6 +3253,18 @@ ALTER TABLE "_WitnessIdentityDocuments" ADD CONSTRAINT "_WitnessIdentityDocument
 
 -- AddForeignKey
 ALTER TABLE "_WitnessIdentityDocuments" ADD CONSTRAINT "_WitnessIdentityDocuments_B_fkey" FOREIGN KEY ("B") REFERENCES "will_witnesses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_FamilyCreator" ADD CONSTRAINT "_FamilyCreator_A_fkey" FOREIGN KEY ("A") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_FamilyCreator" ADD CONSTRAINT "_FamilyCreator_B_fkey" FOREIGN KEY ("B") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_FamilyMemberUser" ADD CONSTRAINT "_FamilyMemberUser_A_fkey" FOREIGN KEY ("A") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_FamilyMemberUser" ADD CONSTRAINT "_FamilyMemberUser_B_fkey" FOREIGN KEY ("B") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_AssetInventoryEntries" ADD CONSTRAINT "_AssetInventoryEntries_A_fkey" FOREIGN KEY ("A") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;

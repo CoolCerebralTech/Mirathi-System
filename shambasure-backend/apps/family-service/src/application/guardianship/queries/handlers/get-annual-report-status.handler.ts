@@ -2,7 +2,7 @@
 import { Inject } from '@nestjs/common';
 import { QueryBus, QueryHandler } from '@nestjs/cqrs';
 
-import { GuardianReportStatus } from '../../../../domain/entities/guardian.entity';
+import { GuardianReportStatus } from '../../../../domain/entities/guardian-assignment.entity';
 import type { IGuardianshipRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { GUARDIANSHIP_REPOSITORY } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { Result } from '../../../common/base/result';

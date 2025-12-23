@@ -1,6 +1,6 @@
 // domain/value-objects/legal/reporting-schedule.vo.ts
 import { ValueObject, ValueObjectValidationError } from '../../base/value-object';
-import { GuardianReportStatus } from '../../entities/guardian.entity';
+import { GuardianReportStatus } from '../../entities/guardian-assignment.entity';
 
 /**
  * Reporting Schedule Value Object (S.73 LSA)

@@ -1,6 +1,6 @@
 // application/guardianship/commands/impl/replace-guardian.command.ts
 import { GuardianEligibilityInfo } from '../../../../domain/aggregates/guardianship.aggregate';
-import { TerminationReason } from '../../../../domain/entities/guardian.entity';
+import { TerminationReason } from '../../../../domain/entities/guardian-assignment.entity';
 import { BaseCommand } from '../base.command';
 
 export interface ReplaceGuardianCommandPayload {

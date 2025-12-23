@@ -5,7 +5,7 @@ import { AggregateRoot } from '../base/aggregate-root';
 import { DomainEvent } from '../base/domain-event';
 import { UniqueEntityID } from '../base/unique-entity-id';
 // Entities
-import { Guardian, TerminationReason } from '../entities/guardian.entity';
+import { Guardian, TerminationReason } from '../entities/guardian-assignment.entity';
 // Events
 import { AnnualReportFiledEvent } from '../events/guardianship-events/annual-report-filed.event';
 import { GuardianAppointedEvent } from '../events/guardianship-events/guardian-appointed.event';
