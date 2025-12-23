@@ -3,7 +3,6 @@ import { Prisma } from '@prisma/client';
 export * from './database.module';
 export * from './services/prisma.service';
 export * from './services/database.service';
-export * from './types/prisma.types';
 
 // Re-export Prisma client for advanced usage
 export { PrismaClient } from '@prisma/client';
