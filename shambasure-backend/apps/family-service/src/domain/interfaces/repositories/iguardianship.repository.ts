@@ -755,3 +755,6 @@ export interface IEventStore {
   getEvents(aggregateId: string): Promise<DomainEvent[]>;
   getEventsSince(aggregateId: string, sinceVersion: number): Promise<DomainEvent[]>;
 }
+
+// ✅ export a value token to use with @Inject()
+export const GUARDIANSHIP_REPOSITORY = 'IGuardianshipRepository';

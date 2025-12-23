@@ -6,7 +6,7 @@ import {
   CreateLegalDependantProps,
   LegalDependant,
 } from '../../../../domain/entities/legal-dependant.entity';
-import type { ILegalDependantRepository } from '../../../../domain/interfaces/repositories/ilegal-dependant.repository';
+import type { ILegalDependantRepository } from '../../../../domain/interfaces/repositories/idependency-assessment.repository';
 import { Result } from '../../../common/base/result';
 import { DependencyAssessmentResponse } from '../../dto/response/dependency-assessment.response';
 import { DependencyMapper } from '../../mappers/dependency.mapper';

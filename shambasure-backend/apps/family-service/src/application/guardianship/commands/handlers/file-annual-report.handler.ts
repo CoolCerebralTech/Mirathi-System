@@ -1,31 +1,28 @@
-// application/guardianship/commands/handlers/file-annual-report.handler.ts
-import { Injectable } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 
 import { GuardianshipAggregate } from '../../../../domain/aggregates/guardianship.aggregate';
+import type { IGuardianshipRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
+import { GUARDIANSHIP_REPOSITORY } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { FileAnnualReportCommand } from '../impl/file-annual-report.command';
-import * as baseCommandHandler from './base-command.handler';
+import { BaseCommandHandler } from './base-command.handler';
 
-@Injectable()
 @CommandHandler(FileAnnualReportCommand)
 export class FileAnnualReportHandler
-  extends baseCommandHandler.BaseCommandHandler<
-    FileAnnualReportCommand,
-    GuardianshipAggregate,
-    void
-  >
-  implements ICommandHandler<FileAnnualReportCommand, void>
+  extends BaseCommandHandler<FileAnnualReportCommand, GuardianshipAggregate>
+  implements ICommandHandler<FileAnnualReportCommand>
 {
   constructor(
     protected readonly eventBus: EventBus,
-    protected readonly repository: baseCommandHandler.AggregateRepository<GuardianshipAggregate>,
+    @Inject(GUARDIANSHIP_REPOSITORY)
+    protected readonly repository: IGuardianshipRepository,
   ) {
     super(eventBus, repository);
   }
 
   async execute(command: FileAnnualReportCommand): Promise<void> {
-    await this.run(command, command.guardianshipId, async (aggregate) => {
-      aggregate.fileAnnualReport({
+    await this.run(command, command.guardianshipId, (guardianship) => {
+      guardianship.fileAnnualReport({
         guardianId: command.guardianId,
         reportDate: command.reportDate,
         summary: command.summary,

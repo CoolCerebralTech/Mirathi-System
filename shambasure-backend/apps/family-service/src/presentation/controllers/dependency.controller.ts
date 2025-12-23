@@ -33,23 +33,23 @@ import {
   CheckS29ComplianceQuery,
   ComplianceCheckLevel,
   ComplianceReportFormat,
-} from '../../application/dependency/queries/impl/check-s29-compliance.query';
-import { GetDependencyByIdQuery } from '../../application/dependency/queries/impl/get-dependency-by-id.query';
+} from '../../application/dependency/queries/impl/get-dependency-assessment-by-id.query';
+import { GetDependencyByIdQuery } from '../../application/dependency/queries/impl/get-dependency-assessment-summary.query';
 import {
   GetDependencyStatisticsQuery,
   StatisticsGranularity,
   TimePeriod,
-} from '../../application/dependency/queries/impl/get-dependency-statistics.query';
+} from '../../application/dependency/queries/impl/get-dependants-for-assessment.query';
 import {
   DependencyBasisFilter,
   DependencyStatus,
   ListDependenciesByDeceasedQuery,
-} from '../../application/dependency/queries/impl/list-dependencies-by-deceased.query';
+} from '../../application/dependency/queries/impl/get-dependant-details.query';
 import {
   SearchDependenciesQuery,
   SearchField,
   SearchScope,
-} from '../../application/dependency/queries/impl/search-dependencies.query';
+} from '../../application/dependency/queries/impl/get-dependency-distribution.query';
 import { DependencyApplicationService } from '../../application/dependency/services/dependency-application.service';
 
 /**

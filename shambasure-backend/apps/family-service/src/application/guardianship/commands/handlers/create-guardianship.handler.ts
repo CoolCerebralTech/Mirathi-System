@@ -1,29 +1,29 @@
 // application/guardianship/commands/handlers/create-guardianship.handler.ts
-import { Injectable } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 
 import { GuardianshipAggregate } from '../../../../domain/aggregates/guardianship.aggregate';
+import type { IGuardianshipRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
+import { GUARDIANSHIP_REPOSITORY } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { CreateGuardianshipCommand } from '../impl/create-guardianship.command';
-import * as baseCommandHandler from './base-command.handler';
+import { BaseCommandHandler } from './base-command.handler';
 
-@Injectable()
 @CommandHandler(CreateGuardianshipCommand)
 export class CreateGuardianshipHandler
-  extends baseCommandHandler.BaseCommandHandler<
-    CreateGuardianshipCommand,
-    GuardianshipAggregate,
-    string
-  >
+  extends BaseCommandHandler<CreateGuardianshipCommand, GuardianshipAggregate, string>
   implements ICommandHandler<CreateGuardianshipCommand, string>
 {
   constructor(
     protected readonly eventBus: EventBus,
-    protected readonly repository: baseCommandHandler.AggregateRepository<GuardianshipAggregate>,
+    @Inject(GUARDIANSHIP_REPOSITORY)
+    protected readonly repository: IGuardianshipRepository,
   ) {
     super(eventBus, repository);
   }
 
   async execute(command: CreateGuardianshipCommand): Promise<string> {
+    await this.ensureIdempotent(command);
+
     const guardianship = GuardianshipAggregate.create({
       wardInfo: command.wardInfo,
       guardianId: command.guardianId,
@@ -45,11 +45,11 @@ export class CreateGuardianshipHandler
       customaryDetails: command.customaryDetails,
     });
 
-    await this.repository.save(guardianship, 0); // Version 0 for new aggregate
+    await this.repository.save(guardianship);
 
     this.publishEventsAndCommit(guardianship);
 
-    this.logger.log(`Created guardianship ${guardianship.id} for ward ${command.wardInfo.wardId}`);
+    this.logSuccess(command, `Guardianship ID: ${guardianship.id.toString()}`);
 
     return guardianship.id.toString();
   }

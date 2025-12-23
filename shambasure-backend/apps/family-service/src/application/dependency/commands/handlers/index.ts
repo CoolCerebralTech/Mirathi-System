@@ -1,6 +1,11 @@
-// application/dependency/commands/handlers/index.ts
-export * from './base.command-handler';
 export * from './create-dependency-assessment.handler';
-export * from './assess-financial-dependency.handler';
-export * from './file-s26-claim.handler';
-export * from './record-court-provision.handler';
+export * from './assess-dependant-dependency.handler';
+export * from './declare-dependant.handler';
+export * from './record-court-dependency-order.handler';
+export * from './calculate-dependency-distribution.handler';
+export * from './reject-dependant-evidence.handler';
+export * from './finalize-dependency-assessment.handler';
+export * from './remove-dependant.handler';
+export * from './submit-dependant-evidence.handler';
+export * from './update-dependant-dependency.handler';
+export * from './verify-dependant-evidence.handler';

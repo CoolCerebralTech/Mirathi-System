@@ -244,7 +244,7 @@ export class LegalDependant extends Entity<LegalDependantProps> {
       currentAge: props.currentAge,
       isStudent: props.isStudent ?? false,
       studentUntil: props.studentUntil,
-      ageLimit: LegalDependant.determineAgeLimit(props.isMinor, props.isStudent),
+      ageLimit: LegalDependant.determineAgeLimit(props.isMinor, props.isStudent ?? false),
       custodialParentId,
       isS26Claimant: false,
       s26ClaimStatus: S26ClaimStatus.NO_CLAIM,

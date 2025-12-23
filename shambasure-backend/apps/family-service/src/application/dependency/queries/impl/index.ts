@@ -1,6 +1,9 @@
-// application/dependency/queries/impl/index.ts
-export * from './get-dependency-by-id.query';
-export * from './list-dependencies-by-deceased.query';
-export * from './check-s29-compliance.query';
-export * from './get-dependency-statistics.query';
-export * from './search-dependencies.query';
+export * from './get-dependency-assessment-summary.query';
+export * from './get-dependant-details.query';
+export * from './get-dependency-assessment-by-id.query';
+export * from './get-dependants-for-assessment.query';
+export * from './get-dependency-distribution.query';
+export * from './get-dependency-compliance-status.query';
+export * from './get-dependency-dashboard.query';
+export * from './get-dependency-distribution-preview.query';
+export * from './get-unresolved-dependency-issues.query';

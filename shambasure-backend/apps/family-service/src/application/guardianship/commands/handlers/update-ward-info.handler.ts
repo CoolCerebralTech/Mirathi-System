@@ -1,27 +1,28 @@
-// application/guardianship/commands/handlers/update-ward-info.handler.ts
-import { Injectable } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 
 import { GuardianshipAggregate } from '../../../../domain/aggregates/guardianship.aggregate';
+import type { IGuardianshipRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
+import { GUARDIANSHIP_REPOSITORY } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { UpdateWardInfoCommand } from '../impl/update-ward-info.command';
-import * as baseCommandHandler from './base-command.handler';
+import { BaseCommandHandler } from './base-command.handler';
 
-@Injectable()
 @CommandHandler(UpdateWardInfoCommand)
 export class UpdateWardInfoHandler
-  extends baseCommandHandler.BaseCommandHandler<UpdateWardInfoCommand, GuardianshipAggregate, void>
-  implements ICommandHandler<UpdateWardInfoCommand, void>
+  extends BaseCommandHandler<UpdateWardInfoCommand, GuardianshipAggregate>
+  implements ICommandHandler<UpdateWardInfoCommand>
 {
   constructor(
     protected readonly eventBus: EventBus,
-    protected readonly repository: baseCommandHandler.AggregateRepository<GuardianshipAggregate>,
+    @Inject(GUARDIANSHIP_REPOSITORY)
+    protected readonly repository: IGuardianshipRepository,
   ) {
     super(eventBus, repository);
   }
 
   async execute(command: UpdateWardInfoCommand): Promise<void> {
-    await this.run(command, command.guardianshipId, async (aggregate) => {
-      aggregate.updateWardInfo(command.wardInfo);
+    await this.run(command, command.guardianshipId, (guardianship) => {
+      guardianship.updateWardInfo(command.wardInfo);
     });
   }
 }

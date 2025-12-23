@@ -1,121 +1,156 @@
 // application/guardianship/ports/inbound/guardianship.use-case.ts
-import { PaginatedResponse } from '../../../common/dto/pagination.dto';
-import { CreateGuardianshipRequest } from '../../dto/request/create-guardianship.request';
-import { FileAnnualReportRequest } from '../../dto/request/file-annual-report.request';
-import { FindGuardianshipsQuery } from '../../dto/request/get-guardian-by-id.request';
-import { GrantPropertyPowersRequest } from '../../dto/request/grant-property-powers.request';
-import { PostBondRequest } from '../../dto/request/get-guardians.request';
-import { TerminateGuardianshipRequest } from '../../dto/request/dissolve-guardianship.request';
-import { UpdateAllowanceRequest } from '../../dto/request/update-guardian-allowance.request';
-import { ComplianceReportResponse } from '../../dto/response/compliance-status.response';
-import { GuardianshipSummaryResponse } from '../../dto/response/guardianship-summary.response';
-import { GuardianshipResponse } from '../../dto/response/guardianship.response';
+import { Result } from '../../../common/base/result';
+// Command Payloads
+import { AddCoGuardianCommandPayload } from '../../commands/impl/add-co-guardian.command';
+import { CheckBondExpiryCommandPayload } from '../../commands/impl/check-bond-expiry.command';
+import { CheckComplianceCommandPayload } from '../../commands/impl/check-compliance.command';
+import { CreateGuardianshipCommandPayload } from '../../commands/impl/create-guardianship.command';
+import { DissolveGuardianshipCommandPayload } from '../../commands/impl/dissolve-guardianship.command';
+import { FileAnnualReportCommandPayload } from '../../commands/impl/file-annual-report.command';
+import { GrantPropertyPowersCommandPayload } from '../../commands/impl/grant-property-powers.command';
+import { PostGuardianBondCommandPayload } from '../../commands/impl/post-guardian-bond.command';
+import { RecordWardCapacityRestoredCommandPayload } from '../../commands/impl/record-ward-capacity-restored.command';
+import { RecordWardDeathCommandPayload } from '../../commands/impl/record-ward-death.command';
+import { RemoveGuardianCommandPayload } from '../../commands/impl/remove-guardian.command';
+import { RenewGuardianBondCommandPayload } from '../../commands/impl/renew-guardian-bond.command';
+import { ReplaceGuardianCommandPayload } from '../../commands/impl/replace-guardian.command';
+import { UpdateGuardianAllowanceCommandPayload } from '../../commands/impl/update-guardian-allowance.command';
+import { UpdateGuardianRestrictionsCommandPayload } from '../../commands/impl/update-guardian-restrictions.command';
+import { UpdateWardInfoCommandPayload } from '../../commands/impl/update-ward-info.command';
+// Query Filters & Read Models
+import { ReportStatusFilters } from '../../queries/impl/get-annual-report-status.query';
+import { BondExpiryFilters } from '../../queries/impl/get-bond-expiry-dashboard.query';
+import { AnnualReportStatusReadModel } from '../../queries/read-models/annual-report-status.read-model';
+import { BondExpiryReadModel } from '../../queries/read-models/bond-expiry.read-model';
+import { ComplianceStatusReadModel } from '../../queries/read-models/compliance-status.read-model';
+import { CustomaryGuardianshipReadModel } from '../../queries/read-models/customary-guardianship.read-model';
+import { GuardianAssignmentReadModel } from '../../queries/read-models/guardian-assignment.read-model';
+import { GuardianshipDetailsReadModel } from '../../queries/read-models/guardianship-details.read-model';
+import { GuardianshipSummaryReadModel } from '../../queries/read-models/guardianship-summary.read-model';
 
-export interface IGuardianshipUseCase {
-  /**
-   * Core Guardianship Management
-   */
-  createGuardianship(
-    request: CreateGuardianshipRequest,
-    userId: string,
-  ): Promise<GuardianshipResponse>;
+/**
+ * Metadata for context propagation (UserInfo, Tracing)
+ */
+export interface AppContext {
+  userId: string;
+  correlationId?: string;
+  causationId?: string;
+}
 
-  getGuardianshipById(id: string): Promise<GuardianshipResponse>;
+/**
+ * Guardianship Use Case / Inbound Port
+ *
+ * Defines the application's API surface.
+ * Controllers invoke these methods, oblivious to CQRS/EventSourcing internals.
+ */
+export abstract class GuardianshipUseCase {
+  // ===========================================================================
+  // COMMANDS (Write)
+  // ===========================================================================
+  abstract createGuardianship(
+    payload: CreateGuardianshipCommandPayload,
+    ctx: AppContext,
+  ): Promise<string>;
 
-  updateGuardianship(
+  abstract addCoGuardian(payload: AddCoGuardianCommandPayload, ctx: AppContext): Promise<void>;
+
+  abstract replaceGuardian(payload: ReplaceGuardianCommandPayload, ctx: AppContext): Promise<void>;
+
+  abstract removeGuardian(payload: RemoveGuardianCommandPayload, ctx: AppContext): Promise<void>;
+
+  abstract dissolveGuardianship(
+    payload: DissolveGuardianshipCommandPayload,
+    ctx: AppContext,
+  ): Promise<void>;
+
+  // --- Bond Management ---
+  abstract postGuardianBond(
+    payload: PostGuardianBondCommandPayload,
+    ctx: AppContext,
+  ): Promise<void>;
+
+  abstract renewGuardianBond(
+    payload: RenewGuardianBondCommandPayload,
+    ctx: AppContext,
+  ): Promise<void>;
+
+  abstract checkBondExpiry(payload: CheckBondExpiryCommandPayload, ctx: AppContext): Promise<void>;
+
+  // --- Powers & Reporting ---
+  abstract grantPropertyPowers(
+    payload: GrantPropertyPowersCommandPayload,
+    ctx: AppContext,
+  ): Promise<void>;
+
+  abstract updateRestrictions(
+    payload: UpdateGuardianRestrictionsCommandPayload,
+    ctx: AppContext,
+  ): Promise<void>;
+
+  abstract updateAllowance(
+    payload: UpdateGuardianAllowanceCommandPayload,
+    ctx: AppContext,
+  ): Promise<void>;
+
+  abstract fileAnnualReport(
+    payload: FileAnnualReportCommandPayload,
+    ctx: AppContext,
+  ): Promise<void>;
+
+  abstract checkCompliance(payload: CheckComplianceCommandPayload, ctx: AppContext): Promise<void>;
+
+  // --- Ward Lifecycle ---
+  abstract updateWardInfo(payload: UpdateWardInfoCommandPayload, ctx: AppContext): Promise<void>;
+
+  abstract recordWardDeath(payload: RecordWardDeathCommandPayload, ctx: AppContext): Promise<void>;
+
+  abstract recordWardCapacityRestored(
+    payload: RecordWardCapacityRestoredCommandPayload,
+    ctx: AppContext,
+  ): Promise<void>;
+
+  // ===========================================================================
+  // QUERIES (Read)
+  // ===========================================================================
+  abstract getGuardianshipById(
     id: string,
-    updates: Partial<CreateGuardianshipRequest>,
-  ): Promise<GuardianshipResponse>;
+    ctx: AppContext,
+  ): Promise<Result<GuardianshipDetailsReadModel>>;
 
-  /**
-   * Kenyan Law Compliance Operations (S.70-73 LSA)
-   */
-  postBond(guardianshipId: string, request: PostBondRequest): Promise<GuardianshipResponse>;
+  abstract getGuardianshipSummary(
+    id: string,
+    ctx: AppContext,
+  ): Promise<Result<GuardianshipSummaryReadModel>>;
 
-  fileAnnualReport(
-    guardianshipId: string,
-    request: FileAnnualReportRequest,
-  ): Promise<GuardianshipResponse>;
-
-  grantPropertyManagementPowers(
-    guardianshipId: string,
-    request: GrantPropertyPowersRequest,
-  ): Promise<GuardianshipResponse>;
-
-  updateAnnualAllowance(
-    guardianshipId: string,
-    request: UpdateAllowanceRequest,
-  ): Promise<GuardianshipResponse>;
-
-  approveAnnualReport(guardianshipId: string, auditorId: string): Promise<GuardianshipResponse>;
-
-  /**
-   * Lifecycle Management
-   */
-  terminateGuardianship(
-    guardianshipId: string,
-    request: TerminateGuardianshipRequest,
-  ): Promise<GuardianshipResponse>;
-
-  extendGuardianshipTerm(
-    guardianshipId: string,
-    newValidUntil: Date,
-    courtOrderNumber?: string,
-  ): Promise<GuardianshipResponse>;
-
-  renewBond(
-    guardianshipId: string,
-    newExpiryDate: Date,
-    provider?: string,
-    policyNumber?: string,
-  ): Promise<GuardianshipResponse>;
-
-  /**
-   * Query Operations
-   */
-  findGuardianships(
-    query: FindGuardianshipsQuery,
-  ): Promise<PaginatedResponse<GuardianshipSummaryResponse>>;
-
-  findGuardianshipsByWardId(wardId: string, activeOnly?: boolean): Promise<GuardianshipResponse[]>;
-
-  findGuardianshipsByGuardianId(
-    guardianId: string,
-    activeOnly?: boolean,
-  ): Promise<GuardianshipResponse[]>;
-
-  /**
-   * Compliance & Monitoring
-   */
-  checkCompliance(guardianshipId: string): Promise<{
-    s72Compliant: boolean;
-    s73Compliant: boolean;
-    overallCompliant: boolean;
-    issues: string[];
-  }>;
-
-  getComplianceReport(): Promise<ComplianceReportResponse>;
-
-  findOverdueGuardianships(): Promise<GuardianshipSummaryResponse[]>;
-
-  findExpiringBonds(daysThreshold: number): Promise<GuardianshipSummaryResponse[]>;
-
-  findDueReports(daysThreshold: number): Promise<GuardianshipSummaryResponse[]>;
-
-  /**
-   * Bulk Operations
-   */
-  markOverdueReports(): Promise<{ marked: number }>;
-
-  sendComplianceNotifications(): Promise<{ sent: number }>;
-
-  /**
-   * Validation & Verification
-   */
-  validateGuardianshipEligibility(
+  abstract getWardGuardianships(
     wardId: string,
-    guardianId: string,
-  ): Promise<{ eligible: boolean; reasons: string[] }>;
+    includeDissolved: boolean,
+    ctx: AppContext,
+  ): Promise<Result<GuardianshipSummaryReadModel[]>>;
 
-  verifyCourtOrder(courtOrderNumber: string): Promise<{ valid: boolean; details: any }>;
+  abstract getGuardianActiveAssignments(
+    guardianId: string,
+    ctx: AppContext,
+  ): Promise<Result<GuardianAssignmentReadModel[]>>;
+
+  abstract getComplianceStatus(
+    id: string,
+    ctx: AppContext,
+  ): Promise<Result<ComplianceStatusReadModel>>;
+
+  abstract getBondExpiryDashboard(
+    filters: BondExpiryFilters,
+    ctx: AppContext,
+  ): Promise<Result<BondExpiryReadModel[]>>;
+
+  abstract getAnnualReportStatus(
+    id: string,
+    filters: ReportStatusFilters | undefined,
+    ctx: AppContext,
+  ): Promise<Result<AnnualReportStatusReadModel>>;
+
+  abstract getCustomaryGuardianshipDetails(
+    id: string,
+    ctx: AppContext,
+  ): Promise<Result<CustomaryGuardianshipReadModel>>;
 }

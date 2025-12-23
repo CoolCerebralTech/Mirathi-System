@@ -1,5 +1,11 @@
-// application/dependency/commands/impl/index.ts
 export * from './create-dependency-assessment.command';
-export * from './assess-financial-dependency.command';
-export * from './file-s26-claim.command';
-export * from './record-court-provision.command';
+export * from './assess-dependant-dependency.command';
+export * from './update-dependant-dependency.command';
+export * from './record-court-dependency-order.command';
+export * from './calculate-dependency-distribution.command';
+export * from './declare-dependant.command';
+export * from './finalize-dependency-assessment.command';
+export * from './reject-dependant-evidence.command';
+export * from './remove-dependant.command';
+export * from './submit-dependant-evidence.command';
+export * from './verify-dependant-evidence.command';

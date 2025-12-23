@@ -5,7 +5,7 @@ import { Result } from '../../common/base/result';
 import {
   AssessFinancialDependencyCommand,
   AssessmentMethod,
-} from '../commands/impl/assess-financial-dependency.command';
+} from '../commands/impl/assess-dependant-dependency.command';
 import {
   CreateDependencyAssessmentCommand,
   EvidenceDocumentCommand,
@@ -14,11 +14,11 @@ import {
   FileS26ClaimCommand,
   S26ClaimType,
   SupportingDocumentCommand,
-} from '../commands/impl/file-s26-claim.command';
+} from '../commands/impl/update-dependant-dependency.command';
 import {
   ProvisionType,
   RecordCourtProvisionCommand,
-} from '../commands/impl/record-court-provision.command';
+} from '../commands/impl/record-court-dependency-order.command';
 import {
   AssessFinancialDependencyRequest,
   CreateDependencyAssessmentRequest,

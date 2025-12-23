@@ -5,11 +5,7 @@ import { Address } from '../../../shared/address.vo';
 import { Email } from '../../../shared/email.vo';
 import { KenyanId } from '../../../shared/kenyan-id.vo';
 import { PhoneNumber } from '../../../shared/phone-number.vo';
-import {
-  WitnessEligibilityStatus,
-  WitnessSignature,
-  WitnessVerificationMethod,
-} from '../value-objects/witness-signature.vo';
+
 
 export interface WillWitnessProps {
   // Core Identity

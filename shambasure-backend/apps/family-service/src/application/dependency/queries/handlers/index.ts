@@ -1,7 +1,9 @@
-// application/dependency/queries/handlers/index.ts
-export * from './base.query-handler';
-export * from './get-dependency-by-id.handler';
-export * from './list-dependencies-by-deceased.handler';
-export * from './check-s29-compliance.handler';
-export * from './get-dependency-statistics.handler';
-export * from './search-dependencies.handler';
+export * from './get-dependency-assessment-summary.handler';
+export * from './get-dependant-details.handler';
+export * from './get-dependency-assessment-by-id.handler';
+export * from './get-dependants-for-assessment.handler';
+export * from './get-dependency-distribution.handler';
+export * from './get-dependency-compliance-status.handler';
+export * from './get-dependency-dashboard.handler';
+export * from './get-dependency-distribution-preview.handler';
+export * from './get-unresolved-dependency-issues.handler';

@@ -18,3 +18,10 @@ export class InvalidDependantException extends DependencyDomainException {
     this.name = 'InvalidDependantException';
   }
 }
+
+export class DuplicateDependantException extends DependencyDomainException {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DuplicateDependantException';
+  }
+}

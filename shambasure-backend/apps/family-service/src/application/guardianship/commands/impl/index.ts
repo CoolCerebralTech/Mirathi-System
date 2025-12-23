@@ -11,7 +11,6 @@ export * from './record-ward-death.command';
 export * from './record-ward-capacity-restored.command';
 export * from './dissolve-guardianship.command';
 export * from './check-compliance.command';
-export * from './update-ward-info.command';
 export * from './check-bond-expiry.command';
 export * from './renew-guardian-bond.command';
 export * from './update-guardian-restrictions.command';

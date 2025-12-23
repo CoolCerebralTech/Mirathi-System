@@ -1,27 +1,28 @@
-// application/guardianship/commands/handlers/add-co-guardian.handler.ts
-import { Injectable } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 
 import { GuardianshipAggregate } from '../../../../domain/aggregates/guardianship.aggregate';
+import type { IGuardianshipRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
+import { GUARDIANSHIP_REPOSITORY } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { AddCoGuardianCommand } from '../impl/add-co-guardian.command';
-import * as baseCommandHandler from './base-command.handler';
+import { BaseCommandHandler } from './base-command.handler';
 
-@Injectable()
 @CommandHandler(AddCoGuardianCommand)
 export class AddCoGuardianHandler
-  extends baseCommandHandler.BaseCommandHandler<AddCoGuardianCommand, GuardianshipAggregate, void>
-  implements ICommandHandler<AddCoGuardianCommand, void>
+  extends BaseCommandHandler<AddCoGuardianCommand, GuardianshipAggregate>
+  implements ICommandHandler<AddCoGuardianCommand>
 {
   constructor(
     protected readonly eventBus: EventBus,
-    protected readonly repository: baseCommandHandler.AggregateRepository<GuardianshipAggregate>,
+    @Inject(GUARDIANSHIP_REPOSITORY)
+    protected readonly repository: IGuardianshipRepository,
   ) {
     super(eventBus, repository);
   }
 
   async execute(command: AddCoGuardianCommand): Promise<void> {
-    await this.run(command, command.guardianshipId, async (aggregate) => {
-      aggregate.addCoGuardian({
+    await this.run(command, command.guardianshipId, (guardianship) => {
+      guardianship.addCoGuardian({
         guardianId: command.guardianId,
         guardianEligibility: command.guardianEligibility,
         type: command.type,

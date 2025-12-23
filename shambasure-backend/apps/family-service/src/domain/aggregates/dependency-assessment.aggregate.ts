@@ -1,761 +1,996 @@
-import { DependencyLevel, KenyanLawSection } from '@prisma/client';
-
+// domain/aggregates/dependency-assessment.aggregate.ts
 import { AggregateRoot } from '../base/aggregate-root';
-import { CourtProvisionOrderedEvent } from '../events/dependency-events/court-provision-ordered.event';
-import { DependantDeclaredEvent } from '../events/dependency-events/dependant-declared.event';
-import { DependantEvidenceVerifiedEvent } from '../events/dependency-events/dependant-evidence-verified.event';
-import { DependencyAssessedEvent } from '../events/dependency-events/dependency-assessed.event';
-import { S26ClaimFiledEvent } from '../events/dependency-events/s26-claim-filed.event';
+import { DomainEvent } from '../base/domain-event';
+import { UniqueEntityID } from '../base/unique-entity-id';
+// Entities
+import {
+  DependencyRelationship,
+  LegalDependant,
+  S26ClaimStatus,
+} from '../entities/legal-dependant.entity';
+import { DependantAddedEvent } from '../events/dependency-events/dependant-added.event';
+import { DependantRemovedEvent } from '../events/dependency-events/dependant-removed.event';
+// Events
+import { DependencyAssessmentCreatedEvent } from '../events/dependency-events/dependency-assessment-created.event';
+import { HotchpotAdjustmentAppliedEvent } from '../events/dependency-events/hotchpot-adjustment-applied.event';
+import { TotalDependencyCalculatedEvent } from '../events/dependency-events/total-dependency-calculated.event';
+// Exceptions
 import {
   DependencyDomainException,
+  DuplicateDependantException,
   InvalidDependantException,
 } from '../exceptions/dependant.exception';
 
-export interface DependencyAssessmentProps {
-  id: string;
+/**
+ * Deceased Information (Snapshot from Family/Estate Service)
+ */
+export interface DeceasedInfo {
   deceasedId: string;
-  dependantId: string;
-
-  // Legal basis
-  basisSection?: KenyanLawSection;
-
-  // Dependency basis and level
-  dependencyBasis: string;
-  dependencyLevel: DependencyLevel;
-  isMinor: boolean;
-
-  // S.26 Court provision tracking
-  isClaimant: boolean;
-  claimAmount?: number;
-  provisionAmount?: number;
-  currency: string;
-  courtOrderReference?: string;
-  courtOrderDate?: Date;
-
-  // Financial dependency evidence
-  monthlySupport?: number;
-  supportStartDate?: Date;
-  supportEndDate?: Date;
-
-  // Dependency calculation
-  assessmentDate: Date;
-  assessmentMethod?: string;
-  dependencyPercentage: number;
-
-  // Age & circumstances
-  ageLimit?: number;
-  isStudent: boolean;
-  studentUntil?: Date;
-
-  // Custodial parent (for minors)
-  custodialParentId?: string;
-
-  // Court proceedings
-  provisionOrderIssued: boolean;
-  provisionOrderNumber?: string;
-  courtApprovedAmount?: number;
-
-  // Computed fields
-  monthlySupportEvidence?: number;
-  dependencyRatio?: number;
-
-  // Special circumstances (S. 29(2) LSA)
-  hasPhysicalDisability: boolean;
-  hasMentalDisability: boolean;
-  requiresOngoingCare: boolean;
-  disabilityDetails?: string;
-
-  // Verification
-  dependencyProofDocuments?: any[];
-  verifiedByCourtAt?: Date;
-
-  // Audit
-  version: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface CreateDependencyAssessmentProps {
-  deceasedId: string;
-  dependantId: string;
-  dependencyBasis: string;
-  isMinor: boolean;
-
-  // Dependency details
-  dependencyLevel?: DependencyLevel;
-  isStudent?: boolean;
-  hasPhysicalDisability?: boolean;
-  hasMentalDisability?: boolean;
-  requiresOngoingCare?: boolean;
-  disabilityDetails?: string;
-
-  // Financial details (optional at creation)
-  monthlySupport?: number;
-  supportStartDate?: Date;
-  supportEndDate?: Date;
-
-  // Assessment details
-  assessmentMethod?: string;
-  dependencyPercentage?: number;
-
-  // Custodial parent (for minors)
-  custodialParentId?: string;
+  fullName: string;
+  dateOfDeath: Date;
+  monthlyIncome?: number; // For dependency calculations
+  totalEstateValue?: number; // Gross estate value
 }
 
 /**
- * DependencyAssessmentAggregate
+ * Gift Inter Vivos (S.35(3) Hotchpot)
  *
- * Manages the lifecycle of a Section 29 / Section 26 Claim.
- * Invariants:
- * 1. S.29(b) dependants (Parents/Siblings) must provide financial evidence to be "FULL" or "PARTIAL".
- * 2. Court Orders (S.27/28) override any manual calculation.
- * 3. Claims must be supported by evidence documents before finalization.
+ * Gifts made by deceased during lifetime that must be
+ * brought back into estate for fair distribution
  */
-export class DependencyAssessmentAggregate extends AggregateRoot<DependencyAssessmentProps> {
-  private constructor(props: DependencyAssessmentProps) {
-    super(props.id, props);
+export interface GiftInterVivos {
+  giftId: string;
+  recipientId: string; // Which dependant received gift
+  valueAtGiftTime: number;
+  dateOfGift: Date;
+  description: string;
+  isSubjectToHotchpot: boolean; // Some gifts exempt
+}
+
+/**
+ * Distribution Calculation Result
+ */
+export interface DistributionCalculation {
+  dependantId: string;
+  dependantName: string;
+  relationship: DependencyRelationship;
+  dependencyPercentage: number;
+  grossEntitlement: number; // Before hotchpot
+  hotchpotDeduction: number; // S.35(3) adjustment
+  netEntitlement: number; // Final amount
+  entitlementBasis: string; // S29_DEPENDANTS, S26_PROVISION, etc.
+}
+
+/**
+ * Dependency Assessment Aggregate Props
+ */
+export interface DependencyAssessmentAggregateProps {
+  // Deceased Information
+  deceasedInfo: DeceasedInfo;
+
+  // Dependants (Map for O(1) lookup)
+  dependants: Map<string, LegalDependant>; // dependantId -> LegalDependant
+
+  // S.35(3) Hotchpot Tracking
+  giftsInterVivos: Map<string, GiftInterVivos>; // giftId -> Gift
+
+  // Calculation Results
+  totalDependants: number;
+  totalDependencyPercentage: number; // Sum of all percentages
+  lastCalculatedAt?: Date;
+  distributionCalculations?: DistributionCalculation[];
+
+  // Status
+  isFinalized: boolean; // Locked for distribution
+  finalizedAt?: Date;
+  finalizedBy?: UniqueEntityID;
+}
+
+/**
+ * Props for Creating Dependency Assessment
+ */
+export interface CreateDependencyAssessmentProps {
+  deceasedInfo: DeceasedInfo;
+}
+
+/**
+ * DEPENDENCY ASSESSMENT AGGREGATE ROOT
+ *
+ * Manages all dependants of a deceased person and calculates their entitlements
+ *
+ * KENYAN LAW COMPLIANCE:
+ * - S.29: Automatic and conditional dependants
+ * - S.26: Court provision for non-dependants
+ * - S.35(3): Hotchpot (gifts inter vivos adjustment)
+ * - S.40: Polygamous family distribution
+ *
+ * AGGREGATE RESPONSIBILITIES:
+ * 1. Manage collection of LegalDependant entities
+ * 2. Enforce family-level invariants
+ * 3. Calculate total dependency distribution
+ * 4. Apply S.35(3) hotchpot adjustments
+ * 5. Validate no duplicate dependants
+ * 6. Finalize distribution for execution
+ *
+ * AGGREGATE BOUNDARIES:
+ * - Contains: LegalDependant entities, Gift records
+ * - References: Deceased (from Family/Estate aggregate)
+ * - Coordinates with: Estate aggregate for distribution
+ *
+ * INVARIANTS:
+ * 1. Cannot have duplicate dependants
+ * 2. Total dependency percentage may exceed 100% (proportional distribution)
+ * 3. Priority dependants (spouse/child) cannot be removed
+ * 4. S.26 claims require court approval before finalization
+ * 5. Hotchpot adjustments only for blood relatives
+ * 6. Cannot modify after finalization
+ */
+export class DependencyAssessmentAggregate extends AggregateRoot<DependencyAssessmentAggregateProps> {
+  private constructor(
+    id: UniqueEntityID,
+    props: DependencyAssessmentAggregateProps,
+    createdAt?: Date,
+  ) {
+    super(id, props, createdAt);
     this.validate();
   }
 
-  // --- Factory Methods ---
+  // ============================================================================
+  // FACTORY METHODS
+  // ============================================================================
 
-  static create(props: CreateDependencyAssessmentProps): DependencyAssessmentAggregate {
-    const id = this.generateId();
-    const now = new Date();
+  /**
+   * Create new Dependency Assessment (when person dies)
+   */
+  public static create(props: CreateDependencyAssessmentProps): DependencyAssessmentAggregate {
+    const id = new UniqueEntityID();
 
-    // Determine appropriate law section based on dependency basis
-    let basisSection: KenyanLawSection = KenyanLawSection.S29_DEPENDANTS;
-
-    if (['SPOUSE', 'CHILD', 'ADOPTED_CHILD'].includes(props.dependencyBasis)) {
-      basisSection = KenyanLawSection.S29_DEPENDANTS;
-    } else if (props.dependencyBasis === 'EX_SPOUSE' || props.dependencyBasis === 'COHABITOR') {
-      basisSection = KenyanLawSection.S26_DEPENDANT_PROVISION;
-    }
-
-    // Determine dependency level if not provided
-    let dependencyLevel = props.dependencyLevel || DependencyLevel.NONE;
-    if (['SPOUSE', 'CHILD', 'ADOPTED_CHILD'].includes(props.dependencyBasis)) {
-      // Spouses and Children are automatic dependants under S.29(a)
-      dependencyLevel = DependencyLevel.FULL;
-    } else if (props.dependencyBasis === 'PARENT' || props.dependencyBasis === 'SIBLING') {
-      // Parents, Siblings, etc., are conditional under S.29(b)
-      dependencyLevel = DependencyLevel.PARTIAL;
-    }
-
-    // Calculate dependency percentage if not provided
-    let dependencyPercentage = props.dependencyPercentage || 100;
-    if (dependencyLevel === DependencyLevel.PARTIAL) {
-      dependencyPercentage = 50; // Default for partial dependants
-    } else if (dependencyLevel === DependencyLevel.FULL) {
-      dependencyPercentage = 100;
-    }
-
-    const assessmentProps: DependencyAssessmentProps = {
-      id,
-      deceasedId: props.deceasedId,
-      dependantId: props.dependantId,
-      basisSection,
-      dependencyBasis: props.dependencyBasis,
-      dependencyLevel,
-      isMinor: props.isMinor,
-      isClaimant: false,
-      currency: 'KES',
-      provisionOrderIssued: false,
-      monthlySupport: props.monthlySupport,
-      supportStartDate: props.supportStartDate,
-      supportEndDate: props.supportEndDate,
-      assessmentDate: now,
-      assessmentMethod: props.assessmentMethod,
-      dependencyPercentage,
-      isStudent: props.isStudent || false,
-      custodialParentId: props.custodialParentId,
-      hasPhysicalDisability: props.hasPhysicalDisability || false,
-      hasMentalDisability: props.hasMentalDisability || false,
-      requiresOngoingCare: props.requiresOngoingCare || false,
-      disabilityDetails: props.disabilityDetails,
-      version: 1,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    const aggregate = new DependencyAssessmentAggregate(assessmentProps);
+    const aggregate = new DependencyAssessmentAggregate(id, {
+      deceasedInfo: props.deceasedInfo,
+      dependants: new Map(),
+      giftsInterVivos: new Map(),
+      totalDependants: 0,
+      totalDependencyPercentage: 0,
+      isFinalized: false,
+    });
 
     aggregate.addDomainEvent(
-      new DependantDeclaredEvent({
-        legalDependantId: id,
-        deceasedId: props.deceasedId,
-        dependantId: props.dependantId,
-        dependencyBasis: props.dependencyBasis,
-        dependencyLevel,
-        isMinor: props.isMinor,
+      new DependencyAssessmentCreatedEvent(id.toString(), 'DependencyAssessmentAggregate', 1, {
+        assessmentId: id.toString(),
+        deceasedId: props.deceasedInfo.deceasedId,
+        deceasedName: props.deceasedInfo.fullName,
+        dateOfDeath: props.deceasedInfo.dateOfDeath,
       }),
     );
-
-    // Emit dependency assessed event if there's financial information
-    if (props.monthlySupport) {
-      aggregate.emitDependencyAssessedEvent();
-    }
 
     return aggregate;
   }
 
-  static createFromProps(props: DependencyAssessmentProps): DependencyAssessmentAggregate {
-    return new DependencyAssessmentAggregate(props);
+  /**
+   * Reconstitute from persistence
+   */
+  public static fromPersistence(
+    id: string,
+    props: DependencyAssessmentAggregateProps,
+    createdAt: Date,
+  ): DependencyAssessmentAggregate {
+    return new DependencyAssessmentAggregate(new UniqueEntityID(id), props, createdAt);
   }
 
-  // --- Domain Logic ---
+  // ============================================================================
+  // AGGREGATE COMMANDS - DEPENDANT MANAGEMENT
+  // ============================================================================
 
-  assessFinancialDependency(params: {
-    monthlySupportEvidence: number;
-    dependencyRatio: number;
-    dependencyPercentage: number;
-    assessmentMethod: string;
-  }): void {
-    if (this.props.provisionOrderIssued) {
-      throw new InvalidDependantException(
-        'Cannot reassess financial dependency after court provision order is issued.',
-      );
-    }
-
-    if (params.monthlySupportEvidence < 0) {
-      throw new InvalidDependantException('Monthly support evidence cannot be negative.');
-    }
-
-    if (params.dependencyRatio < 0 || params.dependencyRatio > 1) {
-      throw new InvalidDependantException('Dependency ratio must be between 0 and 1.');
-    }
-
-    if (params.dependencyPercentage < 0 || params.dependencyPercentage > 100) {
-      throw new InvalidDependantException('Dependency percentage must be between 0 and 100.');
-    }
-
-    this.props.monthlySupportEvidence = params.monthlySupportEvidence;
-    this.props.dependencyRatio = params.dependencyRatio;
-    this.props.dependencyPercentage = params.dependencyPercentage;
-    this.props.assessmentMethod = params.assessmentMethod;
-    this.props.assessmentDate = new Date();
-
-    // Update dependency level based on percentage
-    if (params.dependencyPercentage >= 75) {
-      this.props.dependencyLevel = DependencyLevel.FULL;
-    } else if (params.dependencyPercentage >= 25) {
-      this.props.dependencyLevel = DependencyLevel.PARTIAL;
-    } else {
-      this.props.dependencyLevel = DependencyLevel.NONE;
-    }
-
-    this.props.updatedAt = new Date();
-    this.props.version++;
-
-    this.emitDependencyAssessedEvent();
-  }
-
-  private emitDependencyAssessedEvent(): void {
-    this.addDomainEvent(
-      new DependencyAssessedEvent({
-        legalDependantId: this.id,
-        dependencyPercentage: this.props.dependencyPercentage,
-        dependencyLevel: this.props.dependencyLevel,
-        monthlySupportEvidence: this.props.monthlySupportEvidence,
-        dependencyRatio: this.props.dependencyRatio,
-      }),
-    );
-  }
-
-  updateSupportDetails(params: {
+  /**
+   * Add Dependant to Assessment
+   *
+   * @throws DuplicateDependantException if dependant already exists
+   * @throws InvalidDependantException if business rules violated
+   */
+  public addDependant(params: {
+    dependantId: string;
+    relationship: DependencyRelationship;
+    isMinor: boolean;
+    currentAge?: number;
+    isStudent?: boolean;
+    studentUntil?: Date;
+    hasPhysicalDisability?: boolean;
+    hasMentalDisability?: boolean;
+    requiresOngoingCare?: boolean;
+    disabilityDetails?: string;
     monthlySupport?: number;
     supportStartDate?: Date;
     supportEndDate?: Date;
+    custodialParentId?: string;
   }): void {
-    if (params.monthlySupport !== undefined) {
-      if (params.monthlySupport < 0) {
-        throw new InvalidDependantException('Monthly support cannot be negative.');
-      }
-      this.props.monthlySupport = params.monthlySupport;
+    this.ensureNotDeleted();
+    this.ensureNotFinalized();
+
+    // INVARIANT: Cannot add duplicate dependant
+    if (this.props.dependants.has(params.dependantId)) {
+      throw new DuplicateDependantException(
+        `Dependant ${params.dependantId} is already in this assessment`,
+      );
     }
 
-    if (params.supportStartDate !== undefined) {
-      this.props.supportStartDate = params.supportStartDate;
+    // INVARIANT: Dependant cannot be deceased
+    if (params.dependantId === this.props.deceasedInfo.deceasedId) {
+      throw new InvalidDependantException('Deceased person cannot be their own dependant');
     }
 
-    if (params.supportEndDate !== undefined) {
-      this.props.supportEndDate = params.supportEndDate;
-    }
+    // Create dependant entity
+    const dependant = LegalDependant.create({
+      deceasedId: this.props.deceasedInfo.deceasedId,
+      dependantId: params.dependantId,
+      relationship: params.relationship,
+      isMinor: params.isMinor,
+      currentAge: params.currentAge,
+      isStudent: params.isStudent,
+      studentUntil: params.studentUntil,
+      hasPhysicalDisability: params.hasPhysicalDisability,
+      hasMentalDisability: params.hasMentalDisability,
+      requiresOngoingCare: params.requiresOngoingCare,
+      disabilityDetails: params.disabilityDetails,
+      monthlySupport: params.monthlySupport,
+      supportStartDate: params.supportStartDate,
+      supportEndDate: params.supportEndDate,
+      custodialParentId: params.custodialParentId,
+    });
 
-    // Validate support dates
-    if (this.props.supportStartDate && this.props.supportEndDate) {
-      if (this.props.supportStartDate > this.props.supportEndDate) {
-        throw new InvalidDependantException('Support start date cannot be after end date.');
-      }
-    }
+    // Add to dependants map
+    const newDependants = new Map(this.props.dependants);
+    newDependants.set(params.dependantId, dependant);
 
-    this.props.updatedAt = new Date();
-    this.props.version++;
-  }
-
-  addEvidence(documentId: string, evidenceType: string): void {
-    if (!this.props.dependencyProofDocuments) {
-      this.props.dependencyProofDocuments = [];
-    }
-
-    // Check if evidence already exists
-    const existingEvidence = this.props.dependencyProofDocuments.find(
-      (evidence) => evidence.documentId === documentId,
+    // Recalculate total dependency
+    const newTotalDependants = newDependants.size;
+    const newTotalDependencyPercentage = Array.from(newDependants.values()).reduce(
+      (sum, d) => sum + d.getAssessment().dependencyPercentage,
+      0,
     );
-    if (existingEvidence) {
-      return; // Idempotency
-    }
 
-    // Add document to proof documents
-    const evidence = {
-      documentId,
-      evidenceType,
-      addedAt: new Date(),
-      verified: false,
+    // Update state
+    const newProps = {
+      ...this.props,
+      dependants: newDependants,
+      totalDependants: newTotalDependants,
+      totalDependencyPercentage: newTotalDependencyPercentage,
     };
 
-    this.props.dependencyProofDocuments.push(evidence);
-    this.props.updatedAt = new Date();
-    this.props.version++;
-
-    // Note: Actual verification happens via a separate service/workflow
-  }
-
-  verifyEvidence(verifierId: string, verificationMethod: string): void {
-    if (!this.props.dependencyProofDocuments || this.props.dependencyProofDocuments.length === 0) {
-      throw new InvalidDependantException('No evidence documents to verify.');
-    }
-
-    this.props.verifiedByCourtAt = new Date();
-    this.props.updatedAt = new Date();
-    this.props.version++;
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
 
     this.addDomainEvent(
-      new DependantEvidenceVerifiedEvent({
-        legalDependantId: this.id,
-        verifiedBy: verifierId,
-        verificationMethod,
+      new DependantAddedEvent(this._id.toString(), 'DependencyAssessmentAggregate', this._version, {
+        assessmentId: this._id.toString(),
+        dependantId: params.dependantId,
+        relationship: params.relationship,
+        isMinor: params.isMinor,
+        isPriorityDependant: dependant.isPriorityDependant(),
       }),
     );
   }
 
-  fileSection26Claim(amount: number, currency: string = 'KES'): void {
-    if (amount <= 0) {
-      throw new InvalidDependantException('Claim amount must be positive.');
+  /**
+   * Remove Dependant (rare - usually only if added in error)
+   *
+   * RESTRICTION: Cannot remove priority dependants (spouse/child)
+   * unless court order present
+   *
+   * @throws InvalidDependantException if trying to remove priority dependant
+   */
+  public removeDependant(params: {
+    dependantId: string;
+    reason: string;
+    courtOrderNumber?: string;
+  }): void {
+    this.ensureNotDeleted();
+    this.ensureNotFinalized();
+
+    const dependant = this.props.dependants.get(params.dependantId);
+    if (!dependant) {
+      throw new InvalidDependantException(
+        `Dependant ${params.dependantId} not found in assessment`,
+      );
     }
 
-    if (this.props.isClaimant) {
-      throw new InvalidDependantException('S.26 claim has already been filed.');
+    // INVARIANT: Cannot remove priority dependants without court order
+    if (dependant.isPriorityDependant() && !params.courtOrderNumber) {
+      throw new InvalidDependantException(
+        'Cannot remove priority dependant (spouse/child) without court order',
+      );
     }
 
-    this.props.isClaimant = true;
-    this.props.claimAmount = amount;
-    this.props.currency = currency;
-    this.props.basisSection = KenyanLawSection.S26_DEPENDANT_PROVISION;
-    this.props.updatedAt = new Date();
-    this.props.version++;
+    // Remove from map
+    const newDependants = new Map(this.props.dependants);
+    newDependants.delete(params.dependantId);
+
+    // Recalculate totals
+    const newTotalDependants = newDependants.size;
+    const newTotalDependencyPercentage = Array.from(newDependants.values()).reduce(
+      (sum, d) => sum + d.getAssessment().dependencyPercentage,
+      0,
+    );
+
+    // Update state
+    const newProps = {
+      ...this.props,
+      dependants: newDependants,
+      totalDependants: newTotalDependants,
+      totalDependencyPercentage: newTotalDependencyPercentage,
+    };
+
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
 
     this.addDomainEvent(
-      new S26ClaimFiledEvent({
-        legalDependantId: this.id,
-        amount,
-        currency,
-        timestamp: new Date(),
-      }),
+      new DependantRemovedEvent(
+        this._id.toString(),
+        'DependencyAssessmentAggregate',
+        this._version,
+        {
+          assessmentId: this._id.toString(),
+          dependantId: params.dependantId,
+          reason: params.reason,
+          courtOrderNumber: params.courtOrderNumber,
+        },
+      ),
     );
   }
 
-  recordCourtProvision(params: {
-    orderNumber: string;
+  // ============================================================================
+  // AGGREGATE COMMANDS - DEPENDENCY ASSESSMENT
+  // ============================================================================
+
+  /**
+   * Assess Financial Dependency for Specific Dependant
+   *
+   * Delegates to the LegalDependant entity but tracks at aggregate level
+   */
+  public assessDependantFinancialDependency(params: {
+    dependantId: string;
+    monthlySupport: number;
+    assessmentMethod: string;
+    evidenceDocuments?: string[];
+  }): void {
+    this.ensureNotDeleted();
+    this.ensureNotFinalized();
+
+    const dependant = this.getDependant(params.dependantId);
+
+    if (!this.props.deceasedInfo.monthlyIncome) {
+      throw new InvalidDependantException(
+        'Cannot assess financial dependency - deceased monthly income not available',
+      );
+    }
+
+    // Delegate to entity
+    dependant.assessFinancialDependency({
+      monthlySupport: params.monthlySupport,
+      deceasedMonthlyIncome: this.props.deceasedInfo.monthlyIncome,
+      assessmentMethod: params.assessmentMethod,
+      evidenceDocuments: params.evidenceDocuments,
+    });
+
+    // Update the dependant in the map
+    const newDependants = new Map(this.props.dependants);
+    newDependants.set(params.dependantId, dependant);
+
+    // Recalculate aggregate totals
+    const newTotalDependencyPercentage = Array.from(newDependants.values()).reduce(
+      (sum, d) => sum + d.getAssessment().dependencyPercentage,
+      0,
+    );
+
+    // Update state
+    const newProps = {
+      ...this.props,
+      dependants: newDependants,
+      totalDependencyPercentage: newTotalDependencyPercentage,
+    };
+
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
+  }
+
+  /**
+   * Add Evidence for Dependant
+   */
+  public addDependantEvidence(params: { dependantId: string; documentId: string }): void {
+    this.ensureNotDeleted();
+    this.ensureNotFinalized();
+
+    const dependant = this.getDependant(params.dependantId);
+    dependant.addEvidenceDocument(params.documentId);
+
+    // Update the dependant in the map
+    const newDependants = new Map(this.props.dependants);
+    newDependants.set(params.dependantId, dependant);
+
+    const newProps = {
+      ...this.props,
+      dependants: newDependants,
+    };
+
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
+  }
+
+  /**
+   * Verify Dependant Evidence
+   */
+  public verifyDependantEvidence(params: {
+    dependantId: string;
+    verifiedBy: string;
+    verificationMethod: string;
+    verificationDate: Date;
+  }): void {
+    this.ensureNotDeleted();
+
+    const dependant = this.getDependant(params.dependantId);
+    dependant.verifyEvidence({
+      verifiedBy: params.verifiedBy,
+      verificationMethod: params.verificationMethod,
+      verificationDate: params.verificationDate,
+    });
+
+    // Update the dependant in the map
+    const newDependants = new Map(this.props.dependants);
+    newDependants.set(params.dependantId, dependant);
+
+    const newProps = {
+      ...this.props,
+      dependants: newDependants,
+    };
+
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
+  }
+
+  // ============================================================================
+  // AGGREGATE COMMANDS - S.26 COURT PROVISION
+  // ============================================================================
+
+  /**
+   * File S.26 Claim for Dependant
+   */
+  public fileDependantS26Claim(params: {
+    dependantId: string;
+    claimAmount: number;
+    claimBasis: string;
+    supportingEvidence: string[];
+  }): void {
+    this.ensureNotDeleted();
+    this.ensureNotFinalized();
+
+    const dependant = this.getDependant(params.dependantId);
+
+    dependant.fileS26Claim({
+      claimAmount: params.claimAmount,
+      claimBasis: params.claimBasis,
+      supportingEvidence: params.supportingEvidence,
+    });
+
+    // Update the dependant in the map
+    const newDependants = new Map(this.props.dependants);
+    newDependants.set(params.dependantId, dependant);
+
+    const newProps = {
+      ...this.props,
+      dependants: newDependants,
+    };
+
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
+  }
+
+  /**
+   * Record Court Provision Order for S.26 Claim
+   */
+  public recordDependantCourtProvision(params: {
+    dependantId: string;
+    courtOrderNumber: string;
+    courtStation: string;
+    orderDate: Date;
     approvedAmount: number;
     provisionType: string;
-    orderDate: Date;
   }): void {
-    if (params.approvedAmount < 0) {
-      throw new InvalidDependantException('Court approved amount cannot be negative.');
+    this.ensureNotDeleted();
+
+    const dependant = this.getDependant(params.dependantId);
+
+    dependant.recordCourtProvision({
+      courtOrderNumber: params.courtOrderNumber,
+      courtStation: params.courtStation,
+      orderDate: params.orderDate,
+      approvedAmount: params.approvedAmount,
+      provisionType: params.provisionType,
+    });
+
+    // Update the dependant in the map
+    const newDependants = new Map(this.props.dependants);
+    newDependants.set(params.dependantId, dependant);
+
+    // Recalculate totals (court order may change entitlement)
+    const newTotalDependencyPercentage = Array.from(newDependants.values()).reduce(
+      (sum, d) => sum + d.getAssessment().dependencyPercentage,
+      0,
+    );
+
+    // Update state
+    const newProps = {
+      ...this.props,
+      dependants: newDependants,
+      totalDependencyPercentage: newTotalDependencyPercentage,
+    };
+
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
+  }
+
+  // ============================================================================
+  // AGGREGATE COMMANDS - S.35(3) HOTCHPOT
+  // ============================================================================
+
+  /**
+   * Add Gift Inter Vivos (for hotchpot calculation)
+   *
+   * KENYAN LAW (S.35(3) LSA):
+   * "Any gift made by the deceased during his lifetime
+   * shall be brought into hotchpot and be distributed
+   * along with the estate"
+   *
+   * PURPOSE:
+   * - Ensures fair distribution
+   * - Child who received KES 1M gift during life
+   *   gets less from estate than siblings
+   */
+  public addGiftInterVivos(params: {
+    giftId: string;
+    recipientId: string;
+    valueAtGiftTime: number;
+    dateOfGift: Date;
+    description: string;
+    isSubjectToHotchpot?: boolean;
+  }): void {
+    this.ensureNotDeleted();
+    this.ensureNotFinalized();
+
+    // INVARIANT: Recipient must be a dependant
+    if (!this.props.dependants.has(params.recipientId)) {
+      throw new InvalidDependantException(
+        `Gift recipient ${params.recipientId} is not a dependant`,
+      );
     }
 
-    this.props.provisionOrderIssued = true;
-    this.props.provisionOrderNumber = params.orderNumber;
-    this.props.courtOrderReference = params.orderNumber;
-    this.props.courtOrderDate = params.orderDate;
-    this.props.courtApprovedAmount = params.approvedAmount;
-    this.props.provisionAmount = params.approvedAmount;
-    this.props.verifiedByCourtAt = new Date();
+    // INVARIANT: Only blood relatives subject to hotchpot
+    const recipient = this.props.dependants.get(params.recipientId)!;
+    const isBloodRelative = [
+      DependencyRelationship.CHILD,
+      DependencyRelationship.ADOPTED_CHILD,
+      DependencyRelationship.PARENT,
+      DependencyRelationship.SIBLING,
+    ].includes(recipient.relationship);
 
-    // Update dependency level to FULL if court mandates provision
-    if (params.approvedAmount > 0) {
-      this.props.dependencyLevel = DependencyLevel.FULL;
-      this.props.dependencyPercentage = 100;
-    } else {
-      this.props.dependencyLevel = DependencyLevel.NONE;
-      this.props.dependencyPercentage = 0;
-    }
+    const gift: GiftInterVivos = {
+      giftId: params.giftId,
+      recipientId: params.recipientId,
+      valueAtGiftTime: params.valueAtGiftTime,
+      dateOfGift: params.dateOfGift,
+      description: params.description,
+      isSubjectToHotchpot: params.isSubjectToHotchpot ?? isBloodRelative,
+    };
 
-    this.props.updatedAt = new Date();
-    this.props.version++;
+    const newGifts = new Map(this.props.giftsInterVivos);
+    newGifts.set(params.giftId, gift);
+
+    const newProps = {
+      ...this.props,
+      giftsInterVivos: newGifts,
+    };
+
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
 
     this.addDomainEvent(
-      new CourtProvisionOrderedEvent({
-        legalDependantId: this.id,
-        courtOrderNumber: params.orderNumber,
-        amount: params.approvedAmount,
-        provisionType: params.provisionType,
-        orderDate: params.orderDate,
-      }),
+      new HotchpotAdjustmentAppliedEvent(
+        this._id.toString(),
+        'DependencyAssessmentAggregate',
+        this._version,
+        {
+          assessmentId: this._id.toString(),
+          giftId: params.giftId,
+          recipientId: params.recipientId,
+          giftValue: params.valueAtGiftTime,
+          dateOfGift: params.dateOfGift,
+        },
+      ),
     );
   }
 
-  updateStudentStatus(isStudent: boolean, studentUntil?: Date): void {
-    if (isStudent && !studentUntil && !this.props.isMinor) {
-      throw new InvalidDependantException(
-        'Students over 18 must provide expected graduation/end date.',
-      );
+  /**
+   * Remove Gift Inter Vivos
+   */
+  public removeGiftInterVivos(giftId: string, _reason: string): void {
+    this.ensureNotDeleted();
+    this.ensureNotFinalized();
+
+    if (!this.props.giftsInterVivos.has(giftId)) {
+      throw new InvalidDependantException(`Gift ${giftId} not found`);
     }
 
-    this.props.isStudent = isStudent;
-    if (studentUntil) {
-      this.props.studentUntil = studentUntil;
-      // Set age limit based on student status (typically 25 for students)
-      this.props.ageLimit = 25;
-    }
-    this.props.updatedAt = new Date();
-    this.props.version++;
+    const newGifts = new Map(this.props.giftsInterVivos);
+    newGifts.delete(giftId);
+
+    const newProps = {
+      ...this.props,
+      giftsInterVivos: newGifts,
+    };
+
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
   }
 
-  updateDisabilityStatus(params: {
-    hasPhysicalDisability: boolean;
-    hasMentalDisability: boolean;
-    requiresOngoingCare: boolean;
-    disabilityDetails?: string;
-  }): void {
-    this.props.hasPhysicalDisability = params.hasPhysicalDisability;
-    this.props.hasMentalDisability = params.hasMentalDisability;
-    this.props.requiresOngoingCare = params.requiresOngoingCare;
-    if (params.disabilityDetails) {
-      this.props.disabilityDetails = params.disabilityDetails;
-    }
-    this.props.updatedAt = new Date();
-    this.props.version++;
-  }
+  // ============================================================================
+  // AGGREGATE COMMANDS - DISTRIBUTION CALCULATION
+  // ============================================================================
 
-  updateCustodialParent(custodialParentId: string): void {
-    if (!this.props.isMinor) {
-      throw new InvalidDependantException('Custodial parent can only be set for minors.');
-    }
+  /**
+   * Calculate Distribution (S.29 & S.35(3))
+   *
+   * KENYAN LAW:
+   * 1. Identify all S.29 dependants
+   * 2. Apply S.35(3) hotchpot adjustments
+   * 3. Calculate proportional shares
+   * 4. Include S.26 court provisions
+   *
+   * @returns Distribution calculations for each dependant
+   */
+  public calculateDistribution(totalEstateValue: number): DistributionCalculation[] {
+    this.ensureNotDeleted();
 
-    this.props.custodialParentId = custodialParentId;
-    this.props.updatedAt = new Date();
-    this.props.version++;
-  }
-
-  calculateFinancialDegree(
-    monthlyNeeds: number,
-    monthlyContributionFromDeceased: number,
-    totalDeceasedIncome: number,
-  ): void {
-    if (this.props.provisionOrderIssued) {
-      // Court order exists - manual calculation is irrelevant/illegal to apply now
-      throw new InvalidDependantException(
-        'Cannot calculate financial dependency after court provision order is issued.',
-      );
+    if (totalEstateValue <= 0) {
+      throw new InvalidDependantException('Total estate value must be positive');
     }
 
-    if (monthlyNeeds <= 0 || monthlyContributionFromDeceased < 0 || totalDeceasedIncome <= 0) {
-      throw new InvalidDependantException(
-        'Monthly needs, monthly contribution, and total deceased income must be positive.',
-      );
+    // Update deceased info
+    const newDeceasedInfo = {
+      ...this.props.deceasedInfo,
+      totalEstateValue,
+    };
+
+    const calculations: DistributionCalculation[] = [];
+
+    // Step 1: Calculate total hotchpot value (estate + gifts)
+    const totalGiftsValue = Array.from(this.props.giftsInterVivos.values())
+      .filter((g) => g.isSubjectToHotchpot)
+      .reduce((sum, g) => sum + g.valueAtGiftTime, 0);
+
+    const hotchpotTotal = totalEstateValue + totalGiftsValue;
+
+    // Step 2: Get all qualifying dependants
+    const qualifyingDependants = Array.from(this.props.dependants.values()).filter(
+      (d) => d.qualifiesForS29() || d.getS26ClaimStatus() === S26ClaimStatus.APPROVED,
+    );
+
+    if (qualifyingDependants.length === 0) {
+      // Update state without calculations
+      const newProps = {
+        ...this.props,
+        deceasedInfo: newDeceasedInfo,
+        lastCalculatedAt: new Date(),
+        distributionCalculations: [],
+      };
+
+      (this as any)._props = Object.freeze(newProps);
+      this.incrementVersion();
+
+      return []; // No dependants
     }
 
-    // Calculate dependency ratio
-    const dependencyRatio = monthlyContributionFromDeceased / monthlyNeeds;
-    const dependencyPercentage = Math.min(dependencyRatio * 100, 100);
+    // Step 3: Calculate total dependency percentage
+    const totalPercentage = qualifyingDependants.reduce(
+      (sum, d) => sum + d.getAssessment().dependencyPercentage,
+      0,
+    );
 
-    // Determine Level based on Ratio (Domain Rule)
-    // > 80% support = FULL
-    // > 20% support = PARTIAL
-    // < 20% support = NONE (unless S.29(a) Spouse/Child)
-    let level: DependencyLevel = DependencyLevel.NONE;
+    // Step 4: Calculate each dependant's share
+    for (const dependant of qualifyingDependants) {
+      const dependencyPercentage = dependant.getAssessment().dependencyPercentage;
 
-    if (this.isPriorityDependant) {
-      // Spouses/Children default to at least PARTIAL even with low financial evidence
-      level = dependencyRatio > 0.8 ? DependencyLevel.FULL : DependencyLevel.PARTIAL;
-    } else {
-      // Others (Parents, etc.) strictly math-based
-      if (dependencyRatio > 0.8) level = DependencyLevel.FULL;
-      else if (dependencyRatio > 0.2) level = DependencyLevel.PARTIAL;
-    }
+      // Proportional share of hotchpot total
+      const proportionalShare =
+        totalPercentage > 0 ? (dependencyPercentage / totalPercentage) * hotchpotTotal : 0;
 
-    this.props.dependencyRatio = dependencyRatio;
-    this.props.dependencyPercentage = dependencyPercentage;
-    this.props.dependencyLevel = level;
-    this.props.monthlySupportEvidence = monthlyContributionFromDeceased;
-    this.props.assessmentMethod = 'FINANCIAL_RATIO_ANALYSIS';
-    this.props.assessmentDate = new Date();
+      // Deduct gifts received (S.35(3) hotchpot)
+      const giftsReceived = Array.from(this.props.giftsInterVivos.values())
+        .filter((g) => g.recipientId === dependant.dependantId.toString() && g.isSubjectToHotchpot)
+        .reduce((sum, g) => sum + g.valueAtGiftTime, 0);
 
-    this.props.updatedAt = new Date();
-    this.props.version++;
+      const netEntitlement = Math.max(proportionalShare - giftsReceived, 0);
 
-    this.addDomainEvent(
-      new DependencyAssessedEvent({
-        legalDependantId: this.id,
-        dependencyRatio,
+      // Add S.26 court provision if applicable
+      const s26Provision =
+        dependant.getS26ClaimStatus() === S26ClaimStatus.APPROVED
+          ? (dependant.props.s26ProvisionAmount?.getAmount() ?? 0)
+          : 0;
+
+      const finalEntitlement = netEntitlement + s26Provision;
+
+      calculations.push({
+        dependantId: dependant.dependantId.toString(),
+        dependantName: dependant.dependantId.toString(), // Would be fetched from Family service
+        relationship: dependant.relationship,
         dependencyPercentage,
-        dependencyLevel: level,
-        monthlySupportEvidence: monthlyContributionFromDeceased,
-      }),
+        grossEntitlement: proportionalShare,
+        hotchpotDeduction: giftsReceived,
+        netEntitlement: finalEntitlement,
+        entitlementBasis: this.getEntitlementBasis(dependant),
+      });
+    }
+
+    // Store calculations
+    const newProps = {
+      ...this.props,
+      deceasedInfo: newDeceasedInfo,
+      distributionCalculations: calculations,
+      lastCalculatedAt: new Date(),
+    };
+
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
+
+    this.addDomainEvent(
+      new TotalDependencyCalculatedEvent(
+        this._id.toString(),
+        'DependencyAssessmentAggregate',
+        this._version,
+        {
+          assessmentId: this._id.toString(),
+          totalEstateValue,
+          hotchpotTotal,
+          totalGiftsValue,
+          totalDependants: qualifyingDependants.length,
+          totalDependencyPercentage: totalPercentage,
+          calculations,
+        },
+      ),
     );
+
+    return calculations;
   }
 
-  // --- Validation & Invariants ---
+  /**
+   * Finalize Assessment (lock for distribution)
+   *
+   * After finalization:
+   * - Cannot add/remove dependants
+   * - Cannot modify assessments
+   * - Ready for estate distribution
+   *
+   * @throws InvalidDependantException if not ready to finalize
+   */
+  public finalizeAssessment(params: { finalizedBy: string; totalEstateValue: number }): void {
+    this.ensureNotDeleted();
+    this.ensureNotFinalized();
 
-  private validate(): void {
-    if (!this.props.id) {
-      throw new DependencyDomainException('Dependency assessment ID is required');
+    // INVARIANT: Must have at least one dependant
+    if (this.props.dependants.size === 0) {
+      throw new InvalidDependantException('Cannot finalize - no dependants in assessment');
     }
 
-    if (!this.props.deceasedId) {
-      throw new DependencyDomainException('Deceased ID is required');
+    // INVARIANT: All priority dependants must be verified
+    const unverifiedPriority = Array.from(this.props.dependants.values()).filter(
+      (d) => d.isPriorityDependant() && !d.isEvidenceVerified(),
+    );
+
+    if (unverifiedPriority.length > 0) {
+      console.warn(`Finalizing with ${unverifiedPriority.length} unverified priority dependants`);
     }
 
-    if (!this.props.dependantId) {
-      throw new DependencyDomainException('Dependant ID is required');
-    }
+    // INVARIANT: All S.26 claims must be resolved
+    const pendingS26Claims = Array.from(this.props.dependants.values()).filter(
+      (d) => d.getS26ClaimStatus() === S26ClaimStatus.PENDING,
+    );
 
-    if (this.props.deceasedId === this.props.dependantId) {
-      throw new DependencyDomainException('A person cannot be a dependant of themselves.');
-    }
-
-    // Validation for dependency percentage
-    if (this.props.dependencyPercentage < 0 || this.props.dependencyPercentage > 100) {
-      throw new DependencyDomainException('Dependency percentage must be between 0 and 100.');
-    }
-
-    // Validation for support dates
-    if (this.props.supportStartDate && this.props.supportEndDate) {
-      if (this.props.supportStartDate > this.props.supportEndDate) {
-        throw new DependencyDomainException('Support start date cannot be after end date.');
-      }
-    }
-
-    // Validation for S.26 claim
-    if (this.props.isClaimant && (!this.props.claimAmount || this.props.claimAmount <= 0)) {
-      throw new DependencyDomainException('Claim amount must be positive for S.26 claimants.');
-    }
-
-    // Court order validation
-    if (this.props.provisionOrderIssued && !this.props.provisionOrderNumber) {
-      throw new DependencyDomainException(
-        'Provision order number is required when order is issued.',
+    if (pendingS26Claims.length > 0) {
+      throw new InvalidDependantException(
+        `Cannot finalize - ${pendingS26Claims.length} S.26 claims still pending court decision`,
       );
     }
 
-    // Student validation
-    if (this.props.isStudent && !this.props.isMinor && !this.props.studentUntil) {
-      console.warn('Warning: Students over 18 typically need proof of enrollment duration');
+    // Calculate final distribution
+    const calculations = this.calculateDistribution(params.totalEstateValue);
+
+    // Finalize
+    const newProps = {
+      ...this.props,
+      isFinalized: true,
+      finalizedAt: new Date(),
+      finalizedBy: new UniqueEntityID(params.finalizedBy),
+      distributionCalculations: calculations,
+    };
+
+    (this as any)._props = Object.freeze(newProps);
+    this.incrementVersion();
+  }
+
+  // ============================================================================
+  // HELPER METHODS
+  // ============================================================================
+
+  private ensureNotFinalized(): void {
+    if (this.props.isFinalized) {
+      throw new InvalidDependantException('Assessment is finalized - cannot modify');
     }
   }
 
-  private static generateId(): string {
-    return crypto.randomUUID
-      ? crypto.randomUUID()
-      : `dep-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  private getDependant(dependantId: string): LegalDependant {
+    const dependant = this.props.dependants.get(dependantId);
+    if (!dependant) {
+      throw new InvalidDependantException(`Dependant ${dependantId} not found in assessment`);
+    }
+    return dependant;
   }
 
-  // --- Getters ---
-
-  get id(): string {
-    return this.props.id;
+  private getEntitlementBasis(dependant: LegalDependant): string {
+    if (dependant.getS26ClaimStatus() === S26ClaimStatus.APPROVED) {
+      return 'S26_COURT_PROVISION';
+    }
+    return dependant.basisSection;
   }
+
+  // ============================================================================
+  // VALIDATION
+  // ============================================================================
+
+  public validate(): void {
+    // INVARIANT: Must have deceased info
+    if (!this.props.deceasedInfo) {
+      throw new DependencyDomainException('Deceased information is required');
+    }
+
+    // INVARIANT: Total percentage can exceed 100% (proportional distribution)
+    // This is not an error - just informational
+    if (this.props.totalDependencyPercentage > 100) {
+      console.info(
+        `Total dependency percentage (${this.props.totalDependencyPercentage}%) exceeds 100% - will use proportional distribution`,
+      );
+    }
+  }
+
+  protected applyEvent(_event: DomainEvent): void {
+    // Event sourcing replay logic (not implemented in this version)
+  }
+
+  // ============================================================================
+  // QUERY METHODS
+  // ============================================================================
 
   get deceasedId(): string {
-    return this.props.deceasedId;
+    return this.props.deceasedInfo.deceasedId;
   }
 
-  get dependantId(): string {
-    return this.props.dependantId;
+  get totalDependants(): number {
+    return this.props.totalDependants;
   }
 
-  get dependencyBasis(): string {
-    return this.props.dependencyBasis;
+  get isFinalized(): boolean {
+    return this.props.isFinalized;
   }
 
-  get dependencyLevel(): DependencyLevel {
-    return this.props.dependencyLevel;
+  /**
+   * Get all dependants
+   */
+  public getAllDependants(): LegalDependant[] {
+    return Array.from(this.props.dependants.values());
   }
 
-  get dependencyPercentage(): number {
-    return this.props.dependencyPercentage;
+  /**
+   * Get priority dependants (spouse/children)
+   */
+  public getPriorityDependants(): LegalDependant[] {
+    return this.getAllDependants().filter((d) => d.isPriorityDependant());
   }
 
-  get isMinor(): boolean {
-    return this.props.isMinor;
+  /**
+   * Get conditional dependants (must prove dependency)
+   */
+  public getConditionalDependants(): LegalDependant[] {
+    return this.getAllDependants().filter((d) => !d.isPriorityDependant());
   }
 
-  get isStudent(): boolean {
-    return this.props.isStudent;
+  /**
+   * Get S.26 claimants
+   */
+  public getS26Claimants(): LegalDependant[] {
+    return this.getAllDependants().filter((d) => d.props.isS26Claimant);
   }
 
-  get isClaimant(): boolean {
-    return this.props.isClaimant;
+  /**
+   * Get dependant by ID
+   */
+  public getDependantById(dependantId: string): LegalDependant | undefined {
+    return this.props.dependants.get(dependantId);
   }
 
-  get hasCourtOrder(): boolean {
-    return this.props.provisionOrderIssued;
+  /**
+   * Get all gifts inter vivos
+   */
+  public getAllGiftsInterVivos(): GiftInterVivos[] {
+    return Array.from(this.props.giftsInterVivos.values());
   }
 
-  get hasDisability(): boolean {
-    return this.props.hasPhysicalDisability || this.props.hasMentalDisability;
+  /**
+   * Get gifts for specific dependant
+   */
+  public getGiftsForDependant(dependantId: string): GiftInterVivos[] {
+    return this.getAllGiftsInterVivos().filter((g) => g.recipientId === dependantId);
   }
 
-  get requiresOngoingCare(): boolean {
-    return this.props.requiresOngoingCare;
+  /**
+   * Get latest distribution calculations
+   */
+  public getDistributionCalculations(): DistributionCalculation[] | undefined {
+    return this.props.distributionCalculations;
   }
 
-  get monthlySupport(): number | undefined {
-    return this.props.monthlySupport;
-  }
+  /**
+   * Check if ready to finalize
+   */
+  public isReadyToFinalize(): {
+    ready: boolean;
+    reasons: string[];
+  } {
+    const reasons: string[] = [];
 
-  get courtApprovedAmount(): number | undefined {
-    return this.props.courtApprovedAmount;
-  }
-
-  get provisionAmount(): number | undefined {
-    return this.props.provisionAmount;
-  }
-
-  get assessmentDate(): Date {
-    return this.props.assessmentDate;
-  }
-
-  get custodialParentId(): string | undefined {
-    return this.props.custodialParentId;
-  }
-
-  get verifiedByCourtAt(): Date | undefined {
-    return this.props.verifiedByCourtAt;
-  }
-
-  get dependencyProofDocuments(): any[] | undefined {
-    return this.props.dependencyProofDocuments;
-  }
-
-  get isPriorityDependant(): boolean {
-    return ['SPOUSE', 'CHILD', 'ADOPTED_CHILD'].includes(this.props.dependencyBasis);
-  }
-
-  get qualifiesForS29(): boolean {
-    // Qualifies under S.29 if:
-    // 1. Is a priority dependant (spouse/child), OR
-    // 2. Has proven dependency (percentage > 0), OR
-    // 3. Has disability requiring ongoing care, OR
-    // 4. Is a minor or student
-
-    if (this.isPriorityDependant) return true;
-    if (this.props.dependencyPercentage > 0) return true;
-    if (this.hasDisability && this.props.requiresOngoingCare) return true;
-    if (this.props.isMinor || this.props.isStudent) return true;
-
-    return false;
-  }
-
-  get s26ClaimStatus(): 'NO_CLAIM' | 'PENDING' | 'APPROVED' | 'DENIED' {
-    if (!this.props.isClaimant) return 'NO_CLAIM';
-    if (this.props.provisionOrderIssued && this.props.courtApprovedAmount) return 'APPROVED';
-    if (this.props.provisionOrderIssued && !this.props.courtApprovedAmount) return 'DENIED';
-    return 'PENDING';
-  }
-
-  get isS29Compliant(): boolean {
-    // S.29 compliance requires:
-    // 1. Proper evidence for non-priority dependants
-    // 2. Court order for S.26 claims
-    // 3. No contradictions in dependency status
-
-    if (this.props.provisionOrderIssued) {
-      return true; // Court order overrides all
+    if (this.props.dependants.size === 0) {
+      reasons.push('No dependants in assessment');
     }
 
-    if (this.isPriorityDependant) {
-      return true; // Priority dependants are automatically compliant
+    const pendingS26 = this.getAllDependants().filter(
+      (d) => d.getS26ClaimStatus() === S26ClaimStatus.PENDING,
+    );
+    if (pendingS26.length > 0) {
+      reasons.push(`${pendingS26.length} S.26 claims pending court decision`);
     }
 
-    // Non-priority dependants need evidence
-    if (this.props.dependencyProofDocuments && this.props.dependencyProofDocuments.length > 0) {
-      return true;
-    }
-
-    if (this.props.dependencyPercentage > 0) {
-      return true; // Has proven dependency
-    }
-
-    return false;
-  }
-
-  get financialDependencyRatio(): number | undefined {
-    return this.props.dependencyRatio;
-  }
-
-  get monthlySupportEvidence(): number | undefined {
-    return this.props.monthlySupportEvidence;
-  }
-
-  get version(): number {
-    return this.props.version;
-  }
-
-  get createdAt(): Date {
-    return this.props.createdAt;
-  }
-
-  get updatedAt(): Date {
-    return this.props.updatedAt;
-  }
-
-  toJSON() {
     return {
-      id: this.id,
-      deceasedId: this.props.deceasedId,
-      dependantId: this.props.dependantId,
-      basisSection: this.props.basisSection,
-      dependencyBasis: this.props.dependencyBasis,
-      dependencyLevel: this.props.dependencyLevel,
-      dependencyPercentage: this.props.dependencyPercentage,
-      isMinor: this.props.isMinor,
-      isStudent: this.props.isStudent,
-      studentUntil: this.props.studentUntil,
-      hasPhysicalDisability: this.props.hasPhysicalDisability,
-      hasMentalDisability: this.props.hasMentalDisability,
-      requiresOngoingCare: this.props.requiresOngoingCare,
-      disabilityDetails: this.props.disabilityDetails,
-      isClaimant: this.props.isClaimant,
-      claimAmount: this.props.claimAmount,
-      provisionAmount: this.props.provisionAmount,
-      currency: this.props.currency,
-      courtOrderReference: this.props.courtOrderReference,
-      courtOrderDate: this.props.courtOrderDate,
-      monthlySupport: this.props.monthlySupport,
-      supportStartDate: this.props.supportStartDate,
-      supportEndDate: this.props.supportEndDate,
-      assessmentDate: this.props.assessmentDate,
-      assessmentMethod: this.props.assessmentMethod,
-      ageLimit: this.props.ageLimit,
-      custodialParentId: this.props.custodialParentId,
-      provisionOrderIssued: this.props.provisionOrderIssued,
-      provisionOrderNumber: this.props.provisionOrderNumber,
-      courtApprovedAmount: this.props.courtApprovedAmount,
-      monthlySupportEvidence: this.props.monthlySupportEvidence,
-      dependencyRatio: this.props.dependencyRatio,
-      dependencyProofDocuments: this.props.dependencyProofDocuments,
-      verifiedByCourtAt: this.props.verifiedByCourtAt,
-      isPriorityDependant: this.isPriorityDependant,
-      qualifiesForS29: this.qualifiesForS29,
-      s26ClaimStatus: this.s26ClaimStatus,
-      isS29Compliant: this.isS29Compliant,
-      financialDependencyRatio: this.financialDependencyRatio,
-      version: this.props.version,
-      createdAt: this.props.createdAt,
-      updatedAt: this.props.updatedAt,
+      ready: reasons.length === 0,
+      reasons,
+    };
+  }
+
+  /**
+   * Serialize to JSON
+   */
+  public toJSON(): Record<string, any> {
+    return {
+      id: this._id.toString(),
+      deceasedInfo: this.props.deceasedInfo,
+      dependants: this.getAllDependants().map((d) => d.toJSON()),
+      giftsInterVivos: this.getAllGiftsInterVivos(),
+      totalDependants: this.props.totalDependants,
+      totalDependencyPercentage: this.props.totalDependencyPercentage,
+      lastCalculatedAt: this.props.lastCalculatedAt?.toISOString(),
+      distributionCalculations: this.props.distributionCalculations,
+      isFinalized: this.props.isFinalized,
+      finalizedAt: this.props.finalizedAt?.toISOString(),
+      finalizedBy: this.props.finalizedBy?.toString(),
+
+      // Computed properties
+      priorityDependantsCount: this.getPriorityDependants().length,
+      conditionalDependantsCount: this.getConditionalDependants().length,
+      s26ClaimantsCount: this.getS26Claimants().length,
+      totalGiftsValue: this.getAllGiftsInterVivos()
+        .filter((g) => g.isSubjectToHotchpot)
+        .reduce((sum, g) => sum + g.valueAtGiftTime, 0),
+      readyToFinalize: this.isReadyToFinalize(),
+
+      // Metadata
+      version: this._version,
+      createdAt: this._createdAt.toISOString(),
+      updatedAt: this._updatedAt.toISOString(),
+      deletedAt: this._deletedAt?.toISOString(),
     };
   }
 }

@@ -868,6 +868,80 @@ export class GuardianshipAggregate extends AggregateRoot<GuardianshipAggregatePr
       throw error;
     }
   }
+  /**
+   * Renew Guardian Bond (S.72 LSA Maintenance)
+   * Essential for keeping the guardianship compliant when a bond expires.
+   */
+  public renewGuardianBond(params: {
+    guardianId: string;
+    newExpiryDate: Date;
+    newPolicyNumber?: string;
+  }): void {
+    this.ensureNotDeleted();
+    this.ensureActive();
+
+    const guardian = this.getGuardian(params.guardianId);
+
+    try {
+      // 1. Delegate logic to the Entity
+      guardian.renewBond(params.newExpiryDate, params.newPolicyNumber);
+
+      // 2. Update the immutable map in the Aggregate
+      const newGuardians = new Map(this.props.guardians);
+      newGuardians.set(params.guardianId, guardian);
+
+      // 3. Update Aggregate state
+      this.updateProps({ guardians: newGuardians });
+
+      // 4. (Optional) Clear specific warnings if bond is now valid
+      const updatedWarnings = this.props.complianceWarnings.filter(
+        (w) => !w.includes('bond expires') && !w.includes('without valid bond'),
+      );
+      this.updateProps({ complianceWarnings: updatedWarnings });
+    } catch (error) {
+      this.addComplianceWarning(
+        `Failed to renew bond for guardian ${params.guardianId}: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+  /**
+   * Update Guardian Restrictions (Variation of Orders)
+   * Used when the court changes what a guardian can/cannot do.
+   */
+  public updateGuardianRestrictions(params: {
+    guardianId: string;
+    restrictions: string[];
+    courtOrderNumber?: string; // Optional: Track which order authorized this change
+  }): void {
+    this.ensureNotDeleted();
+    this.ensureActive();
+
+    const guardian = this.getGuardian(params.guardianId);
+
+    try {
+      // 1. Delegate logic to the Entity
+      guardian.updateRestrictions(params.restrictions);
+
+      // 2. Update the immutable map
+      const newGuardians = new Map(this.props.guardians);
+      newGuardians.set(params.guardianId, guardian);
+
+      // 3. Update Court Order info if provided (Variation Order)
+      const currentCourtOrder = this.props.courtOrder;
+      if (params.courtOrderNumber && currentCourtOrder) {
+        // Note: You might want a method on CourtOrder VO to add a variation note
+        // For now, we just proceed with updating the guardian
+      }
+
+      // 4. Update Aggregate state
+      this.updateProps({ guardians: newGuardians });
+    } catch (error) {
+      throw new InvalidGuardianshipException(
+        `Failed to update restrictions for guardian ${params.guardianId}: ${error.message}`,
+      );
+    }
+  }
 
   /**
    * File Annual Report for Specific Guardian (S.73 LSA)

@@ -1,4 +1,3 @@
-// application/guardianship/queries/handlers/base-query.handler.ts
 import { Logger } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
 

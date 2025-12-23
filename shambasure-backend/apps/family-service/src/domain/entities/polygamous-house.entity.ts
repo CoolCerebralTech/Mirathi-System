@@ -4,6 +4,24 @@ import { UniqueEntityID } from '../base/unique-entity-id';
 import { InvalidPolygamousStructureException } from '../exceptions/family.exception';
 
 /**
+ * Wives Consent Details
+ * Tracks which wives agreed to the polygamous structure
+ * CRITICAL: S. 40 LSA requires documented consent for validity
+ */
+export interface WivesConsentDetails {
+  consentDate: Date;
+  consentingWives: Array<{
+    wifeId: string;
+    wifeName: string;
+    consentedAt: Date;
+    signatureWitness?: string;
+  }>;
+  notarized: boolean;
+  notaryName?: string;
+  notaryLicenseNumber?: string;
+}
+
+/**
  * PolygamousHouse Entity Props (Immutable)
  *
  * Design Decision: PolygamousHouse is an ENTITY within Family aggregate
@@ -62,23 +80,6 @@ export interface PolygamousHouseProps {
   // House Dissolution (on death of husband)
   houseDissolvedAt?: Date;
   houseAssetsFrozen: boolean; // Prevents inter-house transfers during succession
-}
-
-/**
- * Wives Consent Details
- * Tracks which wives agreed to the polygamous structure
- */
-export interface WivesConsentDetails {
-  consentDate: Date;
-  consentingWives: Array<{
-    wifeId: string;
-    wifeName: string;
-    consentedAt: Date;
-    signatureWitness?: string;
-  }>;
-  notarized: boolean;
-  notaryName?: string;
-  notaryLicenseNumber?: string;
 }
 
 /**
@@ -170,6 +171,17 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
     const id = new UniqueEntityID();
     const now = new Date();
 
+    // Transform wives consent details to match WivesConsentDetails interface
+    const wivesAgreementDetails = props.wivesConsentDetails
+      ? {
+          consentDate: props.wivesConsentDetails.consentDate,
+          consentingWives: props.wivesConsentDetails.consentingWives,
+          notarized: props.wivesConsentDetails.notarized ?? false, // Default to false if not provided
+          notaryName: props.wivesConsentDetails.notaryName,
+          notaryLicenseNumber: props.wivesConsentDetails.notaryLicenseNumber,
+        }
+      : undefined;
+
     const houseProps: PolygamousHouseProps = {
       familyId: new UniqueEntityID(props.familyId),
       houseName: props.houseName,
@@ -197,7 +209,7 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
       wivesConsentDocumentId: props.wivesConsentDocumentId
         ? new UniqueEntityID(props.wivesConsentDocumentId)
         : undefined,
-      wivesAgreementDetails: props.wivesConsentDetails,
+      wivesAgreementDetails: wivesAgreementDetails,
 
       // Instructions
       successionInstructions: props.successionInstructions,
@@ -290,6 +302,36 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
         'First house typically does not require court certification. ' +
           'S. 40 certification is for subsequent marriages.',
       );
+    }
+
+    // Validate wives consent details if provided
+    if (this.props.wivesAgreementDetails) {
+      if (!(this.props.wivesAgreementDetails.consentDate instanceof Date)) {
+        throw new InvalidPolygamousStructureException('Consent date must be a valid Date');
+      }
+
+      if (!Array.isArray(this.props.wivesAgreementDetails.consentingWives)) {
+        throw new InvalidPolygamousStructureException('Consenting wives must be an array');
+      }
+
+      // Each consenting wife must have required fields
+      this.props.wivesAgreementDetails.consentingWives.forEach((wife, index) => {
+        if (!wife.wifeId || wife.wifeId.trim().length === 0) {
+          throw new InvalidPolygamousStructureException(
+            `Wife at index ${index} must have a wifeId`,
+          );
+        }
+        if (!wife.wifeName || wife.wifeName.trim().length === 0) {
+          throw new InvalidPolygamousStructureException(
+            `Wife at index ${index} must have a wifeName`,
+          );
+        }
+        if (!(wife.consentedAt instanceof Date)) {
+          throw new InvalidPolygamousStructureException(
+            `Wife at index ${index} must have a valid consentedAt date`,
+          );
+        }
+      });
     }
   }
 
@@ -442,13 +484,24 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
     this.ensureNotDeleted();
     this.ensureNotDissolved();
 
+    // Transform consent details to match WivesConsentDetails interface
+    const wivesAgreementDetails = params.consentDetails
+      ? {
+          consentDate: params.consentDetails.consentDate,
+          consentingWives: params.consentDetails.consentingWives,
+          notarized: params.consentDetails.notarized ?? false, // Default to false if not provided
+          notaryName: params.consentDetails.notaryName,
+          notaryLicenseNumber: params.consentDetails.notaryLicenseNumber,
+        }
+      : this.props.wivesAgreementDetails;
+
     const newProps: PolygamousHouseProps = {
       ...this.props,
       wivesConsentObtained: params.consentObtained,
       wivesConsentDocumentId: params.consentDocumentId
         ? new UniqueEntityID(params.consentDocumentId)
         : this.props.wivesConsentDocumentId,
-      wivesAgreementDetails: params.consentDetails || this.props.wivesAgreementDetails,
+      wivesAgreementDetails: wivesAgreementDetails,
     };
 
     return new PolygamousHouse(this._id, newProps, this._createdAt);
@@ -531,6 +584,55 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
       ...this.props,
       houseDissolvedAt: dissolutionDate,
       houseAssetsFrozen: true, // Auto-freeze on dissolution
+    };
+
+    return new PolygamousHouse(this._id, newProps, this._createdAt);
+  }
+
+  /**
+   * Add court order details (for houses recognized by court)
+   */
+  public addCourtOrderDetails(params: {
+    courtOrderNumber: string;
+    issuingCourt: string;
+    orderDate: Date;
+  }): PolygamousHouse {
+    this.ensureNotDeleted();
+    this.ensureNotDissolved();
+
+    const newProps: PolygamousHouseProps = {
+      ...this.props,
+      courtOrderNumber: params.courtOrderNumber,
+      certificateIssuingCourt: params.issuingCourt,
+      certificateIssuedDate: params.orderDate,
+      courtRecognized: true,
+    };
+
+    return new PolygamousHouse(this._id, newProps, this._createdAt);
+  }
+
+  /**
+   * Update house name (with validation for legal consistency)
+   */
+  public updateHouseName(newName: string): PolygamousHouse {
+    this.ensureNotDeleted();
+    this.ensureNotDissolved();
+
+    if (!newName || newName.trim().length === 0) {
+      throw new InvalidPolygamousStructureException('House name cannot be empty');
+    }
+
+    // Prevent changing names that might conflict with existing legal documents
+    if (this.props.s40CertificateNumber && newName !== this.props.houseName) {
+      console.warn(
+        `Warning: Changing house name for certified house. ` +
+          `S. 40 Certificate ${this.props.s40CertificateNumber} may need amendment.`,
+      );
+    }
+
+    const newProps: PolygamousHouseProps = {
+      ...this.props,
+      houseName: newName,
     };
 
     return new PolygamousHouse(this._id, newProps, this._createdAt);
@@ -731,6 +833,22 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
     return this.isSubsequentHouse && this.s40ComplianceStatus === 'NON_COMPLIANT';
   }
 
+  /**
+   * Has legal documentation complete
+   * For houses 2+, must have both consent AND court certification
+   */
+  get hasLegalDocumentationComplete(): boolean {
+    if (this.isFirstHouse) return true;
+    return this.props.wivesConsentObtained && this.isCertifiedS40;
+  }
+
+  /**
+   * Can receive inheritance (house is active and compliant)
+   */
+  get canReceiveInheritance(): boolean {
+    return this.isActive && (this.isFirstHouse || this.hasLegalDocumentationComplete);
+  }
+
   // =========================================================================
   // SERIALIZATION
   // =========================================================================
@@ -776,7 +894,7 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
       houseDissolvedAt: this.props.houseDissolvedAt,
       houseAssetsFrozen: this.props.houseAssetsFrozen,
 
-      // Computed
+      // Computed Properties
       isDissolved: this.isDissolved,
       isFirstHouse: this.isFirstHouse,
       isSubsequentHouse: this.isSubsequentHouse,
@@ -786,6 +904,8 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
       s40ComplianceStatus: this.s40ComplianceStatus,
       isActive: this.isActive,
       requiresCourtAttention: this.requiresCourtAttention,
+      hasLegalDocumentationComplete: this.hasLegalDocumentationComplete,
+      canReceiveInheritance: this.canReceiveInheritance,
 
       // Audit
       version: this._version,

@@ -4,33 +4,17 @@ import { EventBus, ICommand } from '@nestjs/cqrs';
 import { AggregateRoot } from '../../../domain/base/aggregate-root';
 import { DomainException } from '../../../domain/exceptions/domain.exception';
 
-/**
- * Repository contract for aggregates.
- * Replace with your concrete repository (SQL/ES/EventStore) implementation.
- */
 export interface AggregateRepository<TAggregate extends AggregateRoot<any>> {
   findById(id: string): Promise<TAggregate | null>;
-  save(aggregate: TAggregate, expectedVersion?: number): Promise<void>;
+  // ✅ Return the persisted aggregate
+  save(aggregate: TAggregate, expectedVersion?: number): Promise<TAggregate>;
 }
 
-/**
- * Idempotency store contract.
- * Use a durable store (SQL, Redis) to ensure a command is processed once.
- */
 export interface IdempotencyStore {
   has(commandId: string): Promise<boolean>;
   record(commandId: string, metadata?: Record<string, unknown>): Promise<void>;
 }
 
-/**
- * Base Command Handler
- * - Loads aggregate
- * - Runs domain logic (mutations)
- * - Enforces optimistic concurrency (expectedVersion)
- * - Persists aggregate (single-aggregate transaction boundary)
- * - Publishes domain events to NestJS EventBus
- * - Handles idempotency and error mapping
- */
 export abstract class BaseCommandHandler<
   TCommand extends ICommand & { correlationId?: string; userId?: string; commandId?: string },
   TAggregate extends AggregateRoot<any>,
@@ -44,7 +28,6 @@ export abstract class BaseCommandHandler<
     protected readonly idempotency?: IdempotencyStore,
   ) {}
 
-  // Concrete handlers implement domain mutation here
   abstract execute(command: TCommand): Promise<TResult>;
 
   protected async run(
@@ -66,6 +49,7 @@ export abstract class BaseCommandHandler<
 
       aggregate.validate();
 
+      // ✅ save returns the aggregate
       await this.repository.save(aggregate, aggregate.getVersion());
 
       this.publishEventsAndCommit(aggregate);
@@ -86,10 +70,6 @@ export abstract class BaseCommandHandler<
     return aggregate;
   }
 
-  /**
-   * Publishes domain events to NestJS EventBus and clears them on aggregate.
-   * fire-and-forget; no await required.
-   */
   protected publishEventsAndCommit(aggregate: AggregateRoot<any>): void {
     const events = [...aggregate.getUncommittedEvents()]; // clone to mutable
 
