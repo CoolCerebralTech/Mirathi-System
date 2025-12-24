@@ -6,7 +6,7 @@ import {
   MarriageRegisteredEvent,
   MarriageUpdatedEvent,
   PolygamousHouseAssignedEvent,
-} from '../events/family-events';
+} from '../events/marriage-events';
 import {
   KenyanCounty,
   MarriageEndReason,
@@ -130,8 +130,8 @@ export class Marriage extends Entity<MarriageProps> {
         spouse2Id: marriage.props.spouse2Id.toString(),
         marriageType: marriage.props.marriageType,
         startDate: marriage.props.startDate,
-        registeredBy: marriage.createdBy.toString(),
-        timestamp: marriage.createdAt,
+        registeredBy: marriage.props.createdBy.toString(),
+        timestamp: new Date(),
       }),
     );
 
@@ -169,7 +169,7 @@ export class Marriage extends Entity<MarriageProps> {
     });
 
     if (Object.keys(changes).length > 0) {
-      this.props.lastUpdatedBy = updatedBy;
+      (this.props as any).lastUpdatedBy = updatedBy;
 
       // Update marriage status if dates changed
       if (updates.startDate || updates.endDate) {
@@ -216,19 +216,20 @@ export class Marriage extends Entity<MarriageProps> {
 
     // Update marriage details
     const previousStatus = this.props.marriageStatus;
-    this.props.endDate = endDate;
-    this.props.endReason = endReason;
-    this.props.isMarriageDissolved = true;
-    this.props.dissolutionDate = endDate;
-    this.props.dissolutionReason = this.getDissolutionReason(endReason);
-    this.props.lastUpdatedBy = endedBy;
+    const props = this.props as any;
+    props.endDate = endDate;
+    props.endReason = endReason;
+    props.isMarriageDissolved = true;
+    props.dissolutionDate = endDate;
+    props.dissolutionReason = this.getDissolutionReason(endReason);
+    props.lastUpdatedBy = endedBy;
 
     // Update waiting period based on marriage type
-    this.props.waitingPeriodCompleted = this.calculateWaitingPeriod(endDate, endReason);
+    props.waitingPeriodCompleted = this.calculateWaitingPeriod(endDate, endReason);
 
     // Update related documents
     if (details.divorceDecreeId) {
-      this.props.divorceDecreeId = details.divorceDecreeId;
+      props.divorceDecreeId = details.divorceDecreeId;
     }
 
     // Record end event
@@ -260,16 +261,16 @@ export class Marriage extends Entity<MarriageProps> {
   ): void {
     if (
       this.props.marriageType !== MarriageType.ISLAMIC &&
-      this.props.marriageType !== MarriageType.CUSTOMARY &&
-      this.props.marriageType !== MarriageType.TRADITIONAL
+      this.props.marriageType !== MarriageType.CUSTOMARY
     ) {
-      throw new Error('Only Islamic, Customary, or Traditional marriages can be polygamous');
+      throw new Error('Only Islamic or Customary marriages can be polygamous');
     }
 
-    this.props.polygamousHouseId = houseId;
-    this.props.marriageOrder = marriageOrder;
-    this.props.isPolygamous = true;
-    this.props.lastUpdatedBy = assignedBy;
+    const props = this.props as any;
+    props.polygamousHouseId = houseId;
+    props.marriageOrder = marriageOrder;
+    props.isPolygamous = true;
+    props.lastUpdatedBy = assignedBy;
 
     this.addDomainEvent(
       new PolygamousHouseAssignedEvent({
@@ -290,9 +291,10 @@ export class Marriage extends Entity<MarriageProps> {
       throw new Error('Child already exists in this marriage');
     }
 
-    this.props.childrenIds.push(childId);
-    this.props.numberOfChildren = this.props.childrenIds.length;
-    this.props.lastUpdatedBy = updatedBy;
+    const props = this.props as any;
+    props.childrenIds.push(childId);
+    props.numberOfChildren = props.childrenIds.length;
+    props.lastUpdatedBy = updatedBy;
 
     // No event needed as child creation is handled by FamilyMember
   }
@@ -312,21 +314,19 @@ export class Marriage extends Entity<MarriageProps> {
     },
     recordedBy: UniqueEntityID,
   ): void {
-    if (
-      this.props.marriageType !== MarriageType.CUSTOMARY &&
-      this.props.marriageType !== MarriageType.TRADITIONAL
-    ) {
-      throw new Error('Bride price only applies to customary/traditional marriages');
+    if (this.props.marriageType !== MarriageType.CUSTOMARY) {
+      throw new Error('Bride price only applies to customary marriages');
     }
 
-    this.props.bridePricePaid = true;
-    this.props.bridePriceAmount = amount;
-    this.props.bridePriceCurrency = currency;
-    this.props.bridePaidInFull = paidInFull;
+    const props = this.props as any;
+    props.bridePricePaid = true;
+    props.bridePriceAmount = amount;
+    props.bridePriceCurrency = currency;
+    props.bridePaidInFull = paidInFull;
 
     // Add to customary details if not present
-    if (!this.props.customaryDetails) {
-      this.props.customaryDetails = {
+    if (!props.customaryDetails) {
+      props.customaryDetails = {
         eldersPresent: [],
         location: '',
         clanRepresentatives: [],
@@ -335,15 +335,15 @@ export class Marriage extends Entity<MarriageProps> {
     }
 
     // Record payment in customary details
-    (this.props.customaryDetails as any).bridePricePayments = [
-      ...((this.props.customaryDetails as any).bridePricePayments || []),
+    props.customaryDetails.bridePricePayments = [
+      ...(props.customaryDetails.bridePricePayments || []),
       {
         ...paymentDetails,
         recordedBy: recordedBy.toString(),
       },
     ];
 
-    this.props.lastUpdatedBy = recordedBy;
+    props.lastUpdatedBy = recordedBy;
   }
 
   /**
@@ -355,12 +355,13 @@ export class Marriage extends Entity<MarriageProps> {
     verifiedBy: UniqueEntityID,
     notes?: string,
   ): void {
-    this.props.registrationNumber = registrationNumber;
-    this.props.verificationStatus = verified ? 'VERIFIED' : 'REJECTED';
-    this.props.verificationNotes = notes;
-    this.props.verifiedBy = verifiedBy;
-    this.props.lastVerifiedAt = new Date();
-    this.props.lastUpdatedBy = verifiedBy;
+    const props = this.props as any;
+    props.registrationNumber = registrationNumber;
+    props.verificationStatus = verified ? 'VERIFIED' : 'REJECTED';
+    props.verificationNotes = notes;
+    props.verifiedBy = verifiedBy;
+    props.lastVerifiedAt = new Date();
+    props.lastUpdatedBy = verifiedBy;
   }
 
   /**
@@ -418,20 +419,19 @@ export class Marriage extends Entity<MarriageProps> {
         );
 
       case MarriageType.CUSTOMARY:
-      case MarriageType.TRADITIONAL:
         return (
           this.props.bridePricePaid &&
           (this.props.customaryDetails?.eldersPresent?.length || 0) >= 2
         );
 
-      case MarriageType.COHABITATION:
-        return (
-          this.calculateDuration().totalDays >= 730 && // 2 years minimum
-          !!this.props.cohabitationAffidavitId
-        );
-
       case MarriageType.HINDU:
         return !!this.props.registrationNumber;
+
+      case MarriageType.OTHER:
+        return (
+          this.calculateDuration().totalDays >= 730 && // 2 years minimum for cohabitation
+          !!this.props.cohabitationAffidavitId
+        );
 
       default:
         return false;
@@ -499,7 +499,7 @@ export class Marriage extends Entity<MarriageProps> {
           passed: duration.years >= milestone.years,
         };
       })
-      .filter((m) => duration.years <= 70); // Only show up to 70 years
+      .filter((_m) => duration.years <= 70); // Only show up to 70 years
   }
 
   /**
@@ -507,29 +507,30 @@ export class Marriage extends Entity<MarriageProps> {
    */
   private updateMarriageStatus(): void {
     const now = new Date();
+    const props = this.props as any;
 
     if (this.props.endDate && this.props.endDate <= now) {
       // Marriage has ended
       switch (this.props.endReason) {
         case MarriageEndReason.DIVORCE:
-          this.props.marriageStatus = MarriageStatus.DIVORCED;
+          props.marriageStatus = MarriageStatus.DIVORCED;
           break;
         case MarriageEndReason.DEATH_OF_SPOUSE:
-          this.props.marriageStatus = MarriageStatus.WIDOWED;
+          props.marriageStatus = MarriageStatus.WIDOWED;
           break;
         case MarriageEndReason.ANNULMENT:
-          this.props.marriageStatus = MarriageStatus.ANNULED;
+          props.marriageStatus = MarriageStatus.DIVORCED; // Using DIVORCED for annulment
           break;
         case MarriageEndReason.CUSTOMARY_DISSOLUTION:
-          this.props.marriageStatus = MarriageStatus.SEPARATED;
+          props.marriageStatus = MarriageStatus.SEPARATED;
           break;
         default:
-          this.props.marriageStatus = MarriageStatus.ACTIVE;
+          props.marriageStatus = MarriageStatus.MARRIED;
       }
     } else if (this.props.isPolygamous) {
-      this.props.marriageStatus = MarriageStatus.POLYGAMOUS;
+      props.marriageStatus = MarriageStatus.MARRIED; // Polygamous marriages are still MARRIED
     } else {
-      this.props.marriageStatus = MarriageStatus.ACTIVE;
+      props.marriageStatus = MarriageStatus.MARRIED;
     }
   }
 
@@ -599,18 +600,14 @@ export class Marriage extends Entity<MarriageProps> {
 
       if (
         props.marriageType !== MarriageType.ISLAMIC &&
-        props.marriageType !== MarriageType.CUSTOMARY &&
-        props.marriageType !== MarriageType.TRADITIONAL
+        props.marriageType !== MarriageType.CUSTOMARY
       ) {
-        throw new Error('Only Islamic, Customary, or Traditional marriages can be polygamous');
+        throw new Error('Only Islamic or Customary marriages can be polygamous');
       }
     }
 
     // Customary marriage validations
-    if (
-      props.marriageType === MarriageType.CUSTOMARY ||
-      props.marriageType === MarriageType.TRADITIONAL
-    ) {
+    if (props.marriageType === MarriageType.CUSTOMARY) {
       if (
         !props.customaryDetails?.eldersPresent ||
         props.customaryDetails.eldersPresent.length < 2
@@ -626,8 +623,8 @@ export class Marriage extends Entity<MarriageProps> {
       }
     }
 
-    // Cohabitation validations
-    if (props.marriageType === MarriageType.COHABITATION) {
+    // Cohabitation validations (handled as MarriageType.OTHER)
+    if (props.marriageType === MarriageType.OTHER) {
       if (!props.cohabitationAffidavitId) {
         throw new Error('Cohabitation requires an affidavit');
       }
@@ -649,13 +646,14 @@ export class Marriage extends Entity<MarriageProps> {
   /**
    * Archive marriage (soft delete)
    */
-  public archive(reason: string, archivedBy: UniqueEntityID): void {
+  public archive(_reason: string, archivedBy: UniqueEntityID): void {
     if (this.props.isArchived) {
       throw new Error('Marriage is already archived');
     }
 
-    this.props.isArchived = true;
-    this.props.lastUpdatedBy = archivedBy;
+    const props = this.props as any;
+    props.isArchived = true;
+    props.lastUpdatedBy = archivedBy;
     // Don't mark as deleted, just archived for legal retention
   }
 
@@ -667,8 +665,9 @@ export class Marriage extends Entity<MarriageProps> {
       throw new Error('Marriage is not archived');
     }
 
-    this.props.isArchived = false;
-    this.props.lastUpdatedBy = restoredBy;
+    const props = this.props as any;
+    props.isArchived = false;
+    props.lastUpdatedBy = restoredBy;
   }
 
   /**
@@ -708,13 +707,11 @@ export class Marriage extends Entity<MarriageProps> {
 
     return {
       duration,
-      isActive:
-        this.props.marriageStatus === MarriageStatus.ACTIVE ||
-        this.props.marriageStatus === MarriageStatus.POLYGAMOUS,
+      isActive: this.props.marriageStatus === MarriageStatus.MARRIED,
       isEnded:
         this.props.marriageStatus === MarriageStatus.DIVORCED ||
         this.props.marriageStatus === MarriageStatus.WIDOWED ||
-        this.props.marriageStatus === MarriageStatus.ANNULED,
+        this.props.marriageStatus === MarriageStatus.SEPARATED,
       isLegallyRecognized: this.isLegallyRecognized(),
       qualifiesForS40: this.qualifiesForS40Distribution(),
       waitingPeriodCompleted: this.props.waitingPeriodCompleted,
@@ -787,10 +784,7 @@ export class Marriage extends Entity<MarriageProps> {
   }
 
   private areCustomaryRequirementsMet(): boolean {
-    if (
-      this.props.marriageType !== MarriageType.CUSTOMARY &&
-      this.props.marriageType !== MarriageType.TRADITIONAL
-    ) {
+    if (this.props.marriageType !== MarriageType.CUSTOMARY) {
       return true;
     }
 

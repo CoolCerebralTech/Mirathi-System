@@ -436,11 +436,10 @@ export class PolygamousHouseFactory {
   ): PolygamousHouseProps['verificationStatus'] {
     const mapping: Record<string, PolygamousHouseProps['verificationStatus']> = {
       VERIFIED: 'VERIFIED',
-      PENDING: 'PENDING_COURT',
-      REJECTED: 'REJECTED',
-      COURT_PENDING: 'PENDING_COURT',
+      REJECTED: 'DISPUTED',
+      DISPUTED: 'DISPUTED',
       YES: 'VERIFIED',
-      NO: 'REJECTED',
+      NO: 'UNVERIFIED',
       '1': 'VERIFIED',
       '0': 'UNVERIFIED',
     };

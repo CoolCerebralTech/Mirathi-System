@@ -6,7 +6,7 @@ import {
   CohabitationEndedEvent,
   CohabitationStartedEvent,
   CohabitationVerifiedEvent,
-} from '../events/family-events';
+} from '../events/cohabitation-events';
 import { KenyanCounty } from '../value-objects/family-enums.vo';
 
 /**
@@ -95,7 +95,7 @@ export interface CohabitationRecordProps {
   // Metadata
   createdBy: UniqueEntityID;
   lastUpdatedBy: UniqueEntityID;
-  verificationStatus: 'UNVERIFIED' | 'PENDING_VERIFICATION' | 'VERIFIED' | 'REJECTED';
+  verificationStatus: 'UNVERIFIED' | 'PENDING_VERIFICATION' | 'VERIFIED' | 'DISPUTED';
   verificationNotes?: string;
 
   // Audit
@@ -169,13 +169,13 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
         if (JSON.stringify(oldValue) === JSON.stringify(value)) return;
 
         // Apply update
-        (this.props as any)[key] = value;
+        (this as any)._props[key] = value;
         changes[key] = { old: oldValue, new: value };
       }
     });
 
     if (Object.keys(changes).length > 0) {
-      this.props.lastUpdatedBy = updatedBy;
+      (this as any)._props.lastUpdatedBy = updatedBy;
 
       // Recalculate derived fields if dates changed
       if (updates.startDate || updates.endDate) {
@@ -184,7 +184,7 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
 
       // Update children status if childrenIds changed
       if (updates.childrenIds) {
-        this.props.hasChildren = this.props.childrenIds.length > 0;
+        (this as any)._props.hasChildren = this.props.childrenIds.length > 0;
       }
     }
   }
@@ -214,9 +214,10 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
     }
 
     const previousStatus = this.props.isActive;
-    this.props.endDate = endDate;
-    this.props.isActive = false;
-    this.props.lastUpdatedBy = endedBy;
+    const props = this.props as any;
+    props.endDate = endDate;
+    props.isActive = false;
+    props.lastUpdatedBy = endedBy;
 
     // Update duration and qualifications
     this.updateDurationAndQualifications();
@@ -269,10 +270,11 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
       throw new Error('Child birth date cannot be after cohabitation ended');
     }
 
-    this.props.childrenIds.push(childId);
-    this.props.hasChildren = true;
-    this.props.childrenBornDuringCohabitation = true;
-    this.props.lastUpdatedBy = addedBy;
+    const props = this.props as any;
+    props.childrenIds.push(childId);
+    props.hasChildren = true;
+    props.childrenBornDuringCohabitation = true;
+    props.lastUpdatedBy = addedBy;
 
     // Record child addition event
     this.addDomainEvent(
@@ -305,9 +307,10 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
   ): void {
     this.ensureNotArchived();
 
-    this.props.affidavitId = evidence.affidavitId;
-    this.props.witnesses = evidence.witnessStatements;
-    this.props.communityAcknowledged = true;
+    const props = this.props as any;
+    props.affidavitId = evidence.affidavitId;
+    props.witnesses = evidence.witnessStatements;
+    props.communityAcknowledged = true;
 
     // Update verification status based on evidence strength
     let verificationScore = 0;
@@ -320,10 +323,10 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
 
     // Update verification status
     const oldStatus = this.props.verificationStatus;
-    this.props.verificationStatus = verificationScore >= 70 ? 'VERIFIED' : 'PENDING_VERIFICATION';
-    this.props.verificationNotes = `Verified with ${evidence.witnessStatements.length} witnesses, ${evidence.jointBills?.length || 0} joint bills`;
-    this.props.lastVerifiedAt = new Date();
-    this.props.lastUpdatedBy = verifiedBy;
+    props.verificationStatus = verificationScore >= 70 ? 'VERIFIED' : 'PENDING_VERIFICATION';
+    props.verificationNotes = `Verified with ${evidence.witnessStatements.length} witnesses, ${evidence.jointBills?.length || 0} joint bills`;
+    props.lastVerifiedAt = new Date();
+    props.lastUpdatedBy = verifiedBy;
 
     // Record verification event
     this.addDomainEvent(
@@ -332,7 +335,7 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
         partner1Id: this.props.partner1Id.toString(),
         partner2Id: this.props.partner2Id.toString(),
         oldStatus,
-        newStatus: this.props.verificationStatus,
+        newStatus: props.verificationStatus,
         evidenceCount: evidence.witnessStatements.length + (evidence.jointBills?.length || 0),
         verifiedBy: verifiedBy.toString(),
         timestamp: new Date(),
@@ -352,24 +355,25 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
     },
     establishedBy: UniqueEntityID,
   ): void {
-    this.props.jointFinancialAccounts = !!evidence.jointBankAccount;
-    this.props.jointPropertyOwnership = !!(
+    const props = this.props as any;
+    props.jointFinancialAccounts = !!evidence.jointBankAccount;
+    props.jointPropertyOwnership = !!(
       evidence.propertyCoOwnership && evidence.propertyCoOwnership.length > 0
     );
-    this.props.financialSupportProvided = true;
+    props.financialSupportProvided = true;
 
     // Add evidence to supportEvidence
     if (evidence.jointBankAccount) {
-      this.props.supportEvidence.push(`JOINT_ACCOUNT_${evidence.jointBankAccount}`);
+      props.supportEvidence.push(`JOINT_ACCOUNT_${evidence.jointBankAccount}`);
     }
 
     if (evidence.moneyTransferRecords) {
-      this.props.supportEvidence.push(
+      props.supportEvidence.push(
         ...evidence.moneyTransferRecords.map((r) => `MONEY_TRANSFER_${r}`),
       );
     }
 
-    this.props.lastUpdatedBy = establishedBy;
+    props.lastUpdatedBy = establishedBy;
 
     // Update S.29 qualification
     this.updateS29Qualification();
@@ -391,12 +395,13 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
       throw new Error('Cohabitation does not qualify for dependency claim');
     }
 
-    this.props.dependencyClaimFiled = true;
-    this.props.dependencyClaimId = claimId;
-    this.props.dependencyClaimStatus = 'PENDING';
-    this.props.hasCourtRecognition = true;
-    this.props.courtCaseNumber = courtDetails.caseNumber;
-    this.props.lastUpdatedBy = filedBy;
+    const props = this.props as any;
+    props.dependencyClaimFiled = true;
+    props.dependencyClaimId = claimId;
+    props.dependencyClaimStatus = 'PENDING';
+    props.hasCourtRecognition = true;
+    props.courtCaseNumber = courtDetails.caseNumber;
+    props.lastUpdatedBy = filedBy;
 
     // This would trigger estate service to create LegalDependant entity
   }
@@ -414,15 +419,16 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
       throw new Error('No dependency claim has been filed');
     }
 
-    this.props.dependencyClaimStatus = status;
-    this.props.courtOrderId = courtOrderId;
+    const props = this.props as any;
+    props.dependencyClaimStatus = status;
+    props.courtOrderId = courtOrderId;
 
     if (status === 'APPROVED') {
-      this.props.hasCourtRecognition = true;
+      props.hasCourtRecognition = true;
       // This would trigger estate service to update LegalDependant status
     }
 
-    this.props.lastUpdatedBy = updatedBy;
+    props.lastUpdatedBy = updatedBy;
   }
 
   /**
@@ -436,10 +442,11 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
     const durationMs = endDate.getTime() - startDate.getTime();
     const durationDays = Math.floor(durationMs / (1000 * 60 * 60 * 24));
 
-    this.props.durationDays = durationDays;
+    const props = this.props as any;
+    props.durationDays = durationDays;
 
     // Check if minimum period met (2 years for S.29)
-    this.props.minimumPeriodMet = durationDays >= CohabitationRecord.MINIMUM_DURATION_DAYS;
+    props.minimumPeriodMet = durationDays >= CohabitationRecord.MINIMUM_DURATION_DAYS;
 
     // Update S.29 qualification
     this.updateS29Qualification();
@@ -467,7 +474,7 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
       !this.props.minimumPeriodMet &&
       this.props.dependencyClaimStatus === 'PENDING';
 
-    this.props.qualifiesForS29 =
+    (this.props as any).qualifiesForS29 =
       meetsDuration && hasStrongEvidence && !endedByDeathBeforeQualification;
   }
 
@@ -571,7 +578,7 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
     event: string;
     details: string;
   }> {
-    const timeline = [];
+    const timeline: Array<{ date: Date; event: string; details: string }> = [];
 
     // Start of cohabitation
     timeline.push({
@@ -659,9 +666,10 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
       throw new Error('Cohabitation record is already archived');
     }
 
-    this.props.isArchived = true;
-    this.props.lastUpdatedBy = archivedBy;
-    this.props.verificationNotes = `${this.props.verificationNotes || ''}\nArchived: ${reason}`;
+    const props = this.props as any;
+    props.isArchived = true;
+    props.lastUpdatedBy = archivedBy;
+    props.verificationNotes = `${this.props.verificationNotes || ''}\nArchived: ${reason}`;
   }
 
   /**
@@ -672,8 +680,9 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
       throw new Error('Cohabitation record is not archived');
     }
 
-    this.props.isArchived = false;
-    this.props.lastUpdatedBy = restoredBy;
+    const props = this.props as any;
+    props.isArchived = false;
+    props.lastUpdatedBy = restoredBy;
   }
 
   /**

@@ -109,7 +109,7 @@ export class FamilyRelationshipFactory {
     createdBy: UniqueEntityID,
     options?: {
       marriageCertificateId?: string;
-      marriageType?: 'CIVIL' | 'CUSTOMARY' | 'ISLAMIC' | 'CHRISTIAN';
+      marriageType?: 'CIVIL' | 'CUSTOMARY' | 'ISLAMIC' | 'CHRISTIAN' | 'HINDU' | 'OTHER';
       isActive?: boolean;
       divorceDecreeId?: string;
     },
@@ -135,7 +135,10 @@ export class FamilyRelationshipFactory {
       isBiological: false,
       isLegal: !!options?.marriageCertificateId || options?.marriageType === 'CIVIL',
       isCustomary: options?.marriageType === 'CUSTOMARY',
-      isSpiritual: options?.marriageType === 'CHRISTIAN' || options?.marriageType === 'ISLAMIC',
+      isSpiritual:
+        options?.marriageType === 'CHRISTIAN' ||
+        options?.marriageType === 'ISLAMIC' ||
+        options?.marriageType === 'HINDU',
       isActive,
       startDate: marriageDate,
       endDate: !isActive ? new Date() : undefined, // Would need actual divorce date
@@ -270,7 +273,7 @@ export class FamilyRelationshipFactory {
       fromMemberId: guardianId,
       toMemberId: wardId,
       relationshipType: RelationshipType.GUARDIAN,
-      inverseRelationshipType: RelationshipType.WARD,
+      inverseRelationshipType: RelationshipType.OTHER, // WARD is not in current enum
       isBiological: false,
       isLegal: !!options?.courtOrderId || options?.guardianshipType === 'COURT_APPOINTED',
       isCustomary: options?.guardianshipType === 'CUSTOMARY',
@@ -337,9 +340,16 @@ export class FamilyRelationshipFactory {
       [RelationshipType.AUNT_UNCLE]: RelationshipType.NIECE_NEPHEW,
       [RelationshipType.NIECE_NEPHEW]: RelationshipType.AUNT_UNCLE,
       [RelationshipType.COUSIN]: RelationshipType.COUSIN,
-      [RelationshipType.CLAN_ELDER]: RelationshipType.CLAN_ELDER,
-      [RelationshipType.AGE_MATE]: RelationshipType.AGE_MATE,
-      [RelationshipType.GODPARENT]: RelationshipType.GODPARENT,
+      [RelationshipType.SPOUSE]: RelationshipType.SPOUSE,
+      [RelationshipType.EX_SPOUSE]: RelationshipType.EX_SPOUSE,
+      [RelationshipType.CHILD]: RelationshipType.PARENT,
+      [RelationshipType.ADOPTED_CHILD]: RelationshipType.PARENT,
+      [RelationshipType.STEPCHILD]: RelationshipType.PARENT,
+      [RelationshipType.PARENT]: RelationshipType.CHILD,
+      [RelationshipType.SIBLING]: RelationshipType.SIBLING,
+      [RelationshipType.HALF_SIBLING]: RelationshipType.HALF_SIBLING,
+      [RelationshipType.GUARDIAN]: RelationshipType.OTHER,
+      [RelationshipType.OTHER]: RelationshipType.OTHER,
     };
 
     const inverseType = inverseMap[relationshipType] || RelationshipType.COUSIN;
@@ -353,7 +363,7 @@ export class FamilyRelationshipFactory {
       isBiological: options?.isBiological || false,
       isLegal: false,
       isCustomary: options?.isCustomary || false,
-      isSpiritual: relationshipType === RelationshipType.GODPARENT,
+      isSpiritual: false,
       isActive: true,
       legalDocuments: [],
       verificationLevel: 'UNVERIFIED',
@@ -378,6 +388,72 @@ export class FamilyRelationshipFactory {
     if (options?.customaryTerm) {
       props.relationshipTerm = options.customaryTerm;
     }
+
+    // Determine legal basis
+    props.legalBasis = [KenyanLawSection.S29_DEPENDANTS];
+
+    return FamilyRelationship.create(props);
+  }
+
+  /**
+   * Create ex-spouse relationship
+   */
+  public static createExSpouseRelationship(
+    familyId: UniqueEntityID,
+    exSpouse1Id: UniqueEntityID,
+    exSpouse2Id: UniqueEntityID,
+    divorceDate: Date,
+    createdBy: UniqueEntityID,
+    options?: {
+      divorceDecreeId?: string;
+      childrenInvolved?: boolean;
+      alimonyAgreement?: string;
+    },
+  ): FamilyRelationship {
+    const legalDocuments: string[] = [];
+
+    if (options?.divorceDecreeId) {
+      legalDocuments.push(options.divorceDecreeId);
+    }
+
+    const props: FamilyRelationshipProps = {
+      familyId,
+      fromMemberId: exSpouse1Id,
+      toMemberId: exSpouse2Id,
+      relationshipType: RelationshipType.EX_SPOUSE,
+      inverseRelationshipType: RelationshipType.EX_SPOUSE,
+      isBiological: false,
+      isLegal: true, // Divorce is a legal process
+      isCustomary: false,
+      isSpiritual: false,
+      isActive: false,
+      startDate: new Date(), // Would need actual marriage date
+      endDate: divorceDate,
+      legalDocuments,
+      verificationLevel: options?.divorceDecreeId ? 'PARTIALLY_VERIFIED' : 'UNVERIFIED',
+      verificationScore: options?.divorceDecreeId ? 70 : 30,
+      closenessIndex: 30, // Typically low after divorce
+      contactFrequency: options?.childrenInvolved ? 'MONTHLY' : 'RARELY',
+      isFinancialDependent: !!options?.alimonyAgreement,
+      isCareDependent: false,
+      dependencyLevel: options?.alimonyAgreement ? 'PARTIAL' : undefined,
+      supportProvided: {
+        financial: !!options?.alimonyAgreement,
+        housing: false,
+        medical: false,
+        educational: false,
+      },
+      inheritanceRights: 'NONE', // Ex-spouses typically don't inherit
+      disinherited: true,
+      hasConflict: false, // Would need actual conflict info
+      clanRecognized: false,
+      elderWitnesses: [],
+      customaryRecognition: false,
+      relationshipStrength: 0, // Will be calculated
+      createdBy,
+      lastUpdatedBy: createdBy,
+      isArchived: false,
+    };
 
     // Determine legal basis
     props.legalBasis = [KenyanLawSection.S29_DEPENDANTS];
@@ -458,7 +534,7 @@ export class FamilyRelationshipFactory {
    * Generate template for quick relationship creation
    */
   public static createTemplate(
-    templateType: 'PARENT_CHILD' | 'SPOUSAL' | 'SIBLING' | 'GUARDIAN' | 'EXTENDED',
+    templateType: 'PARENT_CHILD' | 'SPOUSAL' | 'SIBLING' | 'GUARDIAN' | 'EXTENDED' | 'EX_SPOUSE',
     familyId: UniqueEntityID,
     fromMemberId: UniqueEntityID,
     toMemberId: UniqueEntityID,
@@ -543,7 +619,7 @@ export class FamilyRelationshipFactory {
         return {
           ...baseTemplate,
           relationshipType: RelationshipType.GUARDIAN,
-          inverseRelationshipType: RelationshipType.WARD,
+          inverseRelationshipType: RelationshipType.OTHER,
           isLegal: true,
           closenessIndex: 50,
           contactFrequency: 'WEEKLY',
@@ -572,6 +648,22 @@ export class FamilyRelationshipFactory {
           inheritanceRights: 'PARTIAL',
         };
 
+      case 'EX_SPOUSE':
+        return {
+          ...baseTemplate,
+          relationshipType: RelationshipType.EX_SPOUSE,
+          inverseRelationshipType: RelationshipType.EX_SPOUSE,
+          isLegal: true,
+          isActive: false,
+          closenessIndex: 30,
+          contactFrequency: 'RARELY',
+          isFinancialDependent: false,
+          isCareDependent: false,
+          inheritanceRights: 'NONE',
+          disinherited: true,
+          endDate: new Date(),
+        };
+
       default:
         return baseTemplate;
     }
@@ -583,6 +675,7 @@ export class FamilyRelationshipFactory {
       PARENT: RelationshipType.PARENT,
       CHILD: RelationshipType.CHILD,
       SPOUSE: RelationshipType.SPOUSE,
+      EX_SPOUSE: RelationshipType.EX_SPOUSE,
       SIBLING: RelationshipType.SIBLING,
       SIBLING_FULL: RelationshipType.SIBLING,
       SIBLING_HALF: RelationshipType.HALF_SIBLING,
@@ -594,46 +687,41 @@ export class FamilyRelationshipFactory {
       NEPHEW: RelationshipType.NIECE_NEPHEW,
       COUSIN: RelationshipType.COUSIN,
       GUARDIAN: RelationshipType.GUARDIAN,
-      WARD: RelationshipType.WARD,
+      WARD: RelationshipType.OTHER, // Map WARD to OTHER
       STEPCHILD: RelationshipType.STEPCHILD,
       ADOPTED_CHILD: RelationshipType.ADOPTED_CHILD,
-      FOSTER_CHILD: RelationshipType.FOSTER_CHILD,
-      CLAN_ELDER: RelationshipType.CLAN_ELDER,
-      AGE_MATE: RelationshipType.AGE_MATE,
-      GODPARENT: RelationshipType.GODPARENT,
-      PARTNER: RelationshipType.PARTNER,
-      COHABITANT: RelationshipType.COHABITANT,
-      EX_SPOUSE: RelationshipType.EX_SPOUSE,
+      // Map legacy types to OTHER
+      FOSTER_CHILD: RelationshipType.OTHER,
+      CLAN_ELDER: RelationshipType.OTHER,
+      AGE_MATE: RelationshipType.OTHER,
+      GODPARENT: RelationshipType.OTHER,
+      PARTNER: RelationshipType.OTHER,
+      COHABITANT: RelationshipType.OTHER,
     };
 
-    return mapping[legacyType?.toUpperCase()] || RelationshipType.COUSIN;
+    return mapping[legacyType?.toUpperCase()] || RelationshipType.OTHER;
   }
 
   private static calculateInverseType(type: RelationshipType): RelationshipType {
     const inverseMap: Record<RelationshipType, RelationshipType> = {
       [RelationshipType.SPOUSE]: RelationshipType.SPOUSE,
+      [RelationshipType.EX_SPOUSE]: RelationshipType.EX_SPOUSE,
       [RelationshipType.CHILD]: RelationshipType.PARENT,
+      [RelationshipType.ADOPTED_CHILD]: RelationshipType.PARENT,
+      [RelationshipType.STEPCHILD]: RelationshipType.PARENT,
       [RelationshipType.PARENT]: RelationshipType.CHILD,
       [RelationshipType.SIBLING]: RelationshipType.SIBLING,
+      [RelationshipType.HALF_SIBLING]: RelationshipType.HALF_SIBLING,
       [RelationshipType.GRANDPARENT]: RelationshipType.GRANDCHILD,
       [RelationshipType.GRANDCHILD]: RelationshipType.GRANDPARENT,
       [RelationshipType.AUNT_UNCLE]: RelationshipType.NIECE_NEPHEW,
       [RelationshipType.NIECE_NEPHEW]: RelationshipType.AUNT_UNCLE,
       [RelationshipType.COUSIN]: RelationshipType.COUSIN,
-      [RelationshipType.GUARDIAN]: RelationshipType.WARD,
-      [RelationshipType.WARD]: RelationshipType.GUARDIAN,
-      [RelationshipType.STEPCHILD]: RelationshipType.PARENT,
-      [RelationshipType.ADOPTED_CHILD]: RelationshipType.PARENT,
-      [RelationshipType.FOSTER_CHILD]: RelationshipType.PARENT,
-      [RelationshipType.CLAN_ELDER]: RelationshipType.CLAN_ELDER,
-      [RelationshipType.AGE_MATE]: RelationshipType.AGE_MATE,
-      [RelationshipType.GODPARENT]: RelationshipType.GODPARENT,
-      [RelationshipType.PARTNER]: RelationshipType.PARTNER,
-      [RelationshipType.COHABITANT]: RelationshipType.COHABITANT,
-      [RelationshipType.EX_SPOUSE]: RelationshipType.EX_SPOUSE,
+      [RelationshipType.GUARDIAN]: RelationshipType.OTHER,
+      [RelationshipType.OTHER]: RelationshipType.OTHER,
     };
 
-    return inverseMap[type] || RelationshipType.COUSIN;
+    return inverseMap[type] || RelationshipType.OTHER;
   }
 
   private static mapLegacyVerificationLevel(

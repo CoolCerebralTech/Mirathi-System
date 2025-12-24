@@ -21,6 +21,12 @@ export interface ComplianceScheduleProps {
   autoGenerateReport: boolean;
 }
 
+interface CalendarEntry {
+  month: string;
+  dueDate: Date;
+  reminders: Date[];
+}
+
 export class ComplianceScheduleVO extends ValueObject<ComplianceScheduleProps> {
   constructor(props: ComplianceScheduleProps) {
     super(props);
@@ -57,8 +63,8 @@ export class ComplianceScheduleVO extends ValueObject<ComplianceScheduleProps> {
       case ReportFrequency.BIENNIAL:
         nextDate.setFullYear(nextDate.getFullYear() + 2);
         break;
-      case ReportFrequency.CUSTOM:
-        // Find next month in custom months
+      case ReportFrequency.CUSTOM: {
+        // Find next month in custom months - wrapped in block scope
         const currentMonth = baseDate.getMonth();
         const nextMonth = this.props.customMonths?.find((m) => m > currentMonth);
         if (nextMonth) {
@@ -69,6 +75,7 @@ export class ComplianceScheduleVO extends ValueObject<ComplianceScheduleProps> {
           nextDate.setMonth(this.props.customMonths![0]);
         }
         break;
+      }
     }
 
     return nextDate;
@@ -99,8 +106,8 @@ export class ComplianceScheduleVO extends ValueObject<ComplianceScheduleProps> {
   }
 
   // 🎯 INNOVATIVE: Generate compliance calendar for year
-  public generateCalendar(year: number): Array<{ month: string; dueDate: Date }> {
-    const calendar = [];
+  public generateCalendar(year: number): CalendarEntry[] {
+    const calendar: CalendarEntry[] = [];
     let currentDate = new Date(year, 0, 1);
 
     if (currentDate < this.props.startDate) {

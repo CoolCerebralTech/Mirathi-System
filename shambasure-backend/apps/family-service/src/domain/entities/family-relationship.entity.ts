@@ -6,7 +6,7 @@ import {
   RelationshipDissolvedEvent,
   RelationshipUpdatedEvent,
   RelationshipVerifiedEvent,
-} from '../events/family-events';
+} from '../events/family-relationship-events';
 import { KenyanLawSection, RelationshipType } from '../value-objects/family-enums.vo';
 
 /**
@@ -124,13 +124,15 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
     const relationship = new FamilyRelationship(props, id);
 
     // Calculate initial verification score
-    if (relationship.props.verificationScore === undefined) {
-      relationship.props.verificationScore = relationship.calculateInitialVerificationScore();
+    if ((props as any).verificationScore === undefined) {
+      (relationship.props as any).verificationScore =
+        relationship.calculateInitialVerificationScore();
     }
 
     // Calculate relationship strength
-    if (relationship.props.relationshipStrength === undefined) {
-      relationship.props.relationshipStrength = relationship.calculateRelationshipStrength();
+    if ((props as any).relationshipStrength === undefined) {
+      (relationship.props as any).relationshipStrength =
+        relationship.calculateRelationshipStrength();
     }
 
     // Record creation event
@@ -190,7 +192,7 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
     });
 
     if (Object.keys(changes).length > 0) {
-      this.props.lastUpdatedBy = updatedBy;
+      (this.props as any).lastUpdatedBy = updatedBy;
 
       // Recalculate derived fields
       if (
@@ -204,7 +206,7 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
           ].includes(k),
         )
       ) {
-        this.props.verificationScore = this.calculateVerificationScore();
+        (this.props as any).verificationScore = this.calculateVerificationScore();
       }
 
       if (
@@ -212,7 +214,7 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
           ['contactFrequency', 'closenessIndex', 'hasConflict', 'supportProvided'].includes(k),
         )
       ) {
-        this.props.relationshipStrength = this.calculateRelationshipStrength();
+        (this.props as any).relationshipStrength = this.calculateRelationshipStrength();
       }
 
       this.addDomainEvent(
@@ -238,38 +240,38 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
       courtOrderId?: string;
     },
     verifiedBy: UniqueEntityID,
-    confidenceLevel: number, // 0-100
+    _confidenceLevel: number, // 0-100
   ): void {
     this.ensureNotArchived();
 
     // Update verification details
-    this.props.verificationMethod = verificationMethod;
-    this.props.lastVerifiedAt = new Date();
-    this.props.verifiedBy = verifiedBy;
+    (this.props as any).verificationMethod = verificationMethod;
+    (this.props as any).lastVerifiedAt = new Date();
+    (this.props as any).verifiedBy = verifiedBy;
 
     // Add evidence
     if (evidence.documentIds) {
-      this.props.legalDocuments = [
+      (this.props as any).legalDocuments = [
         ...new Set([...this.props.legalDocuments, ...evidence.documentIds]),
       ];
     }
 
     if (evidence.dnaTestId) {
-      this.props.dnaTestId = evidence.dnaTestId;
-      this.props.isBiological = true;
+      (this.props as any).dnaTestId = evidence.dnaTestId;
+      (this.props as any).isBiological = true;
     }
 
     if (evidence.courtOrderId) {
-      this.props.courtOrderId = evidence.courtOrderId;
-      this.props.isLegal = true;
+      (this.props as any).courtOrderId = evidence.courtOrderId;
+      (this.props as any).isLegal = true;
     }
 
     // Update verification level
     const newVerificationScore = this.calculateVerificationScore();
     const oldVerificationScore = this.props.verificationScore;
 
-    this.props.verificationScore = newVerificationScore;
-    this.props.verificationLevel = this.mapVerificationScoreToLevel(newVerificationScore);
+    (this.props as any).verificationScore = newVerificationScore;
+    (this.props as any).verificationLevel = this.mapVerificationScoreToLevel(newVerificationScore);
 
     // Record verification event
     this.addDomainEvent(
@@ -285,7 +287,7 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
       }),
     );
 
-    this.props.lastUpdatedBy = verifiedBy;
+    (this.props as any).lastUpdatedBy = verifiedBy;
   }
 
   /**
@@ -294,17 +296,18 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
   public confirmBiologicalRelationship(
     dnaTestId: string,
     matchPercentage: number,
-    testingLab: string,
-    testDate: Date,
+    _testingLab: string,
+    _testDate: Date,
     confirmedBy: UniqueEntityID,
   ): void {
-    this.props.isBiological = true;
-    this.props.biologicalConfidence = matchPercentage;
-    this.props.dnaTestId = dnaTestId;
-    this.props.dnaMatchPercentage = matchPercentage;
+    const props = this.props as any;
+    props.isBiological = true;
+    props.biologicalConfidence = matchPercentage;
+    props.dnaTestId = dnaTestId;
+    props.dnaMatchPercentage = matchPercentage;
 
     // Add DNA test as legal document
-    this.props.legalDocuments.push(`DNA_TEST_${dnaTestId}`);
+    props.legalDocuments.push(`DNA_TEST_${dnaTestId}`);
 
     this.verifyRelationship('DNA', { dnaTestId }, confirmedBy, matchPercentage);
   }
@@ -316,35 +319,36 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
     courtOrderId: string,
     orderType: 'ADOPTION' | 'GUARDIANSHIP' | 'CUSTODY' | 'PARENTAGE',
     orderDate: Date,
-    courtDetails: {
+    _courtDetails: {
       caseNumber: string;
       courtStation: string;
       judgeName: string;
     },
     establishedBy: UniqueEntityID,
   ): void {
-    this.props.isLegal = true;
-    this.props.courtOrderId = courtOrderId;
-    this.props.startDate = orderDate;
+    const props = this.props as any;
+    props.isLegal = true;
+    props.courtOrderId = courtOrderId;
+    props.startDate = orderDate;
 
     // Set appropriate relationship type based on order type
     switch (orderType) {
       case 'ADOPTION':
         if (this.props.relationshipType === RelationshipType.PARENT) {
-          this.props.relationshipType = RelationshipType.ADOPTED_CHILD;
+          props.relationshipType = RelationshipType.ADOPTED_CHILD;
         } else if (this.props.relationshipType === RelationshipType.CHILD) {
-          this.props.relationshipType = RelationshipType.ADOPTED_CHILD;
+          props.relationshipType = RelationshipType.ADOPTED_CHILD;
         }
-        this.props.adoptionOrderId = courtOrderId;
+        props.adoptionOrderId = courtOrderId;
         break;
       case 'GUARDIANSHIP':
-        this.props.relationshipType = RelationshipType.GUARDIAN;
-        this.props.guardianshipOrderId = courtOrderId;
+        props.relationshipType = RelationshipType.GUARDIAN;
+        props.guardianshipOrderId = courtOrderId;
         break;
     }
 
     // Add court order as legal document
-    this.props.legalDocuments.push(`COURT_ORDER_${courtOrderId}`);
+    props.legalDocuments.push(`COURT_ORDER_${courtOrderId}`);
 
     this.verifyRelationship(
       'COURT_ORDER',
@@ -361,19 +365,20 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
     elders: string[],
     recognitionDate: Date,
     customaryRite: string,
-    clanRepresentatives: string[],
+    _clanRepresentatives: string[],
     recognizedBy: UniqueEntityID,
   ): void {
-    this.props.isCustomary = true;
-    this.props.customaryRecognition = true;
-    this.props.clanRecognized = true;
-    this.props.elderWitnesses = elders;
-    this.props.traditionalRite = customaryRite;
-    this.props.startDate = recognitionDate;
+    const props = this.props as any;
+    props.isCustomary = true;
+    props.customaryRecognition = true;
+    props.clanRecognized = true;
+    props.elderWitnesses = elders;
+    props.traditionalRite = customaryRite;
+    props.startDate = recognitionDate;
 
     // Generate customary document reference
     const customaryDocId = `CUSTOMARY_RECOGNITION_${this.id.toString().substring(0, 8)}`;
-    this.props.legalDocuments.push(customaryDocId);
+    props.legalDocuments.push(customaryDocId);
 
     this.verifyRelationship(
       'TRADITIONAL',
@@ -409,22 +414,22 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
       throw new Error('End date cannot be before start date');
     }
 
-    const previousStatus = this.props.isActive;
-    this.props.endDate = endDate;
-    this.props.isActive = false;
-    this.props.lastUpdatedBy = dissolvedBy;
+    const props = this.props as any;
+    props.endDate = endDate;
+    props.isActive = false;
+    props.lastUpdatedBy = dissolvedBy;
 
     // Add relevant documents
     if (details.deathCertificateId) {
-      this.props.legalDocuments.push(details.deathCertificateId);
+      props.legalDocuments.push(details.deathCertificateId);
     }
 
     if (details.divorceDecreeId) {
-      this.props.legalDocuments.push(details.divorceDecreeId);
+      props.legalDocuments.push(details.divorceDecreeId);
     }
 
     if (details.courtOrderId) {
-      this.props.courtOrderId = details.courtOrderId;
+      props.courtOrderId = details.courtOrderId;
     }
 
     // Record dissolution event
@@ -452,14 +457,15 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
     supportDetails: FamilyRelationshipProps['supportProvided'],
     updatedBy: UniqueEntityID,
   ): void {
-    this.props.isFinancialDependent = isFinancialDependent;
-    this.props.isCareDependent = isCareDependent;
-    this.props.dependencyLevel = dependencyLevel;
-    this.props.supportProvided = supportDetails;
-    this.props.lastUpdatedBy = updatedBy;
+    const props = this.props as any;
+    props.isFinancialDependent = isFinancialDependent;
+    props.isCareDependent = isCareDependent;
+    props.dependencyLevel = dependencyLevel;
+    props.supportProvided = supportDetails;
+    props.lastUpdatedBy = updatedBy;
 
     // Recalculate relationship strength
-    this.props.relationshipStrength = this.calculateRelationshipStrength();
+    props.relationshipStrength = this.calculateRelationshipStrength();
   }
 
   /**
@@ -467,41 +473,43 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
    */
   public updateInheritanceRights(
     inheritanceRights: FamilyRelationshipProps['inheritanceRights'],
+    updatedBy: UniqueEntityID,
     inheritancePercentage?: number,
     disinherited?: boolean,
     disinheritanceReason?: string,
-    updatedBy: UniqueEntityID,
   ): void {
-    this.props.inheritanceRights = inheritanceRights;
-    this.props.inheritancePercentage = inheritancePercentage;
+    const props = this.props as any;
+    props.inheritanceRights = inheritanceRights;
+    props.inheritancePercentage = inheritancePercentage;
 
     if (disinherited !== undefined) {
-      this.props.disinherited = disinherited;
-      this.props.disinheritanceReason = disinheritanceReason;
+      props.disinherited = disinherited;
+      props.disinheritanceReason = disinheritanceReason;
     }
 
-    this.props.lastUpdatedBy = updatedBy;
+    props.lastUpdatedBy = updatedBy;
   }
 
   /**
    * Record conflict or resolution
    */
   public recordConflict(
+    recordedBy: UniqueEntityID,
     hasConflict: boolean,
     resolutionStatus?: FamilyRelationshipProps['conflictResolutionStatus'],
-    mediationDetails?: {
+    _mediationDetails?: {
       mediator?: string;
       mediationDate?: Date;
       outcome?: string;
     },
-    recordedBy: UniqueEntityID,
   ): void {
-    this.props.hasConflict = hasConflict;
-    this.props.conflictResolutionStatus = resolutionStatus;
-    this.props.lastUpdatedBy = recordedBy;
+    const props = this.props as any;
+    props.hasConflict = hasConflict;
+    props.conflictResolutionStatus = resolutionStatus;
+    props.lastUpdatedBy = recordedBy;
 
     // Recalculate relationship strength
-    this.props.relationshipStrength = this.calculateRelationshipStrength();
+    props.relationshipStrength = this.calculateRelationshipStrength();
   }
 
   /**
@@ -575,7 +583,7 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
     event: string;
     details: string;
   }> {
-    const timeline = [];
+    const timeline: Array<{ date: Date; event: string; details: string }> = [];
 
     if (this.props.startDate) {
       timeline.push({
@@ -755,7 +763,7 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
     }
 
     // Update inverse relationship
-    this.props.inverseRelationshipType = this.calculateInverseRelationshipType(newType);
+    (this.props as any).inverseRelationshipType = this.calculateInverseRelationshipType(newType);
   }
 
   /**
@@ -764,28 +772,23 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
   private calculateInverseRelationshipType(type: RelationshipType): RelationshipType {
     const inverseMap: Record<RelationshipType, RelationshipType> = {
       [RelationshipType.SPOUSE]: RelationshipType.SPOUSE,
+      [RelationshipType.EX_SPOUSE]: RelationshipType.EX_SPOUSE,
       [RelationshipType.CHILD]: RelationshipType.PARENT,
+      [RelationshipType.ADOPTED_CHILD]: RelationshipType.PARENT,
+      [RelationshipType.STEPCHILD]: RelationshipType.PARENT,
       [RelationshipType.PARENT]: RelationshipType.CHILD,
       [RelationshipType.SIBLING]: RelationshipType.SIBLING,
+      [RelationshipType.HALF_SIBLING]: RelationshipType.HALF_SIBLING,
       [RelationshipType.GRANDPARENT]: RelationshipType.GRANDCHILD,
       [RelationshipType.GRANDCHILD]: RelationshipType.GRANDPARENT,
       [RelationshipType.AUNT_UNCLE]: RelationshipType.NIECE_NEPHEW,
       [RelationshipType.NIECE_NEPHEW]: RelationshipType.AUNT_UNCLE,
       [RelationshipType.COUSIN]: RelationshipType.COUSIN,
-      [RelationshipType.GUARDIAN]: RelationshipType.WARD,
-      [RelationshipType.WARD]: RelationshipType.GUARDIAN,
-      [RelationshipType.STEPCHILD]: RelationshipType.PARENT,
-      [RelationshipType.ADOPTED_CHILD]: RelationshipType.PARENT,
-      [RelationshipType.FOSTER_CHILD]: RelationshipType.PARENT,
-      [RelationshipType.CLAN_ELDER]: RelationshipType.CLAN_ELDER,
-      [RelationshipType.AGE_MATE]: RelationshipType.AGE_MATE,
-      [RelationshipType.GODPARENT]: RelationshipType.GODPARENT,
-      [RelationshipType.PARTNER]: RelationshipType.PARTNER,
-      [RelationshipType.COHABITANT]: RelationshipType.COHABITANT,
-      [RelationshipType.EX_SPOUSE]: RelationshipType.EX_SPOUSE,
+      [RelationshipType.GUARDIAN]: RelationshipType.OTHER,
+      [RelationshipType.OTHER]: RelationshipType.OTHER,
     };
 
-    return inverseMap[type] || RelationshipType.COUSIN;
+    return inverseMap[type] || RelationshipType.OTHER;
   }
 
   /**
@@ -853,9 +856,10 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
       throw new Error('Relationship is already archived');
     }
 
-    this.props.isArchived = true;
-    this.props.lastUpdatedBy = archivedBy;
-    this.props.notes = `${this.props.notes || ''}\nArchived: ${reason}`;
+    const props = this.props as any;
+    props.isArchived = true;
+    props.lastUpdatedBy = archivedBy;
+    props.notes = `${this.props.notes || ''}\nArchived: ${reason}`;
   }
 
   /**
@@ -866,8 +870,9 @@ export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
       throw new Error('Relationship is not archived');
     }
 
-    this.props.isArchived = false;
-    this.props.lastUpdatedBy = restoredBy;
+    const props = this.props as any;
+    props.isArchived = false;
+    props.lastUpdatedBy = restoredBy;
   }
 
   /**

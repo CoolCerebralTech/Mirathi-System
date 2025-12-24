@@ -6,7 +6,7 @@ import {
   HouseHeadAssignedEvent,
   PolygamousHouseCreatedEvent,
   PolygamousHouseUpdatedEvent,
-} from '../events/family-events';
+} from '../events/polygamous-house-events';
 import { KenyanCounty } from '../value-objects/family-enums.vo';
 
 /**
@@ -92,7 +92,7 @@ export interface PolygamousHouseProps {
   // Metadata
   createdBy: UniqueEntityID;
   lastUpdatedBy: UniqueEntityID;
-  verificationStatus: 'UNVERIFIED' | 'VERIFIED' | 'REJECTED' | 'PENDING_COURT';
+  verificationStatus: 'UNVERIFIED' | 'VERIFIED' | 'DISPUTED' | 'PENDING_COURT';
   verificationNotes?: string;
 
   // Audit
@@ -116,7 +116,7 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
 
     // Generate house code if not provided
     if (!props.houseCode) {
-      house.props.houseCode = house.generateHouseCode();
+      (house.props as any).houseCode = house.generateHouseCode();
     }
 
     // Record creation event
@@ -157,23 +157,24 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
     this.ensureHouseActive();
 
     const changes: Record<string, any> = {};
+    const props = this.props as any;
 
     // Validate updates
     Object.entries(updates).forEach(([key, value]) => {
       if (value !== undefined) {
-        const oldValue = (this.props as any)[key];
+        const oldValue = props[key];
 
         // Skip if no change
         if (JSON.stringify(oldValue) === JSON.stringify(value)) return;
 
         // Apply update
-        (this.props as any)[key] = value;
+        props[key] = value;
         changes[key] = { old: oldValue, new: value };
       }
     });
 
     if (Object.keys(changes).length > 0) {
-      this.props.lastUpdatedBy = updatedBy;
+      props.lastUpdatedBy = updatedBy;
 
       // Update member count if children/wives changed
       if (updates.childrenIds || updates.wifeIds) {
@@ -209,8 +210,9 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
     }
 
     const previousHead = this.props.houseHeadId;
-    this.props.houseHeadId = headId;
-    this.props.lastUpdatedBy = appointedBy;
+    const props = this.props as any;
+    props.houseHeadId = headId;
+    props.lastUpdatedBy = appointedBy;
 
     this.addDomainEvent(
       new HouseHeadAssignedEvent({
@@ -246,9 +248,10 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
       throw new Error('Child already exists in this house');
     }
 
-    this.props.childrenIds.push(childId);
+    const props = this.props as any;
+    props.childrenIds.push(childId);
     this.updateMemberCount();
-    this.props.lastUpdatedBy = addedBy;
+    props.lastUpdatedBy = addedBy;
 
     this.addDomainEvent(
       new ChildAddedToHouseEvent({
@@ -283,20 +286,21 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
       throw new Error('This house type does not allow multiple wives');
     }
 
-    this.props.wifeIds.push(wifeId);
+    const props = this.props as any;
+    props.wifeIds.push(wifeId);
 
     // If this is the first wife, set as original wife
-    if (this.props.wifeIds.length === 1) {
-      this.props.originalWifeId = wifeId;
+    if (props.wifeIds.length === 1) {
+      props.originalWifeId = wifeId;
     }
 
     // If no current wife set, set as current wife
-    if (!this.props.currentWifeId) {
-      this.props.currentWifeId = wifeId;
+    if (!props.currentWifeId) {
+      props.currentWifeId = wifeId;
     }
 
     this.updateMemberCount();
-    this.props.lastUpdatedBy = addedBy;
+    props.lastUpdatedBy = addedBy;
   }
 
   /**
@@ -310,33 +314,34 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
   ): void {
     this.ensureNotArchived();
 
-    const wifeIndex = this.props.wifeIds.findIndex((id) => id.equals(wifeId));
+    const props = this.props as any;
+    const wifeIndex = props.wifeIds.findIndex((id: UniqueEntityID) => id.equals(wifeId));
     if (wifeIndex === -1) {
       throw new Error('Wife not found in this house');
     }
 
-    this.props.wifeIds.splice(wifeIndex, 1);
+    props.wifeIds.splice(wifeIndex, 1);
 
     // Update current wife if removed wife was current
-    if (this.props.currentWifeId?.equals(wifeId)) {
-      this.props.currentWifeId = this.props.wifeIds[0] || undefined;
+    if (props.currentWifeId?.equals(wifeId)) {
+      props.currentWifeId = props.wifeIds[0] || undefined;
     }
 
     // If original wife was removed, update original wife
-    if (this.props.originalWifeId.equals(wifeId)) {
-      this.props.originalWifeId = this.props.wifeIds[0] || new UniqueEntityID();
+    if (props.originalWifeId.equals(wifeId)) {
+      props.originalWifeId = props.wifeIds[0] || new UniqueEntityID();
     }
 
     // If house head was this wife, reassign house head
-    if (this.props.houseHeadId?.equals(wifeId)) {
+    if (props.houseHeadId?.equals(wifeId)) {
       this.reassignHouseHeadAfterWifeRemoval(wifeId, reason, removedBy);
     }
 
     this.updateMemberCount();
-    this.props.lastUpdatedBy = removedBy;
+    props.lastUpdatedBy = removedBy;
 
     // If no wives left, consider dissolving the house
-    if (this.props.wifeIds.length === 0) {
+    if (props.wifeIds.length === 0) {
       this.considerHouseDissolution(reason, effectiveDate, removedBy);
     }
   }
@@ -359,11 +364,12 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
     }
 
     // Check if asset already exists
-    const existingAssetIndex = this.props.houseAssets.findIndex((a) => a.assetId === assetId);
+    const props = this.props as any;
+    const existingAssetIndex = props.houseAssets.findIndex((a: any) => a.assetId === assetId);
 
     if (existingAssetIndex !== -1) {
       // Update existing asset
-      this.props.houseAssets[existingAssetIndex] = {
+      props.houseAssets[existingAssetIndex] = {
         assetId,
         assetType,
         estimatedValue,
@@ -371,7 +377,7 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
       };
     } else {
       // Add new asset
-      this.props.houseAssets.push({
+      props.houseAssets.push({
         assetId,
         assetType,
         estimatedValue,
@@ -379,7 +385,7 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
       });
     }
 
-    this.props.lastUpdatedBy = addedBy;
+    props.lastUpdatedBy = addedBy;
   }
 
   /**
@@ -495,19 +501,20 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
       throw new Error('Dissolution date cannot be before establishment date');
     }
 
-    this.props.isActive = false;
-    this.props.dissolutionDate = dissolutionDate;
-    this.props.dissolutionReason = reason;
-    this.props.lastUpdatedBy = dissolvedBy;
+    const props = this.props as any;
+    props.isActive = false;
+    props.dissolutionDate = dissolutionDate;
+    props.dissolutionReason = reason;
+    props.lastUpdatedBy = dissolvedBy;
 
     // Archive house assets
-    this.props.houseAssets = [];
+    props.houseAssets = [];
 
     // Record dissolution in metadata
-    this.props.verificationNotes = `House dissolved on ${dissolutionDate.toISOString()}. Reason: ${reason}.`;
+    props.verificationNotes = `House dissolved on ${dissolutionDate.toISOString()}. Reason: ${reason}.`;
 
     if (details.courtOrderNumber) {
-      this.props.courtCaseNumber = details.courtOrderNumber;
+      props.courtCaseNumber = details.courtOrderNumber;
     }
   }
 
@@ -527,14 +534,15 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
     this.ensureNotArchived();
     this.ensureHouseActive();
 
+    const props = this.props as any;
     // Mark this house as dissolved due to merge
-    this.props.isActive = false;
-    this.props.dissolutionDate = mergeDate;
-    this.props.dissolutionReason = 'HOUSE_MERGED';
-    this.props.lastUpdatedBy = mergedBy;
+    props.isActive = false;
+    props.dissolutionDate = mergeDate;
+    props.dissolutionReason = 'HOUSE_MERGED';
+    props.lastUpdatedBy = mergedBy;
 
     // Transfer assets to target house (in practice, this would update target house)
-    this.props.verificationNotes = `Merged with house ${targetHouseId.toString()} on ${mergeDate.toISOString()}. ${mergeDetails.reason}`;
+    props.verificationNotes = `Merged with house ${targetHouseId.toString()} on ${mergeDate.toISOString()}. ${mergeDetails.reason}`;
   }
 
   /**
@@ -546,15 +554,16 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
     verifiedBy: UniqueEntityID,
     notes?: string,
   ): void {
-    this.props.courtRecognized = verified;
-    this.props.recognitionDocumentId = courtDocumentId;
-    this.props.verificationStatus = verified ? 'VERIFIED' : 'REJECTED';
-    this.props.verificationNotes = notes;
-    this.props.lastUpdatedBy = verifiedBy;
-    this.props.lastAuditedAt = new Date();
+    const props = this.props as any;
+    props.courtRecognized = verified;
+    props.recognitionDocumentId = courtDocumentId;
+    props.verificationStatus = verified ? 'VERIFIED' : 'DISPUTED';
+    props.verificationNotes = notes;
+    props.lastUpdatedBy = verifiedBy;
+    props.lastAuditedAt = new Date();
 
     if (verified) {
-      this.props.courtRecognitionDate = new Date();
+      props.courtRecognitionDate = new Date();
     }
   }
 
@@ -562,7 +571,8 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
    * Update member count (denormalized)
    */
   private updateMemberCount(): void {
-    this.props.memberCount = this.props.childrenIds.length + this.props.wifeIds.length;
+    const props = this.props as any;
+    props.memberCount = props.childrenIds.length + props.wifeIds.length;
   }
 
   /**
@@ -589,7 +599,7 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
     // TODO: In practice, we would need to fetch children and determine eldest son
     // For now, we'll leave it unassigned
 
-    this.props.houseHeadId = newHeadId;
+    (this.props as any).houseHeadId = newHeadId;
 
     if (newHeadId) {
       this.addDomainEvent(
@@ -747,8 +757,9 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
       throw new Error('House is already archived');
     }
 
-    this.props.isArchived = true;
-    this.props.lastUpdatedBy = archivedBy;
+    const props = this.props as any;
+    props.isArchived = true;
+    props.lastUpdatedBy = archivedBy;
   }
 
   /**
@@ -759,8 +770,9 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
       throw new Error('House is not archived');
     }
 
-    this.props.isArchived = false;
-    this.props.lastUpdatedBy = restoredBy;
+    const props = this.props as any;
+    props.isArchived = false;
+    props.lastUpdatedBy = restoredBy;
   }
 
   /**
@@ -815,6 +827,7 @@ export class PolygamousHouse extends Entity<PolygamousHouseProps> {
   }
 
   private calculateHouseStrength(): number {
+    const establishmentAge = this.getEstablishmentAge();
     let score = 50; // Base score
 
     // Member count factor

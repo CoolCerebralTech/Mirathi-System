@@ -1,6 +1,18 @@
-// src/domain/entities/guardian-assignment.entity.ts
+// src/family-service/src/domain/entities/guardian-assignment.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
+import {
+  ConflictOfInterestDetectedEvent,
+  ConflictOfInterestResolvedEvent,
+  GuardianAssignmentActivatedEvent,
+  GuardianAssignmentDeactivatedEvent,
+  GuardianAssignmentReactivatedEvent,
+  GuardianAssignmentSuspendedEvent,
+  GuardianBondUpdatedEvent,
+  GuardianContactUpdatedEvent,
+  GuardianPowersUpdatedEvent,
+  GuardianTaskCompletedEvent,
+} from '../events/guardian-events';
 import { GuardianContactVO } from '../value-objects/guardian-contact.vo';
 import { GuardianshipBondVO } from '../value-objects/guardianship-bond.vo';
 import { GuardianshipPowersVO } from '../value-objects/guardianship-powers.vo';
@@ -86,6 +98,7 @@ export interface ConflictOfInterest {
   detectedAt: Date;
   resolvedAt?: Date;
   mitigationPlan?: string;
+  resolution?: string; // Added missing property
 }
 
 export enum ConflictType {
@@ -155,19 +168,19 @@ export class GuardianAssignmentEntity extends Entity<GuardianAssignmentProps> {
       throw new Error('Cannot activate guardian with unresolved critical conflicts');
     }
 
-    this.props.activationDate = activationDate;
-    this.props.status = GuardianAssignmentStatus.ACTIVE;
-    this.props.lastActivityDate = activationDate;
+    const props = this.props as any;
+    props.activationDate = activationDate;
+    props.status = GuardianAssignmentStatus.ACTIVE;
+    props.lastActivityDate = activationDate;
 
     this.incrementVersion();
-    this.addDomainEvent({
-      type: 'GUARDIAN_ASSIGNMENT_ACTIVATED',
-      payload: {
+    this.addDomainEvent(
+      new GuardianAssignmentActivatedEvent({
         assignmentId: this.id.toString(),
         guardianId: this.props.guardianId,
         activationDate,
-      },
-    });
+      }),
+    );
   }
 
   // 🎯 INNOVATIVE: Smart deactivation with reason tracking
@@ -189,22 +202,22 @@ export class GuardianAssignmentEntity extends Entity<GuardianAssignmentProps> {
       console.warn('Deactivating primary guardian. Ensure replacement is appointed.');
     }
 
-    this.props.deactivationDate = effectiveDate;
-    this.props.deactivationReason = reason;
-    this.props.status = GuardianAssignmentStatus.TERMINATED;
-    this.props.lastActivityDate = effectiveDate;
+    const props = this.props as any;
+    props.deactivationDate = effectiveDate;
+    props.deactivationReason = reason;
+    props.status = GuardianAssignmentStatus.TERMINATED;
+    props.lastActivityDate = effectiveDate;
 
     this.incrementVersion();
-    this.addDomainEvent({
-      type: 'GUARDIAN_ASSIGNMENT_DEACTIVATED',
-      payload: {
+    this.addDomainEvent(
+      new GuardianAssignmentDeactivatedEvent({
         assignmentId: this.id.toString(),
         guardianId: this.props.guardianId,
         reason,
         effectiveDate,
         wasPrimary: this.props.isPrimary,
-      },
-    });
+      }),
+    );
   }
 
   // 🎯 INNOVATIVE: Conflict of interest detection and management
@@ -221,21 +234,21 @@ export class GuardianAssignmentEntity extends Entity<GuardianAssignmentProps> {
     };
 
     this.props.conflictOfInterestFlags.push(conflict);
-    this.props.complianceScore = Math.max(
+    const props = this.props as any;
+    props.complianceScore = Math.max(
       0,
       this.props.complianceScore - this.getConflictPenalty(severity),
     );
 
     this.incrementVersion();
-    this.addDomainEvent({
-      type: 'CONFLICT_OF_INTEREST_DETECTED',
-      payload: {
+    this.addDomainEvent(
+      new ConflictOfInterestDetectedEvent({
         assignmentId: this.id.toString(),
         conflictType: type,
         severity,
         description,
-      },
-    });
+      }),
+    );
 
     // Auto-suspend for critical conflicts
     if (severity === 'CRITICAL' && this.props.status === GuardianAssignmentStatus.ACTIVE) {
@@ -260,20 +273,20 @@ export class GuardianAssignmentEntity extends Entity<GuardianAssignmentProps> {
     conflict.resolution = resolution;
 
     // Restore compliance score
-    this.props.complianceScore = Math.min(
+    const props = this.props as any;
+    props.complianceScore = Math.min(
       100,
       this.props.complianceScore + this.getConflictPenalty(conflict.severity),
     );
 
     this.incrementVersion();
-    this.addDomainEvent({
-      type: 'CONFLICT_OF_INTEREST_RESOLVED',
-      payload: {
+    this.addDomainEvent(
+      new ConflictOfInterestResolvedEvent({
         assignmentId: this.id.toString(),
         conflictType: conflict.type,
         resolution,
-      },
-    });
+      }),
+    );
 
     // Auto-reactivate if was suspended due to critical conflict
     if (
@@ -291,7 +304,7 @@ export class GuardianAssignmentEntity extends Entity<GuardianAssignmentProps> {
       HIGH: 30,
       CRITICAL: 50,
     };
-    return penalties[severity] || 10;
+    return (penalties as any)[severity] || 10;
   }
 
   // 🎯 INNOVATIVE: Smart suspension system
@@ -300,18 +313,18 @@ export class GuardianAssignmentEntity extends Entity<GuardianAssignmentProps> {
       throw new Error('Can only suspend active guardians');
     }
 
-    this.props.status = GuardianAssignmentStatus.SUSPENDED;
-    this.props.lastActivityDate = new Date();
+    const props = this.props as any;
+    props.status = GuardianAssignmentStatus.SUSPENDED;
+    props.lastActivityDate = new Date();
 
     this.incrementVersion();
-    this.addDomainEvent({
-      type: 'GUARDIAN_ASSIGNMENT_SUSPENDED',
-      payload: {
+    this.addDomainEvent(
+      new GuardianAssignmentSuspendedEvent({
         assignmentId: this.id.toString(),
         reason,
         suspensionDate: new Date(),
-      },
-    });
+      }),
+    );
   }
 
   public reactivate(): void {
@@ -319,17 +332,17 @@ export class GuardianAssignmentEntity extends Entity<GuardianAssignmentProps> {
       throw new Error('Can only reactivate suspended guardians');
     }
 
-    this.props.status = GuardianAssignmentStatus.ACTIVE;
-    this.props.lastActivityDate = new Date();
+    const props = this.props as any;
+    props.status = GuardianAssignmentStatus.ACTIVE;
+    props.lastActivityDate = new Date();
 
     this.incrementVersion();
-    this.addDomainEvent({
-      type: 'GUARDIAN_ASSIGNMENT_REACTIVATED',
-      payload: {
+    this.addDomainEvent(
+      new GuardianAssignmentReactivatedEvent({
         assignmentId: this.id.toString(),
         reactivationDate: new Date(),
-      },
-    });
+      }),
+    );
   }
 
   // 🎯 INNOVATIVE: Task tracking and performance metrics
@@ -337,23 +350,23 @@ export class GuardianAssignmentEntity extends Entity<GuardianAssignmentProps> {
     taskType: string,
     complexity: 'SIMPLE' | 'MEDIUM' | 'COMPLEX' = 'MEDIUM',
   ): void {
-    this.props.tasksCompleted++;
-    this.props.lastActivityDate = new Date();
+    const props = this.props as any;
+    props.tasksCompleted++;
+    props.lastActivityDate = new Date();
 
     // Update compliance score based on task completion
     const scoreIncrement = complexity === 'COMPLEX' ? 2 : complexity === 'MEDIUM' ? 1 : 0.5;
-    this.props.complianceScore = Math.min(100, this.props.complianceScore + scoreIncrement);
+    props.complianceScore = Math.min(100, this.props.complianceScore + scoreIncrement);
 
     this.incrementVersion();
-    this.addDomainEvent({
-      type: 'GUARDIAN_TASK_COMPLETED',
-      payload: {
+    this.addDomainEvent(
+      new GuardianTaskCompletedEvent({
         assignmentId: this.id.toString(),
         taskType,
         complexity,
         newScore: this.props.complianceScore,
-      },
-    });
+      }),
+    );
   }
 
   // 🎯 INNOVATIVE: Power modification with validation
@@ -370,50 +383,51 @@ export class GuardianAssignmentEntity extends Entity<GuardianAssignmentProps> {
       throw new Error('Cannot remove property management powers without court order');
     }
 
-    this.props.powers = newPowers;
-    this.props.lastActivityDate = new Date();
+    const oldPowers = this.props.powers;
+    const props = this.props as any;
+    props.powers = newPowers;
+    props.lastActivityDate = new Date();
 
     this.incrementVersion();
-    this.addDomainEvent({
-      type: 'GUARDIAN_POWERS_UPDATED',
-      payload: {
+    this.addDomainEvent(
+      new GuardianPowersUpdatedEvent({
         assignmentId: this.id.toString(),
-        oldPowers: this.props.powers.toJSON(),
+        oldPowers: oldPowers.toJSON(),
         newPowers: newPowers.toJSON(),
-      },
-    });
+      }),
+    );
   }
 
   // 🎯 INNOVATIVE: Bond management
   public updateBond(bond: GuardianshipBondVO): void {
-    this.props.bond = bond;
-    this.props.lastActivityDate = new Date();
+    const props = this.props as any;
+    props.bond = bond;
+    props.lastActivityDate = new Date();
 
     this.incrementVersion();
-    this.addDomainEvent({
-      type: 'GUARDIAN_BOND_UPDATED',
-      payload: {
+    this.addDomainEvent(
+      new GuardianBondUpdatedEvent({
         assignmentId: this.id.toString(),
         bondStatus: bond.getValue().status,
-        amount: bond.getValue().amount,
-      },
-    });
+        amount: bond.getValue().amount || 0,
+      }),
+    );
   }
 
   // 🎯 INNOVATIVE: Emergency contact update with verification
   public updateContactInfo(contactInfo: GuardianContactVO, verifiedBy?: string): void {
-    this.props.contactInfo = contactInfo;
-    this.props.lastActivityDate = new Date();
+    const props = this.props as any;
+    props.contactInfo = contactInfo;
+    props.lastActivityDate = new Date();
 
     this.incrementVersion();
-    this.addDomainEvent({
-      type: 'GUARDIAN_CONTACT_UPDATED',
-      payload: {
+    this.addDomainEvent(
+      new GuardianContactUpdatedEvent({
         assignmentId: this.id.toString(),
         verifiedBy,
         newPhone: contactInfo.getValue().primaryPhone,
-      },
-    });
+      }),
+    );
   }
 
   // 🎯 INNOVATIVE: Status check with health indicators
@@ -452,8 +466,10 @@ export class GuardianAssignmentEntity extends Entity<GuardianAssignmentProps> {
     // Check bond status if required
     if (this.props.powers.requiresPropertyBond() && this.props.bond) {
       const bondStatus = this.props.bond.getValue().status;
-      if (bondStatus === 'REQUIRED' || bondStatus === 'FORFEITED') {
-        reasons.push(`Bond status: ${bondStatus}`);
+      // Use string comparison since we don't have access to the BondStatus enum values
+      const bondStatusStr = bondStatus as string;
+      if (bondStatusStr === 'REQUIRED' || bondStatusStr === 'FORFEITED') {
+        reasons.push(`Bond status: ${bondStatusStr}`);
         recommendations.push('Post or renew guardian bond');
       }
     }
@@ -503,32 +519,31 @@ export class GuardianAssignmentEntity extends Entity<GuardianAssignmentProps> {
   }
 
   private generateActivityLog(): Array<{ date: Date; type: string; details: string }> {
-    // This would be populated from domain events in a real implementation
-    return [
-      {
-        date: this.props.appointmentDate,
-        type: 'APPOINTMENT',
-        details: `Appointed as ${this.props.role} by ${this.props.appointmentSource}`,
-      },
-      ...(this.props.activationDate
-        ? [
-            {
-              date: this.props.activationDate,
-              type: 'ACTIVATION',
-              details: 'Guardian assignment activated',
-            },
-          ]
-        : []),
-      ...(this.props.lastActivityDate
-        ? [
-            {
-              date: this.props.lastActivityDate,
-              type: 'LAST_ACTIVITY',
-              details: 'Last recorded activity',
-            },
-          ]
-        : []),
-    ];
+    const activities: Array<{ date: Date; type: string; details: string }> = [];
+
+    activities.push({
+      date: this.props.appointmentDate,
+      type: 'APPOINTMENT',
+      details: `Appointed as ${this.props.role} by ${this.props.appointmentSource}`,
+    });
+
+    if (this.props.activationDate) {
+      activities.push({
+        date: this.props.activationDate,
+        type: 'ACTIVATION',
+        details: 'Guardian assignment activated',
+      });
+    }
+
+    if (this.props.lastActivityDate) {
+      activities.push({
+        date: this.props.lastActivityDate,
+        type: 'LAST_ACTIVITY',
+        details: 'Last recorded activity',
+      });
+    }
+
+    return activities;
   }
 
   // Getters for easy access

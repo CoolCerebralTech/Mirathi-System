@@ -6,7 +6,7 @@ import {
   NextOfKinContactedEvent,
   NextOfKinEmergencyTriggeredEvent,
   NextOfKinUpdatedEvent,
-} from '../events/family-events';
+} from '../events/next-of-kin-events';
 import { KenyanCounty, RelationshipType } from '../value-objects/family-enums.vo';
 
 /**
@@ -98,7 +98,7 @@ export interface NextOfKinProps {
   knowsChildrenRoutines: boolean;
 
   // Verification & Trust
-  verificationStatus: 'UNVERIFIED' | 'VERIFIED' | 'PENDING_VERIFICATION' | 'REJECTED';
+  verificationStatus: 'UNVERIFIED' | 'VERIFIED' | 'PENDING_VERIFICATION' | 'DISPUTED';
   trustScore: number; // 0-100 based on factors
   lastVerifiedAt?: Date;
   verifiedBy?: UniqueEntityID;
@@ -150,8 +150,8 @@ export class NextOfKin extends Entity<NextOfKinProps> {
     const nextOfKin = new NextOfKin(props, id);
 
     // Calculate initial trust score
-    if (nextOfKin.props.trustScore === undefined) {
-      nextOfKin.props.trustScore = nextOfKin.calculateInitialTrustScore();
+    if ((props as any).trustScore === undefined) {
+      (nextOfKin.props as any).trustScore = nextOfKin.calculateInitialTrustScore();
     }
 
     // Record creation event
@@ -185,23 +185,24 @@ export class NextOfKin extends Entity<NextOfKinProps> {
     this.ensureNotArchived();
 
     const changes: Record<string, any> = {};
+    const props = this.props as any;
 
     // Validate updates
     Object.entries(updates).forEach(([key, value]) => {
       if (value !== undefined) {
-        const oldValue = (this.props as any)[key];
+        const oldValue = props[key];
 
         // Skip if no change
         if (JSON.stringify(oldValue) === JSON.stringify(value)) return;
 
         // Apply update
-        (this.props as any)[key] = value;
+        props[key] = value;
         changes[key] = { old: oldValue, new: value };
       }
     });
 
     if (Object.keys(changes).length > 0) {
-      this.props.lastUpdatedBy = updatedBy;
+      props.lastUpdatedBy = updatedBy;
 
       // Recalculate trust score if relevant fields changed
       if (
@@ -214,7 +215,7 @@ export class NextOfKin extends Entity<NextOfKinProps> {
           ].includes(k),
         )
       ) {
-        this.props.trustScore = this.calculateTrustScore();
+        props.trustScore = this.calculateTrustScore();
       }
 
       this.addDomainEvent(
@@ -243,14 +244,11 @@ export class NextOfKin extends Entity<NextOfKinProps> {
       expectedResponseTime?: number;
     },
   ): void {
-    this.props.contactAttempts++;
-    this.props.lastContactedAt = new Date();
-    this.props.lastContactReason = reason;
-
-    // Update average response time
-    // In practice, would update when response received
-
-    this.props.lastUpdatedBy = initiatedBy;
+    const props = this.props as any;
+    props.contactAttempts++;
+    props.lastContactedAt = new Date();
+    props.lastContactReason = reason;
+    props.lastUpdatedBy = initiatedBy;
 
     // Record contact event
     this.addDomainEvent(
@@ -272,25 +270,22 @@ export class NextOfKin extends Entity<NextOfKinProps> {
    */
   public recordSuccessfulContact(
     responseTime: number, // In minutes
-    contactMethod: string,
-    outcome: string,
     recordedBy: UniqueEntityID,
   ): void {
-    this.props.successfulContacts++;
+    const props = this.props as any;
+    props.successfulContacts++;
 
     // Update average response time
-    if (!this.props.averageResponseTime) {
-      this.props.averageResponseTime = responseTime;
+    if (!props.averageResponseTime) {
+      props.averageResponseTime = responseTime;
     } else {
-      const currentTotal = this.props.averageResponseTime * (this.props.successfulContacts - 1);
-      this.props.averageResponseTime =
-        (currentTotal + responseTime) / this.props.successfulContacts;
+      const currentTotal = props.averageResponseTime * (props.successfulContacts - 1);
+      props.averageResponseTime = (currentTotal + responseTime) / props.successfulContacts;
     }
 
     // Update trust score based on response time
-    this.props.trustScore = this.calculateTrustScore();
-
-    this.props.lastUpdatedBy = recordedBy;
+    props.trustScore = this.calculateTrustScore();
+    props.lastUpdatedBy = recordedBy;
   }
 
   /**
@@ -316,8 +311,9 @@ export class NextOfKin extends Entity<NextOfKinProps> {
     const estimatedResponseTime = this.estimateResponseTime();
 
     if (shouldContact) {
+      const props = this.props as any;
       // Record emergency involvement
-      this.props.emergencyInvolvements.push({
+      props.emergencyInvolvements.push({
         date: new Date(),
         emergencyType,
         responseTime: 0, // Will be updated when response received
@@ -357,14 +353,15 @@ export class NextOfKin extends Entity<NextOfKinProps> {
     verifiedBy: UniqueEntityID,
     notes?: string,
   ): void {
-    this.props.verificationStatus = verified ? 'VERIFIED' : 'REJECTED';
-    this.props.lastVerifiedAt = new Date();
-    this.props.verifiedBy = verifiedBy;
-    this.props.notes = `${this.props.notes || ''}\nVerification: ${verificationMethod} - ${notes}`;
-    this.props.lastUpdatedBy = verifiedBy;
+    const props = this.props as any;
+    props.verificationStatus = verified ? 'VERIFIED' : 'DISPUTED';
+    props.lastVerifiedAt = new Date();
+    props.verifiedBy = verifiedBy;
+    props.notes = `${props.notes || ''}\nVerification: ${verificationMethod} - ${notes}`;
+    props.lastUpdatedBy = verifiedBy;
 
     // Update trust score
-    this.props.trustScore = this.calculateTrustScore();
+    props.trustScore = this.calculateTrustScore();
   }
 
   /**
@@ -374,11 +371,12 @@ export class NextOfKin extends Entity<NextOfKinProps> {
     authority: Partial<NextOfKinProps['legalAuthority']>,
     updatedBy: UniqueEntityID,
   ): void {
-    this.props.legalAuthority = {
-      ...this.props.legalAuthority,
+    const props = this.props as any;
+    props.legalAuthority = {
+      ...props.legalAuthority,
       ...authority,
     };
-    this.props.lastUpdatedBy = updatedBy;
+    props.lastUpdatedBy = updatedBy;
   }
 
   /**
@@ -394,20 +392,21 @@ export class NextOfKin extends Entity<NextOfKinProps> {
     },
     updatedBy: UniqueEntityID,
   ): void {
-    if (contactInfo.primaryPhone) this.props.primaryPhone = contactInfo.primaryPhone;
-    if (contactInfo.secondaryPhone !== undefined)
-      this.props.secondaryPhone = contactInfo.secondaryPhone;
-    if (contactInfo.email !== undefined) this.props.email = contactInfo.email;
-    if (contactInfo.physicalAddress) this.props.physicalAddress = contactInfo.physicalAddress;
-    if (contactInfo.county) this.props.county = contactInfo.county;
+    const props = this.props as any;
+
+    if (contactInfo.primaryPhone) props.primaryPhone = contactInfo.primaryPhone;
+    if (contactInfo.secondaryPhone !== undefined) props.secondaryPhone = contactInfo.secondaryPhone;
+    if (contactInfo.email !== undefined) props.email = contactInfo.email;
+    if (contactInfo.physicalAddress) props.physicalAddress = contactInfo.physicalAddress;
+    if (contactInfo.county) props.county = contactInfo.county;
 
     // Update proximity if address changed
     if (contactInfo.physicalAddress || contactInfo.county) {
       // In practice, would calculate proximity based on designator's address
-      this.props.proximityToDesignator = this.calculateProximity();
+      props.proximityToDesignator = this.calculateProximity();
     }
 
-    this.props.lastUpdatedBy = updatedBy;
+    props.lastUpdatedBy = updatedBy;
   }
 
   /**
@@ -424,7 +423,7 @@ export class NextOfKin extends Entity<NextOfKinProps> {
       case 'PENDING_VERIFICATION':
         score += 10;
         break;
-      case 'REJECTED':
+      case 'DISPUTED':
         score -= 20;
         break;
     }
@@ -488,25 +487,20 @@ export class NextOfKin extends Entity<NextOfKinProps> {
   private calculateRelationshipTrustScore(relationshipType: RelationshipType): number {
     const relationshipScores: Record<RelationshipType, number> = {
       [RelationshipType.SPOUSE]: 30,
-      [RelationshipType.PARENT]: 25,
+      [RelationshipType.EX_SPOUSE]: -10,
       [RelationshipType.CHILD]: 20,
+      [RelationshipType.ADOPTED_CHILD]: 15,
+      [RelationshipType.STEPCHILD]: 10,
+      [RelationshipType.PARENT]: 25,
       [RelationshipType.SIBLING]: 15,
+      [RelationshipType.HALF_SIBLING]: 12,
       [RelationshipType.GRANDPARENT]: 10,
       [RelationshipType.GRANDCHILD]: 10,
       [RelationshipType.AUNT_UNCLE]: 10,
       [RelationshipType.NIECE_NEPHEW]: 8,
       [RelationshipType.COUSIN]: 5,
       [RelationshipType.GUARDIAN]: 25,
-      [RelationshipType.WARD]: 5,
-      [RelationshipType.STEPCHILD]: 10,
-      [RelationshipType.ADOPTED_CHILD]: 15,
-      [RelationshipType.FOSTER_CHILD]: 10,
-      [RelationshipType.CLAN_ELDER]: 15,
-      [RelationshipType.AGE_MATE]: 5,
-      [RelationshipType.GODPARENT]: 10,
-      [RelationshipType.PARTNER]: 15,
-      [RelationshipType.COHABITANT]: 10,
-      [RelationshipType.EX_SPOUSE]: -10,
+      [RelationshipType.OTHER]: 0,
     };
 
     return relationshipScores[relationshipType] || 0;
@@ -560,7 +554,7 @@ export class NextOfKin extends Entity<NextOfKinProps> {
   /**
    * Calculate emergency priority
    */
-  private calculateEmergencyPriority(emergencyType: string, severity: string): number {
+  private calculateEmergencyPriority(emergencyType: string, _severity: string): number {
     let priority = this.props.contactOrder;
 
     // Adjust based on trust score
@@ -568,7 +562,6 @@ export class NextOfKin extends Entity<NextOfKinProps> {
     else if (this.props.trustScore <= 40) priority += 1;
 
     // Adjust based on availability
-    const now = new Date();
     const isAvailable = this.isCurrentlyAvailable();
     if (!isAvailable) priority += 2;
 
@@ -583,10 +576,6 @@ export class NextOfKin extends Entity<NextOfKinProps> {
    * Check if currently available based on schedule
    */
   private isCurrentlyAvailable(): boolean {
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
-    const currentHour = now.getHours();
-
     // Check if within working hours
     if (this.props.availabilitySchedule.emergencyAvailability === 'ALWAYS') {
       return true;
@@ -683,10 +672,11 @@ export class NextOfKin extends Entity<NextOfKinProps> {
       throw new Error('Next of kin is already archived');
     }
 
-    this.props.isArchived = true;
-    this.props.isActive = false;
-    this.props.lastUpdatedBy = archivedBy;
-    this.props.notes = `${this.props.notes || ''}\nArchived: ${reason}`;
+    const props = this.props as any;
+    props.isArchived = true;
+    props.isActive = false;
+    props.lastUpdatedBy = archivedBy;
+    props.notes = `${props.notes || ''}\nArchived: ${reason}`;
   }
 
   /**
@@ -697,26 +687,29 @@ export class NextOfKin extends Entity<NextOfKinProps> {
       throw new Error('Next of kin is not archived');
     }
 
-    this.props.isArchived = false;
-    this.props.isActive = true;
-    this.props.lastUpdatedBy = restoredBy;
+    const props = this.props as any;
+    props.isArchived = false;
+    props.isActive = true;
+    props.lastUpdatedBy = restoredBy;
   }
 
   /**
    * Activate next of kin
    */
   public activate(activatedBy: UniqueEntityID): void {
-    this.props.isActive = true;
-    this.props.lastUpdatedBy = activatedBy;
+    const props = this.props as any;
+    props.isActive = true;
+    props.lastUpdatedBy = activatedBy;
   }
 
   /**
    * Deactivate next of kin
    */
   public deactivate(reason: string, deactivatedBy: UniqueEntityID): void {
-    this.props.isActive = false;
-    this.props.lastUpdatedBy = deactivatedBy;
-    this.props.notes = `${this.props.notes || ''}\nDeactivated: ${reason}`;
+    const props = this.props as any;
+    props.isActive = false;
+    props.lastUpdatedBy = deactivatedBy;
+    props.notes = `${props.notes || ''}\nDeactivated: ${reason}`;
   }
 
   /**
@@ -779,7 +772,6 @@ export class NextOfKin extends Entity<NextOfKinProps> {
   }
 
   private getAvailabilityStatus(): string {
-    const now = new Date();
     const isAvailable = this.isCurrentlyAvailable();
 
     if (!this.props.isActive) return 'INACTIVE';

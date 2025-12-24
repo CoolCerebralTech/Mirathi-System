@@ -6,7 +6,7 @@ import {
   AdoptionFinalizedEvent,
   AdoptionRevokedEvent,
   AdoptionUpdatedEvent,
-} from '../events/family-events';
+} from '../events/adoption-events';
 import { KenyanLawSection } from '../value-objects/family-enums.vo';
 
 /**
@@ -102,7 +102,7 @@ export interface AdoptionRecordProps {
   previousCareArrangement: 'ORPHANAGE' | 'FOSTER_CARE' | 'RELATIVE_CARE' | 'STREET' | 'INSTITUTION';
   timeInPreviousCareMonths: number;
 
-  // Post-Adointment Contact
+  // Post-Adoption Contact
   openAdoption: boolean; // Contact with biological family maintained
   contactAgreement?: string; // Terms of contact
   visitationSchedule?: string;
@@ -202,14 +202,14 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
         // Skip if no change
         if (JSON.stringify(oldValue) === JSON.stringify(value)) return;
 
-        // Apply update
-        (this.props as any)[key] = value;
+        // Apply update using the Entity's protected method
+        (this as any)._props[key] = value;
         changes[key] = { old: oldValue, new: value };
       }
     });
 
     if (Object.keys(changes).length > 0) {
-      this.props.lastUpdatedBy = updatedBy;
+      (this as any)._props.lastUpdatedBy = updatedBy;
 
       this.addDomainEvent(
         new AdoptionUpdatedEvent({
@@ -249,14 +249,17 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
     this.validateFinalizationRequirements();
 
     const previousStatus = this.props.adoptionStatus;
-    this.props.adoptionStatus = 'FINALIZED';
-    this.props.finalizationDate = finalizationDate;
-    this.props.effectiveDate = finalizationDate;
-    this.props.courtOrderNumber = courtOrderNumber;
-    this.props.courtStation = courtDetails.courtStation;
-    this.props.presidingJudge = courtDetails.judgeName;
-    this.props.challengePeriodExpired = false; // Starts now
-    this.props.lastUpdatedBy = finalizedBy;
+
+    // Update properties using the Entity's protected _props
+    const props = this.props as any;
+    props.adoptionStatus = 'FINALIZED';
+    props.finalizationDate = finalizationDate;
+    props.effectiveDate = finalizationDate;
+    props.courtOrderNumber = courtOrderNumber;
+    props.courtStation = courtDetails.courtStation;
+    props.presidingJudge = courtDetails.judgeName;
+    props.challengePeriodExpired = false; // Starts now
+    props.lastUpdatedBy = finalizedBy;
 
     // Record finalization event
     this.addDomainEvent(
@@ -286,16 +289,18 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
     this.ensureNotArchived();
     this.ensureNotFinalized();
 
+    const props = this.props as any;
+
     // Update consent status
     if (parentType === 'MOTHER') {
-      this.props.parentalConsentStatus.mother = consentStatus;
+      props.parentalConsentStatus.mother = consentStatus;
     } else {
-      this.props.parentalConsentStatus.father = consentStatus;
+      props.parentalConsentStatus.father = consentStatus;
     }
 
     // Add consent document
-    this.props.consentDocuments.push(consentDocumentId);
-    this.props.lastUpdatedBy = recordedBy;
+    props.consentDocuments.push(consentDocumentId);
+    props.lastUpdatedBy = recordedBy;
 
     // Record consent event
     this.addDomainEvent(
@@ -334,9 +339,10 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
     }
 
     const previousStatus = this.props.adoptionStatus;
-    this.props.adoptionStatus = 'REVOKED';
-    this.props.verificationStatus = 'DISPUTED';
-    this.props.lastUpdatedBy = revokedBy;
+    const props = this.props as any;
+    props.adoptionStatus = 'REVOKED';
+    props.verificationStatus = 'DISPUTED';
+    props.lastUpdatedBy = revokedBy;
 
     // Record revocation event
     this.addDomainEvent(
@@ -372,10 +378,11 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
       throw new Error('Challenge period has expired, cannot file appeal');
     }
 
-    this.props.appealFiled = true;
-    this.props.appealCaseNumber = courtCaseNumber;
-    this.props.adoptionStatus = 'APPEALED';
-    this.props.lastUpdatedBy = filedBy;
+    const props = this.props as any;
+    props.appealFiled = true;
+    props.appealCaseNumber = courtCaseNumber;
+    props.adoptionStatus = 'APPEALED';
+    props.lastUpdatedBy = filedBy;
   }
 
   /**
@@ -408,7 +415,7 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
 
     // Update monitoring record
     // In practice, would create a separate monitoring entity
-    this.props.lastUpdatedBy = reportedBy;
+    (this.props as any).lastUpdatedBy = reportedBy;
   }
 
   /**
@@ -424,9 +431,10 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
       throw new Error('Cannot issue birth certificate for non-finalized adoption');
     }
 
-    this.props.newBirthCertificateIssued = true;
-    this.props.newBirthCertificateNumber = certificateNumber;
-    this.props.lastUpdatedBy = issuedBy;
+    const props = this.props as any;
+    props.newBirthCertificateIssued = true;
+    props.newBirthCertificateNumber = certificateNumber;
+    props.lastUpdatedBy = issuedBy;
   }
 
   /**
@@ -602,7 +610,7 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
     challengeEndDate.setDate(challengeEndDate.getDate() + AdoptionRecord.CHALLENGE_PERIOD_DAYS);
 
     if (new Date() > challengeEndDate) {
-      this.props.challengePeriodExpired = true;
+      (this.props as any).challengePeriodExpired = true;
     }
   }
 
@@ -673,9 +681,10 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
       throw new Error('Adoption record is already archived');
     }
 
-    this.props.isArchived = true;
-    this.props.lastUpdatedBy = archivedBy;
-    this.props.verificationNotes = `${this.props.verificationNotes || ''}\nArchived: ${reason}`;
+    const props = this.props as any;
+    props.isArchived = true;
+    props.lastUpdatedBy = archivedBy;
+    props.verificationNotes = `${this.props.verificationNotes || ''}\nArchived: ${reason}`;
   }
 
   /**
@@ -686,8 +695,9 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
       throw new Error('Adoption record is not archived');
     }
 
-    this.props.isArchived = false;
-    this.props.lastUpdatedBy = restoredBy;
+    const props = this.props as any;
+    props.isArchived = false;
+    props.lastUpdatedBy = restoredBy;
   }
 
   /**
@@ -750,7 +760,7 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
     event: string;
     details: string;
   }> {
-    const timeline = [];
+    const timeline: Array<{ date: Date; event: string; details: string }> = [];
 
     timeline.push({
       date: this.props.applicationDate,

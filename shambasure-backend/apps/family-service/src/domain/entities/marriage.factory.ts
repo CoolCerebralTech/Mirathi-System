@@ -1,6 +1,11 @@
 // src/family-service/src/domain/entities/marriage.factory.ts
 import { UniqueEntityID } from '../base/unique-entity-id';
-import { KenyanCounty, MarriageStatus, MarriageType } from '../value-objects/family-enums.vo';
+import {
+  KenyanCounty,
+  MarriageEndReason,
+  MarriageStatus,
+  MarriageType,
+} from '../value-objects/family-enums.vo';
 import { Marriage, MarriageProps } from './marriage.entity';
 
 /**
@@ -34,7 +39,7 @@ export class MarriageFactory {
       spouse1Id,
       spouse2Id,
       marriageType: MarriageType.CIVIL,
-      marriageStatus: MarriageStatus.ACTIVE,
+      marriageStatus: MarriageStatus.MARRIED,
       startDate,
       registrationNumber,
       registrationDistrict: this.detectDistrictFromRegistration(registrationNumber),
@@ -84,7 +89,7 @@ export class MarriageFactory {
       spouse1Id,
       spouse2Id,
       marriageType: MarriageType.CHRISTIAN,
-      marriageStatus: MarriageStatus.ACTIVE,
+      marriageStatus: MarriageStatus.MARRIED,
       startDate,
       registrationNumber: options?.marriageCertificateNumber,
       registrationDistrict: churchDetails.county,
@@ -139,7 +144,7 @@ export class MarriageFactory {
       spouse1Id,
       spouse2Id,
       marriageType: MarriageType.ISLAMIC,
-      marriageStatus: options?.isPolygamous ? MarriageStatus.POLYGAMOUS : MarriageStatus.ACTIVE,
+      marriageStatus: MarriageStatus.MARRIED, // Polygamous marriages are still MARRIED
       startDate,
       registrationNumber: options?.registrationNumber,
       registrationDistrict: this.extractCountyFromLocation(islamicDetails.mosqueLocation),
@@ -208,7 +213,7 @@ export class MarriageFactory {
       spouse1Id,
       spouse2Id,
       marriageType: MarriageType.CUSTOMARY,
-      marriageStatus: options?.isPolygamous ? MarriageStatus.POLYGAMOUS : MarriageStatus.ACTIVE,
+      marriageStatus: MarriageStatus.MARRIED, // Polygamous marriages are still MARRIED
       startDate,
       ceremonyLocation: customaryDetails.location,
       witnesses: customaryDetails.eldersPresent,
@@ -263,8 +268,8 @@ export class MarriageFactory {
     const props: MarriageProps = {
       spouse1Id: partner1Id,
       spouse2Id: partner2Id,
-      marriageType: MarriageType.COHABITATION,
-      marriageStatus: MarriageStatus.ACTIVE,
+      marriageType: MarriageType.OTHER, // Use OTHER for cohabitation
+      marriageStatus: MarriageStatus.MARRIED, // Treat as married for legal purposes
       startDate,
       witnesses: evidence.witnesses,
       bridePricePaid: false,
@@ -286,6 +291,62 @@ export class MarriageFactory {
         clanRepresentatives: [],
         traditionalRitesPerformed: ['Cohabitation Agreement'],
       },
+    };
+
+    return Marriage.create(props);
+  }
+
+  /**
+   * Create Hindu marriage
+   */
+  public static createHinduMarriage(
+    spouse1Id: UniqueEntityID,
+    spouse2Id: UniqueEntityID,
+    startDate: Date,
+    hinduDetails: {
+      templeName: string;
+      priestName: string;
+      location: string;
+      county: KenyanCounty;
+      ritualsPerformed: string[];
+    },
+    createdBy: UniqueEntityID,
+    options?: {
+      marriageCertificateNumber?: string;
+      witnesses?: string[];
+    },
+  ): Marriage {
+    const props: MarriageProps = {
+      spouse1Id,
+      spouse2Id,
+      marriageType: MarriageType.HINDU,
+      marriageStatus: MarriageStatus.MARRIED,
+      startDate,
+      registrationNumber: options?.marriageCertificateNumber,
+      registrationDistrict: hinduDetails.county,
+      registeredBy: hinduDetails.priestName,
+      ceremonyLocation: hinduDetails.templeName,
+      ceremonyCounty: hinduDetails.county,
+      witnesses: options?.witnesses || ['Witness 1', 'Witness 2'],
+      bridePricePaid: false,
+      bridePaidInFull: false,
+      isPolygamous: false,
+      numberOfChildren: 0,
+      childrenIds: [],
+      jointProperty: true,
+      isMarriageDissolved: false,
+      waitingPeriodCompleted: true,
+      createdBy,
+      lastUpdatedBy: createdBy,
+      verificationStatus: 'PENDING_VERIFICATION',
+      isArchived: false,
+      customaryDetails: {
+        eldersPresent: [hinduDetails.priestName],
+        location: hinduDetails.templeName,
+        clanRepresentatives: [],
+        traditionalRitesPerformed: hinduDetails.ritualsPerformed,
+      },
+      marriageBlessings: ['Om Shanti Shanti Shanti'],
     };
 
     return Marriage.create(props);
@@ -357,7 +418,7 @@ export class MarriageFactory {
    * Generate template for quick marriage addition
    */
   public static createTemplate(
-    templateType: 'CIVIL' | 'CHRISTIAN' | 'ISLAMIC' | 'CUSTOMARY' | 'COHABITATION',
+    templateType: 'CIVIL' | 'CHRISTIAN' | 'ISLAMIC' | 'CUSTOMARY' | 'OTHER' | 'HINDU',
     spouse1Id: UniqueEntityID,
     spouse2Id: UniqueEntityID,
     createdBy: UniqueEntityID,
@@ -365,7 +426,7 @@ export class MarriageFactory {
     const baseTemplate: Partial<MarriageProps> = {
       spouse1Id,
       spouse2Id,
-      marriageStatus: MarriageStatus.ACTIVE,
+      marriageStatus: MarriageStatus.MARRIED,
       startDate: new Date(),
       bridePricePaid: false,
       bridePaidInFull: false,
@@ -441,10 +502,10 @@ export class MarriageFactory {
           marriageSeason: this.detectMarriageSeason(new Date()),
         };
 
-      case 'COHABITATION':
+      case 'OTHER':
         return {
           ...baseTemplate,
-          marriageType: MarriageType.COHABITATION,
+          marriageType: MarriageType.OTHER,
           jointProperty: false,
           witnesses: ['Friend 1', 'Friend 2'],
           customaryDetails: {
@@ -452,6 +513,22 @@ export class MarriageFactory {
             location: 'Shared Residence',
             clanRepresentatives: [],
             traditionalRitesPerformed: ['Cohabitation Agreement'],
+          },
+        };
+
+      case 'HINDU':
+        return {
+          ...baseTemplate,
+          marriageType: MarriageType.HINDU,
+          ceremonyLocation: 'Hindu Temple',
+          ceremonyCounty: KenyanCounty.NAIROBI,
+          registeredBy: 'Priest',
+          witnesses: ['Witness 1', 'Witness 2'],
+          customaryDetails: {
+            eldersPresent: ['Priest'],
+            location: 'Temple',
+            clanRepresentatives: [],
+            traditionalRitesPerformed: ['Saptapadi', 'Kanyadaan'],
           },
         };
 
@@ -522,10 +599,11 @@ export class MarriageFactory {
       ISLAMIC: MarriageType.ISLAMIC,
       MUSLIM: MarriageType.ISLAMIC,
       CUSTOMARY: MarriageType.CUSTOMARY,
-      TRADITIONAL: MarriageType.TRADITIONAL,
-      COHABITATION: MarriageType.COHABITATION,
-      COME_WE_STAY: MarriageType.COHABITATION,
+      TRADITIONAL: MarriageType.CUSTOMARY, // Map TRADITIONAL to CUSTOMARY
+      COHABITATION: MarriageType.OTHER, // Map COHABITATION to OTHER
+      COME_WE_STAY: MarriageType.OTHER,
       HINDU: MarriageType.HINDU,
+      OTHER: MarriageType.OTHER,
     };
 
     return mapping[legacyType?.toUpperCase()] || MarriageType.CIVIL;
@@ -533,16 +611,17 @@ export class MarriageFactory {
 
   private static mapLegacyMarriageStatus(legacyStatus: string): MarriageStatus {
     const mapping: Record<string, MarriageStatus> = {
-      ACTIVE: MarriageStatus.ACTIVE,
-      MARRIED: MarriageStatus.ACTIVE,
+      ACTIVE: MarriageStatus.MARRIED,
+      MARRIED: MarriageStatus.MARRIED,
       DIVORCED: MarriageStatus.DIVORCED,
       WIDOWED: MarriageStatus.WIDOWED,
       SEPARATED: MarriageStatus.SEPARATED,
-      ANNULED: MarriageStatus.ANNULED,
-      POLYGAMOUS: MarriageStatus.POLYGAMOUS,
+      ANNULED: MarriageStatus.DIVORCED, // Map ANNULED to DIVORCED
+      POLYGAMOUS: MarriageStatus.MARRIED, // Map POLYGAMOUS to MARRIED
+      SINGLE: MarriageStatus.SINGLE,
     };
 
-    return mapping[legacyStatus?.toUpperCase()] || MarriageStatus.ACTIVE;
+    return mapping[legacyStatus?.toUpperCase()] || MarriageStatus.MARRIED;
   }
 
   private static mapLegacyEndReason(legacyReason: string): MarriageEndReason | undefined {

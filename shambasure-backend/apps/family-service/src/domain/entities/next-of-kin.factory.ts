@@ -634,9 +634,10 @@ export class NextOfKinFactory {
     const mapping: Record<string, NextOfKinProps['verificationStatus']> = {
       VERIFIED: 'VERIFIED',
       PENDING: 'PENDING_VERIFICATION',
-      REJECTED: 'REJECTED',
+      REJECTED: 'DISPUTED',
+      DISPUTED: 'DISPUTED',
       YES: 'VERIFIED',
-      NO: 'REJECTED',
+      NO: 'UNVERIFIED',
       '1': 'VERIFIED',
       '0': 'UNVERIFIED',
     };

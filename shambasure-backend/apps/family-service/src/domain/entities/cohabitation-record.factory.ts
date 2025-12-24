@@ -508,9 +508,10 @@ export class CohabitationRecordFactory {
     const mapping: Record<string, CohabitationRecordProps['verificationStatus']> = {
       VERIFIED: 'VERIFIED',
       PENDING: 'PENDING_VERIFICATION',
-      REJECTED: 'REJECTED',
+      REJECTED: 'DISPUTED', // Map REJECTED to DISPUTED
+      DISPUTED: 'DISPUTED',
       YES: 'VERIFIED',
-      NO: 'REJECTED',
+      NO: 'UNVERIFIED', // Map NO to UNVERIFIED
       '1': 'VERIFIED',
       '0': 'UNVERIFIED',
     };

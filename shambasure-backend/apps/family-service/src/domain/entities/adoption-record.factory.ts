@@ -41,9 +41,8 @@ export class AdoptionRecordFactory {
       applicationDate,
       courtStation,
       legalBasis: [
-        KenyanLawSection.S154_CHILDREN_ACT, // Adoption orders
-        KenyanLawSection.S158_CHILDREN_ACT, // Who may adopt
-        KenyanLawSection.S159_CHILDREN_ACT, // Consent to adoption
+        KenyanLawSection.S71_COURT_GUARDIAN, // Court-appointed guardian (for Children's Act reference)
+        KenyanLawSection.S73_GUARDIAN_ACCOUNTS, // Guardian accounts and reporting
       ],
       parentalConsentStatus: {
         mother: options?.biologicalMotherId ? 'UNKNOWN' : 'DECEASED',
@@ -130,7 +129,7 @@ export class AdoptionRecordFactory {
       effectiveDate: adoptionDate,
       courtStation: 'CLAN_COUNCIL',
       legalBasis: [
-        KenyanLawSection.S2_CHILDREN_ACT, // Customary law recognition
+        KenyanLawSection.S70_TESTAMENTARY_GUARDIAN, // Customary guardianship can be testamentary
       ],
       parentalConsentStatus: {
         mother: options?.biologicalParents?.motherId ? 'CONSENTED' : 'DECEASED',
@@ -204,8 +203,7 @@ export class AdoptionRecordFactory {
       applicationDate,
       courtStation: "CHILDREN'S COURT",
       legalBasis: [
-        KenyanLawSection.S158_CHILDREN_ACT, // Who may adopt (includes relatives)
-        KenyanLawSection.S183_CHILDREN_ACT, // Guardianship considerations
+        KenyanLawSection.S71_COURT_GUARDIAN, // Court-appointed guardian
       ],
       parentalConsentStatus: {
         mother: 'DECEASED', // Typically for orphaned children
@@ -284,8 +282,7 @@ export class AdoptionRecordFactory {
       applicationDate,
       courtStation: "CHILDREN'S COURT",
       legalBasis: [
-        KenyanLawSection.S158_CHILDREN_ACT,
-        KenyanLawSection.S159_CHILDREN_ACT, // Consent considerations
+        KenyanLawSection.S71_COURT_GUARDIAN, // Court appointment
       ],
       parentalConsentStatus: {
         mother: biologicalParentId ? 'CONSENTED' : 'CONSENTED', // Assuming consent from married parent
@@ -366,7 +363,7 @@ export class AdoptionRecordFactory {
       applicationDate,
       courtStation: 'HIGH_COURT', // International adoptions often go to higher courts
       legalBasis: [
-        KenyanLawSection.S162_CHILDREN_ACT, // Inter-country adoption
+        KenyanLawSection.S71_COURT_GUARDIAN, // Court supervision
       ],
       parentalConsentStatus: {
         mother: 'DECEASED', // Typically orphans or abandoned children
@@ -432,7 +429,7 @@ export class AdoptionRecordFactory {
         ? new Date(legacyData.finalization_date)
         : undefined,
       effectiveDate: legacyData.effective_date ? new Date(legacyData.effective_date) : undefined,
-      legalBasis: legacyData.legal_basis || [KenyanLawSection.S154_CHILDREN_ACT],
+      legalBasis: legacyData.legal_basis || [KenyanLawSection.S71_COURT_GUARDIAN],
       courtOrderNumber: legacyData.court_order_number,
       courtStation: legacyData.court_station || "CHILDREN'S COURT",
       presidingJudge: legacyData.presiding_judge,
@@ -560,11 +557,7 @@ export class AdoptionRecordFactory {
           ...baseTemplate,
           adoptionType: 'STATUTORY',
           courtStation: "CHILDREN'S COURT",
-          legalBasis: [
-            KenyanLawSection.S154_CHILDREN_ACT,
-            KenyanLawSection.S158_CHILDREN_ACT,
-            KenyanLawSection.S159_CHILDREN_ACT,
-          ],
+          legalBasis: [KenyanLawSection.S71_COURT_GUARDIAN, KenyanLawSection.S73_GUARDIAN_ACCOUNTS],
           postAdoptionMonitoring: true,
           monitoringPeriodMonths: 12,
         };
@@ -574,7 +567,7 @@ export class AdoptionRecordFactory {
           ...baseTemplate,
           adoptionType: 'CUSTOMARY',
           courtStation: 'CLAN_COUNCIL',
-          legalBasis: [KenyanLawSection.S2_CHILDREN_ACT],
+          legalBasis: [KenyanLawSection.S70_TESTAMENTARY_GUARDIAN],
           clanInvolved: true,
           clanElders: ['Clan Elder 1', 'Clan Elder 2'],
           customaryRitesPerformed: ['Introduction Rite', 'Blessing Ceremony'],
@@ -587,7 +580,7 @@ export class AdoptionRecordFactory {
           ...baseTemplate,
           adoptionType: 'KINSHIP',
           courtStation: "CHILDREN'S COURT",
-          legalBasis: [KenyanLawSection.S158_CHILDREN_ACT, KenyanLawSection.S183_CHILDREN_ACT],
+          legalBasis: [KenyanLawSection.S71_COURT_GUARDIAN],
           previousCareArrangement: 'RELATIVE_CARE',
           timeInPreviousCareMonths: 3,
           openAdoption: true,
@@ -600,7 +593,7 @@ export class AdoptionRecordFactory {
           ...baseTemplate,
           adoptionType: 'STEP_PARENT',
           courtStation: "CHILDREN'S COURT",
-          legalBasis: [KenyanLawSection.S158_CHILDREN_ACT, KenyanLawSection.S159_CHILDREN_ACT],
+          legalBasis: [KenyanLawSection.S71_COURT_GUARDIAN],
           consentDocuments: ['MARRIAGE_CERTIFICATE', 'PARENTAL_CONSENT_AFFIDAVIT'],
           inheritanceRightsEstablished: true,
           medicalHistoryProvided: true,
@@ -612,7 +605,7 @@ export class AdoptionRecordFactory {
           ...baseTemplate,
           adoptionType: 'INTERNATIONAL',
           courtStation: 'HIGH_COURT',
-          legalBasis: [KenyanLawSection.S162_CHILDREN_ACT],
+          legalBasis: [KenyanLawSection.S71_COURT_GUARDIAN],
           receivingCountry: 'UNITED_STATES',
           sendingCountry: 'KENYA',
           adoptionExpenses: 500000,
@@ -687,10 +680,10 @@ export class AdoptionRecordFactory {
     const mapping: Record<string, AdoptionRecordProps['verificationStatus']> = {
       VERIFIED: 'VERIFIED',
       PENDING: 'PENDING_VERIFICATION',
-      REJECTED: 'REJECTED',
+      REJECTED: 'DISPUTED',
       DISPUTED: 'DISPUTED',
       YES: 'VERIFIED',
-      NO: 'REJECTED',
+      NO: 'UNVERIFIED',
       '1': 'VERIFIED',
       '0': 'UNVERIFIED',
     };

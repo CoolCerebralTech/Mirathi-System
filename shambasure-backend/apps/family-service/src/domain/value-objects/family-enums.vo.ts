@@ -3,145 +3,213 @@
 /**
  * Family Service Enums - Kenyan Legal Context
  *
- * Innovations:
- * 1. Culturally-sensitive terminology
- * 2. Legal statute references
- * 3. Multi-religion support
- * 4. Progressive gender options
+ * Updated to align with Prisma schema
  */
 
 export enum Gender {
   MALE = 'MALE',
   FEMALE = 'FEMALE',
-  NON_BINARY = 'NON_BINARY',
-  PREFER_NOT_TO_SAY = 'PREFER_NOT_TO_SAY',
-  CUSTOM = 'CUSTOM', // For culturally-specific gender identities
+  OTHERS = 'OTHERS', // Changed from NON_BINARY/PREFER_NOT_TO_SAY/CUSTOM to match Prisma
 }
 
 export enum KenyanCounty {
-  // Mapped with emojis for better UX
-  // COAST
-  MOMBASA = 'MOMBASA 🏝️',
-  KWALE = 'KWALE 🏖️',
-  KILIFI = 'KILIFI 🥥',
-  TANA_RIVER = 'TANA_RIVER 🐊',
-  LAMU = 'LAMU ⛵',
-  TAITA_TAVETA = 'TAITA_TAVETA 🐘',
-
-  // NORTH EASTERN
-  GARISSA = 'GARISSA 🐫',
-  WAJIR = 'WAJIR ☀️',
-  MANDERA = 'MANDERA 🏜️',
-
-  // EASTERN
-  MARSABIT = 'MARSABIT 🌪️',
-  ISIOLO = 'ISIOLO 🦁',
-  MERU = 'MERU 🌿',
-  THARAKA_NITHI = 'THARAKA_NITHI ⛰️',
-  EMBU = 'EMBU 🌾',
-  KITUI = 'KITUI 🐝',
-  MACHAKOS = 'MACHAKOS 🏞️',
-  MAKUENI = 'MAKUENI 🍊',
-
-  // CENTRAL
-  NYANDARUA = 'NYANDARUA 🥔',
-  NYERI = 'NYERI 🗻',
-  KIRINYAGA = 'KIRINYAGA 🍚',
-  MURANGA = 'MURANGA 🍌',
-  KIAMBU = 'KIAMBU ☕',
-
-  // RIFT VALLEY
-  TURKANA = 'TURKANA 🕸️',
-  WEST_POKOT = 'WEST_POKOT 🐂',
-  SAMBURU = 'SAMBURU 🦋',
-  TRANS_NZOIA = 'TRANS_NZOIA 🌽',
-  UASIN_GISHU = 'UASIN_GISHU 🏃',
-  ELGEYO_MARAKWET = 'ELGEYO_MARAKWET 🏃‍♀️',
-  NANDI = 'NANDI 🥛',
-  BARINGO = 'BARINGO 🐊',
-  LAIKIPIA = 'LAIKIPIA 🦓',
-  NAKURU = 'NAKURU 🦩',
-  NAROK = 'NAROK 🦁',
-  KAJIADO = 'KAJIADO 🐄',
-  KERICHO = 'KERICHO 🍵',
-  BOMET = 'BOMET 🚜',
-
-  // WESTERN
-  KAKAMEGA = 'KAKAMEGA 🌲',
-  VIHIGA = 'VIHIGA 🗿',
-  BUNGOMA = 'BUNGOMA 🚲',
-  BUSIA = 'BUSIA 🛂',
-
-  // NYANZA
-  SIAYA = 'SIAYA 🎣',
-  KISUMU = 'KISUMU 🚢',
-  HOMA_BAY = 'HOMA_BAY 🐟',
-  MIGORI = 'MIGORI 🚬',
-  KISII = 'KISII 🍌',
-  NYAMIRA = 'NYAMIRA 🍃',
-
-  // NAIROBI
-  NAIROBI = 'NAIROBI 🏙️',
+  // Updated to match Prisma enum exactly (no emojis)
+  BARINGO = 'BARINGO',
+  BOMET = 'BOMET',
+  BUNGOMA = 'BUNGOMA',
+  BUSIA = 'BUSIA',
+  ELGEYO_MARAKWET = 'ELGEYO_MARAKWET',
+  EMBU = 'EMBU',
+  GARISSA = 'GARISSA',
+  HOMA_BAY = 'HOMA_BAY',
+  ISIOLO = 'ISIOLO',
+  KAJIADO = 'KAJIADO',
+  KAKAMEGA = 'KAKAMEGA',
+  KERICHO = 'KERICHO',
+  KIAMBU = 'KIAMBU',
+  KILIFI = 'KILIFI',
+  KIRINYAGA = 'KIRINYAGA',
+  KISII = 'KISII',
+  KISUMU = 'KISUMU',
+  KITUI = 'KITUI',
+  KWALE = 'KWALE',
+  LAIKIPIA = 'LAIKIPIA',
+  LAMU = 'LAMU',
+  MACHAKOS = 'MACHAKOS',
+  MAKUENI = 'MAKUENI',
+  MANDERA = 'MANDERA',
+  MARSABIT = 'MARSABIT',
+  MERU = 'MERU',
+  MIGORI = 'MIGORI',
+  MOMBASA = 'MOMBASA',
+  MURANGA = 'MURANGA',
+  NAIROBI = 'NAIROBI',
+  NAKURU = 'NAKURU',
+  NANDI = 'NANDI',
+  NAROK = 'NAROK',
+  NYAMIRA = 'NYAMIRA',
+  NYANDARUA = 'NYANDARUA',
+  NYERI = 'NYERI',
+  SAMBURU = 'SAMBURU',
+  SIAYA = 'SIAYA',
+  TAITA_TAVETA = 'TAITA_TAVETA',
+  TANA_RIVER = 'TANA_RIVER',
+  THARAKA_NITHI = 'THARAKA_NITHI',
+  TRANS_NZOIA = 'TRANS_NZOIA',
+  TURKANA = 'TURKANA',
+  UASIN_GISHU = 'UASIN_GISHU',
+  VIHIGA = 'VIHIGA',
+  WAJIR = 'WAJIR',
+  WEST_POKOT = 'WEST_POKOT',
 }
 
 export enum RelationshipType {
-  // Immediate Family
-  SPOUSE = 'SPOUSE 👰',
-  CHILD = 'CHILD 👶',
-  PARENT = 'PARENT 👴',
-  SIBLING = 'SIBLING 👫',
+  // Immediate Family (matching Prisma)
+  SPOUSE = 'SPOUSE',
+  EX_SPOUSE = 'EX_SPOUSE',
+  CHILD = 'CHILD',
+  ADOPTED_CHILD = 'ADOPTED_CHILD',
+  STEPCHILD = 'STEPCHILD',
+  PARENT = 'PARENT',
+  SIBLING = 'SIBLING',
+  HALF_SIBLING = 'HALF_SIBLING',
 
   // Extended Family
-  GRANDPARENT = 'GRANDPARENT 👵',
-  GRANDCHILD = 'GRANDCHILD 🧒',
-  AUNT_UNCLE = 'AUNT_UNCLE 🧑',
-  NIECE_NEPHEW = 'NIECE_NEPHEW 🧒',
-  COUSIN = 'COUSIN 👥',
+  GRANDPARENT = 'GRANDPARENT',
+  GRANDCHILD = 'GRANDCHILD',
+  AUNT_UNCLE = 'AUNT_UNCLE',
+  NIECE_NEPHEW = 'NIECE_NEPHEW',
+  COUSIN = 'COUSIN',
 
   // Legal Relationships
-  GUARDIAN = 'GUARDIAN 🛡️',
-  WARD = 'WARD 🧸',
-  STEPCHILD = 'STEPCHILD 👣',
-  ADOPTED_CHILD = 'ADOPTED_CHILD 🤝',
-  FOSTER_CHILD = 'FOSTER_CHILD 🏠',
+  GUARDIAN = 'GUARDIAN',
+  OTHER = 'OTHER', // Added to match Prisma
 
-  // Cultural Relationships
-  CLAN_ELDER = 'CLAN_ELDER 🧓',
-  AGE_MATE = 'AGE_MATE 🤝',
-  GODPARENT = 'GODPARENT ✝️',
-
-  // Modern Relationships
-  PARTNER = 'PARTNER 💑',
-  COHABITANT = 'COHABITANT 🏠',
-  EX_SPOUSE = 'EX_SPOUSE 💔',
+  // Note: Removed FOSTER_CHILD, CLAN_ELDER, AGE_MATE, GODPARENT,
+  // PARTNER, COHABITANT as they don't exist in Prisma schema
 }
 
 export enum MarriageType {
-  CIVIL = 'CIVIL 👨‍⚖️',
-  CHRISTIAN = 'CHRISTIAN ✝️',
-  ISLAMIC = 'ISLAMIC ☪️',
-  HINDU = 'HINDU 🕉️',
-  CUSTOMARY = 'CUSTOMARY 🌍', // Recognized under Marriage Act 2014
-  COHABITATION = 'COHABITATION 🤝', // "Come we stay"
-  TRADITIONAL = 'TRADITIONAL 🎎',
+  CIVIL = 'CIVIL',
+  CHRISTIAN = 'CHRISTIAN',
+  CUSTOMARY = 'CUSTOMARY',
+  ISLAMIC = 'ISLAMIC',
+  HINDU = 'HINDU',
+  OTHER = 'OTHER', // Added to match Prisma
+
+  // Note: Removed COHABITATION, TRADITIONAL as they don't exist in Prisma
 }
 
 export enum MarriageStatus {
-  ACTIVE = 'ACTIVE 💕',
-  SEPARATED = 'SEPARATED 😔',
-  DIVORCED = 'DIVORCED 📜',
-  WIDOWED = 'WIDOWED ⚰️',
-  ANNULED = 'ANNULED ❌',
-  POLYGAMOUS = 'POLYGAMOUS 👥',
+  SINGLE = 'SINGLE',
+  MARRIED = 'MARRIED',
+  DIVORCED = 'DIVORCED',
+  WIDOWED = 'WIDOWED',
+  SEPARATED = 'SEPARATED',
+
+  // Note: Removed ACTIVE, SEPARATED, ANNULED, POLYGAMOUS as they don't match Prisma
+}
+
+export enum MarriageEndReason {
+  DEATH_OF_SPOUSE = 'DEATH_OF_SPOUSE',
+  DIVORCE = 'DIVORCE',
+  ANNULMENT = 'ANNULMENT',
+  CUSTOMARY_DISSOLUTION = 'CUSTOMARY_DISSOLUTION',
+  STILL_ACTIVE = 'STILL_ACTIVE',
+}
+
+export enum RelationshipGuardianshipType {
+  TEMPORARY = 'TEMPORARY',
+  PERMANENT = 'PERMANENT',
+  TESTAMENTARY = 'TESTAMENTARY',
+  CUSTOMARY = 'CUSTOMARY',
+}
+
+export enum KenyanRelationshipCategory {
+  SPOUSE = 'SPOUSE',
+  CHILDREN = 'CHILDREN',
+  PARENTS = 'PARENTS',
+  SIBLINGS = 'SIBLINGS',
+  EXTENDED_FAMILY = 'EXTENDED_FAMILY',
+  NON_FAMILY = 'NON_FAMILY',
 }
 
 export enum DependencyLevel {
   NONE = 'NONE',
-  PARTIAL = 'PARTIAL', // e.g., contributing to school fees only
-  FULL = 'FULL', // e.g., minor children
-  TEMPORARY = 'TEMPORARY', // e.g., unemployed sibling
-  MEDICAL = 'MEDICAL', // e.g., elderly parent with condition
-  EDUCATIONAL = 'EDUCATIONAL',
+  PARTIAL = 'PARTIAL',
+  FULL = 'FULL',
+
+  // Note: Removed TEMPORARY, MEDICAL, EDUCATIONAL as they don't exist in Prisma
+}
+
+export enum GuardianType {
+  TESTAMENTARY = 'TESTAMENTARY',
+  COURT_APPOINTED = 'COURT_APPOINTED',
+  CUSTOMARY = 'CUSTOMARY',
+  NATURAL_PARENT = 'NATURAL_PARENT',
+}
+
+export enum GuardianshipStatus {
+  ACTIVE = 'ACTIVE',
+  SUSPENDED = 'SUSPENDED',
+  TERMINATED = 'TERMINATED',
+  EXPIRED_WARD_MAJORITY = 'EXPIRED_WARD_MAJORITY',
+}
+
+export enum GuardianAppointmentSource {
+  FAMILY = 'FAMILY',
+  COURT = 'COURT',
+  WILL = 'WILL',
+  CUSTOMARY_LAW = 'CUSTOMARY_LAW',
+}
+
+export enum ComplianceStatus {
+  PENDING = 'PENDING',
+  FILED = 'FILED',
+  OVERDUE = 'OVERDUE',
+  REJECTED = 'REJECTED',
+}
+
+export enum GuardianReportStatus {
+  PENDING = 'PENDING',
+  DUE = 'DUE',
+  SUBMITTED = 'SUBMITTED',
+  APPROVED = 'APPROVED',
+  OVERDUE = 'OVERDUE',
+  REJECTED = 'REJECTED',
+}
+
+export enum GuardianshipTerminationReason {
+  WARD_REACHED_MAJORITY = 'WARD_REACHED_MAJORITY',
+  WARD_DECEASED = 'WARD_DECEASED',
+  GUARDIAN_DECEASED = 'GUARDIAN_DECEASED',
+  GUARDIAN_INCAPACITATED = 'GUARDIAN_INCAPACITATED',
+  COURT_REMOVAL = 'COURT_REMOVAL',
+  VOLUNTARY_RESIGNATION = 'VOLUNTARY_RESIGNATION',
+  WARD_REGAINED_CAPACITY = 'WARD_REGAINED_CAPACITY',
+  ADOPTION_FINALIZED = 'ADOPTION_FINALIZED',
+  CUSTOMARY_TRANSFER = 'CUSTOMARY_TRANSFER',
+}
+
+export enum InheritanceRights {
+  FULL = 'FULL',
+  PARTIAL = 'PARTIAL',
+  CUSTOMARY = 'CUSTOMARY',
+  NONE = 'NONE',
+  PENDING = 'PENDING',
+}
+
+export enum KenyanLawSection {
+  S26_DEPENDANT_PROVISION = 'S26_DEPENDANT_PROVISION',
+  S29_DEPENDANTS = 'S29_DEPENDANTS',
+  S35_SPOUSAL_CHILDS_SHARE = 'S35_SPOUSAL_CHILDS_SHARE',
+  S40_POLY_GAMY = 'S40_POLY_GAMY',
+  S45_DEBT_PRIORITY = 'S45_DEBT_PRIORITY',
+  S70_TESTAMENTARY_GUARDIAN = 'S70_TESTAMENTARY_GUARDIAN',
+  S71_COURT_GUARDIAN = 'S71_COURT_GUARDIAN',
+  S72_GUARDIAN_BOND = 'S72_GUARDIAN_BOND',
+  S73_GUARDIAN_ACCOUNTS = 'S73_GUARDIAN_ACCOUNTS',
+  S83_EXECUTOR_DUTIES = 'S83_EXECUTOR_DUTIES',
 }
 
 /**
@@ -155,9 +223,9 @@ export class EnumHelpers {
     return [
       RelationshipType.SPOUSE,
       RelationshipType.CHILD,
-      RelationshipType.PARENT,
-      RelationshipType.STEPCHILD,
       RelationshipType.ADOPTED_CHILD,
+      RelationshipType.STEPCHILD,
+      RelationshipType.PARENT,
     ];
   }
 
@@ -165,7 +233,7 @@ export class EnumHelpers {
    * Get marriage types that require S.40 polygamous house structure (Law of Succession)
    */
   static getPolygamousMarriageTypes(): MarriageType[] {
-    return [MarriageType.ISLAMIC, MarriageType.CUSTOMARY, MarriageType.TRADITIONAL];
+    return [MarriageType.ISLAMIC, MarriageType.CUSTOMARY];
   }
 
   /**
@@ -246,23 +314,64 @@ export class EnumHelpers {
     const pronouns = {
       [Gender.MALE]: { subjective: 'he', objective: 'him', possessive: 'his' },
       [Gender.FEMALE]: { subjective: 'she', objective: 'her', possessive: 'her' },
-      [Gender.NON_BINARY]: {
-        subjective: 'they',
-        objective: 'them',
-        possessive: 'their',
-      },
-      [Gender.PREFER_NOT_TO_SAY]: {
-        subjective: 'they',
-        objective: 'them',
-        possessive: 'their',
-      },
-      [Gender.CUSTOM]: {
+      [Gender.OTHERS]: {
         subjective: 'they',
         objective: 'them',
         possessive: 'their',
       },
     };
 
-    return pronouns[gender] || pronouns[Gender.PREFER_NOT_TO_SAY];
+    return pronouns[gender] || pronouns[Gender.OTHERS];
   }
+
+  /**
+   * Check if a marriage type can be polygamous under Kenyan law
+   */
+  static canBePolygamous(marriageType: MarriageType): boolean {
+    return this.getPolygamousMarriageTypes().includes(marriageType);
+  }
+
+  /**
+   * Check if relationship qualifies as immediate family for succession
+   */
+  static isImmediateFamily(relationship: RelationshipType): boolean {
+    const immediateFamily = [
+      RelationshipType.SPOUSE,
+      RelationshipType.CHILD,
+      RelationshipType.ADOPTED_CHILD,
+      RelationshipType.STEPCHILD,
+      RelationshipType.PARENT,
+    ];
+    return immediateFamily.includes(relationship);
+  }
+
+  /**
+   * Get guardian types that require court supervision
+   */
+  static requiresCourtSupervision(guardianType: GuardianType): boolean {
+    return [GuardianType.COURT_APPOINTED, GuardianType.CUSTOMARY].includes(guardianType);
+  }
+}
+
+// Additional enums from Prisma that might be needed in family service
+export enum SuccessionRegime {
+  TESTATE = 'TESTATE',
+  INTESTATE = 'INTESTATE',
+  PARTIALLY_INTESTATE = 'PARTIALLY_INTESTATE',
+  CUSTOMARY = 'CUSTOMARY',
+}
+
+export enum SuccessionMarriageType {
+  MONOGAMOUS = 'MONOGAMOUS',
+  POLYGAMOUS = 'POLYGAMOUS',
+  COHABITATION = 'COHABITATION',
+  SINGLE = 'SINGLE',
+}
+
+export enum SuccessionReligion {
+  STATUTORY = 'STATUTORY',
+  ISLAMIC = 'ISLAMIC',
+  HINDU = 'HINDU',
+  AFRICAN_CUSTOMARY = 'AFRICAN_CUSTOMARY',
+  CHRISTIAN = 'CHRISTIAN',
 }

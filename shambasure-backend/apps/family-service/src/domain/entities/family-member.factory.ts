@@ -76,7 +76,7 @@ export class FamilyMemberFactory {
       isMarried: false,
       hasChildren: false,
       initiationRitesCompleted:
-        gender === 'MALE' ? this.estimateInitiationStatus(dateOfBirth) : false,
+        gender === Gender.MALE ? this.estimateInitiationStatus(dateOfBirth) : false,
       traditionalTitles: [],
       verificationStatus: 'UNVERIFIED',
       createdBy,
@@ -180,7 +180,7 @@ export class FamilyMemberFactory {
 
     // Elderly often have traditional titles
     const traditionalTitles = options?.traditionalTitle ? [options.traditionalTitle] : [];
-    if (gender === 'MALE' && !options?.traditionalTitle) {
+    if (gender === Gender.MALE && !options?.traditionalTitle) {
       traditionalTitles.push('Mzee'); // Respectful term for elderly
     }
 
@@ -303,7 +303,7 @@ export class FamilyMemberFactory {
     switch (templateType) {
       case 'SPOUSE':
         return {
-          gender: referenceProps.gender === 'MALE' ? 'FEMALE' : 'MALE',
+          gender: referenceProps.gender === Gender.MALE ? Gender.FEMALE : Gender.MALE,
           placeOfBirth: referenceProps.placeOfBirth,
           religion: referenceProps.religion,
           tribe: referenceProps.tribe,
@@ -314,7 +314,7 @@ export class FamilyMemberFactory {
 
       case 'CHILD':
         return {
-          gender: 'MALE', // Default to male, can be changed
+          gender: Gender.MALE, // Default to male, can be changed
           placeOfBirth: referenceProps.placeOfBirth || KenyanCounty.NAIROBI,
           religion: referenceProps.religion,
           tribe: referenceProps.tribe,
@@ -323,14 +323,14 @@ export class FamilyMemberFactory {
           initiationRitesCompleted: false,
         };
 
-      case 'PARENT':
+      case 'PARENT': {
         // Estimate parent's age (30 years older than reference)
         const referenceAge = referenceMember.calculateAge() || 30;
         const parentBirthYear = new Date().getFullYear() - (referenceAge + 30);
         const estimatedDOB = new Date(parentBirthYear, 5, 15); // June 15th
 
         return {
-          gender: 'MALE', // Default to father
+          gender: Gender.MALE, // Default to father
           dateOfBirth: estimatedDOB,
           dateOfBirthEstimated: true,
           placeOfBirth: referenceProps.placeOfBirth,
@@ -346,6 +346,7 @@ export class FamilyMemberFactory {
           initiationRitesCompleted: true,
           traditionalTitles: ['Mzee'],
         };
+      }
 
       case 'SIBLING':
         return {
