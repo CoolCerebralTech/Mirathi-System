@@ -1,4 +1,4 @@
-// src/family-service/src/domain/interfaces/repositories/iguardianship.repository.ts
+// src/family-service/src/domain/interfaces/iguardianship.repository.ts
 import {
   BondOverallStatus,
   GuardianshipAggregate,

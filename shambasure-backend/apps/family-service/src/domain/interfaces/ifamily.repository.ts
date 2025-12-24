@@ -1,4 +1,4 @@
-// src/family-service/src/domain/interfaces/repositories/ifamily.repository.ts
+// src/family-service/src/domain/interfaces/ifamily.repository.ts
 import { FamilyAggregate } from '../aggregates/family.aggregate';
 import { DomainEvent } from '../base/domain-event';
 import { KenyanCounty } from '../value-objects/family-enums.vo';

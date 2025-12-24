@@ -105,6 +105,9 @@ export interface MarriageProps {
 }
 
 export class Marriage extends Entity<MarriageProps> {
+  public getProps(): MarriageProps {
+    return { ...this.props };
+  }
   private constructor(props: MarriageProps, id?: UniqueEntityID, createdAt?: Date) {
     super(id || new UniqueEntityID(), props, createdAt);
   }

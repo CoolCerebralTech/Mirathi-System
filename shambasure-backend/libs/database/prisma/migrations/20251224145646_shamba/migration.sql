@@ -74,7 +74,76 @@ CREATE TYPE "KenyanLawSection" AS ENUM ('S26_DEPENDANT_PROVISION', 'S29_DEPENDAN
 CREATE TYPE "GuardianReportStatus" AS ENUM ('PENDING', 'DUE', 'SUBMITTED', 'APPROVED', 'OVERDUE', 'REJECTED');
 
 -- CreateEnum
+CREATE TYPE "GuardianshipStatus" AS ENUM ('PENDING_ACTIVATION', 'ACTIVE', 'SUSPENDED', 'TERMINATED', 'REVOKED', 'EXPIRED', 'EMERGENCY');
+
+-- CreateEnum
+CREATE TYPE "BondStatus" AS ENUM ('NOT_REQUIRED', 'REQUIRED_PENDING', 'POSTED', 'FORFEITED');
+
+-- CreateEnum
+CREATE TYPE "GuardianRole" AS ENUM ('CARETAKER', 'PROPERTY_MANAGER', 'EDUCATIONAL_GUARDIAN', 'MEDICAL_CONSENT', 'LEGAL_REPRESENTATIVE', 'EMERGENCY', 'CUSTOMARY');
+
+-- CreateEnum
+CREATE TYPE "GuardianAssignmentStatus" AS ENUM ('PENDING', 'ACTIVE', 'SUSPENDED', 'TERMINATED', 'REVOKED', 'DECEASED', 'RESIGNED');
+
+-- CreateEnum
+CREATE TYPE "GuardianshipJurisdiction" AS ENUM ('STATUTORY', 'ISLAMIC', 'CUSTOMARY', 'INTERNATIONAL');
+
+-- CreateEnum
+CREATE TYPE "CompliancePeriod" AS ENUM ('QUARTER_1', 'QUARTER_2', 'QUARTER_3', 'QUARTER_4', 'ANNUAL', 'BIANNUAL', 'SPECIAL');
+
+-- CreateEnum
+CREATE TYPE "ComplianceCheckStatus" AS ENUM ('DRAFT', 'PENDING_SUBMISSION', 'SUBMITTED', 'UNDER_REVIEW', 'ACCEPTED', 'REJECTED', 'AMENDMENT_REQUESTED', 'OVERDUE', 'EXTENSION_GRANTED', 'WAIVED');
+
+-- CreateEnum
+CREATE TYPE "ValidationStatus" AS ENUM ('PENDING', 'IN_PROGRESS', 'PASSED', 'FAILED', 'EXCEPTION');
+
+-- CreateEnum
+CREATE TYPE "ReportType" AS ENUM ('ANNUAL_WELFARE', 'QUARTERLY_FINANCIAL', 'MEDICAL_UPDATE', 'EDUCATIONAL_PROGRESS', 'PROPERTY_MANAGEMENT', 'COURT_MANDATED', 'EMERGENCY_REPORT', 'CLOSING_REPORT');
+
+-- CreateEnum
+CREATE TYPE "GuardianAppointmentSource" AS ENUM ('WILL', 'COURT', 'FAMILY_AGREEMENT', 'CUSTOMARY_COUNCIL', 'EMERGENCY', 'MUTUAL');
+
+-- CreateEnum
 CREATE TYPE "GuardianshipTerminationReason" AS ENUM ('WARD_REACHED_MAJORITY', 'WARD_DECEASED', 'GUARDIAN_DECEASED', 'GUARDIAN_INCAPACITATED', 'COURT_REMOVAL', 'VOLUNTARY_RESIGNATION', 'WARD_REGAINED_CAPACITY', 'ADOPTION_FINALIZED', 'CUSTOMARY_TRANSFER');
+
+-- CreateEnum
+CREATE TYPE "AdoptionType" AS ENUM ('STATUTORY', 'CUSTOMARY', 'INTERNATIONAL', 'KINSHIP', 'FOSTER_TO_ADOPT', 'STEP_PARENT', 'RELATIVE');
+
+-- CreateEnum
+CREATE TYPE "AdoptionStatus" AS ENUM ('PENDING', 'IN_PROGRESS', 'FINALIZED', 'REVOKED', 'ANNULED', 'APPEALED');
+
+-- CreateEnum
+CREATE TYPE "CohabitationType" AS ENUM ('COME_WE_STAY', 'LONG_TERM_PARTNERSHIP', 'DATING', 'ENGAGED');
+
+-- CreateEnum
+CREATE TYPE "VerificationStatus" AS ENUM ('UNVERIFIED', 'PENDING_VERIFICATION', 'VERIFIED', 'REJECTED', 'DISPUTED');
+
+-- CreateEnum
+CREATE TYPE "ParentalConsentStatus" AS ENUM ('CONSENTED', 'WITHHELD', 'UNKNOWN', 'DECEASED', 'TERMINATED');
+
+-- CreateEnum
+CREATE TYPE "CohabitationStability" AS ENUM ('STABLE', 'VOLATILE', 'ON_OFF', 'UNKNOWN');
+
+-- CreateEnum
+CREATE TYPE "RelationshipVerificationLevel" AS ENUM ('UNVERIFIED', 'PARTIALLY_VERIFIED', 'FULLY_VERIFIED', 'DISPUTED');
+
+-- CreateEnum
+CREATE TYPE "ConflictResolutionStatus" AS ENUM ('RESOLVED', 'PENDING', 'MEDIATION', 'COURT');
+
+-- CreateEnum
+CREATE TYPE "HouseEstablishmentType" AS ENUM ('CUSTOMARY', 'ISLAMIC', 'TRADITIONAL', 'COURT_RECOGNIZED');
+
+-- CreateEnum
+CREATE TYPE "HouseDissolutionReason" AS ENUM ('WIFE_DECEASED', 'WIFE_DIVORCED', 'HOUSE_MERGED', 'COURT_ORDER');
+
+-- CreateEnum
+CREATE TYPE "RelationshipVerificationMethod" AS ENUM ('DNA', 'DOCUMENT', 'FAMILY_CONSENSUS', 'COURT_ORDER', 'TRADITIONAL');
+
+-- CreateEnum
+CREATE TYPE "InheritanceRightLevel" AS ENUM ('FULL', 'LIMITED', 'NONE', 'DISPUTED');
+
+-- CreateEnum
+CREATE TYPE "RelationshipSupportType" AS ENUM ('FINANCIAL', 'HOUSING', 'MEDICAL', 'EDUCATIONAL', 'FULL_CARE');
 
 -- CreateEnum
 CREATE TYPE "GuardianType" AS ENUM ('TESTAMENTARY', 'COURT_APPOINTED', 'CUSTOMARY', 'NATURAL_PARENT');
@@ -83,13 +152,7 @@ CREATE TYPE "GuardianType" AS ENUM ('TESTAMENTARY', 'COURT_APPOINTED', 'CUSTOMAR
 CREATE TYPE "InheritanceRights" AS ENUM ('FULL', 'PARTIAL', 'CUSTOMARY', 'NONE', 'PENDING');
 
 -- CreateEnum
-CREATE TYPE "GuardianAppointmentSource" AS ENUM ('FAMILY', 'COURT', 'WILL', 'CUSTOMARY_LAW');
-
--- CreateEnum
 CREATE TYPE "ComplianceStatus" AS ENUM ('PENDING', 'FILED', 'OVERDUE', 'REJECTED');
-
--- CreateEnum
-CREATE TYPE "GuardianshipStatus" AS ENUM ('ACTIVE', 'SUSPENDED', 'TERMINATED', 'EXPIRED_WARD_MAJORITY');
 
 -- CreateEnum
 CREATE TYPE "WillStatus" AS ENUM ('DRAFT', 'PENDING_WITNESS', 'WITNESSED', 'ACTIVE', 'REVOKED', 'SUPERSEDED', 'EXECUTED', 'CONTESTED', 'PROBATE');
@@ -407,18 +470,50 @@ CREATE TABLE "family_members" (
     "lastName" VARCHAR(100) NOT NULL,
     "maidenName" VARCHAR(100),
     "nationalId" VARCHAR(20),
-    "kraPin" VARCHAR(20),
     "nationalIdVerified" BOOLEAN NOT NULL DEFAULT false,
+    "kraPin" VARCHAR(20),
+    "passportNumber" VARCHAR(50),
+    "birthCertNumber" VARCHAR(50),
+    "hudumaNumber" VARCHAR(50),
     "dateOfBirth" TIMESTAMP(3),
+    "dateOfBirthEstimated" BOOLEAN NOT NULL DEFAULT false,
     "gender" "Gender",
     "placeOfBirth" VARCHAR(100),
     "religion" VARCHAR(50),
+    "tribe" VARCHAR(50),
+    "languages" TEXT[],
     "isAlive" BOOLEAN NOT NULL DEFAULT true,
     "dateOfDeath" TIMESTAMP(3),
     "deathCertNo" VARCHAR(50),
+    "causeOfDeath" VARCHAR(255),
+    "burialLocation" VARCHAR(255),
     "isMissing" BOOLEAN NOT NULL DEFAULT false,
-    "disabilityStatus" VARCHAR(50),
+    "missingSince" TIMESTAMP(3),
+    "hasDisability" BOOLEAN NOT NULL DEFAULT false,
+    "disabilityType" TEXT,
+    "disabilityPercentage" INTEGER,
+    "isMentallyIncapacitated" BOOLEAN NOT NULL DEFAULT false,
+    "medicalConditions" TEXT[],
+    "lastMedicalCheck" TIMESTAMP(3),
+    "educationLevel" TEXT,
+    "occupation" TEXT,
+    "employer" TEXT,
+    "phoneNumber" TEXT,
+    "email" TEXT,
+    "currentResidence" TEXT,
+    "initiationRitesCompleted" BOOLEAN NOT NULL DEFAULT false,
+    "clanRole" TEXT,
+    "traditionalTitles" TEXT[],
+    "profilePictureUrl" TEXT,
+    "biometricData" JSONB,
+    "verificationStatus" "VerificationStatus" NOT NULL DEFAULT 'UNVERIFIED',
+    "verificationNotes" TEXT,
+    "lastVerifiedAt" TIMESTAMP(3),
     "polygamousHouseId" UUID,
+    "createdBy" UUID,
+    "lastUpdatedBy" UUID,
+    "isArchived" BOOLEAN NOT NULL DEFAULT false,
+    "archivedReason" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -430,10 +525,30 @@ CREATE TABLE "polygamous_houses" (
     "id" UUID NOT NULL,
     "familyId" UUID NOT NULL,
     "houseName" VARCHAR(100) NOT NULL,
+    "houseCode" VARCHAR(50) NOT NULL,
     "houseOrder" INTEGER NOT NULL,
     "houseHeadId" UUID,
+    "originalWifeId" UUID NOT NULL,
+    "currentWifeId" UUID,
     "establishedDate" TIMESTAMP(3) NOT NULL,
+    "establishmentType" "HouseEstablishmentType" NOT NULL,
     "courtRecognized" BOOLEAN NOT NULL DEFAULT false,
+    "recognitionDocumentId" TEXT,
+    "memberCount" INTEGER NOT NULL DEFAULT 0,
+    "houseAssets" JSONB,
+    "distributionWeight" DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    "specialAllocation" JSONB,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "dissolutionDate" TIMESTAMP(3),
+    "dissolutionReason" "HouseDissolutionReason",
+    "houseColor" TEXT,
+    "houseSymbol" TEXT,
+    "primaryResidence" TEXT,
+    "verificationStatus" "VerificationStatus" NOT NULL DEFAULT 'UNVERIFIED',
+    "verificationNotes" TEXT,
+    "createdBy" UUID NOT NULL,
+    "lastUpdatedBy" UUID NOT NULL,
+    "isArchived" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -447,15 +562,39 @@ CREATE TABLE "marriages" (
     "spouse1Id" UUID NOT NULL,
     "spouse2Id" UUID NOT NULL,
     "marriageType" "MarriageType" NOT NULL,
-    "registrationNumber" VARCHAR(100),
+    "marriageStatus" "MarriageStatus" NOT NULL,
     "startDate" TIMESTAMP(3) NOT NULL,
     "endDate" TIMESTAMP(3),
     "endReason" "MarriageEndReason" NOT NULL DEFAULT 'STILL_ACTIVE',
+    "registrationNumber" VARCHAR(100),
+    "registrationDistrict" TEXT,
+    "registeredBy" TEXT,
+    "ceremonyLocation" TEXT,
+    "ceremonyCounty" "KenyanCounty",
+    "witnesses" TEXT[],
+    "bridePricePaid" BOOLEAN NOT NULL DEFAULT false,
+    "bridePriceAmount" DOUBLE PRECISION,
+    "bridePaidInFull" BOOLEAN NOT NULL DEFAULT false,
+    "customaryDetails" JSONB,
     "isPolygamous" BOOLEAN NOT NULL DEFAULT false,
     "polygamousHouseId" UUID,
-    "bridePricePaid" BOOLEAN NOT NULL DEFAULT false,
-    "customaryDetails" JSONB,
-    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "marriageOrder" INTEGER,
+    "numberOfChildren" INTEGER NOT NULL DEFAULT 0,
+    "marriageCertificateId" TEXT,
+    "cohabitationAffidavitId" TEXT,
+    "divorceDecreeId" TEXT,
+    "prenuptialAgreement" BOOLEAN NOT NULL DEFAULT false,
+    "jointProperty" BOOLEAN NOT NULL DEFAULT false,
+    "isMarriageDissolved" BOOLEAN NOT NULL DEFAULT false,
+    "dissolutionDate" TIMESTAMP(3),
+    "dissolutionReason" TEXT,
+    "waitingPeriodCompleted" BOOLEAN NOT NULL DEFAULT false,
+    "verificationStatus" "VerificationStatus" NOT NULL DEFAULT 'UNVERIFIED',
+    "verifiedBy" UUID,
+    "verificationNotes" TEXT,
+    "createdBy" UUID NOT NULL,
+    "lastUpdatedBy" UUID NOT NULL,
+    "isArchived" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -469,8 +608,46 @@ CREATE TABLE "family_relationships" (
     "fromMemberId" UUID NOT NULL,
     "toMemberId" UUID NOT NULL,
     "type" "RelationshipType" NOT NULL,
+    "inverseType" "RelationshipType" NOT NULL,
     "isBiological" BOOLEAN NOT NULL DEFAULT true,
-    "isVerified" BOOLEAN NOT NULL DEFAULT false,
+    "isLegal" BOOLEAN NOT NULL DEFAULT false,
+    "isCustomary" BOOLEAN NOT NULL DEFAULT false,
+    "isSpiritual" BOOLEAN NOT NULL DEFAULT false,
+    "startDate" TIMESTAMP(3),
+    "endDate" TIMESTAMP(3),
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "verificationLevel" "RelationshipVerificationLevel" NOT NULL DEFAULT 'UNVERIFIED',
+    "verificationMethod" "RelationshipVerificationMethod",
+    "verificationScore" INTEGER NOT NULL DEFAULT 0,
+    "verifiedBy" UUID,
+    "lastVerifiedAt" TIMESTAMP(3),
+    "legalDocuments" TEXT[],
+    "dnaTestId" TEXT,
+    "dnaMatchPercentage" DOUBLE PRECISION,
+    "courtOrderId" TEXT,
+    "adoptionOrderId" TEXT,
+    "guardianshipOrderId" TEXT,
+    "customaryRecognition" BOOLEAN NOT NULL DEFAULT false,
+    "clanRecognized" BOOLEAN NOT NULL DEFAULT false,
+    "elderWitnesses" TEXT[],
+    "traditionalRite" TEXT,
+    "relationshipStrength" INTEGER NOT NULL DEFAULT 50,
+    "closenessIndex" INTEGER NOT NULL DEFAULT 50,
+    "contactFrequency" TEXT,
+    "isFinancialDependent" BOOLEAN NOT NULL DEFAULT false,
+    "isCareDependent" BOOLEAN NOT NULL DEFAULT false,
+    "dependencyLevel" TEXT,
+    "supportProvided" JSONB,
+    "inheritanceRights" TEXT,
+    "inheritancePercentage" DOUBLE PRECISION,
+    "disinherited" BOOLEAN NOT NULL DEFAULT false,
+    "disinheritanceReason" TEXT,
+    "hasConflict" BOOLEAN NOT NULL DEFAULT false,
+    "conflictResolutionStatus" "ConflictResolutionStatus",
+    "createdBy" UUID NOT NULL,
+    "lastUpdatedBy" UUID NOT NULL,
+    "notes" TEXT,
+    "isArchived" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -483,11 +660,40 @@ CREATE TABLE "cohabitation_records" (
     "familyId" UUID NOT NULL,
     "partner1Id" UUID NOT NULL,
     "partner2Id" UUID NOT NULL,
+    "relationshipType" "CohabitationType" NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
     "startDate" TIMESTAMP(3) NOT NULL,
     "endDate" TIMESTAMP(3),
-    "isAcknowledged" BOOLEAN NOT NULL DEFAULT false,
+    "relationshipStability" "CohabitationStability" NOT NULL DEFAULT 'UNKNOWN',
+    "durationDays" INTEGER NOT NULL DEFAULT 0,
+    "qualifiesForS29" BOOLEAN NOT NULL DEFAULT false,
+    "minimumPeriodMet" BOOLEAN NOT NULL DEFAULT false,
+    "sharedResidence" TEXT,
+    "residenceCounty" "KenyanCounty",
+    "isSeparateHousehold" BOOLEAN NOT NULL DEFAULT false,
+    "affidavitId" UUID,
+    "witnesses" TEXT[],
+    "communityAcknowledged" BOOLEAN NOT NULL DEFAULT false,
+    "familyAcknowledged" BOOLEAN NOT NULL DEFAULT false,
+    "supportEvidence" JSONB,
+    "jointFinancialAccounts" BOOLEAN NOT NULL DEFAULT false,
+    "jointPropertyOwnership" BOOLEAN NOT NULL DEFAULT false,
+    "financialSupportProvided" BOOLEAN NOT NULL DEFAULT false,
     "hasChildren" BOOLEAN NOT NULL DEFAULT false,
-    "affidavitFileId" UUID,
+    "childrenBornDuring" BOOLEAN NOT NULL DEFAULT false,
+    "hasCourtRecognition" BOOLEAN NOT NULL DEFAULT false,
+    "courtCaseNumber" TEXT,
+    "dependencyClaimFiled" BOOLEAN NOT NULL DEFAULT false,
+    "dependencyClaimId" UUID,
+    "dependencyClaimStatus" TEXT,
+    "customaryElements" BOOLEAN NOT NULL DEFAULT false,
+    "clanInvolved" BOOLEAN NOT NULL DEFAULT false,
+    "verificationStatus" "VerificationStatus" NOT NULL DEFAULT 'UNVERIFIED',
+    "verificationNotes" TEXT,
+    "lastVerifiedAt" TIMESTAMP(3),
+    "createdBy" UUID NOT NULL,
+    "lastUpdatedBy" UUID NOT NULL,
+    "isArchived" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -495,44 +701,65 @@ CREATE TABLE "cohabitation_records" (
 );
 
 -- CreateTable
-CREATE TABLE "adoption_orders" (
+CREATE TABLE "adoption_records" (
     "id" UUID NOT NULL,
     "familyId" UUID NOT NULL,
     "adopteeId" UUID NOT NULL,
-    "adopterId" UUID NOT NULL,
-    "courtOrderNo" TEXT,
-    "adoptionDate" TIMESTAMP(3) NOT NULL,
-    "type" TEXT NOT NULL,
+    "adoptiveParentId" UUID NOT NULL,
+    "adoptionType" "AdoptionType" NOT NULL,
+    "adoptionStatus" "AdoptionStatus" NOT NULL,
+    "applicationDate" TIMESTAMP(3) NOT NULL,
+    "hearingDate" TIMESTAMP(3),
+    "finalizationDate" TIMESTAMP(3),
+    "effectiveDate" TIMESTAMP(3),
+    "legalBasis" JSONB,
+    "courtOrderNumber" VARCHAR(100),
+    "courtStation" TEXT,
+    "presidingJudge" TEXT,
+    "parentalConsentStatus" JSONB NOT NULL,
+    "consentDocuments" TEXT[],
+    "clanInvolved" BOOLEAN NOT NULL DEFAULT false,
+    "clanElders" JSONB,
+    "customaryRites" TEXT[],
+    "bridePriceConsideration" BOOLEAN NOT NULL DEFAULT false,
+    "socialWorkerInfo" JSONB,
+    "adoptionAgencyInfo" JSONB,
+    "adoptionExpenses" DOUBLE PRECISION,
+    "postAdoptionMonitoring" BOOLEAN NOT NULL DEFAULT false,
+    "monitoringPeriodMonths" INTEGER,
+    "verificationStatus" "VerificationStatus" NOT NULL DEFAULT 'PENDING_VERIFICATION',
+    "verificationNotes" TEXT,
+    "verifiedBy" UUID,
+    "lastVerifiedAt" TIMESTAMP(3),
+    "createdBy" UUID NOT NULL,
+    "lastUpdatedBy" UUID NOT NULL,
+    "isArchived" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "adoption_orders_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "next_of_kin_designations" (
-    "id" UUID NOT NULL,
-    "familyId" UUID NOT NULL,
-    "designatorId" UUID NOT NULL,
-    "nomineeId" UUID NOT NULL,
-    "priority" INTEGER NOT NULL DEFAULT 1,
-    "relationType" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "next_of_kin_designations_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "adoption_records_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "guardianships" (
     "id" UUID NOT NULL,
     "wardId" UUID NOT NULL,
-    "status" "GuardianshipStatus" NOT NULL DEFAULT 'ACTIVE',
+    "wardFullName" VARCHAR(200) NOT NULL,
+    "wardDateOfBirth" TIMESTAMP(3) NOT NULL,
+    "status" "GuardianshipStatus" NOT NULL DEFAULT 'PENDING_ACTIVATION',
+    "type" TEXT NOT NULL,
+    "jurisdiction" "GuardianshipJurisdiction" NOT NULL DEFAULT 'STATUTORY',
+    "governingLaw" TEXT NOT NULL DEFAULT 'Children Act Cap 141',
+    "caseNumber" VARCHAR(100),
+    "courtOrder" JSONB,
+    "requiresPropertyManagement" BOOLEAN NOT NULL DEFAULT false,
+    "bondStatus" "BondStatus" NOT NULL DEFAULT 'NOT_REQUIRED',
     "establishedDate" TIMESTAMP(3) NOT NULL,
-    "validUntil" TIMESTAMP(3),
-    "basis" "GuardianType" NOT NULL,
-    "courtOrderNumber" VARCHAR(100),
-    "courtStation" VARCHAR(100),
+    "terminatedDate" TIMESTAMP(3),
+    "terminationReason" TEXT,
+    "complianceSchedule" JSONB NOT NULL,
+    "history" JSONB[],
+    "legalNotes" TEXT,
     "version" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -545,12 +772,25 @@ CREATE TABLE "guardian_assignments" (
     "id" UUID NOT NULL,
     "guardianshipId" UUID NOT NULL,
     "guardianId" UUID NOT NULL,
-    "isPrimary" BOOLEAN NOT NULL DEFAULT true,
+    "guardianUserId" UUID,
+    "role" "GuardianRole" NOT NULL,
+    "isPrimary" BOOLEAN NOT NULL DEFAULT false,
+    "isAlternate" BOOLEAN NOT NULL DEFAULT false,
+    "appointmentSource" "GuardianAppointmentSource" NOT NULL,
+    "status" "GuardianAssignmentStatus" NOT NULL DEFAULT 'PENDING',
     "appointmentDate" TIMESTAMP(3) NOT NULL,
-    "canManageProperty" BOOLEAN NOT NULL DEFAULT false,
-    "canConsentMedical" BOOLEAN NOT NULL DEFAULT true,
-    "bondRequired" BOOLEAN NOT NULL DEFAULT false,
-    "bondReference" TEXT,
+    "activationDate" TIMESTAMP(3),
+    "deactivationDate" TIMESTAMP(3),
+    "deactivationReason" TEXT,
+    "powers" JSONB NOT NULL,
+    "bond" JSONB,
+    "tasksCompleted" INTEGER NOT NULL DEFAULT 0,
+    "complianceScore" INTEGER NOT NULL DEFAULT 100,
+    "lastActivityDate" TIMESTAMP(3),
+    "conflicts" JSONB[],
+    "contactInfo" JSONB NOT NULL,
+    "digitalSignatureUrl" TEXT,
+    "verificationMethod" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -562,10 +802,32 @@ CREATE TABLE "compliance_checks" (
     "id" UUID NOT NULL,
     "guardianshipId" UUID NOT NULL,
     "year" INTEGER NOT NULL,
-    "filingDate" TIMESTAMP(3),
-    "status" "ComplianceStatus" NOT NULL DEFAULT 'PENDING',
-    "notes" TEXT,
-    "reportDocumentId" UUID,
+    "reportingPeriod" "CompliancePeriod" NOT NULL,
+    "reportType" "ReportType" NOT NULL,
+    "reportTitle" TEXT NOT NULL,
+    "dueDate" TIMESTAMP(3) NOT NULL,
+    "submissionDeadline" TIMESTAMP(3) NOT NULL,
+    "submissionDate" TIMESTAMP(3),
+    "reviewedDate" TIMESTAMP(3),
+    "acceptedDate" TIMESTAMP(3),
+    "status" "ComplianceCheckStatus" NOT NULL DEFAULT 'DRAFT',
+    "validationStatus" "ValidationStatus" NOT NULL DEFAULT 'PENDING',
+    "qualityScore" INTEGER NOT NULL DEFAULT 0,
+    "validationErrors" JSONB,
+    "sections" JSONB NOT NULL,
+    "attachments" JSONB,
+    "generatedSections" JSONB,
+    "submissionMethods" JSONB,
+    "submissionReferences" JSONB,
+    "financialStatement" JSONB,
+    "wardStatus" JSONB,
+    "bankReconciliation" JSONB,
+    "courtFeedback" JSONB,
+    "recommendations" JSONB,
+    "reminderHistory" JSONB,
+    "followUpActions" JSONB,
+    "submittedBy" UUID,
+    "reviewedBy" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -1095,6 +1357,14 @@ CREATE TABLE "_FamilyMemberUser" (
 );
 
 -- CreateTable
+CREATE TABLE "_CohabitationChildren" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_CohabitationChildren_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
 CREATE TABLE "_FamilyMemberLifeInterest" (
     "A" UUID NOT NULL,
     "B" UUID NOT NULL,
@@ -1244,6 +1514,9 @@ CREATE UNIQUE INDEX "family_members_nationalId_key" ON "family_members"("nationa
 CREATE UNIQUE INDEX "family_members_kraPin_key" ON "family_members"("kraPin");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "polygamous_houses_houseCode_key" ON "polygamous_houses"("houseCode");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "polygamous_houses_houseHeadId_key" ON "polygamous_houses"("houseHeadId");
 
 -- CreateIndex
@@ -1256,13 +1529,13 @@ CREATE UNIQUE INDEX "marriages_registrationNumber_key" ON "marriages"("registrat
 CREATE UNIQUE INDEX "family_relationships_fromMemberId_toMemberId_type_key" ON "family_relationships"("fromMemberId", "toMemberId", "type");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "adoption_orders_courtOrderNo_key" ON "adoption_orders"("courtOrderNo");
+CREATE UNIQUE INDEX "adoption_records_courtOrderNumber_key" ON "adoption_records"("courtOrderNumber");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "next_of_kin_designations_designatorId_priority_key" ON "next_of_kin_designations"("designatorId", "priority");
+CREATE INDEX "adoption_records_familyId_idx" ON "adoption_records"("familyId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "compliance_checks_guardianshipId_year_key" ON "compliance_checks"("guardianshipId", "year");
+CREATE UNIQUE INDEX "compliance_checks_guardianshipId_year_reportingPeriod_key" ON "compliance_checks"("guardianshipId", "year", "reportingPeriod");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "estates_deceasedId_unique" ON "estates"("deceasedId");
@@ -1341,6 +1614,9 @@ CREATE INDEX "_FamilyCreator_B_index" ON "_FamilyCreator"("B");
 
 -- CreateIndex
 CREATE INDEX "_FamilyMemberUser_B_index" ON "_FamilyMemberUser"("B");
+
+-- CreateIndex
+CREATE INDEX "_CohabitationChildren_B_index" ON "_CohabitationChildren"("B");
 
 -- CreateIndex
 CREATE INDEX "_FamilyMemberLifeInterest_B_index" ON "_FamilyMemberLifeInterest"("B");
@@ -1430,10 +1706,19 @@ ALTER TABLE "family_relationships" ADD CONSTRAINT "family_relationships_toMember
 ALTER TABLE "cohabitation_records" ADD CONSTRAINT "cohabitation_records_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "adoption_orders" ADD CONSTRAINT "adoption_orders_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "cohabitation_records" ADD CONSTRAINT "cohabitation_records_partner1Id_fkey" FOREIGN KEY ("partner1Id") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "next_of_kin_designations" ADD CONSTRAINT "next_of_kin_designations_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "cohabitation_records" ADD CONSTRAINT "cohabitation_records_partner2Id_fkey" FOREIGN KEY ("partner2Id") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "adoption_records" ADD CONSTRAINT "adoption_records_familyId_fkey" FOREIGN KEY ("familyId") REFERENCES "families"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "adoption_records" ADD CONSTRAINT "adoption_records_adopteeId_fkey" FOREIGN KEY ("adopteeId") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "adoption_records" ADD CONSTRAINT "adoption_records_adoptiveParentId_fkey" FOREIGN KEY ("adoptiveParentId") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "guardianships" ADD CONSTRAINT "guardianships_wardId_fkey" FOREIGN KEY ("wardId") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1596,6 +1881,12 @@ ALTER TABLE "_FamilyMemberUser" ADD CONSTRAINT "_FamilyMemberUser_A_fkey" FOREIG
 
 -- AddForeignKey
 ALTER TABLE "_FamilyMemberUser" ADD CONSTRAINT "_FamilyMemberUser_B_fkey" FOREIGN KEY ("B") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_CohabitationChildren" ADD CONSTRAINT "_CohabitationChildren_A_fkey" FOREIGN KEY ("A") REFERENCES "cohabitation_records"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_CohabitationChildren" ADD CONSTRAINT "_CohabitationChildren_B_fkey" FOREIGN KEY ("B") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_FamilyMemberLifeInterest" ADD CONSTRAINT "_FamilyMemberLifeInterest_A_fkey" FOREIGN KEY ("A") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;

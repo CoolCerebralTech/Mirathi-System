@@ -140,6 +140,9 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
   private constructor(props: AdoptionRecordProps, id?: UniqueEntityID, createdAt?: Date) {
     super(id || new UniqueEntityID(), props, createdAt);
   }
+  public getProps(): AdoptionRecordProps {
+    return { ...this.props };
+  }
 
   /**
    * Factory method to create a new Adoption Record

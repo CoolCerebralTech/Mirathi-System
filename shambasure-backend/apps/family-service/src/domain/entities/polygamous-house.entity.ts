@@ -101,6 +101,9 @@ export interface PolygamousHouseProps {
 }
 
 export class PolygamousHouse extends Entity<PolygamousHouseProps> {
+  public getProps(): PolygamousHouseProps {
+    return { ...this.props };
+  }
   private constructor(props: PolygamousHouseProps, id?: UniqueEntityID, createdAt?: Date) {
     super(id || new UniqueEntityID(), props, createdAt);
   }

@@ -110,6 +110,9 @@ export interface FamilyRelationshipProps {
 }
 
 export class FamilyRelationship extends Entity<FamilyRelationshipProps> {
+  public getProps(): FamilyRelationshipProps {
+    return { ...this.props };
+  }
   private constructor(props: FamilyRelationshipProps, id?: UniqueEntityID, createdAt?: Date) {
     super(id || new UniqueEntityID(), props, createdAt);
   }

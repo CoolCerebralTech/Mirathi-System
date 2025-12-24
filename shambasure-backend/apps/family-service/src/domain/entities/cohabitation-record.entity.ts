@@ -110,6 +110,9 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
   private constructor(props: CohabitationRecordProps, id?: UniqueEntityID, createdAt?: Date) {
     super(id || new UniqueEntityID(), props, createdAt);
   }
+  public getProps(): CohabitationRecordProps {
+    return { ...this.props };
+  }
 
   /**
    * Factory method to create a new Cohabitation Record

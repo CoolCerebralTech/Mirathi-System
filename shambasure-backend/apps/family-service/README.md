@@ -12,7 +12,6 @@ src/family-service/src/domain/
 │   ├── family-relationship.entity.ts  # Biological/Legal Edges
 │   ├── cohabitation-record.entity.ts  # "Come-we-stay" facts
 │   ├── adoption-record.entity.ts      # Legal adoption
-│   ├── next-of-kin.entity.ts          # Emergency Contact
 │
 │   // --- Owned by GUARDIANSHIP Aggregate ---
 │   ├── guardian-assignment.entity.ts  # The Actor (User/Member)
@@ -25,7 +24,6 @@ src/family-service/src/domain/
 │   └── guardianship-status.vo.ts
 │
 ├── services/
-│   └── kinship-verification.service.ts # Biological logic validation
 │
 └── repositories/
     ├── i-family.repository.ts
