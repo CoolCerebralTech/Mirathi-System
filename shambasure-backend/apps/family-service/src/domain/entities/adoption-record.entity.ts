@@ -283,7 +283,6 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
     parentType: 'MOTHER' | 'FATHER',
     consentStatus: 'CONSENTED' | 'WITHHELD' | 'TERMINATED',
     consentDocumentId: string,
-    consentDate: Date,
     recordedBy: UniqueEntityID,
   ): void {
     this.ensureNotArchived();
@@ -323,11 +322,6 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
     revocationDate: Date,
     reason: 'FRAUD' | 'COERCION' | 'BEST_INTERESTS' | 'PARENTAL_RECLAMATION' | 'OTHER',
     courtOrderId: string,
-    courtDetails: {
-      caseNumber: string;
-      judgeName: string;
-      revocationGrounds: string[];
-    },
     revokedBy: UniqueEntityID,
   ): void {
     if (this.props.adoptionStatus !== 'FINALIZED') {
@@ -363,13 +357,7 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
   /**
    * File appeal against adoption
    */
-  public fileAppeal(
-    appealDate: Date,
-    appellant: 'BIOLOGICAL_PARENT' | 'ADOPTEE' | 'SOCIAL_WORKER' | 'OTHER',
-    grounds: string[],
-    courtCaseNumber: string,
-    filedBy: UniqueEntityID,
-  ): void {
+  public fileAppeal(courtCaseNumber: string, filedBy: UniqueEntityID): void {
     if (this.props.adoptionStatus !== 'FINALIZED') {
       throw new Error('Only finalized adoptions can be appealed');
     }
@@ -388,16 +376,7 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
   /**
    * Update post-adoption monitoring
    */
-  public updatePostAdoptionMonitoring(
-    reportId: string,
-    reportDate: Date,
-    findings: {
-      childWellBeing: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR';
-      familyAdjustment: 'SMOOTH' | 'CHALLENGING' | 'DIFFICULT';
-      recommendations?: string[];
-    },
-    reportedBy: UniqueEntityID,
-  ): void {
+  public updatePostAdoptionMonitoring(reportedBy: UniqueEntityID): void {
     if (!this.props.postAdoptionMonitoring) {
       throw new Error('Post-adoption monitoring not required for this adoption');
     }
@@ -421,12 +400,7 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
   /**
    * Issue new birth certificate
    */
-  public issueNewBirthCertificate(
-    certificateNumber: string,
-    issueDate: Date,
-    issuingAuthority: string,
-    issuedBy: UniqueEntityID,
-  ): void {
+  public issueNewBirthCertificate(certificateNumber: string, issuedBy: UniqueEntityID): void {
     if (this.props.adoptionStatus !== 'FINALIZED') {
       throw new Error('Cannot issue birth certificate for non-finalized adoption');
     }
@@ -541,7 +515,6 @@ export class AdoptionRecord extends Entity<AdoptionRecordProps> {
    * Check if requirements are met for finalization
    */
   public validateFinalizationRequirements(): void {
-    const requirements = this.getTypeSpecificRequirements();
     const missingRequirements: string[] = [];
 
     // Check court order for statutory adoptions

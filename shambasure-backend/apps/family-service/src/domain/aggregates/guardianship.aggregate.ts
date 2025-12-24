@@ -7,185 +7,117 @@ import {
   CompliancePeriod,
   ComplianceStatus,
   ReportType,
-  WardStatusReport,
 } from '../entities/compliance-check.entity';
 import {
-  GuardianAppointmentSource,
   GuardianAssignmentEntity,
   GuardianAssignmentStatus,
-  GuardianRole,
 } from '../entities/guardian-assignment.entity';
 import {
   ComplianceCheckDueEvent,
   GuardianAppointedEvent,
-  GuardianConflictDetectedEvent,
   GuardianshipCreatedEvent,
   GuardianshipTerminatedEvent,
-  RiskFlagRaisedEvent,
 } from '../events/guardianship-events';
 import { ComplianceScheduleVO } from '../value-objects/compliance-schedule.vo';
+import { ReportFrequency } from '../value-objects/compliance-schedule.vo';
 import { FamilyMemberReferenceVO } from '../value-objects/family-member-reference.vo';
 import { GuardianshipPeriodVO } from '../value-objects/guardianship-period.vo';
-import { GuardianshipTypeVO } from '../value-objects/guardianship-type.vo';
+import { GuardianshipTypeVO, LegalGuardianshipType } from '../value-objects/guardianship-type.vo';
 import { KenyanCourtOrderVO } from '../value-objects/kenyan-court-order.vo';
 
 // -----------------------------------------------------------------------------
-// ENUMS & INTERFACES - Strictly Family Service Domain
+// Enums & Interfaces (Stripped down to core)
 // -----------------------------------------------------------------------------
 
 export enum GuardianshipStatus {
-  PENDING_ACTIVATION = 'PENDING_ACTIVATION', // Appointed but not yet effective
-  ACTIVE = 'ACTIVE', // Currently caring for ward
-  SUSPENDED = 'SUSPENDED', // Temporarily inactive (court order)
-  TERMINATED = 'TERMINATED', // Ended (ward reached 18, death, court)
-  REVOKED = 'REVOKED', // Removed by court for cause
-  EMERGENCY = 'EMERGENCY', // Temporary emergency appointment
+  PENDING_ACTIVATION = 'PENDING_ACTIVATION',
+  ACTIVE = 'ACTIVE',
+  SUSPENDED = 'SUSPENDED',
+  TERMINATED = 'TERMINATED',
+  REVOKED = 'REVOKED',
+  EXPIRED = 'EXPIRED',
+  EMERGENCY = 'EMERGENCY',
 }
 
-export enum GuardianshipJurisdiction {
-  STATUTORY = 'STATUTORY', // Children Act Cap 141
-  ISLAMIC = 'ISLAMIC', // Kadhi's Court jurisdiction
-  CUSTOMARY = 'CUSTOMARY', // African customary law
-  INTERNATIONAL = 'INTERNATIONAL', // Cross-border cases
-}
-
-export enum GuardianshipPriority {
-  NORMAL = 'NORMAL', // Standard guardianship
-  HIGH = 'HIGH', // Ward with special needs
-  CRITICAL = 'CRITICAL', // Emergency/abuse situation
+export enum BondOverallStatus {
+  NOT_REQUIRED = 'NOT_REQUIRED',
+  REQUIRED_PENDING = 'REQUIRED_PENDING',
+  POSTED = 'POSTED',
+  FORFEITED = 'FORFEITED',
 }
 
 export interface GuardianshipProps {
   // ============================================
-  // CORE IDENTITY & KINSHIP DATA (Family Service)
+  // CORE IDENTITY (Immutable facts)
   // ============================================
-
-  // Ward Identity (Who is being protected)
-  wardReference: FamilyMemberReferenceVO; // Links to FamilyMember
+  wardReference: FamilyMemberReferenceVO;
   wardFullName: string;
   wardDateOfBirth: Date;
-  wardIsMinor: boolean; // Calculated: < 18 years
 
-  // Guardianship Legal Framework
+  // ============================================
+  // LEGAL FRAMEWORK (Core business rules)
+  // ============================================
   guardianshipType: GuardianshipTypeVO;
   period: GuardianshipPeriodVO;
-  jurisdiction: GuardianshipJurisdiction;
-
-  // Court Authority (If applicable)
   courtOrder?: KenyanCourtOrderVO;
-  courtCaseNumber?: string;
 
   // ============================================
-  // LEGAL AUTHORITY MANAGEMENT
+  // STATUS & LIFECYCLE (Core invariants)
   // ============================================
-
-  // Status & Timeline
   status: GuardianshipStatus;
   establishedDate: Date;
-  effectiveDate?: Date; // When guardianship actually starts
-  terminationDate?: Date;
+  terminatedDate?: Date;
   terminationReason?: string;
 
-  // Emergency/Temporary Status
-  isEmergency: boolean;
-  isTemporary: boolean;
-  priorityLevel: GuardianshipPriority;
-
   // ============================================
-  // GUARDIAN ASSIGNMENTS (Who has authority)
+  // GUARDIAN MANAGEMENT (Core business rules)
   // ============================================
-
   guardianAssignments: GuardianAssignmentEntity[];
 
   // ============================================
-  // COMPLIANCE & WELFARE REPORTING
+  // COMPLIANCE OBLIGATIONS (Legal requirements)
   // ============================================
-
   complianceSchedule: ComplianceScheduleVO;
   complianceChecks: ComplianceCheckEntity[];
-  nextComplianceDue: Date;
 
   // ============================================
-  // RISK MANAGEMENT (Care-related only - NO FINANCIAL)
+  // FINANCIAL REQUIREMENTS (Legal mandates)
   // ============================================
-
-  riskFactors: CareRiskFactor[];
-  overallRiskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-
-  // ============================================
-  // FAMILY NOTIFICATION & COORDINATION
-  // ============================================
-
-  familyContacts: FamilyContact[];
-  notificationPreferences: NotificationPreferences;
+  requiresPropertyManagement: boolean;
+  bondStatus: BondOverallStatus;
 
   // ============================================
-  // METADATA & AUDIT
+  // JURISDICTION (Legal context)
   // ============================================
+  jurisdiction: 'STATUTORY' | 'ISLAMIC' | 'CUSTOMARY' | 'INTERNATIONAL';
+  governingLaw: string;
 
+  // ============================================
+  // AUDIT TRAIL (Immutable history)
+  // ============================================
+  history: GuardianshipHistoryEntry[];
+
+  // ============================================
+  // METADATA (Optional context)
+  // ============================================
+  caseNumber?: string;
   legalNotes?: string;
   specialCircumstances?: string;
-  history: GuardianshipHistoryEntry[];
-  version: number;
-}
-
-// -----------------------------------------------------------------------------
-// VALUE OBJECTS & INTERFACES
-// -----------------------------------------------------------------------------
-
-export interface CareRiskFactor {
-  category: 'GUARDIAN_CONFLICT' | 'WARD_SAFETY' | 'CARE_QUALITY' | 'COMPLIANCE' | 'LEGAL';
-  description: string;
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  mitigationPlan?: string;
-  detectedAt: Date;
-  resolvedAt?: Date;
-  detectedBy?: string;
-}
-
-export interface FamilyContact {
-  familyMemberId: string;
-  relationshipToWard: string; // "Mother", "Aunt", "Grandparent"
-  contactPriority: 'PRIMARY' | 'SECONDARY' | 'EMERGENCY';
-  notificationChannels: ('EMAIL' | 'SMS' | 'WHATSAPP')[];
-  canMakeDecisions: boolean;
-}
-
-export interface NotificationPreferences {
-  guardianUpdates: boolean;
-  complianceReminders: boolean;
-  riskAlerts: boolean;
-  courtHearings: boolean;
-  channels: {
-    email: boolean;
-    sms: boolean;
-    push: boolean;
-  };
 }
 
 export interface GuardianshipHistoryEntry {
   timestamp: Date;
   eventType: string;
   description: string;
-  actorId?: string;
   actorType: 'SYSTEM' | 'COURT' | 'GUARDIAN' | 'FAMILY';
   metadata?: Record<string, any>;
 }
 
 // -----------------------------------------------------------------------------
-// AGGREGATE ROOT - GUARDIANSHIP
+// AGGREGATE ROOT - GUARDIANSHIP (Lean & Focused)
 // -----------------------------------------------------------------------------
 
 export class GuardianshipAggregate extends AggregateRoot<GuardianshipProps> {
-  // Kenyan Legal Constants (Children Act)
-  private static readonly KENYAN_MAJORITY_AGE = 18;
-  private static readonly EMERGENCY_GUARDIANSHIP_MAX_DAYS = 30;
-  private static readonly COMPLIANCE_EXTENSION_DAYS = 14;
-
-  // Business Rules
-  private static readonly MAX_PRIMARY_GUARDIANS = 1;
-  private static readonly MAX_ALTERNATE_GUARDIANS = 2;
-
   private constructor(id: UniqueEntityID, props: GuardianshipProps) {
     super(id, props);
   }
@@ -194,430 +126,194 @@ export class GuardianshipAggregate extends AggregateRoot<GuardianshipProps> {
   // 🏭 FACTORY METHODS
   // ---------------------------------------------------------------------------
 
-  public static createTestamentaryGuardianship(params: {
+  public static create(params: {
     wardReference: FamilyMemberReferenceVO;
-    guardianReference: FamilyMemberReferenceVO;
-    appointingParentId: string; // Deceased parent who appointed in will
-    willReference?: string;
-    effectiveDate?: Date;
+    guardianshipType: LegalGuardianshipType;
+    courtOrder?: KenyanCourtOrderVO;
+    requiresPropertyManagement?: boolean;
+    jurisdiction?: 'STATUTORY' | 'ISLAMIC' | 'CUSTOMARY' | 'INTERNATIONAL';
+    governingLaw?: string;
+    caseNumber?: string;
+    legalNotes?: string;
   }): GuardianshipAggregate {
-    // Children Act Section 24: Testamentary Guardianship
-    const props: GuardianshipProps = {
-      wardReference: params.wardReference,
-      wardFullName: params.wardReference.fullName,
+    // Children Act Section 23: Validate ward is minor
+    if (!params.wardReference.isMinor) {
+      throw new Error('Guardianship can only be created for minors under 18 years');
+    }
+
+    // Create value objects
+    const guardianshipType = GuardianshipTypeVO.create(params.guardianshipType);
+    const period = GuardianshipPeriodVO.create({
+      startDate: new Date(),
       wardDateOfBirth: params.wardReference.dateOfBirth,
-      wardIsMinor: this.isMinor(params.wardReference.dateOfBirth),
-
-      guardianshipType: GuardianshipTypeVO.create('TESTAMENTARY'),
-      period: GuardianshipPeriodVO.createUntilMajority(params.wardReference.dateOfBirth),
-      jurisdiction: GuardianshipJurisdiction.STATUTORY,
-
-      status: GuardianshipStatus.PENDING_ACTIVATION,
-      establishedDate: new Date(),
-      effectiveDate: params.effectiveDate,
-
-      isEmergency: false,
-      isTemporary: false,
-      priorityLevel: GuardianshipPriority.NORMAL,
-
-      guardianAssignments: [],
-      complianceSchedule: ComplianceScheduleVO.createAnnual(),
-      complianceChecks: [],
-      nextComplianceDue: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
-
-      riskFactors: [],
-      overallRiskLevel: 'LOW',
-
-      familyContacts: [],
-      notificationPreferences: {
-        guardianUpdates: true,
-        complianceReminders: true,
-        riskAlerts: true,
-        courtHearings: true,
-        channels: { email: true, sms: true, push: false },
-      },
-
-      history: [],
-      version: 1,
-    };
-
-    const aggregate = new GuardianshipAggregate(new UniqueEntityID(), props);
-
-    // Create guardian assignment
-    const guardianAssignment = GuardianAssignmentEntity.create({
-      guardianId: params.guardianReference.memberId,
-      guardianUserId: params.guardianReference.userId,
-      guardianName: params.guardianReference.fullName,
-      role: GuardianRole.CARETAKER,
-      isPrimary: true,
-      isAlternate: false,
-      appointmentDate: new Date(),
-      appointmentSource: GuardianAppointmentSource.WILL,
-      contactInfo: params.guardianReference.contactInfo,
-      courtOrderReference: params.willReference,
     });
 
-    aggregate.appointGuardian(guardianAssignment);
+    const complianceSchedule = ComplianceScheduleVO.create({
+      frequency: ReportFrequency.ANNUAL,
+      startDate: new Date(),
+      courtMandated: !!params.courtOrder,
+      reminderDaysBefore: [30, 14, 7],
+      preferredNotificationChannel: 'EMAIL',
+      autoGenerateReport: false,
+    });
 
-    aggregate.addHistoryEntry(
-      'TESTAMENTARY_GUARDIANSHIP_CREATED',
-      `Testamentary guardianship created via will of parent ${params.appointingParentId}`,
-      'SYSTEM',
-      { willReference: params.willReference },
-    );
-
-    aggregate.addDomainEvent(
-      new GuardianshipCreatedEvent(aggregate.id.toString(), {
-        wardId: params.wardReference.memberId,
-        guardianshipType: 'TESTAMENTARY',
-        establishedDate: props.establishedDate,
-        appointingParentId: params.appointingParentId,
-      }),
-    );
-
-    return aggregate;
-  }
-
-  public static createCourtAppointedGuardianship(params: {
-    wardReference: FamilyMemberReferenceVO;
-    courtOrder: KenyanCourtOrderVO;
-    guardianReferences: FamilyMemberReferenceVO[];
-    caseNumber: string;
-    isEmergency?: boolean;
-    effectiveImmediately?: boolean;
-  }): GuardianshipAggregate {
-    // Children Act Section 25: Court-Appointed Guardianship
     const props: GuardianshipProps = {
       wardReference: params.wardReference,
-      wardFullName: params.wardReference.fullName,
+      wardFullName: params.wardReference.fullName.getFullName(),
       wardDateOfBirth: params.wardReference.dateOfBirth,
-      wardIsMinor: this.isMinor(params.wardReference.dateOfBirth),
 
-      guardianshipType: GuardianshipTypeVO.create('COURT_APPOINTED'),
-      period: GuardianshipPeriodVO.createFromCourtOrder(params.courtOrder),
-      jurisdiction:
-        params.courtOrder.jurisdiction === 'KADHI'
-          ? GuardianshipJurisdiction.ISLAMIC
-          : GuardianshipJurisdiction.STATUTORY,
-
+      guardianshipType,
+      period,
       courtOrder: params.courtOrder,
-      courtCaseNumber: params.caseNumber,
-
-      status: params.isEmergency
-        ? GuardianshipStatus.EMERGENCY
-        : params.effectiveImmediately
-          ? GuardianshipStatus.ACTIVE
-          : GuardianshipStatus.PENDING_ACTIVATION,
-      establishedDate: new Date(),
-      effectiveDate: params.effectiveImmediately ? new Date() : undefined,
-
-      isEmergency: params.isEmergency || false,
-      isTemporary: params.courtOrder.isTemporaryOrder || false,
-      priorityLevel: params.isEmergency
-        ? GuardianshipPriority.CRITICAL
-        : GuardianshipPriority.NORMAL,
-
-      guardianAssignments: [],
-      complianceSchedule: ComplianceScheduleVO.createFromCourtOrder(params.courtOrder),
-      complianceChecks: [],
-      nextComplianceDue:
-        params.courtOrder.firstReportingDate || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days
-
-      riskFactors: [],
-      overallRiskLevel: params.isEmergency ? 'HIGH' : 'LOW',
-
-      familyContacts: [],
-      notificationPreferences: {
-        guardianUpdates: true,
-        complianceReminders: true,
-        riskAlerts: true,
-        courtHearings: true,
-        channels: { email: true, sms: true, push: true },
-      },
-
-      legalNotes: params.courtOrder.notes,
-      history: [],
-      version: 1,
-    };
-
-    const aggregate = new GuardianshipAggregate(new UniqueEntityID(), props);
-
-    // Appoint guardians in order (first is primary)
-    params.guardianReferences.forEach((ref, index) => {
-      const guardianAssignment = GuardianAssignmentEntity.create({
-        guardianId: ref.memberId,
-        guardianUserId: ref.userId,
-        guardianName: ref.fullName,
-        role: GuardianRole.CARETAKER,
-        isPrimary: index === 0,
-        isAlternate: index > 0,
-        appointmentDate: new Date(),
-        appointmentSource: GuardianAppointmentSource.COURT,
-        contactInfo: ref.contactInfo,
-        courtOrderReference: params.caseNumber,
-      });
-
-      aggregate.appointGuardian(guardianAssignment);
-    });
-
-    const eventType = params.isEmergency
-      ? 'EMERGENCY_GUARDIANSHIP_CREATED'
-      : 'COURT_GUARDIANSHIP_CREATED';
-    aggregate.addHistoryEntry(
-      eventType,
-      `${params.isEmergency ? 'Emergency' : 'Court'} guardianship created via ${params.courtOrder.courtName}`,
-      'COURT',
-      { caseNumber: params.caseNumber, judge: params.courtOrder.judgeName },
-    );
-
-    aggregate.addDomainEvent(
-      new GuardianshipCreatedEvent(aggregate.id.toString(), {
-        wardId: params.wardReference.memberId,
-        guardianshipType: 'COURT_APPOINTED',
-        establishedDate: props.establishedDate,
-        courtCaseNumber: params.caseNumber,
-        isEmergency: params.isEmergency,
-      }),
-    );
-
-    return aggregate;
-  }
-
-  public static createCustomaryGuardianship(params: {
-    wardReference: FamilyMemberReferenceVO;
-    guardianReference: FamilyMemberReferenceVO;
-    clanEldersCouncil: string;
-    customaryLaw: string;
-    effectiveDate?: Date;
-  }): GuardianshipAggregate {
-    // Customary Law Guardianship
-    const props: GuardianshipProps = {
-      wardReference: params.wardReference,
-      wardFullName: params.wardReference.fullName,
-      wardDateOfBirth: params.wardReference.dateOfBirth,
-      wardIsMinor: this.isMinor(params.wardReference.dateOfBirth),
-
-      guardianshipType: GuardianshipTypeVO.create('CUSTOMARY'),
-      period: GuardianshipPeriodVO.createUntilMajority(params.wardReference.dateOfBirth),
-      jurisdiction: GuardianshipJurisdiction.CUSTOMARY,
 
       status: GuardianshipStatus.PENDING_ACTIVATION,
       establishedDate: new Date(),
-      effectiveDate: params.effectiveDate,
-
-      isEmergency: false,
-      isTemporary: false,
-      priorityLevel: GuardianshipPriority.NORMAL,
 
       guardianAssignments: [],
-      complianceSchedule: ComplianceScheduleVO.createAnnual(),
+      complianceSchedule,
       complianceChecks: [],
-      nextComplianceDue: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
 
-      riskFactors: [],
-      overallRiskLevel: 'LOW',
+      requiresPropertyManagement: params.requiresPropertyManagement || false,
+      bondStatus: params.requiresPropertyManagement
+        ? BondOverallStatus.REQUIRED_PENDING
+        : BondOverallStatus.NOT_REQUIRED,
 
-      familyContacts: [],
-      notificationPreferences: {
-        guardianUpdates: true,
-        complianceReminders: true,
-        riskAlerts: true,
-        courtHearings: false,
-        channels: { email: false, sms: true, push: false },
-      },
+      jurisdiction: params.jurisdiction || 'STATUTORY',
+      governingLaw: params.governingLaw || 'Children Act Cap 141',
 
-      specialCircumstances: `Appointed by ${params.clanEldersCouncil} under ${params.customaryLaw}`,
       history: [],
-      version: 1,
+      caseNumber: params.caseNumber,
+      legalNotes: params.legalNotes,
     };
 
     const aggregate = new GuardianshipAggregate(new UniqueEntityID(), props);
+    aggregate.validate();
 
-    const guardianAssignment = GuardianAssignmentEntity.create({
-      guardianId: params.guardianReference.memberId,
-      guardianUserId: params.guardianReference.userId,
-      guardianName: params.guardianReference.fullName,
-      role: GuardianRole.CARETAKER,
-      isPrimary: true,
-      isAlternate: false,
-      appointmentDate: new Date(),
-      appointmentSource: GuardianAppointmentSource.CUSTOMARY_COUNCIL,
-      contactInfo: params.guardianReference.contactInfo,
-      specialInstructions: `Appointed by ${params.clanEldersCouncil}`,
+    aggregate.addHistoryEntry('CREATED', 'Guardianship created', 'SYSTEM', {
+      guardianshipType: params.guardianshipType,
+      caseNumber: params.caseNumber,
     });
 
-    aggregate.appointGuardian(guardianAssignment);
-
-    aggregate.addHistoryEntry(
-      'CUSTOMARY_GUARDIANSHIP_CREATED',
-      `Customary guardianship created by ${params.clanEldersCouncil}`,
-      'CUSTOMARY_COUNCIL',
-      { clan: params.clanEldersCouncil, customaryLaw: params.customaryLaw },
+    aggregate.addDomainEvent(
+      new GuardianshipCreatedEvent(aggregate.id.toString(), aggregate.getVersion(), {
+        wardId: params.wardReference.memberId,
+        guardianshipType: params.guardianshipType,
+      }),
     );
 
     return aggregate;
   }
 
   // ---------------------------------------------------------------------------
-  // 👨‍⚖️ CORE BUSINESS LOGIC - GUARDIAN MANAGEMENT
+  // 👨‍⚖️ CORE BUSINESS METHODS (Invariant Protection Only)
   // ---------------------------------------------------------------------------
 
   public appointGuardian(assignment: GuardianAssignmentEntity): void {
-    this.validateGuardianshipIsApprovable();
+    this.ensureActiveOrPending();
 
-    // CHILDREN ACT INVARIANT: No conflicting active guardianships
-    const existingActive = this.props.guardianAssignments.find(
-      (ga) => ga.status === GuardianAssignmentStatus.ACTIVE,
-    );
-
-    if (existingActive && assignment.isPrimary) {
-      throw new Error('Cannot appoint primary guardian when another active guardianship exists');
-    }
-
-    // Validate primary guardian count
-    if (assignment.isPrimary) {
+    // INVARIANT: Only one primary guardian
+    if (assignment.props.isPrimary) {
       const existingPrimary = this.props.guardianAssignments.find(
-        (ga) => ga.isPrimary && ga.status !== GuardianAssignmentStatus.TERMINATED,
+        (ga) => ga.props.isPrimary && ga.isActive(),
       );
+
       if (existingPrimary) {
         throw new Error('Cannot appoint multiple primary guardians');
       }
     }
 
-    // Validate alternate guardian count
-    if (assignment.isAlternate) {
-      const existingAlternates = this.props.guardianAssignments.filter(
-        (ga) => ga.isAlternate && ga.status !== GuardianAssignmentStatus.TERMINATED,
-      ).length;
-      if (existingAlternates >= GuardianshipAggregate.MAX_ALTERNATE_GUARDIANS) {
-        throw new Error(
-          `Maximum ${GuardianshipAggregate.MAX_ALTERNATE_GUARDIANS} alternate guardians allowed`,
-        );
-      }
+    // INVARIANT: Guardian not already appointed
+    const existingAppointment = this.props.guardianAssignments.find(
+      (ga) => ga.props.guardianId === assignment.props.guardianId && ga.isActive(),
+    );
+
+    if (existingAppointment) {
+      throw new Error('Guardian already appointed to this ward');
     }
 
-    // Check for family conflicts
-    this.checkForFamilyConflicts(assignment);
-
-    this.props.guardianAssignments.push(assignment);
+    this.mutableProps.guardianAssignments.push(assignment);
 
     this.addHistoryEntry(
       'GUARDIAN_APPOINTED',
-      `Appointed ${assignment.isPrimary ? 'Primary' : 'Alternate'} Guardian: ${assignment.props.guardianName}`,
+      `Appointed ${assignment.props.isPrimary ? 'Primary' : 'Alternate'} Guardian: ${assignment.props.guardianName}`,
       'SYSTEM',
       {
-        guardianId: assignment.guardianId,
+        guardianId: assignment.props.guardianId,
         role: assignment.props.role,
-        appointmentSource: assignment.props.appointmentSource,
+        isPrimary: assignment.props.isPrimary,
       },
     );
 
     this.addDomainEvent(
       new GuardianAppointedEvent(this.id.toString(), this.getVersion(), {
-        guardianId: assignment.guardianId,
-        role: assignment.props.role,
-        isPrimary: assignment.isPrimary,
         guardianshipId: this.id.toString(),
+        guardianId: assignment.props.guardianId,
+        isPrimary: assignment.props.isPrimary,
       }),
     );
 
     this.incrementVersion();
   }
 
-  private checkForFamilyConflicts(assignment: GuardianAssignmentEntity): void {
-    // Check if guardian is a parent (normal) vs other relative (potential conflict)
-    // This would integrate with Family Service to check relationships
-    const isParent = false; // Would query Family Service
-    const isCloseRelative = false; // Would query Family Service
-
-    if (!isParent && !isCloseRelative) {
-      this.addRiskFactor(
-        'GUARDIAN_CONFLICT',
-        `Guardian ${assignment.props.guardianName} is not a parent or close relative`,
-        'MEDIUM',
-        'Monitor for family acceptance and cooperation',
-      );
-
-      this.addDomainEvent(
-        new GuardianConflictDetectedEvent(this.id.toString(), this.getVersion(), {
-          guardianId: assignment.guardianId,
-          conflictType: 'NON_FAMILY_GUARDIAN',
-          severity: 'MEDIUM',
-        }),
-      );
-    }
-  }
-
-  public activateGuardianship(effectiveDate: Date = new Date()): void {
+  public activateGuardianship(): void {
     if (this.props.status !== GuardianshipStatus.PENDING_ACTIVATION) {
       throw new Error('Guardianship must be in PENDING_ACTIVATION state');
     }
 
-    if (!this.props.guardianAssignments.some((ga) => ga.isPrimary)) {
-      throw new Error('Cannot activate without a primary guardian');
+    // INVARIANT: Must have at least one primary guardian
+    const primaryGuardian = this.props.guardianAssignments.find((ga) => ga.props.isPrimary);
+
+    if (!primaryGuardian) {
+      throw new Error('Cannot activate guardianship without a primary guardian');
     }
 
-    // Activate all guardian assignments
+    this.mutableProps.status = GuardianshipStatus.ACTIVE;
+
+    // Activate all pending guardian assignments
     this.props.guardianAssignments.forEach((assignment) => {
-      if (assignment.status === GuardianAssignmentStatus.PENDING) {
-        assignment.activate(effectiveDate);
+      if (assignment.props.status === GuardianAssignmentStatus.PENDING) {
+        assignment.activate();
       }
     });
 
-    this.props.status = GuardianshipStatus.ACTIVE;
-    this.props.effectiveDate = effectiveDate;
-
     // Schedule first compliance check
-    this.scheduleNextComplianceCheck();
+    this.scheduleComplianceCheck();
 
-    this.addHistoryEntry(
-      'GUARDIANSHIP_ACTIVATED',
-      `Guardianship activated effective ${effectiveDate.toLocaleDateString()}`,
-      'SYSTEM',
-      { effectiveDate, guardiansCount: this.props.guardianAssignments.length },
-    );
+    this.addHistoryEntry('ACTIVATED', 'Guardianship activated', 'SYSTEM');
 
     this.incrementVersion();
   }
 
-  public terminateGuardianship(
-    reason: GuardianshipTerminationReason,
-    terminationDate: Date = new Date(),
-    terminatedBy?: { id: string; type: 'COURT' | 'GUARDIAN' | 'FAMILY' },
-  ): void {
-    this.validateGuardianshipIsTerminable(reason);
+  public terminateGuardianship(reason: string, terminationDate: Date = new Date()): void {
+    this.ensureActive();
 
-    this.props.status = GuardianshipStatus.TERMINATED;
-    this.props.terminationDate = terminationDate;
-    this.props.terminationReason = reason;
+    if (!reason || reason.trim().length < 10) {
+      throw new Error('Termination reason must be detailed (minimum 10 characters)');
+    }
+
+    this.mutableProps.status = GuardianshipStatus.TERMINATED;
+    this.mutableProps.terminatedDate = terminationDate;
+    this.mutableProps.terminationReason = reason;
 
     // Terminate all active guardian assignments
     this.props.guardianAssignments.forEach((assignment) => {
-      if (assignment.status === GuardianAssignmentStatus.ACTIVE) {
-        assignment.deactivate(`Guardianship terminated: ${reason}`, terminationDate);
+      if (assignment.isActive()) {
+        assignment.terminate(`Guardianship terminated: ${reason}`);
       }
     });
 
-    // Create final compliance report
-    this.createFinalComplianceReport(reason, terminationDate);
+    this.createClosingComplianceReport(reason);
 
-    this.addHistoryEntry(
-      'GUARDIANSHIP_TERMINATED',
-      `Guardianship terminated: ${reason}`,
-      terminatedBy?.type || 'SYSTEM',
-      {
-        reason,
-        terminationDate,
-        terminatedById: terminatedBy?.id,
-        wardAgeAtTermination: this.calculateWardAge(terminationDate),
-      },
-    );
+    this.addHistoryEntry('TERMINATED', `Guardianship terminated: ${reason}`, 'SYSTEM', {
+      terminationDate,
+      reason,
+    });
 
     this.addDomainEvent(
       new GuardianshipTerminatedEvent(this.id.toString(), this.getVersion(), {
+        guardianshipId: this.id.toString(),
         reason,
         terminationDate,
-        wardId: this.props.wardReference.memberId,
       }),
     );
 
@@ -625,15 +321,12 @@ export class GuardianshipAggregate extends AggregateRoot<GuardianshipProps> {
   }
 
   // ---------------------------------------------------------------------------
-  // 📋 COMPLIANCE MANAGEMENT
+  // 📋 COMPLIANCE MANAGEMENT (Legal obligations only)
   // ---------------------------------------------------------------------------
 
-  private scheduleNextComplianceCheck(): void {
-    const nextDue = this.props.complianceSchedule.getNextDueDate(
-      this.props.complianceChecks[this.props.complianceChecks.length - 1]?.props.dueDate,
-    );
-
-    this.props.nextComplianceDue = nextDue;
+  private scheduleComplianceCheck(): void {
+    const lastCheck = this.getLastComplianceCheck();
+    const nextDue = this.props.complianceSchedule.getNextDueDate(lastCheck?.props.dueDate);
 
     const complianceCheck = ComplianceCheckEntity.create({
       guardianshipId: this.id.toString(),
@@ -642,346 +335,102 @@ export class GuardianshipAggregate extends AggregateRoot<GuardianshipProps> {
       schedule: this.props.complianceSchedule,
       dueDate: nextDue,
       submissionDeadline: new Date(nextDue.getTime() + 30 * 24 * 60 * 60 * 1000),
-      reportTitle: `${this.props.wardFullName} - ${this.getReportingPeriodName(nextDue)} Welfare Report`,
+      reportTitle: `${this.props.wardFullName} - ${this.getReportingPeriodName(nextDue)} Report`,
       reportType: ReportType.ANNUAL_WELFARE,
       autoGenerated: false,
-      sections: this.generateDefaultWelfareSections(),
+      sections: this.generateDefaultSections(),
       attachments: [],
-      wardStatus: this.generateInitialWardStatus(),
+      wardStatus: {
+        generalHealth: 'GOOD' as const,
+        emotionalWellbeing: 'CONTENT' as const,
+        livingConditions: 'ADEQUATE' as const,
+        notableEvents: [],
+      },
     });
 
-    this.props.complianceChecks.push(complianceCheck);
+    this.mutableProps.complianceChecks.push(complianceCheck);
 
     this.addDomainEvent(
       new ComplianceCheckDueEvent(this.id.toString(), this.getVersion(), {
-        dueDate: nextDue,
         guardianshipId: this.id.toString(),
-        wardName: this.props.wardFullName,
+        dueDate: nextDue,
       }),
     );
 
     this.addHistoryEntry(
-      'COMPLIANCE_CHECK_SCHEDULED',
-      `Next welfare report due: ${nextDue.toLocaleDateString()}`,
+      'COMPLIANCE_SCHEDULED',
+      `Next compliance check scheduled for ${nextDue.toLocaleDateString()}`,
       'SYSTEM',
-      { dueDate: nextDue, reportType: 'ANNUAL_WELFARE' },
     );
 
     this.incrementVersion();
   }
 
-  public submitWelfareReport(
+  public submitComplianceCheck(
     complianceCheckId: string,
-    reportData: {
-      wardStatus: WardStatusReport;
-      educationalProgress?: any;
-      healthUpdates?: any;
-      guardianNotes?: string;
-      submittedBy: string;
+    params: {
+      method: 'E_FILING' | 'EMAIL' | 'PHYSICAL' | 'COURT_PORTAL' | 'LAWYER';
+      details?: string;
+      confirmationNumber?: string;
+      submittedBy?: string;
     },
   ): void {
     const check = this.props.complianceChecks.find((cc) => cc.id.toString() === complianceCheckId);
+
     if (!check) {
       throw new Error('Compliance check not found');
     }
 
-    // Update report with submitted data
-    check.props.wardStatus = reportData.wardStatus;
-    if (reportData.educationalProgress) {
-      check.props.educationalProgress = reportData.educationalProgress;
-    }
-    if (reportData.healthUpdates) {
-      check.props.healthUpdates = reportData.healthUpdates;
-    }
-    if (reportData.guardianNotes) {
-      check.props.notes = reportData.guardianNotes;
-    }
-
-    // Submit the check
-    check.submit({
-      method: 'E_FILING',
-      details: `Submitted by ${reportData.submittedBy}`,
-      timestamp: new Date(),
-    });
-
-    // Update risk assessment based on report
-    this.assessWelfareRisks(check);
+    check.submit(
+      params.method,
+      params.details || `Submitted by ${params.submittedBy || 'unknown'}`,
+      params.confirmationNumber,
+    );
 
     this.addHistoryEntry(
-      'WELFARE_REPORT_SUBMITTED',
-      `Welfare report submitted for ${check.props.year} ${check.props.reportingPeriod}`,
-      'GUARDIAN',
+      'COMPLIANCE_SUBMITTED',
+      `Compliance check submitted for ${check.props.year} ${check.props.reportingPeriod}`,
+      params.submittedBy ? 'GUARDIAN' : 'SYSTEM',
       {
-        submittedBy: reportData.submittedBy,
-        qualityScore: check.props.qualityScore,
-        riskFlags: check.props.validationErrors.length,
+        checkId: complianceCheckId,
+        method: params.method,
+        confirmationNumber: params.confirmationNumber,
+        submittedBy: params.submittedBy,
       },
     );
 
     this.incrementVersion();
-  }
-
-  private assessWelfareRisks(check: ComplianceCheckEntity): void {
-    const status = check.props.wardStatus;
-
-    if (status.generalHealth === 'POOR') {
-      this.addRiskFactor(
-        'WARD_SAFETY',
-        'Ward reported in poor health',
-        'HIGH',
-        'Schedule medical checkup and monitor closely',
-      );
-    }
-
-    if (status.emotionalWellbeing === 'DISTRESSED') {
-      this.addRiskFactor(
-        'CARE_QUALITY',
-        'Ward reported emotionally distressed',
-        'MEDIUM',
-        'Consider counseling or family therapy',
-      );
-    }
-
-    if (status.livingConditions === 'INADEQUATE') {
-      this.addRiskFactor(
-        'CARE_QUALITY',
-        'Ward living conditions reported inadequate',
-        'CRITICAL',
-        'Immediate home visit and assessment required',
-      );
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // 🚨 RISK MANAGEMENT (Care-focused only)
-  // ---------------------------------------------------------------------------
-
-  public addRiskFactor(
-    category: CareRiskFactor['category'],
-    description: string,
-    severity: CareRiskFactor['severity'],
-    mitigationPlan?: string,
-    detectedBy?: string,
-  ): void {
-    const riskFactor: CareRiskFactor = {
-      category,
-      description,
-      severity,
-      mitigationPlan,
-      detectedAt: new Date(),
-      detectedBy,
-    };
-
-    this.props.riskFactors.push(riskFactor);
-    this.recalculateOverallRiskLevel();
-
-    this.addDomainEvent(
-      new RiskFlagRaisedEvent(this.id.toString(), this.getVersion(), {
-        riskCategory: category,
-        severity,
-        description,
-        guardianshipId: this.id.toString(),
-      }),
-    );
-
-    this.addHistoryEntry(
-      'RISK_FACTOR_ADDED',
-      `Risk factor added: ${description}`,
-      detectedBy ? 'GUARDIAN' : 'SYSTEM',
-      { category, severity, detectedBy },
-    );
-
-    this.incrementVersion();
-  }
-
-  private recalculateOverallRiskLevel(): void {
-    const activeRisks = this.props.riskFactors.filter((rf) => !rf.resolvedAt);
-
-    if (activeRisks.some((rf) => rf.severity === 'CRITICAL')) {
-      this.props.overallRiskLevel = 'CRITICAL';
-    } else if (activeRisks.some((rf) => rf.severity === 'HIGH')) {
-      this.props.overallRiskLevel = 'HIGH';
-    } else if (activeRisks.some((rf) => rf.severity === 'MEDIUM')) {
-      this.props.overallRiskLevel = 'MEDIUM';
-    } else {
-      this.props.overallRiskLevel = 'LOW';
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // 👪 FAMILY COORDINATION
-  // ---------------------------------------------------------------------------
-
-  public addFamilyContact(contact: FamilyContact): void {
-    // Validate unique family member
-    const existingContact = this.props.familyContacts.find(
-      (fc) => fc.familyMemberId === contact.familyMemberId,
-    );
-
-    if (existingContact) {
-      throw new Error('Family member already in contacts list');
-    }
-
-    // Validate primary contact count
-    if (contact.contactPriority === 'PRIMARY') {
-      const primaryContacts = this.props.familyContacts.filter(
-        (fc) => fc.contactPriority === 'PRIMARY',
-      ).length;
-      if (primaryContacts >= 2) {
-        throw new Error('Maximum 2 primary family contacts allowed');
-      }
-    }
-
-    this.props.familyContacts.push(contact);
-
-    this.addHistoryEntry(
-      'FAMILY_CONTACT_ADDED',
-      `Added family contact: ${contact.relationshipToWard}`,
-      'SYSTEM',
-      {
-        familyMemberId: contact.familyMemberId,
-        relationship: contact.relationshipToWard,
-        priority: contact.contactPriority,
-      },
-    );
-
-    this.incrementVersion();
-  }
-
-  // ---------------------------------------------------------------------------
-  // 📊 REPORTING & ANALYTICS (Family Service boundaries)
-  // ---------------------------------------------------------------------------
-
-  public generateGuardianshipSummary(): {
-    wardInfo: {
-      fullName: string;
-      dateOfBirth: Date;
-      age: number;
-      isMinor: boolean;
-    };
-    guardianshipInfo: {
-      type: string;
-      status: string;
-      establishedDate: Date;
-      jurisdiction: string;
-      riskLevel: string;
-    };
-    guardians: Array<{
-      name: string;
-      role: string;
-      status: string;
-      appointmentSource: string;
-      isPrimary: boolean;
-    }>;
-    compliance: {
-      nextDue: Date;
-      recentReports: number;
-      overallStatus: string;
-    };
-    activeRisks: CareRiskFactor[];
-  } {
-    const wardAge = this.calculateWardAge();
-
-    return {
-      wardInfo: {
-        fullName: this.props.wardFullName,
-        dateOfBirth: this.props.wardDateOfBirth,
-        age: wardAge,
-        isMinor: this.props.wardIsMinor,
-      },
-      guardianshipInfo: {
-        type: this.props.guardianshipType.getValue().value,
-        status: this.props.status,
-        establishedDate: this.props.establishedDate,
-        jurisdiction: this.props.jurisdiction,
-        riskLevel: this.props.overallRiskLevel,
-      },
-      guardians: this.props.guardianAssignments
-        .filter((ga) => ga.status !== GuardianAssignmentStatus.TERMINATED)
-        .map((ga) => ({
-          name: ga.props.guardianName,
-          role: ga.props.role,
-          status: ga.status,
-          appointmentSource: ga.props.appointmentSource,
-          isPrimary: ga.isPrimary,
-        })),
-      compliance: {
-        nextDue: this.props.nextComplianceDue,
-        recentReports: this.props.complianceChecks.filter(
-          (cc) => cc.status === ComplianceStatus.ACCEPTED,
-        ).length,
-        overallStatus: this.calculateComplianceStatus(),
-      },
-      activeRisks: this.props.riskFactors.filter((rf) => !rf.resolvedAt),
-    };
   }
 
   // ---------------------------------------------------------------------------
   // 🔒 VALIDATION & HELPER METHODS
   // ---------------------------------------------------------------------------
 
-  private validateGuardianshipIsApprovable(): void {
+  private ensureActive(): void {
+    if (this.props.status !== GuardianshipStatus.ACTIVE) {
+      throw new Error('Guardianship is not active');
+    }
+  }
+
+  private ensureActiveOrPending(): void {
     if (
-      this.props.status !== GuardianshipStatus.PENDING_ACTIVATION &&
       this.props.status !== GuardianshipStatus.ACTIVE &&
-      this.props.status !== GuardianshipStatus.EMERGENCY
+      this.props.status !== GuardianshipStatus.PENDING_ACTIVATION
     ) {
-      throw new Error('Guardianship is not in an approvable state');
+      throw new Error('Guardianship is not in an active or pending state');
     }
   }
 
-  private validateGuardianshipIsTerminable(reason: GuardianshipTerminationReason): void {
-    if (this.props.status === GuardianshipStatus.TERMINATED) {
-      throw new Error('Guardianship is already terminated');
-    }
+  private getLastComplianceCheck(): ComplianceCheckEntity | undefined {
+    if (this.props.complianceChecks.length === 0) return undefined;
 
-    const wardAge = this.calculateWardAge();
-
-    // Age-based termination validation
-    if (reason === 'WARD_REACHED_MAJORITY' && wardAge < GuardianshipAggregate.KENYAN_MAJORITY_AGE) {
-      throw new Error('Ward has not reached majority (18 years)');
-    }
-
-    // Court order required for some terminations
-    if (['GUARDIAN_MISCONDUCT', 'FAMILY_OBJECTION'].includes(reason) && !this.props.courtOrder) {
-      throw new Error('Court order required for this termination reason');
-    }
+    return [...this.props.complianceChecks].sort(
+      (a, b) => b.props.dueDate.getTime() - a.props.dueDate.getTime(),
+    )[0];
   }
 
-  private calculateWardAge(atDate: Date = new Date()): number {
-    const birthDate = new Date(this.props.wardDateOfBirth);
-    let age = atDate.getFullYear() - birthDate.getFullYear();
-    const monthDiff = atDate.getMonth() - birthDate.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && atDate.getDate() < birthDate.getDate())) {
-      age--;
-    }
-
-    return age;
-  }
-
-  private static isMinor(dateOfBirth: Date): boolean {
-    const age = new GuardianshipAggregate(new UniqueEntityID(), {} as any).calculateWardAge();
-    return age < GuardianshipAggregate.KENYAN_MAJORITY_AGE;
-  }
-
-  private calculateComplianceStatus(): string {
-    if (this.props.complianceChecks.length === 0) return 'PENDING';
-
-    const overdueChecks = this.props.complianceChecks.filter((cc) => cc.isOverdue);
-    if (overdueChecks.length > 0) return 'OVERDUE';
-
-    const submittedChecks = this.props.complianceChecks.filter(
-      (cc) => cc.status === ComplianceStatus.ACCEPTED || cc.status === ComplianceStatus.SUBMITTED,
-    );
-
-    return submittedChecks.length === this.props.complianceChecks.length
-      ? 'COMPLIANT'
-      : 'IN_PROGRESS';
-  }
-
-  private determineReportingPeriod(date: Date): CompliancePeriod {
-    // Simplified - could be based on schedule type
+  private determineReportingPeriod(_date: Date): CompliancePeriod {
+    // Simplified - could be based on schedule
     return CompliancePeriod.ANNUAL;
   }
 
@@ -989,211 +438,290 @@ export class GuardianshipAggregate extends AggregateRoot<GuardianshipProps> {
     return `Year Ending ${date.getFullYear()}`;
   }
 
-  private generateDefaultWelfareSections(): any[] {
+  private generateDefaultSections(): any[] {
     return [
       {
         id: 'ward-status',
-        title: 'Ward Status & Wellbeing',
+        title: 'Ward Status Report',
         type: 'TEXT',
         content: '',
         isRequired: true,
-        isComplete: false,
-        validationRules: [
-          {
-            field: 'generalHealth',
-            rule: 'REQUIRED',
-            errorMessage: 'General health status is required',
-          },
-        ],
-      },
-      {
-        id: 'education',
-        title: 'Educational Progress',
-        type: 'EDUCATION',
-        content: '',
-        isRequired: true,
-        isComplete: false,
-      },
-      {
-        id: 'health',
-        title: 'Health & Medical Updates',
-        type: 'HEALTH',
-        content: '',
-        isRequired: true,
-        isComplete: false,
-      },
-      {
-        id: 'guardian-notes',
-        title: 'Guardian Notes & Concerns',
-        type: 'TEXT',
-        content: '',
-        isRequired: false,
         isComplete: false,
       },
     ];
   }
 
-  private generateInitialWardStatus(): WardStatusReport {
-    return {
-      generalHealth: 'GOOD',
-      emotionalWellbeing: 'CONTENT',
-      livingConditions: 'ADEQUATE',
-      notableEvents: [],
-    };
-  }
-
-  private createFinalComplianceReport(
-    reason: GuardianshipTerminationReason,
-    terminationDate: Date,
-  ): void {
+  private createClosingComplianceReport(reason: string): void {
     const check = ComplianceCheckEntity.create({
       guardianshipId: this.id.toString(),
-      year: terminationDate.getFullYear(),
+      year: new Date().getFullYear(),
       reportingPeriod: CompliancePeriod.SPECIAL,
       schedule: this.props.complianceSchedule,
-      dueDate: terminationDate,
-      submissionDeadline: terminationDate,
-      reportTitle: `Final Report: Guardianship of ${this.props.wardFullName}`,
+      dueDate: new Date(),
+      submissionDeadline: new Date(),
+      reportTitle: `Closing Report: ${this.props.wardFullName} Guardianship`,
       reportType: ReportType.CLOSING_REPORT,
       autoGenerated: true,
       sections: [
         {
-          id: 'final-summary',
+          id: 'closing-summary',
           title: 'Guardianship Closing Summary',
           type: 'TEXT',
-          content: `Guardianship terminated on ${terminationDate.toLocaleDateString()}. Reason: ${reason}`,
+          content: `Guardianship terminated on ${new Date().toLocaleDateString()}. Reason: ${reason}`,
           isRequired: true,
           isComplete: true,
         },
       ],
       attachments: [],
-      wardStatus: this.generateInitialWardStatus(),
+      wardStatus: {
+        generalHealth: 'GOOD' as const,
+        emotionalWellbeing: 'CONTENT' as const,
+        livingConditions: 'ADEQUATE' as const,
+        notableEvents: [],
+      },
     });
 
-    this.props.complianceChecks.push(check);
+    this.mutableProps.complianceChecks.push(check);
   }
 
   private addHistoryEntry(
     eventType: string,
     description: string,
-    actorType: 'SYSTEM' | 'COURT' | 'GUARDIAN' | 'FAMILY' | 'CUSTOMARY_COUNCIL',
+    actorType: 'SYSTEM' | 'COURT' | 'GUARDIAN' | 'FAMILY',
     metadata?: Record<string, any>,
-    actorId?: string,
   ): void {
-    this.props.history.push({
+    this.mutableProps.history.push({
       timestamp: new Date(),
       eventType,
       description,
       actorType,
-      actorId,
       metadata,
     });
   }
 
   // ---------------------------------------------------------------------------
-  // GETTERS & PUBLIC API
+  // 🧪 PUBLIC QUERIES (Read-only, no side effects)
   // ---------------------------------------------------------------------------
 
   public getActiveGuardians(): GuardianAssignmentEntity[] {
-    return this.props.guardianAssignments.filter(
-      (ga) => ga.status === GuardianAssignmentStatus.ACTIVE,
-    );
+    return this.props.guardianAssignments.filter((ga) => ga.isActive());
   }
 
   public getPrimaryGuardian(): GuardianAssignmentEntity | undefined {
-    return this.props.guardianAssignments.find(
-      (ga) => ga.isPrimary && ga.status === GuardianAssignmentStatus.ACTIVE,
-    );
+    return this.props.guardianAssignments.find((ga) => ga.props.isPrimary && ga.isActive());
   }
 
-  public getUpcomingDeadlines(): Array<{ type: string; date: Date; description: string }> {
-    const deadlines: Array<{ type: string; date: Date; description: string }> = [];
+  public getNextComplianceDue(): Date | undefined {
+    return this.props.complianceChecks
+      .filter((cc) => cc.props.status === ComplianceStatus.DRAFT)
+      .sort((a, b) => a.props.dueDate.getTime() - b.props.dueDate.getTime())[0]?.props.dueDate;
+  }
 
-    // Compliance deadline
-    deadlines.push({
-      type: 'COMPLIANCE_REPORT',
-      date: this.props.nextComplianceDue,
-      description: `Next welfare report due for ${this.props.wardFullName}`,
-    });
+  public getComplianceSummary(): {
+    totalChecks: number;
+    submittedChecks: number;
+    overdueChecks: number;
+    nextDueDate?: Date;
+  } {
+    const now = new Date();
 
-    // Age-based deadlines
-    const wardAge = this.calculateWardAge();
-    if (this.props.wardIsMinor) {
-      const majorityDate = new Date(this.props.wardDateOfBirth);
-      majorityDate.setFullYear(
-        majorityDate.getFullYear() + GuardianshipAggregate.KENYAN_MAJORITY_AGE,
-      );
-
-      if (majorityDate > new Date()) {
-        deadlines.push({
-          type: 'MAJORITY_REACHED',
-          date: majorityDate,
-          description: `${this.props.wardFullName} reaches majority (18 years)`,
-        });
-      }
-    }
-
-    return deadlines;
+    return {
+      totalChecks: this.props.complianceChecks.length,
+      submittedChecks: this.props.complianceChecks.filter(
+        (cc) =>
+          cc.props.status === ComplianceStatus.ACCEPTED ||
+          cc.props.status === ComplianceStatus.SUBMITTED,
+      ).length,
+      overdueChecks: this.props.complianceChecks.filter(
+        (cc) => cc.props.dueDate < now && cc.props.status !== ComplianceStatus.ACCEPTED,
+      ).length,
+      nextDueDate: this.getNextComplianceDue(),
+    };
   }
 
   // ---------------------------------------------------------------------------
-  // OVERRIDES
+  // 🔧 BASE CLASS IMPLEMENTATION
   // ---------------------------------------------------------------------------
 
   public validate(): void {
-    // Ensure ward is a minor for active guardianship
-    if (this.props.status === GuardianshipStatus.ACTIVE && !this.props.wardIsMinor) {
-      throw new Error('Cannot have active guardianship for adult ward');
+    // Children Act Section 23: Guardianship only for minors
+    const wardAge = this.calculateAge(this.props.wardDateOfBirth);
+    if (wardAge >= 18 && this.props.status === GuardianshipStatus.ACTIVE) {
+      throw new Error('Cannot have active guardianship for adult (18+) ward');
     }
 
-    // Ensure at least one active guardian for active guardianship
-    if (this.props.status === GuardianshipStatus.ACTIVE) {
-      const activeGuardians = this.getActiveGuardians();
-      if (activeGuardians.length === 0) {
-        throw new Error('Active guardianship must have at least one active guardian');
-      }
+    // Must have guardian assignments if active
+    if (
+      this.props.status === GuardianshipStatus.ACTIVE &&
+      this.props.guardianAssignments.length === 0
+    ) {
+      throw new Error('Active guardianship must have at least one guardian');
     }
 
-    // Validate emergency guardianship duration
-    if (this.props.isEmergency && this.props.effectiveDate) {
-      const emergencyDuration = new Date().getTime() - this.props.effectiveDate.getTime();
-      const maxEmergencyMs =
-        GuardianshipAggregate.EMERGENCY_GUARDIANSHIP_MAX_DAYS * 24 * 60 * 60 * 1000;
-
-      if (emergencyDuration > maxEmergencyMs) {
-        throw new Error(
-          `Emergency guardianship exceeds ${GuardianshipAggregate.EMERGENCY_GUARDIANSHIP_MAX_DAYS} day limit`,
-        );
-      }
+    // Bond required if managing property
+    if (
+      this.props.requiresPropertyManagement &&
+      this.props.bondStatus === BondOverallStatus.NOT_REQUIRED
+    ) {
+      throw new Error('Property management requires bond');
     }
   }
 
-  protected applyEvent(event: DomainEvent): void {
+  private calculateAge(birthDate: Date): number {
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+
+    return age;
+  }
+
+  protected applyEvent(_event: DomainEvent): void {
     // Event sourcing implementation
-    // (Implementation depends on your event sourcing setup)
+  }
+
+  public incrementVersion(): void {
+    (this as any)._version = ((this as any)._version || 0) + 1;
   }
 
   public getVersion(): number {
-    return this.props.version;
+    return (this as any)._version || 1;
   }
 
-  private incrementVersion(): void {
-    this.props.version++;
+  private get mutableProps(): GuardianshipProps {
+    return this.props as unknown as GuardianshipProps;
   }
 }
 
 // -----------------------------------------------------------------------------
-// SUPPORTING TYPES
+// 🎯 DOMAIN SERVICES (Moved out of aggregate)
 // -----------------------------------------------------------------------------
 
-type GuardianshipTerminationReason =
-  | 'WARD_REACHED_MAJORITY' // Age 18
-  | 'WARD_DECEASED' // Ward passed away
-  | 'GUARDIAN_RESIGNATION' // Guardian voluntarily resigns
-  | 'COURT_ORDER' // Court terminates
-  | 'GUARDIAN_MISCONDUCT' // Guardian removed for cause
-  | 'FAMILY_OBJECTION' // Family successfully objects
-  | 'EMERGENCY_EXPIRED' // Emergency guardianship expired
-  | 'MUTUAL_AGREEMENT' // Family and guardian agree
-  | 'WARD_EMANCIPATION' // Ward legally emancipated
-  | 'CUSTOMARY_RESOLUTION'; // Resolved through customary means
+/**
+ * Risk Assessment Service - COMPUTES derived risk, doesn't store
+ */
+export class GuardianshipRiskService {
+  static assessRisk(guardianship: GuardianshipAggregate): {
+    level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    factors: string[];
+    recommendations: string[];
+  } {
+    const factors: string[] = [];
+    const recommendations: string[] = [];
+
+    // Check bond status
+    if (
+      guardianship.props.requiresPropertyManagement &&
+      guardianship.props.bondStatus !== BondOverallStatus.POSTED
+    ) {
+      factors.push('Property bond not posted');
+      recommendations.push('Post bond immediately to avoid legal penalties');
+    }
+
+    // Check compliance
+    const compliance = guardianship.getComplianceSummary();
+    if (compliance.overdueChecks > 0) {
+      factors.push(`${compliance.overdueChecks} overdue compliance reports`);
+      recommendations.push('Submit overdue reports to avoid court action');
+    }
+
+    // Check guardian count
+    const activeGuardians = guardianship.getActiveGuardians();
+    if (activeGuardians.length === 0) {
+      factors.push('No active guardians');
+      recommendations.push('Appoint at least one guardian');
+    }
+
+    // Determine level
+    let level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'LOW';
+    if (factors.some((f) => f.includes('bond not posted'))) level = 'CRITICAL';
+    else if (compliance.overdueChecks > 1) level = 'HIGH';
+    else if (activeGuardians.length === 0) level = 'HIGH';
+    else if (factors.length > 0) level = 'MEDIUM';
+
+    return { level, factors, recommendations };
+  }
+}
+
+/**
+ * Compliance Health Service - COMPUTES derived compliance status
+ */
+export class ComplianceHealthService {
+  static assessComplianceHealth(guardianship: GuardianshipAggregate): {
+    status: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'CRITICAL';
+    score: number; // 0-100
+    issues: string[];
+  } {
+    const compliance = guardianship.getComplianceSummary();
+    let score = 100;
+    const issues: string[] = [];
+
+    // Penalty for overdue checks
+    if (compliance.overdueChecks > 0) {
+      score -= compliance.overdueChecks * 30;
+      issues.push(`${compliance.overdueChecks} overdue compliance reports`);
+    }
+
+    // Penalty for no submitted checks
+    if (compliance.submittedChecks === 0 && compliance.totalChecks > 0) {
+      score -= 50;
+      issues.push('No compliance reports submitted');
+    }
+
+    // Determine status
+    let status: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR' | 'CRITICAL' = 'EXCELLENT';
+    if (score >= 90) status = 'EXCELLENT';
+    else if (score >= 75) status = 'GOOD';
+    else if (score >= 60) status = 'FAIR';
+    else if (score >= 40) status = 'POOR';
+    else status = 'CRITICAL';
+
+    return { status, score, issues };
+  }
+}
+
+/**
+ * Guardianship Dashboard Service - READ MODEL builder
+ */
+export class GuardianshipDashboardService {
+  static buildDashboard(guardianship: GuardianshipAggregate): {
+    summary: Record<string, any>;
+    guardians: Array<Record<string, any>>;
+    compliance: Record<string, any>;
+    timeline: Array<Record<string, any>>;
+  } {
+    const risk = GuardianshipRiskService.assessRisk(guardianship);
+    const compliance = ComplianceHealthService.assessComplianceHealth(guardianship);
+    const complianceSummary = guardianship.getComplianceSummary();
+
+    return {
+      summary: {
+        wardName: guardianship.props.wardFullName,
+        status: guardianship.props.status,
+        establishedDate: guardianship.props.establishedDate,
+        riskLevel: risk.level,
+        complianceStatus: compliance.status,
+      },
+      guardians: guardianship.getActiveGuardians().map((ga) => ({
+        name: ga.props.guardianName,
+        role: ga.props.role,
+        isPrimary: ga.props.isPrimary,
+      })),
+      compliance: {
+        nextDueDate: complianceSummary.nextDueDate,
+        overdueChecks: complianceSummary.overdueChecks,
+        submittedChecks: complianceSummary.submittedChecks,
+        healthScore: compliance.score,
+        issues: compliance.issues,
+      },
+      timeline: guardianship.props.history.slice(-10).map((event) => ({
+        date: event.timestamp,
+        event: event.eventType,
+        description: event.description,
+      })),
+    };
+  }
+}

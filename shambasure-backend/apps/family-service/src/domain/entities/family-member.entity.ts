@@ -6,7 +6,7 @@ import {
   FamilyMemberDeathRecordedEvent,
   FamilyMemberNationalIdVerifiedEvent,
   FamilyMemberUpdatedEvent,
-} from '../events/family-events';
+} from '../events/family-member-events';
 import { Gender, KenyanCounty } from '../value-objects/family-enums.vo';
 import { KenyanNationalId } from '../value-objects/kenyan-identity.vo';
 import { KraPin } from '../value-objects/kenyan-identity.vo';

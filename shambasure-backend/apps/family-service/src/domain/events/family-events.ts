@@ -1,7 +1,8 @@
+// src/family-service/src/domain/events/family-events.ts
 import { DomainEvent } from '../base/domain-event';
 
 // =============================================================================
-// AGGREGATE LIFECYCLE EVENTS
+// 🏠 AGGREGATE LIFECYCLE EVENTS
 // =============================================================================
 
 export class FamilyCreatedEvent extends DomainEvent<{
@@ -48,7 +49,91 @@ export class FamilyMemberAddedEvent extends DomainEvent<{
 }
 
 // =============================================================================
-// FAMILY MEMBER ENTITY EVENTS
+// 💍 MARRIAGE & RELATIONSHIP EVENTS (These were missing)
+// =============================================================================
+
+export class MarriageRegisteredEvent extends DomainEvent<{
+  familyId: string;
+  marriageId: string;
+  spouse1Id: string;
+  spouse2Id: string;
+  marriageType: string; // e.g., 'CIVIL', 'CUSTOMARY', 'ISLAMIC'
+  timestamp: Date;
+}> {
+  constructor(payload: {
+    familyId: string;
+    marriageId: string;
+    spouse1Id: string;
+    spouse2Id: string;
+    marriageType: string;
+    timestamp: Date;
+  }) {
+    super(payload.familyId, 'FamilyAggregate', 1, payload);
+  }
+}
+
+export class RelationshipDefinedEvent extends DomainEvent<{
+  familyId: string;
+  relationshipId: string;
+  fromMemberId: string;
+  toMemberId: string;
+  relationshipType: string; // e.g., 'PARENT', 'CHILD', 'SIBLING'
+  timestamp: Date;
+}> {
+  constructor(payload: {
+    familyId: string;
+    relationshipId: string;
+    fromMemberId: string;
+    toMemberId: string;
+    relationshipType: string;
+    timestamp: Date;
+  }) {
+    super(payload.familyId, 'FamilyAggregate', 1, payload);
+  }
+}
+
+export class CohabitationRecordedEvent extends DomainEvent<{
+  familyId: string;
+  recordId: string;
+  partner1Id: string;
+  partner2Id: string;
+  startDate: Date;
+  timestamp: Date;
+}> {
+  constructor(payload: {
+    familyId: string;
+    recordId: string;
+    partner1Id: string;
+    partner2Id: string;
+    startDate: Date;
+    timestamp: Date;
+  }) {
+    super(payload.familyId, 'FamilyAggregate', 1, payload);
+  }
+}
+
+export class AdoptionRecordedEvent extends DomainEvent<{
+  familyId: string;
+  adoptionRecordId: string;
+  adopteeId: string;
+  adoptiveParentId: string;
+  adoptionType: string; // e.g., 'LEGAL', 'CUSTOMARY'
+  timestamp: Date;
+}> {
+  constructor(payload: {
+    familyId: string;
+    adoptionRecordId: string;
+    adopteeId: string;
+    adoptiveParentId: string;
+    adoptionType: string;
+    timestamp: Date;
+  }) {
+    super(payload.familyId, 'FamilyAggregate', 1, payload);
+  }
+}
+
+// =============================================================================
+// 👤 FAMILY MEMBER ENTITY EVENTS
 // =============================================================================
 
 export class FamilyMemberCreatedEvent extends DomainEvent<{

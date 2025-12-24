@@ -323,7 +323,11 @@ export class ComplianceCheckEntity extends Entity<ComplianceCheckProps> {
   }
 
   // 🎯 INNOVATIVE: Smart status transitions with validation
-  public submit(submissionMethod: SubmissionMethod): void {
+  public submit(
+    method: 'E_FILING' | 'EMAIL' | 'PHYSICAL' | 'COURT_PORTAL' | 'LAWYER',
+    details: string,
+    confirmationNumber?: string,
+  ): void {
     if (
       this.props.status !== ComplianceStatus.DRAFT &&
       this.props.status !== ComplianceStatus.PENDING_SUBMISSION
@@ -340,7 +344,15 @@ export class ComplianceCheckEntity extends Entity<ComplianceCheckProps> {
       throw new Error('Report has critical validation errors. Please fix before submission.');
     }
 
-    // Update status using type assertion
+    // Create submission method
+    const submissionMethod = {
+      method,
+      details,
+      timestamp: new Date(),
+      confirmationNumber,
+    };
+
+    // Update status using mutable props
     const props = this.props as any;
     props.status = ComplianceStatus.SUBMITTED;
     props.submissionDate = new Date();
@@ -356,7 +368,7 @@ export class ComplianceCheckEntity extends Entity<ComplianceCheckProps> {
       type: 'SYSTEM',
       sentAt: new Date(),
       recipient: 'GUARDIAN',
-      content: `Report submitted successfully. Confirmation: ${submissionMethod.confirmationNumber}`,
+      content: `Report submitted successfully. Confirmation: ${confirmationNumber || 'N/A'}`,
       acknowledged: false,
     });
 
@@ -366,7 +378,7 @@ export class ComplianceCheckEntity extends Entity<ComplianceCheckProps> {
         complianceCheckId: this.id.toString(),
         guardianshipId: this.props.guardianshipId,
         year: this.props.year,
-        submissionMethod: submissionMethod.method,
+        submissionMethod: method,
         validationScore: validationResult.score,
       }),
     );

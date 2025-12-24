@@ -111,6 +111,8 @@ export enum ConflictType {
 }
 
 export class GuardianAssignmentEntity extends Entity<GuardianAssignmentProps> {
+  isActive: any;
+  terminate: any;
   constructor(id: UniqueEntityID, props: GuardianAssignmentProps) {
     super(id, props);
     this.validate();

@@ -213,7 +213,6 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
       throw new Error('End date cannot be in the future');
     }
 
-    const previousStatus = this.props.isActive;
     const props = this.props as any;
     props.endDate = endDate;
     props.isActive = false;
@@ -302,8 +301,7 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
       photographs?: string[]; // Photos together at residence
       neighborAffidavits?: string[]; // Neighbor statements
     },
-    verifiedBy: UniqueEntityID,
-    confidenceLevel: number, // 0-100
+    verifiedBy: UniqueEntityID, // 0-100
   ): void {
     this.ensureNotArchived();
 
@@ -412,7 +410,6 @@ export class CohabitationRecord extends Entity<CohabitationRecordProps> {
   public updateDependencyClaim(
     status: 'APPROVED' | 'REJECTED',
     courtOrderId: string,
-    decisionDate: Date,
     updatedBy: UniqueEntityID,
   ): void {
     if (!this.props.dependencyClaimFiled) {
