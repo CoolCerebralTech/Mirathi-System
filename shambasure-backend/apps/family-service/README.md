@@ -184,3 +184,26 @@ src/presentation/guardianship/
 │
 └── mappers/
     └── guardianship-api.mapper.ts            # Converts Application Result -> HTTP Response
+
+src/presentation/family/
+├── controllers/
+│   ├── family.command.controller.ts
+│   └── family.query.controller.ts
+│
+├── dto/
+│   ├── request/
+│   │   ├── create-family.dto.ts
+│   │   ├── add-family-member.dto.ts
+│   │   ├── register-marriage.dto.ts
+│   │   ├── define-relationship.dto.ts
+│   │   ├── record-cohabitation.dto.ts
+│   │   └── record-adoption.dto.ts
+│   │
+│   └── response/
+│       ├── family-details.dto.ts
+│       ├── family-member.dto.ts
+│       ├── family-tree.dto.ts
+│       └── polygamy-status.dto.ts
+│
+└── mappers/
+    └── family.presenter.mapper.ts

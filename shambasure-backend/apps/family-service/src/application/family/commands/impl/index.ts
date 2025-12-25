@@ -4,3 +4,6 @@ export * from './register-marriage.command';
 export * from './establish-polygamous-house.command';
 export * from './define-relationship.command';
 export * from './record-cohabitation.command';
+export * from './record-adoption.command';
+export * from './verify-member-identity.command';
+export * from './archive-family.command';

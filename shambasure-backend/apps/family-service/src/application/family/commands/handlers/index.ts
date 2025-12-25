@@ -4,3 +4,6 @@ export * from './register-marriage.handler';
 export * from './establish-polygamous-house.handler';
 export * from './define-relationship.handler';
 export * from './record-cohabitation.handler';
+export * from './record-adoption.handler';
+export * from './archive-family.handler';
+export * from './verify-member-identity.handler';
