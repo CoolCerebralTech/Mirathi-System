@@ -148,3 +148,39 @@ src/application/guardianship/
 └── services/
     ├── guardianship-mapper.service.ts              # Domain -> Read Model
     └── guardianship-notification.service.ts        # Reminders logic
+
+src/presentation/guardianship/
+├── controllers/
+│   ├── guardianship.command.controller.ts    # [WRITE] All mutations (POST/PUT/PATCH)
+│   └── guardianship.query.controller.ts      # [READ] All data retrieval (GET)
+│
+├── dto/
+│   ├── request/
+│   │   ├── lifecycle/                        # Setup & Teardown
+│   │   │   ├── create-guardianship.dto.ts
+│   │   │   ├── activate-guardianship.dto.ts
+│   │   │   └── terminate-guardianship.dto.ts
+│   │   │
+│   │   ├── guardian-ops/                     # Managing the people
+│   │   │   ├── appoint-guardian.dto.ts
+│   │   │   ├── update-guardian-powers.dto.ts
+│   │   │   ├── post-bond.dto.ts
+│   │   │   └── suspend-guardian.dto.ts       # Includes Reactivate
+│   │   │
+│   │   ├── compliance/                       # The "Digital Lawyer" features
+│   │   │   ├── submit-compliance.dto.ts
+│   │   │   ├── auto-generate-section.dto.ts
+│   │   │   └── review-compliance.dto.ts      # Accept/Request Amendment
+│   │   │
+│   │   └── risk/                             # Whistleblowing
+│   │       ├── record-conflict.dto.ts
+│   │       └── resolve-conflict.dto.ts
+│   │
+│   └── response/
+│       ├── guardianship-details.response.dto.ts
+│       ├── guardianship-list.response.dto.ts
+│       ├── compliance-timeline.response.dto.ts
+│       └── risk-assessment.response.dto.ts
+│
+└── mappers/
+    └── guardianship-api.mapper.ts            # Converts Application Result -> HTTP Response
