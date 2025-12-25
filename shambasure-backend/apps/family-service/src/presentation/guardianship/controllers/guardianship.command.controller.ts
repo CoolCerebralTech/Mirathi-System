@@ -60,7 +60,7 @@ export class GuardianshipCommandController {
   // ---------------------------------------------------------
 
   @Post()
-  @Roles('LAWYER', 'REGISTRAR', 'ADMIN')
+  @Roles('VERIFIER', 'ADMIN') // Lawyers are VERIFIERs
   @ApiOperation({ summary: 'Open a new Guardianship Case' })
   @ApiResponse({ status: 201, description: 'Case created successfully' })
   async create(@Body() dto: CreateGuardianshipDto, @CurrentUser() user: JwtPayload) {
@@ -80,7 +80,7 @@ export class GuardianshipCommandController {
   }
 
   @Post(':id/activate')
-  @Roles('REGISTRAR', 'JUDGE')
+  @Roles('VERIFIER', 'ADMIN') // Registrars/Judges are VERIFIERs/ADMINs
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Activate a Pending Guardianship' })
   async activate(
@@ -98,7 +98,7 @@ export class GuardianshipCommandController {
   }
 
   @Post(':id/terminate')
-  @Roles('REGISTRAR', 'JUDGE')
+  @Roles('VERIFIER', 'ADMIN') // Registrars/Judges are VERIFIERs/ADMINs
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Close/Terminate a Guardianship' })
   async terminate(
@@ -124,6 +124,7 @@ export class GuardianshipCommandController {
   // ---------------------------------------------------------
 
   @Post(':id/guardians')
+  @Roles('VERIFIER', 'ADMIN') // Only legal professionals can appoint guardians
   @ApiOperation({ summary: 'Appoint a new Guardian' })
   async appointGuardian(
     @Param('id') id: string,
@@ -144,7 +145,7 @@ export class GuardianshipCommandController {
   }
 
   @Put(':id/guardians/:guardianId/powers')
-  @Roles('REGISTRAR', 'JUDGE')
+  @Roles('VERIFIER', 'ADMIN') // Only legal professionals can update powers
   @ApiOperation({ summary: 'Update Guardian Legal Powers' })
   async updatePowers(
     @Param('id') id: string,
@@ -168,6 +169,7 @@ export class GuardianshipCommandController {
   }
 
   @Post(':id/guardians/:guardianId/bond')
+  @Roles('VERIFIER', 'ADMIN') // Only legal professionals can post bonds
   @ApiOperation({ summary: 'Post Security Bond (Section 72)' })
   async postBond(
     @Param('id') id: string,
@@ -185,7 +187,7 @@ export class GuardianshipCommandController {
   }
 
   @Post(':id/guardians/:guardianId/suspend')
-  @Roles('REGISTRAR', 'JUDGE', 'ADMIN')
+  @Roles('VERIFIER', 'ADMIN') // Only legal professionals can suspend
   @ApiOperation({ summary: 'Suspend a Guardian (Disciplinary)' })
   async suspendGuardian(
     @Param('id') id: string,
@@ -207,6 +209,7 @@ export class GuardianshipCommandController {
   // ---------------------------------------------------------
 
   @Post(':id/compliance/:checkId/submit')
+  @Roles('USER', 'VERIFIER', 'ADMIN') // Users (guardians) can submit compliance reports
   @ApiOperation({ summary: 'Submit a Compliance Report' })
   async submitCompliance(
     @Param('id') id: string,
@@ -231,6 +234,7 @@ export class GuardianshipCommandController {
   }
 
   @Post(':id/risk/conflict')
+  @Roles('USER', 'VERIFIER', 'ADMIN', 'AUDITOR') // Anyone can report conflicts, including auditors
   @ApiOperation({ summary: 'Record a Conflict of Interest' })
   async recordConflict(
     @Param('id') id: string,

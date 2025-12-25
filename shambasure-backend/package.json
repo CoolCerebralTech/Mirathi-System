@@ -15,7 +15,7 @@
     "start:dev:auditing": "nest start auditing-service --watch",
     "start:dev:documents": "nest start documents-service --watch",
     "start:dev:notifications": "nest start notifications-service --watch",
-    "start:dev:succession": "nest start succession-service --watch",
+    "start:dev:family": "nest start family-service --watch",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch"

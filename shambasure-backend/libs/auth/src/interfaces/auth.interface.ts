@@ -1,4 +1,4 @@
-import { UserRole } from '@shamba/common';
+import { UserRole } from '@prisma/client';
 
 // ============================================================================
 // ARCHITECTURAL NOTE:

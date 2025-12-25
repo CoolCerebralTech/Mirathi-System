@@ -1301,30 +1301,4 @@ export class FamilyMapper {
       updatedAt: record.updatedAt,
     };
   }
-
-  // ===========================================================================
-  // 🔧 HELPER METHODS
-  // ===========================================================================
-
-  private static getInverseRelationshipType(type: DomainRelationshipType): DomainRelationshipType {
-    const inverseMap: Record<DomainRelationshipType, DomainRelationshipType> = {
-      [DomainRelationshipType.SPOUSE]: DomainRelationshipType.SPOUSE,
-      [DomainRelationshipType.EX_SPOUSE]: DomainRelationshipType.EX_SPOUSE,
-      [DomainRelationshipType.CHILD]: DomainRelationshipType.PARENT,
-      [DomainRelationshipType.ADOPTED_CHILD]: DomainRelationshipType.PARENT,
-      [DomainRelationshipType.STEPCHILD]: DomainRelationshipType.PARENT,
-      [DomainRelationshipType.PARENT]: DomainRelationshipType.CHILD,
-      [DomainRelationshipType.SIBLING]: DomainRelationshipType.SIBLING,
-      [DomainRelationshipType.HALF_SIBLING]: DomainRelationshipType.HALF_SIBLING,
-      [DomainRelationshipType.GRANDCHILD]: DomainRelationshipType.GRANDPARENT,
-      [DomainRelationshipType.GRANDPARENT]: DomainRelationshipType.GRANDCHILD,
-      [DomainRelationshipType.NIECE_NEPHEW]: DomainRelationshipType.AUNT_UNCLE,
-      [DomainRelationshipType.AUNT_UNCLE]: DomainRelationshipType.NIECE_NEPHEW,
-      [DomainRelationshipType.COUSIN]: DomainRelationshipType.COUSIN,
-      [DomainRelationshipType.GUARDIAN]: DomainRelationshipType.CHILD,
-      [DomainRelationshipType.OTHER]: DomainRelationshipType.OTHER,
-    };
-
-    return inverseMap[type] || DomainRelationshipType.OTHER;
-  }
 }
