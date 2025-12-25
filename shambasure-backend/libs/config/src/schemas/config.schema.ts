@@ -32,16 +32,20 @@ export const configValidationSchema = Joi.object({
   GATEWAY_PORT: Joi.number().default(3000),
   ACCOUNTS_SERVICE_PORT: Joi.number().default(3001),
   DOCUMENTS_SERVICE_PORT: Joi.number().default(3002),
-  SUCCESSION_SERVICE_PORT: Joi.number().default(3003),
-  NOTIFICATIONS_SERVICE_PORT: Joi.number().default(3004),
-  AUDITING_SERVICE_PORT: Joi.number().default(3005),
+  FAMILY_SERVICE_PORT: Joi.number().default(3003),
+  ESTATE_SERVICE_PORT: Joi.number().default(3004),
+  SUCCESSION_AUTOMATION_SERVICE_PORT: Joi.number().default(3005),
+  NOTIFICATIONS_SERVICE_PORT: Joi.number().default(3006),
+  AUDITING_SERVICE_PORT: Joi.number().default(3007),
 
   // --- Service URLs ---
   ACCOUNTS_SERVICE_URL: Joi.string().uri().default('http://localhost:3001'),
   DOCUMENTS_SERVICE_URL: Joi.string().uri().default('http://localhost:3002'),
-  SUCCESSION_SERVICE_URL: Joi.string().uri().default('http://localhost:3003'),
-  NOTIFICATIONS_SERVICE_URL: Joi.string().uri().default('http://localhost:3004'),
-  AUDITING_SERVICE_URL: Joi.string().uri().default('http://localhost:3005'),
+  FAMILY_SERVICE_URL: Joi.string().uri().default('http://localhost:3003'),
+  ESTATE_SERVICE_URL: Joi.string().uri().default('http://localhost:3004'),
+  SUCCESSION_AUTOMATION_SERVICE_URL: Joi.string().uri().default('http://localhost:3005'),
+  NOTIFICATIONS_SERVICE_URL: Joi.string().uri().default('http://localhost:3007'),
+  AUDITING_SERVICE_URL: Joi.string().uri().default('http://localhost:3008'),
 
   // --- Database Configuration ---
   DATABASE_URL: Joi.string().required(),

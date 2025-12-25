@@ -36,11 +36,41 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     // ✅ Define microservice proxy configs
     const services = [
-      { path: 'accounts', url: this.configService.get('ACCOUNTS_SERVICE_URL') },
-      { path: 'succession', url: this.configService.get('SUCCESSION_SERVICE_URL') },
-      { path: 'documents', url: this.configService.get('DOCUMENTS_SERVICE_URL') },
-      { path: 'notifications', url: this.configService.get('NOTIFICATIONS_SERVICE_URL') },
-      { path: 'auditing', url: this.configService.get('AUDITING_SERVICE_URL') },
+      {
+        path: 'accounts',
+        url: this.configService.get('ACCOUNTS_SERVICE_URL'),
+        configKey: 'ACCOUNTS_SERVICE_URL',
+      },
+      {
+        path: 'documents',
+        url: this.configService.get('DOCUMENTS_SERVICE_URL'),
+        configKey: 'DOCUMENTS_SERVICE_URL',
+      },
+      {
+        path: 'family',
+        url: this.configService.get('FAMILY_SERVICE_URL'),
+        configKey: 'FAMILY_SERVICE_URL',
+      },
+      {
+        path: 'estate',
+        url: this.configService.get('ESTATE_SERVICE_URL'),
+        configKey: 'ESTATE_SERVICE_URL',
+      },
+      {
+        path: 'succession-automation',
+        url: this.configService.get('SUCCESSION_AUTOMATION_SERVICE_URL'),
+        configKey: 'SUCCESSION_AUTOMATION_SERVICE_URL',
+      },
+      {
+        path: 'notifications',
+        url: this.configService.get('NOTIFICATIONS_SERVICE_URL'),
+        configKey: 'NOTIFICATIONS_SERVICE_URL',
+      },
+      {
+        path: 'auditing',
+        url: this.configService.get('AUDITING_SERVICE_URL'),
+        configKey: 'AUDITING_SERVICE_URL',
+      },
     ];
 
     // ✅ Loop through services and register proxy middleware
