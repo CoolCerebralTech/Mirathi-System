@@ -1,5 +1,5 @@
 // application/guardianship/ports/inbound/guardianship.use-case.ts
-import { Result } from '../../../common/base/result';
+import { Result } from '../../../common/result';
 // Command Payloads
 import { AddCoGuardianCommandPayload } from '../../commands/impl/add-co-guardian.command';
 import { CheckBondExpiryCommandPayload } from '../../commands/impl/check-bond-expiry.command';

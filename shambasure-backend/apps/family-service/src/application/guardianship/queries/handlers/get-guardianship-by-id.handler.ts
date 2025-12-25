@@ -6,7 +6,7 @@ import { QueryBus, QueryHandler } from '@nestjs/cqrs';
 import { GuardianshipAggregate } from '../../../../domain/aggregates/guardianship.aggregate';
 import type { IGuardianshipRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { GUARDIANSHIP_REPOSITORY } from '../../../../domain/interfaces/repositories/iguardianship.repository';
-import { Result } from '../../../common/base/result';
+import { Result } from '../../../common/result';
 import { GetGuardianshipByIdQuery } from '../impl/get-guardianship-by-id.query';
 import {
   GuardianDetailsDto,

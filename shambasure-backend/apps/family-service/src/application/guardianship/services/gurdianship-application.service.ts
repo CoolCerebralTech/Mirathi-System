@@ -2,7 +2,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 
-import { Result } from '../../common/base/result';
+import { Result } from '../../common/result';
 // Commands
 import {
   AddCoGuardianCommand,

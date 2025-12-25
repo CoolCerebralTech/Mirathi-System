@@ -4,7 +4,7 @@ import { QueryBus, QueryHandler } from '@nestjs/cqrs';
 
 import type { IGuardianshipRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { GUARDIANSHIP_REPOSITORY } from '../../../../domain/interfaces/repositories/iguardianship.repository';
-import { Result } from '../../../common/base/result';
+import { Result } from '../../../common/result';
 import { GetCustomaryGuardianshipDetailsQuery } from '../impl/get-customary-guardianship-details.query';
 import {
   CustomaryGuardianshipReadModel,

@@ -1,63 +1,114 @@
-import { Injectable } from '@nestjs/common';
-import { CommandBus, CommandHandler, EventBus } from '@nestjs/cqrs';
+import { Inject } from '@nestjs/common';
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 
-import { Family } from '../../../../domain/aggregates/family.aggregate';
-import type { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
-import { Result } from '../../../common/base/result';
-import { FamilyResponse } from '../../dto/response/family.response';
-import { FamilyMapper } from '../../mappers/family.mapper';
-import { RequestToDomainMapper } from '../../mappers/request-to-domain.mapper';
+import { FamilyAggregate } from '../../../../domain/aggregates/family.aggregate';
+import { UniqueEntityID } from '../../../../domain/base/unique-entity-id';
+import { FamilyMember } from '../../../../domain/entities/family-member.entity';
+import type { IFamilyRepository } from '../../../../domain/interfaces/ifamily.repository';
+import { FAMILY_REPOSITORY } from '../../../../domain/interfaces/ifamily.repository';
+import { PersonName } from '../../../../domain/value-objects/person-name.vo';
+import { AppErrors } from '../../../common/application.error';
+import { BaseCommandHandler } from '../../../common/base/base.command-handler';
+import { Result } from '../../../common/result';
 import { CreateFamilyCommand } from '../impl/create-family.command';
-import { BaseCommandHandler } from './base.command-handler';
 
-@Injectable()
 @CommandHandler(CreateFamilyCommand)
-export class CreateFamilyHandler extends BaseCommandHandler<
-  CreateFamilyCommand,
-  Result<FamilyResponse>
-> {
+export class CreateFamilyHandler
+  extends BaseCommandHandler<CreateFamilyCommand, FamilyAggregate, Result<string>>
+  implements ICommandHandler<CreateFamilyCommand, Result<string>>
+{
   constructor(
-    private readonly familyRepository: IFamilyRepository,
-    private readonly familyMapper: FamilyMapper,
-    private readonly requestMapper: RequestToDomainMapper,
-    commandBus: CommandBus, // ✅ strongly typed
-    eventBus: EventBus, // ✅ inject EventBus too
+    @Inject(FAMILY_REPOSITORY)
+    protected readonly repository: IFamilyRepository,
+    protected readonly eventBus: EventBus,
   ) {
-    super(commandBus, eventBus); // ✅ pass both to base class
+    super(eventBus, repository as any, undefined);
   }
 
-  async execute(command: CreateFamilyCommand): Promise<Result<FamilyResponse>> {
+  async execute(command: CreateFamilyCommand): Promise<Result<string>> {
+    this.logger.log(`Executing CreateFamilyCommand for user ${command.userId}`);
+
     try {
-      const validation = this.validateCommand(command);
-      if (validation.isFailure) {
-        return Result.fail(validation.error!);
+      command.validate();
+
+      // 1. Duplicate Check
+      if (command.homeCounty) {
+        const exists = await this.repository.existsByNameAndCounty(
+          command.familyName,
+          command.homeCounty,
+        );
+        if (exists) {
+          return Result.fail(
+            new AppErrors.ConflictError(
+              `A family named '${command.familyName}' already exists in ${command.homeCounty}.`,
+            ),
+          );
+        }
       }
 
-      const requestErrors = this.requestMapper.validateCreateFamilyRequest(command.data);
-      if (requestErrors.length > 0) {
-        return Result.fail(new Error(`Invalid request data: ${requestErrors.join(', ')}`));
-      }
+      // 2. Prepare Value Objects
+      const creatorId = new UniqueEntityID(command.userId);
 
-      // Map request → domain props
-      const createProps = this.requestMapper.toCreateFamilyProps(command.data);
+      const creatorName = PersonName.create({
+        firstName: command.creatorProfile.firstName,
+        lastName: command.creatorProfile.lastName,
+        middleName: command.creatorProfile.middleName,
+      });
 
-      // Create aggregate (domain-only)
-      const family = Family.create(createProps);
+      // 3. Create Creator Member
+      const creatorMember = FamilyMember.create({
+        name: creatorName,
+        userId: creatorId,
+        gender: command.creatorProfile.gender,
+        dateOfBirth: command.creatorProfile.dateOfBirth,
+        dateOfBirthEstimated: false,
+        isHeadOfFamily: true,
+        isAlive: true,
+        isMarried: false,
+        hasChildren: false,
+        nationalId: command.creatorProfile.nationalId
+          ? ({ toString: () => command.creatorProfile.nationalId } as any)
+          : undefined,
+        nationalIdVerified: false,
+        languages: [],
+        medicalConditions: [],
+        traditionalTitles: [],
+        isMissing: false,
+        hasDisability: false,
+        isMentallyIncapacitated: false,
+        isStudent: false,
+        initiationRitesCompleted: false,
+        createdBy: creatorId,
+        lastUpdatedBy: creatorId,
+        verificationStatus: 'UNVERIFIED',
+        isArchived: false,
+      });
 
-      // Persist aggregate
-      await this.familyRepository.create(family);
+      // 4. Create Aggregate
+      const family = FamilyAggregate.create(
+        {
+          name: command.familyName,
+          description: command.description,
+          creatorId: creatorId,
+          homeCounty: command.homeCounty,
+          clanName: command.clanName,
+          subClan: command.subClan,
+          familyTotem: command.totem,
+        },
+        creatorMember,
+      );
 
-      // Publish domain events (application responsibility)
-      await this.publishDomainEvents(family);
+      // 5. Save (returns Promise<FamilyAggregate>)
+      await this.repository.save(family);
 
-      // Map to response DTO
-      const responseDTO = this.familyMapper.toDTO(family);
-      const result = Result.ok(responseDTO);
+      // 6. Publish Events
+      this.publishEventsAndCommit(family);
 
-      this.logSuccess(command, result, 'Family created');
-      return result;
+      this.logger.log(`Family created successfully: ${family.id.toString()}`);
+
+      return Result.ok(family.id.toString());
     } catch (error) {
-      this.handleError(error, command, 'CreateFamilyHandler');
+      return Result.fail(new AppErrors.UnexpectedError(error));
     }
   }
 }

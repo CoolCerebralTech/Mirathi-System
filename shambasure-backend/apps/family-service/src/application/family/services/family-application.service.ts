@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 
-import { Result } from '../../common/base/result';
+import { Result } from '../../common/result';
 import { PaginatedResponse } from '../../common/dto/paginated-response.dto';
 // Commands
 import { AddFamilyMemberCommand } from '../commands/impl/add-family-member.command';

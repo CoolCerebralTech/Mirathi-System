@@ -1,67 +1,76 @@
-// application/family/commands/impl/create-family.command.ts
-import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsNotEmpty, IsUUID, ValidateNested } from 'class-validator';
+import { Gender, KenyanCounty } from '../../../../domain/value-objects/family-enums.vo';
+import { BaseCommand } from '../../../common/base/base.command';
 
-import { CreateFamilyRequest } from '../../dto/request/create-family.request';
-import { BaseCommand } from '../base.command';
-
+/**
+ * Command to initialize a new Family Tree.
+ *
+ * Investor Note:
+ * This command doesn't just create an empty group. It establishes the "Genesis"
+ * of the graph by creating the Family entity AND the first Member (the Creator)
+ * simultaneously to ensure no family exists without a Head.
+ */
 export class CreateFamilyCommand extends BaseCommand {
-  @ApiProperty({
-    description: 'Unique command identifier',
-    example: 'cmd-1234567890',
-  })
-  @IsUUID('4')
-  readonly commandId: string;
+  // Family Identity
+  public readonly familyName: string;
+  public readonly description?: string;
 
-  @ApiProperty({
-    description: 'Command timestamp',
-    example: '2024-01-15T10:30:00.000Z',
-  })
-  @IsNotEmpty()
-  readonly timestamp: Date;
+  // Cultural Context (Optional but recommended for S.40/Customary logic)
+  public readonly homeCounty?: KenyanCounty;
+  public readonly clanName?: string;
+  public readonly subClan?: string;
+  public readonly totem?: string;
 
-  @ApiProperty({
-    description: 'User ID executing the command',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  @IsUUID('4')
-  readonly userId: string;
+  // Creator Profile (The first member)
+  public readonly creatorProfile: {
+    firstName: string;
+    lastName: string;
+    middleName?: string;
+    gender: Gender;
+    dateOfBirth?: Date;
+    nationalId?: string; // Optional at creation, verified later
+  };
 
-  @ApiProperty({
-    description: 'Family creation data',
-    type: CreateFamilyRequest,
-  })
-  @ValidateNested()
-  @Type(() => CreateFamilyRequest)
-  readonly data: CreateFamilyRequest;
+  constructor(props: {
+    userId: string; // The Auth User ID
+    familyName: string;
+    description?: string;
+    homeCounty?: KenyanCounty;
+    clanName?: string;
+    subClan?: string;
+    totem?: string;
+    creatorProfile: {
+      firstName: string;
+      lastName: string;
+      middleName?: string;
+      gender: Gender;
+      dateOfBirth?: Date;
+      nationalId?: string;
+    };
+    correlationId?: string;
+  }) {
+    super({ userId: props.userId, correlationId: props.correlationId });
 
-  constructor(
-    commandId: string,
-    timestamp: Date,
-    userId: string,
-    data: CreateFamilyRequest,
-    correlationId?: string,
-  ) {
-    super(correlationId); // Pass correlationId to base constructor
-    this.commandId = commandId;
-    this.timestamp = timestamp;
-    this.userId = userId;
-    this.data = data;
-    // REMOVED: this.correlationId = correlationId;
+    this.familyName = props.familyName;
+    this.description = props.description;
+    this.homeCounty = props.homeCounty;
+    this.clanName = props.clanName;
+    this.subClan = props.subClan;
+    this.totem = props.totem;
+    this.creatorProfile = props.creatorProfile;
   }
 
-  static create(
-    userId: string,
-    data: CreateFamilyRequest,
-    correlationId?: string,
-  ): CreateFamilyCommand {
-    return new CreateFamilyCommand(
-      `cmd-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      new Date(),
-      userId,
-      data,
-      correlationId,
-    );
+  /**
+   * Fail-fast validation before hitting the domain
+   */
+  public validate(): void {
+    super.validate();
+
+    if (!this.familyName || this.familyName.trim().length < 2) {
+      throw new Error('Family name is required and must be at least 2 characters.');
+    }
+
+    if (!this.creatorProfile.firstName || !this.creatorProfile.lastName) {
+      throw new Error('Creator first and last name are required.');
+    }
   }
 }

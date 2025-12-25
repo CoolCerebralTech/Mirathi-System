@@ -2,7 +2,7 @@ import { Logger } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
 
 import { IQuery, IQueryHandler } from '../interfaces/use-case.interface';
-import { Result } from './result';
+import { Result } from '../result';
 
 /**
  * Base Query Handler

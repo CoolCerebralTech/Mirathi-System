@@ -31,6 +31,10 @@ export class PersonName extends ValueObject<PersonNameProps> {
     KISII: /^(Nyambane|Kerubo|Nyaboke|Omwenga|Mogaka)/i,
     MERU: /^(Muthuri|Kinaito|Mukiri|Gitonga|Kajuju)/i,
   };
+  public static create(props: PersonNameProps): PersonName {
+    // Basic pre-validation or normalization can happen here
+    return new PersonName(props);
+  }
 
   protected validate(): void {
     // Validate first name

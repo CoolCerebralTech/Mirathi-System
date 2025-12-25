@@ -21,7 +21,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@ne
 import * as auth from '@shamba/auth';
 
 // Base
-import { Result } from '../../application/common/base/result';
+import { Result } from '../../application/common/result';
 import { PaginatedResponse } from '../../application/common/dto/paginated-response.dto';
 // Request DTOs
 import { AddFamilyMemberRequest } from '../../application/family/dto/request/add-family-member.request';

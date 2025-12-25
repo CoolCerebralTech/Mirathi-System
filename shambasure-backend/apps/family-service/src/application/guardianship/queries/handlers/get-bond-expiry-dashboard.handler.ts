@@ -4,7 +4,7 @@ import { QueryBus, QueryHandler } from '@nestjs/cqrs';
 
 import type { IGuardianshipRepository } from '../../../../domain/interfaces/repositories/iguardianship.repository';
 import { GUARDIANSHIP_REPOSITORY } from '../../../../domain/interfaces/repositories/iguardianship.repository';
-import { Result } from '../../../common/base/result';
+import { Result } from '../../../common/result';
 import { GetBondExpiryDashboardQuery } from '../impl/get-bond-expiry-dashboard.query';
 import { BondExpiryReadModel } from '../read-models/bond-expiry.read-model';
 import { BaseQueryHandler } from './base-query.handler';

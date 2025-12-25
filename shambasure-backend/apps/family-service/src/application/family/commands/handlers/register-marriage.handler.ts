@@ -1,94 +1,133 @@
-import { Injectable } from '@nestjs/common';
-import { CommandBus, CommandHandler, EventBus } from '@nestjs/cqrs';
+import { Inject } from '@nestjs/common';
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 
+import { FamilyAggregate } from '../../../../domain/aggregates/family.aggregate';
+import { UniqueEntityID } from '../../../../domain/base/unique-entity-id';
 import { Marriage } from '../../../../domain/entities/marriage.entity';
-import type { IFamilyMemberRepository } from '../../../../domain/interfaces/repositories/ifamily-member.repository';
-import type { IFamilyRepository } from '../../../../domain/interfaces/repositories/ifamily.repository';
-import type { IMarriageRepository } from '../../../../domain/interfaces/repositories/imarriage.repository';
-import { MarriageValidityPolicy } from '../../../../domain/policies/marriage-validity.policy';
-import { Result } from '../../../common/base/result';
-import { MarriageResponse } from '../../dto/response/marriage.response';
-import { MarriageMapper } from '../../mappers/marriage.mapper';
-import { RequestToDomainMapper } from '../../mappers/request-to-domain.mapper';
+import type { IFamilyRepository } from '../../../../domain/interfaces/ifamily.repository';
+import { FAMILY_REPOSITORY } from '../../../../domain/interfaces/ifamily.repository';
+import { MarriageStatus, MarriageType } from '../../../../domain/value-objects/family-enums.vo';
+import { AppErrors } from '../../../common/application.error';
+import { BaseCommandHandler } from '../../../common/base/base.command-handler';
+import { Result } from '../../../common/result';
 import { RegisterMarriageCommand } from '../impl/register-marriage.command';
-import { BaseCommandHandler } from './base.command-handler';
 
-@Injectable()
 @CommandHandler(RegisterMarriageCommand)
-export class RegisterMarriageHandler extends BaseCommandHandler<
-  RegisterMarriageCommand,
-  Result<MarriageResponse>
-> {
+export class RegisterMarriageHandler
+  extends BaseCommandHandler<RegisterMarriageCommand, FamilyAggregate, Result<string>>
+  implements ICommandHandler<RegisterMarriageCommand, Result<string>>
+{
   constructor(
-    private readonly familyRepository: IFamilyRepository,
-    private readonly memberRepository: IFamilyMemberRepository,
-    private readonly marriageRepository: IMarriageRepository,
-    private readonly marriageMapper: MarriageMapper,
-    private readonly requestMapper: RequestToDomainMapper,
-    commandBus: CommandBus,
-    eventBus: EventBus,
+    @Inject(FAMILY_REPOSITORY)
+    protected readonly repository: IFamilyRepository,
+    protected readonly eventBus: EventBus,
   ) {
-    super(commandBus, eventBus);
+    super(eventBus, repository as any, undefined);
   }
 
-  async execute(command: RegisterMarriageCommand): Promise<Result<MarriageResponse>> {
+  async execute(command: RegisterMarriageCommand): Promise<Result<string>> {
+    this.logger.log(`Registering marriage in family ${command.familyId}`);
+
     try {
-      const validation = this.validateCommand(command);
-      if (validation.isFailure) return Result.fail(validation.error!);
+      command.validate();
 
-      const requestErrors = this.requestMapper.validateRegisterMarriageRequest(command.data);
-      if (requestErrors.length > 0) {
-        return Result.fail(new Error(`Invalid request data: ${requestErrors.join(', ')}`));
+      // 1. Load Aggregate
+      const family = await this.repository.findById(command.familyId);
+      if (!family) {
+        return Result.fail(new AppErrors.NotFoundError('Family', command.familyId));
       }
 
-      // 1. Load Aggregates
-      const family = await this.familyRepository.findById(command.familyId);
-      if (!family) return Result.fail(new Error('Family not found'));
+      // 2. Validate Spouses Exist in Family
+      const spouse1 = family.getMember(new UniqueEntityID(command.spouse1Id));
+      const spouse2 = family.getMember(new UniqueEntityID(command.spouse2Id));
 
-      const spouse1 = await this.memberRepository.findById(command.data.spouse1Id);
-      const spouse2 = await this.memberRepository.findById(command.data.spouse2Id);
-      if (!spouse1 || !spouse2) return Result.fail(new Error('One or both spouses not found'));
-
-      // 2. Load History for Policy - FIXED: Using findAllBySpouseId instead of findBySpouseId
-      const s1Marriages = await this.marriageRepository.findAllBySpouseId(spouse1.id);
-      const s2Marriages = await this.marriageRepository.findAllBySpouseId(spouse2.id);
-
-      // 3. EXECUTE POLICY
-      const policyResult = MarriageValidityPolicy.validateNewUnion({
-        spouse1,
-        spouse2,
-        spouse1ExistingMarriages: s1Marriages,
-        spouse2ExistingMarriages: s2Marriages,
-        proposedType: command.data.type,
-      });
-
-      if (!policyResult.isValid) {
-        return Result.fail(new Error(`Marriage Illegal: ${policyResult.issues.join(', ')}`));
+      if (!spouse1) {
+        return Result.fail(new AppErrors.NotFoundError('Spouse 1', command.spouse1Id));
+      }
+      if (!spouse2) {
+        return Result.fail(new AppErrors.NotFoundError('Spouse 2', command.spouse2Id));
       }
 
-      // 4. Create Marriage
-      const createProps = this.requestMapper.toCreateMarriageProps(command.data);
-      const marriage = Marriage.create(createProps);
+      // 3. Prepare Identity
+      const marriageId = new UniqueEntityID();
+      const createdBy = new UniqueEntityID(command.userId);
 
-      // 5. Update Family
+      // 4. Map Command to Entity Props
+      const marriage = Marriage.create(
+        {
+          spouse1Id: spouse1.id,
+          spouse2Id: spouse2.id,
+          marriageType: command.marriageType,
+          marriageStatus: MarriageStatus.MARRIED,
+
+          startDate: command.startDate,
+          ceremonyLocation: command.location,
+          ceremonyCounty: command.county,
+          witnesses: command.witnesses,
+
+          // Legal Details
+          registrationNumber: command.registrationNumber,
+          registeredBy: command.userId, // System user recorded it
+
+          // Polygamy Logic (S.40)
+          isPolygamous: command.isPolygamous,
+          polygamousHouseId: command.polygamousHouseId
+            ? new UniqueEntityID(command.polygamousHouseId)
+            : undefined,
+          marriageOrder: command.marriageOrder,
+
+          // Customary Details (Dowry)
+          bridePricePaid: !!command.dowryPayment,
+          bridePriceAmount: command.dowryPayment?.amount,
+          bridePriceCurrency: command.dowryPayment?.currency,
+          bridePaidInFull: command.dowryPayment?.isPaidInFull || false,
+          customaryDetails:
+            command.marriageType === MarriageType.CUSTOMARY
+              ? {
+                  location: command.location || 'Unknown',
+                  eldersPresent: command.witnesses, // Elders act as witnesses
+                  clanRepresentatives: [],
+                  traditionalRitesPerformed: ['Negotiations'], // Default
+                  livestockExchanged: command.dowryPayment?.livestockCount,
+                }
+              : undefined,
+
+          // Defaults
+          numberOfChildren: 0,
+          childrenIds: [],
+          jointProperty: false, // Default to separate until proven otherwise
+          isMarriageDissolved: false,
+          waitingPeriodCompleted: true,
+          isArchived: false,
+          verificationStatus: command.registrationNumber ? 'PENDING_VERIFICATION' : 'UNVERIFIED',
+          createdBy: createdBy,
+          lastUpdatedBy: createdBy,
+        },
+        marriageId,
+      );
+
+      // 5. Register in Aggregate
+      // This will throw if business rules are violated (e.g., active marriage exists)
       family.registerMarriage(marriage);
 
-      // 6. Persist
-      await this.marriageRepository.create(marriage);
-      await this.familyRepository.update(family);
+      // 6. Save
+      await this.repository.save(family);
 
       // 7. Publish Events
-      await this.publishDomainEvents(marriage);
-      await this.publishDomainEvents(family);
+      this.publishEventsAndCommit(family);
 
-      // 8. Response
-      const responseDTO = this.marriageMapper.toDTO(marriage);
-      const result = Result.ok(responseDTO);
-
-      this.logSuccess(command, result, 'Marriage registered');
-      return result;
+      return Result.ok(marriageId.toString());
     } catch (error) {
-      this.handleError(error, command, 'RegisterMarriageHandler');
+      if (error instanceof Error) {
+        // Handle Aggregate Business Rule Violations
+        if (error.message.includes('Active marriage already exists')) {
+          return Result.fail(new AppErrors.ConflictError(error.message));
+        }
+        if (error.message.includes('Polygamous')) {
+          return Result.fail(new AppErrors.ValidationError(error.message));
+        }
+      }
+      return Result.fail(new AppErrors.UnexpectedError(error));
     }
   }
 }
