@@ -82,3 +82,69 @@ src/application/
     │
     └── services/                   # [ORCHESTRATION]
         └── family-audit.service.ts # Captures changes for legal audit trails
+
+src/application/guardianship/
+├── commands/
+│   ├── impl/
+│   │   // --- Lifecycle & Setup ---
+│   │   ├── create-guardianship.command.ts          # specific to Minor/Incaps
+│   │   ├── activate-guardianship.command.ts        # Transition Pending -> Active
+│   │   ├── terminate-guardianship.command.ts       # Closing the case
+│   │
+│   │   // --- Guardian Management ---
+│   │   ├── appoint-guardian.command.ts             # Adding a guardian
+│   │   ├── suspend-guardian.command.ts             # For misconduct/investigation
+│   │   ├── reactivate-guardian.command.ts          # After suspension
+│   │   ├── update-guardian-powers.command.ts       # Changing legal authority
+│   │   ├── post-bond.command.ts                    # Financial security
+│   │
+│   │   // --- Conflict of Interest (Innovative) ---
+│   │   ├── record-conflict-of-interest.command.ts  # Whistleblowing/Detection
+│   │   ├── resolve-conflict-of-interest.command.ts # Mitigation plan
+│   │
+│   │   // --- Compliance & AI Reporting ---
+│   │   ├── auto-generate-report-section.command.ts # The "AI" feature
+│   │   ├── submit-compliance-report.command.ts     # E-filing
+│   │   ├── review-compliance-report.command.ts     # Court/Lawyer review
+│   │   └── request-report-amendment.command.ts     # Feedback loop
+│   │
+│   └── handlers/
+│       ├── create-guardianship.handler.ts
+│       ├── activate-guardianship.handler.ts
+│       ├── terminate-guardianship.handler.ts
+│       ├── appoint-guardian.handler.ts
+│       ├── suspend-guardian.handler.ts
+│       ├── reactivate-guardian.handler.ts
+│       ├── update-guardian-powers.handler.ts
+│       ├── post-bond.handler.ts
+│       ├── record-conflict-of-interest.handler.ts
+│       ├── resolve-conflict-of-interest.handler.ts
+│       ├── auto-generate-report-section.handler.ts
+│       ├── submit-compliance-report.handler.ts
+│       ├── review-compliance-report.handler.ts
+│       └── request-report-amendment.handler.ts
+│
+├── queries/
+│   ├── impl/
+│   │   ├── get-guardianship-by-id.query.ts
+│   │   ├── search-guardianships.query.ts           # Advanced Filtering
+│   │   ├── get-ward-compliance-history.query.ts    # Audit trail
+│   │   ├── get-guardianship-risk-report.query.ts   # "Digital Lawyer" Analysis
+│   │   └── get-court-document-preview.query.ts     # PDF Preview
+│   │
+│   ├── handlers/
+│   │   ├── get-guardianship-by-id.handler.ts
+│   │   ├── search-guardianships.handler.ts
+│   │   ├── get-ward-compliance-history.handler.ts
+│   │   ├── get-guardianship-risk-report.handler.ts
+│   │   └── get-court-document-preview.handler.ts
+│   │
+│   └── read-models/
+│       ├── guardianship-detail.vm.ts               # Full view
+│       ├── guardianship-list-item.vm.ts            # Table view
+│       ├── compliance-timeline.vm.ts               # Visual timeline
+│       └── risk-assessment.vm.ts                   # Red/Yellow/Green indicators
+│
+└── services/
+    ├── guardianship-mapper.service.ts              # Domain -> Read Model
+    └── guardianship-notification.service.ts        # Reminders logic
