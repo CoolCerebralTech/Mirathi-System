@@ -4,7 +4,7 @@ import { BaseQuery } from '../../../common/base/base.query';
  * Query to run the Legal Analysis Engine.
  *
  * Investor Note / USP:
- * This is the money-maker. It triggers the domain logic that checks:
+ * This triggers the domain logic that checks:
  * - Section 29 Compliance (Are dependents documented?)
  * - Section 40 Readiness (Are Polygamous Houses defined?)
  * - Data Integrity (Are IDs verified?)

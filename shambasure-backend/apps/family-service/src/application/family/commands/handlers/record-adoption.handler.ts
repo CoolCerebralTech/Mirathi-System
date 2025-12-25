@@ -53,14 +53,16 @@ export class RecordAdoptionHandler
         );
       }
 
-      // 3. Business Rule: Age Gap Check
+      // 3. Business Rule: Age Gap Check (Digital Lawyer)
       if (parent.calculateAge() !== null && adoptee.calculateAge() !== null) {
         const parentAge = parent.calculateAge()!;
         const adopteeAge = adoptee.calculateAge()!;
 
         if (parentAge < 21) {
           return Result.fail(
-            new AppErrors.ValidationError('Adoptive parent must be at least 21 years old.'),
+            new AppErrors.ValidationError(
+              'Adoptive parent must be at least 21 years old (Children Act).',
+            ),
           );
         }
 
@@ -84,11 +86,11 @@ export class RecordAdoptionHandler
       const recordId = new UniqueEntityID();
       const creatorId = new UniqueEntityID(command.userId);
 
-      // Determine legal basis based on adoption type
+      // Determine legal basis
       const legalBasis: KenyanLawSection[] =
         adoptionType === 'CUSTOMARY'
-          ? ['CUSTOMARY_LAW' as KenyanLawSection]
-          : ['CHILDREN_ACT_S154' as KenyanLawSection, 'CHILDREN_ACT_S165' as KenyanLawSection];
+          ? ['CUSTOMARY_LAW' as KenyanLawSection] // Ensure this exists in your Enum
+          : ['CHILDREN_ACT_S154' as KenyanLawSection];
 
       const adoptionRecord = AdoptionRecord.create(
         {
@@ -99,9 +101,9 @@ export class RecordAdoptionHandler
 
           // Adoption Details
           adoptionType: adoptionType,
-          adoptionStatus: 'FINALIZED', // Assuming we are recording a completed event
+          adoptionStatus: 'FINALIZED', // Assuming completed event
 
-          // Dates - using adoptionDate for both application and finalization since it's already done
+          // Dates
           applicationDate: command.adoptionDate,
           finalizationDate: command.adoptionDate,
           effectiveDate: command.adoptionDate,
@@ -112,7 +114,7 @@ export class RecordAdoptionHandler
           courtStation: command.courtName || 'Not Specified',
           presidingJudge: undefined,
 
-          // Biological Parents
+          // Biological Parents (Unknown by default in this flow)
           biologicalMotherId: undefined,
           biologicalFatherId: undefined,
           parentalConsentStatus: {
@@ -121,38 +123,38 @@ export class RecordAdoptionHandler
           },
           consentDocuments: command.agreementDocumentId ? [command.agreementDocumentId] : [],
 
-          // Social Welfare
+          // Social Welfare (Not provided in MVP command)
           socialWorkerId: undefined,
           socialWorkerReportId: undefined,
           homeStudyReportId: undefined,
           postAdoptionMonitoring: false,
           monitoringPeriodMonths: 0,
 
-          // Adoption Agency
+          // Agency
           adoptionAgencyId: undefined,
           agencySocialWorker: undefined,
           agencyApprovalNumber: undefined,
 
-          // International Adoption Specific
+          // International
           receivingCountry: undefined,
           sendingCountry: undefined,
           hagueConventionCompliant: false,
           immigrationDocumentId: undefined,
 
-          // Customary Adoption Specific
+          // Customary Adoption Specifics
           clanInvolved: !!command.clanElders && command.clanElders.length > 0,
           clanElders: command.clanElders || [],
           customaryRitesPerformed: command.ceremonyLocation ? [command.ceremonyLocation] : [],
           bridePriceConsideration: undefined,
 
-          // Financial Aspects
+          // Financial
           adoptionExpenses: 0,
           governmentFeesPaid: false,
           legalFeesPaid: false,
           subsidyReceived: false,
           subsidyAmount: undefined,
 
-          // Child Information at Adoption
+          // Child Context
           childAgeAtAdoption: childAgeAtAdoption,
           childSpecialNeeds: false,
           specialNeedsDescription: undefined,
@@ -163,7 +165,7 @@ export class RecordAdoptionHandler
           siblingAdoptionRecordIds: [],
 
           // Previous Care
-          previousCareArrangement: 'RELATIVE_CARE', // Default assumption
+          previousCareArrangement: 'RELATIVE_CARE', // Safe default
           timeInPreviousCareMonths: 0,
 
           // Post-Adoption Contact
@@ -172,19 +174,19 @@ export class RecordAdoptionHandler
           visitationSchedule: undefined,
 
           // Inheritance Rights
-          inheritanceRightsEstablished: true, // Adoption establishes inheritance rights
+          inheritanceRightsEstablished: true, // Key Value Proposition
           inheritanceDocumentId: command.agreementDocumentId,
 
-          // Citizenship & Documentation
+          // Citizenship
           newBirthCertificateIssued: false,
           newBirthCertificateNumber: undefined,
           passportIssued: false,
           passportNumber: undefined,
 
-          // Appeals and Challenges
+          // Appeals
           appealFiled: false,
           appealCaseNumber: undefined,
-          challengePeriodExpired: true, // Assuming adoption is already finalized and challenge period passed
+          challengePeriodExpired: true,
 
           // Verification
           verificationStatus: 'UNVERIFIED',
@@ -201,6 +203,7 @@ export class RecordAdoptionHandler
       );
 
       // 7. Apply to Aggregate
+      // This will also trigger the creation of the PARENT-CHILD relationship via `defineRelationship` inside the aggregate
       family.recordAdoption(adoptionRecord);
 
       // 8. Save
@@ -212,14 +215,10 @@ export class RecordAdoptionHandler
       return Result.ok(recordId.toString());
     } catch (error) {
       if (error instanceof Error) {
-        // Handle aggregate validation errors
         if (error.message.includes('Adoptee must be')) {
           return Result.fail(new AppErrors.ValidationError(error.message));
         }
         if (error.message.includes('cannot be the same person')) {
-          return Result.fail(new AppErrors.ValidationError(error.message));
-        }
-        if (error.message.includes('Application date cannot be in the future')) {
           return Result.fail(new AppErrors.ValidationError(error.message));
         }
       }
@@ -228,32 +227,17 @@ export class RecordAdoptionHandler
     }
   }
 
-  /**
-   * Map command adoption type to entity adoption type
-   */
-  private mapAdoptionType(
-    commandType: 'FORMAL' | 'CUSTOMARY',
-  ):
-    | 'STATUTORY'
-    | 'CUSTOMARY'
-    | 'INTERNATIONAL'
-    | 'KINSHIP'
-    | 'FOSTER_TO_ADOPT'
-    | 'STEP_PARENT'
-    | 'RELATIVE' {
+  private mapAdoptionType(commandType: 'FORMAL' | 'CUSTOMARY'): 'STATUTORY' | 'CUSTOMARY' {
     switch (commandType) {
       case 'FORMAL':
         return 'STATUTORY';
       case 'CUSTOMARY':
         return 'CUSTOMARY';
       default:
-        return 'STATUTORY'; // Default to statutory for safety
+        return 'STATUTORY';
     }
   }
 
-  /**
-   * Calculate child age at adoption in months
-   */
   private calculateChildAgeAtAdoption(dateOfBirth?: Date, adoptionDate?: Date): number {
     if (!dateOfBirth || !adoptionDate) {
       return 0;
@@ -263,14 +247,12 @@ export class RecordAdoptionHandler
     const adoptionDay = new Date(adoptionDate);
 
     if (adoptionDay < birthDate) {
-      return 0; // Adoption before birth shouldn't happen, but handle gracefully
+      return 0;
     }
 
-    // Calculate months difference
     let months = (adoptionDay.getFullYear() - birthDate.getFullYear()) * 12;
     months += adoptionDay.getMonth() - birthDate.getMonth();
 
-    // Adjust for days
     if (adoptionDay.getDate() < birthDate.getDate()) {
       months--;
     }

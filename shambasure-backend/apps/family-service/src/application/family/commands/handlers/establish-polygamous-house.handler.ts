@@ -7,7 +7,7 @@ import { FamilyMember } from '../../../../domain/entities/family-member.entity';
 import { PolygamousHouse } from '../../../../domain/entities/polygamous-house.entity';
 import type { IFamilyRepository } from '../../../../domain/interfaces/ifamily.repository';
 import { FAMILY_REPOSITORY } from '../../../../domain/interfaces/ifamily.repository';
-import { Gender, KenyanCounty } from '../../../../domain/value-objects/family-enums.vo';
+import { Gender } from '../../../../domain/value-objects/family-enums.vo';
 import { AppErrors } from '../../../common/application.error';
 import { BaseCommandHandler } from '../../../common/base/base.command-handler';
 import { Result } from '../../../common/result';
@@ -39,10 +39,11 @@ export class EstablishPolygamousHouseHandler
       }
 
       // 2. Validate Family State (S.40 Pre-requisites)
+      // The Aggregate method `establishPolygamousHouse` also checks this, but failing fast here is good UX
       if (!family.isPolygamous()) {
         return Result.fail(
           new AppErrors.ConflictError(
-            'Cannot establish a Polygamous House in a Monogamous family. Please register a second valid marriage first.',
+            'Cannot establish a Polygamous House in a Monogamous family. Please register a second valid marriage first to trigger S.40 compliance.',
           ),
         );
       }
@@ -56,14 +57,16 @@ export class EstablishPolygamousHouseHandler
         );
       }
 
-      // Verify this member is female (for wife role)
-      const originalWifeGender: Gender = originalWife.props.gender;
-      if (originalWifeGender !== Gender.FEMALE) {
-        return Result.fail(new AppErrors.ValidationError('Original wife must be female.'));
+      // Digital Lawyer: Verify this member is female (Traditional S.40 House Logic)
+      if (originalWife.props.gender !== Gender.FEMALE) {
+        return Result.fail(
+          new AppErrors.ValidationError('Original wife establishing a House must be female.'),
+        );
       }
 
-      // 4. Validate house head (could be the wife or someone else)
-      let houseHead: FamilyMember = originalWife; // Default to wife as house head
+      // 4. Validate house head (could be the wife or the husband/patriarch)
+      // Usually, the House Head is the Wife herself, or the Husband managing that specific house
+      let houseHead: FamilyMember = originalWife;
 
       if (command.houseHeadId && command.houseHeadId !== command.originalWifeId) {
         const houseHeadId = new UniqueEntityID(command.houseHeadId);
@@ -81,7 +84,7 @@ export class EstablishPolygamousHouseHandler
         houseHead = foundHouseHead;
       }
 
-      // 5. Check for duplicate house order
+      // 5. Check for duplicate house order (Aggregate does this too, but we check here for specific error)
       const existingHouse = family.props.houses.find(
         (house) => house.props.houseOrder === command.houseOrder,
       );
@@ -95,16 +98,6 @@ export class EstablishPolygamousHouseHandler
       // 6. Create Entity
       const houseId = new UniqueEntityID();
       const userId = new UniqueEntityID(command.userId);
-
-      // Handle optional successorId
-      const successorId = command.successorId ? new UniqueEntityID(command.successorId) : undefined;
-
-      // Handle optional residentialCounty (assuming it's an enum)
-      let residentialCounty: KenyanCounty | undefined;
-      if (command.residentialCounty) {
-        // You might need to validate/enforce the enum type here
-        residentialCounty = command.residentialCounty;
-      }
 
       const house = PolygamousHouse.create(
         {
@@ -125,21 +118,21 @@ export class EstablishPolygamousHouseHandler
           establishmentLocation: command.establishmentLocation,
 
           // Legal Status
-          courtRecognized: false, // Default, can be verified later
+          courtRecognized: false,
           courtRecognitionDate: undefined,
           courtCaseNumber: undefined,
           recognitionDocumentId: undefined,
 
           // House Members
-          wifeIds: [originalWife.id], // Start with the original wife
+          wifeIds: [originalWife.id],
           childrenIds: [],
-          memberCount: 1, // Denormalized count
+          memberCount: 1, // Starting with the wife
 
-          // House Assets (empty initially)
+          // Assets
           houseAssets: [],
 
           // S.40 Distribution Rules
-          distributionWeight: command.distributionWeight || 1.0,
+          distributionWeight: command.distributionWeight || 1.0, // Default 1 share
           specialAllocation: command.specialAllocation,
 
           // House Status
@@ -153,18 +146,18 @@ export class EstablishPolygamousHouseHandler
           traditionalName: command.traditionalName,
           houseMotto: command.houseMotto,
 
-          // Residential Information
+          // Residential
           primaryResidence: command.primaryResidence,
-          residentialCounty: residentialCounty,
+          residentialCounty: command.residentialCounty,
           hasSeparateHomestead: command.hasSeparateHomestead || false,
 
-          // Financial Information
+          // Financial
           houseMonthlyExpenses: command.houseMonthlyExpenses,
           houseAnnualIncome: command.houseAnnualIncome,
           financialDependents: command.financialDependents || 0,
 
-          // Succession Planning
-          successorId: successorId,
+          // Succession
+          successorId: command.successorId ? new UniqueEntityID(command.successorId) : undefined,
           successionRules: command.successionRules,
 
           // Metadata
@@ -172,10 +165,8 @@ export class EstablishPolygamousHouseHandler
           lastUpdatedBy: userId,
           verificationStatus: 'UNVERIFIED',
           verificationNotes: command.verificationNotes,
-
-          // Audit
-          lastAuditedAt: undefined,
           isArchived: false,
+          lastAuditedAt: undefined,
         },
         houseId,
       );
@@ -198,11 +189,8 @@ export class EstablishPolygamousHouseHandler
         if (error.message.includes('non-polygamous')) {
           return Result.fail(new AppErrors.ValidationError(error.message));
         }
-        if (error.message.includes('must have at least one wife')) {
-          return Result.fail(new AppErrors.ValidationError(error.message));
-        }
-        if (error.message.includes('House order must be at least 1')) {
-          return Result.fail(new AppErrors.ValidationError(error.message));
+        if (error.message.includes('Polygamous houses exist without')) {
+          return Result.fail(new AppErrors.ConflictError(error.message));
         }
       }
       return Result.fail(new AppErrors.UnexpectedError(error));

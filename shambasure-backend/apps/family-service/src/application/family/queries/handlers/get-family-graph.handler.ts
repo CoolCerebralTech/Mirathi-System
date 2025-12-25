@@ -3,6 +3,7 @@ import { IQueryHandler, QueryBus, QueryHandler } from '@nestjs/cqrs';
 
 import type { IFamilyRepository } from '../../../../domain/interfaces/ifamily.repository';
 import { FAMILY_REPOSITORY } from '../../../../domain/interfaces/ifamily.repository';
+import { RelationshipType } from '../../../../domain/value-objects/family-enums.vo';
 import { AppErrors } from '../../../common/application.error';
 import { BaseQueryHandler } from '../../../common/base/base.query-handler';
 import { Result } from '../../../common/result';
@@ -32,9 +33,32 @@ export class GetFamilyGraphHandler
       const nodes: GraphNode[] = [];
       const edges: GraphEdge[] = [];
 
+      // 0. Pre-calculation: S.40 House Mapping (for Coloring)
+      // This allows us to visually group members by House (e.g., House 1 = Blue)
+      const houseColors = ['#3498db', '#e67e22', '#9b59b6', '#2ecc71', '#f1c40f']; // Palette
+      const memberHouseMap = new Map<string, { id: string; color: string }>();
+
+      family.props.houses.forEach((house, index) => {
+        const color = houseColors[index % houseColors.length];
+
+        // Map Wife
+        memberHouseMap.set(house.props.originalWifeId.toString(), {
+          id: house.id.toString(),
+          color,
+        });
+
+        // Map Children (If they are linked via IDs in the house entity)
+        // In a full implementation, we might check relationships, but for now we use the house props
+        house.props.childrenIds.forEach((childId) => {
+          memberHouseMap.set(childId.toString(), { id: house.id.toString(), color });
+        });
+      });
+
       // 1. Build Nodes (Members)
       family.props.members.forEach((member) => {
         if (!member.props.isArchived || query.includeArchived) {
+          const houseInfo = memberHouseMap.get(member.id.toString());
+
           nodes.push({
             id: member.id.toString(),
             type: 'MEMBER',
@@ -44,9 +68,13 @@ export class GetFamilyGraphHandler
               dateOfBirth: member.props.dateOfBirth?.toISOString(),
               isAlive: member.props.isAlive,
               isHeadOfFamily: member.props.isHeadOfFamily,
-              isVerified: member.props.verificationStatus === 'VERIFIED',
-              hasMissingData: !member.props.nationalId, // UI Trigger
+              isVerified: member.props.nationalIdVerified,
+              hasMissingData: !member.props.nationalId || !member.props.dateOfBirth,
               photoUrl: member.props.profilePictureUrl,
+
+              // S.40 Visuals
+              houseId: houseInfo?.id,
+              houseColor: houseInfo?.color,
             },
           });
         }
@@ -55,11 +83,26 @@ export class GetFamilyGraphHandler
       // 2. Build Edges (Relationships)
       family.props.relationships.forEach((rel) => {
         if (!rel.props.isArchived) {
+          // Determine Graph Direction: Source -> Target
+          // Usually we want Parent -> Child for hierarchy
+          let source = rel.props.fromMemberId.toString();
+          let target = rel.props.toMemberId.toString();
+          let type: GraphEdge['type'] = 'PARENT_CHILD';
+
+          if (rel.props.relationshipType === RelationshipType.CHILD) {
+            // Edge says "From Member is CHILD of To Member"
+            // Visual Graph prefers "Parent -> Child"
+            source = rel.props.toMemberId.toString();
+            target = rel.props.fromMemberId.toString();
+          } else if (rel.props.relationshipType === RelationshipType.SIBLING) {
+            type = 'SIBLING';
+          }
+
           edges.push({
             id: rel.id.toString(),
-            source: rel.props.fromMemberId.toString(),
-            target: rel.props.toMemberId.toString(),
-            type: 'PARENT_CHILD', // Simplified mapping
+            source,
+            target,
+            type: type,
             data: {
               isBiological: rel.props.isBiological,
               isLegal: rel.props.isLegal,
@@ -67,8 +110,10 @@ export class GetFamilyGraphHandler
               label: rel.props.relationshipType,
             },
             style: {
-              stroke: rel.props.isBiological ? '#2ecc71' : '#3498db', // Green for bio, Blue for legal
-              strokeWidth: 2,
+              // Digital Lawyer Visuals: Dotted lines for unverified data
+              stroke: rel.props.isBiological ? '#27ae60' : '#2980b9', // Green (Bio) vs Blue (Legal)
+              strokeWidth: rel.props.relationshipType === RelationshipType.PARENT ? 2 : 1,
+              strokeDasharray: rel.props.verificationLevel === 'UNVERIFIED' ? '5,5' : undefined,
             },
           });
         }
@@ -89,15 +134,46 @@ export class GetFamilyGraphHandler
               label: marriage.props.marriageType,
             },
             style: {
-              stroke: '#e74c3c', // Red for marriage
-              strokeWidth: 3,
+              stroke: '#c0392b', // Red for marriage
+              strokeWidth: 2,
             },
           });
         }
       });
 
+      // 4. Build Edges (Cohabitations) - S.29 Support
+      family.props.cohabitations.forEach((cohab) => {
+        if (cohab.props.isActive) {
+          edges.push({
+            id: cohab.id.toString(),
+            source: cohab.props.partner1Id.toString(),
+            target: cohab.props.partner2Id.toString(),
+            type: 'COHABITATION',
+            data: {
+              isBiological: false,
+              isLegal: false,
+              isVerified: false,
+              label: 'Come-we-stay',
+            },
+            style: {
+              stroke: '#8e44ad', // Purple
+              strokeWidth: 2,
+              strokeDasharray: '4,4', // Always dashed/dotted as it's not full marriage
+            },
+          });
+        }
+      });
+
+      // 5. Calculate Stats
+      const stats = {
+        nodesCount: nodes.length,
+        edgesCount: edges.length,
+        generations: 3, // Placeholder for MVP
+      };
+
       return Result.ok({
         familyId: family.id.toString(),
+        stats,
         nodes,
         edges,
       });

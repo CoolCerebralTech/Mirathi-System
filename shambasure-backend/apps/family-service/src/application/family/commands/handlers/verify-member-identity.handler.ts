@@ -5,6 +5,7 @@ import { FamilyAggregate } from '../../../../domain/aggregates/family.aggregate'
 import { UniqueEntityID } from '../../../../domain/base/unique-entity-id';
 import type { IFamilyRepository } from '../../../../domain/interfaces/ifamily.repository';
 import { FAMILY_REPOSITORY } from '../../../../domain/interfaces/ifamily.repository';
+import { KenyanNationalId } from '../../../../domain/value-objects/kenyan-identity.vo';
 import { AppErrors } from '../../../common/application.error';
 import { BaseCommandHandler } from '../../../common/base/base.command-handler';
 import { Result } from '../../../common/result';
@@ -42,20 +43,24 @@ export class VerifyMemberIdentityHandler
       }
 
       // 3. Update Identity Data (if correction provided)
+      const verifierId = new UniqueEntityID(command.userId);
+
       if (command.correctedNationalId) {
-        // We update the info before verifying
+        // Instantiate VO correctly
+        const nationalIdVO = new KenyanNationalId(command.correctedNationalId);
+
         member.updateInformation(
           {
-            nationalId: { toString: () => command.correctedNationalId } as any, // Using simple cast for VO
+            nationalId: nationalIdVO,
           },
-          new UniqueEntityID(command.userId),
+          verifierId,
         );
       }
 
       // 4. Verify
-      const verifierId = new UniqueEntityID(command.userId);
       const verificationNotes = `${command.verificationMethod}: ${command.notes || ''}`;
 
+      // Assuming verifyNationalId method exists on FamilyMember entity
       member.verifyNationalId(command.isValid, verifierId, verificationNotes);
 
       // 5. Save
@@ -69,8 +74,13 @@ export class VerifyMemberIdentityHandler
       if (error instanceof Error) {
         if (error.message.includes('non-existent national ID')) {
           return Result.fail(
-            new AppErrors.ValidationError('Cannot verify a member without a National ID number.'),
+            new AppErrors.ValidationError(
+              'Cannot verify a member without a National ID number. Please provide a corrected ID.',
+            ),
           );
+        }
+        if (error.message.includes('Validation')) {
+          return Result.fail(new AppErrors.ValidationError(error.message));
         }
       }
       return Result.fail(new AppErrors.UnexpectedError(error));

@@ -56,15 +56,9 @@ export class DefineRelationshipHandler
       const creatorId = new UniqueEntityID(command.userId);
 
       // Determine verification level based on evidence
-      // Use the correct enum values for verificationMethod
-      const verificationLevel = command.evidenceDocumentId
-        ? 'PARTIALLY_VERIFIED' // Starts as partially verified if document attached
-        : 'UNVERIFIED';
+      const verificationLevel = command.evidenceDocumentId ? 'PARTIALLY_VERIFIED' : 'UNVERIFIED';
 
-      // Use correct verification method values
-      const verificationMethod = command.evidenceDocumentId
-        ? 'DOCUMENT' // Changed from 'DOCUMENT_EVIDENCE' to 'DOCUMENT'
-        : 'FAMILY_CONSENSUS'; // Changed from 'USER_DECLARED' to 'FAMILY_CONSENSUS'
+      const verificationMethod = command.evidenceDocumentId ? 'DOCUMENT' : 'FAMILY_CONSENSUS';
 
       // 4. Create Relationship Entity
       const relationship = FamilyRelationship.create(
@@ -78,7 +72,7 @@ export class DefineRelationshipHandler
           // Relationship Dimensions
           isBiological: command.isBiological || false,
           isLegal: command.isLegal || false,
-          isCustomary: command.isCustomary || true, // Defaulting to culturally recognized
+          isCustomary: command.isCustomary || true, // Default to true if user says so, verified later
           isSpiritual: false,
 
           // Temporal Aspects
@@ -86,69 +80,49 @@ export class DefineRelationshipHandler
 
           // Legal Context
           legalDocuments: command.evidenceDocumentId ? [command.evidenceDocumentId] : [],
-          courtOrderId: undefined,
 
           // Verification Status
           verificationLevel: verificationLevel,
           verificationMethod: verificationMethod,
+          // verificationScore is auto-calculated by Entity if undefined, but we can hint it
           verificationScore: command.evidenceDocumentId ? 50 : 10,
-          lastVerifiedAt: undefined,
-          verifiedBy: undefined,
 
-          // Biological Details
-          biologicalConfidence: undefined,
-          dnaTestId: undefined,
-          dnaMatchPercentage: undefined,
-
-          // Legal Details
-          adoptionOrderId: undefined,
-          guardianshipOrderId: undefined,
-          marriageId: undefined,
-
-          // Customary Details
+          // Customary Details (Required by Props)
           customaryRecognition: command.isCustomary || true,
-          clanRecognized: false,
+          clanRecognized: false, // Default false until elder witness
           elderWitnesses: [],
 
-          // Relationship Strength
+          // Relationship Strength (Required by Props)
           relationshipStrength: command.relationshipStrength || 50,
           closenessIndex: command.closenessIndex || 50,
           contactFrequency: command.contactFrequency || 'MONTHLY',
 
-          // Dependency & Support
+          // Dependency (Required by Props)
           isFinancialDependent: false,
           isCareDependent: false,
-          dependencyLevel: undefined,
-          supportProvided: undefined,
 
-          // Inheritance Rights
+          // Inheritance (Required by Props)
           inheritanceRights: 'PENDING',
-          inheritancePercentage: undefined,
           disinherited: false,
-          disinheritanceReason: undefined,
 
-          // Communication & Conflict
-          communicationLanguage: undefined,
+          // Conflict (Required by Props)
           hasConflict: false,
-          conflictResolutionStatus: undefined,
 
           // Cultural Context
           relationshipTerm: command.relationshipTerm,
-          culturalSignificance: undefined,
-          taboos: [],
+          taboos: [], // Default empty
 
           // Metadata
           createdBy: creatorId,
           lastUpdatedBy: creatorId,
           notes: command.notes,
-
-          // Audit
           isArchived: false,
         },
         relationshipId,
       );
 
       // 5. Apply to Aggregate
+      // This will throw if a duplicate exists or a cycle is detected
       family.defineRelationship(relationship);
 
       // 6. Save
@@ -189,7 +163,6 @@ export class DefineRelationshipHandler
 
   /**
    * Helper to determine the semantic inverse of a relationship.
-   * This helps the read-models navigate the graph backwards.
    */
   private getInverseRelationship(type: RelationshipType): RelationshipType {
     switch (type) {
@@ -216,7 +189,7 @@ export class DefineRelationshipHandler
       case RelationshipType.COUSIN:
         return RelationshipType.COUSIN;
       case RelationshipType.GUARDIAN:
-        return RelationshipType.OTHER;
+        return RelationshipType.OTHER; // Inverse of Guardian isn't strictly defined, usually Ward (Child)
       default:
         return RelationshipType.OTHER;
     }

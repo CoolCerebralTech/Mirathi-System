@@ -2,7 +2,7 @@ import { BaseQuery } from '../../../common/base/base.query';
 
 /**
  * Query to fetch full profile details of a specific person.
- * Includes Bio, Docs, and immediate kinship links.
+ * Includes Bio, Documents, Legal Status, and rich kinship links.
  */
 export class GetFamilyMemberQuery extends BaseQuery {
   public readonly familyId: string;

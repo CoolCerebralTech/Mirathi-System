@@ -1,7 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-import { KenyanCounty } from '../../../../domain/value-objects/family-enums.vo';
-
 export class FamilyStatsDto {
   @ApiProperty()
   totalMembers: number;
@@ -17,11 +15,14 @@ export class FamilyStatsDto {
 
   @ApiProperty()
   generationsCount: number;
+
+  @ApiProperty()
+  potentialDependents: number;
 }
 
 export class FamilyStructureDto {
   @ApiProperty({
-    enum: ['NUCLEAR', 'EXTENDED', 'POLYGAMOUS', 'SINGLE_PARENT', 'BLENDED', 'COMPLEX'],
+    enum: ['NUCLEAR', 'EXTENDED', 'POLYGAMOUS', 'SINGLE_PARENT', 'BLENDED', 'COMPLEX', 'UNKNOWN'],
   })
   type: string;
 
@@ -30,9 +31,15 @@ export class FamilyStructureDto {
 
   @ApiProperty()
   isS40Compliant: boolean;
+
+  @ApiProperty({ enum: ['MONOGAMOUS', 'POLYGAMOUS', 'POTENTIALLY_POLYGAMOUS'] })
+  polygamyStatus: string;
 }
 
 export class RecentEventDto {
+  @ApiProperty()
+  eventId: string;
+
   @ApiProperty()
   date: Date;
 
@@ -46,6 +53,21 @@ export class RecentEventDto {
   type: string;
 }
 
+export class CompletenessDto {
+  @ApiProperty()
+  score: number;
+
+  @ApiProperty()
+  missingFieldsCount: number;
+
+  @ApiPropertyOptional()
+  nextRecommendedAction?: {
+    title: string;
+    route: string;
+    reason: string;
+  };
+}
+
 export class FamilyDetailsDto {
   @ApiProperty()
   familyId: string;
@@ -56,11 +78,14 @@ export class FamilyDetailsDto {
   @ApiPropertyOptional()
   description?: string;
 
-  @ApiProperty({ enum: KenyanCounty })
-  county: KenyanCounty | string;
+  @ApiProperty()
+  county: string; // Simplified to string to avoid Enum union errors
 
   @ApiPropertyOptional()
   clanName?: string;
+
+  @ApiPropertyOptional()
+  totem?: string;
 
   @ApiProperty({ type: FamilyStatsDto })
   stats: FamilyStatsDto;
@@ -71,6 +96,6 @@ export class FamilyDetailsDto {
   @ApiProperty({ type: [RecentEventDto] })
   recentEvents: RecentEventDto[];
 
-  @ApiProperty({ description: '0-100 score indicating data quality' })
-  completenessScore: number;
+  @ApiProperty({ type: CompletenessDto })
+  completeness: CompletenessDto;
 }

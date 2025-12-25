@@ -26,6 +26,13 @@ class GraphNodeDataDto {
 
   @ApiPropertyOptional()
   photoUrl?: string;
+
+  // --- S.40 Visualization ---
+  @ApiPropertyOptional({ description: 'UUID of the polygamous house this member belongs to' })
+  houseId?: string;
+
+  @ApiPropertyOptional({ description: 'Hex color code for the house (e.g. #FF5733)' })
+  houseColor?: string;
 }
 
 export class GraphNodeDto {
@@ -37,6 +44,9 @@ export class GraphNodeDto {
 
   @ApiProperty({ type: GraphNodeDataDto })
   data: GraphNodeDataDto;
+
+  @ApiPropertyOptional()
+  generationLevel?: number;
 }
 
 class GraphEdgeDataDto {
@@ -59,6 +69,12 @@ class GraphEdgeStyleDto {
 
   @ApiPropertyOptional()
   strokeWidth?: number;
+
+  @ApiPropertyOptional({ description: 'SVG stroke-dasharray for dotted lines (e.g. "5,5")' })
+  strokeDasharray?: string;
+
+  @ApiPropertyOptional({ description: 'If true, UI should animate this edge flow' })
+  animated?: boolean;
 }
 
 export class GraphEdgeDto {
@@ -71,8 +87,8 @@ export class GraphEdgeDto {
   @ApiProperty()
   target: string;
 
-  @ApiProperty({ enum: ['PARENT_CHILD', 'SPOUSE', 'SIBLING'] })
-  type: 'PARENT_CHILD' | 'SPOUSE' | 'SIBLING';
+  @ApiProperty({ enum: ['PARENT_CHILD', 'SPOUSE', 'SIBLING', 'COHABITATION'] })
+  type: 'PARENT_CHILD' | 'SPOUSE' | 'SIBLING' | 'COHABITATION';
 
   @ApiProperty({ type: GraphEdgeDataDto })
   data: GraphEdgeDataDto;
@@ -81,9 +97,23 @@ export class GraphEdgeDto {
   style?: GraphEdgeStyleDto;
 }
 
+class FamilyGraphStatsDto {
+  @ApiProperty()
+  nodesCount: number;
+
+  @ApiProperty()
+  edgesCount: number;
+
+  @ApiProperty()
+  generations: number;
+}
+
 export class FamilyTreeDto {
   @ApiProperty()
   familyId: string;
+
+  @ApiProperty({ type: FamilyGraphStatsDto })
+  stats: FamilyGraphStatsDto;
 
   @ApiProperty({ type: [GraphNodeDto] })
   nodes: GraphNodeDto[];

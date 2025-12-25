@@ -1,14 +1,20 @@
-import { RelationshipType } from '../../../../domain/value-objects/family-enums.vo';
-import { Gender, KenyanCounty } from '../../../../domain/value-objects/family-enums.vo';
+import {
+  Gender,
+  KenyanCounty,
+  RelationshipType,
+} from '../../../../domain/value-objects/family-enums.vo';
 import { BaseCommand } from '../../../common/base/base.command';
 
 /**
  * Command to add a person to an existing family tree.
  *
  * Investor Note / "Smart Add":
- * This command supports an optional 'relationshipContext'.
- * This allows the frontend to say "Add John as the Son of Peter" in one atomic operation,
- * ensuring the graph is always connected and valid.
+ * This command supports an optional 'relationshipContext' (Smart Link).
+ *
+ * DIGITAL LAWYER CHECK:
+ * This command is strictly for adding blood relatives (Child, Parent, Sibling) or unrelated members.
+ * It strictly forbids adding a SPOUSE via this command, as Spouses require a 'Marriage' entity
+ * (Civil/Customary) to ensure S.40 Polygamy compliance.
  */
 export class AddFamilyMemberCommand extends BaseCommand {
   public readonly familyId: string;
@@ -24,12 +30,14 @@ export class AddFamilyMemberCommand extends BaseCommand {
   // Kenyan Context
   public readonly nationalId?: string;
   public readonly placeOfBirth?: KenyanCounty;
-  public readonly tribe?: string; // Optional, defaults to Family's clan if not set
+  public readonly tribe?: string;
 
   // "Smart Link" Context
-  // If provided, we automatically create the graph edge
-  public readonly relativeId?: string; // e.g., The Father's ID
-  public readonly relationshipToRelative?: RelationshipType; // e.g. CHILD (New member is CHILD of Relative)
+  public readonly relativeId?: string;
+  public readonly relationshipToRelative?: RelationshipType;
+
+  // New: Default to true for this command (Adoptions use a different command)
+  public readonly isBiological: boolean;
 
   constructor(props: {
     userId: string;
@@ -45,6 +53,7 @@ export class AddFamilyMemberCommand extends BaseCommand {
     tribe?: string;
     relativeId?: string;
     relationshipToRelative?: RelationshipType;
+    isBiological?: boolean;
     correlationId?: string;
   }) {
     super({ userId: props.userId, correlationId: props.correlationId });
@@ -60,6 +69,7 @@ export class AddFamilyMemberCommand extends BaseCommand {
     this.tribe = props.tribe;
     this.relativeId = props.relativeId;
     this.relationshipToRelative = props.relationshipToRelative;
+    this.isBiological = props.isBiological ?? true; // Default to true for manual adds
   }
 
   public validate(): void {
@@ -71,6 +81,13 @@ export class AddFamilyMemberCommand extends BaseCommand {
     // Logic: If you provide a relationship type, you must provide the relative ID
     if (this.relationshipToRelative && !this.relativeId) {
       throw new Error('If specifying a relationship type, you must provide the relative ID.');
+    }
+
+    // DIGITAL LAWYER: Prevent "Backdoor Marriages"
+    if (this.relationshipToRelative === RelationshipType.SPOUSE) {
+      throw new Error(
+        'Cannot add a Spouse via this command. Please use "Register Marriage" to ensure legal compliance (S.40).',
+      );
     }
   }
 }

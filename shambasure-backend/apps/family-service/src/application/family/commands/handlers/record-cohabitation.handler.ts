@@ -51,13 +51,18 @@ export class RecordCohabitationHandler
       }
 
       // 3. Business Rule: Check for incestuous cohabitation (Strict Liability)
-      // Use proper method to get last names instead of accessing protected props
-      // Assuming FamilyMember has a method to get last name
-      const partner1LastName = this.getMemberLastName(partner1);
-      const partner2LastName = this.getMemberLastName(partner2);
+      // Accessing name details via toJSON() since props are protected
+      const p1Name = partner1.props.name.toJSON();
+      const p2Name = partner2.props.name.toJSON();
 
-      if (partner1LastName && partner2LastName && partner1LastName === partner2LastName) {
-        // Warning level logging, but we don't block unless we know for sure via relationships
+      const partner1LastName = p1Name.lastName;
+      const partner2LastName = p2Name.lastName;
+
+      if (
+        partner1LastName &&
+        partner2LastName &&
+        partner1LastName.toLowerCase() === partner2LastName.toLowerCase()
+      ) {
         this.logger.warn(
           `Potential kinship warning: Partners share last name '${partner1LastName}'`,
         );
@@ -73,9 +78,9 @@ export class RecordCohabitationHandler
       const durationDays = Math.floor(durationMs / (1000 * 60 * 60 * 24));
 
       // Determine relationship type based on exclusivity
-      const relationshipType: 'COME_WE_STAY' | 'LONG_TERM_PARTNERSHIP' | 'DATING' | 'ENGAGED' =
-        command.isExclusive ? 'COME_WE_STAY' : 'DATING';
+      const relationshipType = command.isExclusive ? 'COME_WE_STAY' : 'DATING';
 
+      // 5. Instantiate Entity
       const cohabitation = CohabitationRecord.create(
         {
           // Core Information
@@ -101,25 +106,24 @@ export class RecordCohabitationHandler
 
           // Evidence & Verification
           affidavitId: command.affidavitId,
-          witnesses: [], // Can be added later
-          communityAcknowledged: false, // Default
-          hasJointUtilities: false, // Default
+          witnesses: command.witnesses || [],
+          communityAcknowledged: command.communityAcknowledged || false,
 
-          // Children from Cohabitation
+          // Children
           childrenIds: [],
           hasChildren: command.hasChildrenTogether,
           childrenBornDuringCohabitation: command.hasChildrenTogether,
 
           // Financial Interdependence
-          jointFinancialAccounts: command.jointAssets || false,
-          jointPropertyOwnership: command.jointAssets || false,
+          jointFinancialAccounts: command.jointFinancialAccounts || false,
+          jointPropertyOwnership: command.jointPropertyOwnership || false,
           financialSupportProvided: false, // Default
           supportEvidence: [],
 
           // Social Recognition
-          knownAsCouple: false, // Default
+          knownAsCouple: command.knownAsCouple || false,
+          familyAcknowledged: command.familyAcknowledged || false,
           socialMediaEvidence: undefined,
-          familyAcknowledged: false, // Default
 
           // Legal Proceedings
           hasCourtRecognition: false,
@@ -150,6 +154,9 @@ export class RecordCohabitationHandler
           plannedMarriageDate: undefined,
           childrenPlanned: false,
 
+          // Utilities
+          hasJointUtilities: false,
+
           // Metadata
           createdBy: creatorId,
           lastUpdatedBy: creatorId,
@@ -163,13 +170,13 @@ export class RecordCohabitationHandler
         recordId,
       );
 
-      // 5. Apply to Aggregate
+      // 6. Apply to Aggregate
       family.recordCohabitation(cohabitation);
 
-      // 6. Save
+      // 7. Save
       await this.repository.save(family);
 
-      // 7. Publish Events
+      // 8. Publish Events
       this.publishEventsAndCommit(family);
 
       return Result.ok(recordId.toString());
@@ -181,41 +188,12 @@ export class RecordCohabitationHandler
         if (error.message.includes('Cannot cohabitate with oneself')) {
           return Result.fail(new AppErrors.ValidationError(error.message));
         }
-        if (error.message.includes('At least one witness is required')) {
+        // Catch-all for entity validation errors
+        if (error.message.includes('required')) {
           return Result.fail(new AppErrors.ValidationError(error.message));
         }
       }
       return Result.fail(new AppErrors.UnexpectedError(error));
-    }
-  }
-
-  /**
-   * Helper to get last name from a family member
-   * Avoids accessing protected props directly
-   */
-  private getMemberLastName(member: any): string | undefined {
-    try {
-      // Try different ways to access the last name based on your entity structure
-      if (member.props && member.props.name) {
-        // If name has a getFullName or similar method
-        if (typeof member.props.name.getFullName === 'function') {
-          const fullName = member.props.name.getFullName();
-          // Extract last name from full name (assuming last word is last name)
-          const parts = fullName.split(' ');
-          return parts[parts.length - 1];
-        }
-        // If name has direct lastName property (not protected)
-        if (member.props.name.lastName) {
-          return member.props.name.lastName;
-        }
-        // If name has a method to get last name
-        if (typeof member.props.name.getLastName === 'function') {
-          return member.props.name.getLastName();
-        }
-      }
-      return undefined;
-    } catch {
-      return undefined;
     }
   }
 
@@ -226,25 +204,10 @@ export class RecordCohabitationHandler
     command: RecordCohabitationCommand,
     durationDays: number,
   ): boolean {
-    // Rule of thumb for S.29 eligibility:
-    // 1. 2+ years of cohabitation OR
-    // 2. Children together OR
-    // 3. Joint assets + at least some duration
-
-    if (durationDays >= 730) {
-      // 2 years
-      return true;
-    }
-
-    if (command.hasChildrenTogether) {
-      return true;
-    }
-
-    if (command.jointAssets && durationDays >= 180) {
-      // 6 months with joint assets
-      return true;
-    }
-
+    // S.29 Eligibility Heuristic
+    if (durationDays >= 730) return true; // 2 years
+    if (command.hasChildrenTogether) return true;
+    if (command.jointAssets && durationDays >= 180) return true; // 6 months + Assets
     return false;
   }
 }

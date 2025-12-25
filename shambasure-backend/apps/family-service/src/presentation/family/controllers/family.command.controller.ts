@@ -31,7 +31,7 @@ import { AddFamilyMemberDto } from '../dto/request/add-family-member.dto';
 import { ArchiveFamilyDto } from '../dto/request/archive-family.dto';
 import { CreateFamilyDto } from '../dto/request/create-family.dto';
 import { DefineRelationshipDto } from '../dto/request/define-relationship.dto';
-import { EstablishPolygamousHouseDto } from '../dto/request/establish-house.dto';
+import { EstablishPolygamousHouseDto } from '../dto/request/establish-polygamous-house.dto';
 import { RecordAdoptionDto } from '../dto/request/record-adoption.dto';
 import { RecordCohabitationDto } from '../dto/request/record-cohabitation.dto';
 import { RegisterMarriageDto } from '../dto/request/register-marriage.dto';
@@ -216,6 +216,7 @@ export class FamilyCommandController {
     }
     const value = result.getValue();
     // Return object with ID if string, otherwise return value directly
+    // This allows the frontend to immediately redirect to the new entity
     return (typeof value === 'string' ? { id: value } : value) as any;
   }
 

@@ -24,7 +24,7 @@ export class RecordAdoptionCommand extends BaseCommand {
   public readonly lawyerName?: string; // Optional metadata
 
   // Customary Adoption
-  public readonly clanElders: string[]; // Names of witnesses - now required array
+  public readonly clanElders: string[]; // Names of witnesses
   public readonly ceremonyLocation?: string;
   public readonly agreementDocumentId?: string; // Scanned agreement
 
@@ -38,7 +38,7 @@ export class RecordAdoptionCommand extends BaseCommand {
     courtOrderNumber?: string;
     courtName?: string;
     lawyerName?: string;
-    clanElders?: string[]; // Keep optional in constructor for backward compatibility
+    clanElders?: string[];
     ceremonyLocation?: string;
     agreementDocumentId?: string;
     correlationId?: string;
@@ -52,7 +52,7 @@ export class RecordAdoptionCommand extends BaseCommand {
     this.courtOrderNumber = props.courtOrderNumber;
     this.courtName = props.courtName;
     this.lawyerName = props.lawyerName;
-    this.clanElders = props.clanElders || []; // Default to empty array
+    this.clanElders = props.clanElders || [];
     this.ceremonyLocation = props.ceremonyLocation;
     this.agreementDocumentId = props.agreementDocumentId;
   }
@@ -80,7 +80,7 @@ export class RecordAdoptionCommand extends BaseCommand {
 
     // Conditional Validation based on Type
     if (this.adoptionType === 'FORMAL' && !this.courtOrderNumber) {
-      throw new Error('Formal adoption requires a Court Order Number.');
+      throw new Error('Formal adoption requires a Court Order Number (Children Act compliance).');
     }
 
     if (this.adoptionType === 'CUSTOMARY' && this.clanElders.length < 2) {

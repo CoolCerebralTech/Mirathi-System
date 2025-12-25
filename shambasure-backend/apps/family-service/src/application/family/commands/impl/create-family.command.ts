@@ -5,16 +5,15 @@ import { BaseCommand } from '../../../common/base/base.command';
  * Command to initialize a new Family Tree.
  *
  * Investor Note:
- * This command doesn't just create an empty group. It establishes the "Genesis"
- * of the graph by creating the Family entity AND the first Member (the Creator)
- * simultaneously to ensure no family exists without a Head.
+ * This command establishes the "Genesis" of the graph.
+ * It atomically creates the Family Aggregate AND the first Member (the Creator).
  */
 export class CreateFamilyCommand extends BaseCommand {
   // Family Identity
   public readonly familyName: string;
   public readonly description?: string;
 
-  // Cultural Context (Optional but recommended for S.40/Customary logic)
+  // Cultural Context (Crucial for S.40 & Customary Logic)
   public readonly homeCounty?: KenyanCounty;
   public readonly clanName?: string;
   public readonly subClan?: string;
@@ -27,7 +26,7 @@ export class CreateFamilyCommand extends BaseCommand {
     middleName?: string;
     gender: Gender;
     dateOfBirth?: Date;
-    nationalId?: string; // Optional at creation, verified later
+    nationalId?: string; // String here, validated to VO in Handler
   };
 
   constructor(props: {
@@ -59,9 +58,6 @@ export class CreateFamilyCommand extends BaseCommand {
     this.creatorProfile = props.creatorProfile;
   }
 
-  /**
-   * Fail-fast validation before hitting the domain
-   */
   public validate(): void {
     super.validate();
 
@@ -71,6 +67,10 @@ export class CreateFamilyCommand extends BaseCommand {
 
     if (!this.creatorProfile.firstName || !this.creatorProfile.lastName) {
       throw new Error('Creator first and last name are required.');
+    }
+
+    if (!this.creatorProfile.gender) {
+      throw new Error('Creator gender is required for kinship graph initialization.');
     }
   }
 }

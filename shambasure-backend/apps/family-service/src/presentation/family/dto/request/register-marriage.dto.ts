@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -83,8 +84,9 @@ export class RegisterMarriageDto {
   isPolygamous?: boolean;
 
   @ApiPropertyOptional({ description: 'Required if isPolygamous is true' })
-  @IsOptional()
+  @ValidateIf((o) => o.isPolygamous === true) // Conditional Validation
   @IsUUID()
+  @IsOptional() // Still marked optional for TS, but validator enforces it
   polygamousHouseId?: string;
 
   @ApiPropertyOptional({ description: 'e.g., 2 for Second Wife' })

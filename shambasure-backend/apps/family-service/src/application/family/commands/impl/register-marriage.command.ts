@@ -82,17 +82,26 @@ export class RegisterMarriageCommand extends BaseCommand {
     if (!this.spouse1Id || !this.spouse2Id) throw new Error('Both spouses are required');
     if (this.spouse1Id === this.spouse2Id) throw new Error('Spouses cannot be the same person');
 
-    // Polygamy Validation
+    // Polygamy Validation (Digital Lawyer)
     if (this.isPolygamous && !this.polygamousHouseId) {
       throw new Error('Polygamous marriages must be assigned to a House (Establish House first).');
     }
 
-    // Civil Marriage Validation
+    // Civil Marriage Validation (Strict Monogamy)
     if (
       (this.marriageType === MarriageType.CIVIL || this.marriageType === MarriageType.CHRISTIAN) &&
       this.isPolygamous
     ) {
-      throw new Error('Civil and Christian marriages must be Monogamous under Kenyan Law.');
+      throw new Error(
+        'Civil and Christian marriages must be Monogamous under Kenyan Law (Marriage Act 2014).',
+      );
+    }
+
+    // Dowry Validation for Customary
+    if (this.marriageType === MarriageType.CUSTOMARY && !this.dowryPayment) {
+      // Warning or Error? Usually dowry is essential for validity in customary law.
+      // We will treat it as required for a "Registered" customary marriage.
+      throw new Error('Dowry payment details are required to register a Customary Marriage.');
     }
   }
 }

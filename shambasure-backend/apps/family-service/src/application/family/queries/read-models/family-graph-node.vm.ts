@@ -7,6 +7,13 @@ import { Gender } from '../../../../domain/value-objects/family-enums.vo';
 export interface FamilyGraphVM {
   familyId: string;
 
+  // Graph Metadata
+  stats: {
+    nodesCount: number;
+    edgesCount: number;
+    generations: number;
+  };
+
   // The Entities (People)
   nodes: GraphNode[];
 
@@ -28,18 +35,23 @@ export interface GraphNode {
     // Visual Cues
     isHeadOfFamily: boolean;
     isVerified: boolean;
-    hasMissingData: boolean; // Triggers UI warning
+    hasMissingData: boolean; // Triggers UI warning (Red border)
+
+    // Polygamy Visualization
+    houseId?: string; // To group nodes visually
+    houseColor?: string; // e.g., House 1 = Blue, House 2 = Green
   };
 
-  // Layout Hints (Optional, calculated by backend or frontend)
-  generationLevel?: number;
+  // Layout Hints
+  generationLevel?: number; // 0 (Founder), 1 (Children), 2 (Grandchildren)
+  position?: { x: number; y: number }; // Optional pre-calculated layout
 }
 
 export interface GraphEdge {
   id: string;
   source: string; // Member ID
   target: string; // Member ID
-  type: 'PARENT_CHILD' | 'SPOUSE' | 'SIBLING';
+  type: 'PARENT_CHILD' | 'SPOUSE' | 'SIBLING' | 'COHABITATION';
 
   data: {
     isBiological: boolean;
@@ -49,7 +61,9 @@ export interface GraphEdge {
   };
 
   style?: {
-    stroke?: string; // Dotted line for unverified, Solid for verified
+    stroke?: string; // Dotted (#ccc) for unverified, Solid (#000) for verified
     strokeWidth?: number;
+    strokeDasharray?: string; // "5,5" for dotted
+    animated?: boolean; // True for active cohabitation/monitoring
   };
 }

@@ -53,6 +53,7 @@ export class RegisterMarriageHandler
       const createdBy = new UniqueEntityID(command.userId);
 
       // 4. Map Command to Entity Props
+      // Strictly adhering to MarriageProps interface from marriage.entity.ts
       const marriage = Marriage.create(
         {
           spouse1Id: spouse1.id,
@@ -67,7 +68,7 @@ export class RegisterMarriageHandler
 
           // Legal Details
           registrationNumber: command.registrationNumber,
-          registeredBy: command.userId, // System user recorded it
+          registeredBy: command.userId, // Defaulting to system user; could be "Registrar" if known
 
           // Polygamy Logic (S.40)
           isPolygamous: command.isPolygamous,
@@ -81,25 +82,31 @@ export class RegisterMarriageHandler
           bridePriceAmount: command.dowryPayment?.amount,
           bridePriceCurrency: command.dowryPayment?.currency,
           bridePaidInFull: command.dowryPayment?.isPaidInFull || false,
+
+          // Construct CustomaryDetails object strictly
           customaryDetails:
             command.marriageType === MarriageType.CUSTOMARY
               ? {
                   location: command.location || 'Unknown',
-                  eldersPresent: command.witnesses, // Elders act as witnesses
-                  clanRepresentatives: [],
-                  traditionalRitesPerformed: ['Negotiations'], // Default
+                  eldersPresent: command.witnesses, // Elders act as witnesses in customary
+                  clanRepresentatives: [], // Can be updated later via specific command
+                  traditionalRitesPerformed: ['Negotiations'], // Default initial rite
                   livestockExchanged: command.dowryPayment?.livestockCount,
                 }
               : undefined,
 
-          // Defaults
+          // Defaults (Required by Entity)
           numberOfChildren: 0,
           childrenIds: [],
-          jointProperty: false, // Default to separate until proven otherwise
+          jointProperty: false,
           isMarriageDissolved: false,
-          waitingPeriodCompleted: true,
+          waitingPeriodCompleted: true, // Valid assumption for new registration
           isArchived: false,
+
+          // Verification
           verificationStatus: command.registrationNumber ? 'PENDING_VERIFICATION' : 'UNVERIFIED',
+
+          // Audit
           createdBy: createdBy,
           lastUpdatedBy: createdBy,
         },
@@ -107,7 +114,7 @@ export class RegisterMarriageHandler
       );
 
       // 5. Register in Aggregate
-      // This will throw if business rules are violated (e.g., active marriage exists)
+      // This performs the critical invariant checks (e.g. no duplicate active marriages)
       family.registerMarriage(marriage);
 
       // 6. Save

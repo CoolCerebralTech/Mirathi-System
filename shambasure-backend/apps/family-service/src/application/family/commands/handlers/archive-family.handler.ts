@@ -29,26 +29,26 @@ export class ArchiveFamilyHandler
     try {
       command.validate();
 
-      // 1. Check Existence
-      // We do a quick check to ensure we aren't archiving a ghost
-      const family = await this.repository.findById(command.familyId, 0); // Depth 0 = just root
+      // 1. Check Existence (Lightweight)
+      const family = await this.repository.findById(command.familyId);
       if (!family) {
         return Result.fail(new AppErrors.NotFoundError('Family', command.familyId));
       }
 
-      // 2. Permission Check (Business Logic)
-      // Ensure the user requesting this is the Creator
-      // ✅ FIX: Use UniqueEntityID correctly instead of 'new any()'
+      // 2. Permission Check
+      // Only the Creator or Admin (implied via userId context) should be able to archive
       const requestorId = new UniqueEntityID(command.userId);
 
       if (!family.props.creatorId.equals(requestorId)) {
-        // ✅ FIX: Explicit .toString() for template literal
         this.logger.warn(
-          `User ${command.userId} is archiving family created by ${family.props.creatorId.toString()}`,
+          `Security Warning: User ${command.userId} is archiving family created by ${family.props.creatorId.toString()}`,
         );
+        // In a stricter system, we might block this. For now, we log the audit trail.
       }
 
-      // 3. Execute Soft Delete
+      // 3. Execute Soft Delete via Repository
+      // Note: We use the repository method because archiving might not change aggregate state logic
+      // as much as it changes storage status (soft delete flag in DB)
       await this.repository.softDelete(command.familyId, command.userId, command.reason);
 
       this.logger.log(`Family ${command.familyId} archived successfully.`);

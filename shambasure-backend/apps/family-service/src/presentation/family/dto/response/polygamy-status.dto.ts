@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 class HouseHeadDto {
   @ApiProperty()
@@ -21,14 +21,23 @@ class HouseMemberDto {
   @ApiProperty()
   name: string;
 
-  @ApiProperty({ enum: ['CHILD', 'SPOUSE', 'OTHER'] })
-  relationshipToHead: 'CHILD' | 'SPOUSE' | 'OTHER';
+  @ApiProperty({ enum: ['CHILD', 'SPOUSE', 'GRANDCHILD', 'OTHER'] })
+  relationshipToHead: string;
 
-  @ApiProperty()
-  age: number;
+  @ApiPropertyOptional()
+  age?: number;
 
   @ApiProperty()
   isMinor: boolean;
+
+  @ApiProperty()
+  isStudent: boolean;
+
+  @ApiProperty()
+  hasDisability: boolean;
+
+  @ApiProperty()
+  isEligibleBeneficiary: boolean;
 }
 
 export class HouseGroupDto {
@@ -41,6 +50,9 @@ export class HouseGroupDto {
   @ApiProperty()
   order: number;
 
+  @ApiProperty()
+  theoreticalSharePercentage: number;
+
   @ApiProperty({ type: HouseHeadDto })
   headOfHouse: HouseHeadDto;
 
@@ -49,6 +61,9 @@ export class HouseGroupDto {
 
   @ApiProperty()
   memberCount: number;
+
+  @ApiProperty()
+  minorCount: number;
 }
 
 export class PolygamyStatusDto {
@@ -58,6 +73,12 @@ export class PolygamyStatusDto {
   @ApiProperty()
   isPolygamous: boolean;
 
+  @ApiProperty({ enum: ['PER_STIRPES', 'PER_CAPITA'] })
+  distributionMethod: string;
+
+  @ApiProperty()
+  totalHouses: number;
+
   @ApiProperty({ type: [HouseGroupDto] })
   houses: HouseGroupDto[];
 
@@ -66,4 +87,7 @@ export class PolygamyStatusDto {
     description: 'Members not assigned to a specific house (Risk area)',
   })
   unassignedMembers: HouseMemberDto[];
+
+  @ApiProperty()
+  hasUnassignedRisks: boolean;
 }

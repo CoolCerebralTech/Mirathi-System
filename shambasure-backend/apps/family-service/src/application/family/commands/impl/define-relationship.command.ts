@@ -5,9 +5,12 @@ import { BaseCommand } from '../../../common/base/base.command';
  * Command to explicitly define a relationship between two existing family members.
  *
  * Investor Note / Graph Integrity:
- * This command doesn't just draw a line; it establishes "Legal Truth".
- * It includes metadata for HOW we know this relationship exists (e.g., Birth Certificate vs. Oral Tradition),
- * which is crucial for the "Verification Level" of the family tree.
+ * This command establishes "Legal Truth" for non-marriage relationships.
+ *
+ * DIGITAL LAWYER:
+ * This command strictly FORBIDS defining 'SPOUSE' relationships.
+ * Marriages must be registered via the 'RegisterMarriage' command to ensure
+ * S.40 (Polygamy) compliance and proper Marriage Entity creation.
  */
 export class DefineRelationshipCommand extends BaseCommand {
   public readonly familyId: string;
@@ -90,6 +93,13 @@ export class DefineRelationshipCommand extends BaseCommand {
     }
     if (!this.relationshipType) {
       throw new Error('Relationship Type is required');
+    }
+
+    // Digital Lawyer: Block Spouse creation here
+    if (this.relationshipType === RelationshipType.SPOUSE) {
+      throw new Error(
+        'Cannot define SPOUSE relationship via this command. Use "Register Marriage" to ensure legal compliance (S.40).',
+      );
     }
 
     // Validate relationship dimensions - at least one must be true

@@ -37,7 +37,7 @@ class CreatorProfileDto {
   @IsDateString()
   dateOfBirth?: Date;
 
-  @ApiPropertyOptional({ description: 'Kenyan National ID Number' })
+  @ApiPropertyOptional({ description: 'Kenyan National ID Number (Optional at creation)' })
   @IsOptional()
   @IsString()
   nationalId?: string;

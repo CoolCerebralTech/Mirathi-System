@@ -1,8 +1,8 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 class RecommendationDto {
   @ApiProperty({ enum: ['HIGH', 'MEDIUM', 'LOW'] })
-  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  priority: string;
 
   @ApiProperty()
   title: string;
@@ -10,24 +10,44 @@ class RecommendationDto {
   @ApiProperty()
   description: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   actionLink?: string;
 }
 
-class AnalysisSectionDto {
+class DependencyAnalysisDto {
+  @ApiProperty({ enum: ['PASS', 'WARNING', 'FAIL'] })
+  status: string;
+
   @ApiProperty()
-  status: string; // PASS, WARNING, FAIL
+  potentialClaimantsCount: number;
+
+  @ApiProperty({ type: [String] })
+  claimantNames: string[];
 
   @ApiProperty({ type: [String] })
   issues: string[];
 }
 
-class PolygamyAnalysisDto extends AnalysisSectionDto {
+class PolygamyAnalysisDto {
   @ApiProperty()
   isPolygamous: boolean;
 
+  @ApiProperty({ enum: ['NOT_APPLICABLE', 'PASS', 'FAIL'] })
+  status: string;
+
   @ApiProperty()
   definedHouses: number;
+
+  @ApiProperty({ type: [String] })
+  issues: string[];
+}
+
+class DataIntegrityDto {
+  @ApiProperty()
+  verifiedMembersPercentage: number;
+
+  @ApiProperty({ type: [String] })
+  missingCriticalDocuments: string[];
 }
 
 export class SuccessionAnalysisDto {
@@ -43,11 +63,14 @@ export class SuccessionAnalysisDto {
   @ApiProperty({ enum: ['NOT_READY', 'PARTIAL', 'READY_TO_FILE'] })
   readinessLevel: string;
 
-  @ApiProperty({ type: AnalysisSectionDto })
-  dependencyAnalysis: AnalysisSectionDto;
+  @ApiProperty({ type: DependencyAnalysisDto })
+  dependencyAnalysis: DependencyAnalysisDto;
 
   @ApiProperty({ type: PolygamyAnalysisDto })
   polygamyAnalysis: PolygamyAnalysisDto;
+
+  @ApiProperty({ type: DataIntegrityDto })
+  dataIntegrity: DataIntegrityDto;
 
   @ApiProperty({ type: [RecommendationDto] })
   recommendations: RecommendationDto[];

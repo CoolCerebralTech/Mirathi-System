@@ -51,8 +51,8 @@ export class FamilyQueryController {
   ) {
     const query = new SearchFamiliesQuery({
       userId: user.sub,
-      page,
-      pageSize,
+      page: Number(page),
+      pageSize: Number(pageSize),
       searchText,
       county,
     });
@@ -60,7 +60,9 @@ export class FamilyQueryController {
     const result = await this.queryBus.execute(query);
     if (result.isFailure) throw new HttpException(result.error.message, HttpStatus.BAD_REQUEST);
 
-    return result.getValue(); // Returns PaginatedResult<FamilySummary> directly
+    // Note: Search returns PaginatedResult directly, doesn't need Mapper translation
+    // unless we want to hide internal DB fields. For search summaries, simple projection is usually fine.
+    return result.getValue();
   }
 
   @Get(':id')
@@ -93,7 +95,7 @@ export class FamilyQueryController {
     const query = new GetFamilyGraphQuery({
       userId: user.sub,
       familyId,
-      depth,
+      depth: depth ? Number(depth) : undefined,
     });
 
     const result = await this.queryBus.execute(query);

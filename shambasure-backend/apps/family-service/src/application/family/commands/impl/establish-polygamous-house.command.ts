@@ -24,7 +24,7 @@ export class EstablishPolygamousHouseCommand extends BaseCommand {
   // Optional: House Head (can be different from original wife)
   public readonly houseHeadId?: string;
 
-  // Additional properties that the handler expects
+  // Additional properties
   public readonly houseCode?: string;
   public readonly establishmentType?: 'CUSTOMARY' | 'ISLAMIC' | 'TRADITIONAL' | 'COURT_RECOGNIZED';
   public readonly establishmentWitnesses?: string[];

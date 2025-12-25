@@ -14,6 +14,7 @@ export interface SuccessionReadinessVM {
   dependencyAnalysis: {
     status: 'PASS' | 'WARNING' | 'FAIL';
     potentialClaimantsCount: number; // Minors, Elderly, Disabled
+    claimantNames: string[]; // List of people who might claim dependency
     issues: string[]; // e.g., "Minor child [Name] has no designated Guardian"
   };
 
