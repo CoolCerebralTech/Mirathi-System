@@ -4,3 +4,15 @@ containers are already running, it will just say they are "up-to-date". If they
 are stopped, it will start them. This one command is all you need. To Stop: At
 the end of the day, you can open a terminal in the same folder and run
 docker-compose down. This will gracefully stop the containers.
+
+Aggregates:
+
+Enforce invariants
+
+Mutate state
+
+Read models:
+
+Project state
+
+Combine services
