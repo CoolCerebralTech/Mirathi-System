@@ -8,6 +8,27 @@ import { DisinheritanceRecord } from '../entities/disinheritance-record.entity';
 import { ExecutorNomination } from '../entities/executor-nomination.entity';
 // Entities
 import { WillWitness } from '../entities/will-witness.entity';
+import {
+  BeneficiaryAssignedEvent,
+  BeneficiaryRemovedEvent,
+  CodicilAddedEvent,
+  ExecutorNominatedEvent,
+  ExecutorRemovedEvent,
+  PersonDisinheritedEvent,
+  TestamentaryCapacityAssessedEvent,
+  TestamentaryCapacityChallengedEvent,
+  WillActivatedEvent,
+  WillContestedEvent,
+  WillCreatedEvent,
+  WillEnteredProbateEvent,
+  WillExecutedEvent,
+  WillPreparedForWitnessingEvent,
+  WillRevokedEvent,
+  WillSupersededEvent,
+  WillWitnessedEvent,
+  WitnessAddedEvent,
+  WitnessRemovedEvent,
+} from '../events/will.events';
 import { RevocationMethod } from '../value-objects/revocation-method.vo';
 // Value Objects
 import { WillStatus } from '../value-objects/will-status.vo';
@@ -1211,27 +1232,3 @@ export class Will extends AggregateRoot<WillProps> {
     };
   }
 }
-
-// =========================================================================
-// DOMAIN EVENTS (Placeholder - will be in separate event file)
-// =========================================================================
-
-class WillCreatedEvent extends DomainEvent<any> {}
-class TestamentaryCapacityAssessedEvent extends DomainEvent<any> {}
-class TestamentaryCapacityChallengedEvent extends DomainEvent<any> {}
-class WitnessAddedEvent extends DomainEvent<any> {}
-class WitnessRemovedEvent extends DomainEvent<any> {}
-class ExecutorNominatedEvent extends DomainEvent<any> {}
-class ExecutorRemovedEvent extends DomainEvent<any> {}
-class BeneficiaryAssignedEvent extends DomainEvent<any> {}
-class BeneficiaryRemovedEvent extends DomainEvent<any> {}
-class CodicilAddedEvent extends DomainEvent<any> {}
-class PersonDisinheritedEvent extends DomainEvent<any> {}
-class WillPreparedForWitnessingEvent extends DomainEvent<any> {}
-class WillWitnessedEvent extends DomainEvent<any> {}
-class WillActivatedEvent extends DomainEvent<any> {}
-class WillExecutedEvent extends DomainEvent<any> {}
-class WillEnteredProbateEvent extends DomainEvent<any> {}
-class WillRevokedEvent extends DomainEvent<any> {}
-class WillSupersededEvent extends DomainEvent<any> {}
-class WillContestedEvent extends DomainEvent<any> {}

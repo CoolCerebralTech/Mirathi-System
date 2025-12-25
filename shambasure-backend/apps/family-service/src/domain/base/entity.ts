@@ -3,42 +3,47 @@ import { DomainEvent } from './domain-event';
 import { UniqueEntityID } from './unique-entity-id';
 
 /**
- * Base Entity with Kenyan Legal Compliance Features
+ * Base Entity with Legal Compliance & Event Sourcing Features
  *
  * Features:
- * - Immutable identity (court records must have stable IDs)
- * - Event sourcing support (audit trail for legal disputes)
+ * - Immutable identity (stable IDs for legal records)
+ * - Controlled state updates via updateState()
+ * - Event sourcing support (audit trail for disputes)
  * - Deep freezing of props (prevent tampering with legal data)
- * - Timestamp tracking (required for statute of limitations)
+ * - Timestamp tracking (statute of limitations compliance)
+ * - Optimistic locking via versioning
  */
 export abstract class Entity<T> {
   protected readonly _id: UniqueEntityID;
-  protected readonly _props: T;
+  private _props: T;
   private _domainEvents: DomainEvent[] = [];
 
-  // Kenyan Legal Compliance: Audit Trail
+  // Audit Trail
   protected readonly _createdAt: Date;
   protected _updatedAt: Date;
-  protected _deletedAt?: Date; // Soft delete for legal retention
+  protected _deletedAt?: Date;
 
-  // Event Sourcing: Version control for optimistic locking
+  // Event Sourcing: Version control
   protected _version: number = 1;
 
   constructor(id: UniqueEntityID, props: T, createdAt?: Date) {
     this._id = id;
-    this._props = Object.freeze({ ...props }); // Immutable props
+    this._props = Object.freeze({ ...props });
     this._createdAt = createdAt ?? new Date();
     this._updatedAt = this._createdAt;
   }
 
+  // Identity
   get id(): UniqueEntityID {
     return this._id;
   }
 
+  // Props access
   get props(): Readonly<T> {
     return this._props;
   }
 
+  // Audit fields
   get createdAt(): Date {
     return this._createdAt;
   }
@@ -60,7 +65,22 @@ export abstract class Entity<T> {
   }
 
   /**
-   * Add domain event with timestamp for legal audit trail
+   * Centralized state update method
+   * - Freezes new props
+   * - Updates timestamp
+   * - Increments version
+   * - Ensures entity is not deleted
+   */
+  protected updateState(newProps: Partial<T>): void {
+    this.ensureNotDeleted();
+    const cloned = this.cloneProps();
+    const merged = { ...cloned, ...newProps };
+    this._props = Object.freeze(merged);
+    this.incrementVersion();
+  }
+
+  /**
+   * Add domain event with timestamp for audit trail
    */
   protected addDomainEvent(event: DomainEvent): void {
     this._domainEvents.push(event);
@@ -68,14 +88,14 @@ export abstract class Entity<T> {
   }
 
   /**
-   * Get all uncommitted domain events (for event store)
+   * Get all uncommitted domain events
    */
   public getDomainEvents(): ReadonlyArray<DomainEvent> {
     return Object.freeze([...this._domainEvents]);
   }
 
   /**
-   * Clear events after persistence (called by repository)
+   * Clear events after persistence
    */
   public clearDomainEvents(): void {
     this._domainEvents = [];
@@ -83,7 +103,6 @@ export abstract class Entity<T> {
 
   /**
    * Increment version for optimistic locking
-   * Critical for concurrent updates in court proceedings
    */
   protected incrementVersion(): void {
     this._version++;
@@ -91,7 +110,7 @@ export abstract class Entity<T> {
   }
 
   /**
-   * Soft delete (legal retention requirement - can't hard delete court records)
+   * Soft delete (legal retention requirement)
    */
   protected markAsDeleted(): void {
     if (this._deletedAt) {
@@ -102,33 +121,30 @@ export abstract class Entity<T> {
   }
 
   /**
-   * Identity comparison (critical for legal entity matching)
+   * Identity comparison
    */
   public equals(object?: Entity<T>): boolean {
     if (object === null || object === undefined) {
       return false;
     }
-
     if (this === object) {
       return true;
     }
-
     if (!(object instanceof Entity)) {
       return false;
     }
-
     return this._id.equals(object._id);
   }
 
   /**
-   * Hash code for collections (use UUID value)
+   * Hash code for collections
    */
   public hashCode(): string {
     return this._id.toString();
   }
 
   /**
-   * Check if entity can be modified (not deleted, not in archived state)
+   * Ensure entity is not deleted before mutation
    */
   protected ensureNotDeleted(): void {
     if (this.isDeleted) {
@@ -139,7 +155,7 @@ export abstract class Entity<T> {
   }
 
   /**
-   * Deep clone props for mutation (returns new object, doesn't modify original)
+   * Deep clone props for safe mutation
    */
   protected cloneProps(): T {
     return JSON.parse(JSON.stringify(this._props));
