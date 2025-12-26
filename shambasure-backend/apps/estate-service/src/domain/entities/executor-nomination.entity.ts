@@ -1,6 +1,13 @@
 // src/estate-service/src/domain/entities/executor-nomination.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
+import {
+  ExecutorCompensationSetEvent,
+  ExecutorConsentUpdatedEvent,
+  ExecutorContactUpdatedEvent,
+  ExecutorNominatedEvent,
+  ExecutorPowersGrantedEvent,
+} from '../events/executor-nomination.events';
 import { WillExecutorException } from '../exceptions/will-executors.exception';
 import { ExecutorPriority } from '../value-objects/executor-priority.vo';
 
@@ -74,7 +81,7 @@ export interface WillExecutorProps {
  */
 export class WillExecutor extends Entity<WillExecutorProps> {
   private constructor(props: WillExecutorProps, id?: UniqueEntityID) {
-    super(id, props);
+    super(id ?? new UniqueEntityID(), props);
   }
 
   /**
@@ -85,16 +92,15 @@ export class WillExecutor extends Entity<WillExecutorProps> {
     executor.validate();
 
     // Apply domain event for Executor nomination
-    executor.addDomainEvent({
-      eventType: 'ExecutorNominated',
-      aggregateId: props.willId,
-      eventData: {
-        executorId: id?.toString(),
-        executorName: executor.getDisplayName(),
-        priority: props.priority.toJSON(),
-        appointmentType: props.appointmentType,
-      },
-    });
+    executor.addDomainEvent(
+      new ExecutorNominatedEvent(
+        props.willId,
+        executor.id.toString(),
+        executor.getDisplayName(),
+        props.priority.toJSON(),
+        props.appointmentType,
+      ),
+    );
 
     return executor;
   }
@@ -111,9 +117,6 @@ export class WillExecutor extends Entity<WillExecutorProps> {
   public validate(): void {
     // Identity validation
     this.validateIdentity();
-
-    // Priority validation
-    this.props.priority.validate();
 
     // Date validation
     if (this.props.appointmentDate > new Date()) {
@@ -188,7 +191,7 @@ export class WillExecutor extends Entity<WillExecutorProps> {
 
       default:
         throw new WillExecutorException(
-          `Invalid executor identity type: ${type}`,
+          `Invalid executor identity type: ${type as any}`,
           'executorIdentity.type',
         );
     }
@@ -295,6 +298,7 @@ export class WillExecutor extends Entity<WillExecutorProps> {
     if (status === this.props.consentStatus && notes === this.props.consentNotes) {
       return; // No change
     }
+    const previousStatus = this.props.consentStatus;
 
     this.updateState({
       consentStatus: status,
@@ -303,17 +307,16 @@ export class WillExecutor extends Entity<WillExecutorProps> {
     });
 
     // Add domain event for consent update
-    this.addDomainEvent({
-      eventType: 'ExecutorConsentUpdated',
-      aggregateId: this.props.willId,
-      eventData: {
-        executorId: this.id.toString(),
-        executorName: this.getDisplayName(),
-        previousStatus: this.props.consentStatus,
-        newStatus: status,
+    this.addDomainEvent(
+      new ExecutorConsentUpdatedEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.getDisplayName(),
+        previousStatus,
+        status,
         notes,
-      },
-    });
+      ),
+    );
   }
 
   /**
@@ -324,22 +327,47 @@ export class WillExecutor extends Entity<WillExecutorProps> {
     phone?: string;
     address?: string;
   }): void {
-    // Validate email if provided
-    if (contactInfo.email) {
-      this.validateEmail(contactInfo.email);
+    // 1. Define the variable to track changes
+    const updatedFields: string[] = [];
+    const currentInfo = this.props.contactInfo || {};
+
+    // 2. Check each field for changes and validate
+    if (contactInfo.email !== undefined && contactInfo.email !== currentInfo.email) {
+      if (contactInfo.email) this.validateEmail(contactInfo.email);
+      updatedFields.push('email');
     }
 
-    // Validate phone if provided
-    if (contactInfo.phone) {
-      this.validatePhone(contactInfo.phone);
+    if (contactInfo.phone !== undefined && contactInfo.phone !== currentInfo.phone) {
+      if (contactInfo.phone) this.validatePhone(contactInfo.phone);
+      updatedFields.push('phone');
     }
 
+    if (contactInfo.address !== undefined && contactInfo.address !== currentInfo.address) {
+      updatedFields.push('address');
+    }
+
+    // 3. If nothing changed, stop here
+    if (updatedFields.length === 0) {
+      return;
+    }
+
+    // 4. Update state
     this.updateState({
       contactInfo: {
         ...this.props.contactInfo,
         ...contactInfo,
       },
     });
+
+    // 5. Emit event with the defined 'updatedFields' variable
+    this.addDomainEvent(
+      new ExecutorContactUpdatedEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.getDisplayName(),
+        updatedFields,
+      ),
+    );
   }
 
   /**
@@ -355,6 +383,14 @@ export class WillExecutor extends Entity<WillExecutorProps> {
     this.updateState({
       powers: [...currentPowers, power],
     });
+    this.addDomainEvent(
+      new ExecutorPowersGrantedEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.getDisplayName(),
+        [power], // Event expects array
+      ),
+    );
   }
 
   /**
@@ -401,6 +437,16 @@ export class WillExecutor extends Entity<WillExecutorProps> {
         basis,
       },
     });
+    this.addDomainEvent(
+      new ExecutorCompensationSetEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.getDisplayName(),
+        isEntitled,
+        amount,
+        basis,
+      ),
+    );
   }
 
   /**
@@ -579,7 +625,7 @@ export class WillExecutor extends Entity<WillExecutorProps> {
     return this.props.isBankrupt;
   }
 
-  get contactInfo(): WillExecutorProps['contactInfo'] | undefined {
+  get contactInfo(): WillExecutorProps['contactInfo'] {
     return this.props.contactInfo ? { ...this.props.contactInfo } : undefined;
   }
 
@@ -591,7 +637,7 @@ export class WillExecutor extends Entity<WillExecutorProps> {
     return this.props.restrictions ? [...this.props.restrictions] : undefined;
   }
 
-  get compensation(): WillExecutorProps['compensation'] | undefined {
+  get compensation(): WillExecutorProps['compensation'] {
     return this.props.compensation ? { ...this.props.compensation } : undefined;
   }
 }

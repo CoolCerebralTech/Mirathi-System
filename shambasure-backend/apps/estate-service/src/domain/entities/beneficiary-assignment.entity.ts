@@ -1,10 +1,16 @@
 // src/estate-service/src/domain/entities/beneficiary-assignment.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
+import {
+  AlternateBeneficiarySetEvent,
+  BequestConditionAddedEvent,
+  BequestDefinedEvent,
+  BequestDescriptionUpdatedEvent,
+} from '../events/beneficiary-assignment.events';
 import { WillBequestException } from '../exceptions/will-bequest.exception';
 import { BeneficiaryIdentity } from '../value-objects/beneficiary-identity.vo';
 import { BequestCondition } from '../value-objects/bequest-condition.vo';
-import { Money } from '../value-objects/money.vo';
+import { MoneyVO } from '../value-objects/money.vo';
 
 /**
  * Bequest Type Enum
@@ -35,7 +41,7 @@ export interface WillBequestProps {
   // Value specifications (mutually exclusive based on type)
   specificAssetId?: string; // For SPECIFIC_ASSET type
   percentage?: number; // For PERCENTAGE type (0-100)
-  fixedAmount?: Money; // For FIXED_AMOUNT type
+  fixedAmount?: MoneyVO; // For FIXED_AMOUNT type
   residuaryShare?: number; // For RESIDUARY type (share of residue)
 
   // Life interest details (if applicable)
@@ -93,7 +99,7 @@ export interface WillBequestProps {
  */
 export class WillBequest extends Entity<WillBequestProps> {
   private constructor(props: WillBequestProps, id?: UniqueEntityID) {
-    super(id, props);
+    super(id ?? new UniqueEntityID(), props);
   }
 
   /**
@@ -104,16 +110,15 @@ export class WillBequest extends Entity<WillBequestProps> {
     bequest.validate();
 
     // Apply domain event for Bequest creation
-    bequest.addDomainEvent({
-      eventType: 'BequestDefined',
-      aggregateId: props.willId,
-      eventData: {
-        bequestId: id?.toString(),
-        beneficiary: props.beneficiary.toJSON(),
-        bequestType: props.bequestType,
-        description: props.description,
-      },
-    });
+    bequest.addDomainEvent(
+      new BequestDefinedEvent(
+        props.willId,
+        bequest.id.toString(),
+        props.beneficiary.toJSON(),
+        props.bequestType,
+        props.description,
+      ),
+    );
 
     return bequest;
   }
@@ -129,9 +134,6 @@ export class WillBequest extends Entity<WillBequestProps> {
    * - No contradictory provisions
    */
   public validate(): void {
-    // Beneficiary validation
-    this.props.beneficiary.validate();
-
     // Type-specific validation
     this.validateTypeSpecificRules();
 
@@ -154,12 +156,6 @@ export class WillBequest extends Entity<WillBequestProps> {
     if (this.props.description.length > 500) {
       throw new WillBequestException('Description cannot exceed 500 characters', 'description');
     }
-
-    // Validate alternate beneficiary if present
-    if (this.props.alternateBeneficiary) {
-      this.props.alternateBeneficiary.validate();
-    }
-
     // Validate validation flags
     this.updateValidationFlags();
   }
@@ -194,7 +190,6 @@ export class WillBequest extends Entity<WillBequestProps> {
         if (!this.props.fixedAmount) {
           throw new WillBequestException('Fixed amount bequest must specify amount', 'fixedAmount');
         }
-        this.props.fixedAmount.validate();
         break;
 
       case 'RESIDUARY':
@@ -272,10 +267,6 @@ export class WillBequest extends Entity<WillBequestProps> {
         'lifeInterestDetails.durationValue',
       );
     }
-
-    if (details.remainderBeneficiary) {
-      details.remainderBeneficiary.validate();
-    }
   }
 
   private validateTrustDetails(): void {
@@ -307,11 +298,6 @@ export class WillBequest extends Entity<WillBequestProps> {
   }
 
   private validateConditions(): void {
-    // Validate each condition
-    this.props.conditions.forEach((condition) => {
-      condition.validate();
-    });
-
     // Check for contradictory conditions
     this.checkForContradictoryConditions();
   }
@@ -378,14 +364,15 @@ export class WillBequest extends Entity<WillBequestProps> {
   private updateValidationFlags(): void {
     const errors: string[] = [];
 
+    // Validates checks without calling public validate() to avoid recursion
     try {
-      // Re-run validation to catch any errors
-      this.validate();
+      this.validateTypeSpecificRules();
+      this.validateConditions();
+      this.validatePriority();
     } catch (error: any) {
       errors.push(error.message);
     }
 
-    // Additional business logic checks
     if (
       this.props.bequestType === 'RESIDUARY' &&
       this.props.residuaryShare &&
@@ -402,15 +389,12 @@ export class WillBequest extends Entity<WillBequestProps> {
       errors.push('Percentage cannot exceed 100%');
     }
 
-    // Check if beneficiary is also a witness (would need cross-checking with Will aggregate)
-    // For now, we'll just note it as a warning if relationship suggests witness status
     if (this.props.beneficiary.toJSON().identifier?.includes('WITNESS')) {
       errors.push('Warning: Beneficiary may also be a witness - check S.11(2) LSA');
     }
 
     const isValid = errors.length === 0;
 
-    // Update validation state
     this.updateState({
       isValid,
       validationErrors: errors,
@@ -428,30 +412,28 @@ export class WillBequest extends Entity<WillBequestProps> {
     if (description.length > 500) {
       throw new WillBequestException('Description cannot exceed 500 characters', 'description');
     }
-
+    const previousDescription = this.props.description;
     this.updateState({
       description,
       notes,
     });
 
     // Add domain event for description update
-    this.addDomainEvent({
-      eventType: 'BequestDescriptionUpdated',
-      aggregateId: this.props.willId,
-      eventData: {
-        bequestId: this.id.toString(),
-        beneficiary: this.props.beneficiary.toJSON(),
-        previousDescription: this.props.description,
-        newDescription: description,
-      },
-    });
+    this.addDomainEvent(
+      new BequestDescriptionUpdatedEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.props.beneficiary.toJSON(),
+        previousDescription,
+        description,
+      ),
+    );
   }
 
   /**
    * Add condition to bequest
    */
   public addCondition(condition: BequestCondition): void {
-    // Check for duplicates
     const duplicate = this.props.conditions.find(
       (c) => JSON.stringify(c.toJSON()) === JSON.stringify(condition.toJSON()),
     );
@@ -460,21 +442,18 @@ export class WillBequest extends Entity<WillBequestProps> {
       throw new WillBequestException('Condition already exists in bequest', 'conditions');
     }
 
-    // Check for contradictions with existing conditions
     const updatedConditions = [...this.props.conditions, condition];
 
-    // Temporarily update to check for contradictions
+    // Validate logic only (do not rely on full object re-creation if it triggers full validation)
+    // We can simulate validation by calling the check method directly
     const tempBequest = new WillBequest(
-      {
-        ...this.props,
-        conditions: updatedConditions,
-      },
-      this.id,
+      { ...this.props, conditions: updatedConditions },
+      this.id, // Keep existing ID
     );
-
+    // Manually check logic on the temp object
     try {
-      tempBequest.validate();
-    } catch (error) {
+      tempBequest.checkForContradictoryConditions();
+    } catch (error: any) {
       throw new WillBequestException(`Cannot add condition: ${error.message}`, 'conditions');
     }
 
@@ -482,16 +461,15 @@ export class WillBequest extends Entity<WillBequestProps> {
       conditions: updatedConditions,
     });
 
-    // Add domain event for condition addition
-    this.addDomainEvent({
-      eventType: 'BequestConditionAdded',
-      aggregateId: this.props.willId,
-      eventData: {
-        bequestId: this.id.toString(),
-        beneficiary: this.props.beneficiary.toJSON(),
-        condition: condition.toJSON(),
-      },
-    });
+    // 4. UPDATE: Use BequestConditionAddedEvent
+    this.addDomainEvent(
+      new BequestConditionAddedEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.props.beneficiary.toJSON(),
+        condition.toJSON(),
+      ),
+    );
   }
 
   /**
@@ -501,8 +479,6 @@ export class WillBequest extends Entity<WillBequestProps> {
     beneficiary: BeneficiaryIdentity,
     conditions?: BequestCondition[],
   ): void {
-    beneficiary.validate();
-
     if (beneficiary.equals(this.props.beneficiary)) {
       throw new WillBequestException(
         'Alternate beneficiary cannot be the same as primary beneficiary',
@@ -515,16 +491,15 @@ export class WillBequest extends Entity<WillBequestProps> {
       alternateConditions: conditions || [],
     });
 
-    // Add domain event for alternate beneficiary
-    this.addDomainEvent({
-      eventType: 'AlternateBeneficiarySet',
-      aggregateId: this.props.willId,
-      eventData: {
-        bequestId: this.id.toString(),
-        primaryBeneficiary: this.props.beneficiary.toJSON(),
-        alternateBeneficiary: beneficiary.toJSON(),
-      },
-    });
+    // 5. UPDATE: Use AlternateBeneficiarySetEvent
+    this.addDomainEvent(
+      new AlternateBeneficiarySetEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.props.beneficiary.toJSON(),
+        beneficiary.toJSON(),
+      ),
+    );
   }
 
   /**
@@ -684,7 +659,7 @@ export class WillBequest extends Entity<WillBequestProps> {
     return this.props.percentage;
   }
 
-  get fixedAmount(): Money | undefined {
+  get fixedAmount(): MoneyVO | undefined {
     return this.props.fixedAmount;
   }
 
@@ -696,7 +671,7 @@ export class WillBequest extends Entity<WillBequestProps> {
     return this.props.lifeInterestDetails ? { ...this.props.lifeInterestDetails } : undefined;
   }
 
-  get trustDetails(): WillBequestProps['trustDetails'] | undefined {
+  get trustDetails(): WillBequestProps['trustDetails'] {
     return this.props.trustDetails ? { ...this.props.trustDetails } : undefined;
   }
 

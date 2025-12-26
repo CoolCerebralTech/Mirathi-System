@@ -1,6 +1,14 @@
 // src/estate-service/src/domain/entities/disinheritance-record.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
+import {
+  DisinheritanceAcknowledgedEvent,
+  DisinheritanceDeactivatedEvent,
+  DisinheritanceDeclaredEvent,
+  DisinheritanceEvidenceAddedEvent,
+  DisinheritanceReactivatedEvent,
+  DisinheritanceReasonUpdatedEvent,
+} from '../events/disinheritance-record.events';
 import { DisinheritanceRecordException } from '../exceptions/disinheritance-record.exception';
 import { BeneficiaryIdentity } from '../value-objects/beneficiary-identity.vo';
 
@@ -89,7 +97,7 @@ export interface DisinheritanceRecordProps {
  */
 export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
   private constructor(props: DisinheritanceRecordProps, id?: UniqueEntityID) {
-    super(id, props);
+    super(id ?? new UniqueEntityID(), props);
   }
 
   /**
@@ -103,16 +111,15 @@ export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
     record.validate();
 
     // Apply domain event for disinheritance declaration
-    record.addDomainEvent({
-      eventType: 'DisinheritanceDeclared',
-      aggregateId: props.willId,
-      eventData: {
-        recordId: id?.toString(),
-        disinheritedPerson: props.disinheritedPerson.toJSON(),
-        reasonCategory: props.reasonCategory,
-        isCompleteDisinheritance: props.isCompleteDisinheritance,
-      },
-    });
+    record.addDomainEvent(
+      new DisinheritanceDeclaredEvent(
+        props.willId,
+        record.id.toString(),
+        props.disinheritedPerson.toJSON(),
+        props.reasonCategory,
+        props.isCompleteDisinheritance,
+      ),
+    );
 
     return record;
   }
@@ -128,9 +135,6 @@ export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
    * - No contradictions with bequests (handled by Will aggregate)
    */
   public validate(): void {
-    // Disinherited person validation
-    this.props.disinheritedPerson.validate();
-
     // Reason validation
     this.validateReason();
 
@@ -252,7 +256,7 @@ export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
     const { reasonCategory, evidence } = this.props;
 
     switch (reasonCategory) {
-      case 'PROVIDED_FOR_DURING_LIFE':
+      case 'PROVIDED_FOR_DURING_LIFE': {
         // Should have gift documentation
         const hasGiftEvidence = evidence.some(
           (e) =>
@@ -265,8 +269,9 @@ export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
           );
         }
         break;
+      }
 
-      case 'MORAL_UNWORTHINESS':
+      case 'MORAL_UNWORTHINESS': {
         // Should have substantial evidence
         const hasSubstantialEvidence =
           evidence.length >= 2 ||
@@ -278,8 +283,9 @@ export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
           );
         }
         break;
+      }
 
-      case 'ESTRANGEMENT':
+      case 'ESTRANGEMENT': {
         // Should have evidence of estrangement
         const hasEstrangementEvidence = evidence.some(
           (e) =>
@@ -294,6 +300,7 @@ export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
           );
         }
         break;
+      }
     }
   }
 
@@ -454,7 +461,7 @@ export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
         'reasonDescription',
       );
     }
-
+    const previousCategory = this.props.reasonCategory;
     this.updateState({
       reasonCategory: category,
       reasonDescription: description,
@@ -465,16 +472,15 @@ export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
     this.recalculateLegalRisk();
 
     // Add domain event for reason update
-    this.addDomainEvent({
-      eventType: 'DisinheritanceReasonUpdated',
-      aggregateId: this.props.willId,
-      eventData: {
-        recordId: this.id.toString(),
-        disinheritedPerson: this.props.disinheritedPerson.toJSON(),
-        previousCategory: this.props.reasonCategory,
-        newCategory: category,
-      },
-    });
+    this.addDomainEvent(
+      new DisinheritanceReasonUpdatedEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.props.disinheritedPerson.toJSON(),
+        previousCategory,
+        category,
+      ),
+    );
   }
 
   /**
@@ -512,16 +518,15 @@ export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
     this.recalculateLegalRisk();
 
     // Add domain event for evidence addition
-    this.addDomainEvent({
-      eventType: 'DisinheritanceEvidenceAdded',
-      aggregateId: this.props.willId,
-      eventData: {
-        recordId: this.id.toString(),
-        disinheritedPerson: this.props.disinheritedPerson.toJSON(),
-        evidenceType: type,
+    this.addDomainEvent(
+      new DisinheritanceEvidenceAddedEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.props.disinheritedPerson.toJSON(),
+        type,
         description,
-      },
-    });
+      ),
+    );
   }
 
   /**
@@ -530,7 +535,7 @@ export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
   public recordAcknowledgment(
     method: 'WRITTEN' | 'VERBAL' | 'IMPLIED',
     date: Date = new Date(),
-    notes?: string,
+    _notes?: string,
   ): void {
     if (date > new Date()) {
       throw new DisinheritanceRecordException(
@@ -549,16 +554,15 @@ export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
     this.recalculateLegalRisk();
 
     // Add domain event for acknowledgment
-    this.addDomainEvent({
-      eventType: 'DisinheritanceAcknowledged',
-      aggregateId: this.props.willId,
-      eventData: {
-        recordId: this.id.toString(),
-        disinheritedPerson: this.props.disinheritedPerson.toJSON(),
-        acknowledgmentMethod: method,
-        acknowledgmentDate: date.toISOString(),
-      },
-    });
+    this.addDomainEvent(
+      new DisinheritanceAcknowledgedEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.props.disinheritedPerson.toJSON(),
+        method,
+        date.toISOString(),
+      ),
+    );
   }
 
   /**
@@ -579,15 +583,14 @@ export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
     });
 
     // Add domain event for deactivation
-    this.addDomainEvent({
-      eventType: 'DisinheritanceDeactivated',
-      aggregateId: this.props.willId,
-      eventData: {
-        recordId: this.id.toString(),
-        disinheritedPerson: this.props.disinheritedPerson.toJSON(),
+    this.addDomainEvent(
+      new DisinheritanceDeactivatedEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.props.disinheritedPerson.toJSON(),
         reason,
-      },
-    });
+      ),
+    );
   }
 
   /**
@@ -605,14 +608,13 @@ export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
     });
 
     // Add domain event for reactivation
-    this.addDomainEvent({
-      eventType: 'DisinheritanceReactivated',
-      aggregateId: this.props.willId,
-      eventData: {
-        recordId: this.id.toString(),
-        disinheritedPerson: this.props.disinheritedPerson.toJSON(),
-      },
-    });
+    this.addDomainEvent(
+      new DisinheritanceReactivatedEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.props.disinheritedPerson.toJSON(),
+      ),
+    );
   }
 
   /**

@@ -1,6 +1,11 @@
 // src/estate-service/src/domain/entities/codicil.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
+import {
+  CodicilContentUpdatedEvent,
+  CodicilCreatedEvent,
+  CodicilWitnessAddedEvent,
+} from '../events/codicil.events';
 import { CodicilException } from '../exceptions/codicil.exceptions';
 import { ExecutionDate } from '../value-objects/execution-date.vo';
 
@@ -37,7 +42,7 @@ export interface CodicilProps {
  */
 export class Codicil extends Entity<CodicilProps> {
   private constructor(props: CodicilProps, id?: UniqueEntityID) {
-    super(id, props);
+    super(id ?? new UniqueEntityID(), props);
   }
 
   /**
@@ -48,15 +53,15 @@ export class Codicil extends Entity<CodicilProps> {
     codicil.validate();
 
     // Apply domain event for Codicil creation
-    codicil.addDomainEvent({
-      eventType: 'CodicilCreated',
-      aggregateId: props.willId,
-      eventData: {
-        codicilId: id?.toString(),
-        title: props.title,
-        amendmentType: props.amendmentType,
-      },
-    });
+    codicil.addDomainEvent(
+      new CodicilCreatedEvent(
+        props.willId,
+        codicil.id.toString(),
+        props.title,
+        props.amendmentType,
+        props.versionNumber,
+      ),
+    );
 
     return codicil;
   }
@@ -97,9 +102,6 @@ export class Codicil extends Entity<CodicilProps> {
     if (this.props.versionNumber < 1) {
       throw new CodicilException('Version number must be at least 1', 'versionNumber');
     }
-
-    // Execution date validation
-    this.props.executionDate.validate();
 
     // Witness validation (S.11 LSA)
     if (this.props.witnesses.length < 2) {
@@ -161,6 +163,9 @@ export class Codicil extends Entity<CodicilProps> {
     if (!newContent || newContent.trim().length === 0) {
       throw new CodicilException('Content cannot be empty', 'content');
     }
+    // Capture previous version for the event
+    const previousVersion = this.props.versionNumber;
+    const newVersion = previousVersion + 1;
 
     this.updateState({
       content: newContent,
@@ -168,14 +173,15 @@ export class Codicil extends Entity<CodicilProps> {
     });
 
     // Add domain event for modification
-    this.addDomainEvent({
-      eventType: 'CodicilContentUpdated',
-      aggregateId: this.props.willId,
-      eventData: {
-        codicilId: this.id.toString(),
-        version: this.props.versionNumber,
-      },
-    });
+    this.addDomainEvent(
+      new CodicilContentUpdatedEvent(
+        this.props.willId,
+        this.id.toString(),
+        previousVersion,
+        newVersion,
+        'Content updated via updateContent method',
+      ),
+    );
   }
 
   /**
@@ -191,10 +197,18 @@ export class Codicil extends Entity<CodicilProps> {
     if (this.props.witnesses.includes(witnessId)) {
       throw new CodicilException('Witness already added to codicil', 'witnesses');
     }
-
+    const newWitnessList = [...this.props.witnesses, witnessId];
     this.updateState({
       witnesses: [...this.props.witnesses, witnessId],
     });
+    this.addDomainEvent(
+      new CodicilWitnessAddedEvent(
+        this.props.willId,
+        this.id.toString(),
+        witnessId,
+        newWitnessList.length,
+      ),
+    );
   }
 
   /**
@@ -251,13 +265,6 @@ export class Codicil extends Entity<CodicilProps> {
     // Check witness count
     if (this.props.witnesses.length < 2) {
       reasons.push('Insufficient witnesses (minimum 2 required)');
-    }
-
-    // Check execution date
-    try {
-      this.props.executionDate.validate();
-    } catch (error) {
-      reasons.push(`Invalid execution: ${error.message}`);
     }
 
     // Check content

@@ -1,10 +1,9 @@
-// src/estate-service/src/domain/events/will-witness.events.ts
 import { DomainEvent } from '../base/domain-event';
 
 /**
  * Witness Added Event
  *
- * Emitted when a new witness is added to a will
+ * Emitted when a witness is added to the will
  */
 export class WitnessAddedEvent extends DomainEvent<{
   witnessId: string;
@@ -48,7 +47,7 @@ export class WitnessSignedEvent extends DomainEvent<{
     witnessId: string,
     witnessName: string,
     signatureType: string,
-    signedAt: Date,
+    signedAt: string,
     signatureLocation?: string,
   ) {
     super(willId, 'Will', 1, {
@@ -56,7 +55,7 @@ export class WitnessSignedEvent extends DomainEvent<{
       willId,
       witnessName,
       signatureType,
-      signedAt: signedAt.toISOString(),
+      signedAt,
       signatureLocation,
     });
   }
@@ -65,7 +64,7 @@ export class WitnessSignedEvent extends DomainEvent<{
 /**
  * Witness Verified Event
  *
- * Emitted when witness identity is verified
+ * Emitted when a witness identity is verified
  */
 export class WitnessVerifiedEvent extends DomainEvent<{
   witnessId: string;
@@ -94,7 +93,7 @@ export class WitnessVerifiedEvent extends DomainEvent<{
 /**
  * Witness Rejected Event
  *
- * Emitted when a witness is rejected
+ * Emitted when a witness is rejected (e.g., deemed ineligible)
  */
 export class WitnessRejectedEvent extends DomainEvent<{
   witnessId: string;
@@ -108,77 +107,6 @@ export class WitnessRejectedEvent extends DomainEvent<{
       willId,
       witnessName,
       reason,
-    });
-  }
-}
-
-/**
- * Witness Contact Updated Event
- *
- * Emitted when witness contact information is updated
- */
-export class WitnessContactUpdatedEvent extends DomainEvent<{
-  witnessId: string;
-  willId: string;
-  witnessName: string;
-  updatedFields: string[];
-}> {
-  constructor(willId: string, witnessId: string, witnessName: string, updatedFields: string[]) {
-    super(willId, 'Will', 1, {
-      witnessId,
-      willId,
-      witnessName,
-      updatedFields,
-    });
-  }
-}
-
-/**
- * Witness Invited Event
- *
- * Emitted when witness is invited to sign
- */
-export class WitnessInvitedEvent extends DomainEvent<{
-  witnessId: string;
-  willId: string;
-  witnessName: string;
-  invitedAt: string;
-}> {
-  constructor(willId: string, witnessId: string, witnessName: string, invitedAt: Date) {
-    super(willId, 'Will', 1, {
-      witnessId,
-      willId,
-      witnessName,
-      invitedAt: invitedAt.toISOString(),
-    });
-  }
-}
-
-/**
- * Witness Reminded Event
- *
- * Emitted when reminder is sent to witness
- */
-export class WitnessRemindedEvent extends DomainEvent<{
-  witnessId: string;
-  willId: string;
-  witnessName: string;
-  reminderCount: number;
-  lastRemindedAt: string;
-}> {
-  constructor(
-    willId: string,
-    witnessId: string,
-    witnessName: string,
-    reminderCount: number,
-    lastRemindedAt: Date,
-  ) {
-    super(willId, 'Will', 1, {
-      witnessId,
-      willId,
-      witnessName,
-      reminderCount,
-      lastRemindedAt: lastRemindedAt.toISOString(),
     });
   }
 }

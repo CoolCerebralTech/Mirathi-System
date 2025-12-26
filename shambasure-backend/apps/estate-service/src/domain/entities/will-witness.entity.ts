@@ -1,6 +1,12 @@
 // src/estate-service/src/domain/entities/will-witness.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
+import {
+  WitnessAddedEvent,
+  WitnessRejectedEvent,
+  WitnessSignedEvent,
+  WitnessVerifiedEvent,
+} from '../events/will-witness.events';
 import { WillWitnessException } from '../exceptions/will-witness.exception';
 import { ExecutionDate } from '../value-objects/execution-date.vo';
 import { WitnessEligibility } from '../value-objects/witness-eligibility.vo';
@@ -118,7 +124,7 @@ export interface WillWitnessProps {
  */
 export class WillWitness extends Entity<WillWitnessProps> {
   private constructor(props: WillWitnessProps, id?: UniqueEntityID) {
-    super(id, props);
+    super(id ?? new UniqueEntityID(), props);
   }
 
   /**
@@ -129,16 +135,15 @@ export class WillWitness extends Entity<WillWitnessProps> {
     witness.validate();
 
     // Apply domain event for witness creation
-    witness.addDomainEvent({
-      eventType: 'WitnessAdded',
-      aggregateId: props.willId,
-      eventData: {
-        witnessId: id?.toString(),
-        witnessName: witness.getDisplayName(),
-        witnessType: props.witnessIdentity.type,
-        status: props.status,
-      },
-    });
+    witness.addDomainEvent(
+      new WitnessAddedEvent(
+        props.willId,
+        witness.id.toString(),
+        witness.getDisplayName(),
+        props.witnessIdentity.type,
+        props.status,
+      ),
+    );
 
     return witness;
   }
@@ -156,9 +161,6 @@ export class WillWitness extends Entity<WillWitnessProps> {
     // Witness identity validation
     this.validateIdentity();
 
-    // Eligibility validation
-    this.props.eligibility.validate();
-
     // Status validation
     this.validateStatus();
 
@@ -168,11 +170,6 @@ export class WillWitness extends Entity<WillWitnessProps> {
     // Signature validation (if signed)
     if (this.props.signedAt) {
       this.validateSignature();
-    }
-
-    // Execution date validation (if present)
-    if (this.props.executionDate) {
-      this.props.executionDate.validate();
     }
 
     // Check for legal disqualifications
@@ -226,7 +223,10 @@ export class WillWitness extends Entity<WillWitnessProps> {
         break;
 
       default:
-        throw new WillWitnessException(`Invalid witness type: ${type}`, 'witnessIdentity.type');
+        throw new WillWitnessException(
+          `Invalid witness type: ${type as any}`,
+          'witnessIdentity.type',
+        );
     }
   }
 
@@ -380,7 +380,7 @@ export class WillWitness extends Entity<WillWitnessProps> {
       throw new WillWitnessException('Witness already signed', 'status');
     }
 
-    if (!this.props.eligibility.props.isEligible) {
+    if (!this.props.eligibility.toJSON().isEligible) {
       throw new WillWitnessException('Ineligible witness cannot sign', 'eligibility');
     }
 
@@ -394,30 +394,31 @@ export class WillWitness extends Entity<WillWitnessProps> {
       notes: notes || this.props.notes,
     });
 
-    // Add domain event for signature
-    this.addDomainEvent({
-      eventType: 'WitnessSigned',
-      aggregateId: this.props.willId,
-      eventData: {
-        witnessId: this.id.toString(),
-        witnessName: this.getDisplayName(),
+    // 3. UPDATE: Use WitnessSignedEvent
+    this.addDomainEvent(
+      new WitnessSignedEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.getDisplayName(),
         signatureType,
-        signedAt: signedAt.toISOString(),
+        signedAt.toISOString(),
         signatureLocation,
-      },
-    });
+      ),
+    );
   }
 
   /**
    * Verify witness identity
    */
   public verifyIdentity(method: VerificationMethod, documentId: string, notes?: string): void {
-    if (this.props.status !== 'SIGNED') {
-      throw new WillWitnessException('Only signed witnesses can be verified', 'status');
-    }
-
+    // 1. Check if already verified
     if (this.props.status === 'VERIFIED') {
       throw new WillWitnessException('Witness already verified', 'status');
+    }
+
+    // 2. Check if signed (must be signed to be verified)
+    if (this.props.status !== 'SIGNED') {
+      throw new WillWitnessException('Only signed witnesses can be verified', 'status');
     }
 
     this.updateState({
@@ -428,16 +429,15 @@ export class WillWitness extends Entity<WillWitnessProps> {
     });
 
     // Add domain event for verification
-    this.addDomainEvent({
-      eventType: 'WitnessVerified',
-      aggregateId: this.props.willId,
-      eventData: {
-        witnessId: this.id.toString(),
-        witnessName: this.getDisplayName(),
-        verificationMethod: method,
+    this.addDomainEvent(
+      new WitnessVerifiedEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.getDisplayName(),
+        method,
         documentId,
-      },
-    });
+      ),
+    );
   }
 
   /**
@@ -454,15 +454,14 @@ export class WillWitness extends Entity<WillWitnessProps> {
     });
 
     // Add domain event for rejection
-    this.addDomainEvent({
-      eventType: 'WitnessRejected',
-      aggregateId: this.props.willId,
-      eventData: {
-        witnessId: this.id.toString(),
-        witnessName: this.getDisplayName(),
+    this.addDomainEvent(
+      new WitnessRejectedEvent(
+        this.props.willId,
+        this.id.toString(),
+        this.getDisplayName(),
         reason,
-      },
-    });
+      ),
+    );
   }
 
   /**
@@ -582,7 +581,7 @@ export class WillWitness extends Entity<WillWitnessProps> {
     const notes: string[] = [];
 
     // Age requirement
-    if (this.props.eligibility.props.age < 18) {
+    if (this.props.eligibility.toJSON().age < 18) {
       missingRequirements.push('Witness must be at least 18 years old');
     }
 
@@ -658,7 +657,7 @@ export class WillWitness extends Entity<WillWitnessProps> {
     }
 
     // Must be eligible
-    if (!this.props.eligibility.props.isEligible) {
+    if (!this.props.eligibility.toJSON().isEligible) {
       return false;
     }
 
@@ -715,7 +714,7 @@ export class WillWitness extends Entity<WillWitnessProps> {
     return this.props.presenceType;
   }
 
-  get contactInfo(): WillWitnessProps['contactInfo'] | undefined {
+  get contactInfo(): WillWitnessProps['contactInfo'] {
     return this.props.contactInfo ? { ...this.props.contactInfo } : undefined;
   }
 

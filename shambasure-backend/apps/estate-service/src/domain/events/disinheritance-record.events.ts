@@ -1,4 +1,3 @@
-// src/estate-service/src/domain/events/disinheritance-record.events.ts
 import { DomainEvent } from '../base/domain-event';
 
 /**
@@ -33,7 +32,7 @@ export class DisinheritanceDeclaredEvent extends DomainEvent<{
 /**
  * Disinheritance Reason Updated Event
  *
- * Emitted when disinheritance reason is updated
+ * Emitted when the reason for disinheritance is changed
  */
 export class DisinheritanceReasonUpdatedEvent extends DomainEvent<{
   recordId: string;
@@ -62,7 +61,7 @@ export class DisinheritanceReasonUpdatedEvent extends DomainEvent<{
 /**
  * Disinheritance Evidence Added Event
  *
- * Emitted when evidence is added to disinheritance record
+ * Emitted when new evidence is added to support the disinheritance
  */
 export class DisinheritanceEvidenceAddedEvent extends DomainEvent<{
   recordId: string;
@@ -91,7 +90,7 @@ export class DisinheritanceEvidenceAddedEvent extends DomainEvent<{
 /**
  * Disinheritance Acknowledged Event
  *
- * Emitted when disinherited person acknowledges disinheritance
+ * Emitted when the disinherited person acknowledges the decision
  */
 export class DisinheritanceAcknowledgedEvent extends DomainEvent<{
   recordId: string;
@@ -105,14 +104,14 @@ export class DisinheritanceAcknowledgedEvent extends DomainEvent<{
     recordId: string,
     disinheritedPerson: Record<string, any>,
     acknowledgmentMethod: string,
-    acknowledgmentDate: Date,
+    acknowledgmentDate: string,
   ) {
     super(willId, 'Will', 1, {
       recordId,
       willId,
       disinheritedPerson,
       acknowledgmentMethod,
-      acknowledgmentDate: acknowledgmentDate.toISOString(),
+      acknowledgmentDate,
     });
   }
 }
@@ -120,7 +119,7 @@ export class DisinheritanceAcknowledgedEvent extends DomainEvent<{
 /**
  * Disinheritance Deactivated Event
  *
- * Emitted when disinheritance record is deactivated
+ * Emitted when a disinheritance record is deactivated (removed/revoked)
  */
 export class DisinheritanceDeactivatedEvent extends DomainEvent<{
   recordId: string;
@@ -146,7 +145,7 @@ export class DisinheritanceDeactivatedEvent extends DomainEvent<{
 /**
  * Disinheritance Reactivated Event
  *
- * Emitted when disinheritance record is reactivated
+ * Emitted when a previously deactivated record is reinstated
  */
 export class DisinheritanceReactivatedEvent extends DomainEvent<{
   recordId: string;
@@ -158,35 +157,6 @@ export class DisinheritanceReactivatedEvent extends DomainEvent<{
       recordId,
       willId,
       disinheritedPerson,
-    });
-  }
-}
-
-/**
- * Disinheritance Risk Recalculated Event
- *
- * Emitted when legal risk is recalculated
- */
-export class DisinheritanceRiskRecalculatedEvent extends DomainEvent<{
-  recordId: string;
-  willId: string;
-  disinheritedPerson: Record<string, any>;
-  previousRiskLevel: string;
-  newRiskLevel: string;
-}> {
-  constructor(
-    willId: string,
-    recordId: string,
-    disinheritedPerson: Record<string, any>,
-    previousRiskLevel: string,
-    newRiskLevel: string,
-  ) {
-    super(willId, 'Will', 1, {
-      recordId,
-      willId,
-      disinheritedPerson,
-      previousRiskLevel,
-      newRiskLevel,
     });
   }
 }
