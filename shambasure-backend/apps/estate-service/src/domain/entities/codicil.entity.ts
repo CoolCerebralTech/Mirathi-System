@@ -1,523 +1,363 @@
-// domain/entities/codicil.entity.ts
+// src/estate-service/src/domain/entities/codicil.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
+import { CodicilException } from '../exceptions/codicil.exceptions';
+import { ExecutionDate } from '../value-objects/execution-date.vo';
 
 /**
- * Codicil Entity - Strictly Lawful Implementation
- *
- * Kenyan Legal Context (Law of Succession Act, Cap 160):
- * - S.11 LSA: Formal validity (writing, signature, two witnesses)
- * - S.17 LSA: Effect (alters, explains, or revokes part of will)
- * - Treated as part of will, same formal requirements
- *
- * Entity Scope:
- * 1. Text and intent of amendment
- * 2. What clause(s) it modifies
- * 3. Legal lifecycle (state machine)
- * 4. Witness attestation rules
- * 5. Determining if legally executable
- *
- * NOT Responsible For:
- * - Ordering codicils (Will aggregate)
- * - Applying to clauses (Will aggregate)
- * - Conflict resolution (Will aggregate)
- * - Estate distribution (Estate aggregate)
- * - Any AI/tax/compliance engines
+ * Codicil Properties Interface
  */
-
-// =========================================================================
-// VALUE OBJECTS (Within same file for cohesion)
-// =========================================================================
-
-/**
- * Codicil Content Value Object
- * S.11 LSA: Must be "in writing"
- */
-export class CodicilContent {
-  constructor(readonly text: string) {
-    if (!text || text.trim().length < 20) {
-      throw new Error('Codicil text must be meaningful (at least 20 characters)');
-    }
-  }
-
-  equals(other: CodicilContent): boolean {
-    return this.text === other.text;
-  }
-
-  toString(): string {
-    return this.text;
-  }
-}
-
-/**
- * Witness Signature Value Object
- * S.11 LSA: Two competent witnesses, present simultaneously
- */
-export class WitnessSignature {
-  constructor(
-    readonly name: string,
-    readonly nationalId: string,
-    readonly signedAt: Date,
-    readonly location?: string, // Optional but good for audit
-  ) {
-    if (!name || name.trim().length < 2) {
-      throw new Error('Witness name is required');
-    }
-    if (!nationalId || !this.isValidKenyanId(nationalId)) {
-      throw new Error('Valid Kenyan National ID is required');
-    }
-    if (!signedAt || !(signedAt instanceof Date)) {
-      throw new Error('Valid signature date is required');
-    }
-    // Witnesses cannot be beneficiaries (S.11 interpretation)
-    // Note: Actual beneficiary check done at Will aggregate level
-  }
-
-  private isValidKenyanId(id: string): boolean {
-    // Kenyan ID: 8 digits (old) or 8 digits + 1 letter + 3 digits (new)
-    const oldFormat = /^\d{8}$/;
-    const newFormat = /^\d{8}[A-Z]\d{3}$/;
-    return oldFormat.test(id) || newFormat.test(id);
-  }
-
-  equals(other: WitnessSignature): boolean {
-    return (
-      this.nationalId === other.nationalId && this.signedAt.getTime() === other.signedAt.getTime()
-    );
-  }
-
-  static fromNameAndId(name: string, nationalId: string): WitnessSignature {
-    return new WitnessSignature(name, nationalId, new Date());
-  }
-}
-
-/**
- * Clause Reference Value Object
- * Identifies which will clause the codicil affects
- */
-export class ClauseReference {
-  constructor(
-    readonly clauseId: string,
-    readonly clauseType: string, // e.g., "BENEFICIARY", "EXECUTOR", "GUARDIAN"
-    readonly clauseNumber?: number,
-  ) {
-    if (!clauseId) {
-      throw new Error('Clause ID is required');
-    }
-    if (!clauseType) {
-      throw new Error('Clause type is required');
-    }
-  }
-
-  equals(other: ClauseReference): boolean {
-    return this.clauseId === other.clauseId;
-  }
-
-  toString(): string {
-    return `Clause ${this.clauseType} (${this.clauseId})`;
-  }
-}
-
-// =========================================================================
-// ENUMS
-// =========================================================================
-
-export enum CodicilStatus {
-  DRAFT = 'DRAFT',
-  SIGNED_BY_TESTATOR = 'SIGNED_BY_TESTATOR',
-  WITNESSED = 'WITNESSED',
-  ACTIVE = 'ACTIVE',
-  REVOKED = 'REVOKED',
-  SUPERSEDED = 'SUPERSEDED',
-}
-
-export enum CodicilType {
-  AMENDMENT = 'AMENDMENT', // Changes existing clause
-  ADDITION = 'ADDITION', // Adds new clause
-  REVOCATION = 'REVOCATION', // Revokes existing clause
-  EXPLANATION = 'EXPLANATION', // Clarifies ambiguous clause
-}
-
-// =========================================================================
-// CODICIL ENTITY
-// =========================================================================
-
-interface CodicilProps {
+export interface CodicilProps {
   willId: string; // Reference to parent Will aggregate
-  type: CodicilType;
-  content: CodicilContent;
-  affectsClauses: ClauseReference[]; // Which clauses this codicil modifies
-
-  // Legal State
-  status: CodicilStatus;
-  witnesses: WitnessSignature[];
-  testatorSignedAt?: Date; // When testator signed (S.11 LSA)
-  executedAt?: Date; // When codicil became active
-
-  // Metadata
-  reason?: string; // Why this amendment was made
-  supersededById?: string; // If replaced by another codicil
+  title: string;
+  content: string;
+  codicilDate: Date;
+  versionNumber: number;
+  executionDate: ExecutionDate;
+  witnesses: string[]; // Array of witness IDs or names
+  amendmentType: 'ADDITION' | 'MODIFICATION' | 'REVOCATION';
+  affectedClauses?: string[]; // References to clauses in the will
+  legalBasis?: string; // Legal justification for amendment
+  isDependent: boolean; // Whether this codicil depends on the main will
 }
 
+/**
+ * Codicil Entity
+ *
+ * Represents a formal amendment to an executed will in Kenya
+ *
+ * Legal Requirements (S.11 LSA):
+ * - Must meet same formalities as original will (2 witnesses)
+ * - Must reference the will it amends
+ * - Cannot create contradictions without clarity
+ * - Must be executed with testamentary capacity
+ *
+ * IMPORTANT: Codicils have NO independent legal life. They exist solely
+ * as amendments to a Will aggregate.
+ */
 export class Codicil extends Entity<CodicilProps> {
-  // =========================================================================
-  // CONSTRUCTOR & FACTORY
-  // =========================================================================
-
   private constructor(props: CodicilProps, id?: UniqueEntityID) {
-    // Domain Rule: Codicil must affect at least one clause (S.17 LSA)
-    if (props.affectsClauses.length === 0) {
-      throw new Error('Codicil must affect at least one clause');
-    }
-
-    // Domain Rule: Only certain types can be active immediately
-    if (props.status === CodicilStatus.ACTIVE && !props.executedAt) {
-      throw new Error('Active codicil must have execution date');
-    }
-
-    super(id ?? new UniqueEntityID(), props);
+    super(id, props);
   }
 
   /**
-   * Factory: Create new draft codicil
+   * Factory method to create a new Codicil
    */
-  public static create(
-    willId: string,
-    type: CodicilType,
-    content: CodicilContent,
-    affectsClauses: ClauseReference[],
-    reason?: string,
-  ): Codicil {
-    const props: CodicilProps = {
-      willId,
-      type,
-      content,
-      affectsClauses,
-      status: CodicilStatus.DRAFT,
-      witnesses: [],
-      reason,
-    };
+  public static create(props: CodicilProps, id?: UniqueEntityID): Codicil {
+    const codicil = new Codicil(props, id);
+    codicil.validate();
 
-    return new Codicil(props);
-  }
+    // Apply domain event for Codicil creation
+    codicil.addDomainEvent({
+      eventType: 'CodicilCreated',
+      aggregateId: props.willId,
+      eventData: {
+        codicilId: id?.toString(),
+        title: props.title,
+        amendmentType: props.amendmentType,
+      },
+    });
 
-  /**
-   * Reconstitute from persistence
-   */
-  public static reconstitute(
-    id: string,
-    props: CodicilProps,
-    createdAt: Date,
-    updatedAt: Date,
-    version: number,
-  ): Codicil {
-    const codicil = new Codicil(props, new UniqueEntityID(id));
-    (codicil as any)._createdAt = createdAt;
-    (codicil as any)._updatedAt = updatedAt;
-    (codicil as any)._version = version;
     return codicil;
   }
 
-  // =========================================================================
-  // BUSINESS LOGIC (MUTATIONS)
-  // =========================================================================
-
   /**
-   * Testator signs the codicil (S.11 LSA requirement)
+   * Validate Codicil invariants
+   *
+   * Ensures:
+   * - Has valid title and content
+   * - Properly executed with witnesses
+   * - Does not violate Kenyan legal requirements
    */
-  public signByTestator(at: Date = new Date()): void {
-    if (this.status !== CodicilStatus.DRAFT) {
-      throw new Error('Codicil can only be signed from DRAFT state');
+  public validate(): void {
+    // Title validation
+    if (!this.props.title || this.props.title.trim().length === 0) {
+      throw new CodicilException('Codicil must have a title', 'title');
     }
 
-    this.updateState({
-      status: CodicilStatus.SIGNED_BY_TESTATOR,
-      testatorSignedAt: at,
-    });
+    if (this.props.title.length > 200) {
+      throw new CodicilException('Codicil title cannot exceed 200 characters', 'title');
+    }
+
+    // Content validation
+    if (!this.props.content || this.props.content.trim().length === 0) {
+      throw new CodicilException('Codicil must have content', 'content');
+    }
+
+    if (this.props.content.length > 10000) {
+      throw new CodicilException('Codicil content cannot exceed 10,000 characters', 'content');
+    }
+
+    // Date validation
+    if (this.props.codicilDate > new Date()) {
+      throw new CodicilException('Codicil date cannot be in the future', 'codicilDate');
+    }
+
+    // Version validation
+    if (this.props.versionNumber < 1) {
+      throw new CodicilException('Version number must be at least 1', 'versionNumber');
+    }
+
+    // Execution date validation
+    this.props.executionDate.validate();
+
+    // Witness validation (S.11 LSA)
+    if (this.props.witnesses.length < 2) {
+      throw new CodicilException('Codicil must have at least 2 witnesses (S.11 LSA)', 'witnesses');
+    }
+
+    // Amendment type validation
+    const validTypes = ['ADDITION', 'MODIFICATION', 'REVOCATION'];
+    if (!validTypes.includes(this.props.amendmentType)) {
+      throw new CodicilException(
+        `Invalid amendment type. Must be one of: ${validTypes.join(', ')}`,
+        'amendmentType',
+      );
+    }
+
+    // Check for contradictory amendments
+    this.validateAmendmentLogic();
   }
 
   /**
-   * Add witness signature (S.11 LSA: at least two witnesses)
+   * Validate amendment logic
+   *
+   * Ensures amendments don't create contradictions
+   * Example: Cannot both add and revoke same clause
    */
-  public addWitness(witness: WitnessSignature): void {
-    // Domain Rule: Must be signed by testator first
-    if (this.status !== CodicilStatus.SIGNED_BY_TESTATOR) {
-      throw new Error('Testator must sign before witnesses can sign');
+  private validateAmendmentLogic(): void {
+    if (this.props.amendmentType === 'REVOCATION') {
+      if (!this.props.affectedClauses || this.props.affectedClauses.length === 0) {
+        throw new CodicilException(
+          'Revocation codicil must specify affected clauses',
+          'affectedClauses',
+        );
+      }
     }
 
-    // Domain Rule: Maximum 2 witnesses (Kenyan law)
-    if (this.witnesses.length >= 2) {
-      throw new Error('Only two witnesses are allowed (S.11 LSA)');
+    // If this is a dependent codicil, ensure it references valid clauses
+    if (this.props.isDependent && !this.props.affectedClauses) {
+      throw new CodicilException(
+        'Dependent codicil must specify affected clauses',
+        'affectedClauses',
+      );
     }
-
-    // Domain Rule: No duplicate witnesses by national ID
-    const duplicate = this.witnesses.some((w) => w.nationalId === witness.nationalId);
-    if (duplicate) {
-      throw new Error('Witness with this National ID has already signed');
-    }
-
-    const updatedWitnesses = [...this.witnesses, witness];
-    const newStatus = updatedWitnesses.length === 2 ? CodicilStatus.WITNESSED : this.status;
-
-    this.updateState({
-      witnesses: updatedWitnesses,
-      status: newStatus,
-    });
   }
 
   /**
-   * Activate codicil (make it legally effective)
+   * Update codicil content
+   *
+   * Note: Once executed, codicils should generally be immutable.
+   * This method is for draft codicils only.
    */
-  public activate(): void {
-    // Domain Rule: Must be properly witnessed first
-    if (this.status !== CodicilStatus.WITNESSED) {
-      throw new Error('Codicil must be witnessed before activation');
+  public updateContent(newContent: string): void {
+    if (this.isExecuted()) {
+      throw new CodicilException(
+        'Cannot modify executed codicil. Create a new codicil instead.',
+        'updateContent',
+      );
     }
 
-    // Domain Rule: Must have exactly 2 witnesses (S.11 LSA)
-    if (this.witnesses.length !== 2) {
-      throw new Error('Exactly two witnesses required for activation (S.11 LSA)');
-    }
-
-    // Domain Rule: Witnesses must sign within reasonable time (simultaneous presence)
-    if (!this.areWitnessesSimultaneous()) {
-      throw new Error('Witnesses must sign simultaneously (S.11 LSA)');
-    }
-
-    this.updateState({
-      status: CodicilStatus.ACTIVE,
-      executedAt: this.testatorSignedAt,
-    });
-  }
-
-  /**
-   * Revoke codicil (S.17 LSA: revocation by subsequent instrument)
-   */
-  public revoke(): void {
-    if (this.status !== CodicilStatus.ACTIVE) {
-      throw new Error('Only active codicils can be revoked');
-    }
-
-    this.updateState({
-      status: CodicilStatus.REVOKED,
-    });
-  }
-
-  /**
-   * Mark as superseded by later codicil or will
-   */
-  public supersede(supersededById: string): void {
-    if (this.status !== CodicilStatus.ACTIVE) {
-      throw new Error('Only active codicils can be superseded');
-    }
-
-    this.updateState({
-      status: CodicilStatus.SUPERSEDED,
-      supersededById,
-    });
-  }
-
-  /**
-   * Update content (only in draft state)
-   */
-  public updateContent(newContent: CodicilContent, reason?: string): void {
-    if (this.status !== CodicilStatus.DRAFT) {
-      throw new Error('Can only update content in DRAFT state');
+    if (!newContent || newContent.trim().length === 0) {
+      throw new CodicilException('Content cannot be empty', 'content');
     }
 
     this.updateState({
       content: newContent,
-      reason: reason ?? this.reason,
+      versionNumber: this.props.versionNumber + 1,
+    });
+
+    // Add domain event for modification
+    this.addDomainEvent({
+      eventType: 'CodicilContentUpdated',
+      aggregateId: this.props.willId,
+      eventData: {
+        codicilId: this.id.toString(),
+        version: this.props.versionNumber,
+      },
     });
   }
 
-  // =========================================================================
-  // QUERY METHODS (PURE)
-  // =========================================================================
-
   /**
-   * Check if witnesses signed simultaneously (S.11 LSA requirement)
+   * Add witness to codicil
+   *
+   * Note: Can only add witnesses before execution
    */
-  public areWitnessesSimultaneous(): boolean {
-    if (this.witnesses.length < 2) return false;
+  public addWitness(witnessId: string): void {
+    if (this.isExecuted()) {
+      throw new CodicilException('Cannot add witnesses to executed codicil', 'witnesses');
+    }
 
-    const [w1, w2] = this.witnesses;
-    const timeDiff = Math.abs(w1.signedAt.getTime() - w2.signedAt.getTime());
-    const timeDiffMinutes = timeDiff / (1000 * 60);
+    if (this.props.witnesses.includes(witnessId)) {
+      throw new CodicilException('Witness already added to codicil', 'witnesses');
+    }
 
-    // Legal interpretation: "at the same time" means within a short period
-    // We use 30 minutes as reasonable threshold for simultaneity
-    return timeDiffMinutes <= 30;
+    this.updateState({
+      witnesses: [...this.props.witnesses, witnessId],
+    });
   }
 
   /**
-   * Check if codicil is legally executable
-   * S.11 LSA compliance: written, signed, witnessed simultaneously
+   * Check if codicil has been executed
+   *
+   * Execution means it has been properly witnessed and dated
    */
-  public isLegallyExecutable(): boolean {
-    return (
-      this.status === CodicilStatus.ACTIVE &&
-      this.witnesses.length === 2 &&
-      !!this.testatorSignedAt &&
-      this.areWitnessesSimultaneous()
-    );
+  public isExecuted(): boolean {
+    return this.props.witnesses.length >= 2 && this.props.executionDate !== undefined;
   }
 
   /**
-   * Check if codicil affects specific clause
+   * Get summary of amendment
    */
-  public affectsClause(clauseId: string): boolean {
-    return this.affectsClauses.some((clause) => clause.clauseId === clauseId);
+  public getAmendmentSummary(): string {
+    const typeMap = {
+      ADDITION: 'Adds new provisions',
+      MODIFICATION: 'Modifies existing provisions',
+      REVOCATION: 'Revokes existing provisions',
+    };
+
+    const baseSummary = `${typeMap[this.props.amendmentType]}: ${this.props.title}`;
+
+    if (this.props.affectedClauses && this.props.affectedClauses.length > 0) {
+      const clauses = this.props.affectedClauses.join(', ');
+      return `${baseSummary} (Affects: ${clauses})`;
+    }
+
+    return baseSummary;
   }
 
   /**
-   * Get witness by National ID
+   * Check if this codicil affects specific clause
    */
-  public getWitnessByNationalId(nationalId: string): WitnessSignature | undefined {
-    return this.witnesses.find((w) => w.nationalId === nationalId);
+  public affectsClause(clauseReference: string): boolean {
+    if (!this.props.affectedClauses) {
+      return false;
+    }
+
+    return this.props.affectedClauses.includes(clauseReference);
   }
 
-  // =========================================================================
-  // PROPERTY GETTERS
-  // =========================================================================
+  /**
+   * Get legal validity assessment
+   */
+  public getValidityAssessment(): {
+    isValid: boolean;
+    reasons: string[];
+    warnings: string[];
+  } {
+    const reasons: string[] = [];
+    const warnings: string[] = [];
 
+    // Check witness count
+    if (this.props.witnesses.length < 2) {
+      reasons.push('Insufficient witnesses (minimum 2 required)');
+    }
+
+    // Check execution date
+    try {
+      this.props.executionDate.validate();
+    } catch (error) {
+      reasons.push(`Invalid execution: ${error.message}`);
+    }
+
+    // Check content
+    if (!this.props.content || this.props.content.trim().length === 0) {
+      reasons.push('Codicil has no content');
+    }
+
+    // Check for proper reference to will
+    if (!this.props.willId) {
+      reasons.push('Codicil does not reference a valid will');
+    }
+
+    // Check if codicil is too long (warning)
+    if (this.props.content.length > 5000) {
+      warnings.push('Codicil is lengthy - consider separate codicils for clarity');
+    }
+
+    // Check amendment type clarity
+    if (
+      this.props.amendmentType === 'MODIFICATION' &&
+      (!this.props.affectedClauses || this.props.affectedClauses.length === 0)
+    ) {
+      warnings.push('Modification codicil should specify affected clauses');
+    }
+
+    const isValid = reasons.length === 0;
+
+    return { isValid, reasons, warnings };
+  }
+
+  /**
+   * Calculate if codicil needs to be re-executed
+   *
+   * Based on Kenyan legal practice:
+   * - If substantial changes are made after initial execution
+   * - If witnesses become unavailable/ineligible
+   * - If there are doubts about capacity
+   */
+  public needsReExecution(): boolean {
+    // If not yet executed, doesn't need re-execution
+    if (!this.isExecuted()) {
+      return false;
+    }
+
+    // Check if codicil was executed more than 1 year ago
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+    if (this.props.codicilDate < oneYearAgo) {
+      return true; // Old codicil should be re-executed as precaution
+    }
+
+    // Check if any major changes were made after execution
+    const hasPostExecutionChanges = this.props.versionNumber > 1 && this.isExecuted();
+
+    return hasPostExecutionChanges;
+  }
+
+  // Getters
   get willId(): string {
     return this.props.willId;
   }
 
-  get type(): CodicilType {
-    return this.props.type;
+  get title(): string {
+    return this.props.title;
   }
 
-  get content(): CodicilContent {
+  get content(): string {
     return this.props.content;
   }
 
-  get affectsClauses(): ClauseReference[] {
-    return [...this.props.affectsClauses];
+  get codicilDate(): Date {
+    return this.props.codicilDate;
   }
 
-  get status(): CodicilStatus {
-    return this.props.status;
+  get versionNumber(): number {
+    return this.props.versionNumber;
   }
 
-  get witnesses(): WitnessSignature[] {
+  get executionDate(): ExecutionDate {
+    return this.props.executionDate;
+  }
+
+  get witnesses(): string[] {
     return [...this.props.witnesses];
   }
 
-  get testatorSignedAt(): Date | undefined {
-    return this.props.testatorSignedAt;
+  get amendmentType(): string {
+    return this.props.amendmentType;
   }
 
-  get executedAt(): Date | undefined {
-    return this.props.executedAt;
+  get affectedClauses(): string[] | undefined {
+    return this.props.affectedClauses ? [...this.props.affectedClauses] : undefined;
   }
 
-  get reason(): string | undefined {
-    return this.props.reason;
+  get legalBasis(): string | undefined {
+    return this.props.legalBasis;
   }
 
-  get supersededById(): string | undefined {
-    return this.props.supersededById;
-  }
-
-  // State checkers
-  public isDraft(): boolean {
-    return this.status === CodicilStatus.DRAFT;
-  }
-
-  public isActive(): boolean {
-    return this.status === CodicilStatus.ACTIVE;
-  }
-
-  public isRevoked(): boolean {
-    return this.status === CodicilStatus.REVOKED;
-  }
-
-  public isSuperseded(): boolean {
-    return this.status === CodicilStatus.SUPERSEDED;
-  }
-
-  public isWitnessed(): boolean {
-    return this.status === CodicilStatus.WITNESSED;
-  }
-
-  public hasMinimumWitnesses(): boolean {
-    return this.witnesses.length >= 2;
-  }
-
-  // =========================================================================
-  // VALIDATION (For invariant checking)
-  // =========================================================================
-
-  /**
-   * Validate codicil against Kenyan legal requirements
-   */
-  public validate(): { isValid: boolean; errors: string[] } {
-    const errors: string[] = [];
-
-    // Basic validation
-    if (!this.content.text.trim()) {
-      errors.push('Codicil content cannot be empty');
-    }
-
-    if (this.affectsClauses.length === 0) {
-      errors.push('Codicil must affect at least one clause');
-    }
-
-    // S.11 LSA compliance
-    if (this.isActive()) {
-      if (this.witnesses.length !== 2) {
-        errors.push('Active codicil must have exactly two witnesses (S.11 LSA)');
-      }
-
-      if (!this.testatorSignedAt) {
-        errors.push('Active codicil must have testator signature');
-      }
-
-      if (!this.areWitnessesSimultaneous()) {
-        errors.push('Witnesses must sign simultaneously (S.11 LSA)');
-      }
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors,
-    };
-  }
-
-  // =========================================================================
-  // SERIALIZATION
-  // =========================================================================
-
-  public toJSON() {
-    return {
-      id: this.id.toString(),
-      willId: this.willId,
-      type: this.type,
-      content: this.content.text,
-      affectsClauses: this.affectsClauses.map((c) => ({
-        clauseId: c.clauseId,
-        clauseType: c.clauseType,
-        clauseNumber: c.clauseNumber,
-      })),
-      status: this.status,
-      testatorSignedAt: this.testatorSignedAt?.toISOString(),
-      executedAt: this.executedAt?.toISOString(),
-      witnesses: this.witnesses.map((w) => ({
-        name: w.name,
-        nationalId: w.nationalId,
-        signedAt: w.signedAt.toISOString(),
-        location: w.location,
-      })),
-      areWitnessesSimultaneous: this.areWitnessesSimultaneous(),
-      reason: this.reason,
-      supersededById: this.supersededById,
-      isLegallyExecutable: this.isLegallyExecutable(),
-      validation: this.validate(),
-      createdAt: this.createdAt.toISOString(),
-      updatedAt: this.updatedAt.toISOString(),
-      version: this.version,
-    };
+  get isDependent(): boolean {
+    return this.props.isDependent;
   }
 }

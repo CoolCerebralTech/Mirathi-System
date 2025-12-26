@@ -1,254 +1,215 @@
-// domain/value-objects/witness-eligibility.vo.ts
+// src/estate-service/src/domain/value-objects/witness-eligibility.vo.ts
 import { ValueObject, ValueObjectValidationError } from '../base/value-object';
+
+export interface WitnessEligibilityProps {
+  isEligible: boolean;
+  reasons: string[];
+  age: number;
+  isBeneficiary: boolean;
+  isExecutor: boolean;
+  isTestatorSpouse: boolean;
+  isMentallyCompetent: boolean;
+  hasCriminalRecord: boolean;
+}
 
 /**
  * Witness Eligibility Value Object
  *
- * Kenyan Legal Context - Section 11 LSA:
- * "Every will shall be in writing and shall be signed by the testator
- * or by some other person in his presence and by his direction, and
- * such signature shall be made or acknowledged by the testator in the
- * presence of two or more witnesses present at the same time, and
- * such witnesses shall subscribe the will in the presence of the testator."
- *
- * CRITICAL RULES:
- * 1. Witness CANNOT be a beneficiary (will is void as to that beneficiary)
- * 2. Witness must be of sound mind and legal age (18+)
- * 3. Witness cannot be spouse of testator
- * 4. Witness cannot be executor (best practice, not strict law)
- * 5. Both witnesses must be present at same time
- *
- * Eligibility Reasons:
- * - ELIGIBLE: Can witness
- * - INELIGIBLE_MINOR: Under 18 years
- * - INELIGIBLE_BENEFICIARY: Named in will
- * - INELIGIBLE_SPOUSE: Married to testator
- * - INELIGIBLE_EXECUTOR: Named as executor (discouraged)
- * - INELIGIBLE_RELATIONSHIP: Close family (best practice)
- * - INELIGIBLE_MENTAL_CAPACITY: Lacks capacity
- * - INELIGIBLE_CRIMINAL_RECORD: Convicted of fraud/forgery
+ * Determines if a person can witness a will under Kenyan Law of Succession Act S.11
+ * Legal Requirements:
+ * - Must be at least 18 years old
+ * - Cannot be a beneficiary or spouse of beneficiary (S.11(2))
+ * - Must be mentally competent
+ * - Should not have criminal record (best practice)
+ * - Should not be the executor (allowed but discouraged)
  */
-export enum WitnessEligibilityStatus {
-  ELIGIBLE = 'ELIGIBLE',
-  INELIGIBLE_MINOR = 'INELIGIBLE_MINOR',
-  INELIGIBLE_BENEFICIARY = 'INELIGIBLE_BENEFICIARY',
-  INELIGIBLE_SPOUSE = 'INELIGIBLE_SPOUSE',
-  INELIGIBLE_EXECUTOR = 'INELIGIBLE_EXECUTOR',
-  INELIGIBLE_RELATIONSHIP = 'INELIGIBLE_RELATIONSHIP',
-  INELIGIBLE_MENTAL_CAPACITY = 'INELIGIBLE_MENTAL_CAPACITY',
-  INELIGIBLE_CRIMINAL_RECORD = 'INELIGIBLE_CRIMINAL_RECORD',
-  PENDING_ELIGIBILITY_CHECK = 'PENDING_ELIGIBILITY_CHECK',
-}
-
-interface WitnessEligibilityProps {
-  status: WitnessEligibilityStatus;
-  reason?: string;
-  checkedAt: Date;
-  legalAge: boolean;
-  isBeneficiary: boolean;
-  isSpouseOfTestator: boolean;
-  isExecutor: boolean;
-  hasConflictOfInterest: boolean;
-}
-
 export class WitnessEligibility extends ValueObject<WitnessEligibilityProps> {
-  private constructor(props: WitnessEligibilityProps) {
+  private static readonly MIN_AGE = 18;
+
+  constructor(props: WitnessEligibilityProps) {
     super(props);
   }
 
   protected validate(): void {
-    if (!Object.values(WitnessEligibilityStatus).includes(this.props.status)) {
+    const reasons: string[] = [];
+
+    // Age check (S.11 LSA)
+    if (this.props.age < WitnessEligibility.MIN_AGE) {
+      reasons.push(`Witness must be at least ${WitnessEligibility.MIN_AGE} years old`);
+    }
+
+    // Beneficiary check (S.11(2) LSA)
+    if (this.props.isBeneficiary) {
+      reasons.push('Witness cannot be a beneficiary');
+    }
+
+    // Mental competence check
+    if (!this.props.isMentallyCompetent) {
+      reasons.push('Witness must be mentally competent');
+    }
+
+    // Spouse of beneficiary check
+    if (this.props.isTestatorSpouse) {
+      reasons.push('Spouse of testator cannot witness will');
+    }
+
+    // Criminal record warning (not absolute disqualification)
+    if (this.props.hasCriminalRecord) {
+      reasons.push('Witness has criminal record - may affect credibility');
+    }
+
+    // Executor warning (allowed but not recommended)
+    if (this.props.isExecutor) {
+      reasons.push('Executor as witness is discouraged but legally permitted');
+    }
+
+    // Determine overall eligibility
+    const isEligible =
+      reasons.length === 0 || (reasons.length === 1 && reasons[0].includes('discouraged'));
+
+    // Validate consistency
+    if (this.props.isEligible !== isEligible) {
       throw new ValueObjectValidationError(
-        `Invalid witness eligibility status: ${this.props.status}`,
-        'status',
+        'Eligibility calculation does not match provided value',
+        'isEligible',
       );
     }
 
-    // If status is eligible, flags must be correct
-    if (this.props.status === WitnessEligibilityStatus.ELIGIBLE) {
-      if (!this.props.legalAge) {
-        throw new ValueObjectValidationError('Eligible witness must be of legal age', 'legalAge');
-      }
-
-      if (this.props.isBeneficiary) {
-        throw new ValueObjectValidationError(
-          'Beneficiary cannot be eligible witness',
-          'isBeneficiary',
-        );
-      }
-
-      if (this.props.isSpouseOfTestator) {
-        throw new ValueObjectValidationError(
-          'Spouse of testator cannot be eligible witness',
-          'isSpouseOfTestator',
-        );
-      }
-    }
-
-    if (!this.props.checkedAt || this.props.checkedAt > new Date()) {
-      throw new ValueObjectValidationError('Invalid eligibility check date', 'checkedAt');
+    if (this.props.reasons.length !== reasons.length) {
+      throw new ValueObjectValidationError(
+        'Reasons list does not match calculated reasons',
+        'reasons',
+      );
     }
   }
 
-  // Factory method: Create from eligibility check
-  static create(params: {
-    dateOfBirth?: Date;
-    isBeneficiary: boolean;
-    isSpouseOfTestator: boolean;
-    isExecutor: boolean;
-    hasMentalCapacity: boolean;
-    hasCriminalRecord: boolean;
-    hasConflictOfInterest: boolean;
-    reason?: string;
-  }): WitnessEligibility {
-    const now = new Date();
-    const legalAge = params.dateOfBirth ? this.calculateAge(params.dateOfBirth) >= 18 : false;
+  /**
+   * Calculate eligibility based on facts
+   */
+  public static calculate(facts: Partial<WitnessEligibilityProps>): WitnessEligibility {
+    const age = facts.age || 0;
+    const isBeneficiary = facts.isBeneficiary || false;
+    const isExecutor = facts.isExecutor || false;
+    const isTestatorSpouse = facts.isTestatorSpouse || false;
+    const isMentallyCompetent = facts.isMentallyCompetent ?? true;
+    const hasCriminalRecord = facts.hasCriminalRecord || false;
 
-    let status: WitnessEligibilityStatus;
+    const reasons: string[] = [];
 
-    // Determine eligibility (in priority order)
-    if (!legalAge && params.dateOfBirth) {
-      status = WitnessEligibilityStatus.INELIGIBLE_MINOR;
-    } else if (params.isBeneficiary) {
-      status = WitnessEligibilityStatus.INELIGIBLE_BENEFICIARY;
-    } else if (params.isSpouseOfTestator) {
-      status = WitnessEligibilityStatus.INELIGIBLE_SPOUSE;
-    } else if (!params.hasMentalCapacity) {
-      status = WitnessEligibilityStatus.INELIGIBLE_MENTAL_CAPACITY;
-    } else if (params.hasCriminalRecord) {
-      status = WitnessEligibilityStatus.INELIGIBLE_CRIMINAL_RECORD;
-    } else if (params.isExecutor) {
-      // Soft warning - not strictly illegal but discouraged
-      status = WitnessEligibilityStatus.INELIGIBLE_EXECUTOR;
-    } else if (params.hasConflictOfInterest) {
-      status = WitnessEligibilityStatus.INELIGIBLE_RELATIONSHIP;
-    } else if (!params.dateOfBirth) {
-      status = WitnessEligibilityStatus.PENDING_ELIGIBILITY_CHECK;
-    } else {
-      status = WitnessEligibilityStatus.ELIGIBLE;
+    // Age check
+    if (age < WitnessEligibility.MIN_AGE) {
+      reasons.push(`Witness must be at least ${WitnessEligibility.MIN_AGE} years old`);
     }
 
+    // Beneficiary check
+    if (isBeneficiary) {
+      reasons.push('Witness cannot be a beneficiary');
+    }
+
+    // Mental competence
+    if (!isMentallyCompetent) {
+      reasons.push('Witness must be mentally competent');
+    }
+
+    // Spouse check
+    if (isTestatorSpouse) {
+      reasons.push('Spouse of testator cannot witness will');
+    }
+
+    // Criminal record warning
+    if (hasCriminalRecord) {
+      reasons.push('Witness has criminal record - may affect credibility');
+    }
+
+    // Executor warning
+    if (isExecutor) {
+      reasons.push('Executor as witness is discouraged but legally permitted');
+    }
+
+    // Determine eligibility
+    const isEligible =
+      reasons.length === 0 || (reasons.length === 1 && reasons[0].includes('discouraged'));
+
     return new WitnessEligibility({
-      status,
-      reason: params.reason,
-      checkedAt: now,
-      legalAge,
-      isBeneficiary: params.isBeneficiary,
-      isSpouseOfTestator: params.isSpouseOfTestator,
-      isExecutor: params.isExecutor,
-      hasConflictOfInterest: params.hasConflictOfInterest,
+      isEligible,
+      reasons,
+      age,
+      isBeneficiary,
+      isExecutor,
+      isTestatorSpouse,
+      isMentallyCompetent,
+      hasCriminalRecord,
     });
   }
 
-  // Factory: Eligible witness
-  static eligible(): WitnessEligibility {
-    return new WitnessEligibility({
-      status: WitnessEligibilityStatus.ELIGIBLE,
-      checkedAt: new Date(),
-      legalAge: true,
-      isBeneficiary: false,
-      isSpouseOfTestator: false,
-      isExecutor: false,
-      hasConflictOfInterest: false,
-    });
-  }
-
-  // Factory: Pending check
-  static pending(reason?: string): WitnessEligibility {
-    return new WitnessEligibility({
-      status: WitnessEligibilityStatus.PENDING_ELIGIBILITY_CHECK,
-      reason,
-      checkedAt: new Date(),
-      legalAge: false,
-      isBeneficiary: false,
-      isSpouseOfTestator: false,
-      isExecutor: false,
-      hasConflictOfInterest: false,
-    });
-  }
-
-  // Query methods
-  public isEligible(): boolean {
-    return this.props.status === WitnessEligibilityStatus.ELIGIBLE;
-  }
-
-  public isIneligible(): boolean {
-    return (
-      this.props.status !== WitnessEligibilityStatus.ELIGIBLE &&
-      this.props.status !== WitnessEligibilityStatus.PENDING_ELIGIBILITY_CHECK
+  /**
+   * Get primary disqualification reason if any
+   */
+  public getDisqualificationReason(): string | null {
+    // Remove warnings to find disqualifications
+    const disqualifyingReasons = this.props.reasons.filter(
+      (reason) => !reason.includes('discouraged') && !reason.includes('may affect'),
     );
+
+    return disqualifyingReasons.length > 0 ? disqualifyingReasons[0] : null;
   }
 
-  public isPending(): boolean {
-    return this.props.status === WitnessEligibilityStatus.PENDING_ELIGIBILITY_CHECK;
-  }
-
-  public getStatus(): WitnessEligibilityStatus {
-    return this.props.status;
-  }
-
-  public getReason(): string | undefined {
-    return this.props.reason;
-  }
-
-  public getIneligibilityReason(): string {
-    const reasons: Record<WitnessEligibilityStatus, string> = {
-      [WitnessEligibilityStatus.ELIGIBLE]: 'Eligible to witness',
-      [WitnessEligibilityStatus.INELIGIBLE_MINOR]: 'Witness must be 18 years or older',
-      [WitnessEligibilityStatus.INELIGIBLE_BENEFICIARY]:
-        'Beneficiary cannot witness will (Section 11 LSA)',
-      [WitnessEligibilityStatus.INELIGIBLE_SPOUSE]: 'Spouse of testator cannot witness will',
-      [WitnessEligibilityStatus.INELIGIBLE_EXECUTOR]:
-        'Executor should not witness will (best practice)',
-      [WitnessEligibilityStatus.INELIGIBLE_RELATIONSHIP]:
-        'Close family member should not witness (best practice)',
-      [WitnessEligibilityStatus.INELIGIBLE_MENTAL_CAPACITY]: 'Witness must have mental capacity',
-      [WitnessEligibilityStatus.INELIGIBLE_CRIMINAL_RECORD]:
-        'Person with fraud/forgery conviction cannot witness',
-      [WitnessEligibilityStatus.PENDING_ELIGIBILITY_CHECK]: 'Eligibility check pending',
-    };
-
-    return this.props.reason ?? reasons[this.props.status];
-  }
-
-  // Business logic
-  public hasLegalImpediment(): boolean {
-    // These are strict legal impediments (not just best practices)
-    return [
-      WitnessEligibilityStatus.INELIGIBLE_MINOR,
-      WitnessEligibilityStatus.INELIGIBLE_BENEFICIARY,
-      WitnessEligibilityStatus.INELIGIBLE_SPOUSE,
-      WitnessEligibilityStatus.INELIGIBLE_MENTAL_CAPACITY,
-    ].includes(this.props.status);
-  }
-
-  public isOnlyBestPracticeViolation(): boolean {
-    // These are discouraged but not strictly illegal
-    return [
-      WitnessEligibilityStatus.INELIGIBLE_EXECUTOR,
-      WitnessEligibilityStatus.INELIGIBLE_RELATIONSHIP,
-    ].includes(this.props.status);
-  }
-
-  private static calculateAge(dateOfBirth: Date): number {
-    const today = new Date();
-    let age = today.getFullYear() - dateOfBirth.getFullYear();
-    const monthDiff = today.getMonth() - dateOfBirth.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dateOfBirth.getDate())) {
-      age--;
-    }
-
-    return age;
+  /**
+   * Get warnings (non-disqualifying issues)
+   */
+  public getWarnings(): string[] {
+    return this.props.reasons.filter(
+      (reason) => reason.includes('discouraged') || reason.includes('may affect'),
+    );
   }
 
   public toJSON(): Record<string, any> {
     return {
-      status: this.props.status,
-      reason: this.getIneligibilityReason(),
-      checkedAt: this.props.checkedAt.toISOString(),
-      isEligible: this.isEligible(),
-      hasLegalImpediment: this.hasLegalImpediment(),
+      isEligible: this.props.isEligible,
+      reasons: this.props.reasons,
+      age: this.props.age,
+      disqualificationReason: this.getDisqualificationReason(),
+      warnings: this.getWarnings(),
+      requirements: {
+        minAge: WitnessEligibility.MIN_AGE,
+        cannotBeBeneficiary: true,
+        cannotBeSpouse: true,
+        mustBeMentallyCompetent: true,
+      },
     };
+  }
+
+  // Static factory methods for common scenarios
+  public static eligibleAdult(age: number): WitnessEligibility {
+    return WitnessEligibility.calculate({
+      age,
+      isBeneficiary: false,
+      isExecutor: false,
+      isTestatorSpouse: false,
+      isMentallyCompetent: true,
+      hasCriminalRecord: false,
+    });
+  }
+
+  public static ineligibleBeneficiary(age: number): WitnessEligibility {
+    return WitnessEligibility.calculate({
+      age,
+      isBeneficiary: true,
+      isExecutor: false,
+      isTestatorSpouse: false,
+      isMentallyCompetent: true,
+      hasCriminalRecord: false,
+    });
+  }
+
+  public static ineligibleMinor(age: number): WitnessEligibility {
+    return WitnessEligibility.calculate({
+      age,
+      isBeneficiary: false,
+      isExecutor: false,
+      isTestatorSpouse: false,
+      isMentallyCompetent: true,
+      hasCriminalRecord: false,
+    });
   }
 }

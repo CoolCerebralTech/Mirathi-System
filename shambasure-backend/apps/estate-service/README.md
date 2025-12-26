@@ -77,3 +77,57 @@ src/estate-service/src/domain/
     // =========================================================================
     ├── distribution-scenario.read-model.ts # A saved "What-If" calculation.
     └── computed-share.read-model.ts        # The final result row: "Wanjiku gets 20%".
+
+src/estate-service/src/domain/
+│
+├── aggregates/
+│   ├── estate.aggregate.ts             # [ROOT] The Financial Ledger.
+│   │                                   # RESPONSIBILITY: Enforces Solvency & Readiness.
+│   │                                   # METHODS: getNetValue(), freeze(), isSolvent().
+│   │
+│   └── will.aggregate.ts               # [ROOT] The Instructions.
+│                                       # (unchanged from previous agreement)
+│
+├── entities/
+│   // =========================================================================
+│   // 1. INVENTORY (The "What")
+│   // =========================================================================
+│   ├── asset.entity.ts                 # The Wrapper (ID, Type, Status).
+│   ├── asset-liquidation.entity.ts     # The Event: Asset -> Cash conversion.
+│   │
+│   // --- Asset Polymorphism (The Details) ---
+│   // These are Value Objects or Child Entities attached to 'Asset'
+│   ├── land-asset-details.entity.ts    # Title Deed, LR Number, County.
+│   ├── vehicle-asset-details.entity.ts # Logbook, Chassis, Make/Model.
+│   ├── financial-asset-details.entity.ts # Bank Name, Account, Shares.
+│   ├── business-asset-details.entity.ts  # Company Reg, Shareholding %.
+│   │
+│   // --- Asset Economics ---
+│   ├── asset-valuation.entity.ts       # History: Value at Date X vs Date Y.
+│   ├── asset-co-owner.entity.ts        # Fact: "Deceased owned only 50%".
+│
+│   // =========================================================================
+│   // 2. LIABILITIES (The "Owed")
+│   // =========================================================================
+│   ├── debt.entity.ts                  # The Liability.
+│   │                                   # LOGIC: S.45 Priorities (Funeral > Secured).
+│   ├── estate-tax-compliance.entity.ts # The "KRA Gate".
+│   │                                   # LOGIC: Blocks distribution until cleared.
+│
+│   // =========================================================================
+│   // 3. CLAIMS & ADJUSTMENTS (The "adjustments")
+│   // =========================================================================
+│   ├── legal-dependant.entity.ts       # S.29 Claimant (The Person).
+│   ├── dependant-evidence.entity.ts    # The Proof (School Fees, Medical Reports).
+│   │                                   # WHY: You cannot claim without evidence.
+│   ├── gift-inter-vivos.entity.ts      # S.35(3) Hotchpot.
+│   │                                   # LOGIC: Adds phantom value back for math.
+│
+├── services/
+│   ├── solvency-calculator.service.ts  # Logic: Can we pay the debts?
+│   └── distribution-math.service.ts    # Logic: Who gets what %?
+│
+└── events/
+    ├── estate-created.event.ts
+    ├── estate-insolvency-detected.event.ts
+    └── estate-ready-for-distribution.event.ts

@@ -1,558 +1,949 @@
-// domain/entities/asset.entity.ts
+// src/estate-service/src/domain/entities/asset.entity.ts
+import { UniqueEntityID } from '../../base/unique-entity-id';
 import { Entity } from '../base/entity';
-import { UniqueEntityID } from '../base/unique-entity-id';
+import { AssetStatus } from '../enums/asset-status.enum';
+import { AssetStatusHelper } from '../enums/asset-status.enum';
+import { CoOwnershipType } from '../enums/co-ownership-type.enum';
+import { CoOwnershipTypeHelper } from '../enums/co-ownership-type.enum';
 import {
-  AssetOwnershipType,
-  AssetType,
-  AssetVerificationStatus,
-  Money,
-  SharePercentage,
-} from '../value-objects';
+  AssetCoOwnerAddedEvent,
+  AssetCoOwnerRemovedEvent,
+  AssetCoOwnerShareUpdatedEvent,
+  AssetDeletedEvent,
+  AssetEncumberedEvent,
+  AssetOwnershipTypeChangedEvent,
+  AssetStatusChangedEvent,
+  AssetValueUpdatedEvent,
+} from '../events/asset.event';
+import {
+  AssetCannotBeModifiedException,
+  AssetDeletedException,
+  AssetEncumberedException,
+  AssetValueInvalidException,
+} from '../exceptions/asset.exception';
+import {
+  FinancialAssetDetailsVO,
+  LandAssetDetailsVO,
+  VehicleAssetDetailsVO,
+} from '../value-objects/asset-details';
+import { AssetTypeVO } from '../value-objects/asset-type.vo';
+import { MoneyVO } from '../value-objects/money.vo';
+import { AssetCoOwner } from './asset-co-owner.entity';
+import { AssetLiquidation } from './asset-liquidation.entity';
+import { AssetValuation } from './asset-valuation.entity';
 
 /**
- * Asset Entity
- *
- * Represents a single item of value in the Estate inventory
- *
- * Legal Context:
- * - S.83 LSA: Executors must maintain accurate inventory
- * - Asset ownership type determines if it enters estate
- * - Verification required before distribution
- *
- * Business Rules:
- * - Asset value must be positive
- * - Encumbered assets must have encumbrance details
- * - Co-owned assets track ownership percentages
- * - Only deceased's share is distributable
- *
- * Design: Strategy Pattern for asset-type-specific details
+ * Asset Co-Ownership Management Interface
  */
+interface AssetCoOwnership {
+  coOwners: Map<string, AssetCoOwner>; // key: coOwnerId
+  ownershipType: CoOwnershipType;
+  totalSharePercentage: number; // Sum of all co-owner shares
+}
 
+/**
+ * Asset Entity Properties Interface (Updated)
+ */
 export interface AssetProps {
-  estateId: UniqueEntityID;
-  ownerId: UniqueEntityID;
-
-  // Core Details
+  estateId: string;
+  ownerId: string; // Primary owner (deceased)
   name: string;
+  type: AssetTypeVO;
+  currentValue: MoneyVO;
   description?: string;
-  type: AssetType;
-
-  // Financial
-  currentValue: Money;
-  currency: string;
-  valuationDate?: Date;
-
-  // Ownership
-  ownershipType: AssetOwnershipType;
-  deceasedSharePercentage: SharePercentage; // Portion that enters estate
-
-  // Status
-  verificationStatus: AssetVerificationStatus;
-  isActive: boolean;
+  status: AssetStatus;
   isEncumbered: boolean;
   encumbranceDetails?: string;
+  isActive: boolean;
 
-  // Metadata
-  metadata?: Record<string, any>;
+  // Co-Ownership Management (Embedded)
+  coOwnership?: AssetCoOwnership;
+  valuations?: AssetValuation[];
+  liquidation?: AssetLiquidation;
+
+  // Polymorphic details
+  landDetails?: LandAssetDetailsVO;
+  vehicleDetails?: VehicleAssetDetailsVO;
+  financialDetails?: FinancialAssetDetailsVO;
+  businessDetails?: any;
+
+  // Audit
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date;
 }
 
-export interface AssetCoOwner {
-  userId?: UniqueEntityID;
-  externalName?: string;
-  sharePercentage: SharePercentage;
-}
-
+/**
+ * Asset Entity (Updated with Embedded Co-Ownership)
+ *
+ * Now manages co-owners directly as part of the asset's state.
+ * Estate aggregate remains the transactional boundary for solvency.
+ */
 export class Asset extends Entity<AssetProps> {
-  private _coOwners: AssetCoOwner[] = [];
-  private _valuationHistory: AssetValuation[] = [];
-
-  private constructor(id: UniqueEntityID, props: AssetProps, createdAt?: Date) {
-    super(id, props, createdAt);
-    this.validate();
-  }
-
-  /**
-   * Factory: Create new asset
-   */
-  public static create(
-    props: Omit<AssetProps, 'verificationStatus' | 'isActive' | 'isEncumbered'>,
-    id?: UniqueEntityID,
-  ): Asset {
-    const asset = new Asset(id ?? new UniqueEntityID(), {
-      ...props,
-      verificationStatus: AssetVerificationStatus.unverified(),
-      isActive: true,
-      isEncumbered: false,
-    });
-
-    return asset;
-  }
-
-  /**
-   * Reconstitute from persistence
-   */
-  public static reconstitute(id: UniqueEntityID, props: AssetProps, createdAt: Date): Asset {
-    return new Asset(id, props, createdAt);
-  }
-
-  // =========================================================================
-  // GETTERS
-  // =========================================================================
-
-  get estateId(): UniqueEntityID {
+  // Getters
+  get estateId(): string {
     return this.props.estateId;
   }
-
-  get ownerId(): UniqueEntityID {
+  get ownerId(): string {
     return this.props.ownerId;
   }
-
   get name(): string {
     return this.props.name;
   }
-
+  get type(): AssetTypeVO {
+    return this.props.type;
+  }
+  get currentValue(): MoneyVO {
+    return this.props.currentValue;
+  }
   get description(): string | undefined {
     return this.props.description;
   }
-
-  get type(): AssetType {
-    return this.props.type;
+  get status(): AssetStatus {
+    return this.props.status;
   }
-
-  get currentValue(): Money {
-    return this.props.currentValue;
-  }
-
-  get valuationDate(): Date | undefined {
-    return this.props.valuationDate;
-  }
-
-  get ownershipType(): AssetOwnershipType {
-    return this.props.ownershipType;
-  }
-
-  get deceasedSharePercentage(): SharePercentage {
-    return this.props.deceasedSharePercentage;
-  }
-
-  get verificationStatus(): AssetVerificationStatus {
-    return this.props.verificationStatus;
-  }
-
-  get isActive(): boolean {
-    return this.props.isActive;
-  }
-
   get isEncumbered(): boolean {
     return this.props.isEncumbered;
   }
-
   get encumbranceDetails(): string | undefined {
     return this.props.encumbranceDetails;
   }
-
-  get coOwners(): ReadonlyArray<AssetCoOwner> {
-    return Object.freeze([...this._coOwners]);
+  get isActive(): boolean {
+    return this.props.isActive;
   }
-
-  get valuationHistory(): ReadonlyArray<AssetValuation> {
-    return Object.freeze([...this._valuationHistory]);
+  get coOwnership(): AssetCoOwnership | undefined {
+    return this.props.coOwnership;
   }
-
-  // =========================================================================
-  // BUSINESS LOGIC - VALUE CALCULATIONS
-  // =========================================================================
-
-  /**
-   * Get the value that enters the estate (deceased's share)
-   * Critical: Only this amount is distributable
-   */
-  public getDistributableValue(): Money {
-    // Joint tenancy bypasses estate
-    if (this.ownershipType.bypassesEstate()) {
-      return Money.zero();
-    }
-
-    // Calculate deceased's share
-    return this.currentValue.multiply(this.deceasedSharePercentage.getDecimal());
+  get landDetails(): LandAssetDetailsVO | undefined {
+    return this.props.landDetails;
   }
-
-  /**
-   * Get full market value (for reporting)
-   */
-  public getFullValue(): Money {
-    return this.currentValue;
+  get vehicleDetails(): VehicleAssetDetailsVO | undefined {
+    return this.props.vehicleDetails;
+  }
+  get financialDetails(): FinancialAssetDetailsVO | undefined {
+    return this.props.financialDetails;
+  }
+  get businessDetails(): any | undefined {
+    return this.props.businessDetails;
+  }
+  get valuations(): AssetValuation[] {
+    return this.props.valuations || [];
+  }
+  get liquidation(): AssetLiquidation | undefined {
+    return this.props.liquidation;
   }
 
   /**
-   * Get net value (after encumbrances)
-   * If asset has mortgage/charge, net value is reduced
+   * Get co-owner by ID
    */
-  public getNetValue(encumbranceAmount?: Money): Money {
-    if (!this.isEncumbered || !encumbranceAmount) {
-      return this.getDistributableValue();
-    }
-
-    const distributableValue = this.getDistributableValue();
-    const netValue = distributableValue.subtract(encumbranceAmount);
-
-    // Net value cannot be negative
-    return netValue.isNegative() ? Money.zero() : netValue;
-  }
-
-  // =========================================================================
-  // BUSINESS LOGIC - OWNERSHIP
-  // =========================================================================
-
-  /**
-   * Add co-owner (for tenancy in common / community property)
-   */
-  public addCoOwner(coOwner: AssetCoOwner): void {
-    this.ensureNotDeleted();
-
-    // Validate ownership type allows co-owners
-    if (this.ownershipType.isSole()) {
-      throw new Error('Cannot add co-owner to solely owned asset');
-    }
-
-    // Validate total shares don't exceed 100%
-    const totalShares = this.calculateTotalOwnershipShares([coOwner]);
-    if (totalShares.greaterThan(SharePercentage.full())) {
-      throw new Error('Total ownership shares cannot exceed 100%');
-    }
-
-    this._coOwners.push(coOwner);
-    this.incrementVersion();
+  getCoOwner(coOwnerId: string): AssetCoOwner | undefined {
+    return this.props.coOwnership?.coOwners.get(coOwnerId);
   }
 
   /**
-   * Remove co-owner
+   * Get co-owner by user ID
    */
-  public removeCoOwner(index: number): void {
-    this.ensureNotDeleted();
+  getCoOwnerByUserId(userId: string): AssetCoOwner | undefined {
+    if (!this.props.coOwnership) return undefined;
 
-    if (index < 0 || index >= this._coOwners.length) {
-      throw new Error('Invalid co-owner index');
-    }
-
-    this._coOwners.splice(index, 1);
-    this.incrementVersion();
-  }
-
-  /**
-   * Update deceased's share percentage
-   */
-  public updateDeceasedShare(newShare: SharePercentage): void {
-    this.ensureNotDeleted();
-
-    if (this.ownershipType.isSole() && !newShare.isFull()) {
-      throw new Error('Sole ownership must have 100% deceased share');
-    }
-
-    (this.props as any).deceasedSharePercentage = newShare;
-    this.incrementVersion();
-  }
-
-  /**
-   * Calculate total ownership shares (including deceased)
-   */
-  private calculateTotalOwnershipShares(additionalCoOwners: AssetCoOwner[] = []): SharePercentage {
-    let total = this.deceasedSharePercentage;
-
-    for (const coOwner of [...this._coOwners, ...additionalCoOwners]) {
-      total = total.add(coOwner.sharePercentage);
-    }
-
-    return total;
-  }
-
-  // =========================================================================
-  // BUSINESS LOGIC - VERIFICATION
-  // =========================================================================
-
-  /**
-   * Submit asset for verification
-   */
-  public submitForVerification(): void {
-    this.ensureNotDeleted();
-
-    if (!this.verificationStatus.isUnverified()) {
-      throw new Error(`Cannot submit asset in status: ${this.verificationStatus.value}`);
-    }
-
-    (this.props as any).verificationStatus = AssetVerificationStatus.pendingVerification();
-    this.incrementVersion();
-  }
-
-  /**
-   * Verify asset (by verifier/auditor)
-   */
-  public verify(): void {
-    this.ensureNotDeleted();
-
-    if (!this.verificationStatus.isPending()) {
-      throw new Error(`Cannot verify asset in status: ${this.verificationStatus.value}`);
-    }
-
-    (this.props as any).verificationStatus = AssetVerificationStatus.verified();
-    this.incrementVersion();
-  }
-
-  /**
-   * Reject asset verification
-   */
-  public reject(reason: string): void {
-    this.ensureNotDeleted();
-
-    if (!this.verificationStatus.isPending()) {
-      throw new Error(`Cannot reject asset in status: ${this.verificationStatus.value}`);
-    }
-
-    if (!reason || reason.trim().length === 0) {
-      throw new Error('Rejection reason is required');
-    }
-
-    (this.props as any).verificationStatus = AssetVerificationStatus.rejected();
-    (this.props as any).metadata = {
-      ...this.props.metadata,
-      rejectionReason: reason,
-      rejectedAt: new Date(),
-    };
-    this.incrementVersion();
-  }
-
-  /**
-   * Mark asset as disputed
-   */
-  public markAsDisputed(reason: string): void {
-    this.ensureNotDeleted();
-
-    if (!reason || reason.trim().length === 0) {
-      throw new Error('Dispute reason is required');
-    }
-
-    (this.props as any).verificationStatus = AssetVerificationStatus.disputed();
-    (this.props as any).metadata = {
-      ...this.props.metadata,
-      disputeReason: reason,
-      disputedAt: new Date(),
-    };
-    this.incrementVersion();
-  }
-
-  /**
-   * Check if asset is ready for distribution
-   */
-  public isReadyForDistribution(): boolean {
-    return (
-      this.isActive &&
-      !this.isDeleted &&
-      this.verificationStatus.isVerified() &&
-      this.ownershipType.entersEstate()
+    return Array.from(this.props.coOwnership.coOwners.values()).find(
+      (coOwner) => coOwner.userId === userId,
     );
   }
 
-  // =========================================================================
-  // BUSINESS LOGIC - VALUATION
-  // =========================================================================
+  /**
+   * Get all active co-owners
+   */
+  getActiveCoOwners(): AssetCoOwner[] {
+    if (!this.props.coOwnership) return [];
+
+    return Array.from(this.props.coOwnership.coOwners.values()).filter(
+      (coOwner) => coOwner.isActive,
+    );
+  }
 
   /**
-   * Update asset value (creates valuation history)
+   * Get total co-owner share percentage
    */
-  public updateValue(newValue: Money, valuationDate: Date, source?: string, notes?: string): void {
-    this.ensureNotDeleted();
+  getCoOwnerTotalShare(): number {
+    if (!this.props.coOwnership) return 0;
 
-    if (newValue.isNegative()) {
-      throw new Error('Asset value cannot be negative');
+    return this.props.coOwnership.totalSharePercentage;
+  }
+
+  /**
+   * Get deceased's share percentage
+   */
+  getDeceasedSharePercentage(): number {
+    // If no co-owners, deceased owns 100%
+    if (!this.props.coOwnership) return 100;
+
+    const totalCoOwnerShare = this.props.coOwnership.totalSharePercentage;
+    return Math.max(0, 100 - totalCoOwnerShare);
+  }
+
+  /**
+   * Calculate distributable value
+   * This is the value that goes through the estate
+   */
+  getDistributableValue(): MoneyVO {
+    const deceasedShare = this.getDeceasedSharePercentage();
+
+    // If joint tenancy and there are surviving co-owners, deceased share is 0
+    if (
+      this.props.coOwnership?.ownershipType === CoOwnershipType.JOINT_TENANCY &&
+      this.getActiveCoOwners().length > 0
+    ) {
+      return MoneyVO.createKES(0);
     }
 
-    // Store old valuation in history
-    this._valuationHistory.push({
-      value: this.currentValue,
-      valuationDate: this.valuationDate ?? this.createdAt,
-      source: 'Previous valuation',
-      recordedAt: new Date(),
+    // Calculate deceased's portion of the value
+    const distributableAmount = (this.props.currentValue.amount * deceasedShare) / 100;
+
+    return new MoneyVO({
+      amount: distributableAmount,
+      currency: this.props.currentValue.currency,
     });
+  }
 
-    // Update current value
-    (this.props as any).currentValue = newValue;
-    (this.props as any).valuationDate = valuationDate;
+  /**
+   * Add a co-owner to the asset
+   */
+  addCoOwner(coOwner: AssetCoOwner, addedBy: string): void {
+    this.ensureCanBeModified();
 
-    if (source || notes) {
-      (this.props as any).metadata = {
-        ...this.props.metadata,
-        lastValuationSource: source,
-        lastValuationNotes: notes,
+    if (!this.props.coOwnership) {
+      // Initialize co-ownership structure
+      this.props.coOwnership = {
+        coOwners: new Map(),
+        ownershipType: coOwner.ownershipType,
+        totalSharePercentage: 0,
       };
     }
 
-    this.incrementVersion();
+    // Check for duplicate
+    if (this.props.coOwnership.coOwners.has(coOwner.id.toString())) {
+      throw new Error(`Co-owner ${coOwner.id.toString()} already exists`);
+    }
+
+    // Validate total share
+    const newTotal = this.props.coOwnership.totalSharePercentage + coOwner.sharePercentage;
+    if (newTotal > 100) {
+      throw new Error(
+        `Adding co-owner would exceed 100% total share. Current: ${this.props.coOwnership.totalSharePercentage}%, New: ${coOwner.sharePercentage}%`,
+      );
+    }
+
+    // Add co-owner
+    this.props.coOwnership.coOwners.set(coOwner.id.toString(), coOwner);
+    this.props.coOwnership.totalSharePercentage = newTotal;
+
+    // Update asset value
+    this.updateState({
+      coOwnership: this.props.coOwnership,
+      updatedAt: new Date(),
+    });
+
+    // Add domain event
+    this.addDomainEvent(
+      new AssetCoOwnerAddedEvent(
+        this.id.toString(),
+        coOwner.id.toString(),
+        coOwner.userId,
+        coOwner.externalName,
+        coOwner.sharePercentage,
+        coOwner.ownershipType,
+        addedBy,
+        this.props.version,
+      ),
+    );
+  }
+
+  /**
+   * Remove a co-owner from the asset
+   */
+  removeCoOwner(coOwnerId: string, removedBy: string, reason?: string): void {
+    this.ensureCanBeModified();
+
+    if (!this.props.coOwnership) {
+      throw new Error('No co-ownership structure found');
+    }
+
+    const coOwner = this.props.coOwnership.coOwners.get(coOwnerId);
+    if (!coOwner) {
+      throw new Error(`Co-owner ${coOwnerId} not found`);
+    }
+
+    // Update total share
+    this.props.coOwnership.totalSharePercentage -= coOwner.sharePercentage;
+
+    // Remove co-owner
+    this.props.coOwnership.coOwners.delete(coOwnerId);
+
+    // If no more co-owners, remove co-ownership structure
+    if (this.props.coOwnership.coOwners.size === 0) {
+      this.props.coOwnership = undefined;
+    }
+
+    this.updateState({
+      coOwnership: this.props.coOwnership,
+      updatedAt: new Date(),
+    });
+
+    // Add domain event
+    this.addDomainEvent(
+      new AssetCoOwnerRemovedEvent(
+        this.id.toString(),
+        coOwnerId,
+        coOwner.sharePercentage,
+        removedBy,
+        reason,
+        this.props.version,
+      ),
+    );
+  }
+
+  /**
+   * Update co-owner share percentage
+   */
+  updateCoOwnerShare(coOwnerId: string, newSharePercentage: number, updatedBy: string): void {
+    this.ensureCanBeModified();
+
+    if (!this.props.coOwnership) {
+      throw new Error('No co-ownership structure found');
+    }
+
+    const coOwner = this.props.coOwnership.coOwners.get(coOwnerId);
+    if (!coOwner) {
+      throw new Error(`Co-owner ${coOwnerId} not found`);
+    }
+
+    const oldSharePercentage = coOwner.sharePercentage;
+    const shareDifference = newSharePercentage - oldSharePercentage;
+    const newTotal = this.props.coOwnership.totalSharePercentage + shareDifference;
+
+    // Validate total share
+    if (newTotal > 100) {
+      throw new Error(
+        `Updating co-owner share would exceed 100% total. Current total: ${this.props.coOwnership.totalSharePercentage}%, Change: ${shareDifference}%`,
+      );
+    }
+
+    // Update co-owner share
+    coOwner.updateSharePercentage(newSharePercentage, updatedBy);
+    this.props.coOwnership.totalSharePercentage = newTotal;
+
+    this.updateState({
+      coOwnership: this.props.coOwnership,
+      updatedAt: new Date(),
+    });
+
+    // Add domain event
+    this.addDomainEvent(
+      new AssetCoOwnerShareUpdatedEvent(
+        this.id.toString(),
+        coOwnerId,
+        oldSharePercentage,
+        newSharePercentage,
+        updatedBy,
+        this.props.version,
+      ),
+    );
+  }
+
+  /**
+   * Change asset ownership type
+   */
+  changeOwnershipType(newOwnershipType: CoOwnershipType, changedBy: string): void {
+    this.ensureCanBeModified();
+
+    const oldOwnershipType = this.props.coOwnership?.ownershipType || CoOwnershipType.SOLE;
+
+    if (!this.props.coOwnership) {
+      // Initialize co-ownership structure if changing from SOLE
+      this.props.coOwnership = {
+        coOwners: new Map(),
+        ownershipType: newOwnershipType,
+        totalSharePercentage: 0,
+      };
+    } else {
+      // Update existing co-ownership structure
+      this.props.coOwnership.ownershipType = newOwnershipType;
+    }
+
+    this.updateState({
+      coOwnership: this.props.coOwnership,
+      updatedAt: new Date(),
+    });
+
+    // Add domain event
+    this.addDomainEvent(
+      new AssetOwnershipTypeChangedEvent(
+        this.id.toString(),
+        oldOwnershipType,
+        newOwnershipType,
+        changedBy,
+        CoOwnershipTypeHelper.getInheritanceImplications(newOwnershipType),
+        this.props.version,
+      ),
+    );
+  }
+
+  /**
+   * Check if asset has co-owners
+   */
+  hasCoOwners(): boolean {
+    return this.props.coOwnership !== undefined && this.props.coOwnership.coOwners.size > 0;
+  }
+
+  /**
+   * Get asset summary including co-ownership info
+   */
+  getSummary(): {
+    id: string;
+    name: string;
+    type: string;
+    value: number;
+    currency: string;
+    status: string;
+    canDistribute: boolean;
+    complexity: number;
+    hasCoOwners: boolean;
+    deceasedSharePercentage: number;
+    distributableValue: number;
+  } {
+    const distributableValue = this.getDistributableValue();
+
+    return {
+      id: this.id.toString(),
+      name: this.props.name,
+      type: this.props.type.toString(),
+      value: this.props.currentValue.amount,
+      currency: this.props.currentValue.currency,
+      status: this.props.status,
+      canDistribute: this.canBeDistributed(),
+      complexity: this.getTransferComplexity(),
+      hasCoOwners: this.hasCoOwners(),
+      deceasedSharePercentage: this.getDeceasedSharePercentage(),
+      distributableValue: distributableValue.amount,
+    };
+  }
+  /**
+   * Add a valuation record
+   */
+  addValuation(valuation: AssetValuation, updatedBy: string): void {
+    this.ensureCanBeModified();
+
+    // Ensure valuations array exists
+    if (!this.props.valuations) {
+      this.props.valuations = [];
+    }
+
+    // Check for duplicate valuation on same date from same source
+    const duplicate = this.props.valuations.find(
+      (v) =>
+        v.valuationDate.getTime() === valuation.valuationDate.getTime() &&
+        v.source === valuation.source,
+    );
+
+    if (duplicate) {
+      throw new Error(
+        `Valuation from ${valuation.source} on ${valuation.valuationDate.toISOString()} already exists`,
+      );
+    }
+
+    // Add valuation
+    this.props.valuations.push(valuation);
+
+    // Update asset value with new valuation
+    this.updateValue(valuation.value, valuation.source, updatedBy);
+
+    this.updateState({
+      valuations: this.props.valuations,
+      updatedAt: new Date(),
+    });
   }
 
   /**
    * Get latest valuation
    */
-  public getLatestValuation(): { value: Money; date: Date } {
-    return {
-      value: this.currentValue,
-      date: this.valuationDate ?? this.createdAt,
-    };
-  }
-
-  // =========================================================================
-  // BUSINESS LOGIC - ENCUMBRANCE
-  // =========================================================================
-
-  /**
-   * Mark asset as encumbered (mortgage, charge, lien)
-   */
-  public markAsEncumbered(details: string): void {
-    this.ensureNotDeleted();
-
-    if (!details || details.trim().length === 0) {
-      throw new Error('Encumbrance details are required');
+  getLatestValuation(): AssetValuation | undefined {
+    if (!this.props.valuations || this.props.valuations.length === 0) {
+      return undefined;
     }
 
-    (this.props as any).isEncumbered = true;
-    (this.props as any).encumbranceDetails = details;
-    this.incrementVersion();
+    return [...this.props.valuations]
+      .filter((v) => v.isActive)
+      .sort((a, b) => b.valuationDate.getTime() - a.valuationDate.getTime())[0];
+  }
+
+  /**
+   * Get professional valuations
+   */
+  getProfessionalValuations(): AssetValuation[] {
+    if (!this.props.valuations) return [];
+
+    return this.props.valuations
+      .filter((v) => v.isActive && v.isProfessionalValuation)
+      .sort((a, b) => b.valuationDate.getTime() - a.valuationDate.getTime());
+  }
+
+  /**
+   * Get tax-acceptable valuations
+   */
+  getTaxAcceptableValuations(): AssetValuation[] {
+    if (!this.props.valuations) return [];
+
+    return this.props.valuations
+      .filter((v) => v.isActive && v.isTaxAcceptable)
+      .sort((a, b) => b.valuationDate.getTime() - a.valuationDate.getTime());
+  }
+
+  /**
+   * Get valuation history (sorted by date)
+   */
+  getValuationHistory(): Array<{
+    date: Date;
+    value: number;
+    source: string;
+    credibility: number;
+    percentageChange?: number;
+  }> {
+    if (!this.props.valuations || this.props.valuations.length === 0) {
+      return [];
+    }
+
+    const sortedValuations = [...this.props.valuations]
+      .filter((v) => v.isActive)
+      .sort((a, b) => a.valuationDate.getTime() - b.valuationDate.getTime());
+
+    const history = sortedValuations.map((valuation, index) => {
+      const record: any = {
+        date: valuation.valuationDate,
+        value: valuation.value.amount,
+        source: valuation.source,
+        credibility: valuation.credibilityScore,
+      };
+
+      // Calculate percentage change from previous valuation
+      if (index > 0) {
+        const previousValue = sortedValuations[index - 1].value.amount;
+        const currentValue = valuation.value.amount;
+        const percentageChange = ((currentValue - previousValue) / previousValue) * 100;
+        record.percentageChange = percentageChange;
+      }
+
+      return record;
+    });
+
+    return history;
+  }
+
+  /**
+   * Calculate asset appreciation/depreciation
+   */
+  getAppreciationRate(periodMonths: number = 12): number | undefined {
+    const sortedValuations = this.getValuationHistory();
+    if (sortedValuations.length < 2) return undefined;
+
+    const now = new Date();
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(now.getMonth() - periodMonths);
+
+    const valuationsInPeriod = sortedValuations.filter((v) => v.date >= cutoffDate);
+    if (valuationsInPeriod.length < 2) return undefined;
+
+    const oldestValue = valuationsInPeriod[0].value;
+    const newestValue = valuationsInPeriod[valuationsInPeriod.length - 1].value;
+
+    const appreciationRate = ((newestValue - oldestValue) / oldestValue) * 100;
+    return appreciationRate;
+  }
+  Summ;
+  /**
+   * Check if asset can be liquidated
+   */
+  canBeLiquidated(): boolean {
+    return (
+      this.props.isActive &&
+      !this.props.isEncumbered &&
+      AssetStatusHelper.canBeLiquidated(this.props.status) &&
+      !this.props.liquidation // No active liquidation
+    );
+  }
+
+  /**
+   * Initiate liquidation
+   */
+  initiateLiquidation(liquidation: AssetLiquidation, initiatedBy: string): void {
+    if (!this.canBeLiquidated()) {
+      throw new AssetCannotBeLiquidatedException(
+        this.id.toString(),
+        'Asset cannot be liquidated in current state',
+      );
+    }
+
+    if (this.props.liquidation) {
+      throw new LiquidationAlreadyExistsException(this.id.toString());
+    }
+
+    // Update asset status to indicate liquidation in progress
+    this.changeStatus(AssetStatus.LIQUIDATED, 'Liquidation initiated', initiatedBy);
+
+    this.updateState({
+      liquidation,
+      updatedAt: new Date(),
+    });
+
+    // The AssetLiquidatedEvent is already emitted by the liquidation entity
+  }
+
+  /**
+   * Complete liquidation and update asset value
+   */
+  completeLiquidation(
+    completedBy: string,
+    actualAmount: number,
+    buyerName?: string,
+    buyerIdNumber?: string,
+  ): void {
+    if (!this.props.liquidation) {
+      throw new LiquidationNotFoundException('', this.id.toString());
+    }
+
+    // Record sale completion
+    this.props.liquidation.recordSaleCompletion(
+      actualAmount,
+      buyerName || 'Unknown',
+      buyerIdNumber,
+      completedBy,
+    );
+
+    // Update asset status
+    this.changeStatus(AssetStatus.LIQUIDATED, 'Liquidation completed', completedBy);
+
+    this.updateState({
+      updatedAt: new Date(),
+    });
+  }
+
+  /**
+   * Cancel liquidation
+   */
+  cancelLiquidation(cancelledBy: string, reason: string): void {
+    if (!this.props.liquidation) {
+      throw new LiquidationNotFoundException('', this.id.toString());
+    }
+
+    // Cancel the liquidation
+    this.props.liquidation.cancel(cancelledBy, reason);
+
+    // Reactivate asset if cancellation was before sale
+    if (this.props.liquidation.status !== LiquidationStatus.SALE_COMPLETED) {
+      this.changeStatus(AssetStatus.ACTIVE, 'Liquidation cancelled', cancelledBy);
+    }
+
+    this.updateState({
+      liquidation: undefined, // Remove liquidation reference
+      updatedAt: new Date(),
+    });
+  }
+
+  /**
+   * Get liquidation progress
+   */
+  getLiquidationProgress(): {
+    isBeingLiquidated: boolean;
+    status?: string;
+    targetAmount?: number;
+    actualAmount?: number;
+    netProceeds?: number;
+    daysRemaining?: number;
+  } {
+    if (!this.props.liquidation) {
+      return { isBeingLiquidated: false };
+    }
+
+    return {
+      isBeingLiquidated: true,
+      status: this.props.liquidation.status,
+      targetAmount: this.props.liquidation.targetAmount,
+      actualAmount: this.props.liquidation.actualAmount,
+      netProceeds: this.props.liquidation.netProceeds,
+      daysRemaining: this.props.liquidation.getDaysRemaining(),
+    };
+  }
+  /**
+   * Update asset value
+   */
+  updateValue(newValue: MoneyVO, source: string, updatedBy: string): void {
+    this.ensureCanBeModified();
+
+    const oldValue = this.props.currentValue;
+
+    this.updateState({
+      currentValue: newValue,
+      updatedAt: new Date(),
+    });
+
+    // Add domain event
+    this.addDomainEvent(
+      new AssetValueUpdatedEvent(
+        this.id.toString(),
+        oldValue,
+        newValue,
+        new Date(),
+        source,
+        updatedBy,
+        this.props.version,
+      ),
+    );
+  }
+
+  /**
+   * Change asset status
+   */
+  changeStatus(newStatus: AssetStatus, reason?: string, changedBy?: string): void {
+    if (!AssetStatusHelper.isValidTransition(this.props.status, newStatus)) {
+      throw new AssetCannotBeModifiedException(
+        this.id.toString(),
+        `Cannot transition from ${this.props.status} to ${newStatus}`,
+      );
+    }
+
+    const oldStatus = this.props.status;
+
+    this.updateState({
+      status: newStatus,
+      updatedAt: new Date(),
+    });
+
+    // Add domain event
+    this.addDomainEvent(
+      new AssetStatusChangedEvent(
+        this.id.toString(),
+        oldStatus,
+        newStatus,
+        reason,
+        changedBy || 'system',
+        this.props.version,
+      ),
+    );
+
+    // Auto-activate/deactivate based on status
+    if (AssetStatusHelper.canBeValued(newStatus)) {
+      this.activate();
+    } else if (newStatus === AssetStatus.DELETED) {
+      this.deactivate();
+    }
+  }
+
+  /**
+   * Mark asset as encumbered
+   */
+  markAsEncumbered(
+    encumbranceType: string,
+    encumbranceDetails: string,
+    securedAmount: number,
+    creditorName: string,
+    encumberedBy: string,
+  ): void {
+    this.ensureCanBeModified();
+
+    this.updateState({
+      isEncumbered: true,
+      encumbranceDetails,
+      updatedAt: new Date(),
+    });
+
+    // Add domain event
+    this.addDomainEvent(
+      new AssetEncumberedEvent(
+        this.id.toString(),
+        encumbranceType,
+        encumbranceDetails,
+        securedAmount,
+        creditorName,
+        encumberedBy,
+        this.props.version,
+      ),
+    );
   }
 
   /**
    * Clear encumbrance
    */
-  public clearEncumbrance(): void {
-    this.ensureNotDeleted();
-
-    (this.props as any).isEncumbered = false;
-    (this.props as any).encumbranceDetails = undefined;
-    this.incrementVersion();
-  }
-
-  // =========================================================================
-  // BUSINESS LOGIC - LIFECYCLE
-  // =========================================================================
-
-  /**
-   * Deactivate asset (soft delete from estate)
-   */
-  public deactivate(reason: string): void {
-    this.ensureNotDeleted();
-
-    if (!this.isActive) {
-      throw new Error('Asset is already inactive');
+  clearEncumbrance(clearedBy: string): void {
+    if (!this.props.isEncumbered) {
+      throw new AssetCannotBeModifiedException(this.id.toString(), 'Asset is not encumbered');
     }
 
-    (this.props as any).isActive = false;
-    (this.props as any).metadata = {
-      ...this.props.metadata,
-      deactivationReason: reason,
-      deactivatedAt: new Date(),
+    this.updateState({
+      isEncumbered: false,
+      encumbranceDetails: undefined,
+      updatedAt: new Date(),
+    });
+  }
+
+  /**
+   * Activate asset
+   */
+  activate(): void {
+    if (this.props.isActive) {
+      return;
+    }
+
+    this.updateState({
+      isActive: true,
+      updatedAt: new Date(),
+    });
+  }
+
+  /**
+   * Deactivate asset
+   */
+  deactivate(): void {
+    if (!this.props.isActive) {
+      return;
+    }
+
+    this.updateState({
+      isActive: false,
+      updatedAt: new Date(),
+    });
+  }
+
+  /**
+   * Soft delete asset
+   */
+  softDelete(reason?: string, deletedBy?: string): void {
+    if (this.isDeleted) {
+      throw new AssetDeletedException(this.id.toString());
+    }
+
+    this.markAsDeleted();
+    this.deactivate();
+
+    // Add domain event
+    this.addDomainEvent(
+      new AssetDeletedEvent(this.id.toString(), deletedBy || 'system', reason, this.props.version),
+    );
+  }
+
+  /**
+   * Check if asset can be distributed
+   */
+  canBeDistributed(): boolean {
+    return (
+      this.props.isActive &&
+      AssetStatusHelper.canBeDistributed(this.props.status) &&
+      !this.props.isEncumbered
+    );
+  }
+
+  /**
+   * Check if asset can be liquidated
+   */
+  canBeLiquidated(): boolean {
+    return this.props.isActive && AssetStatusHelper.canBeLiquidated(this.props.status);
+  }
+
+  /**
+   * Get distributable value (considering co-ownership)
+   * This will be implemented when we add co-owners
+   */
+  getDistributableValue(): MoneyVO {
+    // For now, return full value
+    // TODO: Implement co-owner percentage calculation
+    return this.props.currentValue;
+  }
+
+  /**
+   * Get transfer complexity based on type
+   */
+  getTransferComplexity(): number {
+    let complexity = this.props.type.getTransferComplexity();
+
+    if (this.props.isEncumbered) complexity += 3;
+    if (this.props.status === AssetStatus.DISPUTED) complexity += 5;
+    if (!this.canBeDistributed()) complexity += 2;
+
+    return Math.min(complexity, 10);
+  }
+
+  /**
+   * Check if asset requires court order for transfer
+   */
+  requiresCourtOrder(): boolean {
+    if (this.props.isEncumbered) return true;
+    if (this.props.status === AssetStatus.DISPUTED) return true;
+    if (this.props.type.value === AssetTypeVO.LAND) return true;
+
+    return false;
+  }
+
+  /**
+   * Ensure asset can be modified
+   */
+  private ensureCanBeModified(): void {
+    this.ensureNotDeleted();
+
+    if (!this.props.isActive) {
+      throw new AssetCannotBeModifiedException(this.id.toString(), 'Asset is not active');
+    }
+
+    if (this.props.isEncumbered) {
+      throw new AssetEncumberedException(
+        this.id.toString(),
+        this.props.encumbranceDetails || 'unknown encumbrance',
+      );
+    }
+
+    if (!AssetStatusHelper.canBeValued(this.props.status)) {
+      throw new AssetCannotBeModifiedException(
+        this.id.toString(),
+        `Asset is in ${this.props.status} status`,
+      );
+    }
+  }
+
+  /**
+   * Get asset summary for reporting
+   */
+  getSummary(): {
+    id: string;
+    name: string;
+    type: string;
+    value: number;
+    currency: string;
+    status: string;
+    canDistribute: boolean;
+    complexity: number;
+  } {
+    return {
+      id: this.id.toString(),
+      name: this.props.name,
+      type: this.props.type.toString(),
+      value: this.props.currentValue.amount,
+      currency: this.props.currentValue.currency,
+      status: this.props.status,
+      canDistribute: this.canBeDistributed(),
+      complexity: this.getTransferComplexity(),
     };
-    this.incrementVersion();
   }
 
   /**
-   * Reactivate asset
+   * Clone asset properties for snapshot
    */
-  public reactivate(): void {
-    this.ensureNotDeleted();
-
-    if (this.isActive) {
-      throw new Error('Asset is already active');
-    }
-
-    (this.props as any).isActive = true;
-    (this.props as any).metadata = {
-      ...this.props.metadata,
-      reactivatedAt: new Date(),
+  protected cloneProps(): AssetProps {
+    return {
+      ...this.props,
+      type: this.props.type.clone(),
+      currentValue: this.props.currentValue.clone(),
+      landDetails: this.props.landDetails?.clone(),
+      vehicleDetails: this.props.vehicleDetails?.clone(),
+      financialDetails: this.props.financialDetails?.clone(),
     };
-    this.incrementVersion();
   }
-
-  // =========================================================================
-  // VALIDATION
-  // =========================================================================
-
-  private validate(): void {
-    if (!this.props.estateId) {
-      throw new Error('Estate ID is required');
-    }
-
-    if (!this.props.ownerId) {
-      throw new Error('Owner ID is required');
-    }
-
-    if (!this.props.name || this.props.name.trim().length === 0) {
-      throw new Error('Asset name is required');
-    }
-
-    if (this.props.name.length > 200) {
-      throw new Error('Asset name cannot exceed 200 characters');
-    }
-
-    if (!this.props.type) {
-      throw new Error('Asset type is required');
-    }
-
-    if (!this.props.currentValue) {
-      throw new Error('Asset value is required');
-    }
-
-    if (this.props.currentValue.isNegative()) {
-      throw new Error('Asset value cannot be negative');
-    }
-
-    if (!this.props.ownershipType) {
-      throw new Error('Ownership type is required');
-    }
-
-    if (!this.props.deceasedSharePercentage) {
-      throw new Error('Deceased share percentage is required');
-    }
-
-    // Sole ownership must be 100%
-    if (this.props.ownershipType.isSole() && !this.props.deceasedSharePercentage.isFull()) {
-      throw new Error('Sole ownership must have 100% deceased share');
-    }
-
-    // Joint tenancy should have 0% distributable
-    if (this.props.ownershipType.bypassesEstate() && !this.props.deceasedSharePercentage.isZero()) {
-      throw new Error('Joint tenancy assets should have 0% distributable share');
-    }
-
-    if (!this.props.verificationStatus) {
-      throw new Error('Verification status is required');
-    }
-
-    if (this.props.isEncumbered && !this.props.encumbranceDetails) {
-      throw new Error('Encumbered assets must have encumbrance details');
-    }
-
-    if (this.props.currency !== 'KES') {
-      throw new Error('Only KES currency is supported');
-    }
-  }
-
-  /**
-   * Clone asset (for scenarios/simulations)
-   */
-  public clone(): Asset {
-    const clonedProps = { ...this.props };
-    const cloned = new Asset(new UniqueEntityID(), clonedProps);
-    cloned._coOwners = [...this._coOwners];
-    cloned._valuationHistory = [...this._valuationHistory];
-    return cloned;
-  }
-}
-
-/**
- * Asset Valuation History Record
- */
-export interface AssetValuation {
-  value: Money;
-  valuationDate: Date;
-  source?: string;
-  notes?: string;
-  recordedAt: Date;
 }

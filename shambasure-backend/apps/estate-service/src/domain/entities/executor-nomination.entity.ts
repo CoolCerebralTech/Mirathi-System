@@ -1,830 +1,597 @@
-// domain/entities/executor-nomination.entity.ts
+// src/estate-service/src/domain/entities/executor-nomination.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
+import { WillExecutorException } from '../exceptions/will-executors.exception';
+import { ExecutorPriority } from '../value-objects/executor-priority.vo';
 
 /**
- * Executor Nomination Entity
- *
- * Kenyan Legal Context (Law of Succession Act, Cap 160):
- * - S.7 LSA: Who may make a will (includes appointing executors)
- * - S.51 LSA: Appointment of executors and trustees
- * - S.52 LSA: Power to appoint substitute executors
- * - S.53 LSA: Power to appoint co-executors
- * - S.80-83 LSA: Duties and powers of executors
- *
- * Entity Scope:
- * 1. Represents a single executor nomination in a will
- * 2. Tracks executor's acceptance/rejection of role
- * 3. Records necessary details for probate court
- * 4. Manages lifecycle of nomination
- *
- * Legal Requirements:
- * - Executor must be competent (S.7: not a minor, of sound mind)
- * - Executor can renounce (refuse) the appointment
- * - Testator can appoint substitutes and co-executors
- * - Court may grant power reserved (S.56 LSA) if executor unwilling
+ * WillExecutor Properties Interface
  */
-
-// =========================================================================
-// VALUE OBJECTS
-// =========================================================================
-
-/**
- * Kenyan National ID Value Object with validation
- */
-export class KenyanNationalId {
-  constructor(readonly value: string) {
-    if (!value || value.trim().length === 0) {
-      throw new Error('National ID is required');
-    }
-
-    // Kenyan ID formats: 8 digits (old) or 8 digits + 1 letter + 3 digits (new)
-    const cleaned = value.trim().toUpperCase();
-    const oldFormat = /^\d{8}$/;
-    const newFormat = /^\d{8}[A-Z]\d{3}$/;
-
-    if (!oldFormat.test(cleaned) && !newFormat.test(cleaned)) {
-      throw new Error('Invalid Kenyan National ID format');
-    }
-  }
-
-  equals(other: KenyanNationalId): boolean {
-    return this.value === other.value;
-  }
-
-  toString(): string {
-    return this.value;
-  }
-
-  get format(): 'OLD' | 'NEW' {
-    return this.value.length === 8 ? 'OLD' : 'NEW';
-  }
-
-  mask(): string {
-    if (this.format === 'OLD') {
-      return `***${this.value.slice(-3)}`;
-    } else {
-      return `***${this.value.slice(-6)}`;
-    }
-  }
-}
-
-/**
- * Executor Contact Details Value Object
- */
-export class ExecutorContact {
-  constructor(
-    readonly email?: string,
-    readonly phone?: string,
-    readonly address?: string,
-  ) {
-    // Validate email if provided
-    if (email && !this.isValidEmail(email)) {
-      throw new Error('Invalid email format');
-    }
-
-    // Validate phone if provided (Kenyan format)
-    if (phone && !this.isValidKenyanPhone(phone)) {
-      throw new Error('Invalid Kenyan phone number');
-    }
-  }
-
-  private isValidEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  }
-
-  private isValidKenyanPhone(phone: string): boolean {
-    const kenyanPhoneRegex = /^(?:\+254|0)7[0-9]{8}$/;
-    return kenyanPhoneRegex.test(phone.replace(/\s+/g, ''));
-  }
-
-  equals(other: ExecutorContact): boolean {
-    return (
-      this.email === other.email && this.phone === other.phone && this.address === other.address
-    );
-  }
-
-  hasValidContact(): boolean {
-    return !!(this.email || this.phone);
-  }
-
-  toJSON() {
-    return {
-      email: this.email,
-      phone: this.phone,
-      address: this.address,
-      hasValidContact: this.hasValidContact(),
-    };
-  }
-}
-
-// =========================================================================
-// ENUMS
-// =========================================================================
-
-/**
- * Executor Nomination Status
- * Tracks the lifecycle of executor appointment
- */
-export enum ExecutorNominationStatus {
-  NOMINATED = 'NOMINATED', // Appointed in will, awaiting acceptance
-  NOTIFIED = 'NOTIFIED', // Has been notified of nomination
-  ACCEPTED = 'ACCEPTED', // Has accepted the role
-  CONDITIONAL_ACCEPTANCE = 'CONDITIONAL_ACCEPTANCE', // Accepted with conditions
-  RENOUNCED = 'RENOUNCED', // Has refused the role (S.55 LSA)
-  PRE_DECEASED = 'PRE_DECEASED', // Died before testator
-  INCAPACITATED = 'INCAPACITATED', // Became incapacitated
-  SUBSTITUTED = 'SUBSTITUTED', // Replaced by substitute executor
-  COURT_APPROVED = 'COURT_APPROVED', // Approved by probate court
-  REVOKED = 'REVOKED', // Nomination revoked by codicil
-}
-
-/**
- * Executor Type
- * Differentiates between types of executors
- */
-export enum ExecutorType {
-  PRIMARY = 'PRIMARY', // Main executor
-  CO_EXECUTOR = 'CO_EXECUTOR', // Joint executor (S.53 LSA)
-  SUBSTITUTE = 'SUBSTITUTE', // Replacement if primary cannot act (S.52 LSA)
-  SPECIAL = 'SPECIAL', // Limited to specific assets/actions
-  PROFESSIONAL = 'PROFESSIONAL', // Lawyer, accountant, trust company
-}
-
-/**
- * Executor Capacity Status
- * Legal capacity to act as executor
- */
-export enum CapacityStatus {
-  COMPETENT = 'COMPETENT', // Meets S.7 LSA requirements
-  MINOR = 'MINOR', // Below 18 years
-  MENTALLY_INCAPACITATED = 'MENTALLY_INCAPACITATED',
-  BANKRUPT = 'BANKRUPT', // Disqualified under bankruptcy laws
-  CONVICTED = 'CONVICTED', // Disqualified due to criminal conviction
-  UNKNOWN = 'UNKNOWN', // Capacity not verified
-}
-
-// =========================================================================
-// EXECUTOR NOMINATION ENTITY
-// =========================================================================
-
-interface ExecutorNominationProps {
+export interface WillExecutorProps {
   willId: string; // Reference to parent Will aggregate
-  testatorId: string; // Reference to testator (User)
+  executorIdentity: {
+    type: 'USER' | 'FAMILY_MEMBER' | 'EXTERNAL';
+    userId?: string;
+    familyMemberId?: string;
+    externalDetails?: {
+      fullName: string;
+      nationalId?: string;
+      kraPin?: string;
+      email?: string;
+      phone?: string;
+      relationship?: string;
+    };
+  };
+  priority: ExecutorPriority;
+  appointmentType: 'TESTAMENTARY' | 'SPECIAL_EXECUTOR';
+  appointmentDate: Date;
 
-  // Executor Identity
-  executorType: ExecutorType;
-  isNamedInWill: boolean; // True if specifically named in will text
+  // Optional pre-death information
+  consentStatus?: 'PENDING' | 'CONSENTED' | 'DECLINED' | 'UNKNOWN';
+  consentDate?: Date;
+  consentNotes?: string;
 
-  // Executor Details (may be external person)
-  userId?: string; // If executor is system user
-  fullName: string; // Required for probate forms
-  nationalId?: KenyanNationalId; // For probate court verification
-  contact?: ExecutorContact; // For notification
-  relationshipToTestator?: string; // e.g., "Brother", "Lawyer", "Friend"
+  // Qualification checks (pre-death validation)
+  isQualified: boolean;
+  qualificationReasons: string[];
 
-  // Legal Status
-  status: ExecutorNominationStatus;
-  capacityStatus: CapacityStatus;
+  // Legal restrictions
+  isMinor: boolean;
+  isMentallyIncapacitated: boolean;
+  hasCriminalRecord: boolean;
+  isBankrupt: boolean;
 
-  // Timeline
-  nominatedAt: Date; // When nominated in will
-  notifiedAt?: Date; // When informed of nomination
-  respondedAt?: Date; // When accepted/renounced
-  acceptedAt?: Date; // When formally accepted
-  renouncedAt?: Date; // When refused role (S.55 LSA)
+  // Contact information for notification
+  contactInfo?: {
+    email?: string;
+    phone?: string;
+    address?: string;
+  };
 
-  // Legal Documentation
-  acceptanceInstrumentId?: string; // Document ID of acceptance
-  renunciationInstrumentId?: string; // Document ID of renunciation
-  bondRequired: boolean; // Whether executor bond required
-
-  // Special Provisions (S.56 LSA: Power reserved)
-  isPowerReserved: boolean; // Court may grant power reserved
-  conditions?: string; // Any conditions of acceptance
-  limitations?: string[]; // Limitations on powers (S.83)
-
-  // Substitution & Chain
-  substitutesForId?: string; // If substitute, who they replace
-  successorId?: string; // Who takes over if this executor cannot act
+  // Additional provisions
+  powers?: string[]; // Specific powers granted by testator
+  restrictions?: string[]; // Restrictions imposed by testator
+  compensation?: {
+    isEntitled: boolean;
+    amount?: number;
+    basis?: 'FIXED' | 'PERCENTAGE' | 'REASONABLE';
+  };
 }
 
-export class ExecutorNomination extends Entity<ExecutorNominationProps> {
-  // =========================================================================
-  // CONSTRUCTOR & FACTORY
-  // =========================================================================
-
-  private constructor(props: ExecutorNominationProps, id?: UniqueEntityID) {
-    // Domain Rule: Must have at least name for probate court
-    if (!props.fullName || props.fullName.trim().length < 2) {
-      throw new Error('Executor must have a valid full name');
-    }
-
-    // Domain Rule: Cannot be both primary and substitute
-    if (props.executorType === ExecutorType.SUBSTITUTE && !props.substitutesForId) {
-      throw new Error('Substitute executor must specify who they substitute');
-    }
-
-    super(id ?? new UniqueEntityID(), props);
+/**
+ * WillExecutor Entity (Executor Nomination)
+ *
+ * Represents a nomination of an executor in a will in Kenya
+ *
+ * Legal Context (S.83 LSA):
+ * - Testator may appoint one or more executors
+ * - Executor must accept role after testator's death
+ * - Minor, bankrupt, or incapacitated persons may be disqualified
+ * - Executor can be a beneficiary (allowed by law)
+ *
+ * IMPORTANT: This is a NOMINATION, not a grant of authority.
+ * Actual authority comes from Grant of Probate.
+ */
+export class WillExecutor extends Entity<WillExecutorProps> {
+  private constructor(props: WillExecutorProps, id?: UniqueEntityID) {
+    super(id, props);
   }
 
   /**
-   * Factory: Create nomination for system user
+   * Factory method to create a new WillExecutor nomination
    */
-  public static createForUser(
-    willId: string,
-    testatorId: string,
-    userId: string,
-    fullName: string,
-    executorType: ExecutorType = ExecutorType.PRIMARY,
-    relationshipToTestator?: string,
-  ): ExecutorNomination {
-    const props: ExecutorNominationProps = {
-      willId,
-      testatorId,
-      executorType,
-      isNamedInWill: true,
-      userId,
-      fullName,
-      relationshipToTestator,
-      status: ExecutorNominationStatus.NOMINATED,
-      capacityStatus: CapacityStatus.UNKNOWN, // To be verified
-      nominatedAt: new Date(),
-      bondRequired: false,
-      isPowerReserved: false,
-    };
+  public static create(props: WillExecutorProps, id?: UniqueEntityID): WillExecutor {
+    const executor = new WillExecutor(props, id);
+    executor.validate();
 
-    return new ExecutorNomination(props);
-  }
-
-  /**
-   * Factory: Create nomination for external person
-   */
-  public static createForExternal(
-    willId: string,
-    testatorId: string,
-    fullName: string,
-    nationalId: string,
-    contact?: ExecutorContact,
-    executorType: ExecutorType = ExecutorType.PRIMARY,
-    relationshipToTestator?: string,
-  ): ExecutorNomination {
-    const props: ExecutorNominationProps = {
-      willId,
-      testatorId,
-      executorType,
-      isNamedInWill: true,
-      fullName,
-      nationalId: new KenyanNationalId(nationalId),
-      contact,
-      relationshipToTestator,
-      status: ExecutorNominationStatus.NOMINATED,
-      capacityStatus: CapacityStatus.UNKNOWN,
-      nominatedAt: new Date(),
-      bondRequired: true, // External executors typically need bond
-      isPowerReserved: false,
-    };
-
-    return new ExecutorNomination(props);
-  }
-
-  /**
-   * Factory: Create substitute executor nomination
-   */
-  public static createSubstitute(
-    willId: string,
-    testatorId: string,
-    fullName: string,
-    nationalId: string,
-    substitutesForId: string,
-    contact?: ExecutorContact,
-  ): ExecutorNomination {
-    const props: ExecutorNominationProps = {
-      willId,
-      testatorId,
-      executorType: ExecutorType.SUBSTITUTE,
-      isNamedInWill: true,
-      fullName,
-      nationalId: new KenyanNationalId(nationalId),
-      contact,
-      substitutesForId,
-      status: ExecutorNominationStatus.NOMINATED,
-      capacityStatus: CapacityStatus.UNKNOWN,
-      nominatedAt: new Date(),
-      bondRequired: true,
-      isPowerReserved: false,
-    };
-
-    return new ExecutorNomination(props);
-  }
-
-  /**
-   * Reconstitute from persistence
-   */
-  public static reconstitute(
-    id: string,
-    props: ExecutorNominationProps,
-    createdAt: Date,
-    updatedAt: Date,
-    version: number,
-  ): ExecutorNomination {
-    const nomination = new ExecutorNomination(props, new UniqueEntityID(id));
-    (nomination as any)._createdAt = createdAt;
-    (nomination as any)._updatedAt = updatedAt;
-    (nomination as any)._version = version;
-    return nomination;
-  }
-
-  // =========================================================================
-  // BUSINESS LOGIC (MUTATIONS)
-  // =========================================================================
-
-  /**
-   * Notify executor of nomination (required before acceptance)
-   */
-  public notify(at: Date = new Date()): void {
-    if (this.status !== ExecutorNominationStatus.NOMINATED) {
-      throw new Error('Can only notify nominated executors');
-    }
-
-    if (!this.contact?.hasValidContact()) {
-      throw new Error('Cannot notify executor without contact information');
-    }
-
-    this.updateState({
-      status: ExecutorNominationStatus.NOTIFIED,
-      notifiedAt: at,
+    // Apply domain event for Executor nomination
+    executor.addDomainEvent({
+      eventType: 'ExecutorNominated',
+      aggregateId: props.willId,
+      eventData: {
+        executorId: id?.toString(),
+        executorName: executor.getDisplayName(),
+        priority: props.priority.toJSON(),
+        appointmentType: props.appointmentType,
+      },
     });
+
+    return executor;
   }
 
   /**
-   * Accept the executor role (S.55 LSA: Acceptance by conduct)
+   * Validate WillExecutor invariants
+   *
+   * Ensures:
+   * - Valid identity information
+   * - Legal qualification checks
+   * - Proper appointment type
+   * - Kenyan legal compliance
    */
-  public accept(instrumentId?: string, conditions?: string, at: Date = new Date()): void {
-    const allowedStatuses = [
-      ExecutorNominationStatus.NOTIFIED,
-      ExecutorNominationStatus.NOMINATED, // Direct acceptance without notification
-    ];
+  public validate(): void {
+    // Identity validation
+    this.validateIdentity();
 
-    if (!allowedStatuses.includes(this.status)) {
-      throw new Error('Can only accept from NOMINATED or NOTIFIED status');
+    // Priority validation
+    this.props.priority.validate();
+
+    // Date validation
+    if (this.props.appointmentDate > new Date()) {
+      throw new WillExecutorException(
+        'Appointment date cannot be in the future',
+        'appointmentDate',
+      );
     }
 
-    // Check capacity (S.7 LSA: must be competent)
-    if (this.capacityStatus !== CapacityStatus.COMPETENT) {
-      throw new Error('Cannot accept without verifying capacity status');
+    // Consent date validation (if present)
+    if (this.props.consentDate && this.props.consentDate > new Date()) {
+      throw new WillExecutorException('Consent date cannot be in the future', 'consentDate');
     }
 
-    const newStatus = conditions
-      ? ExecutorNominationStatus.CONDITIONAL_ACCEPTANCE
-      : ExecutorNominationStatus.ACCEPTED;
+    // Qualification checks
+    this.validateQualifications();
+  }
+
+  /**
+   * Validate executor identity based on type
+   */
+  private validateIdentity(): void {
+    const { type, userId, familyMemberId, externalDetails } = this.props.executorIdentity;
+
+    switch (type) {
+      case 'USER':
+        if (!userId) {
+          throw new WillExecutorException(
+            'User executor must have userId',
+            'executorIdentity.userId',
+          );
+        }
+        break;
+
+      case 'FAMILY_MEMBER':
+        if (!familyMemberId) {
+          throw new WillExecutorException(
+            'Family member executor must have familyMemberId',
+            'executorIdentity.familyMemberId',
+          );
+        }
+        break;
+
+      case 'EXTERNAL':
+        if (!externalDetails?.fullName) {
+          throw new WillExecutorException(
+            'External executor must have full name',
+            'executorIdentity.externalDetails.fullName',
+          );
+        }
+
+        // Validate Kenyan ID if provided
+        if (externalDetails.nationalId) {
+          this.validateKenyanNationalId(externalDetails.nationalId);
+        }
+
+        // Validate KRA PIN if provided
+        if (externalDetails.kraPin) {
+          this.validateKraPin(externalDetails.kraPin);
+        }
+
+        // Validate email if provided
+        if (externalDetails.email) {
+          this.validateEmail(externalDetails.email);
+        }
+
+        // Validate phone if provided
+        if (externalDetails.phone) {
+          this.validatePhone(externalDetails.phone);
+        }
+        break;
+
+      default:
+        throw new WillExecutorException(
+          `Invalid executor identity type: ${type}`,
+          'executorIdentity.type',
+        );
+    }
+  }
+
+  private validateKenyanNationalId(id: string): void {
+    const idPattern = /^[1-3]\d{7}$/;
+    if (!idPattern.test(id)) {
+      throw new WillExecutorException(
+        'Invalid Kenyan National ID format',
+        'executorIdentity.externalDetails.nationalId',
+      );
+    }
+  }
+
+  private validateKraPin(pin: string): void {
+    const pinPattern = /^[A-Z]\d{10}$/;
+    if (!pinPattern.test(pin)) {
+      throw new WillExecutorException(
+        'Invalid KRA PIN format',
+        'executorIdentity.externalDetails.kraPin',
+      );
+    }
+  }
+
+  private validateEmail(email: string): void {
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
+      throw new WillExecutorException(
+        'Invalid email format',
+        'executorIdentity.externalDetails.email',
+      );
+    }
+  }
+
+  private validatePhone(phone: string): void {
+    // Kenyan phone validation: +254... or 07...
+    const phonePattern = /^(?:\+254|0)[17]\d{8}$/;
+    if (!phonePattern.test(phone.replace(/\s/g, ''))) {
+      throw new WillExecutorException(
+        'Invalid Kenyan phone number format',
+        'executorIdentity.externalDetails.phone',
+      );
+    }
+  }
+
+  /**
+   * Validate legal qualifications
+   */
+  private validateQualifications(): void {
+    const qualificationReasons: string[] = [];
+
+    // Check for legal disqualifications
+    if (this.props.isMinor) {
+      qualificationReasons.push('Minor cannot serve as executor (S.83 LSA)');
+    }
+
+    if (this.props.isMentallyIncapacitated) {
+      qualificationReasons.push('Mentally incapacitated person cannot serve as executor');
+    }
+
+    if (this.props.hasCriminalRecord) {
+      qualificationReasons.push('Person with criminal record may be disqualified by court');
+    }
+
+    if (this.props.isBankrupt) {
+      qualificationReasons.push('Bankrupt person cannot serve as executor');
+    }
+
+    // Check if executor is also a beneficiary (allowed but noted)
+    // This check would require cross-checking with beneficiary assignments
+    // For now, we just note it if relationship suggests beneficiary status
+    if (this.props.executorIdentity.externalDetails?.relationship === 'BENEFICIARY') {
+      qualificationReasons.push(
+        'Note: Executor is also a beneficiary - potential conflict of interest',
+      );
+    }
+
+    // Update qualification status
+    const isQualified = qualificationReasons.length === 0;
+
+    if (this.props.isQualified !== isQualified) {
+      throw new WillExecutorException(
+        'Qualification status does not match qualification reasons',
+        'isQualified',
+      );
+    }
+
+    if (JSON.stringify(this.props.qualificationReasons) !== JSON.stringify(qualificationReasons)) {
+      throw new WillExecutorException(
+        'Qualification reasons do not match calculated reasons',
+        'qualificationReasons',
+      );
+    }
+  }
+
+  /**
+   * Update consent status (pre-death)
+   */
+  public updateConsent(
+    status: 'PENDING' | 'CONSENTED' | 'DECLINED' | 'UNKNOWN',
+    notes?: string,
+  ): void {
+    if (status === this.props.consentStatus && notes === this.props.consentNotes) {
+      return; // No change
+    }
 
     this.updateState({
-      status: newStatus,
-      respondedAt: at,
-      acceptedAt: at,
-      acceptanceInstrumentId: instrumentId,
-      conditions,
+      consentStatus: status,
+      consentDate: status === 'CONSENTED' || status === 'DECLINED' ? new Date() : undefined,
+      consentNotes: notes,
     });
-  }
 
-  /**
-   * Renounce (refuse) the executor role (S.55 LSA: Right to renounce)
-   */
-  public renounce(instrumentId?: string, reason?: string, at: Date = new Date()): void {
-    const allowedStatuses = [
-      ExecutorNominationStatus.NOTIFIED,
-      ExecutorNominationStatus.NOMINATED,
-      ExecutorNominationStatus.ACCEPTED, // May renounce even after accepting
-    ];
-
-    if (!allowedStatuses.includes(this.status)) {
-      throw new Error('Cannot renounce from current status');
-    }
-
-    // Record the conditions for renunciation
-    const newConditions = this.conditions ? `${this.conditions} | RENOUNCED: ${reason}` : reason;
-
-    this.updateState({
-      status: ExecutorNominationStatus.RENOUNCED,
-      respondedAt: at,
-      renouncedAt: at,
-      renunciationInstrumentId: instrumentId,
-      conditions: newConditions,
-    });
-  }
-
-  /**
-   * Update capacity status (S.7 LSA: competency check)
-   */
-  public updateCapacityStatus(status: CapacityStatus): void {
-    if (status === CapacityStatus.MINOR && this.isActive()) {
-      throw new Error('Cannot appoint minor as active executor (S.7 LSA)');
-    }
-
-    this.updateState({
-      capacityStatus: status,
-    });
-  }
-
-  /**
-   * Mark as pre-deceased (died before testator)
-   */
-  public markPreDeceased(_at: Date = new Date()): void {
-    if (this.status === ExecutorNominationStatus.PRE_DECEASED) {
-      return; // Already marked
-    }
-
-    this.updateState({
-      status: ExecutorNominationStatus.PRE_DECEASED,
-    });
-  }
-
-  /**
-   * Mark as incapacitated (cannot act as executor)
-   */
-  public markIncapacitated(_at: Date = new Date()): void {
-    if (this.status === ExecutorNominationStatus.INCAPACITATED) {
-      return;
-    }
-
-    this.updateState({
-      status: ExecutorNominationStatus.INCAPACITATED,
-      capacityStatus: CapacityStatus.MENTALLY_INCAPACITATED,
-    });
-  }
-
-  /**
-   * Activate substitute (S.52 LSA: Substitution on renunciation/death)
-   */
-  public activateSubstitute(_substituteId: string): void {
-    if (this.executorType !== ExecutorType.SUBSTITUTE) {
-      throw new Error('Only substitute executors can be activated');
-    }
-
-    if (this.status !== ExecutorNominationStatus.NOMINATED) {
-      throw new Error('Only nominated substitutes can be activated');
-    }
-
-    this.updateState({
-      status: ExecutorNominationStatus.ACCEPTED,
-      respondedAt: new Date(),
-      acceptedAt: new Date(),
-    });
-  }
-
-  /**
-   * Court approval (probate court grants power)
-   */
-  public approveByCourt(_instrumentId: string, _at: Date = new Date()): void {
-    if (this.status !== ExecutorNominationStatus.ACCEPTED) {
-      throw new Error('Only accepted executors can be court approved');
-    }
-
-    this.updateState({
-      status: ExecutorNominationStatus.COURT_APPROVED,
-    });
-  }
-
-  /**
-   * Set executor bond requirement (S.58 LSA: Security by executors)
-   */
-  public setBondRequirement(required: boolean): void {
-    this.updateState({
-      bondRequired: required,
-    });
-  }
-
-  /**
-   * Set power reserved (S.56 LSA: Court may grant power reserved)
-   */
-  public setPowerReserved(reserved: boolean): void {
-    this.updateState({
-      isPowerReserved: reserved,
-    });
-  }
-
-  /**
-   * Add limitations to executor powers (S.83 LSA)
-   */
-  public addLimitation(limitation: string): void {
-    const currentLimitations = this.limitations || [];
-
-    if (currentLimitations.includes(limitation)) {
-      throw new Error('Limitation already exists');
-    }
-
-    this.updateState({
-      limitations: [...currentLimitations, limitation],
+    // Add domain event for consent update
+    this.addDomainEvent({
+      eventType: 'ExecutorConsentUpdated',
+      aggregateId: this.props.willId,
+      eventData: {
+        executorId: this.id.toString(),
+        executorName: this.getDisplayName(),
+        previousStatus: this.props.consentStatus,
+        newStatus: status,
+        notes,
+      },
     });
   }
 
   /**
    * Update contact information
    */
-  public updateContact(contact: ExecutorContact): void {
+  public updateContactInfo(contactInfo: {
+    email?: string;
+    phone?: string;
+    address?: string;
+  }): void {
+    // Validate email if provided
+    if (contactInfo.email) {
+      this.validateEmail(contactInfo.email);
+    }
+
+    // Validate phone if provided
+    if (contactInfo.phone) {
+      this.validatePhone(contactInfo.phone);
+    }
+
     this.updateState({
-      contact,
+      contactInfo: {
+        ...this.props.contactInfo,
+        ...contactInfo,
+      },
     });
   }
 
-  // =========================================================================
-  // QUERY METHODS (PURE)
-  // =========================================================================
-
   /**
-   * Check if executor is competent (S.7 LSA requirements)
+   * Add specific powers granted by testator
    */
-  public isCompetent(): boolean {
-    return this.capacityStatus === CapacityStatus.COMPETENT;
+  public addPower(power: string): void {
+    const currentPowers = this.props.powers || [];
+
+    if (currentPowers.includes(power)) {
+      throw new WillExecutorException('Power already granted to executor', 'powers');
+    }
+
+    this.updateState({
+      powers: [...currentPowers, power],
+    });
   }
 
   /**
-   * Check if executor is currently active and able to act
+   * Add restriction imposed by testator
    */
-  public isActive(): boolean {
-    const activeStatuses = [
-      ExecutorNominationStatus.ACCEPTED,
-      ExecutorNominationStatus.CONDITIONAL_ACCEPTANCE,
-      ExecutorNominationStatus.COURT_APPROVED,
-    ];
-    return activeStatuses.includes(this.status) && this.isCompetent();
+  public addRestriction(restriction: string): void {
+    const currentRestrictions = this.props.restrictions || [];
+
+    if (currentRestrictions.includes(restriction)) {
+      throw new WillExecutorException('Restriction already imposed on executor', 'restrictions');
+    }
+
+    this.updateState({
+      restrictions: [...currentRestrictions, restriction],
+    });
   }
 
   /**
-   * Check if executor has renounced (S.55 LSA)
+   * Set compensation details
    */
-  public hasRenounced(): boolean {
-    return this.status === ExecutorNominationStatus.RENOUNCED;
+  public setCompensation(
+    isEntitled: boolean,
+    amount?: number,
+    basis?: 'FIXED' | 'PERCENTAGE' | 'REASONABLE',
+  ): void {
+    if (isEntitled && (!amount || amount <= 0) && basis !== 'REASONABLE') {
+      throw new WillExecutorException(
+        'Compensation amount must be positive for fixed or percentage basis',
+        'compensation',
+      );
+    }
+
+    if (basis === 'PERCENTAGE' && amount && (amount < 0 || amount > 100)) {
+      throw new WillExecutorException(
+        'Percentage compensation must be between 0 and 100',
+        'compensation',
+      );
+    }
+
+    this.updateState({
+      compensation: {
+        isEntitled,
+        amount,
+        basis,
+      },
+    });
   }
 
   /**
-   * Check if executor is pre-deceased
+   * Get display name based on identity type
    */
-  public isPreDeceased(): boolean {
-    return this.status === ExecutorNominationStatus.PRE_DECEASED;
+  public getDisplayName(): string {
+    const { type, externalDetails } = this.props.executorIdentity;
+
+    switch (type) {
+      case 'USER':
+        return `User ${this.props.executorIdentity.userId?.substring(0, 8)}...`;
+      case 'FAMILY_MEMBER':
+        return `Family Member ${this.props.executorIdentity.familyMemberId?.substring(0, 8)}...`;
+      case 'EXTERNAL':
+        return externalDetails?.fullName || 'Unknown External Executor';
+      default:
+        return 'Unknown Executor';
+    }
   }
 
   /**
-   * Check if executor is incapacitated
+   * Check if executor has given consent
    */
-  public isIncapacitated(): boolean {
-    return this.status === ExecutorNominationStatus.INCAPACITATED;
+  public hasGivenConsent(): boolean {
+    return this.props.consentStatus === 'CONSENTED';
   }
 
   /**
-   * Check if executor can be substituted
+   * Check if executor is legally qualified
    */
-  public canBeSubstituted(): boolean {
+  public isLegallyQualified(): boolean {
     return (
-      this.hasRenounced() || this.isPreDeceased() || this.isIncapacitated() || !this.isCompetent()
+      this.props.isQualified &&
+      !this.props.isMinor &&
+      !this.props.isMentallyIncapacitated &&
+      !this.props.isBankrupt
     );
   }
 
   /**
-   * Check if executor has been notified
+   * Get recommended actions for executor nomination
    */
-  public hasBeenNotified(): boolean {
-    return !!this.notifiedAt;
+  public getRecommendedActions(): string[] {
+    const actions: string[] = [];
+
+    if (!this.hasGivenConsent()) {
+      actions.push('Obtain written consent from executor');
+    }
+
+    if (!this.props.contactInfo?.email && !this.props.contactInfo?.phone) {
+      actions.push('Obtain contact information for executor');
+    }
+
+    if (this.props.hasCriminalRecord) {
+      actions.push('Consider alternative executor due to criminal record');
+    }
+
+    if (
+      this.props.executorIdentity.type === 'EXTERNAL' &&
+      !this.props.executorIdentity.externalDetails?.nationalId
+    ) {
+      actions.push('Obtain National ID for external executor');
+    }
+
+    if (
+      this.props.compensation?.isEntitled &&
+      (!this.props.compensation.basis ||
+        (this.props.compensation.basis === 'REASONABLE' && !this.props.compensation.amount))
+    ) {
+      actions.push('Specify compensation details clearly');
+    }
+
+    return actions;
   }
 
   /**
-   * Check if executor has responded (accepted/renounced)
+   * Get legal status assessment
    */
-  public hasResponded(): boolean {
-    return !!this.respondedAt;
+  public getLegalAssessment(): {
+    status: 'VALID' | 'WARNING' | 'INVALID';
+    reasons: string[];
+    actions: string[];
+  } {
+    const reasons: string[] = [];
+    const actions = this.getRecommendedActions();
+
+    // Check legal qualifications
+    if (this.props.isMinor) {
+      reasons.push('Executor is a minor - legally disqualified (S.83 LSA)');
+    }
+
+    if (this.props.isMentallyIncapacitated) {
+      reasons.push('Executor is mentally incapacitated - legally disqualified');
+    }
+
+    if (this.props.isBankrupt) {
+      reasons.push('Executor is bankrupt - legally disqualified');
+    }
+
+    // Check consent
+    if (!this.hasGivenConsent()) {
+      reasons.push('Executor has not given consent - may refuse appointment');
+    }
+
+    // Check contact information
+    if (!this.props.contactInfo?.email && !this.props.contactInfo?.phone) {
+      reasons.push('No contact information for executor - may delay probate');
+    }
+
+    // Determine overall status
+    let status: 'VALID' | 'WARNING' | 'INVALID' = 'VALID';
+
+    if (this.props.isMinor || this.props.isMentallyIncapacitated || this.props.isBankrupt) {
+      status = 'INVALID';
+    } else if (reasons.length > 0 || actions.length > 0) {
+      status = 'WARNING';
+    }
+
+    return { status, reasons, actions };
   }
 
-  /**
-   * Check if executor is a system user
-   */
-  public isSystemUser(): boolean {
-    return !!this.userId;
-  }
-
-  /**
-   * Get days since nomination
-   */
-  public daysSinceNomination(): number {
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - this.nominatedAt.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  }
-
-  // =========================================================================
-  // PROPERTY GETTERS
-  // =========================================================================
-
+  // Getters
   get willId(): string {
     return this.props.willId;
   }
 
-  get testatorId(): string {
-    return this.props.testatorId;
+  get executorIdentity(): WillExecutorProps['executorIdentity'] {
+    return { ...this.props.executorIdentity };
   }
 
-  get executorType(): ExecutorType {
-    return this.props.executorType;
+  get priority(): ExecutorPriority {
+    return this.props.priority;
   }
 
-  get isNamedInWill(): boolean {
-    return this.props.isNamedInWill;
+  get appointmentType(): string {
+    return this.props.appointmentType;
   }
 
-  get userId(): string | undefined {
-    return this.props.userId;
+  get appointmentDate(): Date {
+    return this.props.appointmentDate;
   }
 
-  get fullName(): string {
-    return this.props.fullName;
+  get consentStatus(): string | undefined {
+    return this.props.consentStatus;
   }
 
-  get nationalId(): KenyanNationalId | undefined {
-    return this.props.nationalId;
+  get consentDate(): Date | undefined {
+    return this.props.consentDate;
   }
 
-  get contact(): ExecutorContact | undefined {
-    return this.props.contact;
+  get consentNotes(): string | undefined {
+    return this.props.consentNotes;
   }
 
-  get relationshipToTestator(): string | undefined {
-    return this.props.relationshipToTestator;
+  get isQualified(): boolean {
+    return this.props.isQualified;
   }
 
-  get status(): ExecutorNominationStatus {
-    return this.props.status;
+  get qualificationReasons(): string[] {
+    return [...this.props.qualificationReasons];
   }
 
-  get capacityStatus(): CapacityStatus {
-    return this.props.capacityStatus;
+  get isMinor(): boolean {
+    return this.props.isMinor;
   }
 
-  get nominatedAt(): Date {
-    return this.props.nominatedAt;
+  get isMentallyIncapacitated(): boolean {
+    return this.props.isMentallyIncapacitated;
   }
 
-  get notifiedAt(): Date | undefined {
-    return this.props.notifiedAt;
+  get hasCriminalRecord(): boolean {
+    return this.props.hasCriminalRecord;
   }
 
-  get respondedAt(): Date | undefined {
-    return this.props.respondedAt;
+  get isBankrupt(): boolean {
+    return this.props.isBankrupt;
   }
 
-  get acceptedAt(): Date | undefined {
-    return this.props.acceptedAt;
+  get contactInfo(): WillExecutorProps['contactInfo'] | undefined {
+    return this.props.contactInfo ? { ...this.props.contactInfo } : undefined;
   }
 
-  get renouncedAt(): Date | undefined {
-    return this.props.renouncedAt;
+  get powers(): string[] | undefined {
+    return this.props.powers ? [...this.props.powers] : undefined;
   }
 
-  get acceptanceInstrumentId(): string | undefined {
-    return this.props.acceptanceInstrumentId;
+  get restrictions(): string[] | undefined {
+    return this.props.restrictions ? [...this.props.restrictions] : undefined;
   }
 
-  get renunciationInstrumentId(): string | undefined {
-    return this.props.renunciationInstrumentId;
-  }
-
-  get bondRequired(): boolean {
-    return this.props.bondRequired;
-  }
-
-  get isPowerReserved(): boolean {
-    return this.props.isPowerReserved;
-  }
-
-  get conditions(): string | undefined {
-    return this.props.conditions;
-  }
-
-  get limitations(): string[] | undefined {
-    return this.props.limitations;
-  }
-
-  get substitutesForId(): string | undefined {
-    return this.props.substitutesForId;
-  }
-
-  get successorId(): string | undefined {
-    return this.props.successorId;
-  }
-
-  // Type checkers
-  public isPrimary(): boolean {
-    return this.executorType === ExecutorType.PRIMARY;
-  }
-
-  public isCoExecutor(): boolean {
-    return this.executorType === ExecutorType.CO_EXECUTOR;
-  }
-
-  public isSubstitute(): boolean {
-    return this.executorType === ExecutorType.SUBSTITUTE;
-  }
-
-  public isProfessional(): boolean {
-    return this.executorType === ExecutorType.PROFESSIONAL;
-  }
-
-  // =========================================================================
-  // VALIDATION
-  // =========================================================================
-
-  /**
-   * Validate nomination against Kenyan legal requirements
-   */
-  public validate(): { isValid: boolean; errors: string[] } {
-    const errors: string[] = [];
-
-    // Basic validation
-    if (!this.fullName.trim()) {
-      errors.push('Executor must have a valid name');
-    }
-
-    // S.7 LSA: Competency check
-    if (this.isActive() && !this.isCompetent()) {
-      errors.push('Active executor must be competent (S.7 LSA)');
-    }
-
-    // Cannot be both primary and substitute
-    if (this.isSubstitute() && !this.substitutesForId) {
-      errors.push('Substitute executor must specify who they substitute');
-    }
-
-    // Professional executors typically require bond
-    if (this.isProfessional() && !this.bondRequired) {
-      errors.push('Professional executors typically require bond');
-    }
-
-    // Must have contact information if notified
-    if (this.hasBeenNotified() && !this.contact?.hasValidContact()) {
-      errors.push('Notified executor must have valid contact information');
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors,
-    };
-  }
-
-  // =========================================================================
-  // SERIALIZATION
-  // =========================================================================
-
-  public toJSON() {
-    return {
-      id: this.id.toString(),
-      willId: this.willId,
-      testatorId: this.testatorId,
-
-      // Identity
-      executorType: this.executorType,
-      isNamedInWill: this.isNamedInWill,
-      userId: this.userId,
-      fullName: this.fullName,
-      nationalId: this.nationalId?.toString(),
-      maskedNationalId: this.nationalId?.mask(),
-      contact: this.contact?.toJSON(),
-      relationshipToTestator: this.relationshipToTestator,
-
-      // Status
-      status: this.status,
-      capacityStatus: this.capacityStatus,
-      isCompetent: this.isCompetent(),
-      isActive: this.isActive(),
-      hasRenounced: this.hasRenounced(),
-
-      // Timeline
-      nominatedAt: this.nominatedAt.toISOString(),
-      notifiedAt: this.notifiedAt?.toISOString(),
-      respondedAt: this.respondedAt?.toISOString(),
-      acceptedAt: this.acceptedAt?.toISOString(),
-      renouncedAt: this.renouncedAt?.toISOString(),
-      daysSinceNomination: this.daysSinceNomination(),
-
-      // Legal
-      acceptanceInstrumentId: this.acceptanceInstrumentId,
-      renunciationInstrumentId: this.renunciationInstrumentId,
-      bondRequired: this.bondRequired,
-      isPowerReserved: this.isPowerReserved,
-      conditions: this.conditions,
-      limitations: this.limitations,
-
-      // Chain
-      substitutesForId: this.substitutesForId,
-      successorId: this.successorId,
-      canBeSubstituted: this.canBeSubstituted(),
-
-      // Validation
-      validation: this.validate(),
-
-      // System
-      createdAt: this.createdAt.toISOString(),
-      updatedAt: this.updatedAt.toISOString(),
-      version: this.version,
-    };
+  get compensation(): WillExecutorProps['compensation'] | undefined {
+    return this.props.compensation ? { ...this.props.compensation } : undefined;
   }
 }

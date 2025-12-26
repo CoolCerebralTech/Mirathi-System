@@ -1,1153 +1,899 @@
-// domain/entities/disinheritance-record.entity.ts
+// src/estate-service/src/domain/entities/disinheritance-record.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
+import { DisinheritanceRecordException } from '../exceptions/disinheritance-record.exception';
+import { BeneficiaryIdentity } from '../value-objects/beneficiary-identity.vo';
 
 /**
- * Disinheritance Record Entity
- *
- * Kenyan Legal Context (Law of Succession Act, Cap 160):
- * - S.5 LSA: Freedom of testation (but limited by S.26)
- * - S.26 LSA: Court may make provision for dependants despite will
- * - S.29 LSA: Definition of dependants who may claim
- * - S.30 LSA: Factors court considers for dependant provision
- *
- * Critical Legal Principles:
- * 1. Testator has right to exclude anyone from will (S.5)
- * 2. BUT dependants (S.29) can still make claims (S.26)
- * 3. Court considers reasons for disinheritance (S.30(f))
- * 4. Disinheritance must be CLEAR and UNAMBIGUOUS
- *
- * Entity Scope:
- * 1. Records explicit exclusion of a person from inheritance
- * 2. Stores testator's stated reasons for exclusion
- * 3. Tracks legal challenges to disinheritance
- * 4. Validates disinheritance doesn't violate S.26
+ * Disinheritance Reason Category
  */
-
-// =========================================================================
-// VALUE OBJECTS
-// =========================================================================
+export type DisinheritanceReasonCategory =
+  | 'ESTRANGEMENT' // No relationship/contact
+  | 'PROVIDED_FOR_DURING_LIFE' // Already given assets inter vivos
+  | 'MORAL_UNWORTHINESS' // Bad behavior, criminal activity
+  | 'CONFLICT_OF_INTEREST' // Would create conflicts
+  | 'FINANCIAL_INDEPENDENCE' // Already financially independent
+  | 'OTHER_DISPOSITION' // Provided for in other ways
+  | 'TESTATOR_DISCRETION'; // Simple exercise of testamentary freedom
 
 /**
- * Disinherited Person Identity Value Object
+ * Disinheritance Evidence Type
  */
-export class DisinheritedPerson {
-  constructor(
-    readonly type:
-      | 'FAMILY_MEMBER'
-      | 'SPOUSE'
-      | 'CHILD'
-      | 'PARENT'
-      | 'SIBLING'
-      | 'OTHER_RELATIVE'
-      | 'EXTERNAL',
-    readonly id?: string, // Family member ID or user ID
-    readonly externalDetails?: {
-      name: string;
-      nationalId?: string;
-      relationshipToTestator: string; // e.g., "Son", "Brother", "Former Business Partner"
-      contactInfo?: {
-        phone?: string;
-        email?: string;
-        address?: string;
-      };
-    },
-  ) {
-    if (!type) {
-      throw new Error('Disinherited person type is required');
-    }
+export type DisinheritanceEvidenceType =
+  | 'AFFIDAVIT'
+  | 'WILL_CLARIFICATION'
+  | 'PRIOR_GIFT_DOCUMENTATION'
+  | 'FAMILY_AGREEMENT'
+  | 'COURT_ORDER'
+  | 'MEDICAL_REPORT'
+  | 'OTHER';
 
-    // System person validation
-    if (type !== 'EXTERNAL' && !id) {
-      throw new Error('ID is required for system persons');
-    }
+/**
+ * DisinheritanceRecord Properties Interface
+ */
+export interface DisinheritanceRecordProps {
+  willId: string; // Reference to parent Will aggregate
 
-    // External person validation
-    if (type === 'EXTERNAL' && !externalDetails?.name) {
-      throw new Error('External disinherited person must have name');
-    }
+  // Disinherited Person
+  disinheritedPerson: BeneficiaryIdentity;
 
-    if (type === 'EXTERNAL' && !externalDetails?.relationshipToTestator) {
-      throw new Error('External disinherited person must have relationship specified');
-    }
+  // Reason Details
+  reasonCategory: DisinheritanceReasonCategory;
+  reasonDescription: string;
+
+  // Legal Basis (for S.26 LSA challenges)
+  legalBasis?: string; // e.g., "S.26 not triggered - already provided for"
+
+  // Evidence and Documentation
+  evidence: {
+    type: DisinheritanceEvidenceType;
+    documentId?: string;
+    description: string;
+  }[];
+
+  // Applicable Clauses
+  appliesToBequests?: string[]; // References to specific bequests
+  isCompleteDisinheritance: boolean; // Whether person gets absolutely nothing
+
+  // Conditions for Reinstatement (if any)
+  reinstatementConditions?: string[];
+
+  // Verification
+  isAcknowledgedByDisinherited: boolean;
+  acknowledgmentDate?: Date;
+  acknowledgmentMethod?: 'WRITTEN' | 'VERBAL' | 'IMPLIED';
+
+  // Legal Risk Assessment
+  legalRiskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  riskMitigationSteps: string[];
+
+  // Status
+  isActive: boolean;
+  deactivatedReason?: string;
+  deactivatedAt?: Date;
+}
+
+/**
+ * DisinheritanceRecord Entity
+ *
+ * Represents a formal declaration to exclude a person from inheritance
+ *
+ * Legal Context (S.26 LSA - Dependant's Provision):
+ * - Testamentary freedom allows disinheritance
+ * - BUT courts may override for dependants (spouse, children, parents)
+ * - Must have clear reasons to withstand S.26 challenges
+ * - Cannot be used to evade legal obligations
+ *
+ * IMPORTANT: This is a statement of testamentary intent only.
+ * Actual effect depends on probate and court decisions.
+ */
+export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
+  private constructor(props: DisinheritanceRecordProps, id?: UniqueEntityID) {
+    super(id, props);
   }
 
-  equals(other: DisinheritedPerson): boolean {
-    if (this.type !== other.type) return false;
+  /**
+   * Factory method to create a new DisinheritanceRecord
+   */
+  public static create(
+    props: DisinheritanceRecordProps,
+    id?: UniqueEntityID,
+  ): DisinheritanceRecord {
+    const record = new DisinheritanceRecord(props, id);
+    record.validate();
 
-    // Compare by ID for system persons
-    if (this.type !== 'EXTERNAL' && this.id && other.id) {
-      return this.id === other.id;
-    }
+    // Apply domain event for disinheritance declaration
+    record.addDomainEvent({
+      eventType: 'DisinheritanceDeclared',
+      aggregateId: props.willId,
+      eventData: {
+        recordId: id?.toString(),
+        disinheritedPerson: props.disinheritedPerson.toJSON(),
+        reasonCategory: props.reasonCategory,
+        isCompleteDisinheritance: props.isCompleteDisinheritance,
+      },
+    });
 
-    // Compare by details for external persons
-    if (this.type === 'EXTERNAL' && this.externalDetails && other.externalDetails) {
-      return (
-        this.externalDetails.name === other.externalDetails.name &&
-        this.externalDetails.nationalId === other.externalDetails.nationalId
+    return record;
+  }
+
+  /**
+   * Validate DisinheritanceRecord invariants
+   *
+   * Ensures:
+   * - Valid disinherited person identity
+   * - Substantive reason provided
+   * - Evidence meets minimum standards
+   * - Legal risk properly assessed
+   * - No contradictions with bequests (handled by Will aggregate)
+   */
+  public validate(): void {
+    // Disinherited person validation
+    this.props.disinheritedPerson.validate();
+
+    // Reason validation
+    this.validateReason();
+
+    // Evidence validation
+    this.validateEvidence();
+
+    // Legal risk validation
+    this.validateLegalRisk();
+
+    // Acknowledgment validation
+    this.validateAcknowledgment();
+
+    // Status validation
+    this.validateStatus();
+
+    // Check for S.26 dependant risks
+    this.checkS26Risks();
+  }
+
+  /**
+   * Validate reason for disinheritance
+   */
+  private validateReason(): void {
+    if (!this.props.reasonDescription || this.props.reasonDescription.trim().length === 0) {
+      throw new DisinheritanceRecordException(
+        'Disinheritance must have a reason description',
+        'reasonDescription',
       );
     }
 
-    return false;
-  }
-
-  isFamilyMember(): boolean {
-    return this.type === 'FAMILY_MEMBER';
-  }
-
-  isSpouse(): boolean {
-    return this.type === 'SPOUSE';
-  }
-
-  isChild(): boolean {
-    return this.type === 'CHILD';
-  }
-
-  isParent(): boolean {
-    return this.type === 'PARENT';
-  }
-
-  isSibling(): boolean {
-    return this.type === 'SIBLING';
-  }
-
-  isRelative(): boolean {
-    return ['FAMILY_MEMBER', 'SPOUSE', 'CHILD', 'PARENT', 'SIBLING', 'OTHER_RELATIVE'].includes(
-      this.type,
-    );
-  }
-
-  isExternal(): boolean {
-    return this.type === 'EXTERNAL';
-  }
-
-  getName(): string {
-    if (this.externalDetails) {
-      return this.externalDetails.name;
+    if (this.props.reasonDescription.length > 1000) {
+      throw new DisinheritanceRecordException(
+        'Reason description cannot exceed 1000 characters',
+        'reasonDescription',
+      );
     }
-    // In real system, would fetch from family member or user service
-    return `Disinherited ${this.type} (ID: ${this.id})`;
-  }
 
-  getRelationship(): string {
-    if (this.externalDetails) {
-      return this.externalDetails.relationshipToTestator;
+    // Check for valid reason category
+    const validCategories: DisinheritanceReasonCategory[] = [
+      'ESTRANGEMENT',
+      'PROVIDED_FOR_DURING_LIFE',
+      'MORAL_UNWORTHINESS',
+      'CONFLICT_OF_INTEREST',
+      'FINANCIAL_INDEPENDENCE',
+      'OTHER_DISPOSITION',
+      'TESTATOR_DISCRETION',
+    ];
+
+    if (!validCategories.includes(this.props.reasonCategory)) {
+      throw new DisinheritanceRecordException(
+        `Invalid reason category: ${this.props.reasonCategory}`,
+        'reasonCategory',
+      );
     }
-    return this.type.toLowerCase();
+
+    // Check reason specificity
+    if (
+      this.props.reasonCategory === 'TESTATOR_DISCRETION' &&
+      this.props.reasonDescription.length < 50
+    ) {
+      throw new DisinheritanceRecordException(
+        'Testator discretion reason must be substantively explained',
+        'reasonDescription',
+      );
+    }
   }
 
-  isDependant(): boolean {
-    // S.29 LSA: Dependants include spouse, children, parents, siblings in some cases
-    return ['SPOUSE', 'CHILD', 'PARENT'].includes(this.type);
+  /**
+   * Validate evidence for disinheritance
+   */
+  private validateEvidence(): void {
+    if (this.props.evidence.length === 0) {
+      throw new DisinheritanceRecordException(
+        'Disinheritance must have supporting evidence',
+        'evidence',
+      );
+    }
+
+    // Validate each evidence item
+    this.props.evidence.forEach((evidenceItem, index) => {
+      if (!evidenceItem.description || evidenceItem.description.trim().length === 0) {
+        throw new DisinheritanceRecordException(
+          `Evidence item ${index + 1} must have a description`,
+          'evidence',
+        );
+      }
+
+      const validEvidenceTypes: DisinheritanceEvidenceType[] = [
+        'AFFIDAVIT',
+        'WILL_CLARIFICATION',
+        'PRIOR_GIFT_DOCUMENTATION',
+        'FAMILY_AGREEMENT',
+        'COURT_ORDER',
+        'MEDICAL_REPORT',
+        'OTHER',
+      ];
+
+      if (!validEvidenceTypes.includes(evidenceItem.type)) {
+        throw new DisinheritanceRecordException(
+          `Invalid evidence type for item ${index + 1}: ${evidenceItem.type}`,
+          'evidence',
+        );
+      }
+
+      // Certain evidence types require document IDs
+      if (evidenceItem.type === 'AFFIDAVIT' && !evidenceItem.documentId) {
+        throw new DisinheritanceRecordException(
+          'Affidavit evidence must have document ID',
+          'evidence',
+        );
+      }
+    });
+
+    // Check for minimum evidence standards based on reason category
+    this.validateEvidenceStandards();
   }
 
-  static createFamilyMember(familyMemberId: string): DisinheritedPerson {
-    return new DisinheritedPerson('FAMILY_MEMBER', familyMemberId);
+  private validateEvidenceStandards(): void {
+    const { reasonCategory, evidence } = this.props;
+
+    switch (reasonCategory) {
+      case 'PROVIDED_FOR_DURING_LIFE':
+        // Should have gift documentation
+        const hasGiftEvidence = evidence.some(
+          (e) =>
+            e.type === 'PRIOR_GIFT_DOCUMENTATION' || e.description.toLowerCase().includes('gift'),
+        );
+        if (!hasGiftEvidence) {
+          throw new DisinheritanceRecordException(
+            'Provided for during life reason should include gift documentation',
+            'evidence',
+          );
+        }
+        break;
+
+      case 'MORAL_UNWORTHINESS':
+        // Should have substantial evidence
+        const hasSubstantialEvidence =
+          evidence.length >= 2 ||
+          evidence.some((e) => e.type === 'COURT_ORDER' || e.type === 'AFFIDAVIT');
+        if (!hasSubstantialEvidence) {
+          throw new DisinheritanceRecordException(
+            'Moral unworthiness reason requires substantial evidence',
+            'evidence',
+          );
+        }
+        break;
+
+      case 'ESTRANGEMENT':
+        // Should have evidence of estrangement
+        const hasEstrangementEvidence = evidence.some(
+          (e) =>
+            e.description.toLowerCase().includes('estranged') ||
+            e.description.toLowerCase().includes('no contact') ||
+            e.type === 'AFFIDAVIT',
+        );
+        if (!hasEstrangementEvidence) {
+          throw new DisinheritanceRecordException(
+            'Estrangement reason should include evidence of estrangement',
+            'evidence',
+          );
+        }
+        break;
+    }
   }
 
-  static createSpouse(familyMemberId: string): DisinheritedPerson {
-    return new DisinheritedPerson('SPOUSE', familyMemberId);
-  }
+  /**
+   * Validate legal risk assessment
+   */
+  private validateLegalRisk(): void {
+    const validRiskLevels = ['LOW', 'MEDIUM', 'HIGH'];
 
-  static createChild(familyMemberId: string): DisinheritedPerson {
-    return new DisinheritedPerson('CHILD', familyMemberId);
-  }
+    if (!validRiskLevels.includes(this.props.legalRiskLevel)) {
+      throw new DisinheritanceRecordException(
+        `Invalid legal risk level: ${this.props.legalRiskLevel}`,
+        'legalRiskLevel',
+      );
+    }
 
-  static createParent(familyMemberId: string): DisinheritedPerson {
-    return new DisinheritedPerson('PARENT', familyMemberId);
-  }
+    // Risk level should match risk mitigation steps
+    if (this.props.legalRiskLevel === 'HIGH' && this.props.riskMitigationSteps.length < 3) {
+      throw new DisinheritanceRecordException(
+        'High risk disinheritance must have at least 3 mitigation steps',
+        'riskMitigationSteps',
+      );
+    }
 
-  static createExternal(
-    name: string,
-    relationshipToTestator: string,
-    nationalId?: string,
-    contactInfo?: DisinheritedPerson['externalDetails']['contactInfo'],
-  ): DisinheritedPerson {
-    return new DisinheritedPerson('EXTERNAL', undefined, {
-      name,
-      nationalId,
-      relationshipToTestator,
-      contactInfo,
+    if (this.props.legalRiskLevel === 'MEDIUM' && this.props.riskMitigationSteps.length < 2) {
+      throw new DisinheritanceRecordException(
+        'Medium risk disinheritance must have at least 2 mitigation steps',
+        'riskMitigationSteps',
+      );
+    }
+
+    // Check for empty risk mitigation steps
+    this.props.riskMitigationSteps.forEach((step, index) => {
+      if (!step || step.trim().length === 0) {
+        throw new DisinheritanceRecordException(
+          `Risk mitigation step ${index + 1} cannot be empty`,
+          'riskMitigationSteps',
+        );
+      }
     });
   }
-}
 
-/**
- * Disinheritance Reason Value Object
- */
-export class DisinheritanceReason {
-  constructor(
-    readonly category: 'MORAL' | 'FINANCIAL' | 'RELATIONSHIP' | 'LEGAL' | 'PERSONAL' | 'OTHER',
-    readonly description: string,
-    readonly details?: string, // More detailed explanation
-    readonly evidenceReferences?: string[], // Document IDs or evidence references
-    readonly dateOfIncident?: Date, // When relevant incident occurred
-  ) {
-    if (!description || description.trim().length < 20) {
-      throw new Error('Disinheritance reason must have meaningful description (min 20 chars)');
-    }
+  /**
+   * Validate acknowledgment
+   */
+  private validateAcknowledgment(): void {
+    if (this.props.isAcknowledgedByDisinherited) {
+      if (!this.props.acknowledgmentDate) {
+        throw new DisinheritanceRecordException(
+          'Acknowledgment must have date if acknowledged',
+          'acknowledgmentDate',
+        );
+      }
 
-    // Specific validation for certain categories
-    if (category === 'LEGAL' && !details) {
-      throw new Error('Legal disinheritance reasons require detailed explanation');
+      if (this.props.acknowledgmentDate > new Date()) {
+        throw new DisinheritanceRecordException(
+          'Acknowledgment date cannot be in the future',
+          'acknowledgmentDate',
+        );
+      }
+
+      if (!this.props.acknowledgmentMethod) {
+        throw new DisinheritanceRecordException(
+          'Acknowledgment must have method if acknowledged',
+          'acknowledgmentMethod',
+        );
+      }
+
+      const validMethods = ['WRITTEN', 'VERBAL', 'IMPLIED'];
+      if (!validMethods.includes(this.props.acknowledgmentMethod)) {
+        throw new DisinheritanceRecordException(
+          `Invalid acknowledgment method: ${this.props.acknowledgmentMethod}`,
+          'acknowledgmentMethod',
+        );
+      }
     }
   }
 
-  equals(other: DisinheritanceReason): boolean {
-    return (
-      this.category === other.category &&
-      this.description === other.description &&
-      this.details === other.details
+  /**
+   * Validate status
+   */
+  private validateStatus(): void {
+    if (!this.props.isActive && !this.props.deactivatedReason) {
+      throw new DisinheritanceRecordException(
+        'Deactivated disinheritance must have a reason',
+        'deactivatedReason',
+      );
+    }
+
+    if (!this.props.isActive && !this.props.deactivatedAt) {
+      throw new DisinheritanceRecordException(
+        'Deactivated disinheritance must have deactivation date',
+        'deactivatedAt',
+      );
+    }
+
+    if (this.props.deactivatedAt && this.props.deactivatedAt > new Date()) {
+      throw new DisinheritanceRecordException(
+        'Deactivation date cannot be in the future',
+        'deactivatedAt',
+      );
+    }
+  }
+
+  /**
+   * Check S.26 dependant risks
+   */
+  private checkS26Risks(): void {
+    // This method identifies if the disinherited person might be a dependant
+    // under S.26 LSA, which would increase legal risk
+
+    const personIdentifier = this.props.disinheritedPerson.toJSON().identifier;
+
+    // Check if person is likely a dependant (simplified check)
+    const dependantIndicators = [
+      'SPOUSE',
+      'WIFE',
+      'HUSBAND',
+      'CHILD',
+      'SON',
+      'DAUGHTER',
+      'MINOR',
+      'DISABLED',
+      'DEPENDANT',
+      'PARENT',
+    ];
+
+    const isPotentialDependant = dependantIndicators.some((indicator) =>
+      personIdentifier.toUpperCase().includes(indicator),
     );
+
+    if (isPotentialDependant && this.props.legalRiskLevel !== 'HIGH') {
+      // This is a warning, not an error
+      console.warn(
+        `Warning: Disinheriting ${personIdentifier} may trigger S.26 LSA dependant provisions`,
+      );
+    }
   }
 
-  isMoral(): boolean {
-    return this.category === 'MORAL';
+  /**
+   * Update reason for disinheritance
+   */
+  public updateReason(
+    category: DisinheritanceReasonCategory,
+    description: string,
+    legalBasis?: string,
+  ): void {
+    if (!description || description.trim().length === 0) {
+      throw new DisinheritanceRecordException(
+        'Reason description cannot be empty',
+        'reasonDescription',
+      );
+    }
+
+    if (description.length > 1000) {
+      throw new DisinheritanceRecordException(
+        'Reason description cannot exceed 1000 characters',
+        'reasonDescription',
+      );
+    }
+
+    this.updateState({
+      reasonCategory: category,
+      reasonDescription: description,
+      legalBasis,
+    });
+
+    // Recalculate legal risk
+    this.recalculateLegalRisk();
+
+    // Add domain event for reason update
+    this.addDomainEvent({
+      eventType: 'DisinheritanceReasonUpdated',
+      aggregateId: this.props.willId,
+      eventData: {
+        recordId: this.id.toString(),
+        disinheritedPerson: this.props.disinheritedPerson.toJSON(),
+        previousCategory: this.props.reasonCategory,
+        newCategory: category,
+      },
+    });
   }
 
-  isFinancial(): boolean {
-    return this.category === 'FINANCIAL';
-  }
+  /**
+   * Add evidence to disinheritance record
+   */
+  public addEvidence(
+    type: DisinheritanceEvidenceType,
+    description: string,
+    documentId?: string,
+  ): void {
+    if (!description || description.trim().length === 0) {
+      throw new DisinheritanceRecordException('Evidence must have description', 'evidence');
+    }
 
-  isRelationship(): boolean {
-    return this.category === 'RELATIONSHIP';
-  }
-
-  isLegal(): boolean {
-    return this.category === 'LEGAL';
-  }
-
-  isPersonal(): boolean {
-    return this.category === 'PERSONAL';
-  }
-
-  getS30Factor(): string | undefined {
-    // Map to S.30 LSA factors court considers
-    const factorMap: Record<string, string> = {
-      MORAL: 'Conduct of the dependant (S.30(f))',
-      FINANCIAL: 'Financial resources and needs (S.30(a))',
-      RELATIONSHIP: 'Obligations and responsibilities (S.30(b))',
-      LEGAL: 'Legal obligations (S.30(c))',
-      PERSONAL: 'Personal circumstances (S.30(g))',
-      OTHER: 'Any other matter (S.30(i))',
+    const newEvidence = {
+      type,
+      description,
+      documentId,
     };
-    return factorMap[this.category];
-  }
 
-  toString(): string {
-    let result = `${this.category}: ${this.description}`;
-    if (this.details) {
-      result += `\nDetails: ${this.details}`;
-    }
-    if (this.dateOfIncident) {
-      result += `\nIncident Date: ${this.dateOfIncident.toLocaleDateString()}`;
-    }
-    return result;
-  }
-
-  static createMoralReason(description: string, details?: string): DisinheritanceReason {
-    return new DisinheritanceReason('MORAL', description, details);
-  }
-
-  static createFinancialReason(description: string, details?: string): DisinheritanceReason {
-    return new DisinheritanceReason('FINANCIAL', description, details);
-  }
-
-  static createRelationshipReason(description: string, details?: string): DisinheritanceReason {
-    return new DisinheritanceReason('RELATIONSHIP', description, details);
-  }
-
-  static createLegalReason(description: string, legalBasis: string): DisinheritanceReason {
-    return new DisinheritanceReason('LEGAL', description, `Legal Basis: ${legalBasis}`);
-  }
-}
-
-// =========================================================================
-// ENUMS
-// =========================================================================
-
-/**
- * Disinheritance Status
- */
-export enum DisinheritanceStatus {
-  RECORDED = 'RECORDED', // Recorded in will but not yet effective
-  EFFECTIVE = 'EFFECTIVE', // Will executed, disinheritance in effect
-  CHALLENGED = 'CHALLENGED', // Challenged in court
-  UPHELD = 'UPHELD', // Court upheld disinheritance
-  OVERTURNED = 'OVERTURNED', // Court overturned disinheritance
-  PARTIALLY_OVERTURNED = 'PARTIALLY_OVERTURNED', // Court granted partial provision
-  SETTLED = 'SETTLED', // Settled out of court
-  WITHDRAWN = 'WITHDRAWN', // Disinheritance withdrawn by codicil
-  INVALID = 'INVALID', // Found to be legally invalid
-}
-
-/**
- * Disinheritance Severity
- */
-export enum DisinheritanceSeverity {
-  COMPLETE = 'COMPLETE', // No inheritance at all
-  PARTIAL = 'PARTIAL', // Reduced inheritance
-  CONDITIONAL = 'CONDITIONAL', // Inheritance with conditions
-  TEMPORARY = 'TEMPORARY', // Temporary exclusion
-}
-
-/**
- * Legal Risk Level for Disinheritance
- */
-export enum LegalRiskLevel {
-  LOW = 'LOW', // Low risk of successful challenge
-  MEDIUM = 'MEDIUM', // Moderate risk
-  HIGH = 'HIGH', // High risk (e.g., disinheriting minor child)
-  VERY_HIGH = 'VERY_HIGH', // Very high risk (e.g., disinheriting spouse)
-  EXTREME = 'EXTREME', // Extreme risk (likely to be overturned)
-}
-
-// =========================================================================
-// DISINHERITANCE RECORD ENTITY
-// =========================================================================
-
-interface DisinheritanceRecordProps {
-  willId: string; // Reference to parent Will aggregate
-  testatorId: string; // Reference to testator
-
-  // Who is being disinherited
-  disinheritedPerson: DisinheritedPerson;
-
-  // Reason for disinheritance
-  reason: DisinheritanceReason;
-
-  // Legal Details
-  status: DisinheritanceStatus;
-  severity: DisinheritanceSeverity;
-  legalRiskLevel: LegalRiskLevel;
-
-  // S.26/S.29 Compliance
-  isDependant: boolean; // Whether person qualifies as dependant under S.29
-  isSubjectToS26: boolean; // Whether S.26 claims likely
-
-  // Alternative Provisions (if any)
-  tokenProvision?: {
-    // Small token to show not forgotten
-    description: string;
-    value?: number;
-    assetId?: string;
-  };
-
-  // Conditions for Reinstatement
-  reinstatementConditions?: string[]; // Conditions for future inheritance
-  reinstatementDeadline?: Date; // Deadline for meeting conditions
-
-  // Legal Proceedings
-  courtCaseNumber?: string;
-  courtOutcome?: string;
-  courtOrderDate?: Date;
-  settlementAmount?: number; // If settled out of court
-
-  // Timeline
-  recordedAt: Date; // When recorded in will
-  effectiveDate?: Date; // When disinheritance takes effect
-  challengedAt?: Date; // When challenged in court
-  resolvedAt?: Date; // When resolved
-
-  // Evidence and Documentation
-  supportingDocuments: string[]; // Document IDs supporting disinheritance
-  witnessStatements: string[]; // Witness statement IDs
-  legalOpinionId?: string; // Lawyer's opinion on validity
-
-  // Metadata
-  clauseReference: string; // Will clause reference
-  notes?: string;
-}
-
-export class DisinheritanceRecord extends Entity<DisinheritanceRecordProps> {
-  // =========================================================================
-  // CONSTRUCTOR & FACTORY
-  // =========================================================================
-
-  private constructor(props: DisinheritanceRecordProps, id?: UniqueEntityID) {
-    // Domain Rule: Cannot disinherit without clear reason
-    if (!props.reason) {
-      throw new Error('Disinheritance must have a stated reason');
-    }
-
-    // Domain Rule: Must reference specific will clause
-    if (!props.clauseReference) {
-      throw new Error('Disinheritance must reference specific will clause');
-    }
-
-    super(id ?? new UniqueEntityID(), props);
-  }
-
-  /**
-   * Factory: Create disinheritance record
-   */
-  public static create(
-    willId: string,
-    testatorId: string,
-    disinheritedPerson: DisinheritedPerson,
-    reason: DisinheritanceReason,
-    clauseReference: string,
-    severity: DisinheritanceSeverity = DisinheritanceSeverity.COMPLETE,
-  ): DisinheritanceRecord {
-    // Determine if person is a dependant (S.29 LSA)
-    const isDependant = disinheritedPerson.isDependant();
-
-    // Determine legal risk level
-    const legalRiskLevel = DisinheritanceRecord.calculateLegalRisk(
-      disinheritedPerson,
-      reason,
-      severity,
+    // Check for duplicates
+    const duplicate = this.props.evidence.find(
+      (e) => JSON.stringify(e) === JSON.stringify(newEvidence),
     );
 
-    const props: DisinheritanceRecordProps = {
-      willId,
-      testatorId,
-      disinheritedPerson,
-      reason,
-      clauseReference,
-      severity,
-      status: DisinheritanceStatus.RECORDED,
-      legalRiskLevel,
-      isDependant,
-      isSubjectToS26: isDependant, // Dependants may make S.26 claims
-      recordedAt: new Date(),
-      supportingDocuments: [],
-      witnessStatements: [],
-    };
+    if (duplicate) {
+      throw new DisinheritanceRecordException('Evidence already exists in record', 'evidence');
+    }
 
-    return new DisinheritanceRecord(props);
-  }
-
-  /**
-   * Factory: Create disinheritance with token provision
-   * (Shows person not forgotten, may strengthen legal position)
-   */
-  public static createWithTokenProvision(
-    willId: string,
-    testatorId: string,
-    disinheritedPerson: DisinheritedPerson,
-    reason: DisinheritanceReason,
-    clauseReference: string,
-    tokenProvision: DisinheritanceRecordProps['tokenProvision'],
-  ): DisinheritanceRecord {
-    const record = DisinheritanceRecord.create(
-      willId,
-      testatorId,
-      disinheritedPerson,
-      reason,
-      clauseReference,
-      DisinheritanceSeverity.PARTIAL,
-    );
-
-    (record as any).updateState({
-      tokenProvision,
-      severity: DisinheritanceSeverity.PARTIAL,
+    this.updateState({
+      evidence: [...this.props.evidence, newEvidence],
     });
 
-    return record;
+    // Recalculate legal risk
+    this.recalculateLegalRisk();
+
+    // Add domain event for evidence addition
+    this.addDomainEvent({
+      eventType: 'DisinheritanceEvidenceAdded',
+      aggregateId: this.props.willId,
+      eventData: {
+        recordId: this.id.toString(),
+        disinheritedPerson: this.props.disinheritedPerson.toJSON(),
+        evidenceType: type,
+        description,
+      },
+    });
   }
 
   /**
-   * Factory: Create conditional disinheritance
+   * Record acknowledgment by disinherited person
    */
-  public static createConditional(
-    willId: string,
-    testatorId: string,
-    disinheritedPerson: DisinheritedPerson,
-    reason: DisinheritanceReason,
-    clauseReference: string,
-    conditions: string[],
-    deadline?: Date,
-  ): DisinheritanceRecord {
-    const record = DisinheritanceRecord.create(
-      willId,
-      testatorId,
-      disinheritedPerson,
-      reason,
-      clauseReference,
-      DisinheritanceSeverity.CONDITIONAL,
-    );
+  public recordAcknowledgment(
+    method: 'WRITTEN' | 'VERBAL' | 'IMPLIED',
+    date: Date = new Date(),
+    notes?: string,
+  ): void {
+    if (date > new Date()) {
+      throw new DisinheritanceRecordException(
+        'Acknowledgment date cannot be in the future',
+        'acknowledgmentDate',
+      );
+    }
 
-    (record as any).updateState({
-      reinstatementConditions: conditions,
-      reinstatementDeadline: deadline,
-      severity: DisinheritanceSeverity.CONDITIONAL,
+    this.updateState({
+      isAcknowledgedByDisinherited: true,
+      acknowledgmentDate: date,
+      acknowledgmentMethod: method,
     });
 
-    return record;
+    // Update risk level (acknowledgment reduces risk)
+    this.recalculateLegalRisk();
+
+    // Add domain event for acknowledgment
+    this.addDomainEvent({
+      eventType: 'DisinheritanceAcknowledged',
+      aggregateId: this.props.willId,
+      eventData: {
+        recordId: this.id.toString(),
+        disinheritedPerson: this.props.disinheritedPerson.toJSON(),
+        acknowledgmentMethod: method,
+        acknowledgmentDate: date.toISOString(),
+      },
+    });
   }
 
   /**
-   * Reconstitute from persistence
+   * Deactivate disinheritance record
    */
-  public static reconstitute(
-    id: string,
-    props: DisinheritanceRecordProps,
-    createdAt: Date,
-    updatedAt: Date,
-    version: number,
-  ): DisinheritanceRecord {
-    const record = new DisinheritanceRecord(props, new UniqueEntityID(id));
-    (record as any)._createdAt = createdAt;
-    (record as any)._updatedAt = updatedAt;
-    (record as any)._version = version;
-    return record;
+  public deactivate(reason: string): void {
+    if (!this.props.isActive) {
+      throw new DisinheritanceRecordException(
+        'Disinheritance record already deactivated',
+        'isActive',
+      );
+    }
+
+    this.updateState({
+      isActive: false,
+      deactivatedReason: reason,
+      deactivatedAt: new Date(),
+    });
+
+    // Add domain event for deactivation
+    this.addDomainEvent({
+      eventType: 'DisinheritanceDeactivated',
+      aggregateId: this.props.willId,
+      eventData: {
+        recordId: this.id.toString(),
+        disinheritedPerson: this.props.disinheritedPerson.toJSON(),
+        reason,
+      },
+    });
   }
 
-  private static calculateLegalRisk(
-    person: DisinheritedPerson,
-    reason: DisinheritanceReason,
-    severity: DisinheritanceSeverity,
-  ): LegalRiskLevel {
+  /**
+   * Reactivate disinheritance record
+   */
+  public reactivate(): void {
+    if (this.props.isActive) {
+      throw new DisinheritanceRecordException('Disinheritance record already active', 'isActive');
+    }
+
+    this.updateState({
+      isActive: true,
+      deactivatedReason: undefined,
+      deactivatedAt: undefined,
+    });
+
+    // Add domain event for reactivation
+    this.addDomainEvent({
+      eventType: 'DisinheritanceReactivated',
+      aggregateId: this.props.willId,
+      eventData: {
+        recordId: this.id.toString(),
+        disinheritedPerson: this.props.disinheritedPerson.toJSON(),
+      },
+    });
+  }
+
+  /**
+   * Recalculate legal risk based on current state
+   */
+  private recalculateLegalRisk(): void {
     let riskScore = 0;
 
-    // Person type scoring
-    if (person.isSpouse()) riskScore += 40;
-    if (person.isChild()) riskScore += 30;
-    if (person.isParent()) riskScore += 20;
-    if (person.isSibling()) riskScore += 10;
-    if (person.isExternal()) riskScore += 5;
+    // Base risk by reason category
+    const categoryRisk: Record<DisinheritanceReasonCategory, number> = {
+      ESTRANGEMENT: 3,
+      PROVIDED_FOR_DURING_LIFE: 2,
+      MORAL_UNWORTHINESS: 4,
+      CONFLICT_OF_INTEREST: 3,
+      FINANCIAL_INDEPENDENCE: 2,
+      OTHER_DISPOSITION: 3,
+      TESTATOR_DISCRETION: 5,
+    };
 
-    // Reason scoring
-    if (reason.isLegal()) riskScore += 5; // Strong legal reasons are good
-    if (reason.isMoral()) riskScore += 15; // Moral reasons are weaker
-    if (reason.isFinancial()) riskScore += 20; // Financial reasons often challenged
-    if (reason.isPersonal()) riskScore += 25; // Personal reasons highly challenged
+    riskScore += categoryRisk[this.props.reasonCategory] || 3;
 
-    // Severity scoring
-    if (severity === DisinheritanceSeverity.COMPLETE) riskScore += 25;
-    if (severity === DisinheritanceSeverity.PARTIAL) riskScore += 15;
-    if (severity === DisinheritanceSeverity.CONDITIONAL) riskScore += 10;
-    if (severity === DisinheritanceSeverity.TEMPORARY) riskScore += 5;
+    // Adjust for evidence quality
+    const evidenceScore = this.calculateEvidenceScore();
+    riskScore -= evidenceScore; // Good evidence reduces risk
 
-    // Determine risk level
-    if (riskScore >= 70) return LegalRiskLevel.EXTREME;
-    if (riskScore >= 55) return LegalRiskLevel.VERY_HIGH;
-    if (riskScore >= 40) return LegalRiskLevel.HIGH;
-    if (riskScore >= 25) return LegalRiskLevel.MEDIUM;
-    return LegalRiskLevel.LOW;
-  }
-
-  // =========================================================================
-  // BUSINESS LOGIC (MUTATIONS)
-  // =========================================================================
-
-  /**
-   * Make disinheritance effective (upon testator's death)
-   */
-  public makeEffective(effectiveDate: Date = new Date()): void {
-    if (this.status !== DisinheritanceStatus.RECORDED) {
-      throw new Error('Can only make RECORDED disinheritance effective');
+    // Adjust for acknowledgment
+    if (this.props.isAcknowledgedByDisinherited) {
+      riskScore -= 3; // Acknowledgment significantly reduces risk
     }
 
-    this.updateState({
-      status: DisinheritanceStatus.EFFECTIVE,
-      effectiveDate,
-    });
-  }
-
-  /**
-   * Challenge disinheritance in court
-   */
-  public challenge(courtCaseNumber?: string, challengedAt: Date = new Date()): void {
-    if (this.status !== DisinheritanceStatus.EFFECTIVE) {
-      throw new Error('Can only challenge EFFECTIVE disinheritance');
+    // Adjust for complete vs partial disinheritance
+    if (this.props.isCompleteDisinheritance) {
+      riskScore += 2; // Complete disinheritance is riskier
     }
 
-    this.updateState({
-      status: DisinheritanceStatus.CHALLENGED,
-      courtCaseNumber,
-      challengedAt,
-    });
-  }
+    // Ensure risk score is within bounds
+    riskScore = Math.max(1, Math.min(10, riskScore));
 
-  /**
-   * Court upholds disinheritance
-   */
-  public uphold(courtOutcome: string, courtOrderDate: Date = new Date()): void {
-    if (this.status !== DisinheritanceStatus.CHALLENGED) {
-      throw new Error('Can only uphold CHALLENGED disinheritance');
+    // Convert to risk level
+    let legalRiskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+    if (riskScore <= 3) {
+      legalRiskLevel = 'LOW';
+    } else if (riskScore <= 6) {
+      legalRiskLevel = 'MEDIUM';
+    } else {
+      legalRiskLevel = 'HIGH';
     }
 
+    // Generate mitigation steps based on risk
+    const riskMitigationSteps = this.generateMitigationSteps(legalRiskLevel);
+
     this.updateState({
-      status: DisinheritanceStatus.UPHELD,
-      courtOutcome,
-      courtOrderDate,
-      resolvedAt: new Date(),
+      legalRiskLevel,
+      riskMitigationSteps,
     });
   }
 
-  /**
-   * Court overturns disinheritance
-   */
-  public overturn(
-    courtOutcome: string,
-    provisionDetails?: string,
-    courtOrderDate: Date = new Date(),
-  ): void {
-    if (this.status !== DisinheritanceStatus.CHALLENGED) {
-      throw new Error('Can only overturn CHALLENGED disinheritance');
-    }
+  private calculateEvidenceScore(): number {
+    let score = 0;
 
-    this.updateState({
-      status: DisinheritanceStatus.OVERTURNED,
-      courtOutcome: `${courtOutcome}${provisionDetails ? ` - ${provisionDetails}` : ''}`,
-      courtOrderDate,
-      resolvedAt: new Date(),
+    this.props.evidence.forEach((evidence) => {
+      switch (evidence.type) {
+        case 'COURT_ORDER':
+          score += 3;
+          break;
+        case 'AFFIDAVIT':
+          score += 2;
+          break;
+        case 'PRIOR_GIFT_DOCUMENTATION':
+          score += 2;
+          break;
+        case 'FAMILY_AGREEMENT':
+          score += 2;
+          break;
+        case 'MEDICAL_REPORT':
+          score += 1;
+          break;
+        case 'WILL_CLARIFICATION':
+          score += 1;
+          break;
+        default:
+          score += 0.5;
+      }
+
+      // Bonus for document ID
+      if (evidence.documentId) {
+        score += 1;
+      }
     });
+
+    return Math.min(5, score); // Cap at 5
   }
 
-  /**
-   * Court grants partial provision
-   */
-  public partiallyOverturn(
-    courtOutcome: string,
-    provisionAmount?: number,
-    courtOrderDate: Date = new Date(),
-  ): void {
-    if (this.status !== DisinheritanceStatus.CHALLENGED) {
-      throw new Error('Can only partially overturn CHALLENGED disinheritance');
-    }
-
-    this.updateState({
-      status: DisinheritanceStatus.PARTIALLY_OVERTURNED,
-      courtOutcome,
-      settlementAmount: provisionAmount,
-      courtOrderDate,
-      resolvedAt: new Date(),
-    });
-  }
-
-  /**
-   * Settle disinheritance challenge out of court
-   */
-  public settle(
-    settlementAmount: number,
-    settlementTerms: string,
-    settledAt: Date = new Date(),
-  ): void {
-    if (this.status !== DisinheritanceStatus.CHALLENGED) {
-      throw new Error('Can only settle CHALLENGED disinheritance');
-    }
-
-    this.updateState({
-      status: DisinheritanceStatus.SETTLED,
-      settlementAmount,
-      courtOutcome: `Settled: ${settlementTerms}`,
-      resolvedAt: settledAt,
-    });
-  }
-
-  /**
-   * Withdraw disinheritance (by codicil)
-   */
-  public withdraw(withdrawalDate: Date = new Date()): void {
-    if (this.status === DisinheritanceStatus.WITHDRAWN) {
-      throw new Error('Disinheritance already withdrawn');
-    }
-
-    this.updateState({
-      status: DisinheritanceStatus.WITHDRAWN,
-      resolvedAt: withdrawalDate,
-    });
-  }
-
-  /**
-   * Mark as legally invalid
-   */
-  public invalidate(invalidationReason: string, invalidatedAt: Date = new Date()): void {
-    this.updateState({
-      status: DisinheritanceStatus.INVALID,
-      courtOutcome: `Invalid: ${invalidationReason}`,
-      resolvedAt: invalidatedAt,
-    });
-  }
-
-  /**
-   * Add supporting document
-   */
-  public addSupportingDocument(documentId: string): void {
-    if (
-      this.status !== DisinheritanceStatus.RECORDED &&
-      this.status !== DisinheritanceStatus.EFFECTIVE
-    ) {
-      throw new Error('Can only add documents to RECORDED or EFFECTIVE disinheritance');
-    }
-
-    const updatedDocuments = [...this.supportingDocuments, documentId];
-    this.updateState({
-      supportingDocuments: updatedDocuments,
-    });
-  }
-
-  /**
-   * Add witness statement
-   */
-  public addWitnessStatement(statementId: string): void {
-    if (
-      this.status !== DisinheritanceStatus.RECORDED &&
-      this.status !== DisinheritanceStatus.EFFECTIVE
-    ) {
-      throw new Error('Can only add witness statements to RECORDED or EFFECTIVE disinheritance');
-    }
-
-    const updatedStatements = [...this.witnessStatements, statementId];
-    this.updateState({
-      witnessStatements: updatedStatements,
-    });
-  }
-
-  /**
-   * Update legal risk assessment
-   */
-  public updateLegalRiskAssessment(): void {
-    const newRiskLevel = DisinheritanceRecord.calculateLegalRisk(
-      this.disinheritedPerson,
-      this.reason,
-      this.severity,
-    );
-
-    this.updateState({
-      legalRiskLevel: newRiskLevel,
-    });
-  }
-
-  /**
-   * Add token provision (small inheritance to show not forgotten)
-   */
-  public addTokenProvision(provision: DisinheritanceRecordProps['tokenProvision']): void {
-    if (this.status !== DisinheritanceStatus.RECORDED) {
-      throw new Error('Can only add token provision to RECORDED disinheritance');
-    }
-
-    this.updateState({
-      tokenProvision: provision,
-      severity: DisinheritanceSeverity.PARTIAL,
-    });
-  }
-
-  /**
-   * Update S.26 assessment
-   */
-  public updateS26Assessment(isSubjectToS26: boolean): void {
-    this.updateState({
-      isSubjectToS26,
-    });
-  }
-
-  // =========================================================================
-  // QUERY METHODS (PURE)
-  // =========================================================================
-
-  /**
-   * Check if disinheritance is currently in effect
-   */
-  public isInEffect(): boolean {
-    const effectiveStatuses = [DisinheritanceStatus.EFFECTIVE, DisinheritanceStatus.UPHELD];
-    return effectiveStatuses.includes(this.status);
-  }
-
-  /**
-   * Check if disinheritance has been overturned
-   */
-  public isOverturned(): boolean {
-    const overturnedStatuses = [
-      DisinheritanceStatus.OVERTURNED,
-      DisinheritanceStatus.PARTIALLY_OVERTURNED,
-      DisinheritanceStatus.WITHDRAWN,
-      DisinheritanceStatus.INVALID,
+  private generateMitigationSteps(riskLevel: 'LOW' | 'MEDIUM' | 'HIGH'): string[] {
+    const baseSteps = [
+      'Include clear explanation in will',
+      'Consider alternative provision (e.g., token bequest)',
+      'Obtain legal advice on S.26 implications',
+      'Document reasons contemporaneously',
+      'Consider mediation with disinherited person',
     ];
-    return overturnedStatuses.includes(this.status);
+
+    const highRiskSteps = [
+      'Obtain written acknowledgment from disinherited person',
+      'Include no-contest clause',
+      'Consider creating testamentary trust instead',
+      'Document extensive evidence of reasons',
+      'Consider court declaration of non-dependency',
+    ];
+
+    switch (riskLevel) {
+      case 'LOW':
+        return baseSteps.slice(0, 2);
+      case 'MEDIUM':
+        return baseSteps.slice(0, 3);
+      case 'HIGH':
+        return [...baseSteps, ...highRiskSteps];
+      default:
+        return baseSteps;
+    }
   }
 
   /**
-   * Check if disinheritance is being challenged
+   * Get legal assessment for court challenges
    */
-  public isBeingChallenged(): boolean {
-    return this.status === DisinheritanceStatus.CHALLENGED;
+  public getLegalAssessment(): {
+    strength: 'STRONG' | 'MODERATE' | 'WEAK';
+    reasons: string[];
+    recommendations: string[];
+  } {
+    const reasons: string[] = [];
+    const recommendations: string[] = [...this.props.riskMitigationSteps];
+
+    // Assess strength based on various factors
+    let strengthScore = 0;
+
+    // Reason category strength
+    const reasonStrength: Record<DisinheritanceReasonCategory, number> = {
+      PROVIDED_FOR_DURING_LIFE: 3,
+      FINANCIAL_INDEPENDENCE: 3,
+      ESTRANGEMENT: 2,
+      CONFLICT_OF_INTEREST: 2,
+      OTHER_DISPOSITION: 1,
+      MORAL_UNWORTHINESS: 1,
+      TESTATOR_DISCRETION: 0,
+    };
+
+    strengthScore += reasonStrength[this.props.reasonCategory] || 0;
+
+    // Evidence strength
+    strengthScore += this.calculateEvidenceScore();
+
+    // Acknowledgment strength
+    if (this.props.isAcknowledgedByDisinherited) {
+      strengthScore += 3;
+    }
+
+    // Convert to strength rating
+    let strength: 'STRONG' | 'MODERATE' | 'WEAK';
+    if (strengthScore >= 7) {
+      strength = 'STRONG';
+    } else if (strengthScore >= 4) {
+      strength = 'MODERATE';
+    } else {
+      strength = 'WEAK';
+    }
+
+    // Generate reasons based on assessment
+    if (strengthScore < 4) {
+      reasons.push('Weak evidentiary basis for disinheritance');
+    }
+
+    if (this.props.reasonCategory === 'TESTATOR_DISCRETION') {
+      reasons.push('Reason based solely on testator discretion');
+    }
+
+    if (!this.props.isAcknowledgedByDisinherited) {
+      reasons.push('Disinherited person has not acknowledged');
+    }
+
+    if (this.props.legalRiskLevel === 'HIGH') {
+      reasons.push('High legal risk identified');
+    }
+
+    return { strength, reasons, recommendations };
   }
 
   /**
-   * Check if disinheritance is complete (no inheritance)
+   * Check if this affects specific bequest
    */
-  public isCompleteDisinheritance(): boolean {
-    return this.severity === DisinheritanceSeverity.COMPLETE;
+  public affectsBequest(bequestId: string): boolean {
+    if (!this.props.appliesToBequests) {
+      return false;
+    }
+
+    return this.props.appliesToBequests.includes(bequestId);
   }
 
   /**
-   * Check if disinheritance is partial (some inheritance)
+   * Get summary of disinheritance
    */
-  public isPartialDisinheritance(): boolean {
-    return this.severity === DisinheritanceSeverity.PARTIAL;
+  public getSummary(): {
+    person: string;
+    reason: string;
+    completeness: string;
+    risk: string;
+  } {
+    return {
+      person: this.props.disinheritedPerson.getDisplayName(),
+      reason: this.props.reasonCategory,
+      completeness: this.props.isCompleteDisinheritance ? 'Complete' : 'Partial',
+      risk: this.props.legalRiskLevel,
+    };
   }
 
-  /**
-   * Check if disinheritance is conditional
-   */
-  public isConditional(): boolean {
-    return this.severity === DisinheritanceSeverity.CONDITIONAL;
-  }
-
-  /**
-   * Check if disinheritance is temporary
-   */
-  public isTemporary(): boolean {
-    return this.severity === DisinheritanceSeverity.TEMPORARY;
-  }
-
-  /**
-   * Check if person has token provision
-   */
-  public hasTokenProvision(): boolean {
-    return !!this.tokenProvision;
-  }
-
-  /**
-   * Check if disinheritance is high risk
-   */
-  public isHighRisk(): boolean {
-    return [LegalRiskLevel.HIGH, LegalRiskLevel.VERY_HIGH, LegalRiskLevel.EXTREME].includes(
-      this.legalRiskLevel,
-    );
-  }
-
-  /**
-   * Check if conditions for reinstatement have deadline passed
-   */
-  public isReinstatementDeadlinePassed(): boolean {
-    if (!this.reinstatementDeadline) return false;
-    return new Date() > this.reinstatementDeadline;
-  }
-
-  /**
-   * Check if disinheritance is legally sound (low risk and proper documentation)
-   */
-  public isLegallySound(): boolean {
-    return (
-      !this.isHighRisk() &&
-      this.supportingDocuments.length > 0 &&
-      this.reason.category !== 'PERSONAL' && // Personal reasons are weak
-      (this.hasTokenProvision() || !this.disinheritedPerson.isDependant())
-    );
-  }
-
-  /**
-   * Get S.30 LSA factor that applies to this disinheritance
-   */
-  public getApplicableS30Factor(): string {
-    return this.reason.getS30Factor() || 'Any other matter (S.30(i))';
-  }
-
-  /**
-   * Get days since disinheritance was recorded
-   */
-  public daysSinceRecorded(): number {
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - this.recordedAt.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  }
-
-  // =========================================================================
-  // PROPERTY GETTERS
-  // =========================================================================
-
+  // Getters
   get willId(): string {
     return this.props.willId;
   }
 
-  get testatorId(): string {
-    return this.props.testatorId;
-  }
-
-  get disinheritedPerson(): DisinheritedPerson {
+  get disinheritedPerson(): BeneficiaryIdentity {
     return this.props.disinheritedPerson;
   }
 
-  get reason(): DisinheritanceReason {
-    return this.props.reason;
+  get reasonCategory(): DisinheritanceReasonCategory {
+    return this.props.reasonCategory;
   }
 
-  get status(): DisinheritanceStatus {
-    return this.props.status;
+  get reasonDescription(): string {
+    return this.props.reasonDescription;
   }
 
-  get severity(): DisinheritanceSeverity {
-    return this.props.severity;
+  get legalBasis(): string | undefined {
+    return this.props.legalBasis;
   }
 
-  get legalRiskLevel(): LegalRiskLevel {
-    return this.props.legalRiskLevel;
+  get evidence(): DisinheritanceRecordProps['evidence'] {
+    return [...this.props.evidence];
   }
 
-  get isDependant(): boolean {
-    return this.props.isDependant;
+  get appliesToBequests(): string[] | undefined {
+    return this.props.appliesToBequests ? [...this.props.appliesToBequests] : undefined;
   }
 
-  get isSubjectToS26(): boolean {
-    return this.props.isSubjectToS26;
-  }
-
-  get tokenProvision(): DisinheritanceRecordProps['tokenProvision'] {
-    return this.props.tokenProvision;
+  get isCompleteDisinheritance(): boolean {
+    return this.props.isCompleteDisinheritance;
   }
 
   get reinstatementConditions(): string[] | undefined {
-    return this.props.reinstatementConditions;
+    return this.props.reinstatementConditions ? [...this.props.reinstatementConditions] : undefined;
   }
 
-  get reinstatementDeadline(): Date | undefined {
-    return this.props.reinstatementDeadline;
+  get isAcknowledgedByDisinherited(): boolean {
+    return this.props.isAcknowledgedByDisinherited;
   }
 
-  get courtCaseNumber(): string | undefined {
-    return this.props.courtCaseNumber;
+  get acknowledgmentDate(): Date | undefined {
+    return this.props.acknowledgmentDate;
   }
 
-  get courtOutcome(): string | undefined {
-    return this.props.courtOutcome;
+  get acknowledgmentMethod(): string | undefined {
+    return this.props.acknowledgmentMethod;
   }
 
-  get courtOrderDate(): Date | undefined {
-    return this.props.courtOrderDate;
+  get legalRiskLevel(): string {
+    return this.props.legalRiskLevel;
   }
 
-  get settlementAmount(): number | undefined {
-    return this.props.settlementAmount;
+  get riskMitigationSteps(): string[] {
+    return [...this.props.riskMitigationSteps];
   }
 
-  get recordedAt(): Date {
-    return this.props.recordedAt;
+  get isActive(): boolean {
+    return this.props.isActive;
   }
 
-  get effectiveDate(): Date | undefined {
-    return this.props.effectiveDate;
+  get deactivatedReason(): string | undefined {
+    return this.props.deactivatedReason;
   }
 
-  get challengedAt(): Date | undefined {
-    return this.props.challengedAt;
-  }
-
-  get resolvedAt(): Date | undefined {
-    return this.props.resolvedAt;
-  }
-
-  get supportingDocuments(): string[] {
-    return [...this.props.supportingDocuments];
-  }
-
-  get witnessStatements(): string[] {
-    return [...this.props.witnessStatements];
-  }
-
-  get legalOpinionId(): string | undefined {
-    return this.props.legalOpinionId;
-  }
-
-  get clauseReference(): string {
-    return this.props.clauseReference;
-  }
-
-  get notes(): string | undefined {
-    return this.props.notes;
-  }
-
-  // Status checkers
-  public isRecorded(): boolean {
-    return this.status === DisinheritanceStatus.RECORDED;
-  }
-
-  public isEffective(): boolean {
-    return this.status === DisinheritanceStatus.EFFECTIVE;
-  }
-
-  public isUpheld(): boolean {
-    return this.status === DisinheritanceStatus.UPHELD;
-  }
-
-  public isOverturnedComplete(): boolean {
-    return this.status === DisinheritanceStatus.OVERTURNED;
-  }
-
-  public isPartiallyOverturned(): boolean {
-    return this.status === DisinheritanceStatus.PARTIALLY_OVERTURNED;
-  }
-
-  public isSettled(): boolean {
-    return this.status === DisinheritanceStatus.SETTLED;
-  }
-
-  public isWithdrawn(): boolean {
-    return this.status === DisinheritanceStatus.WITHDRAWN;
-  }
-
-  public isInvalid(): boolean {
-    return this.status === DisinheritanceStatus.INVALID;
-  }
-
-  // =========================================================================
-  // VALIDATION
-  // =========================================================================
-
-  /**
-   * Validate disinheritance against Kenyan legal requirements
-   */
-  public validate(): { isValid: boolean; errors: string[]; warnings: string[] } {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    // Basic validation
-    if (!this.clauseReference) {
-      errors.push('Disinheritance must reference specific will clause');
-    }
-
-    if (!this.reason.description || this.reason.description.length < 20) {
-      errors.push('Disinheritance reason must be detailed (min 20 characters)');
-    }
-
-    // S.26 LSA warnings for dependants
-    if (this.isDependant && this.isCompleteDisinheritance()) {
-      warnings.push(
-        'Complete disinheritance of dependant is likely to be challenged under S.26 LSA',
-      );
-    }
-
-    if (this.isDependant && this.reason.isPersonal()) {
-      warnings.push('Personal reasons for disinheriting dependants are weak in court (S.30(f))');
-    }
-
-    // Evidence requirements
-    if (this.isDependant && this.supportingDocuments.length === 0) {
-      warnings.push('Disinheriting a dependant should be supported by documentary evidence');
-    }
-
-    // Legal risk warnings
-    if (this.isHighRisk()) {
-      warnings.push(`High legal risk (${this.legalRiskLevel}) - consider legal counsel`);
-    }
-
-    // Token provision recommendation
-    if (this.isDependant && !this.hasTokenProvision() && this.isCompleteDisinheritance()) {
-      warnings.push('Consider adding token provision to show dependant was not forgotten');
-    }
-
-    // Clarity of reason
-    if (this.reason.description.length < 50) {
-      warnings.push('Disinheritance reasons should be detailed and specific for legal defense');
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors,
-      warnings,
-    };
-  }
-
-  // =========================================================================
-  // SERIALIZATION
-  // =========================================================================
-
-  public toJSON() {
-    const validation = this.validate();
-
-    return {
-      id: this.id.toString(),
-      willId: this.willId,
-      testatorId: this.testatorId,
-
-      // Disinherited person
-      disinheritedPerson: {
-        type: this.disinheritedPerson.type,
-        id: this.disinheritedPerson.id,
-        name: this.disinheritedPerson.getName(),
-        relationship: this.disinheritedPerson.getRelationship(),
-        isFamilyMember: this.disinheritedPerson.isFamilyMember(),
-        isSpouse: this.disinheritedPerson.isSpouse(),
-        isChild: this.disinheritedPerson.isChild(),
-        isParent: this.disinheritedPerson.isParent(),
-        isRelative: this.disinheritedPerson.isRelative(),
-        isExternal: this.disinheritedPerson.isExternal(),
-        isDependant: this.disinheritedPerson.isDependant(),
-        externalDetails: this.disinheritedPerson.externalDetails,
-      },
-
-      // Reason
-      reason: {
-        category: this.reason.category,
-        description: this.reason.description,
-        details: this.reason.details,
-        evidenceReferences: this.reason.evidenceReferences,
-        dateOfIncident: this.reason.dateOfIncident?.toISOString(),
-        s30Factor: this.reason.getS30Factor(),
-        toString: this.reason.toString(),
-      },
-
-      // Legal status
-      status: this.status,
-      severity: this.severity,
-      legalRiskLevel: this.legalRiskLevel,
-      isHighRisk: this.isHighRisk(),
-      isInEffect: this.isInEffect(),
-      isOverturned: this.isOverturned(),
-      isBeingChallenged: this.isBeingChallenged(),
-      isCompleteDisinheritance: this.isCompleteDisinheritance(),
-      isPartialDisinheritance: this.isPartialDisinheritance(),
-      isConditional: this.isConditional(),
-      isTemporary: this.isTemporary(),
-
-      // S.26/S.29 compliance
-      isDependant: this.isDependant,
-      isSubjectToS26: this.isSubjectToS26,
-      applicableS30Factor: this.getApplicableS30Factor(),
-
-      // Alternative provisions
-      tokenProvision: this.tokenProvision,
-      hasTokenProvision: this.hasTokenProvision(),
-      reinstatementConditions: this.reinstatementConditions,
-      reinstatementDeadline: this.reinstatementDeadline?.toISOString(),
-      isReinstatementDeadlinePassed: this.isReinstatementDeadlinePassed(),
-
-      // Legal proceedings
-      courtCaseNumber: this.courtCaseNumber,
-      courtOutcome: this.courtOutcome,
-      courtOrderDate: this.courtOrderDate?.toISOString(),
-      settlementAmount: this.settlementAmount,
-
-      // Timeline
-      recordedAt: this.recordedAt.toISOString(),
-      effectiveDate: this.effectiveDate?.toISOString(),
-      challengedAt: this.challengedAt?.toISOString(),
-      resolvedAt: this.resolvedAt?.toISOString(),
-      daysSinceRecorded: this.daysSinceRecorded(),
-
-      // Evidence
-      supportingDocuments: this.supportingDocuments,
-      witnessStatements: this.witnessStatements,
-      legalOpinionId: this.legalOpinionId,
-      hasSupportingDocuments: this.supportingDocuments.length > 0,
-      hasWitnessStatements: this.witnessStatements.length > 0,
-
-      // Metadata
-      clauseReference: this.clauseReference,
-      notes: this.notes,
-      isLegallySound: this.isLegallySound(),
-
-      // Validation
-      validation,
-
-      // Status flags
-      isRecorded: this.isRecorded(),
-      isEffective: this.isEffective(),
-      isUpheld: this.isUpheld(),
-      isOverturnedComplete: this.isOverturnedComplete(),
-      isPartiallyOverturned: this.isPartiallyOverturned(),
-      isSettled: this.isSettled(),
-      isWithdrawn: this.isWithdrawn(),
-      isInvalid: this.isInvalid(),
-
-      // System
-      createdAt: this.createdAt.toISOString(),
-      updatedAt: this.updatedAt.toISOString(),
-      version: this.version,
-    };
+  get deactivatedAt(): Date | undefined {
+    return this.props.deactivatedAt;
   }
 }

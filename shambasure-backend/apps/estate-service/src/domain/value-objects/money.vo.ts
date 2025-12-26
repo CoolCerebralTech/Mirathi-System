@@ -1,312 +1,145 @@
-// domain/value-objects/money.vo.ts
+// src/estate-service/src/domain/value-objects/money.vo.ts
 import { ValueObject, ValueObjectValidationError } from '../base/value-object';
 
-/**
- * Money Value Object - Kenyan Shillings (KES)
- *
- * CRITICAL: Prevents floating-point arithmetic errors in legal calculations
- *
- * Legal Requirements:
- * - Estate valuations must be precise (S.83 LSA - executor accountability)
- * - Currency must be KES (Law of Succession Act is Kenyan jurisdiction)
- * - Negative values allowed only for debts/liabilities
- * - All calculations maintain 2 decimal precision
- *
- * Design Pattern: Store as integer cents (100 cents = 1 KES)
- * This prevents: 0.1 + 0.2 = 0.30000000000000004
- */
-
-interface MoneyProps {
-  amountInCents: number;
+export interface MoneyProps {
+  amount: number;
   currency: string;
 }
 
+/**
+ * Money Value Object
+ *
+ * Kenyan Legal Requirements:
+ * - Amounts must be non-negative (cannot have negative inheritance)
+ * - Currency must be valid Kenyan currency (KES, USD, EUR)
+ * - Precision up to 2 decimal places for financial accuracy
+ * - Immutable for audit trail
+ */
 export class Money extends ValueObject<MoneyProps> {
-  private static readonly CURRENCY = 'KES';
-  private static readonly CENTS_PER_UNIT = 100;
+  private static readonly VALID_CURRENCIES = ['KES', 'USD', 'EUR', 'GBP'];
+  private static readonly MAX_DECIMALS = 2;
 
-  private constructor(props: MoneyProps) {
+  constructor(props: MoneyProps) {
     super(props);
   }
 
-  /**
-   * Create Money from KES amount (e.g., 1000.50 KES)
-   */
-  public static fromKES(amount: number): Money {
-    if (!Number.isFinite(amount)) {
-      throw new ValueObjectValidationError('Amount must be a finite number', 'amount');
-    }
-
-    // Round to 2 decimal places, convert to cents
-    const amountInCents = Math.round(amount * this.CENTS_PER_UNIT);
-
-    return new Money({
-      amountInCents,
-      currency: this.CURRENCY,
-    });
-  }
-
-  /**
-   * Create Money from cents (internal use)
-   */
-  public static fromCents(cents: number): Money {
-    if (!Number.isInteger(cents)) {
-      throw new ValueObjectValidationError('Cents must be an integer', 'cents');
-    }
-
-    return new Money({
-      amountInCents: cents,
-      currency: this.CURRENCY,
-    });
-  }
-
-  /**
-   * Zero money (useful for initializations)
-   */
-  public static zero(): Money {
-    return new Money({
-      amountInCents: 0,
-      currency: this.CURRENCY,
-    });
-  }
-
   protected validate(): void {
-    if (!Number.isInteger(this.props.amountInCents)) {
-      throw new ValueObjectValidationError('Amount in cents must be an integer');
+    // Amount must be non-negative
+    if (this.props.amount < 0) {
+      throw new ValueObjectValidationError('Money amount cannot be negative', 'amount');
     }
 
-    if (this.props.currency !== Money.CURRENCY) {
+    // Currency must be valid
+    if (!Money.VALID_CURRENCIES.includes(this.props.currency)) {
       throw new ValueObjectValidationError(
-        `Only KES currency supported. Got: ${this.props.currency}`,
+        `Invalid currency: ${this.props.currency}. Valid currencies are: ${Money.VALID_CURRENCIES.join(', ')}`,
         'currency',
+      );
+    }
+
+    // Check for excessive decimal places
+    const decimalPlaces = (this.props.amount.toString().split('.')[1] || '').length;
+    if (decimalPlaces > Money.MAX_DECIMALS) {
+      throw new ValueObjectValidationError(
+        `Amount can have at most ${Money.MAX_DECIMALS} decimal places`,
+        'amount',
       );
     }
   }
 
   /**
-   * Get amount in KES (decimal format)
-   */
-  public getAmount(): number {
-    return this.props.amountInCents / Money.CENTS_PER_UNIT;
-  }
-
-  /**
-   * Get amount in cents (integer)
-   */
-  public getCents(): number {
-    return this.props.amountInCents;
-  }
-
-  /**
-   * Get currency code
-   */
-  public getCurrency(): string {
-    return this.props.currency;
-  }
-
-  /**
-   * Check if positive (for assets)
-   */
-  public isPositive(): boolean {
-    return this.props.amountInCents > 0;
-  }
-
-  /**
-   * Check if negative (for debts)
-   */
-  public isNegative(): boolean {
-    return this.props.amountInCents < 0;
-  }
-
-  /**
-   * Check if zero
-   */
-  public isZero(): boolean {
-    return this.props.amountInCents === 0;
-  }
-
-  /**
-   * Add money (returns new Money instance)
+   * Add two money amounts (same currency only)
    */
   public add(other: Money): Money {
-    this.ensureSameCurrency(other);
-    return Money.fromCents(this.props.amountInCents + other.props.amountInCents);
-  }
-
-  /**
-   * Subtract money (returns new Money instance)
-   */
-  public subtract(other: Money): Money {
-    this.ensureSameCurrency(other);
-    return Money.fromCents(this.props.amountInCents - other.props.amountInCents);
-  }
-
-  /**
-   * Multiply by scalar (for percentage calculations)
-   */
-  public multiply(multiplier: number): Money {
-    if (!Number.isFinite(multiplier)) {
-      throw new ValueObjectValidationError('Multiplier must be finite', 'multiplier');
+    if (this.props.currency !== other.props.currency) {
+      throw new Error('Cannot add money with different currencies');
     }
 
-    const result = Math.round(this.props.amountInCents * multiplier);
-    return Money.fromCents(result);
-  }
-
-  /**
-   * Divide by scalar
-   */
-  public divide(divisor: number): Money {
-    if (divisor === 0) {
-      throw new ValueObjectValidationError('Cannot divide by zero', 'divisor');
-    }
-
-    if (!Number.isFinite(divisor)) {
-      throw new ValueObjectValidationError('Divisor must be finite', 'divisor');
-    }
-
-    const result = Math.round(this.props.amountInCents / divisor);
-    return Money.fromCents(result);
-  }
-
-  /**
-   * Calculate percentage (for inheritance shares)
-   * Example: estate.netValue.percentage(20) = 20% of estate
-   */
-  public percentage(percent: number): Money {
-    if (percent < 0 || percent > 100) {
-      throw new ValueObjectValidationError('Percentage must be between 0 and 100', 'percent');
-    }
-
-    return this.multiply(percent / 100);
-  }
-
-  /**
-   * Allocate money proportionally (for S.35/S.40 distribution)
-   * Example: allocate 100,000 KES among [30%, 40%, 30%] = [30k, 40k, 30k]
-   * Handles remainder by giving to first beneficiary (legal precedent)
-   */
-  public allocate(ratios: number[]): Money[] {
-    if (ratios.length === 0) {
-      throw new ValueObjectValidationError('Ratios array cannot be empty');
-    }
-
-    const totalRatio = ratios.reduce((sum, ratio) => sum + ratio, 0);
-    if (totalRatio === 0) {
-      throw new ValueObjectValidationError('Total ratio cannot be zero');
-    }
-
-    const results: Money[] = [];
-    let remainder = this.props.amountInCents;
-
-    for (let i = 0; i < ratios.length; i++) {
-      const isLast = i === ratios.length - 1;
-
-      if (isLast) {
-        // Give all remainder to last beneficiary (avoids rounding errors)
-        results.push(Money.fromCents(remainder));
-      } else {
-        const share = Math.floor((this.props.amountInCents * ratios[i]) / totalRatio);
-        results.push(Money.fromCents(share));
-        remainder -= share;
-      }
-    }
-
-    return results;
-  }
-
-  /**
-   * Compare money amounts
-   */
-  public greaterThan(other: Money): boolean {
-    this.ensureSameCurrency(other);
-    return this.props.amountInCents > other.props.amountInCents;
-  }
-
-  public greaterThanOrEqual(other: Money): boolean {
-    this.ensureSameCurrency(other);
-    return this.props.amountInCents >= other.props.amountInCents;
-  }
-
-  public lessThan(other: Money): boolean {
-    this.ensureSameCurrency(other);
-    return this.props.amountInCents < other.props.amountInCents;
-  }
-
-  public lessThanOrEqual(other: Money): boolean {
-    this.ensureSameCurrency(other);
-    return this.props.amountInCents <= other.props.amountInCents;
-  }
-
-  /**
-   * Absolute value (for debt calculations)
-   */
-  public abs(): Money {
-    return Money.fromCents(Math.abs(this.props.amountInCents));
-  }
-
-  /**
-   * Negate (convert asset to liability or vice versa)
-   */
-  public negate(): Money {
-    return Money.fromCents(-this.props.amountInCents);
-  }
-
-  /**
-   * Sum array of Money instances
-   */
-  public static sum(amounts: Money[]): Money {
-    if (amounts.length === 0) {
-      return Money.zero();
-    }
-
-    return amounts.reduce((sum, amount) => sum.add(amount), Money.zero());
-  }
-
-  /**
-   * Format for display (e.g., "KES 1,234,567.89")
-   */
-  public format(): string {
-    const amount = this.getAmount();
-    const formatted = new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
-
-    return formatted;
-  }
-
-  /**
-   * Format for legal documents (no currency symbol)
-   */
-  public formatForLegal(): string {
-    const amount = this.getAmount();
-    return amount.toLocaleString('en-KE', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+    return new Money({
+      amount: this.props.amount + other.props.amount,
+      currency: this.props.currency,
     });
   }
 
-  private ensureSameCurrency(other: Money): void {
+  /**
+   * Subtract two money amounts (same currency only)
+   */
+  public subtract(other: Money): Money {
     if (this.props.currency !== other.props.currency) {
-      throw new ValueObjectValidationError(
-        `Currency mismatch: ${this.props.currency} vs ${other.props.currency}`,
-        'currency',
-      );
+      throw new Error('Cannot subtract money with different currencies');
     }
+
+    const newAmount = this.props.amount - other.props.amount;
+    if (newAmount < 0) {
+      throw new Error('Resulting amount cannot be negative');
+    }
+
+    return new Money({
+      amount: newAmount,
+      currency: this.props.currency,
+    });
+  }
+
+  /**
+   * Multiply by a factor (for percentage calculations)
+   */
+  public multiply(factor: number): Money {
+    if (factor < 0) {
+      throw new Error('Multiplication factor cannot be negative');
+    }
+
+    const newAmount = this.props.amount * factor;
+    // Round to 2 decimal places for financial accuracy
+    const roundedAmount = Math.round(newAmount * 100) / 100;
+
+    return new Money({
+      amount: roundedAmount,
+      currency: this.props.currency,
+    });
+  }
+
+  /**
+   * Compare with another money value
+   */
+  public equals(other: Money): boolean {
+    return this.props.amount === other.props.amount && this.props.currency === other.props.currency;
+  }
+
+  /**
+   * Check if this amount is greater than another
+   */
+  public isGreaterThan(other: Money): boolean {
+    if (this.props.currency !== other.props.currency) {
+      throw new Error('Cannot compare money with different currencies');
+    }
+
+    return this.props.amount > other.props.amount;
+  }
+
+  /**
+   * Get formatted string for display
+   */
+  public toString(): string {
+    return new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: this.props.currency,
+    }).format(this.props.amount);
   }
 
   public toJSON(): Record<string, any> {
     return {
-      amount: this.getAmount(),
+      amount: this.props.amount,
       currency: this.props.currency,
-      amountInCents: this.props.amountInCents,
+      formatted: this.toString(),
     };
   }
 
-  public toString(): string {
-    return this.format();
+  // Static factory methods
+  public static fromKES(amount: number): Money {
+    return new Money({ amount, currency: 'KES' });
+  }
+
+  public static zero(currency: string = 'KES'): Money {
+    return new Money({ amount: 0, currency });
   }
 }

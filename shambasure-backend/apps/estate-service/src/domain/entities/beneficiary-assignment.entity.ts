@@ -1,690 +1,449 @@
-// domain/entities/beneficiary-assignment.entity.ts
+// src/estate-service/src/domain/entities/beneficiary-assignment.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
+import { WillBequestException } from '../exceptions/will-bequest.exception';
+import { BeneficiaryIdentity } from '../value-objects/beneficiary-identity.vo';
+import { BequestCondition } from '../value-objects/bequest-condition.vo';
+import { Money } from '../value-objects/money.vo';
 
 /**
- * Beneficiary Assignment Entity
- *
- * Kenyan Legal Context (Law of Succession Act, Cap 160):
- * - S.5 LSA: Freedom of testation (subject to dependant provisions)
- * - S.26 LSA: Provision for dependants despite will
- * - S.35 LSA: Intestate succession rules (when will doesn't cover)
- * - S.40 LSA: Polygamous succession rules
- *
- * Represents a SINGLE bequest (gift) from the testator to a beneficiary.
- * Can be: Specific asset, percentage of estate, residue, or conditional gift.
- *
- * Entity Scope:
- * 1. Links a beneficiary to what they receive from the estate
- * 2. Manages conditions and restrictions on the bequest
- * 3. Handles alternate beneficiaries
- * 4. Tracks satisfaction of conditions
- * 5. Validates bequest against Kenyan legal limits
+ * Bequest Type Enum
  */
-
-// =========================================================================
-// VALUE OBJECTS
-// =========================================================================
+export type BequestType =
+  | 'SPECIFIC_ASSET' // Specific asset to specific person
+  | 'RESIDUARY' // Remainder after specific bequests
+  | 'PERCENTAGE' // Percentage of total estate
+  | 'FIXED_AMOUNT' // Fixed monetary amount
+  | 'LIFE_INTEREST' // Use during lifetime, then passes to another
+  | 'TRUST' // Held in trust for beneficiary
+  | 'ALTERNATE' // Alternate beneficiary if primary fails
+  | 'CONTINGENT'; // Only if condition met
 
 /**
- * Bequest Value Value Object
- * Represents the value of a bequest (specific amount, percentage, or full asset)
+ * Bequest Priority Enum
  */
-export class BequestValue {
-  constructor(
-    readonly type: 'SPECIFIC_ASSET' | 'PERCENTAGE' | 'FIXED_AMOUNT' | 'RESIDUARY_SHARE',
-    readonly value?: number, // For percentage or fixed amount
-    readonly assetId?: string, // For specific asset
-    readonly currency: string = 'KES', // Default to Kenyan Shillings
-  ) {
-    // Validation based on type
-    switch (type) {
-      case 'PERCENTAGE':
-        if (value === undefined || value <= 0 || value > 100) {
-          throw new Error('Percentage must be between 0.01 and 100');
-        }
-        break;
-      case 'FIXED_AMOUNT':
-        if (value === undefined || value <= 0) {
-          throw new Error('Fixed amount must be positive');
-        }
-        break;
-      case 'SPECIFIC_ASSET':
-        if (!assetId) {
-          throw new Error('Asset ID is required for specific asset bequest');
-        }
-        break;
-      case 'RESIDUARY_SHARE':
-        // No specific validation needed
-        break;
-    }
+export type BequestPriority = 'PRIMARY' | 'ALTERNATE' | 'CONTINGENT';
 
-    // Currency validation
-    if (currency.length !== 3) {
-      throw new Error('Currency must be 3-letter ISO code');
-    }
-  }
+/**
+ * WillBequest Properties Interface
+ */
+export interface WillBequestProps {
+  willId: string; // Reference to parent Will aggregate
+  beneficiary: BeneficiaryIdentity;
+  bequestType: BequestType;
 
-  equals(other: BequestValue): boolean {
-    return (
-      this.type === other.type &&
-      this.value === other.value &&
-      this.assetId === other.assetId &&
-      this.currency === other.currency
-    );
-  }
+  // Value specifications (mutually exclusive based on type)
+  specificAssetId?: string; // For SPECIFIC_ASSET type
+  percentage?: number; // For PERCENTAGE type (0-100)
+  fixedAmount?: Money; // For FIXED_AMOUNT type
+  residuaryShare?: number; // For RESIDUARY type (share of residue)
 
-  isSpecificAsset(): boolean {
-    return this.type === 'SPECIFIC_ASSET';
-  }
+  // Life interest details (if applicable)
+  lifeInterestDetails?: {
+    durationType: 'LIFETIME' | 'PERIOD' | 'UNTIL_EVENT';
+    durationValue?: number; // Years or months
+    remainderBeneficiary?: BeneficiaryIdentity;
+  };
 
-  isPercentage(): boolean {
-    return this.type === 'PERCENTAGE';
-  }
+  // Trust details (if applicable)
+  trustDetails?: {
+    trusteeId: string;
+    trustPurpose: string;
+    terminationEvent: string;
+  };
 
-  isFixedAmount(): boolean {
-    return this.type === 'FIXED_AMOUNT';
-  }
+  // Conditions
+  conditions: BequestCondition[];
 
-  isResiduary(): boolean {
-    return this.type === 'RESIDUARY_SHARE';
-  }
+  // Priority and ordering
+  priority: BequestPriority;
+  executionOrder: number; // Order in which bequests are executed
 
-  toString(): string {
-    switch (this.type) {
-      case 'PERCENTAGE':
-        return `${this.value}% of estate`;
-      case 'FIXED_AMOUNT':
-        return `${this.currency} ${this.value?.toLocaleString()}`;
-      case 'SPECIFIC_ASSET':
-        return `Specific asset (ID: ${this.assetId})`;
-      case 'RESIDUARY_SHARE':
-        return 'Residuary share';
-    }
-  }
+  // Alternate beneficiary (if primary fails)
+  alternateBeneficiary?: BeneficiaryIdentity;
+  alternateConditions?: BequestCondition[];
 
-  static createPercentage(percentage: number): BequestValue {
-    return new BequestValue('PERCENTAGE', percentage);
-  }
+  // Description and notes
+  description: string;
+  notes?: string;
 
-  static createFixedAmount(amount: number, currency = 'KES'): BequestValue {
-    return new BequestValue('FIXED_AMOUNT', amount, undefined, currency);
-  }
+  // Legal restrictions
+  isVested: boolean; // Whether interest is vested immediately
+  isSubjectToHotchpot: boolean; // Whether subject to S.35 hotchpot rules
 
-  static createSpecificAsset(assetId: string): BequestValue {
-    return new BequestValue('SPECIFIC_ASSET', undefined, assetId);
-  }
-
-  static createResiduary(): BequestValue {
-    return new BequestValue('RESIDUARY_SHARE');
-  }
+  // Validation flags
+  isValid: boolean;
+  validationErrors: string[];
 }
 
 /**
- * Bequest Condition Value Object
- * Represents conditions that must be met for the bequest to take effect
+ * WillBequest Entity (Beneficiary Assignment)
+ *
+ * Represents a gift of property or value to a beneficiary in a Kenyan will
+ *
+ * Legal Context (S.5, S.26, S.35 LSA):
+ * - Testamentary freedom to dispose of property
+ * - Subject to dependant's provision (S.26)
+ * - Subject to hotchpot rules for inter vivos gifts (S.35)
+ * - Must be clear and ascertainable
+ * - Cannot be illegal, impossible, or against public policy
+ *
+ * IMPORTANT: This is a statement of testamentary intent only.
+ * Actual distribution depends on probate and administration.
  */
-export class BequestCondition {
-  constructor(
-    readonly type: 'AGE' | 'MARRIAGE' | 'EDUCATION' | 'SURVIVAL' | 'OTHER',
-    readonly description: string,
-    readonly parameters: Record<string, any> = {},
-    readonly mustBeSatisfiedBy?: Date,
-  ) {
-    if (!description || description.trim().length < 10) {
-      throw new Error('Condition must have meaningful description');
-    }
+export class WillBequest extends Entity<WillBequestProps> {
+  private constructor(props: WillBequestProps, id?: UniqueEntityID) {
+    super(id, props);
+  }
+
+  /**
+   * Factory method to create a new WillBequest
+   */
+  public static create(props: WillBequestProps, id?: UniqueEntityID): WillBequest {
+    const bequest = new WillBequest(props, id);
+    bequest.validate();
+
+    // Apply domain event for Bequest creation
+    bequest.addDomainEvent({
+      eventType: 'BequestDefined',
+      aggregateId: props.willId,
+      eventData: {
+        bequestId: id?.toString(),
+        beneficiary: props.beneficiary.toJSON(),
+        bequestType: props.bequestType,
+        description: props.description,
+      },
+    });
+
+    return bequest;
+  }
+
+  /**
+   * Validate WillBequest invariants
+   *
+   * Ensures:
+   * - Valid beneficiary identity
+   * - Consistent value specifications based on type
+   * - Valid conditions
+   * - Kenyan legal compliance
+   * - No contradictory provisions
+   */
+  public validate(): void {
+    // Beneficiary validation
+    this.props.beneficiary.validate();
 
     // Type-specific validation
-    switch (type) {
-      case 'AGE':
-        if (!parameters.age || parameters.age < 0) {
-          throw new Error('Age condition must specify valid age');
+    this.validateTypeSpecificRules();
+
+    // Conditions validation
+    this.validateConditions();
+
+    // Priority validation
+    this.validatePriority();
+
+    // Execution order validation
+    if (this.props.executionOrder < 1) {
+      throw new WillBequestException('Execution order must be at least 1', 'executionOrder');
+    }
+
+    // Description validation
+    if (!this.props.description || this.props.description.trim().length === 0) {
+      throw new WillBequestException('Bequest must have a description', 'description');
+    }
+
+    if (this.props.description.length > 500) {
+      throw new WillBequestException('Description cannot exceed 500 characters', 'description');
+    }
+
+    // Validate alternate beneficiary if present
+    if (this.props.alternateBeneficiary) {
+      this.props.alternateBeneficiary.validate();
+    }
+
+    // Validate validation flags
+    this.updateValidationFlags();
+  }
+
+  /**
+   * Validate type-specific rules
+   */
+  private validateTypeSpecificRules(): void {
+    switch (this.props.bequestType) {
+      case 'SPECIFIC_ASSET':
+        if (!this.props.specificAssetId) {
+          throw new WillBequestException(
+            'Specific asset bequest must specify asset ID',
+            'specificAssetId',
+          );
         }
         break;
-      case 'SURVIVAL':
-        if (!parameters.days || parameters.days < 0) {
-          throw new Error('Survival condition must specify number of days');
+
+      case 'PERCENTAGE':
+        if (this.props.percentage === undefined) {
+          throw new WillBequestException(
+            'Percentage bequest must specify percentage',
+            'percentage',
+          );
+        }
+        if (this.props.percentage <= 0 || this.props.percentage > 100) {
+          throw new WillBequestException('Percentage must be between 0 and 100', 'percentage');
+        }
+        break;
+
+      case 'FIXED_AMOUNT':
+        if (!this.props.fixedAmount) {
+          throw new WillBequestException('Fixed amount bequest must specify amount', 'fixedAmount');
+        }
+        this.props.fixedAmount.validate();
+        break;
+
+      case 'RESIDUARY':
+        if (this.props.residuaryShare === undefined) {
+          throw new WillBequestException('Residuary bequest must specify share', 'residuaryShare');
+        }
+        if (this.props.residuaryShare <= 0) {
+          throw new WillBequestException('Residuary share must be positive', 'residuaryShare');
+        }
+        break;
+
+      case 'LIFE_INTEREST':
+        if (!this.props.lifeInterestDetails) {
+          throw new WillBequestException(
+            'Life interest bequest must specify details',
+            'lifeInterestDetails',
+          );
+        }
+        this.validateLifeInterestDetails();
+        break;
+
+      case 'TRUST':
+        if (!this.props.trustDetails) {
+          throw new WillBequestException(
+            'Trust bequest must specify trust details',
+            'trustDetails',
+          );
+        }
+        this.validateTrustDetails();
+        break;
+
+      case 'ALTERNATE':
+        if (!this.props.alternateBeneficiary) {
+          throw new WillBequestException(
+            'Alternate bequest must reference primary beneficiary',
+            'alternateBeneficiary',
+          );
+        }
+        break;
+
+      case 'CONTINGENT':
+        if (this.props.conditions.length === 0) {
+          throw new WillBequestException(
+            'Contingent bequest must have at least one condition',
+            'conditions',
+          );
         }
         break;
     }
+
+    // Ensure no conflicting value specifications
+    this.checkForConflictingSpecifications();
   }
 
-  equals(other: BequestCondition): boolean {
-    return (
-      this.type === other.type &&
-      this.description === other.description &&
-      JSON.stringify(this.parameters) === JSON.stringify(other.parameters)
-    );
+  private validateLifeInterestDetails(): void {
+    const details = this.props.lifeInterestDetails!;
+
+    if (!details.durationType) {
+      throw new WillBequestException(
+        'Life interest must specify duration type',
+        'lifeInterestDetails.durationType',
+      );
+    }
+
+    if (details.durationType === 'PERIOD' && !details.durationValue) {
+      throw new WillBequestException(
+        'Period life interest must specify duration value',
+        'lifeInterestDetails.durationValue',
+      );
+    }
+
+    if (details.durationType === 'UNTIL_EVENT' && !details.durationValue) {
+      throw new WillBequestException(
+        'Life interest until event must specify the event',
+        'lifeInterestDetails.durationValue',
+      );
+    }
+
+    if (details.remainderBeneficiary) {
+      details.remainderBeneficiary.validate();
+    }
   }
 
-  isAgeCondition(): boolean {
-    return this.type === 'AGE';
+  private validateTrustDetails(): void {
+    const details = this.props.trustDetails!;
+
+    if (!details.trusteeId) {
+      throw new WillBequestException('Trust must specify trustee', 'trustDetails.trusteeId');
+    }
+
+    if (!details.trustPurpose) {
+      throw new WillBequestException('Trust must specify purpose', 'trustDetails.trustPurpose');
+    }
+
+    if (!details.terminationEvent) {
+      throw new WillBequestException(
+        'Trust must specify termination event',
+        'trustDetails.terminationEvent',
+      );
+    }
+
+    // Check trust purpose is not illegal
+    const illegalPurposes = ['ILLEGAL_ACTIVITY', 'TAX_EVASION', 'FRAUD'];
+    if (illegalPurposes.some((p) => details.trustPurpose.includes(p))) {
+      throw new WillBequestException(
+        'Trust purpose cannot be illegal',
+        'trustDetails.trustPurpose',
+      );
+    }
   }
 
-  isMarriageCondition(): boolean {
-    return this.type === 'MARRIAGE';
+  private validateConditions(): void {
+    // Validate each condition
+    this.props.conditions.forEach((condition) => {
+      condition.validate();
+    });
+
+    // Check for contradictory conditions
+    this.checkForContradictoryConditions();
   }
 
-  isEducationCondition(): boolean {
-    return this.type === 'EDUCATION';
+  private validatePriority(): void {
+    const validPriorities: BequestPriority[] = ['PRIMARY', 'ALTERNATE', 'CONTINGENT'];
+
+    if (!validPriorities.includes(this.props.priority)) {
+      throw new WillBequestException(`Invalid priority: ${this.props.priority}`, 'priority');
+    }
+
+    // Check priority consistency
+    if (this.props.priority === 'ALTERNATE' && !this.props.alternateBeneficiary) {
+      throw new WillBequestException(
+        'Alternate priority bequest must specify alternate beneficiary',
+        'alternateBeneficiary',
+      );
+    }
   }
 
-  isSurvivalCondition(): boolean {
-    return this.type === 'SURVIVAL';
+  private checkForConflictingSpecifications(): void {
+    const specifications = [
+      this.props.specificAssetId,
+      this.props.percentage,
+      this.props.fixedAmount,
+      this.props.residuaryShare,
+    ].filter((spec) => spec !== undefined && spec !== null);
+
+    // For most bequest types, only one value specification should be present
+    if (specifications.length > 1) {
+      throw new WillBequestException(
+        'Bequest cannot have multiple value specifications',
+        'bequestType',
+      );
+    }
   }
 
-  getAgeRequirement(): number | undefined {
-    return this.parameters.age;
-  }
+  private checkForContradictoryConditions(): void {
+    const conditions = this.props.conditions;
 
-  getSurvivalDays(): number | undefined {
-    return this.parameters.days;
-  }
+    // Check for direct contradictions (e.g., both "upon marriage" and "if not married")
+    for (let i = 0; i < conditions.length; i++) {
+      for (let j = i + 1; j < conditions.length; j++) {
+        const cond1 = conditions[i];
+        const cond2 = conditions[j];
 
-  toString(): string {
-    return this.description;
-  }
+        // This is a simplified check - would need more sophisticated logic
+        // for actual contradictory conditions
+        if (cond1.toJSON().type === 'MARRIAGE' && cond2.toJSON().type === 'MARRIAGE') {
+          const params1 = cond1.toJSON().parameters;
+          const params2 = cond2.toJSON().parameters;
 
-  static createAgeCondition(age: number, description?: string): BequestCondition {
-    return new BequestCondition('AGE', description || `Beneficiary must reach age ${age}`, { age });
-  }
-
-  static createSurvivalCondition(days: number, description?: string): BequestCondition {
-    return new BequestCondition(
-      'SURVIVAL',
-      description || `Beneficiary must survive testator by ${days} days`,
-      { days },
-    );
-  }
-
-  static createMarriageCondition(description: string): BequestCondition {
-    return new BequestCondition('MARRIAGE', description);
-  }
-
-  static createEducationCondition(description: string): BequestCondition {
-    return new BequestCondition('EDUCATION', description);
-  }
-}
-
-/**
- * Beneficiary Identity Value Object
- * Can represent system user, family member, or external person
- */
-export class BeneficiaryIdentity {
-  constructor(
-    readonly type: 'USER' | 'FAMILY_MEMBER' | 'EXTERNAL' | 'CHARITY' | 'ORGANIZATION',
-    readonly id?: string, // User ID or Family Member ID
-    readonly externalDetails?: {
-      name: string;
-      nationalId?: string;
-      relationship?: string;
-      contactInfo?: {
-        phone?: string;
-        email?: string;
-        address?: string;
-      };
-    },
-  ) {
-    // Validation based on type
-    switch (type) {
-      case 'USER':
-      case 'FAMILY_MEMBER':
-        if (!id) {
-          throw new Error('ID is required for system beneficiary');
+          if (params1?.marriageAllowed !== params2?.marriageAllowed) {
+            throw new WillBequestException(
+              'Contradictory marriage conditions in bequest',
+              'conditions',
+            );
+          }
         }
-        break;
-      case 'EXTERNAL':
-      case 'CHARITY':
-      case 'ORGANIZATION':
-        if (!externalDetails?.name) {
-          throw new Error('Name is required for external beneficiary');
-        }
-        break;
+      }
     }
   }
 
-  equals(other: BeneficiaryIdentity): boolean {
-    if (this.type !== other.type) return false;
+  private updateValidationFlags(): void {
+    const errors: string[] = [];
 
-    if (this.type === 'USER' || this.type === 'FAMILY_MEMBER') {
-      return this.id === other.id;
+    try {
+      // Re-run validation to catch any errors
+      this.validate();
+    } catch (error: any) {
+      errors.push(error.message);
     }
 
-    return (
-      this.externalDetails?.name === other.externalDetails?.name &&
-      this.externalDetails?.nationalId === other.externalDetails?.nationalId
-    );
-  }
-
-  isSystemUser(): boolean {
-    return this.type === 'USER';
-  }
-
-  isFamilyMember(): boolean {
-    return this.type === 'FAMILY_MEMBER';
-  }
-
-  isExternal(): boolean {
-    return this.type === 'EXTERNAL';
-  }
-
-  isCharity(): boolean {
-    return this.type === 'CHARITY';
-  }
-
-  isOrganization(): boolean {
-    return this.type === 'ORGANIZATION';
-  }
-
-  getName(): string {
-    if (this.externalDetails) {
-      return this.externalDetails.name;
+    // Additional business logic checks
+    if (
+      this.props.bequestType === 'RESIDUARY' &&
+      this.props.residuaryShare &&
+      this.props.residuaryShare > 100
+    ) {
+      errors.push('Residuary share cannot exceed 100%');
     }
-    // In real implementation, would fetch from user/family member service
-    return `Beneficiary ${this.id}`;
-  }
 
-  toString(): string {
-    return `${this.type}: ${this.getName()}`;
-  }
+    if (
+      this.props.bequestType === 'PERCENTAGE' &&
+      this.props.percentage &&
+      this.props.percentage > 100
+    ) {
+      errors.push('Percentage cannot exceed 100%');
+    }
 
-  static createUserBeneficiary(userId: string): BeneficiaryIdentity {
-    return new BeneficiaryIdentity('USER', userId);
-  }
+    // Check if beneficiary is also a witness (would need cross-checking with Will aggregate)
+    // For now, we'll just note it as a warning if relationship suggests witness status
+    if (this.props.beneficiary.toJSON().identifier?.includes('WITNESS')) {
+      errors.push('Warning: Beneficiary may also be a witness - check S.11(2) LSA');
+    }
 
-  static createFamilyMemberBeneficiary(familyMemberId: string): BeneficiaryIdentity {
-    return new BeneficiaryIdentity('FAMILY_MEMBER', familyMemberId);
-  }
+    const isValid = errors.length === 0;
 
-  static createExternalBeneficiary(
-    name: string,
-    nationalId?: string,
-    relationship?: string,
-    contactInfo?: BeneficiaryIdentity['externalDetails']['contactInfo'],
-  ): BeneficiaryIdentity {
-    return new BeneficiaryIdentity('EXTERNAL', undefined, {
-      name,
-      nationalId,
-      relationship,
-      contactInfo,
+    // Update validation state
+    this.updateState({
+      isValid,
+      validationErrors: errors,
     });
-  }
-
-  static createCharity(name: string, registrationNumber?: string): BeneficiaryIdentity {
-    return new BeneficiaryIdentity('CHARITY', undefined, {
-      name,
-      nationalId: registrationNumber,
-    });
-  }
-}
-
-// =========================================================================
-// ENUMS
-// =========================================================================
-
-/**
- * Bequest Priority
- * Determines order of entitlement if primary beneficiary cannot inherit
- */
-export enum BequestPriority {
-  PRIMARY = 'PRIMARY', // First in line
-  ALTERNATE = 'ALTERNATE', // Takes over if primary fails
-  CONTINGENT = 'CONTINGENT', // Takes over if primary and alternate fail
-  SUBSTITUTE = 'SUBSTITUTE', // Alternative to primary (either/or)
-}
-
-/**
- * Bequest Status
- * Tracks the lifecycle of the bequest
- */
-export enum BequestStatus {
-  PENDING = 'PENDING', // Will not yet executed
-  VESTED = 'VESTED', // Bequest is now due
-  CONDITION_PENDING = 'CONDITION_PENDING', // Waiting for condition
-  CONDITION_SATISFIED = 'CONDITION_SATISFIED', // Condition met
-  CONDITION_FAILED = 'CONDITION_FAILED', // Condition not met
-  DISTRIBUTED = 'DISTRIBUTED', // Asset has been transferred
-  LAPSED = 'LAPSED', // Bequest failed (beneficiary predeceased)
-  ADEEMED = 'ADEEMED', // Asset no longer exists in estate
-  REVOKED = 'REVOKED', // Revoked by codicil
-  CONTESTED = 'CONTESTED', // Under legal challenge
-}
-
-/**
- * Bequest Type
- * Different types of gifts under Kenyan law
- */
-export enum BequestType {
-  SPECIFIC_LEGACY = 'SPECIFIC_LEGACY', // Specific item (e.g., "my car")
-  GENERAL_LEGACY = 'GENERAL_LEGACY', // General gift (e.g., "KES 1,000,000")
-  DEMONSTRATIVE_LEGACY = 'DEMONSTRATIVE_LEGACY', // From specific source
-  RESIDUARY_LEGACY = 'RESIDUARY_LEGACY', // What's left after other gifts
-  PECUNIARY_LEGACY = 'PECUNIARY_LEGACY', // Fixed sum of money
-  LIFE_INTEREST = 'LIFE_INTEREST', // Use for life, then to others
-  TRUST_BEQUEST = 'TRUST_BEQUEST', // Held in trust
-  ANNUITY = 'ANNUITY', // Regular payments
-}
-
-// =========================================================================
-// BENEFICIARY ASSIGNMENT ENTITY
-// =========================================================================
-
-interface BeneficiaryAssignmentProps {
-  willId: string; // Reference to parent Will aggregate
-
-  // What is being given
-  bequestValue: BequestValue;
-  bequestType: BequestType;
-  description: string; // Natural language description
-
-  // To whom
-  beneficiary: BeneficiaryIdentity;
-  priority: BequestPriority;
-
-  // Conditions and Status
-  conditions: BequestCondition[];
-  status: BequestStatus;
-
-  // Alternates and Substitutions
-  alternateAssignmentId?: string; // If this is an alternate for another
-  substituteAssignmentId?: string; // If this is a substitute (either/or)
-
-  // Legal Compliance
-  compliesWithS26: boolean; // S.26 LSA: Provision for dependants
-  isSubjectToHotchpot: boolean; // S.35(3) LSA: Gifts inter vivos adjustment
-  isDiscretionaryTrust: boolean; // Whether executor has discretion
-
-  // Timeline
-  effectiveDate?: Date; // When bequest takes effect
-  conditionSatisfiedDate?: Date; // When condition was met
-  lapsedDate?: Date; // When bequest lapsed
-
-  // Tax and Charges
-  bearsOwnTax: boolean; // Whether beneficiary pays tax
-  bearsOwnDebts: boolean; // Whether bequest reduces for debts
-
-  // Metadata
-  clauseReference?: string; // Reference to will clause
-  notes?: string;
-}
-
-export class BeneficiaryAssignment extends Entity<BeneficiaryAssignmentProps> {
-  // =========================================================================
-  // CONSTRUCTOR & FACTORY
-  // =========================================================================
-
-  private constructor(props: BeneficiaryAssignmentProps, id?: UniqueEntityID) {
-    // Domain Rule: Cannot have both alternate and substitute
-    if (props.alternateAssignmentId && props.substituteAssignmentId) {
-      throw new Error('Assignment cannot be both alternate and substitute');
-    }
-
-    // Domain Rule: Residuary bequests must be residuary type
-    if (props.bequestValue.isResiduary() && props.bequestType !== BequestType.RESIDUARY_LEGACY) {
-      throw new Error('Residuary value must be of residuary legacy type');
-    }
-
-    super(id ?? new UniqueEntityID(), props);
   }
 
   /**
-   * Factory: Create primary bequest
+   * Update bequest description
    */
-  public static create(
-    willId: string,
-    bequestValue: BequestValue,
-    bequestType: BequestType,
-    beneficiary: BeneficiaryIdentity,
-    description: string,
-    conditions: BequestCondition[] = [],
-  ): BeneficiaryAssignment {
-    const props: BeneficiaryAssignmentProps = {
-      willId,
-      bequestValue,
-      bequestType,
-      beneficiary,
+  public updateDescription(description: string, notes?: string): void {
+    if (!description || description.trim().length === 0) {
+      throw new WillBequestException('Description cannot be empty', 'description');
+    }
+
+    if (description.length > 500) {
+      throw new WillBequestException('Description cannot exceed 500 characters', 'description');
+    }
+
+    this.updateState({
       description,
-      priority: BequestPriority.PRIMARY,
-      conditions,
-      status: BequestStatus.PENDING,
-      compliesWithS26: false, // To be determined by Will aggregate
-      isSubjectToHotchpot: bequestType !== BequestType.RESIDUARY_LEGACY,
-      isDiscretionaryTrust: false,
-      bearsOwnTax: true, // Default: beneficiary bears own tax
-      bearsOwnDebts: false, // Default: estate pays debts first
-    };
-
-    return new BeneficiaryAssignment(props);
-  }
-
-  /**
-   * Factory: Create alternate bequest (takes over if primary fails)
-   */
-  public static createAlternate(
-    willId: string,
-    bequestValue: BequestValue,
-    bequestType: BequestType,
-    beneficiary: BeneficiaryIdentity,
-    description: string,
-    primaryAssignmentId: string,
-  ): BeneficiaryAssignment {
-    const assignment = BeneficiaryAssignment.create(
-      willId,
-      bequestValue,
-      bequestType,
-      beneficiary,
-      description,
-    );
-
-    (assignment as any).updateState({
-      priority: BequestPriority.ALTERNATE,
-      alternateAssignmentId: primaryAssignmentId,
+      notes,
     });
 
-    return assignment;
-  }
-
-  /**
-   * Factory: Create contingent bequest (takes over if others fail)
-   */
-  public static createContingent(
-    willId: string,
-    bequestValue: BequestValue,
-    bequestType: BequestType,
-    beneficiary: BeneficiaryIdentity,
-    description: string,
-  ): BeneficiaryAssignment {
-    const assignment = BeneficiaryAssignment.create(
-      willId,
-      bequestValue,
-      bequestType,
-      beneficiary,
-      description,
-    );
-
-    (assignment as any).updateState({
-      priority: BequestPriority.CONTINGENT,
-    });
-
-    return assignment;
-  }
-
-  /**
-   * Factory: Create life interest bequest (use for life only)
-   */
-  public static createLifeInterest(
-    willId: string,
-    assetId: string,
-    beneficiary: BeneficiaryIdentity,
-    description: string,
-  ): BeneficiaryAssignment {
-    return new BeneficiaryAssignment({
-      willId,
-      bequestValue: BequestValue.createSpecificAsset(assetId),
-      bequestType: BequestType.LIFE_INTEREST,
-      beneficiary,
-      description,
-      priority: BequestPriority.PRIMARY,
-      conditions: [],
-      status: BequestStatus.PENDING,
-      compliesWithS26: false,
-      isSubjectToHotchpot: false,
-      isDiscretionaryTrust: false,
-      bearsOwnTax: true,
-      bearsOwnDebts: false,
-    });
-  }
-
-  /**
-   * Reconstitute from persistence
-   */
-  public static reconstitute(
-    id: string,
-    props: BeneficiaryAssignmentProps,
-    createdAt: Date,
-    updatedAt: Date,
-    version: number,
-  ): BeneficiaryAssignment {
-    const assignment = new BeneficiaryAssignment(props, new UniqueEntityID(id));
-    (assignment as any)._createdAt = createdAt;
-    (assignment as any)._updatedAt = updatedAt;
-    (assignment as any)._version = version;
-    return assignment;
-  }
-
-  // =========================================================================
-  // BUSINESS LOGIC (MUTATIONS)
-  // =========================================================================
-
-  /**
-   * Vest the bequest (make it due for distribution)
-   */
-  public vest(effectiveDate: Date = new Date()): void {
-    if (this.status !== BequestStatus.PENDING) {
-      throw new Error('Can only vest PENDING bequests');
-    }
-
-    // Check conditions if any
-    if (this.conditions.length > 0) {
-      throw new Error('Cannot vest bequest with pending conditions');
-    }
-
-    this.updateState({
-      status: BequestStatus.VESTED,
-      effectiveDate,
-    });
-  }
-
-  /**
-   * Mark condition as satisfied
-   */
-  public satisfyCondition(
-    conditionIndex: number,
-    satisfiedDate: Date = new Date(),
-    evidence?: string,
-  ): void {
-    if (this.status !== BequestStatus.CONDITION_PENDING) {
-      throw new Error('Bequest must be in CONDITION_PENDING status');
-    }
-
-    if (conditionIndex < 0 || conditionIndex >= this.conditions.length) {
-      throw new Error('Invalid condition index');
-    }
-
-    // Update status based on remaining conditions
-    const allConditionsSatisfied = true; // Simplified - would check all conditions
-
-    this.updateState({
-      status: allConditionsSatisfied
-        ? BequestStatus.CONDITION_SATISFIED
-        : BequestStatus.CONDITION_PENDING,
-      conditionSatisfiedDate: satisfiedDate,
-      notes: evidence ? `${this.notes}\nCondition satisfied: ${evidence}` : this.notes,
-    });
-  }
-
-  /**
-   * Mark condition as failed
-   */
-  public failCondition(conditionIndex: number, reason: string): void {
-    if (this.status !== BequestStatus.CONDITION_PENDING) {
-      throw new Error('Bequest must be in CONDITION_PENDING status');
-    }
-
-    if (conditionIndex < 0 || conditionIndex >= this.conditions.length) {
-      throw new Error('Invalid condition index');
-    }
-
-    this.updateState({
-      status: BequestStatus.CONDITION_FAILED,
-      notes: `${this.notes}\nCondition failed: ${reason}`,
-    });
-  }
-
-  /**
-   * Mark as distributed (asset transferred to beneficiary)
-   */
-  public markDistributed(_distributionDate: Date = new Date()): void {
-    if (this.status !== BequestStatus.VESTED && this.status !== BequestStatus.CONDITION_SATISFIED) {
-      throw new Error('Can only distribute VESTED or CONDITION_SATISFIED bequests');
-    }
-
-    this.updateState({
-      status: BequestStatus.DISTRIBUTED,
-    });
-  }
-
-  /**
-   * Mark as lapsed (beneficiary predeceased testator)
-   */
-  public lapse(reason: string, lapsedDate: Date = new Date()): void {
-    if (this.status === BequestStatus.DISTRIBUTED) {
-      throw new Error('Cannot lapse already distributed bequest');
-    }
-
-    this.updateState({
-      status: BequestStatus.LAPSED,
-      lapsedDate,
-      notes: `${this.notes}\nLapsed: ${reason}`,
-    });
-  }
-
-  /**
-   * Mark as adeemed (asset no longer exists)
-   */
-  public adeem(reason: string): void {
-    if (this.status === BequestStatus.DISTRIBUTED) {
-      throw new Error('Cannot adeem already distributed bequest');
-    }
-
-    this.updateState({
-      status: BequestStatus.ADEEMED,
-      notes: `${this.notes}\nAdeemed: ${reason}`,
-    });
-  }
-
-  /**
-   * Revoke bequest (by codicil)
-   */
-  public revoke(reason: string): void {
-    if (this.status === BequestStatus.DISTRIBUTED) {
-      throw new Error('Cannot revoke already distributed bequest');
-    }
-
-    this.updateState({
-      status: BequestStatus.REVOKED,
-      notes: `${this.notes}\nRevoked: ${reason}`,
-    });
-  }
-
-  /**
-   * Contest bequest (legal challenge)
-   */
-  public contest(reason: string): void {
-    this.updateState({
-      status: BequestStatus.CONTESTED,
-      notes: `${this.notes}\nContested: ${reason}`,
+    // Add domain event for description update
+    this.addDomainEvent({
+      eventType: 'BequestDescriptionUpdated',
+      aggregateId: this.props.willId,
+      eventData: {
+        bequestId: this.id.toString(),
+        beneficiary: this.props.beneficiary.toJSON(),
+        previousDescription: this.props.description,
+        newDescription: description,
+      },
     });
   }
 
@@ -692,467 +451,296 @@ export class BeneficiaryAssignment extends Entity<BeneficiaryAssignmentProps> {
    * Add condition to bequest
    */
   public addCondition(condition: BequestCondition): void {
-    if (this.status !== BequestStatus.PENDING) {
-      throw new Error('Can only add conditions to PENDING bequests');
+    // Check for duplicates
+    const duplicate = this.props.conditions.find(
+      (c) => JSON.stringify(c.toJSON()) === JSON.stringify(condition.toJSON()),
+    );
+
+    if (duplicate) {
+      throw new WillBequestException('Condition already exists in bequest', 'conditions');
     }
 
-    const updatedConditions = [...this.conditions, condition];
-    const newStatus = updatedConditions.length > 0 ? BequestStatus.CONDITION_PENDING : this.status;
+    // Check for contradictions with existing conditions
+    const updatedConditions = [...this.props.conditions, condition];
+
+    // Temporarily update to check for contradictions
+    const tempBequest = new WillBequest(
+      {
+        ...this.props,
+        conditions: updatedConditions,
+      },
+      this.id,
+    );
+
+    try {
+      tempBequest.validate();
+    } catch (error) {
+      throw new WillBequestException(`Cannot add condition: ${error.message}`, 'conditions');
+    }
 
     this.updateState({
       conditions: updatedConditions,
-      status: newStatus,
+    });
+
+    // Add domain event for condition addition
+    this.addDomainEvent({
+      eventType: 'BequestConditionAdded',
+      aggregateId: this.props.willId,
+      eventData: {
+        bequestId: this.id.toString(),
+        beneficiary: this.props.beneficiary.toJSON(),
+        condition: condition.toJSON(),
+      },
     });
   }
 
   /**
-   * Update S.26 compliance status (dependant provision)
+   * Set alternate beneficiary
    */
-  public updateS26Compliance(complies: boolean): void {
+  public setAlternateBeneficiary(
+    beneficiary: BeneficiaryIdentity,
+    conditions?: BequestCondition[],
+  ): void {
+    beneficiary.validate();
+
+    if (beneficiary.equals(this.props.beneficiary)) {
+      throw new WillBequestException(
+        'Alternate beneficiary cannot be the same as primary beneficiary',
+        'alternateBeneficiary',
+      );
+    }
+
     this.updateState({
-      compliesWithS26: complies,
+      alternateBeneficiary: beneficiary,
+      alternateConditions: conditions || [],
+    });
+
+    // Add domain event for alternate beneficiary
+    this.addDomainEvent({
+      eventType: 'AlternateBeneficiarySet',
+      aggregateId: this.props.willId,
+      eventData: {
+        bequestId: this.id.toString(),
+        primaryBeneficiary: this.props.beneficiary.toJSON(),
+        alternateBeneficiary: beneficiary.toJSON(),
+      },
     });
   }
 
   /**
-   * Update hotchpot status (S.35(3) adjustment)
+   * Check if bequest takes effect (based on conditions)
    */
-  public updateHotchpotStatus(isSubject: boolean): void {
-    this.updateState({
-      isSubjectToHotchpot: isSubject,
-    });
+  public checkTakesEffect(facts: Record<string, any>): {
+    takesEffect: boolean;
+    unmetConditions: string[];
+    warnings: string[];
+  } {
+    const unmetConditions: string[] = [];
+    const warnings: string[] = [];
+
+    // Check all conditions
+    for (const condition of this.props.conditions) {
+      if (!condition.evaluate(facts)) {
+        unmetConditions.push(condition.getDescription());
+      }
+    }
+
+    // Check if alternate beneficiary conditions are met
+    if (this.props.alternateBeneficiary && this.props.alternateConditions) {
+      let allAlternateConditionsMet = true;
+      for (const condition of this.props.alternateConditions) {
+        if (!condition.evaluate(facts)) {
+          allAlternateConditionsMet = false;
+          warnings.push(`Alternate condition not met: ${condition.getDescription()}`);
+          break;
+        }
+      }
+
+      if (allAlternateConditionsMet && unmetConditions.length > 0) {
+        warnings.push('Primary conditions not met, but alternate conditions are met');
+      }
+    }
+
+    const takesEffect = unmetConditions.length === 0;
+
+    return { takesEffect, unmetConditions, warnings };
   }
 
   /**
-   * Set tax responsibility
+   * Get bequest value summary
    */
-  public setTaxResponsibility(bearsOwnTax: boolean): void {
-    this.updateState({
-      bearsOwnTax,
-    });
+  public getValueSummary(): {
+    type: string;
+    value: any;
+    description: string;
+  } {
+    let value: any;
+    let description: string;
+
+    switch (this.props.bequestType) {
+      case 'SPECIFIC_ASSET':
+        value = this.props.specificAssetId;
+        description = `Specific asset: ${this.props.specificAssetId}`;
+        break;
+      case 'PERCENTAGE':
+        value = `${this.props.percentage}%`;
+        description = `Percentage: ${this.props.percentage}% of estate`;
+        break;
+      case 'FIXED_AMOUNT':
+        value = this.props.fixedAmount?.toString();
+        description = `Fixed amount: ${this.props.fixedAmount?.toString()}`;
+        break;
+      case 'RESIDUARY':
+        value = `${this.props.residuaryShare} share`;
+        description = `Residuary share: ${this.props.residuaryShare}`;
+        break;
+      case 'LIFE_INTEREST':
+        value = this.props.lifeInterestDetails?.durationType;
+        description = `Life interest: ${this.props.lifeInterestDetails?.durationType}`;
+        break;
+      case 'TRUST':
+        value = this.props.trustDetails?.trustPurpose;
+        description = `Trust: ${this.props.trustDetails?.trustPurpose}`;
+        break;
+      default:
+        value = 'N/A';
+        description = this.props.description;
+    }
+
+    return { type: this.props.bequestType, value, description };
   }
 
   /**
-   * Set debt responsibility
+   * Get legal risk assessment
    */
-  public setDebtResponsibility(bearsOwnDebts: boolean): void {
-    this.updateState({
-      bearsOwnDebts,
-    });
+  public getRiskAssessment(): {
+    riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+    reasons: string[];
+    recommendations: string[];
+  } {
+    const reasons: string[] = [];
+    const recommendations: string[] = [];
+
+    // Check for high-risk conditions
+    if (this.props.conditions.some((c) => c.toJSON().type === 'MARRIAGE')) {
+      const condition = this.props.conditions.find((c) => c.toJSON().type === 'MARRIAGE');
+      const params = condition?.toJSON().parameters;
+
+      if (params?.marriageAllowed === false) {
+        reasons.push('Condition against marriage may be unenforceable in Kenyan courts');
+        recommendations.push('Reconsider or rephrase marriage condition');
+      }
+    }
+
+    // Check for vague conditions
+    const vagueKeywords = ['reasonable', 'suitable', 'adequate', 'as determined by'];
+    if (this.props.description.toLowerCase().includes(vagueKeywords.join('|'))) {
+      reasons.push('Bequest contains vague language that may lead to disputes');
+      recommendations.push('Use specific, measurable terms in bequest description');
+    }
+
+    // Check for S.26 dependant provision risks
+    if (this.props.beneficiary.toJSON().relationship?.includes('DEPENDANT')) {
+      reasons.push('Beneficiary may be a dependant under S.26 LSA - will may be challenged');
+      recommendations.push('Consider making reasonable provision for dependant');
+    }
+
+    // Check for hotchpot implications
+    if (this.props.isSubjectToHotchpot) {
+      reasons.push('Bequest may be subject to hotchpot adjustment (S.35 LSA)');
+      recommendations.push('Consider inter vivos gifts when calculating shares');
+    }
+
+    // Determine risk level
+    let riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' = 'LOW';
+
+    if (reasons.some((r) => r.includes('unenforceable') || r.includes('S.26'))) {
+      riskLevel = 'HIGH';
+    } else if (reasons.length > 0) {
+      riskLevel = 'MEDIUM';
+    }
+
+    return { riskLevel, reasons, recommendations };
   }
 
-  // =========================================================================
-  // QUERY METHODS (PURE)
-  // =========================================================================
-
-  /**
-   * Check if bequest is currently effective
-   */
-  public isEffective(): boolean {
-    const effectiveStatuses = [
-      BequestStatus.VESTED,
-      BequestStatus.CONDITION_SATISFIED,
-      BequestStatus.DISTRIBUTED,
-    ];
-    return effectiveStatuses.includes(this.status);
-  }
-
-  /**
-   * Check if bequest has failed
-   */
-  public hasFailed(): boolean {
-    const failedStatuses = [
-      BequestStatus.CONDITION_FAILED,
-      BequestStatus.LAPSED,
-      BequestStatus.ADEEMED,
-      BequestStatus.REVOKED,
-    ];
-    return failedStatuses.includes(this.status);
-  }
-
-  /**
-   * Check if bequest has conditions
-   */
-  public hasConditions(): boolean {
-    return this.conditions.length > 0;
-  }
-
-  /**
-   * Check if all conditions are satisfied
-   */
-  public areAllConditionsSatisfied(): boolean {
-    return this.status === BequestStatus.CONDITION_SATISFIED;
-  }
-
-  /**
-   * Check if bequest is specific asset
-   */
-  public isSpecificAsset(): boolean {
-    return this.bequestValue.isSpecificAsset();
-  }
-
-  /**
-   * Check if bequest is residuary
-   */
-  public isResiduary(): boolean {
-    return this.bequestValue.isResiduary();
-  }
-
-  /**
-   * Check if bequest is primary (not alternate/contingent)
-   */
-  public isPrimary(): boolean {
-    return this.priority === BequestPriority.PRIMARY;
-  }
-
-  /**
-   * Check if bequest is alternate
-   */
-  public isAlternate(): boolean {
-    return this.priority === BequestPriority.ALTERNATE;
-  }
-
-  /**
-   * Check if bequest is contingent
-   */
-  public isContingent(): boolean {
-    return this.priority === BequestPriority.CONTINGENT;
-  }
-
-  /**
-   * Check if bequest is a life interest
-   */
-  public isLifeInterest(): boolean {
-    return this.bequestType === BequestType.LIFE_INTEREST;
-  }
-
-  /**
-   * Get asset ID if bequest is for specific asset
-   */
-  public getAssetId(): string | undefined {
-    return this.bequestValue.assetId;
-  }
-
-  /**
-   * Get percentage if bequest is percentage-based
-   */
-  public getPercentage(): number | undefined {
-    return this.bequestValue.isPercentage() ? this.bequestValue.value : undefined;
-  }
-
-  /**
-   * Get fixed amount if bequest is fixed amount
-   */
-  public getFixedAmount(): number | undefined {
-    return this.bequestValue.isFixedAmount() ? this.bequestValue.value : undefined;
-  }
-
-  /**
-   * Check if bequest can be distributed
-   */
-  public canBeDistributed(): boolean {
-    return (
-      (this.status === BequestStatus.VESTED || this.status === BequestStatus.CONDITION_SATISFIED) &&
-      !this.hasFailed()
-    );
-  }
-
-  // =========================================================================
-  // PROPERTY GETTERS
-  // =========================================================================
-
+  // Getters
   get willId(): string {
     return this.props.willId;
-  }
-
-  get bequestValue(): BequestValue {
-    return this.props.bequestValue;
-  }
-
-  get bequestType(): BequestType {
-    return this.props.bequestType;
-  }
-
-  get description(): string {
-    return this.props.description;
   }
 
   get beneficiary(): BeneficiaryIdentity {
     return this.props.beneficiary;
   }
 
-  get priority(): BequestPriority {
-    return this.props.priority;
+  get bequestType(): BequestType {
+    return this.props.bequestType;
+  }
+
+  get specificAssetId(): string | undefined {
+    return this.props.specificAssetId;
+  }
+
+  get percentage(): number | undefined {
+    return this.props.percentage;
+  }
+
+  get fixedAmount(): Money | undefined {
+    return this.props.fixedAmount;
+  }
+
+  get residuaryShare(): number | undefined {
+    return this.props.residuaryShare;
+  }
+
+  get lifeInterestDetails(): WillBequestProps['lifeInterestDetails'] | undefined {
+    return this.props.lifeInterestDetails ? { ...this.props.lifeInterestDetails } : undefined;
+  }
+
+  get trustDetails(): WillBequestProps['trustDetails'] | undefined {
+    return this.props.trustDetails ? { ...this.props.trustDetails } : undefined;
   }
 
   get conditions(): BequestCondition[] {
     return [...this.props.conditions];
   }
 
-  get status(): BequestStatus {
-    return this.props.status;
+  get priority(): BequestPriority {
+    return this.props.priority;
   }
 
-  get alternateAssignmentId(): string | undefined {
-    return this.props.alternateAssignmentId;
+  get executionOrder(): number {
+    return this.props.executionOrder;
   }
 
-  get substituteAssignmentId(): string | undefined {
-    return this.props.substituteAssignmentId;
+  get alternateBeneficiary(): BeneficiaryIdentity | undefined {
+    return this.props.alternateBeneficiary;
   }
 
-  get compliesWithS26(): boolean {
-    return this.props.compliesWithS26;
+  get alternateConditions(): BequestCondition[] {
+    return this.props.alternateConditions ? [...this.props.alternateConditions] : [];
   }
 
-  get isSubjectToHotchpot(): boolean {
-    return this.props.isSubjectToHotchpot;
-  }
-
-  get isDiscretionaryTrust(): boolean {
-    return this.props.isDiscretionaryTrust;
-  }
-
-  get effectiveDate(): Date | undefined {
-    return this.props.effectiveDate;
-  }
-
-  get conditionSatisfiedDate(): Date | undefined {
-    return this.props.conditionSatisfiedDate;
-  }
-
-  get lapsedDate(): Date | undefined {
-    return this.props.lapsedDate;
-  }
-
-  get bearsOwnTax(): boolean {
-    return this.props.bearsOwnTax;
-  }
-
-  get bearsOwnDebts(): boolean {
-    return this.props.bearsOwnDebts;
-  }
-
-  get clauseReference(): string | undefined {
-    return this.props.clauseReference;
+  get description(): string {
+    return this.props.description;
   }
 
   get notes(): string | undefined {
     return this.props.notes;
   }
 
-  // Status checkers
-  public isPending(): boolean {
-    return this.status === BequestStatus.PENDING;
+  get isVested(): boolean {
+    return this.props.isVested;
   }
 
-  public isVested(): boolean {
-    return this.status === BequestStatus.VESTED;
+  get isSubjectToHotchpot(): boolean {
+    return this.props.isSubjectToHotchpot;
   }
 
-  public isConditionPending(): boolean {
-    return this.status === BequestStatus.CONDITION_PENDING;
+  get isValid(): boolean {
+    return this.props.isValid;
   }
 
-  public isConditionSatisfied(): boolean {
-    return this.status === BequestStatus.CONDITION_SATISFIED;
-  }
-
-  public isDistributed(): boolean {
-    return this.status === BequestStatus.DISTRIBUTED;
-  }
-
-  public isLapsed(): boolean {
-    return this.status === BequestStatus.LAPSED;
-  }
-
-  public isAdeemed(): boolean {
-    return this.status === BequestStatus.ADEEMED;
-  }
-
-  public isRevoked(): boolean {
-    return this.status === BequestStatus.REVOKED;
-  }
-
-  public isContested(): boolean {
-    return this.status === BequestStatus.CONTESTED;
-  }
-
-  // =========================================================================
-  // VALIDATION
-  // =========================================================================
-
-  /**
-   * Validate bequest against Kenyan legal requirements
-   */
-  public validate(): { isValid: boolean; errors: string[]; warnings: string[] } {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    // Basic validation
-    if (!this.description || this.description.trim().length < 10) {
-      errors.push('Bequest must have meaningful description');
-    }
-
-    // S.26 LSA: Dependant provision warning
-    if (!this.compliesWithS26 && this.beneficiary.isFamilyMember()) {
-      warnings.push('Family member bequest may need S.26 dependant provision review');
-    }
-
-    // Condition validation
-    this.conditions.forEach((condition, index) => {
-      if (condition.isAgeCondition()) {
-        const age = condition.getAgeRequirement();
-        if (age && age < 18) {
-          warnings.push(`Condition ${index + 1}: Age requirement (${age}) is below majority`);
-        }
-      }
-
-      if (condition.isSurvivalCondition()) {
-        const days = condition.getSurvivalDays();
-        if (days && days > 180) {
-          warnings.push(
-            `Condition ${index + 1}: Long survival period (${days} days) may cause issues`,
-          );
-        }
-      }
-    });
-
-    // Specific asset without asset ID
-    if (this.bequestValue.isSpecificAsset() && !this.bequestValue.assetId) {
-      errors.push('Specific asset bequest must specify asset ID');
-    }
-
-    // Percentage validation
-    if (this.bequestValue.isPercentage()) {
-      const percentage = this.bequestValue.value!;
-      if (percentage <= 0) {
-        errors.push('Percentage must be positive');
-      }
-      if (percentage > 100) {
-        errors.push('Percentage cannot exceed 100%');
-      }
-    }
-
-    // Fixed amount validation
-    if (this.bequestValue.isFixedAmount()) {
-      const amount = this.bequestValue.value!;
-      if (amount <= 0) {
-        errors.push('Fixed amount must be positive');
-      }
-    }
-
-    // Life interest special checks
-    if (this.isLifeInterest() && !this.bequestValue.isSpecificAsset()) {
-      warnings.push('Life interests typically apply to specific assets');
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors,
-      warnings,
-    };
-  }
-
-  // =========================================================================
-  // SERIALIZATION
-  // =========================================================================
-
-  public toJSON() {
-    const validation = this.validate();
-
-    return {
-      id: this.id.toString(),
-      willId: this.willId,
-
-      // What is being given
-      bequestValue: {
-        type: this.bequestValue.type,
-        value: this.bequestValue.value,
-        assetId: this.bequestValue.assetId,
-        currency: this.bequestValue.currency,
-        description: this.bequestValue.toString(),
-        isSpecificAsset: this.bequestValue.isSpecificAsset(),
-        isPercentage: this.bequestValue.isPercentage(),
-        isFixedAmount: this.bequestValue.isFixedAmount(),
-        isResiduary: this.bequestValue.isResiduary(),
-      },
-
-      bequestType: this.bequestType,
-      description: this.description,
-      isLifeInterest: this.isLifeInterest(),
-      isResiduary: this.isResiduary(),
-
-      // Beneficiary
-      beneficiary: {
-        type: this.beneficiary.type,
-        id: this.beneficiary.id,
-        name: this.beneficiary.getName(),
-        isSystemUser: this.beneficiary.isSystemUser(),
-        isFamilyMember: this.beneficiary.isFamilyMember(),
-        isExternal: this.beneficiary.isExternal(),
-        isCharity: this.beneficiary.isCharity(),
-        externalDetails: this.beneficiary.externalDetails,
-      },
-
-      // Priority and status
-      priority: this.priority,
-      isPrimary: this.isPrimary(),
-      isAlternate: this.isAlternate(),
-      isContingent: this.isContingent(),
-
-      status: this.status,
-      isEffective: this.isEffective(),
-      hasFailed: this.hasFailed(),
-      canBeDistributed: this.canBeDistributed(),
-      isPending: this.isPending(),
-      isVested: this.isVested(),
-      isDistributed: this.isDistributed(),
-      isLapsed: this.isLapsed(),
-
-      // Conditions
-      conditions: this.conditions.map((c) => ({
-        type: c.type,
-        description: c.description,
-        parameters: c.parameters,
-        mustBeSatisfiedBy: c.mustBeSatisfiedBy?.toISOString(),
-      })),
-      hasConditions: this.hasConditions(),
-      areAllConditionsSatisfied: this.areAllConditionsSatisfied(),
-      conditionSatisfiedDate: this.conditionSatisfiedDate?.toISOString(),
-
-      // Legal compliance
-      alternateAssignmentId: this.alternateAssignmentId,
-      substituteAssignmentId: this.substituteAssignmentId,
-      compliesWithS26: this.compliesWithS26,
-      isSubjectToHotchpot: this.isSubjectToHotchpot,
-      isDiscretionaryTrust: this.isDiscretionaryTrust,
-
-      // Timeline
-      effectiveDate: this.effectiveDate?.toISOString(),
-      lapsedDate: this.lapsedDate?.toISOString(),
-
-      // Financial
-      bearsOwnTax: this.bearsOwnTax,
-      bearsOwnDebts: this.bearsOwnDebts,
-
-      // Specific values
-      assetId: this.getAssetId(),
-      percentage: this.getPercentage(),
-      fixedAmount: this.getFixedAmount(),
-      currency: this.bequestValue.currency,
-
-      // Metadata
-      clauseReference: this.clauseReference,
-      notes: this.notes,
-
-      // Validation
-      validation,
-
-      // System
-      createdAt: this.createdAt.toISOString(),
-      updatedAt: this.updatedAt.toISOString(),
-      version: this.version,
-    };
+  get validationErrors(): string[] {
+    return [...this.props.validationErrors];
   }
 }

@@ -1,330 +1,272 @@
-// domain/value-objects/bequest-condition.vo.ts
+// src/estate-service/src/domain/value-objects/bequest-condition.vo.ts
 import { ValueObject, ValueObjectValidationError } from '../base/value-object';
+
+export type BequestConditionType =
+  | 'AGE_REQUIREMENT'
+  | 'SURVIVAL'
+  | 'EDUCATION'
+  | 'MARRIAGE'
+  | 'ALTERNATE'
+  | 'NONE';
+
+export interface BequestConditionProps {
+  type: BequestConditionType;
+  details?: string;
+  parameters?: Record<string, any>;
+  isMet?: boolean;
+}
 
 /**
  * Bequest Condition Value Object
  *
- * Kenyan Legal Context:
- * - Testator can impose reasonable conditions on bequests
- * - Conditions must not be illegal, immoral, or against public policy
- * - Common conditions: Age attainment, education, marriage, survival
- *
- * Condition Types:
- * - AGE_REQUIREMENT: "When beneficiary turns 25"
- * - SURVIVAL: "If they survive me by 30 days" (prevents simultaneous death issues)
- * - EDUCATION: "Upon graduation from university"
- * - MARRIAGE: "Upon marriage" or "While remaining unmarried"
- * - ALTERNATE: "If primary dies, give to alternate"
- * - NONE: Unconditional bequest
- *
- * Business Rules:
- * - Conditions must be clear and measurable
- * - Conditions cannot violate constitutional rights
- * - Age conditions are most common and safest
- * - Marriage conditions must be carefully worded (constitutional concerns)
+ * Represents conditions attached to inheritance in Kenya
+ * Legal Requirements:
+ * - Conditions must not be illegal, impossible, or against public policy
+ * - Conditions must be clear and ascertainable
+ * - Age conditions must consider Kenyan age of majority (18 years)
+ * - Alternate beneficiaries must be specified
  */
-export enum BequestConditionType {
-  NONE = 'NONE',
-  AGE_REQUIREMENT = 'AGE_REQUIREMENT',
-  SURVIVAL = 'SURVIVAL',
-  EDUCATION = 'EDUCATION',
-  MARRIAGE = 'MARRIAGE',
-  ALTERNATE = 'ALTERNATE',
-  CUSTOM = 'CUSTOM',
-}
-
-interface BequestConditionProps {
-  type: BequestConditionType;
-  description?: string;
-
-  // Age condition
-  requiredAge?: number;
-
-  // Survival condition
-  survivalDays?: number;
-
-  // Education condition
-  educationLevel?: string;
-  institutionName?: string;
-
-  // Marriage condition
-  marriageStatus?: 'MARRIED' | 'UNMARRIED';
-
-  // Custom condition
-  customCondition?: string;
-
-  // Validation
-  isFulfilled?: boolean;
-  fulfilledAt?: Date;
-}
-
 export class BequestCondition extends ValueObject<BequestConditionProps> {
-  private constructor(props: BequestConditionProps) {
+  constructor(props: BequestConditionProps) {
     super(props);
   }
 
   protected validate(): void {
-    if (!Object.values(BequestConditionType).includes(this.props.type)) {
+    // Validate parameters based on type
+    switch (this.props.type) {
+      case 'AGE_REQUIREMENT':
+        this.validateAgeRequirement();
+        break;
+
+      case 'SURVIVAL':
+        this.validateSurvivalCondition();
+        break;
+
+      case 'EDUCATION':
+        this.validateEducationCondition();
+        break;
+
+      case 'MARRIAGE':
+        this.validateMarriageCondition();
+        break;
+
+      case 'ALTERNATE':
+        this.validateAlternateCondition();
+        break;
+
+      case 'NONE':
+        // No validation needed
+        break;
+
+      default:
+        throw new ValueObjectValidationError(
+          `Invalid bequest condition type: ${this.props.type}`,
+          'type',
+        );
+    }
+  }
+
+  private validateAgeRequirement(): void {
+    const age = this.props.parameters?.age;
+    if (!age || typeof age !== 'number') {
+      throw new ValueObjectValidationError('Age requirement must specify an age', 'parameters.age');
+    }
+
+    if (age < 18) {
       throw new ValueObjectValidationError(
-        `Invalid bequest condition type: ${this.props.type}`,
-        'type',
+        'Age requirement cannot be below Kenyan age of majority (18)',
+        'parameters.age',
       );
     }
 
-    // Age validation
-    if (
-      this.props.type === BequestConditionType.AGE_REQUIREMENT &&
-      this.props.requiredAge !== undefined
-    ) {
-      if (this.props.requiredAge < 18 || this.props.requiredAge > 100) {
-        throw new ValueObjectValidationError(
-          'Age requirement must be between 18 and 100',
-          'requiredAge',
-        );
-      }
-    }
-
-    // Survival days validation
-    if (
-      this.props.type === BequestConditionType.SURVIVAL &&
-      this.props.survivalDays !== undefined
-    ) {
-      if (this.props.survivalDays < 1 || this.props.survivalDays > 180) {
-        throw new ValueObjectValidationError(
-          'Survival period must be between 1 and 180 days',
-          'survivalDays',
-        );
-      }
-    }
-
-    // Education validation
-    if (this.props.type === BequestConditionType.EDUCATION) {
-      if (!this.props.educationLevel) {
-        throw new ValueObjectValidationError('Education level must be specified', 'educationLevel');
-      }
-    }
-
-    // Custom condition validation
-    if (this.props.type === BequestConditionType.CUSTOM) {
-      if (!this.props.customCondition || this.props.customCondition.trim().length < 10) {
-        throw new ValueObjectValidationError(
-          'Custom condition must be at least 10 characters',
-          'customCondition',
-        );
-      }
-    }
-
-    // Fulfillment validation
-    if (this.props.isFulfilled && !this.props.fulfilledAt) {
+    if (age > 100) {
       throw new ValueObjectValidationError(
-        'Fulfilled condition must have fulfillment date',
-        'fulfilledAt',
+        'Age requirement seems unrealistic (over 100)',
+        'parameters.age',
       );
     }
   }
 
-  // Factory: No condition (immediate distribution)
-  static none(): BequestCondition {
-    return new BequestCondition({
-      type: BequestConditionType.NONE,
-      description: 'No conditions - immediate distribution',
-    });
+  private validateSurvivalCondition(): void {
+    const days = this.props.parameters?.survivalDays;
+    if (!days || typeof days !== 'number') {
+      throw new ValueObjectValidationError(
+        'Survival condition must specify number of days',
+        'parameters.survivalDays',
+      );
+    }
+
+    if (days <= 0) {
+      throw new ValueObjectValidationError(
+        'Survival days must be positive',
+        'parameters.survivalDays',
+      );
+    }
+
+    // Common law survival period is 30 days
+    if (days > 365) {
+      throw new ValueObjectValidationError(
+        'Survival condition beyond 1 year may be unreasonable',
+        'parameters.survivalDays',
+      );
+    }
   }
 
-  // Factory: Age requirement
-  static ageRequirement(age: number, description?: string): BequestCondition {
-    return new BequestCondition({
-      type: BequestConditionType.AGE_REQUIREMENT,
-      requiredAge: age,
-      description: description ?? `Beneficiary must reach age ${age}`,
-    });
+  private validateEducationCondition(): void {
+    const level = this.props.parameters?.educationLevel;
+    if (!level || typeof level !== 'string') {
+      throw new ValueObjectValidationError(
+        'Education condition must specify education level',
+        'parameters.educationLevel',
+      );
+    }
+
+    // Check if it's a valid education level
+    const validLevels = ['PRIMARY', 'SECONDARY', 'DIPLOMA', 'DEGREE', 'MASTERS', 'PHD'];
+    if (!validLevels.includes(level.toUpperCase())) {
+      throw new ValueObjectValidationError(
+        `Invalid education level. Valid levels: ${validLevels.join(', ')}`,
+        'parameters.educationLevel',
+      );
+    }
   }
 
-  // Factory: Survival clause
-  static survival(days: number = 30): BequestCondition {
-    return new BequestCondition({
-      type: BequestConditionType.SURVIVAL,
-      survivalDays: days,
-      description: `Beneficiary must survive testator by ${days} days`,
-    });
+  private validateMarriageCondition(): void {
+    const allowed = this.props.parameters?.marriageAllowed;
+    if (allowed === undefined) {
+      throw new ValueObjectValidationError(
+        'Marriage condition must specify if marriage is allowed or not',
+        'parameters.marriageAllowed',
+      );
+    }
+
+    // Note: Conditions against marriage are generally void as against public policy
+    if (allowed === false) {
+      // This is a warning condition - might be unenforceable
+      console.warn('WARNING: Conditions against marriage may be unenforceable in Kenyan courts');
+    }
   }
 
-  // Factory: Education requirement
-  static education(level: string, institution?: string, description?: string): BequestCondition {
-    return new BequestCondition({
-      type: BequestConditionType.EDUCATION,
-      educationLevel: level,
-      institutionName: institution,
-      description:
-        description ?? `Upon completion of ${level}${institution ? ` at ${institution}` : ''}`,
-    });
+  private validateAlternateCondition(): void {
+    const alternateBeneficiaryId = this.props.parameters?.alternateBeneficiaryId;
+    if (!alternateBeneficiaryId || typeof alternateBeneficiaryId !== 'string') {
+      throw new ValueObjectValidationError(
+        'Alternate condition must specify alternate beneficiary ID',
+        'parameters.alternateBeneficiaryId',
+      );
+    }
   }
 
-  // Factory: Marriage condition
-  static marriage(mustBeMarried: boolean, description?: string): BequestCondition {
-    return new BequestCondition({
-      type: BequestConditionType.MARRIAGE,
-      marriageStatus: mustBeMarried ? 'MARRIED' : 'UNMARRIED',
-      description: description ?? (mustBeMarried ? 'Upon marriage' : 'While remaining unmarried'),
-    });
+  /**
+   * Evaluate if condition is met based on current facts
+   */
+  public evaluate(currentFacts: Record<string, any>): boolean {
+    switch (this.props.type) {
+      case 'AGE_REQUIREMENT':
+        const beneficiaryAge = currentFacts.beneficiaryAge;
+        const requiredAge = this.props.parameters?.age;
+        return beneficiaryAge >= requiredAge;
+
+      case 'SURVIVAL':
+        const beneficiaryAlive = currentFacts.beneficiaryAlive;
+        const survivalDays = this.props.parameters?.survivalDays;
+        const daysSurvived = currentFacts.daysSurvived;
+        return beneficiaryAlive && daysSurvived >= survivalDays;
+
+      case 'EDUCATION':
+        const beneficiaryEducation = currentFacts.beneficiaryEducation;
+        const requiredLevel = this.props.parameters?.educationLevel;
+        return beneficiaryEducation === requiredLevel;
+
+      case 'MARRIAGE':
+        const beneficiaryMarried = currentFacts.beneficiaryMarried;
+        const marriageAllowed = this.props.parameters?.marriageAllowed;
+        return marriageAllowed ? beneficiaryMarried : !beneficiaryMarried;
+
+      case 'ALTERNATE':
+        const primaryAlive = currentFacts.primaryBeneficiaryAlive;
+        return !primaryAlive; // Condition met if primary is dead
+
+      case 'NONE':
+        return true; // No conditions, always met
+
+      default:
+        return false;
+    }
   }
 
-  // Factory: Custom condition
-  static custom(condition: string): BequestCondition {
-    return new BequestCondition({
-      type: BequestConditionType.CUSTOM,
-      customCondition: condition,
-      description: condition,
-    });
-  }
-
-  // Factory: Alternate beneficiary trigger
-  static alternate(description?: string): BequestCondition {
-    return new BequestCondition({
-      type: BequestConditionType.ALTERNATE,
-      description: description ?? 'If primary beneficiary predeceases testator or disclaims',
-    });
-  }
-
-  // Query methods
-  public getType(): BequestConditionType {
-    return this.props.type;
-  }
-
-  public isUnconditional(): boolean {
-    return this.props.type === BequestConditionType.NONE;
-  }
-
-  public isAgeCondition(): boolean {
-    return this.props.type === BequestConditionType.AGE_REQUIREMENT;
-  }
-
-  public isSurvivalCondition(): boolean {
-    return this.props.type === BequestConditionType.SURVIVAL;
-  }
-
-  public isEducationCondition(): boolean {
-    return this.props.type === BequestConditionType.EDUCATION;
-  }
-
-  public isMarriageCondition(): boolean {
-    return this.props.type === BequestConditionType.MARRIAGE;
-  }
-
+  /**
+   * Get human-readable description
+   */
   public getDescription(): string {
-    return this.props.description ?? 'No description';
-  }
-
-  public getRequiredAge(): number | undefined {
-    return this.props.requiredAge;
-  }
-
-  public getSurvivalDays(): number | undefined {
-    return this.props.survivalDays;
-  }
-
-  public isFulfilled(): boolean {
-    return this.props.isFulfilled ?? false;
-  }
-
-  // Business logic: Check if condition can be fulfilled
-  public canBeFulfilled(): boolean {
-    // NONE is always fulfilled
-    if (this.isUnconditional()) {
-      return true;
+    switch (this.props.type) {
+      case 'AGE_REQUIREMENT':
+        return `Upon reaching age ${this.props.parameters?.age}`;
+      case 'SURVIVAL':
+        return `If beneficiary survives by ${this.props.parameters?.survivalDays} days`;
+      case 'EDUCATION':
+        return `Upon completion of ${this.props.parameters?.educationLevel} education`;
+      case 'MARRIAGE':
+        const allowed = this.props.parameters?.marriageAllowed;
+        return allowed ? 'Upon marriage' : 'Only if not married';
+      case 'ALTERNATE':
+        return `Alternate beneficiary if primary deceased`;
+      case 'NONE':
+        return 'No conditions';
+      default:
+        return 'Unknown condition';
     }
-
-    // ALTERNATE only triggers when primary fails
-    if (this.props.type === BequestConditionType.ALTERNATE) {
-      return true;
-    }
-
-    // Other conditions need verification
-    return !this.isFulfilled();
-  }
-
-  // Business logic: Mark as fulfilled
-  public markAsFulfilled(date?: Date): BequestCondition {
-    if (this.isFulfilled()) {
-      throw new Error('Condition already fulfilled');
-    }
-
-    return new BequestCondition({
-      ...this.props,
-      isFulfilled: true,
-      fulfilledAt: date ?? new Date(),
-    });
-  }
-
-  // Business logic: Check age fulfillment
-  public checkAgeFulfillment(beneficiaryDateOfBirth: Date): boolean {
-    if (!this.isAgeCondition() || !this.props.requiredAge) {
-      return false;
-    }
-
-    const age = this.calculateAge(beneficiaryDateOfBirth);
-    return age >= this.props.requiredAge;
-  }
-
-  // Business logic: Check survival fulfillment
-  public checkSurvivalFulfillment(testatorDeathDate: Date, beneficiaryAliveAt: Date): boolean {
-    if (!this.isSurvivalCondition() || !this.props.survivalDays) {
-      return false;
-    }
-
-    const survivalDeadline = new Date(testatorDeathDate);
-    survivalDeadline.setDate(survivalDeadline.getDate() + this.props.survivalDays);
-
-    return beneficiaryAliveAt >= survivalDeadline;
-  }
-
-  // Validation: Check for illegal conditions
-  public isLegallyValid(): { valid: boolean; reason?: string } {
-    // Marriage conditions must not discriminate
-    if (
-      this.props.type === BequestConditionType.MARRIAGE &&
-      this.props.marriageStatus === 'UNMARRIED'
-    ) {
-      return {
-        valid: false,
-        reason: 'Conditions restricting marriage may violate constitutional rights',
-      };
-    }
-
-    // Age conditions must be reasonable
-    if (this.isAgeCondition() && this.props.requiredAge && this.props.requiredAge > 65) {
-      return {
-        valid: true,
-        reason: 'Warning: Very high age requirement may cause bequest to lapse',
-      };
-    }
-
-    return { valid: true };
-  }
-
-  private calculateAge(dateOfBirth: Date): number {
-    const today = new Date();
-    let age = today.getFullYear() - dateOfBirth.getFullYear();
-    const monthDiff = today.getMonth() - dateOfBirth.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dateOfBirth.getDate())) {
-      age--;
-    }
-
-    return age;
   }
 
   public toJSON(): Record<string, any> {
     return {
       type: this.props.type,
+      details: this.props.details,
+      parameters: this.props.parameters,
       description: this.getDescription(),
-      requiredAge: this.props.requiredAge,
-      survivalDays: this.props.survivalDays,
-      educationLevel: this.props.educationLevel,
-      marriageStatus: this.props.marriageStatus,
-      customCondition: this.props.customCondition,
-      isFulfilled: this.isFulfilled(),
-      fulfilledAt: this.props.fulfilledAt?.toISOString(),
+      isConditional: this.props.type !== 'NONE',
     };
+  }
+
+  // Static factory methods
+  public static ageRequirement(age: number): BequestCondition {
+    return new BequestCondition({
+      type: 'AGE_REQUIREMENT',
+      parameters: { age },
+    });
+  }
+
+  public static survivalCondition(days: number = 30): BequestCondition {
+    return new BequestCondition({
+      type: 'SURVIVAL',
+      parameters: { survivalDays: days },
+    });
+  }
+
+  public static educationCondition(level: string): BequestCondition {
+    return new BequestCondition({
+      type: 'EDUCATION',
+      parameters: { educationLevel: level },
+    });
+  }
+
+  public static marriageCondition(allowed: boolean): BequestCondition {
+    return new BequestCondition({
+      type: 'MARRIAGE',
+      parameters: { marriageAllowed: allowed },
+    });
+  }
+
+  public static alternateCondition(alternateBeneficiaryId: string): BequestCondition {
+    return new BequestCondition({
+      type: 'ALTERNATE',
+      parameters: { alternateBeneficiaryId },
+    });
+  }
+
+  public static none(): BequestCondition {
+    return new BequestCondition({
+      type: 'NONE',
+    });
   }
 }
