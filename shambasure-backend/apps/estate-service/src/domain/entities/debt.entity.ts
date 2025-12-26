@@ -2,597 +2,298 @@
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
 import { DebtStatus } from '../enums/debt-status.enum';
-import { DebtStatusHelper } from '../enums/debt-status.enum';
-import { DebtTier } from '../enums/debt-tier.enum';
-import { DebtTierHelper } from '../enums/debt-tier.enum';
-import { DebtType } from '../enums/debt-type.enum';
-import { DebtTypeHelper } from '../enums/debt-type.enum';
 import {
   DebtDisputedEvent,
   DebtPaymentRecordedEvent,
-  DebtPriorityChangedEvent,
   DebtSettledEvent,
-  DebtTransferredEvent,
+  DebtStatuteBarredEvent,
   DebtWrittenOffEvent,
 } from '../events/debt.event';
 import {
-  DebtCannotBeModifiedException,
-  DebtPaymentExceedsBalanceException,
-  DebtSettlementFailedException,
+  DebtLogicException,
   InvalidDebtAmountException,
   StatuteBarredDebtException,
 } from '../exceptions/debt.exception';
+import { DebtPriorityVO } from '../value-objects/debt-priority.vo';
+import { MoneyVO } from '../value-objects/money.vo';
 
-/**
- * Debt Entity Properties Interface
- */
 export interface DebtProps {
   estateId: string;
-  description: string;
-  type: DebtType;
-  amount: number; // Original debt amount
-  outstandingBalance: number; // Current balance
-  currency: string;
-  tier: number; // S.45 tier (1-5, lower = higher priority)
-  priority: string; // HIGHEST, HIGH, MEDIUM, LOW
-  isSecured: boolean;
-  securedAssetId?: string;
-  dueDate?: Date;
-  interestRate: number; // Annual interest rate (0-1)
-  isStatuteBarred: boolean;
-  status: DebtStatus;
   creditorName: string;
-  isActive: boolean;
+  description: string;
+
+  // Financials
+  initialAmount: MoneyVO;
+  outstandingBalance: MoneyVO; // Principal only
+  interestRate: number; // Annual percentage (e.g., 14.5 for 14.5%)
+  currency: string;
+
+  // S.45 Logic
+  priority: DebtPriorityVO; // Tier 1-5
+  isSecured: boolean;
+  securedAssetId?: string; // If secured, which asset backs it?
+
+  // Legal Status
+  status: DebtStatus;
+  isStatuteBarred: boolean; // Limitation of Actions Act
+  dueDate?: Date;
+  disputeReason?: string;
+
+  // Audit
   version: number;
   createdAt: Date;
   updatedAt: Date;
-  deletedAt?: Date;
 }
 
 /**
- * Debt Entity
+ * Debt Entity (Feature-Complete)
  *
- * Represents a liability of the estate.
- * Critical for S.45 priority calculations and solvency checks.
+ * Represents a Liability against the Estate.
  *
- * Legal Context:
- * - S.45 LSA: Order of payment (funeral > secured > unsecured)
- * - Limitation Act: Time-barred debts after specific periods
- * - Secured debts require asset liquidation before distribution
+ * ADVANCED FEATURES:
+ * 1. Interest Accrual: Calculates real-time liability including interest.
+ * 2. Statute Barred Check: Prevents payment of debts older than 6 years (Contract law).
+ * 3. Secured Logic: Links to Inventory Assets.
+ * 4. Dispute Handling: Freezes payment if Creditor claim is contested.
  */
 export class Debt extends Entity<DebtProps> {
-  // Getters
-  get estateId(): string {
-    return this.props.estateId;
+  private constructor(props: DebtProps, id?: UniqueEntityID) {
+    super(id || new UniqueEntityID(), props);
   }
-  get description(): string {
-    return this.props.description;
+
+  public static create(
+    props: Omit<
+      DebtProps,
+      'createdAt' | 'updatedAt' | 'version' | 'status' | 'outstandingBalance' | 'isStatuteBarred'
+    >,
+    id?: UniqueEntityID,
+  ): Debt {
+    if (props.initialAmount.amount <= 0) {
+      throw new InvalidDebtAmountException(props.estateId, props.initialAmount.amount);
+    }
+
+    if (props.isSecured && !props.securedAssetId) {
+      throw new DebtLogicException('Secured Debts must link to a specific Asset ID');
+    }
+
+    return new Debt(
+      {
+        ...props,
+        outstandingBalance: props.initialAmount,
+        status: DebtStatus.OUTSTANDING,
+        isStatuteBarred: false,
+        version: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      id,
+    );
   }
-  get type(): DebtType {
-    return this.props.type;
-  }
-  get amount(): number {
-    return this.props.amount;
-  }
-  get outstandingBalance(): number {
-    return this.props.outstandingBalance;
-  }
-  get currency(): string {
-    return this.props.currency;
-  }
-  get tier(): number {
-    return this.props.tier;
-  }
-  get priority(): string {
+
+  // ===========================================================================
+  // GETTERS & COMPUTED PROPERTIES
+  // ===========================================================================
+
+  get priority(): DebtPriorityVO {
     return this.props.priority;
   }
-  get isSecured(): boolean {
-    return this.props.isSecured;
-  }
-  get securedAssetId(): string | undefined {
-    return this.props.securedAssetId;
-  }
-  get dueDate(): Date | undefined {
-    return this.props.dueDate;
-  }
-  get interestRate(): number {
-    return this.props.interestRate;
-  }
-  get isStatuteBarred(): boolean {
-    return this.props.isStatuteBarred;
+  get outstandingPrincipal(): MoneyVO {
+    return this.props.outstandingBalance;
   }
   get status(): DebtStatus {
     return this.props.status;
   }
-  get creditorName(): string {
-    return this.props.creditorName;
-  }
-  get isActive(): boolean {
-    return this.props.isActive;
+  get isSecured(): boolean {
+    return this.props.isSecured;
   }
 
   /**
-   * Get debt tier enum
+   * Calculates the Interest accrued since creation.
+   * Formula: Principal * (Rate/100) * (Days / 365)
    */
-  get debtTier(): DebtTier {
-    const tierNumber = this.props.tier;
-    const tierMap: Record<number, DebtTier> = {
-      1: DebtTier.FUNERAL_EXPENSES,
-      2: DebtTier.TESTAMENTARY_EXPENSES,
-      3: DebtTier.SECURED_DEBTS,
-      4: DebtTier.TAXES_RATES_WAGES,
-      5: DebtTier.UNSECURED_GENERAL,
-    };
-    return tierMap[tierNumber] || DebtTier.UNSECURED_GENERAL;
-  }
-
-  /**
-   * Check if debt is overdue
-   */
-  get isOverdue(): boolean {
-    if (!this.props.dueDate || this.props.status !== DebtStatus.OUTSTANDING) {
-      return false;
-    }
-    return new Date() > this.props.dueDate;
-  }
-
-  /**
-   * Get days overdue
-   */
-  get daysOverdue(): number {
-    if (!this.isOverdue || !this.props.dueDate) return 0;
-
-    const now = new Date();
-    const overdueMs = now.getTime() - this.props.dueDate.getTime();
-    return Math.floor(overdueMs / (1000 * 60 * 60 * 24));
-  }
-
-  /**
-   * Get total paid amount
-   */
-  get totalPaid(): number {
-    return this.props.amount - this.props.outstandingBalance;
-  }
-
-  /**
-   * Get percentage paid
-   */
-  get percentagePaid(): number {
-    if (this.props.amount === 0) return 100;
-    return (this.totalPaid / this.props.amount) * 100;
-  }
-
-  /**
-   * Get accrued interest
-   */
-  get accruedInterest(): number {
-    if (this.props.interestRate <= 0 || this.props.outstandingBalance <= 0) {
-      return 0;
+  get accruedInterest(): MoneyVO {
+    if (this.props.interestRate <= 0 || this.props.outstandingBalance.isZero()) {
+      return MoneyVO.zero(this.props.currency);
     }
 
-    // Simple interest calculation
-    const now = new Date();
-    const creationDate = this.props.createdAt;
-    const daysElapsed = Math.floor(
-      (now.getTime() - creationDate.getTime()) / (1000 * 60 * 60 * 24),
+    const daysOpen = Math.floor(
+      (new Date().getTime() - this.props.createdAt.getTime()) / (1000 * 3600 * 24),
     );
-    const yearsElapsed = daysElapsed / 365.25;
+    const annualInterest = this.props.outstandingBalance.amount * (this.props.interestRate / 100);
+    const accrued = (annualInterest / 365) * daysOpen;
 
-    return this.props.outstandingBalance * this.props.interestRate * yearsElapsed;
+    return new MoneyVO({
+      amount: Math.round(accrued * 100) / 100,
+      currency: this.props.currency,
+    });
   }
 
   /**
-   * Get total liability (balance + interest)
+   * Returns the Total Payout required to clear this debt today.
+   * (Principal + Interest)
    */
-  get totalLiability(): number {
-    return this.props.outstandingBalance + this.accruedInterest;
+  get currentTotalLiability(): MoneyVO {
+    return this.props.outstandingBalance.add(this.accruedInterest);
   }
 
-  /**
-   * Private constructor - use factory methods
-   */
-  private constructor(id: UniqueEntityID, props: DebtProps) {
-    super(id, props, props.createdAt);
-    this.validateDebt();
-  }
+  // ===========================================================================
+  // BUSINESS LOGIC: PAYMENTS
+  // ===========================================================================
 
-  /**
-   * Validate debt invariants
-   */
-  private validateDebt(): void {
-    // Amount validation
-    if (this.props.amount <= 0) {
-      throw new InvalidDebtAmountException(this.id.toString(), this.props.amount);
+  public recordPayment(amount: MoneyVO, paidBy: string): void {
+    this.ensureModifiable();
+
+    if (amount.amount <= 0)
+      throw new InvalidDebtAmountException(this.props.estateId, amount.amount);
+
+    // Note: In reality, payments usually cover Interest first, then Principal.
+    // For this system, we simplify to reducing Principal for the "Solvency" check,
+    // assuming Interest is handled in the final settlement statement.
+
+    if (amount.amount > this.currentTotalLiability.amount) {
+      throw new DebtLogicException('Payment exceeds Total Liability (Principal + Interest)');
     }
 
-    // Outstanding balance validation
-    if (this.props.outstandingBalance < 0 || this.props.outstandingBalance > this.props.amount) {
-      throw new InvalidDebtAmountException(this.id.toString(), this.props.outstandingBalance);
-    }
+    // Logic: Reduce principal
+    // (A real accounting system would split this, but for Estate Solvency, we reduce the balance)
+    let newPrincipal = this.props.outstandingBalance.amount - amount.amount;
 
-    // Interest rate validation
-    if (this.props.interestRate < 0 || this.props.interestRate > 1) {
-      throw new DebtCannotBeModifiedException(
-        this.id.toString(),
-        `Invalid interest rate: ${this.props.interestRate}. Must be between 0 and 1.`,
-      );
-    }
+    // If negative (meaning they paid off interest + some principal), handle graceful clamping or logic
+    // Simplified:
+    if (newPrincipal < 0) newPrincipal = 0;
 
-    // Secured debt validation
-    if (this.props.isSecured && !this.props.securedAssetId) {
-      throw new DebtCannotBeModifiedException(
-        this.id.toString(),
-        'Secured debt must have a secured asset ID',
-      );
-    }
-
-    // Status consistency
-    if (this.props.outstandingBalance === 0 && this.props.status !== DebtStatus.SETTLED) {
-      throw new DebtCannotBeModifiedException(
-        this.id.toString(),
-        'Debt with zero balance should be marked as SETTLED',
-      );
-    }
-  }
-
-  /**
-   * Record a payment against the debt
-   */
-  recordPayment(
-    paymentAmount: number,
-    paymentMethod: string,
-    referenceNumber?: string,
-    paidBy?: string,
-  ): void {
-    this.ensureCanBeModified();
-
-    if (paymentAmount <= 0) {
-      throw new InvalidDebtAmountException(this.id.toString(), paymentAmount);
-    }
-
-    if (paymentAmount > this.props.outstandingBalance) {
-      throw new DebtPaymentExceedsBalanceException(
-        this.id.toString(),
-        paymentAmount,
-        this.props.outstandingBalance,
-      );
-    }
-
-    const oldBalance = this.props.outstandingBalance;
-    const newBalance = oldBalance - paymentAmount;
+    const newBalanceVO = new MoneyVO({ amount: newPrincipal, currency: this.props.currency });
+    const isSettled = newBalanceVO.isZero();
 
     this.updateState({
-      outstandingBalance: newBalance,
-      status: newBalance === 0 ? DebtStatus.SETTLED : DebtStatus.PARTIALLY_PAID,
+      outstandingBalance: newBalanceVO,
+      status: isSettled ? DebtStatus.SETTLED : DebtStatus.PARTIALLY_PAID,
       updatedAt: new Date(),
     });
 
-    // Add domain event
     this.addDomainEvent(
       new DebtPaymentRecordedEvent(
         this.id.toString(),
         this.props.estateId,
-        paymentAmount,
-        this.props.currency,
-        oldBalance,
-        newBalance,
-        new Date(),
-        paymentMethod,
-        referenceNumber,
-        paidBy || 'system',
+        amount.amount,
+        newBalanceVO.amount,
+        paidBy,
         this.props.version,
       ),
     );
 
-    // If fully paid, add settlement event
-    if (newBalance === 0) {
+    if (isSettled) {
       this.addDomainEvent(
-        new DebtSettledEvent(
-          this.id.toString(),
-          this.props.estateId,
-          this.props.amount,
-          this.totalPaid,
-          this.props.currency,
-          new Date(),
-          paidBy || 'system',
-          `Debt fully settled through payment`,
-          this.props.version,
-        ),
+        new DebtSettledEvent(this.id.toString(), this.props.estateId, paidBy, this.props.version),
       );
     }
   }
 
-  /**
-   * Mark debt as statute barred
-   */
-  markAsStatuteBarred(markedBy: string, reason?: string): void {
-    this.ensureCanBeModified();
+  // ===========================================================================
+  // BUSINESS LOGIC: DISPUTES & WRITE-OFFS
+  // ===========================================================================
 
-    if (this.props.isStatuteBarred) {
-      throw new DebtCannotBeModifiedException(this.id.toString(), 'Debt is already statute barred');
+  public dispute(reason: string, disputedBy: string): void {
+    if (this.props.status === DebtStatus.SETTLED) {
+      throw new DebtLogicException('Cannot dispute a settled debt');
     }
-
-    // Check if actually statute barred
-    const limitationPeriod = DebtTypeHelper.getLimitationPeriod(this.props.type);
-    const cutoffDate = new Date();
-    cutoffDate.setFullYear(cutoffDate.getFullYear() - limitationPeriod);
-
-    if (this.props.createdAt > cutoffDate) {
-      throw new StatuteBarredDebtException(this.id.toString(), limitationPeriod);
-    }
-
-    this.updateState({
-      isStatuteBarred: true,
-      status: DebtStatus.STATUTE_BARRED,
-      updatedAt: new Date(),
-    });
-
-    // Update priority (statute barred debts have lowest priority)
-    const oldPriority = this.props.priority;
-    this.updateState({
-      priority: 'LOWEST',
-      tier: 6, // Below all other tiers
-    });
-
-    // Add domain event
-    this.addDomainEvent(
-      new DebtPriorityChangedEvent(
-        this.id.toString(),
-        this.props.estateId,
-        oldPriority,
-        'LOWEST',
-        this.debtTier.toString(),
-        'STATUTE_BARRED',
-        markedBy,
-        reason || 'Debt became statute barred under Limitation Act',
-        this.props.version,
-      ),
-    );
-  }
-
-  /**
-   * Write off debt (uncollectible)
-   */
-  writeOff(
-    writeOffAmount: number,
-    writeOffReason: string,
-    writtenOffBy: string,
-    notes?: string,
-  ): void {
-    this.ensureCanBeModified();
-
-    if (writeOffAmount <= 0 || writeOffAmount > this.props.outstandingBalance) {
-      throw new InvalidDebtAmountException(this.id.toString(), writeOffAmount);
-    }
-
-    const oldBalance = this.props.outstandingBalance;
-    const newBalance = oldBalance - writeOffAmount;
-
-    this.updateState({
-      outstandingBalance: newBalance,
-      status: newBalance === 0 ? DebtStatus.WRITTEN_OFF : DebtStatus.PARTIALLY_PAID,
-      updatedAt: new Date(),
-    });
-
-    // Add domain event
-    this.addDomainEvent(
-      new DebtWrittenOffEvent(
-        this.id.toString(),
-        this.props.estateId,
-        writeOffAmount,
-        this.props.currency,
-        writeOffReason,
-        writtenOffBy,
-        new Date(),
-        notes,
-        this.props.version,
-      ),
-    );
-  }
-
-  /**
-   * Dispute debt
-   */
-  dispute(disputedBy: string, disputeReason: string, evidence?: string[]): void {
-    this.ensureCanBeModified();
-
-    if (this.props.status === DebtStatus.DISPUTED) {
-      throw new DebtCannotBeModifiedException(this.id.toString(), 'Debt is already disputed');
-    }
-
-    const oldStatus = this.props.status;
 
     this.updateState({
       status: DebtStatus.DISPUTED,
+      disputeReason: reason,
       updatedAt: new Date(),
     });
 
-    // Add domain event
     this.addDomainEvent(
       new DebtDisputedEvent(
         this.id.toString(),
         this.props.estateId,
+        reason,
         disputedBy,
-        disputeReason,
-        new Date(),
-        evidence,
         this.props.version,
       ),
     );
   }
 
-  /**
-   * Transfer debt to new creditor
-   */
-  transfer(newCreditorName: string, transferredBy: string, transferDocumentRef?: string): void {
-    this.ensureCanBeModified();
+  public writeOff(reason: string, authorizedBy: string): void {
+    this.ensureModifiable();
 
-    const oldCreditor = this.props.creditorName;
+    const amountWrittenOff = this.props.outstandingBalance;
 
     this.updateState({
-      creditorName: newCreditorName,
+      outstandingBalance: MoneyVO.zero(this.props.currency),
+      status: DebtStatus.WRITTEN_OFF,
       updatedAt: new Date(),
     });
 
-    // Add domain event
     this.addDomainEvent(
-      new DebtTransferredEvent(
+      new DebtWrittenOffEvent(
         this.id.toString(),
         this.props.estateId,
-        oldCreditor,
-        newCreditorName,
-        new Date(),
-        transferredBy,
-        transferDocumentRef,
+        amountWrittenOff.amount,
+        reason,
+        authorizedBy,
         this.props.version,
       ),
     );
   }
 
+  // ===========================================================================
+  // BUSINESS LOGIC: LEGAL (Limitation of Actions)
+  // ===========================================================================
+
   /**
-   * Update debt status
+   * Checks against Kenyan Limitation of Actions Act (Cap 22).
+   * Contracts = 6 years.
+   * If strictly overdue > 6 years, it becomes unenforceable.
    */
-  updateStatus(newStatus: DebtStatus, updatedBy: string, reason?: string): void {
-    this.ensureCanBeModified();
+  public checkStatuteBarredStatus(): void {
+    if (this.props.isStatuteBarred) return; // Already barred
 
-    if (!DebtStatusHelper.isValidTransition(this.props.status, newStatus)) {
-      throw new DebtCannotBeModifiedException(
-        this.id.toString(),
-        `Cannot transition from ${this.props.status} to ${newStatus}`,
-      );
-    }
+    const LIMITATION_YEARS = 6;
+    const now = new Date();
+    // Use dueDate if available, else createdAt
+    const referenceDate = this.props.dueDate || this.props.createdAt;
 
-    const oldStatus = this.props.status;
+    const ageInYears = (now.getTime() - referenceDate.getTime()) / (1000 * 3600 * 24 * 365);
 
-    this.updateState({
-      status: newStatus,
-      updatedAt: new Date(),
-    });
+    if (ageInYears >= LIMITATION_YEARS) {
+      this.updateState({
+        isStatuteBarred: true,
+        status: DebtStatus.STATUTE_BARRED,
+        updatedAt: new Date(),
+      });
 
-    // If marking as settled with outstanding balance, throw error
-    if (newStatus === DebtStatus.SETTLED && this.props.outstandingBalance > 0) {
-      throw new DebtSettlementFailedException(
-        this.id.toString(),
-        'Cannot mark as settled with outstanding balance',
-      );
-    }
-
-    // Add settlement event if fully settled
-    if (newStatus === DebtStatus.SETTLED && this.props.outstandingBalance === 0) {
       this.addDomainEvent(
-        new DebtSettledEvent(
+        new DebtStatuteBarredEvent(
           this.id.toString(),
           this.props.estateId,
-          this.props.amount,
-          this.totalPaid,
-          this.props.currency,
-          new Date(),
-          updatedBy,
-          reason,
+          ageInYears,
           this.props.version,
         ),
       );
     }
   }
 
+  // ===========================================================================
+  // HELPERS
+  // ===========================================================================
+
   /**
-   * Check if debt is included in S.45 calculations
+   * Used for S.45 Sorting.
    */
-  isIncludedInS45(): boolean {
-    return DebtStatusHelper.isIncludedInS45(this.props.status);
+  public comparePriority(other: Debt): number {
+    return this.props.priority.getValue().tier - other.priority.getValue().tier;
   }
 
-  /**
-   * Check if debt is collectible
-   */
-  isCollectible(): boolean {
-    return DebtStatusHelper.isCollectible(this.props.status);
-  }
-
-  /**
-   * Compare priority with another debt
-   */
-  comparePriority(other: Debt): number {
-    return DebtTierHelper.compareTiers(this.debtTier, other.debtTier);
-  }
-
-  /**
-   * Check if this debt has higher priority than another
-   */
-  hasHigherPriorityThan(other: Debt): boolean {
-    return this.comparePriority(other) < 0;
-  }
-
-  /**
-   * Get debt summary
-   */
-  getSummary(): {
-    id: string;
-    estateId: string;
-    description: string;
-    type: string;
-    amount: number;
-    outstandingBalance: number;
-    currency: string;
-    tier: string;
-    priority: string;
-    status: string;
-    creditorName: string;
-    isSecured: boolean;
-    isStatuteBarred: boolean;
-    isOverdue: boolean;
-    daysOverdue: number;
-    percentagePaid: number;
-  } {
-    return {
-      id: this.id.toString(),
-      estateId: this.props.estateId,
-      description: this.props.description,
-      type: this.props.type,
-      amount: this.props.amount,
-      outstandingBalance: this.props.outstandingBalance,
-      currency: this.props.currency,
-      tier: this.debtTier,
-      priority: this.props.priority,
-      status: this.props.status,
-      creditorName: this.props.creditorName,
-      isSecured: this.props.isSecured,
-      isStatuteBarred: this.props.isStatuteBarred,
-      isOverdue: this.isOverdue,
-      daysOverdue: this.daysOverdue,
-      percentagePaid: this.percentagePaid,
-    };
-  }
-
-  /**
-   * Ensure debt can be modified
-   */
-  private ensureCanBeModified(): void {
-    this.ensureNotDeleted();
-
-    if (!this.props.isActive) {
-      throw new DebtCannotBeModifiedException(this.id.toString(), 'Debt is not active');
-    }
-
-    if (this.props.isStatuteBarred) {
-      throw new StatuteBarredDebtException(
-        this.id.toString(),
-        DebtTypeHelper.getLimitationPeriod(this.props.type),
-      );
-    }
-
-    if (DebtStatusHelper.isResolved(this.props.status)) {
-      throw new DebtCannotBeModifiedException(
-        this.id.toString(),
-        `Debt is in resolved status: ${this.props.status}`,
-      );
-    }
-  }
-
-  /**
-   * Clone debt properties for snapshot
-   */
-  protected cloneProps(): DebtProps {
-    return { ...this.props };
+  private ensureModifiable(): void {
+    if (this.props.status === DebtStatus.SETTLED)
+      throw new DebtLogicException('Debt is already settled');
+    if (this.props.status === DebtStatus.WRITTEN_OFF)
+      throw new DebtLogicException('Debt is written off');
+    if (this.props.status === DebtStatus.STATUTE_BARRED)
+      throw new StatuteBarredDebtException(this.id.toString(), 6);
+    if (this.props.status === DebtStatus.DISPUTED)
+      throw new DebtLogicException('Debt is currently disputed');
   }
 }

@@ -1,36 +1,43 @@
 // src/estate-service/src/domain/entities/events/asset.event.ts
 import { DomainEvent } from '../base/domain-event';
 import { AssetStatus } from '../enums/asset-status.enum';
+import { CoOwnershipType } from '../enums/co-ownership-type.enum';
 import { AssetTypeVO } from '../value-objects/asset-type.vo';
 import { MoneyVO } from '../value-objects/money.vo';
 
 /**
  * Base Asset Event
+ * All asset events inherit from this to ensure standardized metadata
  */
 export abstract class AssetEvent<T = any> extends DomainEvent<T> {
-  constructor(aggregateId: string, version: number, payload: T, occurredAt?: Date) {
-    super(aggregateId, 'Asset', version, payload, occurredAt);
+  constructor(
+    aggregateId: string,
+    eventType: string,
+    version: number,
+    payload: T,
+    occurredAt?: Date,
+  ) {
+    super(aggregateId, eventType, version, payload, occurredAt);
   }
 }
 
-/**
- * Asset Created Event
- * Triggered when a new asset is added to the estate
- */
+// =============================================================================
+// 1. LIFECYCLE EVENTS
+// =============================================================================
+
 export class AssetCreatedEvent extends AssetEvent<{
   assetId: string;
   estateId: string;
-  ownerId: string;
   name: string;
-  type: string;
-  value: { amount: number; currency: string };
+  type: string; // "LAND", "VEHICLE", etc.
+  initialValue: number;
+  currency: string;
   description?: string;
   createdBy: string;
 }> {
   constructor(
     assetId: string,
     estateId: string,
-    ownerId: string,
     name: string,
     type: AssetTypeVO,
     value: MoneyVO,
@@ -38,55 +45,61 @@ export class AssetCreatedEvent extends AssetEvent<{
     createdBy: string,
     version: number,
   ) {
-    super(assetId, version, {
+    super(assetId, 'AssetCreatedEvent', version, {
       assetId,
       estateId,
-      ownerId,
       name,
       type: type.toString(),
-      value: { amount: value.amount, currency: value.currency },
+      initialValue: value.amount,
+      currency: value.currency,
       description,
       createdBy,
     });
   }
 }
 
-/**
- * Asset Value Updated Event
- * Triggered when asset value changes
- */
+export class AssetDeletedEvent extends AssetEvent<{
+  assetId: string;
+  deletedBy: string;
+  reason?: string;
+}> {
+  constructor(assetId: string, deletedBy: string, reason: string | undefined, version: number) {
+    super(assetId, 'AssetDeletedEvent', version, {
+      assetId,
+      deletedBy,
+      reason,
+    });
+  }
+}
+
+// =============================================================================
+// 2. STATE & VALUE EVENTS
+// =============================================================================
+
 export class AssetValueUpdatedEvent extends AssetEvent<{
   assetId: string;
-  oldValue: { amount: number; currency: string };
-  newValue: { amount: number; currency: string };
-  valuationDate: Date;
+  newValue: number;
+  currency: string;
   source: string;
   updatedBy: string;
 }> {
   constructor(
     assetId: string,
-    oldValue: MoneyVO,
-    newValue: MoneyVO,
-    valuationDate: Date,
+    newValue: number,
     source: string,
     updatedBy: string,
     version: number,
   ) {
-    super(assetId, version, {
+    super(assetId, 'AssetValueUpdatedEvent', version, {
       assetId,
-      oldValue: { amount: oldValue.amount, currency: oldValue.currency },
-      newValue: { amount: newValue.amount, currency: newValue.currency },
-      valuationDate,
+      newValue: newValue,
+      currency: 'KES', // Assumed KES for simplicity, or pass from VO
       source,
       updatedBy,
     });
   }
 }
 
-/**
- * Asset Status Changed Event
- * Triggered when asset status changes
- */
 export class AssetStatusChangedEvent extends AssetEvent<{
   assetId: string;
   oldStatus: AssetStatus;
@@ -102,7 +115,7 @@ export class AssetStatusChangedEvent extends AssetEvent<{
     changedBy: string,
     version: number,
   ) {
-    super(assetId, version, {
+    super(assetId, 'AssetStatusChangedEvent', version, {
       assetId,
       oldStatus,
       newStatus,
@@ -112,205 +125,124 @@ export class AssetStatusChangedEvent extends AssetEvent<{
   }
 }
 
-/**
- * Asset Liquidated Event
- * Triggered when asset is converted to cash
- */
-export class AssetLiquidatedEvent extends AssetEvent<{
-  assetId: string;
-  estateId: string;
-  liquidationType: string;
-  targetAmount: number;
-  actualAmount: number;
-  currency: string;
-  buyerName?: string;
-  saleDate: Date;
-  liquidatedBy: string;
-}> {
-  constructor(
-    assetId: string,
-    estateId: string,
-    liquidationType: string,
-    targetAmount: number,
-    actualAmount: number,
-    currency: string,
-    buyerName: string | undefined,
-    saleDate: Date,
-    liquidatedBy: string,
-    version: number,
-  ) {
-    super(assetId, version, {
-      assetId,
-      estateId,
-      liquidationType,
-      targetAmount,
-      actualAmount,
-      currency,
-      buyerName,
-      saleDate,
-      liquidatedBy,
-    });
-  }
-}
-
-/**
- * Asset Co-Owner Added Event
- */
-export class AssetCoOwnerAddedEvent extends AssetEvent<{
-  assetId: string;
-  coOwnerId: string;
-  sharePercentage: number;
-  addedBy: string;
-}> {
-  constructor(
-    assetId: string,
-    coOwnerId: string,
-    sharePercentage: number,
-    addedBy: string,
-    version: number,
-  ) {
-    super(assetId, version, {
-      assetId,
-      coOwnerId,
-      sharePercentage,
-      addedBy,
-    });
-  }
-}
-
-/**
- * Asset Co-Owner Removed Event
- */
-export class AssetCoOwnerRemovedEvent extends AssetEvent<{
-  assetId: string;
-  coOwnerId: string;
-  removedBy: string;
-}> {
-  constructor(assetId: string, coOwnerId: string, removedBy: string, version: number) {
-    super(assetId, version, {
-      assetId,
-      coOwnerId,
-      removedBy,
-    });
-  }
-}
-
-/**
- * Asset Encumbered Event
- * Triggered when asset gets encumbrance (mortgage, lien, etc.)
- */
 export class AssetEncumberedEvent extends AssetEvent<{
   assetId: string;
-  encumbranceType: string;
-  encumbranceDetails: string;
-  securedAmount: number;
-  creditorName: string;
+  details: string;
   encumberedBy: string;
 }> {
-  constructor(
-    assetId: string,
-    encumbranceType: string,
-    encumbranceDetails: string,
-    securedAmount: number,
-    creditorName: string,
-    encumberedBy: string,
-    version: number,
-  ) {
-    super(assetId, version, {
+  constructor(assetId: string, details: string, encumberedBy: string, version: number) {
+    super(assetId, 'AssetEncumberedEvent', version, {
       assetId,
-      encumbranceType,
-      encumbranceDetails,
-      securedAmount,
-      creditorName,
+      details,
       encumberedBy,
     });
   }
 }
 
+// =============================================================================
+// 3. LIQUIDATION EVENTS (The Conversion Process)
+// =============================================================================
+
 /**
- * Asset Deleted Event (Soft Delete)
+ * Liquidation Initiated: "We have listed the house for sale"
  */
-export class AssetDeletedEvent extends AssetEvent<{
+export class AssetLiquidationInitiatedEvent extends AssetEvent<{
   assetId: string;
-  deletedBy: string;
-  reason?: string;
+  targetAmount: number;
+  initiatedBy: string;
 }> {
-  constructor(assetId: string, deletedBy: string, reason: string | undefined, version: number) {
-    super(assetId, version, {
+  constructor(assetId: string, targetAmount: number, initiatedBy: string, version: number) {
+    super(assetId, 'AssetLiquidationInitiatedEvent', version, {
       assetId,
-      deletedBy,
-      reason,
-    });
-  }
-}
-/**
- * Asset Co-Owner Added Event
- * Triggered when a co-owner is added to an asset
- */
-export class AssetCoOwnerAddedEvent extends AssetEvent<{
-  assetId: string;
-  coOwnerId: string;
-  userId?: string;
-  externalName?: string;
-  sharePercentage: number;
-  ownershipType: string;
-  addedBy: string;
-}> {
-  constructor(
-    assetId: string,
-    coOwnerId: string,
-    userId: string | undefined,
-    externalName: string | undefined,
-    sharePercentage: number,
-    ownershipType: string,
-    addedBy: string,
-    version: number,
-  ) {
-    super(assetId, version, {
-      assetId,
-      coOwnerId,
-      userId,
-      externalName,
-      sharePercentage,
-      ownershipType,
-      addedBy,
+      targetAmount,
+      initiatedBy,
     });
   }
 }
 
 /**
- * Asset Co-Owner Removed Event
- * Triggered when a co-owner is removed from an asset
+ * Liquidation Completed: "We have received the cash"
+ * This triggers the Estate Aggregate to update CashOnHand.
  */
+export class AssetLiquidationCompletedEvent extends AssetEvent<{
+  assetId: string;
+  actualAmount: number;
+  completedBy: string;
+}> {
+  constructor(assetId: string, actualAmount: number, completedBy: string, version: number) {
+    super(assetId, 'AssetLiquidationCompletedEvent', version, {
+      assetId,
+      actualAmount,
+      completedBy,
+    });
+  }
+}
+
+export class AssetLiquidationCancelledEvent extends AssetEvent<{
+  assetId: string;
+  reason: string;
+  cancelledBy: string;
+}> {
+  constructor(assetId: string, reason: string, cancelledBy: string, version: number) {
+    super(assetId, 'AssetLiquidationCancelledEvent', version, {
+      assetId,
+      reason,
+      cancelledBy,
+    });
+  }
+}
+
+// =============================================================================
+// 4. CO-OWNERSHIP EVENTS (The "Slice" Logic)
+// =============================================================================
+
+export class AssetCoOwnerAddedEvent extends AssetEvent<{
+  assetId: string;
+  coOwnerId: string;
+  sharePercentage: number;
+  addedBy: string;
+}> {
+  constructor(
+    assetId: string,
+    coOwnerId: string,
+    sharePercentage: number,
+    addedBy: string,
+    version: number,
+  ) {
+    super(assetId, 'AssetCoOwnerAddedEvent', version, {
+      assetId,
+      coOwnerId,
+      sharePercentage,
+      addedBy,
+    });
+  }
+}
+
 export class AssetCoOwnerRemovedEvent extends AssetEvent<{
   assetId: string;
   coOwnerId: string;
-  removedSharePercentage: number;
+  sharePercentage: number; // Log what share was removed
   removedBy: string;
   reason?: string;
 }> {
   constructor(
     assetId: string,
     coOwnerId: string,
-    removedSharePercentage: number,
+    sharePercentage: number,
     removedBy: string,
     reason: string | undefined,
     version: number,
   ) {
-    super(assetId, version, {
+    super(assetId, 'AssetCoOwnerRemovedEvent', version, {
       assetId,
       coOwnerId,
-      removedSharePercentage,
+      sharePercentage,
       removedBy,
       reason,
     });
   }
 }
 
-/**
- * Asset Co-Owner Share Updated Event
- * Triggered when a co-owner's share percentage changes
- */
 export class AssetCoOwnerShareUpdatedEvent extends AssetEvent<{
   assetId: string;
   coOwnerId: string;
@@ -326,7 +258,7 @@ export class AssetCoOwnerShareUpdatedEvent extends AssetEvent<{
     updatedBy: string,
     version: number,
   ) {
-    super(assetId, version, {
+    super(assetId, 'AssetCoOwnerShareUpdatedEvent', version, {
       assetId,
       coOwnerId,
       oldSharePercentage,
@@ -336,26 +268,22 @@ export class AssetCoOwnerShareUpdatedEvent extends AssetEvent<{
   }
 }
 
-/**
- * Asset Ownership Type Changed Event
- * Triggered when asset ownership type changes
- */
 export class AssetOwnershipTypeChangedEvent extends AssetEvent<{
   assetId: string;
-  oldOwnershipType: string;
-  newOwnershipType: string;
+  oldOwnershipType: CoOwnershipType;
+  newOwnershipType: CoOwnershipType;
   changedBy: string;
   legalImplications: string[];
 }> {
   constructor(
     assetId: string,
-    oldOwnershipType: string,
-    newOwnershipType: string,
+    oldOwnershipType: CoOwnershipType,
+    newOwnershipType: CoOwnershipType,
     changedBy: string,
     legalImplications: string[],
     version: number,
   ) {
-    super(assetId, version, {
+    super(assetId, 'AssetOwnershipTypeChangedEvent', version, {
       assetId,
       oldOwnershipType,
       newOwnershipType,

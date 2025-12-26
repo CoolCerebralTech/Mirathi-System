@@ -1,19 +1,10 @@
 // src/estate-service/src/domain/value-objects/asset-details/financial-asset-details.vo.ts
-import { ValueObject } from '../../base/value-object';
-import { ValueObjectValidationError } from '../../base/value-object';
+import { ValueObject, ValueObjectValidationError } from '../../base/value-object';
 
-/**
- * Financial Asset Details Value Object
- *
- * Kenyan Legal Context:
- * - Bank accounts require letters of administration
- * - SACCO shares follow SACCO society rules
- * - Investments may have lock-in periods
- */
 export interface FinancialAssetDetailsProps {
   institutionName: string;
   accountNumber: string;
-  accountType: string;
+  accountType: string; // e.g., SAVINGS, CURRENT, SHARES, FIXED_DEPOSIT
   branchName?: string;
   accountHolderName: string;
   currency: string;
@@ -23,124 +14,67 @@ export interface FinancialAssetDetailsProps {
   jointAccountHolders?: string[];
 }
 
+/**
+ * Financial Asset Details
+ *
+ * Handles Bank Accounts, SACCO Shares, and Investment Accounts.
+ */
 export class FinancialAssetDetailsVO extends ValueObject<FinancialAssetDetailsProps> {
   constructor(props: FinancialAssetDetailsProps) {
     super(props);
   }
 
   protected validate(): void {
-    // Institution validation
-    if (!this.props.institutionName || this.props.institutionName.trim().length === 0) {
-      throw new ValueObjectValidationError(
-        'Financial institution name is required',
-        'institutionName',
-      );
-    }
+    if (!this.props.institutionName?.trim())
+      throw new ValueObjectValidationError('Institution Name Required', 'institutionName');
+    if (!this.props.accountNumber?.trim())
+      throw new ValueObjectValidationError('Account Number Required', 'accountNumber');
+    if (!this.props.accountType?.trim())
+      throw new ValueObjectValidationError('Account Type Required', 'accountType');
 
-    // Account number validation
-    if (!this.props.accountNumber || this.props.accountNumber.trim().length < 5) {
-      throw new ValueObjectValidationError('Valid account number is required', 'accountNumber');
-    }
-
-    // Account type validation
-    if (!this.props.accountType || this.props.accountType.trim().length === 0) {
-      throw new ValueObjectValidationError('Account type is required', 'accountType');
-    }
-
-    // Account holder validation
-    if (!this.props.accountHolderName || this.props.accountHolderName.trim().length === 0) {
-      throw new ValueObjectValidationError('Account holder name is required', 'accountHolderName');
-    }
-
-    // Joint account validation
     if (
       this.props.isJointAccount &&
       (!this.props.jointAccountHolders || this.props.jointAccountHolders.length === 0)
     ) {
       throw new ValueObjectValidationError(
-        'Joint account must have joint account holders',
+        'Joint accounts must specify holders',
         'jointAccountHolders',
       );
     }
-
-    // Interest rate validation
-    if (this.props.interestRate && (this.props.interestRate < 0 || this.props.interestRate > 100)) {
-      throw new ValueObjectValidationError(
-        'Interest rate must be between 0 and 100',
-        'interestRate',
-      );
-    }
   }
 
-  /**
-   * Check if this is a bank account
-   */
   isBankAccount(): boolean {
-    const banks = ['BANK', 'SACCO', 'COOPERATIVE'];
-    return banks.some((bank) => this.props.institutionName.toUpperCase().includes(bank));
+    const type = this.props.accountType.toUpperCase();
+    return ['SAVINGS', 'CURRENT', 'CHECKING', 'TRANSACTIONAL'].some((t) => type.includes(t));
   }
 
-  /**
-   * Check if this is an investment account
-   */
   isInvestmentAccount(): boolean {
-    const investments = ['INVESTMENT', 'STOCK', 'SHARES', 'BOND', 'MUTUAL FUND'];
-    return investments.some((investment) =>
-      this.props.accountType.toUpperCase().includes(investment),
+    const type = this.props.accountType.toUpperCase();
+    return ['SHARES', 'BOND', 'MUTUAL_FUND', 'UNIT_TRUST', 'FIXED_DEPOSIT', 'SACCO'].some((t) =>
+      type.includes(t),
     );
   }
 
   /**
-   * Check if account has restrictions
+   * Returns the "Liquidity Tier" - How fast can this be turned into cash?
+   * 1 = Instant (Cash/Bank), 2 = Fast (Shares), 3 = Slow (Fixed Deposit/Bonds)
    */
-  hasRestrictions(): boolean {
-    return this.props.maturityDate !== undefined || this.props.isJointAccount;
+  getLiquidityTier(): number {
+    if (this.isBankAccount()) return 1;
+    if (this.props.maturityDate && this.props.maturityDate > new Date()) return 3; // Locked
+    return 2;
   }
 
-  /**
-   * Check if account is accessible
-   */
-  isAccessible(): boolean {
-    if (this.props.maturityDate) {
-      return new Date() >= this.props.maturityDate;
-    }
+  requiresCourtOrderToLiquidate(): boolean {
+    // Almost all deceased accounts require Grant of Letters of Administration
     return true;
-  }
-
-  /**
-   * Get freeze period (days)
-   */
-  getFreezePeriod(): number {
-    if (this.isBankAccount()) return 30; // Banks typically freeze for 30 days
-    if (this.isInvestmentAccount()) return 14; // Investments may take 14 days
-    return 7; // Default
-  }
-
-  /**
-   * Check if requires court order
-   */
-  requiresCourtOrder(): boolean {
-    return this.isJointAccount || !this.isAccessible();
   }
 
   toJSON(): Record<string, any> {
     return {
-      institutionName: this.props.institutionName,
-      accountNumber: this.props.accountNumber,
-      accountType: this.props.accountType,
-      branchName: this.props.branchName,
-      accountHolderName: this.props.accountHolderName,
-      currency: this.props.currency,
-      interestRate: this.props.interestRate,
-      maturityDate: this.props.maturityDate,
-      isJointAccount: this.props.isJointAccount,
-      jointAccountHolders: this.props.jointAccountHolders,
-      isBankAccount: this.isBankAccount(),
-      isInvestment: this.isInvestmentAccount(),
-      hasRestrictions: this.hasRestrictions(),
-      isAccessible: this.isAccessible(),
-      freezePeriod: this.getFreezePeriod(),
-      requiresCourtOrder: this.requiresCourtOrder(),
+      ...this.props,
+      isJoint: this.props.isJointAccount,
+      category: this.isBankAccount() ? 'BANKING' : 'INVESTMENT',
     };
   }
 }

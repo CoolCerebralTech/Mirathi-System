@@ -15,6 +15,17 @@ export abstract class AssetException extends Error {
 }
 
 /**
+ * Asset Logic Exception
+ * Thrown when a business rule or invariant is violated.
+ * Examples: "Land asset must have land details", "Cannot liquidate active asset"
+ */
+export class AssetLogicException extends AssetException {
+  constructor(message: string, assetId?: string) {
+    super(message, assetId);
+  }
+}
+
+/**
  * Asset Not Found Exception
  */
 export class AssetNotFoundException extends AssetException {
@@ -65,6 +76,33 @@ export class AssetOwnershipInvalidException extends AssetException {
 export class AssetLiquidationFailedException extends AssetException {
   constructor(assetId: string, reason: string) {
     super(`Asset ${assetId} liquidation failed: ${reason}`, assetId);
+  }
+}
+
+/**
+ * Liquidation Not Found Exception
+ */
+export class LiquidationNotFoundException extends AssetException {
+  constructor(message: string, assetId: string) {
+    super(message || `No active liquidation found for asset ${assetId}`, assetId);
+  }
+}
+
+/**
+ * Liquidation Already Exists Exception
+ */
+export class LiquidationAlreadyExistsException extends AssetException {
+  constructor(assetId: string) {
+    super(`Active liquidation already exists for asset ${assetId}`, assetId);
+  }
+}
+
+/**
+ * Asset Cannot Be Liquidated Exception
+ */
+export class AssetCannotBeLiquidatedException extends AssetException {
+  constructor(assetId: string, reason: string) {
+    super(`Asset ${assetId} cannot be liquidated: ${reason}`, assetId);
   }
 }
 

@@ -1,887 +1,343 @@
-// domain/aggregates/estate.aggregate.ts
 import { AggregateRoot } from '../base/aggregate-root';
-import { DomainEvent } from '../base/domain-event';
 import { UniqueEntityID } from '../base/unique-entity-id';
 import { Asset } from '../entities/asset.entity';
 import { Debt } from '../entities/debt.entity';
-import { GiftInterVivos } from '../entities/gift-inter-vivos.entity';
+import { EstateTaxCompliance } from '../entities/estate-tax-compliance.entity';
+import { GiftInterVivos, GiftStatus } from '../entities/gift-inter-vivos.entity';
 import { LegalDependant } from '../entities/legal-dependant.entity';
-import { Money } from '../value-objects';
+import { AssetStatus } from '../enums/asset-status.enum';
+import { DebtStatus } from '../enums/debt-status.enum';
+import {
+  EstateCreatedEvent,
+  EstateFrozenEvent,
+  EstateInsolvencyDetectedEvent,
+  EstateReadyForDistributionEvent,
+  EstateUnfrozenEvent,
+} from '../events/estate.events';
+import {
+  EstateFrozenException,
+  EstateInsolventException,
+  EstateLogicException,
+  Section45ViolationException,
+  TaxComplianceBlockException,
+} from '../exceptions/estate.exception';
+import { MoneyVO } from '../value-objects/money.vo';
 
-/**
- * Estate Aggregate Root
- *
- * The "Net Worth" and "Inventory" of the deceased
- *
- * AGGREGATE BOUNDARY:
- * - Estate (root)
- * - Assets (entities)
- * - Debts (entities)
- * - Legal Dependants (entities)
- * - Gifts Inter Vivos (entities)
- *
- * INVARIANTS (Must Always Be True):
- * 1. Net Estate Value = Gross Value - Total Liabilities
- * 2. Assets >= Secured Debts (solvency check)
- * 3. Only verified assets count toward distribution
- * 4. S.45(a)-(c) debts must be paid before distribution
- * 5. Frozen estates cannot be modified
- * 6. Distributable value considers co-ownership
- *
- * LEGAL COMPLIANCE:
- * - S.45 LSA: Debt priority order
- * - S.83 LSA: Executor accountability
- * - S.35(3) LSA: Hotchpot for gifts inter vivos
- * - S.26/29 LSA: Dependant provisions
- *
- * Design Patterns:
- * - Aggregate Root (DDD)
- * - Event Sourcing (all changes emit events)
- * - Domain Events (for cross-aggregate communication)
- */
-
-export interface EstateProps {
-  // Identity
-  deceasedId: UniqueEntityID;
-  deceasedFullName: string;
-  deceasedDateOfDeath?: Date;
-
-  // Estate Status
-  isTestate: boolean; // Has valid will
-  isIntestate: boolean; // No will
-  isFrozen: boolean;
-  frozenAt?: Date;
-  frozenReason?: string;
-
-  // Financial Summary (Cached for performance, validated on demand)
-  grossValueKES: Money;
-  totalLiabilitiesKES: Money;
-  netEstateValueKES: Money;
-
-  // Hotchpot (S.35(3) LSA)
-  hotchpotAdjustedValueKES?: Money;
-
-  // Metadata
-  metadata?: Record<string, any>;
+export enum EstateStatus {
+  SETUP = 'SETUP', // Initial data entry
+  EVALUATION = 'EVALUATION', // Valuing assets, inviting claims
+  ADMINISTRATION = 'ADMINISTRATION', // Paying debts, taxes
+  READY_FOR_DISTRIBUTION = 'READY_FOR_DISTRIBUTION', // Validated
+  DISTRIBUTING = 'DISTRIBUTING', // Assets moving
+  CLOSED = 'CLOSED', // Done
 }
 
+export interface EstateProps {
+  name: string; // "Estate of the Late John Doe"
+  deceasedId: string;
+  dateOfDeath: Date;
+  status: EstateStatus;
+
+  // The Ledger
+  assets: Asset[];
+  debts: Debt[];
+  gifts: GiftInterVivos[];
+  dependants: LegalDependant[];
+
+  // The Gatekeeper
+  taxCompliance: EstateTaxCompliance;
+
+  // Liquidity
+  cashOnHand: MoneyVO;
+
+  // Safety
+  isFrozen: boolean;
+  freezeReason?: string;
+
+  // Audit
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * The Estate Aggregate Root ("The Financial Truth Engine")
+ *
+ * RESPONSIBILITIES:
+ * 1. Solvency: Net Worth = Assets - Debts.
+ * 2. Compliance: Blocks distribution if Tax != Cleared.
+ * 3. Priority: Enforces S.45 (Funeral > Unsecured).
+ * 4. Hotchpot: Adds Gift Values back for calculation.
+ */
 export class Estate extends AggregateRoot<EstateProps> {
-  // =========================================================================
-  // COLLECTIONS (Entities owned by this aggregate)
-  // =========================================================================
-  private _assets: Map<string, Asset> = new Map();
-  private _debts: Map<string, Debt> = new Map();
-  private _legalDependants: Map<string, LegalDependant> = new Map();
-  private _giftsInterVivos: Map<string, GiftInterVivos> = new Map();
-
-  // =========================================================================
-  // CACHED CALCULATIONS (Dirty flag pattern)
-  // =========================================================================
-  private _isDirty: boolean = true;
-
-  private constructor(id: UniqueEntityID, props: EstateProps, createdAt?: Date) {
-    super(id, props, createdAt);
-    this.validate();
+  private constructor(props: EstateProps, id?: UniqueEntityID) {
+    super(id || new UniqueEntityID(), props);
   }
 
-  /**
-   * Factory: Create new estate (when death is confirmed)
-   */
   public static create(
-    deceasedId: UniqueEntityID,
-    deceasedFullName: string,
-    deceasedDateOfDeath: Date,
+    props: { name: string; deceasedId: string; dateOfDeath: Date; taxPin: string },
     id?: UniqueEntityID,
   ): Estate {
-    const estateId = id ?? new UniqueEntityID();
+    const estate = new Estate(
+      {
+        name: props.name,
+        deceasedId: props.deceasedId,
+        dateOfDeath: props.dateOfDeath,
+        status: EstateStatus.SETUP,
+        assets: [],
+        debts: [],
+        gifts: [],
+        dependants: [],
+        // Initialize Tax Compliance (The Gatekeeper)
+        taxCompliance: EstateTaxCompliance.create({
+          estateId: id ? id.toString() : 'temp', // ID fixup handled by repo usually
+          kraPin: props.taxPin,
+        }),
+        cashOnHand: MoneyVO.zero('KES'), // Default currency
+        isFrozen: false,
+        version: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      id,
+    );
 
-    const estate = new Estate(estateId, {
-      deceasedId,
-      deceasedFullName,
-      deceasedDateOfDeath,
-      isTestate: false,
-      isIntestate: false, // Unknown until determined
-      isFrozen: false,
-      grossValueKES: Money.zero(),
-      totalLiabilitiesKES: Money.zero(),
-      netEstateValueKES: Money.zero(),
-    });
-
-    // Emit domain event
     estate.addDomainEvent(
-      new EstateCreatedEvent(estateId.toString(), estate.getAggregateType(), estate.getVersion(), {
-        deceasedId: deceasedId.toString(),
-        deceasedFullName,
-        dateOfDeath: deceasedDateOfDeath,
-      }),
+      new EstateCreatedEvent(estate.id.toString(), props.name, props.deceasedId, estate.version),
     );
 
     return estate;
   }
 
-  /**
-   * Reconstitute from persistence
-   */
-  public static reconstitute(id: UniqueEntityID, props: EstateProps, createdAt: Date): Estate {
-    return new Estate(id, props, createdAt);
-  }
+  // ===========================================================================
+  // 1. THE LEDGER (Inventory Management)
+  // ===========================================================================
 
-  // =========================================================================
-  // GETTERS
-  // =========================================================================
-
-  get deceasedId(): UniqueEntityID {
-    return this.props.deceasedId;
-  }
-
-  get deceasedFullName(): string {
-    return this.props.deceasedFullName;
-  }
-
-  get deceasedDateOfDeath(): Date | undefined {
-    return this.props.deceasedDateOfDeath;
-  }
-
-  get isTestate(): boolean {
-    return this.props.isTestate;
-  }
-
-  get isIntestate(): boolean {
-    return this.props.isIntestate;
-  }
-
-  get isFrozen(): boolean {
-    return this.props.isFrozen;
-  }
-
-  get grossValueKES(): Money {
-    return this.props.grossValueKES;
-  }
-
-  get totalLiabilitiesKES(): Money {
-    return this.props.totalLiabilitiesKES;
-  }
-
-  get netEstateValueKES(): Money {
-    return this.props.netEstateValueKES;
-  }
-
-  get hotchpotAdjustedValueKES(): Money | undefined {
-    return this.props.hotchpotAdjustedValueKES;
-  }
-
-  // Collection getters (read-only)
-  get assets(): ReadonlyMap<string, Asset> {
-    return this._assets;
-  }
-
-  get debts(): ReadonlyMap<string, Debt> {
-    return this._debts;
-  }
-
-  get legalDependants(): ReadonlyMap<string, LegalDependant> {
-    return this._legalDependants;
-  }
-
-  get giftsInterVivos(): ReadonlyMap<string, GiftInterVivos> {
-    return this._giftsInterVivos;
-  }
-
-  // =========================================================================
-  // ASSET MANAGEMENT
-  // =========================================================================
-
-  /**
-   * Add asset to estate inventory
-   */
   public addAsset(asset: Asset): void {
     this.ensureNotFrozen();
-    this.ensureNotDeleted();
 
-    if (this._assets.has(asset.id.toString())) {
-      throw new Error(`Asset already exists in estate: ${asset.id.toString()}`);
-    }
+    // Check duplication logic or rules here
+    this.props.assets.push(asset);
+    this.updateState({ updatedAt: new Date() });
 
-    if (!asset.estateId.equals(this.id)) {
-      throw new Error('Asset does not belong to this estate');
-    }
-
-    this._assets.set(asset.id.toString(), asset);
-    this._isDirty = true;
-
-    this.addDomainEvent(
-      new AssetAddedToEstateEvent(this.id.toString(), this.getAggregateType(), this.getVersion(), {
-        assetId: asset.id.toString(),
-        assetName: asset.name,
-        assetType: asset.type.value,
-        value: asset.currentValue.getAmount(),
-      }),
-    );
-
-    this.recalculateFinancials();
+    // Re-calculate solvency whenever ledger changes
+    this.checkSolvency();
   }
 
-  /**
-   * Remove asset from estate
-   */
-  public removeAsset(assetId: UniqueEntityID, reason: string): void {
-    this.ensureNotFrozen();
-    this.ensureNotDeleted();
-
-    const asset = this._assets.get(assetId.toString());
-    if (!asset) {
-      throw new Error(`Asset not found: ${assetId.toString()}`);
-    }
-
-    this._assets.delete(assetId.toString());
-    this._isDirty = true;
-
-    this.addDomainEvent(
-      new AssetRemovedFromEstateEvent(
-        this.id.toString(),
-        this.getAggregateType(),
-        this.getVersion(),
-        {
-          assetId: assetId.toString(),
-          assetName: asset.name,
-          reason,
-        },
-      ),
-    );
-
-    this.recalculateFinancials();
-  }
-
-  /**
-   * Get asset by ID
-   */
-  public getAsset(assetId: UniqueEntityID): Asset | undefined {
-    return this._assets.get(assetId.toString());
-  }
-
-  /**
-   * Get all verified assets (ready for distribution)
-   */
-  public getVerifiedAssets(): Asset[] {
-    return Array.from(this._assets.values()).filter((asset) => asset.isReadyForDistribution());
-  }
-
-  /**
-   * Get total distributable asset value
-   */
-  public getTotalDistributableAssetValue(): Money {
-    const verified = this.getVerifiedAssets();
-    const values = verified.map((asset) => asset.getDistributableValue());
-    return Money.sum(values);
-  }
-
-  // =========================================================================
-  // DEBT MANAGEMENT (S.45 LSA Priority)
-  // =========================================================================
-
-  /**
-   * Add debt to estate
-   */
   public addDebt(debt: Debt): void {
     this.ensureNotFrozen();
-    this.ensureNotDeleted();
 
-    if (this._debts.has(debt.id.toString())) {
-      throw new Error(`Debt already exists in estate: ${debt.id.toString()}`);
-    }
+    this.props.debts.push(debt);
+    this.updateState({ updatedAt: new Date() });
 
-    if (!debt.estateId.equals(this.id)) {
-      throw new Error('Debt does not belong to this estate');
-    }
-
-    this._debts.set(debt.id.toString(), debt);
-    this._isDirty = true;
-
-    this.addDomainEvent(
-      new DebtAddedToEstateEvent(this.id.toString(), this.getAggregateType(), this.getVersion(), {
-        debtId: debt.id.toString(),
-        debtType: debt.type,
-        creditorName: debt.creditorName,
-        amount: debt.outstandingBalance.getAmount(),
-        priority: debt.priority.getTier(),
-      }),
-    );
-
-    this.recalculateFinancials();
+    this.checkSolvency();
   }
 
+  // ===========================================================================
+  // 2. SECTION 45 ENFORCER (Debt Payment Logic)
+  // ===========================================================================
+
   /**
-   * Remove debt from estate
+   * Attempts to pay a debt.
+   * INNOVATION: Strictly enforces Law of Succession Act S.45 Priorities.
+   * You cannot pay a Tier 5 debt if a Tier 1 debt is outstanding.
    */
-  public removeDebt(debtId: UniqueEntityID, reason: string): void {
+  public payDebt(debtId: string, amount: MoneyVO): void {
     this.ensureNotFrozen();
-    this.ensureNotDeleted();
 
-    const debt = this._debts.get(debtId.toString());
-    if (!debt) {
-      throw new Error(`Debt not found: ${debtId.toString()}`);
+    const debt = this.props.debts.find((d) => d.id.toString() === debtId);
+    if (!debt) throw new EstateLogicException(`Debt ${debtId} not found`);
+
+    // 1. Check Cash Liquidity
+    if (this.props.cashOnHand.amount < amount.amount) {
+      throw new EstateLogicException(
+        `Insufficient Cash on Hand. Needed: ${amount.toString()}, Available: ${this.props.cashOnHand.toString()}`,
+      );
     }
 
-    this._debts.delete(debtId.toString());
-    this._isDirty = true;
+    // 2. INNOVATION: S.45 Priority Check
+    // Are there any active debts with HIGHER priority (lower Tier number) than this one?
+    const higherPriorityDebts = this.props.debts.filter(
+      (d) =>
+        d.status === DebtStatus.OUTSTANDING &&
+        d.id.toString() !== debtId &&
+        d.priority.getValue().tier < debt.priority.getValue().tier,
+    );
 
-    this.addDomainEvent(
-      new DebtRemovedFromEstateEvent(
+    if (higherPriorityDebts.length > 0) {
+      // Get the name of the most critical one
+      const blocker = higherPriorityDebts.sort(
+        (a, b) => a.priority.getValue().tier - b.priority.getValue().tier,
+      )[0];
+      throw new Section45ViolationException(
         this.id.toString(),
-        this.getAggregateType(),
-        this.getVersion(),
-        {
-          debtId: debtId.toString(),
-          reason,
-        },
-      ),
-    );
-
-    this.recalculateFinancials();
-  }
-
-  /**
-   * Get debt by ID
-   */
-  public getDebt(debtId: UniqueEntityID): Debt | undefined {
-    return this._debts.get(debtId.toString());
-  }
-
-  /**
-   * Get debts sorted by S.45 priority
-   */
-  public getDebtsByPriority(): Debt[] {
-    const debts = Array.from(this._debts.values());
-    return debts.sort((a, b) => a.priority.compare(b.priority));
-  }
-
-  /**
-   * Get critical debts (must be paid before distribution)
-   */
-  public getCriticalDebts(): Debt[] {
-    return Array.from(this._debts.values()).filter((debt) => debt.blocksDistribution());
-  }
-
-  /**
-   * Check if all critical debts are settled
-   */
-  public areCriticalDebtsSettled(): boolean {
-    const critical = this.getCriticalDebts();
-    return critical.length === 0;
-  }
-
-  /**
-   * Get total outstanding debt amount
-   */
-  public getTotalOutstandingDebt(): Money {
-    const debts = Array.from(this._debts.values()).filter(
-      (debt) => debt.status !== DebtStatus.SETTLED && debt.status !== DebtStatus.WRITTEN_OFF,
-    );
-
-    const amounts = debts.map((debt) => debt.outstandingBalance);
-    return Money.sum(amounts);
-  }
-
-  // =========================================================================
-  // LEGAL DEPENDANT MANAGEMENT (S.26/S.29 LSA)
-  // =========================================================================
-
-  /**
-   * Add legal dependant claim
-   */
-  public addLegalDependant(dependant: LegalDependant): void {
-    this.ensureNotFrozen();
-    this.ensureNotDeleted();
-
-    if (this._legalDependants.has(dependant.id.toString())) {
-      throw new Error(`Dependant already exists: ${dependant.id.toString()}`);
+        `Cannot pay ${debt.priority.getValue().name} debt while ${blocker.priority.getValue().name} (${blocker.props.description}) is still outstanding.`,
+      );
     }
 
-    if (!dependant.estateId.equals(this.id)) {
-      throw new Error('Dependant does not belong to this estate');
+    // 3. Process Payment
+    debt.recordPayment(amount, 'Estate Cash'); // Delegate to Child Entity
+
+    // 4. Update Aggregate State (Reduce Cash)
+    this.updateState({
+      cashOnHand: this.props.cashOnHand.subtract(amount),
+      updatedAt: new Date(),
+    });
+
+    this.checkSolvency();
+  }
+
+  // ===========================================================================
+  // 3. THE CALCULATOR (Net Worth & Hotchpot)
+  // ===========================================================================
+
+  /**
+   * Calculates the raw Net Value.
+   * Formula: (Distributable Assets + Cash) - (Liabilities)
+   */
+  public getNetValue(): MoneyVO {
+    // Sum of Distributable Assets (excluding Joint Tenancy survivor shares)
+    const totalAssets = this.props.assets
+      .filter((a) => a.status !== AssetStatus.LIQUIDATED) // Liquidated ones are in Cash
+      .reduce((sum, asset) => sum + asset.getDistributableValue().amount, 0);
+
+    const totalCash = this.props.cashOnHand.amount;
+
+    // Sum of Outstanding Debts
+    const totalDebts = this.props.debts.reduce(
+      (sum, debt) => sum + debt.outstandingBalance.amount,
+      0,
+    );
+
+    // Sum of Tax Liability
+    const totalTax =
+      this.props.taxCompliance.totalLiability.amount -
+      this.props.taxCompliance.props.totalPaid.amount;
+
+    const netAmount = totalAssets + totalCash - (totalDebts + totalTax);
+
+    // If negative, return zero (or negative if we want to show insolvency magnitude)
+    return MoneyVO.createKES(netAmount);
+  }
+
+  /**
+   * Calculates the S.35 Distribution Pool.
+   * Formula: Net Value + GiftInterVivos (Hotchpot)
+   */
+  public getDistributablePool(): MoneyVO {
+    const netValue = this.getNetValue();
+
+    // S.35(3) Hotchpot: Add back confirmed gifts
+    const hotchpotValue = this.props.gifts
+      .filter((g) => g.status === GiftStatus.CONFIRMED)
+      .reduce((sum, gift) => sum + gift.value.amount, 0);
+
+    return netValue.add(MoneyVO.createKES(hotchpotValue));
+  }
+
+  // ===========================================================================
+  // 4. THE SOLVENCY RADAR
+  // ===========================================================================
+
+  private checkSolvency(): void {
+    const netValue = this.getNetValue();
+    const isNowInsolvent = netValue.amount < 0;
+
+    // Check previous state logic (simplified here)
+    // If we just became insolvent, emit event
+    if (isNowInsolvent) {
+      // Check if we already emitted this? (In a real app, we'd check previous events or state flags)
+      // For now, we emit to alert the system.
+      this.addDomainEvent(
+        new EstateInsolvencyDetectedEvent(this.id.toString(), netValue.amount, this.version),
+      );
     }
-
-    this._legalDependants.set(dependant.id.toString(), dependant);
-    this._isDirty = true;
-
-    this.addDomainEvent(
-      new DependantClaimFiledEvent(this.id.toString(), this.getAggregateType(), this.getVersion(), {
-        dependantId: dependant.id.toString(),
-        claimantId: dependant.dependantId.toString(),
-        relationshipToDeceased: dependant.relationshipToDeceased,
-        dependencyLevel: dependant.dependencyLevel,
-        monthlyNeeds: dependant.monthlyNeeds?.getAmount(),
-      }),
-    );
   }
 
-  /**
-   * Remove dependant claim
-   */
-  public removeLegalDependant(dependantId: UniqueEntityID, reason: string): void {
-    this.ensureNotFrozen();
-    this.ensureNotDeleted();
-
-    const dependant = this._legalDependants.get(dependantId.toString());
-    if (!dependant) {
-      throw new Error(`Dependant not found: ${dependantId.toString()}`);
-    }
-
-    this._legalDependants.delete(dependantId.toString());
-    this._isDirty = true;
-
-    this.addDomainEvent(
-      new DependantClaimRemovedEvent(
-        this.id.toString(),
-        this.getAggregateType(),
-        this.getVersion(),
-        {
-          dependantId: dependantId.toString(),
-          reason,
-        },
-      ),
-    );
-  }
-
-  /**
-   * Get all verified dependants
-   */
-  public getVerifiedDependants(): LegalDependant[] {
-    return Array.from(this._legalDependants.values()).filter((dep) => dep.isVerified);
-  }
-
-  /**
-   * Get total dependant provision needs
-   */
-  public getTotalDependantProvisionNeeds(): Money {
-    const verified = this.getVerifiedDependants();
-    const provisions = verified.map((dep) => dep.calculateAnnualProvision());
-    return Money.sum(provisions);
-  }
-
-  // =========================================================================
-  // GIFT INTER VIVOS MANAGEMENT (S.35(3) Hotchpot)
-  // =========================================================================
-
-  /**
-   * Add gift inter vivos record
-   */
-  public addGiftInterVivos(gift: GiftInterVivos): void {
-    this.ensureNotFrozen();
-    this.ensureNotDeleted();
-
-    if (this._giftsInterVivos.has(gift.id.toString())) {
-      throw new Error(`Gift already recorded: ${gift.id.toString()}`);
-    }
-
-    if (!gift.estateId.equals(this.id)) {
-      throw new Error('Gift does not belong to this estate');
-    }
-
-    this._giftsInterVivos.set(gift.id.toString(), gift);
-    this._isDirty = true;
-
-    this.addDomainEvent(
-      new GiftInterVivosRecordedEvent(
-        this.id.toString(),
-        this.getAggregateType(),
-        this.getVersion(),
-        {
-          giftId: gift.id.toString(),
-          recipientId: gift.recipientId.toString(),
-          value: gift.valueAtGiftTime.getAmount(),
-          isSubjectToHotchpot: gift.isSubjectToHotchpot,
-        },
-      ),
-    );
-
-    this.recalculateHotchpot();
-  }
-
-  /**
-   * Remove gift record
-   */
-  public removeGiftInterVivos(giftId: UniqueEntityID, reason: string): void {
-    this.ensureNotFrozen();
-    this.ensureNotDeleted();
-
-    const gift = this._giftsInterVivos.get(giftId.toString());
-    if (!gift) {
-      throw new Error(`Gift not found: ${giftId.toString()}`);
-    }
-
-    this._giftsInterVivos.delete(giftId.toString());
-    this._isDirty = true;
-
-    this.addDomainEvent(
-      new GiftInterVivosRemovedEvent(
-        this.id.toString(),
-        this.getAggregateType(),
-        this.getVersion(),
-        {
-          giftId: giftId.toString(),
-          reason,
-        },
-      ),
-    );
-
-    this.recalculateHotchpot();
-  }
-
-  /**
-   * Get all gifts subject to hotchpot
-   */
-  public getHotchpotGifts(): GiftInterVivos[] {
-    return Array.from(this._giftsInterVivos.values()).filter(
-      (gift) => gift.isSubjectToHotchpot && gift.isVerified,
-    );
-  }
-
-  /**
-   * Calculate total hotchpot value (S.35(3))
-   */
-  public calculateTotalHotchpotValue(): Money {
-    const gifts = this.getHotchpotGifts();
-    const values = gifts.map((gift) => gift.getHotchpotValue());
-    return Money.sum(values);
-  }
-
-  // =========================================================================
-  // FINANCIAL CALCULATIONS (Invariant Enforcement)
-  // =========================================================================
-
-  /**
-   * Recalculate all financial values
-   * Called automatically when assets/debts change
-   */
-  private recalculateFinancials(): void {
-    // Gross Value = Sum of all distributable asset values
-    const assetValues = Array.from(this._assets.values())
-      .filter((asset) => asset.isActive && !asset.isDeleted)
-      .map((asset) => asset.getDistributableValue());
-    const grossValue = Money.sum(assetValues);
-
-    // Total Liabilities = Sum of outstanding debts
-    const debtAmounts = Array.from(this._debts.values())
-      .filter(
-        (debt) =>
-          debt.status !== DebtStatus.SETTLED &&
-          debt.status !== DebtStatus.WRITTEN_OFF &&
-          !debt.isStatuteBarred,
-      )
-      .map((debt) => debt.outstandingBalance);
-    const totalLiabilities = Money.sum(debtAmounts);
-
-    // Net Value = Gross - Liabilities
-    const netValue = grossValue.subtract(totalLiabilities);
-
-    // Update props
-    (this.props as any).grossValueKES = grossValue;
-    (this.props as any).totalLiabilitiesKES = totalLiabilities;
-    (this.props as any).netEstateValueKES = netValue.isNegative() ? Money.zero() : netValue;
-
-    this._isDirty = false;
-
-    // Emit event
-    this.addDomainEvent(
-      new EstateValueRecalculatedEvent(
-        this.id.toString(),
-        this.getAggregateType(),
-        this.getVersion(),
-        {
-          grossValue: grossValue.getAmount(),
-          totalLiabilities: totalLiabilities.getAmount(),
-          netValue: this.netEstateValueKES.getAmount(),
-        },
-      ),
-    );
-  }
-
-  /**
-   * Recalculate hotchpot value (S.35(3))
-   */
-  private recalculateHotchpot(): void {
-    const hotchpotValue = this.calculateTotalHotchpotValue();
-    const adjustedValue = this.grossValueKES.add(hotchpotValue);
-
-    (this.props as any).hotchpotAdjustedValueKES = adjustedValue;
-  }
-
-  /**
-   * Force recalculation (for integrity checks)
-   */
-  public forceRecalculation(): void {
-    this.recalculateFinancials();
-    this.recalculateHotchpot();
-  }
-
-  // =========================================================================
-  // SOLVENCY CHECKS (Business Rules)
-  // =========================================================================
-
-  /**
-   * Check if estate is solvent (assets >= liabilities)
-   */
   public isSolvent(): boolean {
-    return this.grossValueKES.greaterThanOrEqual(this.totalLiabilitiesKES);
+    return this.getNetValue().amount >= 0;
   }
 
-  /**
-   * Check if estate can cover critical debts
-   */
-  public canCoverCriticalDebts(): boolean {
-    const critical = this.getCriticalDebts();
-    const criticalAmount = Money.sum(critical.map((d) => d.outstandingBalance));
-    return this.grossValueKES.greaterThanOrEqual(criticalAmount);
-  }
+  // ===========================================================================
+  // 5. THE GATEKEEPER (Readiness Check)
+  // ===========================================================================
 
   /**
-   * Get insolvency shortfall (if insolvent)
+   * The "Final Check" before generating the Distribution Plan.
    */
-  public getInsolvencyShortfall(): Money {
-    if (this.isSolvent()) {
-      return Money.zero();
-    }
-    return this.totalLiabilitiesKES.subtract(this.grossValueKES);
-  }
-
-  // =========================================================================
-  // DISTRIBUTION READINESS
-  // =========================================================================
-
-  /**
-   * Check if estate is ready for distribution
-   */
-  public isReadyForDistribution(): boolean {
-    return (
-      !this.isFrozen &&
-      this.isSolvent() &&
-      this.areCriticalDebtsSettled() &&
-      this.getVerifiedAssets().length > 0
-    );
-  }
-
-  /**
-   * Get distribution blockers
-   */
-  public getDistributionBlockers(): string[] {
-    const blockers: string[] = [];
-
-    if (this.isFrozen) {
-      blockers.push(`Estate is frozen: ${this.props.frozenReason}`);
+  public validateReadyForDistribution(): void {
+    // 1. Frozen Check
+    if (this.props.isFrozen) {
+      throw new EstateFrozenException(this.id.toString(), this.props.freezeReason || 'Unknown');
     }
 
+    // 2. Solvency Check
     if (!this.isSolvent()) {
-      blockers.push(`Estate is insolvent (shortfall: ${this.getInsolvencyShortfall().format()})`);
+      throw new EstateInsolventException(this.id.toString(), this.getNetValue().amount);
     }
 
-    const criticalDebts = this.getCriticalDebts();
-    if (criticalDebts.length > 0) {
-      blockers.push(`${criticalDebts.length} critical debt(s) must be settled`);
-    }
-
-    const unverified = Array.from(this._assets.values()).filter(
-      (asset) => !asset.verificationStatus.isVerified(),
-    );
-    if (unverified.length > 0) {
-      blockers.push(`${unverified.length} asset(s) pending verification`);
-    }
-
-    return blockers;
-  }
-
-  // =========================================================================
-  // ESTATE STATUS MANAGEMENT
-  // =========================================================================
-
-  /**
-   * Mark estate as testate (has valid will)
-   */
-  public markAsTestate(): void {
-    this.ensureNotDeleted();
-
-    if (this.isTestate) {
-      throw new Error('Estate is already marked as testate');
-    }
-
-    (this.props as any).isTestate = true;
-    (this.props as any).isIntestate = false;
-
-    this.addDomainEvent(
-      new EstateMarkedAsTestateEvent(
+    // 3. Tax Compliance Check (The Bouncer)
+    if (!this.props.taxCompliance.isClearedForDistribution()) {
+      throw new TaxComplianceBlockException(
         this.id.toString(),
-        this.getAggregateType(),
-        this.getVersion(),
-        {},
+        this.props.taxCompliance.status.toString(),
+      );
+    }
+
+    // 4. Dispute Check
+    const hasActiveDisputes =
+      this.props.debts.some((d) => d.status === DebtStatus.DISPUTED) ||
+      this.props.assets.some((a) => a.status === AssetStatus.DISPUTED);
+
+    if (hasActiveDisputes) {
+      throw new EstateLogicException('Cannot distribute while Assets or Debts are DISPUTED.');
+    }
+
+    // If we pass all this, emit event
+    this.addDomainEvent(
+      new EstateReadyForDistributionEvent(
+        this.id.toString(),
+        this.getDistributablePool().amount,
+        this.version,
       ),
     );
   }
 
-  /**
-   * Mark estate as intestate (no valid will)
-   */
-  public markAsIntestate(): void {
-    this.ensureNotDeleted();
+  // ===========================================================================
+  // 6. SAFETY SWITCHES
+  // ===========================================================================
 
-    if (this.isIntestate) {
-      throw new Error('Estate is already marked as intestate');
-    }
+  public freeze(reason: string, byUser: string): void {
+    this.updateState({
+      isFrozen: true,
+      freezeReason: reason,
+      updatedAt: new Date(),
+    });
 
-    (this.props as any).isTestate = false;
-    (this.props as any).isIntestate = true;
-
-    this.addDomainEvent(
-      new EstateMarkedAsIntestateEvent(
-        this.id.toString(),
-        this.getAggregateType(),
-        this.getVersion(),
-        {},
-      ),
-    );
+    this.addDomainEvent(new EstateFrozenEvent(this.id.toString(), reason, byUser, this.version));
   }
 
-  /**
-   * Freeze estate (dispute, tax hold, etc.)
-   */
-  public freeze(reason: string): void {
-    this.ensureNotDeleted();
+  public unfreeze(reason: string, byUser: string): void {
+    this.updateState({
+      isFrozen: false,
+      freezeReason: undefined,
+      updatedAt: new Date(),
+    });
 
-    if (this.isFrozen) {
-      throw new Error('Estate is already frozen');
-    }
-
-    if (!reason || reason.trim().length === 0) {
-      throw new Error('Freeze reason is required');
-    }
-
-    (this.props as any).isFrozen = true;
-    (this.props as any).frozenAt = new Date();
-    (this.props as any).frozenReason = reason;
-
-    this.addDomainEvent(
-      new EstateFrozenEvent(this.id.toString(), this.getAggregateType(), this.getVersion(), {
-        reason,
-        frozenAt: new Date(),
-      }),
-    );
-  }
-
-  /**
-   * Unfreeze estate
-   */
-  public unfreeze(reason: string): void {
-    this.ensureNotDeleted();
-
-    if (!this.isFrozen) {
-      throw new Error('Estate is not frozen');
-    }
-
-    if (!reason || reason.trim().length === 0) {
-      throw new Error('Unfreeze reason is required');
-    }
-
-    (this.props as any).isFrozen = false;
-    (this.props as any).frozenAt = undefined;
-    (this.props as any).metadata = {
-      ...this.props.metadata,
-      lastFrozenReason: this.props.frozenReason,
-      unfrozenAt: new Date(),
-      unfreezeReason: reason,
-    };
-
-    this.addDomainEvent(
-      new EstateUnfrozenEvent(this.id.toString(), this.getAggregateType(), this.getVersion(), {
-        reason,
-        unfrozenAt: new Date(),
-      }),
-    );
+    this.addDomainEvent(new EstateUnfrozenEvent(this.id.toString(), reason, byUser, this.version));
   }
 
   private ensureNotFrozen(): void {
-    if (this.isFrozen) {
-      throw new Error(`Estate is frozen: ${this.props.frozenReason}`);
+    if (this.props.isFrozen) {
+      throw new EstateFrozenException(this.id.toString(), this.props.freezeReason || 'Frozen');
     }
   }
 
-  // =========================================================================
-  // AGGREGATE ROOT IMPLEMENTATION
-  // =========================================================================
-
-  protected applyEvent(_event: DomainEvent): void {
-    // Event sourcing: Apply event to rebuild state
-    // Implementation depends on your event sourcing strategy
+  // Boilerplate for abstract method implementation
+  protected applyEvent(event: any): void {
+    // Event sourcing replay logic goes here
   }
-
   public validate(): void {
-    if (!this.props.deceasedId) {
-      throw new Error('Deceased ID is required');
-    }
-
-    if (!this.props.deceasedFullName || this.props.deceasedFullName.trim().length === 0) {
-      throw new Error('Deceased full name is required');
-    }
-
-    if (!this.props.grossValueKES) {
-      throw new Error('Gross value is required');
-    }
-
-    if (!this.props.totalLiabilitiesKES) {
-      throw new Error('Total liabilities is required');
-    }
-
-    if (!this.props.netEstateValueKES) {
-      throw new Error('Net estate value is required');
-    }
-
-    // Invariant: Net value must equal gross - liabilities
-    const calculated = this.props.grossValueKES.subtract(this.props.totalLiabilitiesKES);
-    const expectedNet = calculated.isNegative() ? Money.zero() : calculated;
-
-    if (!this.props.netEstateValueKES.equals(expectedNet)) {
-      throw new Error('Net estate value does not match gross - liabilities');
-    }
-  }
-
-  /**
-   * Clone estate (for scenario simulations)
-   */
-  public clone(): Estate {
-    const clonedProps = { ...this.props };
-    const cloned = new Estate(new UniqueEntityID(), clonedProps);
-
-    // Clone collections
-    this._assets.forEach((asset, key) => {
-      cloned._assets.set(key, asset.clone());
-    });
-    this._debts.forEach((debt, key) => {
-      cloned._debts.set(key, debt.clone());
-    });
-    this._legalDependants.forEach((dep, key) => {
-      cloned._legalDependants.set(key, dep.clone());
-    });
-    this._giftsInterVivos.forEach((gift, key) => {
-      cloned._giftsInterVivos.set(key, gift.clone());
-    });
-
-    return cloned;
+    // Invariant checks
   }
 }
-
-// =========================================================================
-// DOMAIN EVENTS (To be expanded in events file)
-// =========================================================================
-
-class EstateCreatedEvent extends DomainEvent<any> {}
-class AssetAddedToEstateEvent extends DomainEvent<any> {}
-class AssetRemovedFromEstateEvent extends DomainEvent<any> {}
-class DebtAddedToEstateEvent extends DomainEvent<any> {}
-class DebtRemovedFromEstateEvent extends DomainEvent<any> {}
-class DependantClaimFiledEvent extends DomainEvent<any> {}
-class DependantClaimRemovedEvent extends DomainEvent<any> {}
-class GiftInterVivosRecordedEvent extends DomainEvent<any> {}
-class GiftInterVivosRemovedEvent extends DomainEvent<any> {}
-class EstateValueRecalculatedEvent extends DomainEvent<any> {}
-class EstateMarkedAsTestateEvent extends DomainEvent<any> {}
-class EstateMarkedAsIntestateEvent extends DomainEvent<any> {}
-class EstateFrozenEvent extends DomainEvent<any> {}
-class EstateUnfrozenEvent extends DomainEvent<any> {}

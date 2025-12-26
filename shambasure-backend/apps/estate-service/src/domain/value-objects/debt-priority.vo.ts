@@ -1,53 +1,51 @@
 // src/estate-service/src/domain/value-objects/debt-priority.vo.ts
-import { ValueObject } from '../base/value-object';
+import { ValueObject, ValueObjectValidationError } from '../base/value-object';
 
-/**
- * Debt Priority Value Object based on Law of Succession Act S.45
- *
- * S.45 specifies the order:
- * 1. Funeral expenses
- * 2. Testamentary expenses
- * 3. Secured debts
- * 4. Unsecured debts
- * 5. General unsecured debts
- */
 export interface DebtPriorityProps {
   tier: number; // 1 (highest) to 5 (lowest)
   name: string;
   description: string;
-  legalReference: string; // e.g., "S.45(a)"
+  legalReference: string;
 }
 
+/**
+ * Debt Priority Value Object
+ * Implements Law of Succession Act S.45 strict ordering.
+ */
 export class DebtPriorityVO extends ValueObject<DebtPriorityProps> {
-  // S.45 Priority Tiers
+  // S.45(a) - First Priority
   static readonly FUNERAL_EXPENSES = new DebtPriorityVO({
     tier: 1,
     name: 'FUNERAL_EXPENSES',
-    description: 'Reasonable funeral expenses of the deceased',
+    description: 'Reasonable funeral expenses',
     legalReference: 'S.45(a)',
   });
 
+  // S.45(a) - Second Priority
   static readonly TESTAMENTARY_EXPENSES = new DebtPriorityVO({
     tier: 2,
     name: 'TESTAMENTARY_EXPENSES',
-    description: 'Costs of obtaining grant, administration, and testamentary expenses',
+    description: 'Costs of obtaining grant and administration',
     legalReference: 'S.45(a)',
   });
 
+  // S.45(b) - Third Priority (Secured)
   static readonly SECURED_DEBTS = new DebtPriorityVO({
     tier: 3,
     name: 'SECURED_DEBTS',
-    description: 'Debts secured by mortgage, charge, or lien on property',
+    description: 'Debts secured by mortgage or charge',
     legalReference: 'S.45(b)',
   });
 
+  // S.45(c) - Fourth Priority
   static readonly TAXES_RATES_WAGES = new DebtPriorityVO({
     tier: 4,
     name: 'TAXES_RATES_WAGES',
-    description: 'All taxes, rates, and wages due from deceased',
+    description: 'Taxes, rates, and wages due',
     legalReference: 'S.45(c)',
   });
 
+  // S.45(d) - Fifth Priority
   static readonly UNSECURED_DEBTS = new DebtPriorityVO({
     tier: 5,
     name: 'UNSECURED_DEBTS',
@@ -61,95 +59,27 @@ export class DebtPriorityVO extends ValueObject<DebtPriorityProps> {
 
   protected validate(): void {
     if (this.props.tier < 1 || this.props.tier > 5) {
-      throw new ValueObjectValidationError('Debt priority tier must be between 1 and 5', 'tier');
-    }
-
-    const validNames = [
-      'FUNERAL_EXPENSES',
-      'TESTAMENTARY_EXPENSES',
-      'SECURED_DEBTS',
-      'TAXES_RATES_WAGES',
-      'UNSECURED_DEBTS',
-    ];
-
-    if (!validNames.includes(this.props.name)) {
-      throw new ValueObjectValidationError(
-        `Invalid debt priority name: ${this.props.name}`,
-        'name',
-      );
+      throw new ValueObjectValidationError('Tier must be between 1 and 5', 'tier');
     }
   }
 
-  /**
-   * Compare priorities (higher tier = higher priority)
-   */
   hasHigherPriorityThan(other: DebtPriorityVO): boolean {
     return this.props.tier < other.props.tier;
   }
 
-  hasLowerPriorityThan(other: DebtPriorityVO): boolean {
-    return this.props.tier > other.props.tier;
-  }
-
-  equalsPriority(other: DebtPriorityVO): boolean {
-    return this.props.tier === other.props.tier;
-  }
-
-  /**
-   * Check if this is a secured debt
-   */
   isSecured(): boolean {
-    return this.props.name === 'SECURED_DEBTS';
+    return this.props.tier === 3;
   }
 
   /**
-   * Check if this is a funeral expense (highest priority)
+   * Sorts an array of objects containing a priority field.
+   * Useful for the Estate Aggregate to order payment processing.
    */
-  isFuneralExpense(): boolean {
-    return this.props.name === 'FUNERAL_EXPENSES';
-  }
-
-  /**
-   * Get all priorities in order (highest to lowest)
-   */
-  static getAllInOrder(): DebtPriorityVO[] {
-    return [
-      DebtPriorityVO.FUNERAL_EXPENSES,
-      DebtPriorityVO.TESTAMENTARY_EXPENSES,
-      DebtPriorityVO.SECURED_DEBTS,
-      DebtPriorityVO.TAXES_RATES_WAGES,
-      DebtPriorityVO.UNSECURED_DEBTS,
-    ];
-  }
-
-  /**
-   * Get priority by tier number
-   */
-  static fromTier(tier: number): DebtPriorityVO {
-    const priority = DebtPriorityVO.getAllInOrder().find((p) => p.props.tier === tier);
-
-    if (!priority) {
-      throw new ValueObjectValidationError(`No debt priority found for tier: ${tier}`, 'tier');
-    }
-
-    return priority;
-  }
-
-  /**
-   * Sort debts by priority (highest first)
-   */
-  static sortByPriority<T extends { priority: DebtPriorityVO }>(debts: T[]): T[] {
-    return [...debts].sort((a, b) => a.priority.props.tier - b.priority.props.tier);
+  static sortByPriority<T extends { priority: DebtPriorityVO }>(items: T[]): T[] {
+    return [...items].sort((a, b) => a.priority.props.tier - b.priority.props.tier);
   }
 
   toJSON(): Record<string, any> {
-    return {
-      tier: this.props.tier,
-      name: this.props.name,
-      description: this.props.description,
-      legalReference: this.props.legalReference,
-      isHighestPriority: this.props.tier === 1,
-      isLowestPriority: this.props.tier === 5,
-    };
+    return { ...this.props };
   }
 }
