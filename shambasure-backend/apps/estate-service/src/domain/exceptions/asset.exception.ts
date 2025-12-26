@@ -1,146 +1,41 @@
-// src/estate-service/src/domain/entities/exceptions/asset.exception.ts
+// src/estate-service/src/domain/exceptions/asset.exception.ts
 
-/**
- * Base Asset Exception
- */
-export abstract class AssetException extends Error {
-  constructor(
-    message: string,
-    public readonly assetId?: string,
-  ) {
+export class AssetLogicException extends Error {
+  constructor(message: string) {
     super(message);
-    this.name = this.constructor.name;
-    Object.setPrototypeOf(this, AssetException.prototype);
+    this.name = 'AssetLogicException';
+    Object.setPrototypeOf(this, AssetLogicException.prototype);
   }
 }
 
-/**
- * Asset Logic Exception
- * Thrown when a business rule or invariant is violated.
- * Examples: "Land asset must have land details", "Cannot liquidate active asset"
- */
-export class AssetLogicException extends AssetException {
-  constructor(message: string, assetId?: string) {
-    super(message, assetId);
-  }
-}
-
-/**
- * Asset Not Found Exception
- */
-export class AssetNotFoundException extends AssetException {
-  constructor(assetId: string) {
-    super(`Asset with ID ${assetId} not found`, assetId);
-  }
-}
-
-/**
- * Asset Already Exists Exception
- */
-export class AssetAlreadyExistsException extends AssetException {
-  constructor(assetId: string) {
-    super(`Asset with ID ${assetId} already exists`, assetId);
-  }
-}
-
-/**
- * Asset Cannot Be Modified Exception
- */
-export class AssetCannotBeModifiedException extends AssetException {
+export class AssetCannotBeModifiedException extends Error {
   constructor(assetId: string, reason: string) {
-    super(`Asset ${assetId} cannot be modified: ${reason}`, assetId);
+    super(`Asset ${assetId} cannot be modified: ${reason}`);
+    this.name = 'AssetCannotBeModifiedException';
+    Object.setPrototypeOf(this, AssetCannotBeModifiedException.prototype);
   }
 }
 
-/**
- * Asset Value Invalid Exception
- */
-export class AssetValueInvalidException extends AssetException {
-  constructor(assetId: string, value: number) {
-    super(`Asset ${assetId} has invalid value: ${value}. Must be positive number.`, assetId);
+export class AssetValuationException extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AssetValuationException';
+    Object.setPrototypeOf(this, AssetValuationException.prototype);
   }
 }
 
-/**
- * Asset Ownership Invalid Exception
- */
-export class AssetOwnershipInvalidException extends AssetException {
-  constructor(assetId: string, ownerId: string) {
-    super(`Asset ${assetId} has invalid owner: ${ownerId}`, assetId);
+export class AssetLiquidationException extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AssetLiquidationException';
+    Object.setPrototypeOf(this, AssetLiquidationException.prototype);
   }
 }
 
-/**
- * Asset Liquidation Failed Exception
- */
-export class AssetLiquidationFailedException extends AssetException {
-  constructor(assetId: string, reason: string) {
-    super(`Asset ${assetId} liquidation failed: ${reason}`, assetId);
-  }
-}
-
-/**
- * Liquidation Not Found Exception
- */
-export class LiquidationNotFoundException extends AssetException {
-  constructor(message: string, assetId: string) {
-    super(message || `No active liquidation found for asset ${assetId}`, assetId);
-  }
-}
-
-/**
- * Liquidation Already Exists Exception
- */
-export class LiquidationAlreadyExistsException extends AssetException {
-  constructor(assetId: string) {
-    super(`Active liquidation already exists for asset ${assetId}`, assetId);
-  }
-}
-
-/**
- * Asset Cannot Be Liquidated Exception
- */
-export class AssetCannotBeLiquidatedException extends AssetException {
-  constructor(assetId: string, reason: string) {
-    super(`Asset ${assetId} cannot be liquidated: ${reason}`, assetId);
-  }
-}
-
-/**
- * Asset Encumbered Exception
- */
-export class AssetEncumberedException extends AssetException {
-  constructor(assetId: string, encumbranceType: string) {
-    super(
-      `Asset ${assetId} is encumbered with ${encumbranceType}. Cannot perform operation.`,
-      assetId,
-    );
-  }
-}
-
-/**
- * Asset Co-Ownership Invalid Exception
- */
-export class AssetCoOwnershipInvalidException extends AssetException {
-  constructor(assetId: string, issue: string) {
-    super(`Asset ${assetId} co-ownership invalid: ${issue}`, assetId);
-  }
-}
-
-/**
- * Asset Type Mismatch Exception
- */
-export class AssetTypeMismatchException extends AssetException {
-  constructor(assetId: string, expected: string, actual: string) {
-    super(`Asset ${assetId} type mismatch. Expected ${expected}, got ${actual}`, assetId);
-  }
-}
-
-/**
- * Asset Deleted Exception
- */
-export class AssetDeletedException extends AssetException {
-  constructor(assetId: string) {
-    super(`Asset ${assetId} has been deleted`, assetId);
+export class AssetEncumbranceException extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AssetEncumbranceException';
+    Object.setPrototypeOf(this, AssetEncumbranceException.prototype);
   }
 }

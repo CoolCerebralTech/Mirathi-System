@@ -1,111 +1,69 @@
-// src/estate-service/src/domain/entities/events/asset-valuation.event.ts
+// src/estate-service/src/domain/events/asset-valuation.event.ts
 import { DomainEvent } from '../base/domain-event';
-import { MoneyVO } from '../value-objects/money.vo';
+import { ValuationSource } from '../enums/valuation-source.enum';
 
-/**
- * Base Asset Valuation Event
- */
-export abstract class AssetValuationEvent<T = any> extends DomainEvent<T> {
-  constructor(aggregateId: string, version: number, payload: T, occurredAt?: Date) {
-    super(aggregateId, 'AssetValuation', version, payload, occurredAt);
-  }
-}
-
-/**
- * Valuation Recorded Event
- * Triggered when a new valuation is recorded for an asset
- */
-export class ValuationRecordedEvent extends AssetValuationEvent<{
+export class AssetValuationCreatedEvent extends DomainEvent<{
   assetId: string;
-  valuationId: string;
-  value: { amount: number; currency: string };
-  valuationDate: Date;
-  source: string;
-  sourceDetails?: string;
-  performedBy: string;
-  notes?: string;
+  value: number;
+  source: ValuationSource;
+  conductedBy: string;
 }> {
   constructor(
-    assetId: string,
     valuationId: string,
-    value: MoneyVO,
-    valuationDate: Date,
-    source: string,
-    sourceDetails: string | undefined,
-    performedBy: string,
-    notes: string | undefined,
+    assetId: string,
+    value: number,
+    source: ValuationSource,
+    conductedBy: string,
     version: number,
   ) {
-    super(assetId, version, {
+    super(valuationId, 'AssetValuation', version, {
       assetId,
-      valuationId,
-      value: { amount: value.amount, currency: value.currency },
-      valuationDate,
+      value,
       source,
-      sourceDetails,
-      performedBy,
-      notes,
+      conductedBy,
     });
   }
 }
 
-/**
- * Valuation Updated Event
- * Triggered when an existing valuation is updated (rare, but possible for corrections)
- */
-export class ValuationUpdatedEvent extends AssetValuationEvent<{
+export class AssetValuationUpdatedEvent extends DomainEvent<{
   assetId: string;
-  valuationId: string;
-  oldValue: { amount: number; currency: string };
-  newValue: { amount: number; currency: string };
+  oldValue: number;
+  newValue: number;
   updatedBy: string;
-  reason: string;
 }> {
   constructor(
-    assetId: string,
     valuationId: string,
-    oldValue: MoneyVO,
-    newValue: MoneyVO,
+    assetId: string,
+    oldValue: number,
+    newValue: number,
     updatedBy: string,
-    reason: string,
     version: number,
   ) {
-    super(assetId, version, {
+    super(valuationId, 'AssetValuation', version, {
       assetId,
-      valuationId,
-      oldValue: { amount: oldValue.amount, currency: oldValue.currency },
-      newValue: { amount: newValue.amount, currency: newValue.currency },
+      oldValue,
+      newValue,
       updatedBy,
-      reason,
     });
   }
 }
 
-/**
- * Valuation Deleted Event
- * Triggered when a valuation is deleted (e.g., due to error)
- */
-export class ValuationDeletedEvent extends AssetValuationEvent<{
+export class AssetValuationVerifiedEvent extends DomainEvent<{
   assetId: string;
-  valuationId: string;
-  deletedValue: { amount: number; currency: string };
-  deletedBy: string;
-  reason: string;
+  verifiedBy: string;
+  verificationNotes?: string;
 }> {
   constructor(
-    assetId: string,
     valuationId: string,
-    deletedValue: MoneyVO,
-    deletedBy: string,
-    reason: string,
+    assetId: string,
+    verifiedBy: string,
+    verificationNotes: string | undefined,
     version: number,
   ) {
-    super(assetId, version, {
+    super(valuationId, 'AssetValuation', version, {
       assetId,
-      valuationId,
-      deletedValue: { amount: deletedValue.amount, currency: deletedValue.currency },
-      deletedBy,
-      reason,
+      verifiedBy,
+      verificationNotes,
     });
   }
 }

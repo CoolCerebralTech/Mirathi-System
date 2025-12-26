@@ -1,87 +1,120 @@
 // src/estate-service/src/domain/events/legal-dependant.event.ts
 import { DomainEvent } from '../base/domain-event';
-import { DependantRelationship } from '../entities/legal-dependant.entity';
+import { EvidenceType } from '../entities/dependant-evidence.entity';
+import { DependantRelationship, DependantStatus } from '../entities/legal-dependant.entity';
+import { KenyanLawSection } from '../enums/kenyan-law-section.enum';
 
-export abstract class LegalDependantEvent<T = any> extends DomainEvent<T> {
-  constructor(
-    aggregateId: string,
-    eventType: string,
-    version: number,
-    payload: T,
-    occurredAt?: Date,
-  ) {
-    super(aggregateId, eventType, version, payload, occurredAt);
-  }
-}
-
-export class LegalDependantCreatedEvent extends LegalDependantEvent<{
-  dependantId: string;
+export class LegalDependantCreatedEvent extends DomainEvent<{
   estateId: string;
-  fullName: string;
+  dependantId: string;
   relationship: DependantRelationship;
+  lawSection: KenyanLawSection;
 }> {
   constructor(
     dependantId: string,
     estateId: string,
-    fullName: string,
+    dependantIdRef: string,
     relationship: DependantRelationship,
+    lawSection: KenyanLawSection,
     version: number,
   ) {
-    super(dependantId, 'LegalDependantCreatedEvent', version, {
-      dependantId,
+    super(dependantId, 'LegalDependant', version, {
       estateId,
-      fullName,
+      dependantId: dependantIdRef,
       relationship,
+      lawSection,
     });
   }
 }
 
-export class LegalDependantVerifiedEvent extends LegalDependantEvent<{
-  dependantId: string;
+export class DependantEvidenceAddedEvent extends DomainEvent<{
+  estateId: string;
+  evidenceType: EvidenceType;
+  evidenceId: string;
+  addedBy: string;
+}> {
+  constructor(
+    dependantId: string,
+    estateId: string,
+    evidenceType: EvidenceType,
+    evidenceId: string,
+    addedBy: string,
+    version: number,
+  ) {
+    super(dependantId, 'LegalDependant', version, {
+      estateId,
+      evidenceType,
+      evidenceId,
+      addedBy,
+    });
+  }
+}
+
+export class LegalDependantVerifiedEvent extends DomainEvent<{
   estateId: string;
   verifiedBy: string;
+  verificationNotes?: string;
 }> {
-  constructor(dependantId: string, estateId: string, verifiedBy: string, version: number) {
-    super(dependantId, 'LegalDependantVerifiedEvent', version, {
-      dependantId,
+  constructor(
+    dependantId: string,
+    estateId: string,
+    verifiedBy: string,
+    verificationNotes: string | undefined,
+    version: number,
+  ) {
+    super(dependantId, 'LegalDependant', version, {
       estateId,
       verifiedBy,
+      verificationNotes,
     });
   }
 }
 
-export class LegalDependantRejectedEvent extends LegalDependantEvent<{
-  dependantId: string;
+export class LegalDependantRejectedEvent extends DomainEvent<{
   estateId: string;
   reason: string;
   rejectedBy: string;
+  courtOrderRef?: string;
 }> {
   constructor(
     dependantId: string,
     estateId: string,
     reason: string,
     rejectedBy: string,
+    courtOrderRef: string | undefined,
     version: number,
   ) {
-    super(dependantId, 'LegalDependantRejectedEvent', version, {
-      dependantId,
+    super(dependantId, 'LegalDependant', version, {
       estateId,
       reason,
       rejectedBy,
+      courtOrderRef,
     });
   }
 }
 
-export class DependantEvidenceAddedEvent extends LegalDependantEvent<{
-  dependantId: string;
+export class LegalDependantStatusChangedEvent extends DomainEvent<{
   estateId: string;
-  evidenceType: string;
+  oldStatus: DependantStatus;
+  newStatus: DependantStatus;
+  reason: string;
+  changedBy: string;
 }> {
-  constructor(dependantId: string, estateId: string, evidenceType: string, version: number) {
-    super(dependantId, 'DependantEvidenceAddedEvent', version, {
-      dependantId,
+  constructor(
+    dependantId: string,
+    estateId: string,
+    oldStatus: DependantStatus,
+    newStatus: DependantStatus,
+    reason: string,
+    changedBy: string,
+    version: number,
+  ) {
+    super(dependantId, 'LegalDependant', version, {
       estateId,
-      evidenceType,
+      oldStatus,
+      newStatus,
+      reason,
+      changedBy,
     });
   }
 }

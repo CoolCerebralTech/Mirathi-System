@@ -1,36 +1,41 @@
 // src/estate-service/src/domain/exceptions/legal-dependant.exception.ts
 
-export class DependantException extends Error {
-  constructor(
-    message: string,
-    public readonly dependantId?: string,
-  ) {
+export class DependantLogicException extends Error {
+  constructor(message: string) {
     super(message);
-    this.name = this.constructor.name;
-    Object.setPrototypeOf(this, DependantException.prototype);
+    this.name = 'DependantLogicException';
+    Object.setPrototypeOf(this, DependantLogicException.prototype);
   }
 }
 
-export class DependantLogicException extends DependantException {
-  constructor(message: string, dependantId?: string) {
-    super(message, dependantId);
+export class DependantValidationException extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DependantValidationException';
+    Object.setPrototypeOf(this, DependantValidationException.prototype);
   }
 }
 
-/**
- * Thrown when trying to verify a claim without supporting docs.
- */
-export class MissingEvidenceException extends DependantException {
-  constructor(dependantId: string, details: string) {
-    super(`Evidence missing for Dependant ${dependantId}: ${details}`, dependantId);
+export class MissingEvidenceException extends Error {
+  constructor(dependantId: string, requirement: string) {
+    super(`Dependant ${dependantId} requires evidence: ${requirement}`);
+    this.name = 'MissingEvidenceException';
+    Object.setPrototypeOf(this, MissingEvidenceException.prototype);
   }
 }
 
-/**
- * Thrown if attempting to verify a rejected claim without re-opening it.
- */
-export class InvalidDependantStatusException extends DependantException {
-  constructor(dependantId: string, status: string) {
-    super(`Operation not allowed in current status: ${status}`, dependantId);
+export class DependantVerificationException extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DependantVerificationException';
+    Object.setPrototypeOf(this, DependantVerificationException.prototype);
+  }
+}
+
+export class DependantSettlementException extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DependantSettlementException';
+    Object.setPrototypeOf(this, DependantSettlementException.prototype);
   }
 }

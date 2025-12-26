@@ -23,9 +23,27 @@ export class MoneyVO extends ValueObject<MoneyProps> {
   }
 
   // ===========================================================================
-  // PUBLIC GETTERS (Fixes the TS Errors)
+  // PUBLIC GETTERS
   // ===========================================================================
+  /**
+   * Get the minimum of two amounts
+   */
+  public static min(a: MoneyVO, b: MoneyVO): MoneyVO {
+    if (a.currency !== b.currency) {
+      throw new Error('Cannot compare money in different currencies');
+    }
+    return a.isLessThan(b) ? a : b;
+  }
 
+  /**
+   * Get the maximum of two amounts
+   */
+  public static max(a: MoneyVO, b: MoneyVO): MoneyVO {
+    if (a.currency !== b.currency) {
+      throw new Error('Cannot compare money in different currencies');
+    }
+    return a.isGreaterThan(b) ? a : b;
+  }
   get amount(): number {
     return this.props.amount;
   }
@@ -57,6 +75,43 @@ export class MoneyVO extends ValueObject<MoneyProps> {
         'amount',
       );
     }
+  }
+  /**
+   * Check if this amount is less than another amount
+   */
+  public isLessThan(other: MoneyVO): boolean {
+    this.assertSameCurrency(other);
+    return this.props.amount < other.props.amount;
+  }
+
+  /**
+   * Check if this amount is less than or equal to another amount
+   */
+  public isLessThanOrEqual(other: MoneyVO): boolean {
+    this.assertSameCurrency(other);
+    return this.props.amount <= other.props.amount;
+  }
+
+  /**
+   * Check if this amount is greater than or equal to another amount
+   */
+  public isGreaterThanOrEqual(other: MoneyVO): boolean {
+    this.assertSameCurrency(other);
+    return this.props.amount >= other.props.amount;
+  }
+
+  /**
+   * Check if amount is positive (greater than zero)
+   */
+  public isPositive(): boolean {
+    return this.props.amount > 0;
+  }
+
+  /**
+   * Check if amount is negative
+   */
+  public isNegative(): boolean {
+    return this.props.amount < 0;
   }
 
   public add(other: MoneyVO): MoneyVO {
@@ -167,5 +222,22 @@ export class MoneyVO extends ValueObject<MoneyProps> {
 
   public static zero(currency: string = 'KES'): MoneyVO {
     return new MoneyVO({ amount: 0, currency });
+  }
+  /**
+   * Check if amount is within range (inclusive)
+   */
+  public isBetween(min: MoneyVO, max: MoneyVO): boolean {
+    this.assertSameCurrency(min);
+    this.assertSameCurrency(max);
+    return this.props.amount >= min.amount && this.props.amount <= max.amount;
+  }
+
+  /**
+   * Calculate percentage difference from another amount
+   */
+  public percentageDifferenceFrom(other: MoneyVO): number {
+    this.assertSameCurrency(other);
+    if (other.amount === 0) return Infinity;
+    return ((this.props.amount - other.amount) / other.amount) * 100;
   }
 }

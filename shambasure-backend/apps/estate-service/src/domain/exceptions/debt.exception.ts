@@ -1,115 +1,41 @@
-// src/estate-service/src/domain/entities/exceptions/debt.exception.ts
+// src/estate-service/src/domain/exceptions/debt.exception.ts
 
-/**
- * Base Debt Exception
- */
-export abstract class DebtException extends Error {
-  constructor(
-    message: string,
-    public readonly debtId?: string,
-    public readonly estateId?: string,
-  ) {
+export class DebtLogicException extends Error {
+  constructor(message: string) {
     super(message);
-    this.name = this.constructor.name;
-    Object.setPrototypeOf(this, DebtException.prototype);
+    this.name = 'DebtLogicException';
+    Object.setPrototypeOf(this, DebtLogicException.prototype);
   }
 }
 
-/**
- * Debt Already Exists Exception
- */
-export class DebtAlreadyExistsException extends DebtException {
-  constructor(debtId: string, estateId: string) {
-    super(`Debt ${debtId} already exists in estate ${estateId}`, debtId, estateId);
+export class InvalidDebtAmountException extends Error {
+  constructor(estateId: string, amount: number) {
+    super(`Invalid debt amount ${amount} for estate ${estateId}. Amount must be positive.`);
+    this.name = 'InvalidDebtAmountException';
+    Object.setPrototypeOf(this, InvalidDebtAmountException.prototype);
   }
 }
 
-/**
- * Debt Not Found Exception
- */
-export class DebtNotFoundException extends DebtException {
-  constructor(debtId: string, estateId: string) {
-    super(`Debt ${debtId} not found in estate ${estateId}`, debtId, estateId);
+export class StatuteBarredDebtException extends Error {
+  constructor(debtId: string, limitationYears: number) {
+    super(`Debt ${debtId} is statute barred after ${limitationYears} years and cannot be paid.`);
+    this.name = 'StatuteBarredDebtException';
+    Object.setPrototypeOf(this, StatuteBarredDebtException.prototype);
   }
 }
 
-/**
- * Invalid Debt Amount Exception
- */
-export class InvalidDebtAmountException extends DebtException {
-  constructor(debtId: string, amount: number) {
-    super(`Invalid debt amount ${amount} for debt ${debtId}. Must be positive number.`, debtId);
+export class DebtPaymentException extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DebtPaymentException';
+    Object.setPrototypeOf(this, DebtPaymentException.prototype);
   }
 }
 
-/**
- * Debt Cannot Be Modified Exception
- */
-export class DebtCannotBeModifiedException extends DebtException {
-  constructor(debtId: string, reason: string) {
-    super(`Debt ${debtId} cannot be modified: ${reason}`, debtId);
-  }
-}
-
-/**
- * Debt Payment Exceeds Balance Exception
- */
-export class DebtPaymentExceedsBalanceException extends DebtException {
-  constructor(debtId: string, paymentAmount: number, outstandingBalance: number) {
-    super(
-      `Payment of ${paymentAmount} exceeds outstanding balance ${outstandingBalance} for debt ${debtId}`,
-      debtId,
-    );
-  }
-}
-
-/**
- * Secured Debt Asset Mismatch Exception
- */
-export class SecuredDebtAssetMismatchException extends DebtException {
-  constructor(debtId: string, assetId: string) {
-    super(
-      `Debt ${debtId} is secured by asset ${assetId} but asset does not exist or is not encumbered`,
-      debtId,
-    );
-  }
-}
-
-/**
- * Statute Barred Debt Exception
- */
-export class StatuteBarredDebtException extends DebtException {
-  constructor(debtId: string, limitationPeriod: number) {
-    super(
-      `Debt ${debtId} is statute barred under Limitation Act (${limitationPeriod} years)`,
-      debtId,
-    );
-  }
-}
-
-/**
- * Debt Priority Invalid Exception
- */
-export class DebtPriorityInvalidException extends DebtException {
-  constructor(debtId: string, issue: string) {
-    super(`Invalid debt priority for debt ${debtId}: ${issue}`, debtId);
-  }
-}
-
-/**
- * Debt Tier Invalid Exception
- */
-export class DebtTierInvalidException extends DebtException {
-  constructor(debtId: string, tier: string) {
-    super(`Invalid debt tier ${tier} for debt ${debtId}`, debtId);
-  }
-}
-
-/**
- * Debt Settlement Failed Exception
- */
-export class DebtSettlementFailedException extends DebtException {
-  constructor(debtId: string, reason: string) {
-    super(`Debt ${debtId} settlement failed: ${reason}`, debtId);
+export class DebtVerificationException extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DebtVerificationException';
+    Object.setPrototypeOf(this, DebtVerificationException.prototype);
   }
 }

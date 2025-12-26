@@ -1,7 +1,7 @@
 // domain/repositories/estate.repository.interface.ts
 import { Estate } from '../aggregates/estate.aggregate';
 import { UniqueEntityID } from '../base/unique-entity-id';
-import { Money } from '../value-objects';
+import { MoneyVO } from '../value-objects/money.vo';
 
 /**
  * Estate Repository Interface
@@ -91,7 +91,7 @@ export interface IEstateRepository {
    * - High-value estates requiring court supervision
    * - Small estates eligible for summary administration
    */
-  findByValueRange(minValue: Money, maxValue: Money): Promise<Estate[]>;
+  findByValueRange(minValue: MoneyVO, maxValue: MoneyVO): Promise<Estate[]>;
 
   /**
    * Find insolvent estates
@@ -202,10 +202,10 @@ export interface EstateSearchCriteria {
   isReadyForDistribution?: boolean;
 
   // Value filters
-  minGrossValue?: Money;
-  maxGrossValue?: Money;
-  minNetValue?: Money;
-  maxNetValue?: Money;
+  minGrossValue?: MoneyVO;
+  maxGrossValue?: MoneyVO;
+  minNetValue?: MoneyVO;
+  maxNetValue?: MoneyVO;
 
   // Solvency
   isSolvent?: boolean;
@@ -241,9 +241,9 @@ export interface EstateStatistics {
   intestateEstates: number;
   frozenEstates: number;
 
-  totalGrossValue: Money;
-  totalNetValue: Money;
-  totalLiabilities: Money;
+  totalGrossValue: MoneyVO;
+  totalNetValue: MoneyVO;
+  totalLiabilities: MoneyVO;
 
   solventEstates: number;
   insolventEstates: number;
@@ -251,8 +251,8 @@ export interface EstateStatistics {
   estatesReadyForDistribution: number;
   estatesBlockedByDebts: number;
 
-  averageEstateValue: Money;
-  medianEstateValue: Money;
+  averageEstateValue: MoneyVO;
+  medianEstateValue: MoneyVO;
 }
 
 /**

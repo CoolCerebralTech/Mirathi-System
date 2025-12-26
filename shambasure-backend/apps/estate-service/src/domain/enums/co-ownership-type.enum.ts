@@ -1,4 +1,4 @@
-// src/estate-service/src/domain/entities/enums/co-ownership-type.enum.ts
+// src/estate-service/src/domain/enums/co-ownership-type.enum.ts
 
 /**
  * Co-Ownership Type Enum

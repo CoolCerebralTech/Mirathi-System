@@ -1,4 +1,4 @@
-// src/estate-service/src/domain/entities/enums/liquidation-status.enum.ts
+// src/estate-service/src/domain/enums/liquidation-status.enum.ts
 
 /**
  * Liquidation Status Enum

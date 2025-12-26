@@ -1,79 +1,428 @@
+// src/estate-service/src/domain/entities/estate-tax-compliance.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
 import {
   EstateTaxAssessmentReceivedEvent,
   EstateTaxClearedEvent,
+  EstateTaxExemptedEvent,
+  EstateTaxPaymentRecordedEvent,
 } from '../events/estate-tax.event';
 import { TaxComplianceException } from '../exceptions/estate-tax.exception';
 import { MoneyVO } from '../value-objects/money.vo';
 import { TaxStatusVO } from '../value-objects/tax-status.vo';
 
-// Assumed existence based on pattern
-
 export interface EstateTaxComplianceProps {
   estateId: string;
-  kraPin: string; // The Estate's Trust PIN or Deceased's PIN
+  kraPin: string;
   status: TaxStatusVO;
 
-  // Tax Heads (Liabilities)
+  // Tax Liabilities
   incomeTaxLiability: MoneyVO;
   capitalGainsTaxLiability: MoneyVO;
   stampDutyLiability: MoneyVO;
   otherLeviesLiability: MoneyVO;
 
-  // Total Paid so far
+  // Payments
   totalPaid: MoneyVO;
+  lastPaymentDate?: Date;
+  paymentHistory: Array<{
+    date: Date;
+    amount: number;
+    type: string;
+    reference: string;
+  }>;
 
-  // Clearance Details
-  clearanceCertificateNo?: string; // The "Golden Ticket"
+  // Clearance
+  clearanceCertificateNo?: string;
   clearanceDate?: Date;
+  clearanceIssuedBy?: string;
 
-  // Audit
-  version: number;
-  createdAt: Date;
-  updatedAt: Date;
+  // Assessment
+  assessmentDate?: Date;
+  assessmentReference?: string;
+  assessedBy?: string;
+
+  // Exemption
+  exemptionReason?: string;
+  exemptionCertificateNo?: string;
+  exemptedBy?: string;
+  exemptionDate?: Date;
+
+  // Metadata
+  requiresProfessionalValuation: boolean;
+  isUnderInvestigation: boolean;
+  notes?: string;
 }
 
 /**
- * Estate Tax Compliance Entity ("The Gatekeeper")
+ * Estate Tax Compliance Entity - "The Gatekeeper"
  *
- * RESPONSIBILITY:
- * 1. Tracks tax liabilities vs payments.
- * 2. Blocks Estate Distribution until Status is CLEARED or EXEMPT.
- * 3. Stores the KRA Clearance Certificate details.
+ * BUSINESS RULES:
+ * 1. Blocks estate distribution until CLEARED or EXEMPT
+ * 2. Tracks all tax liabilities and payments
+ * 3. Requires professional valuation for high-value estates (>10M KES)
+ * 4. Maintains KRA clearance certificate audit trail
  */
 export class EstateTaxCompliance extends Entity<EstateTaxComplianceProps> {
   private constructor(props: EstateTaxComplianceProps, id?: UniqueEntityID) {
     super(id || new UniqueEntityID(), props);
+    this.validate();
   }
 
   /**
-   * Initialize a new Tax Compliance Record for an Estate.
-   * Starts in PENDING state.
+   * Factory method to create new tax compliance record
    */
   public static create(
-    props: { estateId: string; kraPin: string },
+    estateId: string,
+    kraPin: string,
+    initialNetWorth?: MoneyVO,
     id?: UniqueEntityID,
   ): EstateTaxCompliance {
+    // Determine if professional valuation is required
+    const requiresProfessionalValuation = initialNetWorth
+      ? initialNetWorth.isGreaterThan(MoneyVO.createKES(10000000))
+      : false;
+
     return new EstateTaxCompliance(
       {
-        estateId: props.estateId,
-        kraPin: props.kraPin,
-        status: TaxStatusVO.pending(), // Default start state
-
-        // Initialize liabilities to Zero until Assessed
+        estateId,
+        kraPin,
+        status: TaxStatusVO.pending(),
         incomeTaxLiability: MoneyVO.zero('KES'),
         capitalGainsTaxLiability: MoneyVO.zero('KES'),
         stampDutyLiability: MoneyVO.zero('KES'),
         otherLeviesLiability: MoneyVO.zero('KES'),
         totalPaid: MoneyVO.zero('KES'),
-
-        version: 1,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        paymentHistory: [],
+        requiresProfessionalValuation,
+        isUnderInvestigation: false,
       },
       id,
     );
+  }
+
+  // ===========================================================================
+  // VALIDATION
+  // ===========================================================================
+
+  private validate(): void {
+    // Validate KRA PIN format (simplified)
+    if (!this.props.kraPin || this.props.kraPin.trim().length < 9) {
+      throw new TaxComplianceException('Invalid KRA PIN format');
+    }
+
+    // Validate total paid doesn't exceed total liability
+    if (this.props.totalPaid.isGreaterThan(this.getTotalLiability())) {
+      throw new TaxComplianceException('Total paid cannot exceed total liability');
+    }
+
+    // Validate clearance certificate if status is CLEARED
+    if (this.props.status.value === TaxStatusVO.CLEARED && !this.props.clearanceCertificateNo) {
+      throw new TaxComplianceException('Cleared status requires clearance certificate number');
+    }
+
+    // Validate exemption details if status is EXEMPT
+    if (this.props.status.value === TaxStatusVO.EXEMPT && !this.props.exemptionReason) {
+      throw new TaxComplianceException('Exempt status requires exemption reason');
+    }
+  }
+
+  // ===========================================================================
+  // FINANCIAL CALCULATIONS
+  // ===========================================================================
+
+  /**
+   * Get total tax liability
+   */
+  public getTotalLiability(): MoneyVO {
+    return this.props.incomeTaxLiability
+      .add(this.props.capitalGainsTaxLiability)
+      .add(this.props.stampDutyLiability)
+      .add(this.props.otherLeviesLiability);
+  }
+
+  /**
+   * Get remaining balance
+   */
+  public getRemainingBalance(): MoneyVO {
+    const liability = this.getTotalLiability();
+    if (this.props.totalPaid.isGreaterThan(liability) || this.props.totalPaid.equals(liability)) {
+      return MoneyVO.zero('KES');
+    }
+    return liability.subtract(this.props.totalPaid);
+  }
+
+  /**
+   * Get payment percentage
+   */
+  public getPaymentPercentage(): number {
+    const liability = this.getTotalLiability();
+    if (liability.isZero()) return 100;
+
+    return (this.props.totalPaid.amount / liability.amount) * 100;
+  }
+
+  // ===========================================================================
+  // ASSESSMENT MANAGEMENT
+  // ===========================================================================
+
+  /**
+   * Record tax assessment from KRA
+   */
+  public recordAssessment(
+    assessment: {
+      incomeTax?: number;
+      capitalGainsTax?: number;
+      stampDuty?: number;
+      otherLevies?: number;
+    },
+    assessmentReference: string,
+    assessedBy: string,
+    assessmentDate: Date = new Date(),
+  ): void {
+    if (this.props.status.value === TaxStatusVO.CLEARED) {
+      throw new TaxComplianceException('Cannot assess already cleared tax compliance');
+    }
+
+    if (this.props.status.value === TaxStatusVO.EXEMPT) {
+      throw new TaxComplianceException('Cannot assess exempt estate');
+    }
+
+    // Update liabilities
+    const updates: Partial<EstateTaxComplianceProps> = {
+      assessmentDate,
+      assessmentReference,
+      assessedBy,
+      status: new TaxStatusVO(TaxStatusVO.ASSESSED),
+    };
+
+    if (assessment.incomeTax !== undefined) {
+      updates.incomeTaxLiability = MoneyVO.createKES(assessment.incomeTax);
+    }
+    if (assessment.capitalGainsTax !== undefined) {
+      updates.capitalGainsTaxLiability = MoneyVO.createKES(assessment.capitalGainsTax);
+    }
+    if (assessment.stampDuty !== undefined) {
+      updates.stampDutyLiability = MoneyVO.createKES(assessment.stampDuty);
+    }
+    if (assessment.otherLevies !== undefined) {
+      updates.otherLeviesLiability = MoneyVO.createKES(assessment.otherLevies);
+    }
+
+    this.updateState(updates);
+
+    this.addDomainEvent(
+      new EstateTaxAssessmentReceivedEvent(
+        this.props.estateId,
+        this.getTotalLiability().amount,
+        assessmentReference,
+        assessedBy,
+        this.version,
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // PAYMENT PROCESSING
+  // ===========================================================================
+
+  /**
+   * Record tax payment
+   */
+  public recordPayment(
+    amount: MoneyVO,
+    paymentType: string,
+    reference: string,
+    paidBy?: string,
+    paymentDate: Date = new Date(),
+  ): void {
+    if (amount.isZero() || amount.amount <= 0) {
+      throw new TaxComplianceException('Payment amount must be positive');
+    }
+
+    if (this.props.status.value === TaxStatusVO.CLEARED) {
+      throw new TaxComplianceException('Cannot record payment for cleared compliance');
+    }
+
+    if (this.props.status.value === TaxStatusVO.EXEMPT) {
+      throw new TaxComplianceException('Cannot record payment for exempt estate');
+    }
+
+    const newTotalPaid = this.props.totalPaid.add(amount);
+    const remainingBalance = this.getTotalLiability().subtract(newTotalPaid);
+
+    // Determine new status
+    let newStatus = this.props.status;
+    if (remainingBalance.isZero()) {
+      newStatus = new TaxStatusVO(TaxStatusVO.PARTIALLY_PAID); // Fully paid but needs clearance
+    } else if (newTotalPaid.isGreaterThan(MoneyVO.zero('KES'))) {
+      newStatus = new TaxStatusVO(TaxStatusVO.PARTIALLY_PAID);
+    }
+
+    // Update payment history
+    const paymentRecord = {
+      date: paymentDate,
+      amount: amount.amount,
+      type: paymentType,
+      reference,
+    };
+
+    this.updateState({
+      totalPaid: newTotalPaid,
+      status: newStatus,
+      lastPaymentDate: paymentDate,
+      paymentHistory: [...this.props.paymentHistory, paymentRecord],
+    });
+
+    this.addDomainEvent(
+      new EstateTaxPaymentRecordedEvent(
+        this.props.estateId,
+        amount.amount,
+        paymentType,
+        reference,
+        paidBy,
+        this.version,
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // CLEARANCE MANAGEMENT
+  // ===========================================================================
+
+  /**
+   * Mark tax compliance as cleared (The Bouncer Opens the Door)
+   */
+  public markAsCleared(
+    certificateNumber: string,
+    clearedBy: string,
+    clearanceDate: Date = new Date(),
+  ): void {
+    if (!certificateNumber) {
+      throw new TaxComplianceException('Clearance certificate number is required');
+    }
+
+    // Validate all taxes are paid
+    if (!this.getRemainingBalance().isZero()) {
+      throw new TaxComplianceException('Cannot clear with outstanding balance');
+    }
+
+    if (this.props.status.value === TaxStatusVO.CLEARED) {
+      throw new TaxComplianceException('Tax compliance is already cleared');
+    }
+
+    if (this.props.status.value === TaxStatusVO.EXEMPT) {
+      throw new TaxComplianceException('Cannot clear exempt estate');
+    }
+
+    this.updateState({
+      status: TaxStatusVO.cleared(),
+      clearanceCertificateNo: certificateNumber,
+      clearanceDate,
+      clearanceIssuedBy: clearedBy,
+    });
+
+    this.addDomainEvent(
+      new EstateTaxClearedEvent(this.props.estateId, certificateNumber, clearedBy, this.version),
+    );
+  }
+
+  // ===========================================================================
+  // EXEMPTION MANAGEMENT
+  // ===========================================================================
+
+  /**
+   * Mark estate as tax exempt
+   */
+  public markAsExempt(
+    reason: string,
+    certificateNo?: string,
+    exemptedBy?: string,
+    exemptionDate: Date = new Date(),
+  ): void {
+    if (this.props.status.value === TaxStatusVO.CLEARED) {
+      throw new TaxComplianceException('Cannot exempt already cleared compliance');
+    }
+
+    // Validate estate qualifies for exemption (small estates < 100,000 KES)
+    const totalLiability = this.getTotalLiability();
+    if (totalLiability.isGreaterThan(MoneyVO.createKES(100000))) {
+      throw new TaxComplianceException('Estate value exceeds exemption threshold');
+    }
+
+    this.updateState({
+      status: new TaxStatusVO(TaxStatusVO.EXEMPT),
+      exemptionReason: reason,
+      exemptionCertificateNo: certificateNo,
+      exemptedBy,
+      exemptionDate,
+    });
+
+    this.addDomainEvent(
+      new EstateTaxExemptedEvent(
+        this.props.estateId,
+        reason,
+        certificateNo,
+        exemptedBy,
+        this.version,
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // INVESTIGATION & DISPUTE
+  // ===========================================================================
+
+  /**
+   * Mark tax compliance as under investigation
+   */
+  public markUnderInvestigation(reason: string, investigator?: string): void {
+    if (this.props.status.value === TaxStatusVO.CLEARED) {
+      throw new TaxComplianceException('Cannot investigate cleared compliance');
+    }
+
+    this.updateState({
+      status: new TaxStatusVO(TaxStatusVO.DISPUTED),
+      isUnderInvestigation: true,
+      notes: `Under investigation: ${reason}. Investigator: ${investigator || 'unknown'}`,
+    });
+  }
+
+  /**
+   * Resolve investigation
+   */
+  public resolveInvestigation(
+    outcome: string,
+    resolvedBy: string,
+    resolvedDate: Date = new Date(),
+  ): void {
+    if (!this.props.isUnderInvestigation) {
+      throw new TaxComplianceException('Tax compliance is not under investigation');
+    }
+
+    this.updateState({
+      status: new TaxStatusVO(TaxStatusVO.ASSESSED), // Return to assessed status
+      isUnderInvestigation: false,
+      notes: `Investigation resolved: ${outcome}. Resolved by: ${resolvedBy} on ${resolvedDate.toISOString()}. ${this.props.notes || ''}`,
+    });
+  }
+
+  // ===========================================================================
+  // GATEKEEPER CHECKS
+  // ===========================================================================
+
+  /**
+   * Check if estate can proceed to distribution
+   */
+  public isClearedForDistribution(): boolean {
+    return this.props.status.isClearedForDistribution();
+  }
+
+  /**
+   * Check if tax compliance is a liability (unpaid taxes)
+   */
+  public isLiability(): boolean {
+    return this.props.status.isLiability() || !this.getRemainingBalance().isZero();
   }
 
   // ===========================================================================
@@ -83,144 +432,32 @@ export class EstateTaxCompliance extends Entity<EstateTaxComplianceProps> {
   get status(): TaxStatusVO {
     return this.props.status;
   }
+
   get kraPin(): string {
     return this.props.kraPin;
   }
 
-  /**
-   * Calculates total outstanding tax liability.
-   */
-  get totalLiability(): MoneyVO {
-    return this.props.incomeTaxLiability
-      .add(this.props.capitalGainsTaxLiability)
-      .add(this.props.stampDutyLiability)
-      .add(this.props.otherLeviesLiability);
+  get clearanceCertificateNo(): string | undefined {
+    return this.props.clearanceCertificateNo;
+  }
+
+  get totalPaid(): MoneyVO {
+    return this.props.totalPaid;
   }
 
   get remainingBalance(): MoneyVO {
-    // Basic math: Liability - Paid
-    // Note: In real KRA systems, penalties apply, but here we track the 'Assessed' total.
-    if (this.props.totalPaid.amount >= this.totalLiability.amount) {
-      return MoneyVO.zero(this.props.totalPaid.currency);
-    }
-    return this.totalLiability.subtract(this.props.totalPaid);
+    return this.getRemainingBalance();
   }
 
-  /**
-   * THE GATEKEEPER CHECK.
-   * Used by Estate.isReadyForDistribution()
-   */
-  public isClearedForDistribution(): boolean {
-    // Delegate to the Value Object logic
-    return this.props.status.isClearedForDistribution();
+  get requiresProfessionalValuation(): boolean {
+    return this.props.requiresProfessionalValuation;
   }
 
-  // ===========================================================================
-  // BUSINESS LOGIC
-  // ===========================================================================
-
-  /**
-   * 1. Record an Assessment (Demand) from KRA.
-   * This updates the liabilities and moves status to ASSESSED.
-   */
-  public recordAssessment(
-    heads: {
-      incomeTax?: number;
-      cgt?: number;
-      stampDuty?: number;
-      other?: number;
-    },
-    assessedBy: string,
-  ): void {
-    // Logic: Update the specific tax heads
-    const currentIncome = this.props.incomeTaxLiability;
-    const currentCGT = this.props.capitalGainsTaxLiability;
-    const currentStamp = this.props.stampDutyLiability;
-    const currentOther = this.props.otherLeviesLiability;
-
-    const newIncome =
-      heads.incomeTax !== undefined ? MoneyVO.createKES(heads.incomeTax) : currentIncome;
-    const newCGT = heads.cgt !== undefined ? MoneyVO.createKES(heads.cgt) : currentCGT;
-    const newStamp =
-      heads.stampDuty !== undefined ? MoneyVO.createKES(heads.stampDuty) : currentStamp;
-    const newOther = heads.other !== undefined ? MoneyVO.createKES(heads.other) : currentOther;
-
-    this.updateState({
-      incomeTaxLiability: newIncome,
-      capitalGainsTaxLiability: newCGT,
-      stampDutyLiability: newStamp,
-      otherLeviesLiability: newOther,
-      status: new TaxStatusVO(TaxStatusVO.ASSESSED),
-      updatedAt: new Date(),
-    });
-
-    this.addDomainEvent(
-      new EstateTaxAssessmentReceivedEvent(
-        this.props.estateId,
-        this.totalLiability.amount,
-        assessedBy,
-        this.version,
-      ),
-    );
+  get isUnderInvestigation(): boolean {
+    return this.props.isUnderInvestigation;
   }
 
-  /**
-   * 2. Record a Tax Payment.
-   * If fully paid, does NOT automatically clear (requires Cert),
-   * but moves to PARTIALLY_PAID or PENDING_CLEARANCE.
-   */
-  public recordPayment(amount: MoneyVO): void {
-    if (amount.amount <= 0) throw new TaxComplianceException('Payment amount must be positive');
-
-    const newTotalPaid = this.props.totalPaid.add(amount);
-
-    // Determine status
-    let newStatus = this.props.status;
-    if (newTotalPaid.amount >= this.totalLiability.amount) {
-      // Paid in full, waiting for certificate
-      // We keep it as PARTIALLY_PAID or move to a custom 'PAID_AWAITING_CERT' if exists.
-      // For now, let's assume we leave it as ASSESSED or PARTIALLY_PAID until manual clearance.
-      newStatus = new TaxStatusVO(TaxStatusVO.PARTIALLY_PAID);
-    } else {
-      newStatus = new TaxStatusVO(TaxStatusVO.PARTIALLY_PAID);
-    }
-
-    this.updateState({
-      totalPaid: newTotalPaid,
-      status: newStatus,
-      updatedAt: new Date(),
-    });
-  }
-
-  /**
-   * 3. Final Clearance ("The Bouncer Opens the Door").
-   * Requires a Certificate Number from KRA.
-   */
-  public markAsCleared(certificateNumber: string, clearedBy: string): void {
-    if (!certificateNumber)
-      throw new TaxComplianceException('Clearance Certificate Number required');
-
-    this.updateState({
-      status: TaxStatusVO.cleared(),
-      clearanceCertificateNo: certificateNumber,
-      clearanceDate: new Date(),
-      updatedAt: new Date(),
-    });
-
-    this.addDomainEvent(
-      new EstateTaxClearedEvent(this.props.estateId, certificateNumber, clearedBy, this.version),
-    );
-  }
-
-  /**
-   * Mark as Exempt (e.g., small estates).
-   */
-  public markAsExempt(_reason: string, _authorizedBy: string): void {
-    this.updateState({
-      status: new TaxStatusVO(TaxStatusVO.EXEMPT),
-      updatedAt: new Date(),
-    });
-
-    // Emit event...
+  get estateId(): string {
+    return this.props.estateId;
   }
 }

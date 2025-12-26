@@ -2,7 +2,7 @@
 import { Will } from '../aggregates/will.aggregate';
 import { DomainEvent } from '../base/domain-event';
 import { UniqueEntityID } from '../base/unique-entity-id';
-import { WillStatusEnum } from '../value-objects/will-status.vo';
+import { WillStatus } from '../enums/will-status.enum';
 
 /**
  * IWillRepository Interface
@@ -68,8 +68,8 @@ export interface WillQueryFilter {
   testatorIds?: string[];
 
   // Status filters
-  status?: WillStatusEnum;
-  statuses?: WillStatusEnum[];
+  status?: WillStatus;
+  statuses?: WillStatus[];
 
   // Date filters
   createdAfter?: Date;
@@ -234,7 +234,7 @@ export interface IWillRepository {
   /**
    * Find wills by status
    */
-  findByStatus(status: WillStatusEnum, options?: QueryOptions): Promise<Will[]>;
+  findByStatus(status: WillStatus, options?: QueryOptions): Promise<Will[]>;
 
   /**
    * Find wills by filter (complex queries)
@@ -422,7 +422,7 @@ export interface IWillRepository {
  */
 export interface WillStatistics {
   total: number;
-  byStatus: Record<WillStatusEnum, number>;
+  byStatus: Record<WillStatus, number>;
   drafts: number;
   active: number;
   executed: number;
@@ -451,7 +451,7 @@ export interface WillStatistics {
 export interface WillHistoryEntry {
   willId: string;
   version: number;
-  status: WillStatusEnum;
+  status: WillStatus;
   createdAt: Date;
   updatedAt: Date;
   events: DomainEvent[];

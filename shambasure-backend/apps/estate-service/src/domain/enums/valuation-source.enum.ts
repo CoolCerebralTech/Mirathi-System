@@ -1,4 +1,4 @@
-// src/estate-service/src/domain/entities/enums/valuation-source.enum.ts
+// src/estate-service/src/domain/enums/valuation-source.enum.ts
 
 /**
  * Valuation Source Enum

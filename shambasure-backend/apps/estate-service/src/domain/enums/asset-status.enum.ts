@@ -1,4 +1,4 @@
-// src/estate-service/src/domain/entities/enums/asset-status.enum.ts
+// src/estate-service/src/domain/enums/asset-status.enum.ts
 
 /**
  * Asset Status Enum
@@ -17,6 +17,7 @@ export enum AssetStatus {
   INACTIVE = 'INACTIVE',
 
   // Lifecycle Statuses
+  LIQUIDATING = 'LIQUIDATING',
   LIQUIDATED = 'LIQUIDATED',
   ENCUMBERED = 'ENCUMBERED',
   DISPUTED = 'DISPUTED',
@@ -63,7 +64,9 @@ export class AssetStatusHelper {
    * Check if asset is in a legal dispute
    */
   static isInDispute(status: AssetStatus): boolean {
-    return [AssetStatus.DISPUTED, AssetStatus.UNDER_INJUNCTION].includes(status);
+    return [AssetStatus.DISPUTED, AssetStatus.UNDER_INJUNCTION, AssetStatus.LIQUIDATING].includes(
+      status,
+    );
   }
 
   /**
@@ -80,6 +83,7 @@ export class AssetStatusHelper {
     const transitions: Record<AssetStatus, AssetStatus[]> = {
       [AssetStatus.ACTIVE]: [
         AssetStatus.INACTIVE,
+        AssetStatus.LIQUIDATING,
         AssetStatus.LIQUIDATED,
         AssetStatus.ENCUMBERED,
         AssetStatus.DISPUTED,
@@ -87,6 +91,10 @@ export class AssetStatusHelper {
         AssetStatus.DELETED,
       ],
       [AssetStatus.INACTIVE]: [AssetStatus.ACTIVE, AssetStatus.DELETED],
+      [AssetStatus.LIQUIDATING]: [
+        AssetStatus.LIQUIDATED,
+        AssetStatus.ACTIVE, // If liquidation fails
+      ],
       [AssetStatus.LIQUIDATED]: [
         // Once liquidated, no further status changes
       ],
@@ -139,6 +147,7 @@ export class AssetStatusHelper {
     const descriptions: Record<AssetStatus, string> = {
       [AssetStatus.ACTIVE]: 'Asset is active and available for distribution',
       [AssetStatus.INACTIVE]: 'Asset is temporarily inactive',
+      [AssetStatus.LIQUIDATING]: 'Asset is being liquidated',
       [AssetStatus.LIQUIDATED]: 'Asset has been converted to cash',
       [AssetStatus.ENCUMBERED]: 'Asset has legal claims/mortgage against it',
       [AssetStatus.DISPUTED]: 'Asset ownership is under legal dispute',

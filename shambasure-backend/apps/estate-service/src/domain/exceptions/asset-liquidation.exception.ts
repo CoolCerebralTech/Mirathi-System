@@ -1,98 +1,33 @@
-// src/estate-service/src/domain/entities/exceptions/asset-liquidation.exception.ts
+// src/estate-service/src/domain/exceptions/asset-liquidation.exception.ts
 
-/**
- * Base Asset Liquidation Exception
- */
-export abstract class AssetLiquidationException extends Error {
-  constructor(
-    message: string,
-    public readonly assetId?: string,
-    public readonly liquidationId?: string,
-  ) {
+export class AssetLiquidationException extends Error {
+  constructor(message: string) {
     super(message);
-    this.name = this.constructor.name;
+    this.name = 'AssetLiquidationException';
     Object.setPrototypeOf(this, AssetLiquidationException.prototype);
   }
 }
 
-/**
- * Asset Cannot Be Liquidated Exception
- */
-export class AssetCannotBeLiquidatedException extends AssetLiquidationException {
-  constructor(assetId: string, reason: string) {
-    super(`Asset ${assetId} cannot be liquidated: ${reason}`, assetId);
+export class AssetLiquidationValidationException extends Error {
+  constructor(field: string, reason: string) {
+    super(`Validation failed for ${field}: ${reason}`);
+    this.name = 'AssetLiquidationValidationException';
+    Object.setPrototypeOf(this, AssetLiquidationValidationException.prototype);
   }
 }
 
-/**
- * Liquidation Already Exists Exception
- */
-export class LiquidationAlreadyExistsException extends AssetLiquidationException {
-  constructor(assetId: string) {
-    super(`Asset ${assetId} already has an active liquidation`, assetId);
+export class AssetLiquidationStatusException extends Error {
+  constructor(currentStatus: string, attemptedAction: string) {
+    super(`Cannot ${attemptedAction} while liquidation is in status: ${currentStatus}`);
+    this.name = 'AssetLiquidationStatusException';
+    Object.setPrototypeOf(this, AssetLiquidationStatusException.prototype);
   }
 }
 
-/**
- * Invalid Liquidation Amount Exception
- */
-export class InvalidLiquidationAmountException extends AssetLiquidationException {
-  constructor(assetId: string, targetAmount: number, currentValue: number) {
-    super(
-      `Invalid liquidation amount ${targetAmount} for asset ${assetId}. Current value: ${currentValue}`,
-      assetId,
-    );
-  }
-}
-
-/**
- * Liquidation Not Found Exception
- */
-export class LiquidationNotFoundException extends AssetLiquidationException {
-  constructor(liquidationId: string, assetId: string) {
-    super(`Liquidation ${liquidationId} not found for asset ${assetId}`, assetId, liquidationId);
-  }
-}
-
-/**
- * Liquidation Cannot Be Modified Exception
- */
-export class LiquidationCannotBeModifiedException extends AssetLiquidationException {
-  constructor(liquidationId: string, reason: string) {
-    super(`Liquidation ${liquidationId} cannot be modified: ${reason}`, undefined, liquidationId);
-  }
-}
-
-/**
- * Liquidation Approval Required Exception
- */
-export class LiquidationApprovalRequiredException extends AssetLiquidationException {
-  constructor(liquidationId: string, requiredBy: string) {
-    super(
-      `Liquidation ${liquidationId} requires approval from ${requiredBy}`,
-      undefined,
-      liquidationId,
-    );
-  }
-}
-
-/**
- * Liquidation Completion Failed Exception
- */
-export class LiquidationCompletionFailedException extends AssetLiquidationException {
-  constructor(liquidationId: string, reason: string) {
-    super(`Liquidation ${liquidationId} completion failed: ${reason}`, undefined, liquidationId);
-  }
-}
-
-/**
- * Liquidation Below Reserve Price Exception
- */
-export class LiquidationBelowReservePriceException extends AssetLiquidationException {
-  constructor(assetId: string, bidAmount: number, reservePrice: number) {
-    super(
-      `Liquidation bid ${bidAmount} for asset ${assetId} is below reserve price ${reservePrice}`,
-      assetId,
-    );
+export class AssetLiquidationCourtApprovalException extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AssetLiquidationCourtApprovalException';
+    Object.setPrototypeOf(this, AssetLiquidationCourtApprovalException.prototype);
   }
 }

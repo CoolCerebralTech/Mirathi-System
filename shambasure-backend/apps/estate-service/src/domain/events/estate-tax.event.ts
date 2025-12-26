@@ -2,115 +2,121 @@
 import { DomainEvent } from '../base/domain-event';
 
 /**
- * Base Estate Tax Event
+ * Estate Tax Domain Events
+ *
+ * Events are triggered by the EstateTaxCompliance entity but belong to the Estate aggregate.
+ * Therefore, the aggregateId is the estateId.
  */
-export abstract class EstateTaxEvent<T = any> extends DomainEvent<T> {
-  constructor(
-    aggregateId: string,
-    eventType: string,
-    version: number,
-    payload: T,
-    occurredAt?: Date,
-  ) {
-    super(aggregateId, eventType, version, payload, occurredAt);
-  }
-}
 
-/**
- * Tax Assessment Received
- * Triggered when KRA demands payment (Liabilities increase).
- */
-export class EstateTaxAssessmentReceivedEvent extends EstateTaxEvent<{
+export class EstateTaxAssessmentReceivedEvent extends DomainEvent<{
   estateId: string;
   totalLiability: number;
-  breakdown: {
-    incomeTax: number;
-    cgt: number;
-    stampDuty: number;
-    other: number;
-  };
+  assessmentReference: string;
   assessedBy: string;
 }> {
   constructor(
     estateId: string,
     totalLiability: number,
-    breakdown: { incomeTax: number; cgt: number; stampDuty: number; other: number },
+    assessmentReference: string,
     assessedBy: string,
     version: number,
   ) {
-    super(estateId, 'EstateTaxAssessmentReceivedEvent', version, {
+    super(estateId, 'EstateTaxCompliance', version, {
       estateId,
       totalLiability,
-      breakdown,
+      assessmentReference,
       assessedBy,
     });
   }
 }
 
-/**
- * Tax Payment Recorded
- * Triggered when funds are sent to KRA.
- */
-export class EstateTaxPaymentRecordedEvent extends EstateTaxEvent<{
+export class EstateTaxPaymentRecordedEvent extends DomainEvent<{
   estateId: string;
-  amountPaid: number;
-  currency: string;
-  remainingBalance: number;
-  paidBy: string;
+  amount: number;
+  paymentType: string;
+  reference: string;
+  paidBy?: string;
 }> {
   constructor(
     estateId: string,
-    amountPaid: number,
-    currency: string,
-    remainingBalance: number,
-    paidBy: string,
+    amount: number,
+    paymentType: string,
+    reference: string,
+    paidBy: string | undefined,
     version: number,
   ) {
-    super(estateId, 'EstateTaxPaymentRecordedEvent', version, {
+    super(estateId, 'EstateTaxCompliance', version, {
       estateId,
-      amountPaid,
-      currency,
-      remainingBalance,
+      amount,
+      paymentType,
+      reference,
       paidBy,
     });
   }
 }
 
-/**
- * Tax Cleared (The "Green Light")
- * Triggered when the Clearance Certificate is issued.
- * Unlocks Estate Distribution.
- */
-export class EstateTaxClearedEvent extends EstateTaxEvent<{
+export class EstateTaxClearedEvent extends DomainEvent<{
   estateId: string;
   certificateNumber: string;
   clearedBy: string;
-  clearanceDate: Date;
 }> {
   constructor(estateId: string, certificateNumber: string, clearedBy: string, version: number) {
-    super(estateId, 'EstateTaxClearedEvent', version, {
+    super(estateId, 'EstateTaxCompliance', version, {
       estateId,
       certificateNumber,
       clearedBy,
-      clearanceDate: new Date(),
     });
   }
 }
 
-/**
- * Tax Exempted
- * Triggered if the estate falls below the threshold or has specific exemptions.
- */
-export class EstateTaxExemptedEvent extends EstateTaxEvent<{
+export class EstateTaxExemptedEvent extends DomainEvent<{
   estateId: string;
   reason: string;
-  authorizedBy: string;
+  certificateNo?: string;
+  exemptedBy?: string;
 }> {
-  constructor(estateId: string, reason: string, authorizedBy: string, version: number) {
-    super(estateId, 'EstateTaxExemptedEvent', version, {
+  constructor(
+    estateId: string,
+    reason: string,
+    certificateNo: string | undefined,
+    exemptedBy: string | undefined,
+    version: number,
+  ) {
+    super(estateId, 'EstateTaxCompliance', version, {
       estateId,
       reason,
-      authorizedBy,
+      certificateNo,
+      exemptedBy,
+    });
+  }
+}
+
+// Optional: Add this event if not exists
+export class EstateTaxInvestigationInitiatedEvent extends DomainEvent<{
+  estateId: string;
+  reason: string;
+  investigator?: string;
+}> {
+  constructor(estateId: string, reason: string, investigator: string | undefined, version: number) {
+    super(estateId, 'EstateTaxCompliance', version, {
+      estateId,
+      reason,
+      investigator,
+    });
+  }
+}
+
+// Optional: Add this event if not exists
+export class EstateTaxInvestigationResolvedEvent extends DomainEvent<{
+  estateId: string;
+  outcome: string;
+  resolvedBy: string;
+}> {
+  constructor(estateId: string, outcome: string, resolvedBy: string, version: number) {
+    super(estateId, 'EstateTaxCompliance', version, {
+      estateId,
+      outcome,
+      resolvedBy,
     });
   }
 }

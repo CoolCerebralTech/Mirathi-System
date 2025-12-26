@@ -1,43 +1,26 @@
-// src/estate-service/src/domain/entities/events/asset-co-owner.event.ts
+// src/estate-service/src/domain/events/asset-co-owner.event.ts
 import { DomainEvent } from '../base/domain-event';
+import { CoOwnershipType } from '../enums/co-ownership-type.enum';
 
-/**
- * Base Asset Co-Owner Event
- */
-export abstract class AssetCoOwnerEvent<T = any> extends DomainEvent<T> {
-  constructor(aggregateId: string, version: number, payload: T, occurredAt?: Date) {
-    super(aggregateId, 'AssetCoOwner', version, payload, occurredAt);
-  }
-}
-
-/**
- * Co-Owner Added Event
- * Triggered when a new co-owner is added to an asset
- */
-export class CoOwnerAddedEvent extends AssetCoOwnerEvent<{
+export class AssetCoOwnerAddedEvent extends DomainEvent<{
   assetId: string;
-  coOwnerId: string;
-  userId?: string;
-  externalName?: string;
+  familyMemberId: string;
   sharePercentage: number;
-  ownershipType: string;
+  ownershipType: CoOwnershipType;
   addedBy: string;
 }> {
   constructor(
-    assetId: string,
     coOwnerId: string,
-    userId: string | undefined,
-    externalName: string | undefined,
+    assetId: string,
+    familyMemberId: string,
     sharePercentage: number,
-    ownershipType: string,
+    ownershipType: CoOwnershipType,
     addedBy: string,
     version: number,
   ) {
-    super(assetId, version, {
+    super(coOwnerId, 'AssetCoOwner', version, {
       assetId,
-      coOwnerId,
-      userId,
-      externalName,
+      familyMemberId,
       sharePercentage,
       ownershipType,
       addedBy,
@@ -45,89 +28,80 @@ export class CoOwnerAddedEvent extends AssetCoOwnerEvent<{
   }
 }
 
-/**
- * Co-Owner Share Updated Event
- * Triggered when a co-owner's share percentage changes
- */
-export class CoOwnerShareUpdatedEvent extends AssetCoOwnerEvent<{
+export class AssetCoOwnerShareUpdatedEvent extends DomainEvent<{
   assetId: string;
-  coOwnerId: string;
+  familyMemberId: string;
   oldSharePercentage: number;
   newSharePercentage: number;
+  reason: string;
   updatedBy: string;
 }> {
   constructor(
-    assetId: string,
     coOwnerId: string,
+    assetId: string,
+    familyMemberId: string,
     oldSharePercentage: number,
     newSharePercentage: number,
+    reason: string,
     updatedBy: string,
     version: number,
   ) {
-    super(assetId, version, {
+    super(coOwnerId, 'AssetCoOwner', version, {
       assetId,
-      coOwnerId,
+      familyMemberId,
       oldSharePercentage,
       newSharePercentage,
+      reason,
       updatedBy,
     });
   }
 }
 
-/**
- * Co-Owner Removed Event
- * Triggered when a co-owner is removed from an asset
- */
-export class CoOwnerRemovedEvent extends AssetCoOwnerEvent<{
+export class AssetCoOwnerRemovedEvent extends DomainEvent<{
   assetId: string;
-  coOwnerId: string;
-  removedSharePercentage: number;
+  familyMemberId: string;
+  sharePercentage: number;
+  reason: string;
   removedBy: string;
-  reason?: string;
 }> {
   constructor(
-    assetId: string,
     coOwnerId: string,
-    removedSharePercentage: number,
+    assetId: string,
+    familyMemberId: string,
+    sharePercentage: number,
+    reason: string,
     removedBy: string,
-    reason: string | undefined,
     version: number,
   ) {
-    super(assetId, version, {
+    super(coOwnerId, 'AssetCoOwner', version, {
       assetId,
-      coOwnerId,
-      removedSharePercentage,
-      removedBy,
+      familyMemberId,
+      sharePercentage,
       reason,
+      removedBy,
     });
   }
 }
 
-/**
- * Co-Ownership Type Changed Event
- * Triggered when co-ownership type changes (e.g., Joint Tenancy to Tenancy in Common)
- */
-export class CoOwnershipTypeChangedEvent extends AssetCoOwnerEvent<{
+export class AssetCoOwnerVerifiedEvent extends DomainEvent<{
   assetId: string;
-  oldOwnershipType: string;
-  newOwnershipType: string;
-  changedBy: string;
-  legalImplications: string[];
+  familyMemberId: string;
+  verifiedBy: string;
+  verificationNotes?: string;
 }> {
   constructor(
+    coOwnerId: string,
     assetId: string,
-    oldOwnershipType: string,
-    newOwnershipType: string,
-    changedBy: string,
-    legalImplications: string[],
+    familyMemberId: string,
+    verifiedBy: string,
+    verificationNotes: string | undefined,
     version: number,
   ) {
-    super(assetId, version, {
+    super(coOwnerId, 'AssetCoOwner', version, {
       assetId,
-      oldOwnershipType,
-      newOwnershipType,
-      changedBy,
-      legalImplications,
+      familyMemberId,
+      verifiedBy,
+      verificationNotes,
     });
   }
 }

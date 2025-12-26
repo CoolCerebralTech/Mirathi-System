@@ -1,87 +1,128 @@
 // src/estate-service/src/domain/events/gift-inter-vivos.event.ts
 import { DomainEvent } from '../base/domain-event';
 import { GiftStatus } from '../entities/gift-inter-vivos.entity';
+import { AssetType } from '../enums/asset-type.enum';
 
-/**
- * Base Gift Event
- */
-export abstract class GiftInterVivosEvent<T = any> extends DomainEvent<T> {
-  constructor(
-    aggregateId: string,
-    eventType: string,
-    version: number,
-    payload: T,
-    occurredAt?: Date,
-  ) {
-    super(aggregateId, eventType, version, payload, occurredAt);
-  }
-}
-
-export class GiftInterVivosRegisteredEvent extends GiftInterVivosEvent<{
-  giftId: string;
+export class GiftInterVivosCreatedEvent extends DomainEvent<{
   estateId: string;
   recipientId: string;
-  valueAmount: number;
+  assetType: AssetType;
+  value: number;
 }> {
   constructor(
     giftId: string,
     estateId: string,
     recipientId: string,
-    valueAmount: number,
+    assetType: AssetType,
+    value: number,
     version: number,
   ) {
-    super(giftId, 'GiftInterVivosRegisteredEvent', version, {
-      giftId,
+    super(giftId, 'GiftInterVivos', version, {
       estateId,
       recipientId,
-      valueAmount,
+      assetType,
+      value,
     });
   }
 }
 
-export class GiftInterVivosContestedEvent extends GiftInterVivosEvent<{
-  giftId: string;
+export class GiftInterVivosContestedEvent extends DomainEvent<{
   estateId: string;
+  recipientId: string;
   reason: string;
   contestedBy: string;
 }> {
   constructor(
     giftId: string,
     estateId: string,
+    recipientId: string,
     reason: string,
     contestedBy: string,
     version: number,
   ) {
-    super(giftId, 'GiftInterVivosContestedEvent', version, {
-      giftId,
+    super(giftId, 'GiftInterVivos', version, {
       estateId,
+      recipientId,
       reason,
       contestedBy,
     });
   }
 }
 
-export class GiftInterVivosStatusChangedEvent extends GiftInterVivosEvent<{
-  giftId: string;
+export class GiftInterVivosResolvedEvent extends DomainEvent<{
   estateId: string;
+  recipientId: string;
   oldStatus: GiftStatus;
   newStatus: GiftStatus;
-  changedBy: string;
+  resolution: string;
+  resolvedBy: string;
 }> {
   constructor(
     giftId: string,
     estateId: string,
+    recipientId: string,
     oldStatus: GiftStatus,
     newStatus: GiftStatus,
-    changedBy: string,
+    resolution: string,
+    resolvedBy: string,
     version: number,
   ) {
-    super(giftId, 'GiftInterVivosStatusChangedEvent', version, {
-      giftId,
+    super(giftId, 'GiftInterVivos', version, {
       estateId,
+      recipientId,
       oldStatus,
       newStatus,
-      changedBy,
+      resolution,
+      resolvedBy,
+    });
+  }
+}
+
+export class GiftInterVivosExcludedEvent extends DomainEvent<{
+  estateId: string;
+  recipientId: string;
+  reason: string;
+  excludedBy: string;
+}> {
+  constructor(
+    giftId: string,
+    estateId: string,
+    recipientId: string,
+    reason: string,
+    excludedBy: string,
+    version: number,
+  ) {
+    super(giftId, 'GiftInterVivos', version, {
+      estateId,
+      recipientId,
+      reason,
+      excludedBy,
+    });
+  }
+}
+
+export class GiftInterVivosReclassifiedEvent extends DomainEvent<{
+  estateId: string;
+  recipientId: string;
+  value: number;
+  reason: string;
+  reclassifiedBy: string;
+}> {
+  constructor(
+    giftId: string,
+    estateId: string,
+    recipientId: string,
+    value: number,
+    reason: string,
+    reclassifiedBy: string,
+    version: number,
+  ) {
+    super(giftId, 'GiftInterVivos', version, {
+      estateId,
+      recipientId,
+      value,
+      reason,
+      reclassifiedBy,
     });
   }
 }

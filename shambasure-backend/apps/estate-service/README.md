@@ -127,7 +127,71 @@ src/estate-service/src/domain/
 │   ├── solvency-calculator.service.ts  # Logic: Can we pay the debts?
 │   └── distribution-math.service.ts    # Logic: Who gets what %?
 │
-└── events/
-    ├── estate-created.event.ts
-    ├── estate-insolvency-detected.event.ts
-    └── estate-ready-for-distribution.event.ts
+
+
+
+src/application/
+├── common/
+│   ├── application.error.ts
+│   └── result.wrapper.ts
+│
+└── will/
+    ├── commands/                         # [WRITE SIDE]
+    │   ├── handlers/
+    │   │   ├── create-will.handler.ts
+    │   │   ├── update-will-metadata.handler.ts
+    │   │   ├── add-beneficiary.handler.ts
+    │   │   ├── remove-beneficiary.handler.ts
+    │   │   ├── assign-residuary-estate.handler.ts
+    │   │   ├── appoint-executor.handler.ts
+    │   │   ├── remove-executor.handler.ts
+    │   │   ├── add-witness.handler.ts
+    │   │   ├── record-disinheritance.handler.ts
+    │   │   ├── revoke-will.handler.ts
+    │   │   ├── execute-will.handler.ts
+    │   │   └── supersede-will.handler.ts
+    │   │
+    │   └── impl/
+    │       ├── create-will.command.ts
+    │       ├── update-will-metadata.command.ts
+    │       ├── add-beneficiary.command.ts
+    │       ├── remove-beneficiary.command.ts
+    │       ├── assign-residuary-estate.command.ts
+    │       ├── appoint-executor.command.ts
+    │       ├── remove-executor.command.ts
+    │       ├── add-witness.command.ts
+    │       ├── record-disinheritance.command.ts
+    │       ├── revoke-will.command.ts
+    │       ├── execute-will.command.ts
+    │       └── supersede-will.command.ts
+    │
+    ├── queries/                          # [READ SIDE]
+    │   ├── handlers/
+    │   │   ├── get-will-by-id.handler.ts
+    │   │   ├── get-will-summary.handler.ts
+    │   │   ├── get-will-validity.handler.ts
+    │   │   ├── get-testator-will-history.handler.ts
+    │   │   ├── search-wills.handler.ts
+    │   │   ├── get-will-readiness.handler.ts
+    │   │   └── get-executor-assignments.handler.ts
+    │   │
+    │   ├── impl/
+    │   │   ├── get-will-by-id.query.ts
+    │   │   ├── get-will-summary.query.ts
+    │   │   ├── get-will-validity.query.ts
+    │   │   ├── get-testator-will-history.query.ts
+    │   │   ├── search-wills.query.ts
+    │   │   ├── get-will-readiness.query.ts
+    │   │   └── get-executor-assignments.query.ts
+    │   │
+    │   └── read-models/
+    │       ├── will-detail.vm.ts
+    │       ├── will-summary.vm.ts
+    │       ├── will-validity.vm.ts
+    │       ├── will-history.vm.ts
+    │       ├── will-list-item.vm.ts
+    │       └── will-readiness.vm.ts
+    │
+    └── services/                         # [ORCHESTRATION / CROSS-CUTTING]
+        ├── will-audit.service.ts
+        └── will-readiness.service.ts

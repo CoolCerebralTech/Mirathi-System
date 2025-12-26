@@ -1,4 +1,4 @@
-// src/estate-service/src/domain/entities/enums/debt-type.enum.ts
+// src/estate-service/src/domain/enums/debt-type.enum.ts
 
 /**
  * Debt Type Enum
@@ -141,16 +141,35 @@ export class DebtTypeHelper {
    */
   static getTypicalInterestRate(debtType: DebtType): number {
     const rates: Record<DebtType, number> = {
+      [DebtType.FUNERAL_EXPENSES]: 0,
+      [DebtType.DEATH_CERTIFICATE]: 0,
+      [DebtType.OBITUARY]: 0,
+      [DebtType.PROBATE_FEES]: 0,
+      [DebtType.LEGAL_FEES]: 0,
+      [DebtType.EXECUTOR_FEES]: 0,
       [DebtType.MORTGAGE]: 0.12, // 12% typical mortgage
       [DebtType.CAR_LOAN]: 0.15, // 15% vehicle loan
       [DebtType.LOGBOOK_LOAN]: 0.2, // 20% logbook loan
+      [DebtType.INCOME_TAX]: 0.12, // 12% penalty on tax arrears
+      [DebtType.PROPERTY_RATES]: 0.1, // 10% penalty on rates
+      [DebtType.LAND_RATES]: 0.1, // 10% penalty on land rates
+      [DebtType.VAT]: 0.12, // 12% penalty on VAT
+      [DebtType.EMPLOYEE_WAGES]: 0,
+      [DebtType.PENSION_CONTRIBUTIONS]: 0.1, // 10% penalty
       [DebtType.PERSONAL_LOAN]: 0.18, // 18% personal loan
       [DebtType.CREDIT_CARD]: 0.24, // 24% credit card
+      [DebtType.UTILITY_BILLS]: 0.05, // 5% late payment fee
+      [DebtType.MEDICAL_BILLS]: 0.1, // 10% late payment
+      [DebtType.SCHOOL_FEES]: 0.05, // 5% late payment
       [DebtType.BUSINESS_LOAN]: 0.14, // 14% business loan
-      // Other types typically have no or minimal interest
+      [DebtType.SUPPLIER_DEBT]: 0.1, // 10% interest
+      [DebtType.RENT_ARREARS]: 0.1, // 10% late payment
+      [DebtType.FAMILY_LOAN]: 0, // Typically no interest
+      [DebtType.FRIEND_LOAN]: 0, // Typically no interest
+      [DebtType.OTHER]: 0.1, // Default 10%
     };
 
-    return rates[debtType] || 0;
+    return rates[debtType];
   }
 
   /**
