@@ -155,6 +155,27 @@ CREATE TYPE "InheritanceRights" AS ENUM ('FULL', 'PARTIAL', 'CUSTOMARY', 'NONE',
 CREATE TYPE "ComplianceStatus" AS ENUM ('PENDING', 'FILED', 'OVERDUE', 'REJECTED');
 
 -- CreateEnum
+CREATE TYPE "EstateStatus" AS ENUM ('SETUP', 'ACTIVE', 'FROZEN', 'LIQUIDATING', 'READY_FOR_DISTRIBUTION', 'DISTRIBUTING', 'CLOSED');
+
+-- CreateEnum
+CREATE TYPE "AssetStatus" AS ENUM ('ACTIVE', 'VERIFIED', 'FROZEN', 'LIQUIDATING', 'LIQUIDATED', 'TRANSFERRED', 'DISPUTED');
+
+-- CreateEnum
+CREATE TYPE "LiquidationType" AS ENUM ('PRIVATE_TREATY', 'PUBLIC_AUCTION', 'SALE_TO_BENEFICIARY', 'BUYBACK', 'MARKET_SALE');
+
+-- CreateEnum
+CREATE TYPE "LiquidationStatus" AS ENUM ('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'LISTED_FOR_SALE', 'AUCTION_SCHEDULED', 'AUCTION_IN_PROGRESS', 'SALE_PENDING', 'SALE_COMPLETED', 'PROCEEDS_RECEIVED', 'DISTRIBUTED', 'CLOSED', 'CANCELLED', 'FAILED', 'EXPIRED');
+
+-- CreateEnum
+CREATE TYPE "TaxStatus" AS ENUM ('PENDING', 'ASSESSED', 'PARTIALLY_PAID', 'CLEARED', 'EXEMPT', 'DISPUTED');
+
+-- CreateEnum
+CREATE TYPE "CoOwnershipType" AS ENUM ('JOINT_TENANCY', 'TENANCY_IN_COMMON');
+
+-- CreateEnum
+CREATE TYPE "ValuationSource" AS ENUM ('MARKET_ESTIMATE', 'REGISTERED_VALUER', 'GOVERNMENT_VALUER', 'CHARTERED_SURVEYOR', 'INSURANCE_VALUATION', 'AGREEMENT_BY_HEIRS', 'COURT_DETERMINATION');
+
+-- CreateEnum
 CREATE TYPE "WillStatus" AS ENUM ('DRAFT', 'PENDING_WITNESS', 'WITNESSED', 'ACTIVE', 'REVOKED', 'SUPERSEDED', 'EXECUTED', 'CONTESTED', 'PROBATE');
 
 -- CreateEnum
@@ -162,6 +183,24 @@ CREATE TYPE "WillType" AS ENUM ('STANDARD', 'JOINT_WILL', 'MUTUAL_WILL', 'HOLOGR
 
 -- CreateEnum
 CREATE TYPE "RevocationMethod" AS ENUM ('NEW_WILL', 'CODICIL', 'DESTRUCTION', 'COURT_ORDER', 'MARRIAGE', 'DIVORCE', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "ExecutorType" AS ENUM ('USER', 'FAMILY_MEMBER', 'EXTERNAL');
+
+-- CreateEnum
+CREATE TYPE "AppointmentType" AS ENUM ('TESTAMENTARY', 'SPECIAL_EXECUTOR');
+
+-- CreateEnum
+CREATE TYPE "VerificationMethod" AS ENUM ('NATIONAL_ID', 'PASSPORT', 'DRIVERS_LICENSE', 'BIRTH_CERTIFICATE', 'ALIEN_CARD', 'MILITARY_ID', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "CodicilAmendmentType" AS ENUM ('ADDITION', 'MODIFICATION', 'REVOCATION');
+
+-- CreateEnum
+CREATE TYPE "DisinheritanceReasonCategory" AS ENUM ('ESTRANGEMENT', 'PROVIDED_FOR_DURING_LIFE', 'MORAL_UNWORTHINESS', 'CONFLICT_OF_INTEREST', 'FINANCIAL_INDEPENDENCE', 'OTHER_DISPOSITION', 'TESTATOR_DISCRETION');
+
+-- CreateEnum
+CREATE TYPE "DisinheritanceEvidenceType" AS ENUM ('AFFIDAVIT', 'WILL_CLARIFICATION', 'PRIOR_GIFT_DOCUMENTATION', 'FAMILY_AGREEMENT', 'COURT_ORDER', 'MEDICAL_REPORT', 'OTHER');
 
 -- CreateEnum
 CREATE TYPE "WillStorageLocation" AS ENUM ('SAFE_DEPOSIT_BOX', 'LAWYER_OFFICE', 'HOME_SAFE', 'DIGITAL_VAULT', 'COURT_REGISTRY', 'WITH_EXECUTOR', 'OTHER');
@@ -173,13 +212,7 @@ CREATE TYPE "LegalCapacityStatus" AS ENUM ('ASSESSED_COMPETENT', 'ASSESSED_INCOM
 CREATE TYPE "WitnessType" AS ENUM ('REGISTERED_USER', 'EXTERNAL_INDIVIDUAL', 'PROFESSIONAL_WITNESS', 'COURT_OFFICER', 'NOTARY_PUBLIC');
 
 -- CreateEnum
-CREATE TYPE "WitnessVerificationMethod" AS ENUM ('NATIONAL_ID', 'PASSPORT', 'DRIVERS_LICENSE', 'BIRTH_CERTIFICATE', 'ALIEN_CARD', 'MILITARY_ID', 'OTHER');
-
--- CreateEnum
 CREATE TYPE "WitnessEligibilityStatus" AS ENUM ('ELIGIBLE', 'INELIGIBLE_MINOR', 'INELIGIBLE_BENEFICIARY', 'INELIGIBLE_SPOUSE', 'INELIGIBLE_EXECUTOR', 'INELIGIBLE_RELATIONSHIP', 'INELIGIBLE_MENTAL_CAPACITY', 'INELIGIBLE_CRIMINAL_RECORD', 'PENDING_ELIGIBILITY_CHECK');
-
--- CreateEnum
-CREATE TYPE "WitnessStatus" AS ENUM ('PENDING', 'SIGNED', 'VERIFIED', 'REJECTED');
 
 -- CreateEnum
 CREATE TYPE "SignatureType" AS ENUM ('DIGITAL_SIGNATURE', 'WET_SIGNATURE', 'E_SIGNATURE', 'BIOMETRIC_SIGNATURE', 'WITNESS_MARK');
@@ -197,7 +230,7 @@ CREATE TYPE "AssetVerificationStatus" AS ENUM ('UNVERIFIED', 'PENDING_VERIFICATI
 CREATE TYPE "AssetEncumbranceType" AS ENUM ('MORTGAGE', 'CHARGE', 'LIEN', 'COURT_ORDER', 'FAMILY_CLAIM', 'OTHER');
 
 -- CreateEnum
-CREATE TYPE "BequestType" AS ENUM ('SPECIFIC', 'RESIDUARY', 'CONDITIONAL', 'TRUST', 'PERCENTAGE');
+CREATE TYPE "BequestType" AS ENUM ('SPECIFIC', 'RESIDUARY', 'CONDITIONAL', 'TRUST', 'PERCENTAGE', 'FIXED_AMOUNT', 'LIFE_INTEREST', 'ALTERNATE');
 
 -- CreateEnum
 CREATE TYPE "BequestConditionType" AS ENUM ('AGE_REQUIREMENT', 'SURVIVAL', 'EDUCATION', 'MARRIAGE', 'ALTERNATE', 'NONE');
@@ -222,6 +255,21 @@ CREATE TYPE "DebtStatus" AS ENUM ('OUTSTANDING', 'PARTIALLY_PAID', 'SETTLED', 'W
 
 -- CreateEnum
 CREATE TYPE "ExecutorAppointmentType" AS ENUM ('TESTAMENTARY', 'COURT_APPOINTED', 'ADMINISTRATOR', 'SPECIAL_EXECUTOR');
+
+-- CreateEnum
+CREATE TYPE "GiftStatus" AS ENUM ('CONFIRMED', 'CONTESTED', 'EXCLUDED', 'RECLASSIFIED_AS_LOAN', 'VOID');
+
+-- CreateEnum
+CREATE TYPE "DependantRelationship" AS ENUM ('SPOUSE', 'CHILD', 'ADOPTED_CHILD', 'STEP_CHILD', 'PARENT', 'SIBLING', 'GRANDCHILD', 'NIECE_NEPHEW', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "DependantStatus" AS ENUM ('DRAFT', 'PENDING_VERIFICATION', 'VERIFIED', 'REJECTED', 'APPEALED', 'SETTLED', 'DISPUTED');
+
+-- CreateEnum
+CREATE TYPE "EvidenceType" AS ENUM ('MARRIAGE_CERTIFICATE', 'BIRTH_CERTIFICATE', 'AFFIDAVIT', 'COURT_ORDER', 'MEDICAL_REPORT', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "RiskLevel" AS ENUM ('LOW', 'MEDIUM', 'HIGH');
 
 -- CreateEnum
 CREATE TYPE "KenyanCounty" AS ENUM ('BARINGO', 'BOMET', 'BUNGOMA', 'BUSIA', 'ELGEYO_MARAKWET', 'EMBU', 'GARISSA', 'HOMA_BAY', 'ISIOLO', 'KAJIADO', 'KAKAMEGA', 'KERICHO', 'KIAMBU', 'KILIFI', 'KIRINYAGA', 'KISII', 'KISUMU', 'KITUI', 'KWALE', 'LAIKIPIA', 'LAMU', 'MACHAKOS', 'MAKUENI', 'MANDERA', 'MARSABIT', 'MERU', 'MIGORI', 'MOMBASA', 'MURANGA', 'NAIROBI', 'NAKURU', 'NANDI', 'NAROK', 'NYAMIRA', 'NYANDARUA', 'NYERI', 'SAMBURU', 'SIAYA', 'TAITA_TAVETA', 'TANA_RIVER', 'THARAKA_NITHI', 'TRANS_NZOIA', 'TURKANA', 'UASIN_GISHU', 'VIHIGA', 'WAJIR', 'WEST_POKOT');
@@ -851,16 +899,26 @@ CREATE TABLE "family_legal_events" (
 CREATE TABLE "estates" (
     "id" UUID NOT NULL,
     "deceasedId" UUID NOT NULL,
-    "deceasedFullName" VARCHAR(200) NOT NULL,
-    "deceasedDateOfDeath" TIMESTAMP(3),
-    "isTestate" BOOLEAN NOT NULL DEFAULT false,
-    "isIntestate" BOOLEAN NOT NULL DEFAULT false,
+    "deceasedName" VARCHAR(200) NOT NULL,
+    "DateOfDeath" TIMESTAMP(3),
+    "status" "EstateStatus" NOT NULL,
+    "kraPin" TEXT NOT NULL,
+    "executorId" TEXT,
+    "courtCaseNumber" TEXT,
+    "createdBy" TEXT NOT NULL,
+    "cashOnHandAmount" DECIMAL(19,4) NOT NULL DEFAULT 0,
+    "cashOnHandCurrency" TEXT NOT NULL DEFAULT 'KES',
+    "cashReservedDebtsAmount" DECIMAL(19,4) NOT NULL DEFAULT 0,
+    "cashReservedDebtsCurrency" TEXT NOT NULL DEFAULT 'KES',
+    "cashReservedTaxesAmount" DECIMAL(19,4) NOT NULL DEFAULT 0,
+    "cashReservedTaxesCurrency" TEXT NOT NULL DEFAULT 'KES',
     "isFrozen" BOOLEAN NOT NULL DEFAULT false,
+    "freezeReason" TEXT,
+    "frozenBy" TEXT,
     "frozenAt" TIMESTAMP(3),
-    "grossValueKES" DOUBLE PRECISION NOT NULL DEFAULT 0,
-    "totalLiabilitiesKES" DOUBLE PRECISION NOT NULL DEFAULT 0,
-    "netEstateValueKES" DOUBLE PRECISION NOT NULL DEFAULT 0,
-    "hotchpotAdjustedValueKES" DOUBLE PRECISION,
+    "hasActiveDisputes" BOOLEAN NOT NULL DEFAULT false,
+    "requiresCourtSupervision" BOOLEAN NOT NULL DEFAULT false,
+    "isInsolvent" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -874,15 +932,18 @@ CREATE TABLE "assets" (
     "ownerId" UUID NOT NULL,
     "name" VARCHAR(200) NOT NULL,
     "description" TEXT,
+    "location" TEXT,
     "type" "AssetType" NOT NULL,
-    "currentValue" DOUBLE PRECISION NOT NULL,
-    "currency" VARCHAR(10) NOT NULL DEFAULT 'KES',
-    "valuationDate" TIMESTAMP(3),
+    "status" "AssetStatus" NOT NULL,
+    "currentValueAmount" DECIMAL(19,4) NOT NULL DEFAULT 0,
+    "currentValueCurrency" TEXT NOT NULL DEFAULT 'KES',
     "isEncumbered" BOOLEAN NOT NULL DEFAULT false,
     "encumbranceDetails" TEXT,
-    "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "coOwnershipType" "CoOwnershipType",
+    "totalSharePercentage" DOUBLE PRECISION,
+    "purchaseDate" TIMESTAMP(3),
+    "sourceOfFunds" TEXT,
+    "isVerified" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "assets_pkey" PRIMARY KEY ("id")
 );
@@ -940,10 +1001,25 @@ CREATE TABLE "business_asset_details" (
 CREATE TABLE "asset_valuations" (
     "id" UUID NOT NULL,
     "assetId" UUID NOT NULL,
-    "value" DOUBLE PRECISION NOT NULL,
+    "valueAmount" DECIMAL(19,4) NOT NULL,
+    "valueCurrency" TEXT NOT NULL DEFAULT 'KES',
+    "previousValueAmount" DECIMAL(19,4),
     "valuationDate" TIMESTAMP(3) NOT NULL,
-    "source" VARCHAR(100),
+    "source" "ValuationSource" NOT NULL,
+    "reason" TEXT,
+    "isProfessionalValuation" BOOLEAN NOT NULL DEFAULT false,
+    "isTaxAcceptable" BOOLEAN NOT NULL DEFAULT false,
+    "isCourtAcceptable" BOOLEAN NOT NULL DEFAULT false,
+    "credibilityScore" INTEGER NOT NULL DEFAULT 0,
+    "valuerName" TEXT,
+    "valuerLicenseNumber" TEXT,
+    "valuerInstitution" TEXT,
+    "methodology" TEXT,
     "notes" TEXT,
+    "supportingDocuments" TEXT[],
+    "conductedBy" TEXT NOT NULL,
+    "verifiedBy" TEXT,
+    "verifiedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "asset_valuations_pkey" PRIMARY KEY ("id")
@@ -953,9 +1029,21 @@ CREATE TABLE "asset_valuations" (
 CREATE TABLE "asset_co_owners" (
     "id" UUID NOT NULL,
     "assetId" UUID NOT NULL,
-    "userId" UUID,
-    "externalName" VARCHAR(200),
-    "sharePercent" DOUBLE PRECISION NOT NULL,
+    "familyMemberId" UUID,
+    "sharePercentage" DOUBLE PRECISION NOT NULL,
+    "ownershipType" "CoOwnershipType" NOT NULL,
+    "evidenceOfOwnership" TEXT,
+    "ownershipDate" TIMESTAMP(3),
+    "purchasePrice" DECIMAL(19,4),
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "isVerified" BOOLEAN NOT NULL DEFAULT false,
+    "verificationNotes" TEXT,
+    "verifiedBy" TEXT,
+    "verifiedAt" TIMESTAMP(3),
+    "createdBy" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "deletedAt" TIMESTAMP(3),
 
     CONSTRAINT "asset_co_owners_pkey" PRIMARY KEY ("id")
 );
@@ -964,17 +1052,27 @@ CREATE TABLE "asset_co_owners" (
 CREATE TABLE "asset_liquidations" (
     "id" UUID NOT NULL,
     "assetId" UUID NOT NULL,
-    "liquidationType" VARCHAR(50) NOT NULL,
-    "targetAmount" DOUBLE PRECISION NOT NULL,
-    "actualAmount" DOUBLE PRECISION,
-    "currency" VARCHAR(10) NOT NULL DEFAULT 'KES',
-    "buyerName" VARCHAR(200),
-    "buyerIdNumber" VARCHAR(50),
-    "saleDate" TIMESTAMP(3),
+    "estateId" UUID NOT NULL,
+    "liquidationType" "LiquidationType" NOT NULL,
+    "status" "LiquidationStatus" NOT NULL,
     "approvedByCourt" BOOLEAN NOT NULL DEFAULT false,
-    "courtOrderRef" VARCHAR(100),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "courtOrderRef" TEXT,
+    "targetAmountAmount" DECIMAL(19,4) NOT NULL,
+    "targetAmountCurrency" TEXT NOT NULL DEFAULT 'KES',
+    "actualAmountAmount" DECIMAL(19,4),
+    "actualAmountCurrency" TEXT,
+    "currency" TEXT NOT NULL DEFAULT 'KES',
+    "commissionRate" DOUBLE PRECISION,
+    "commissionAmountAmount" DECIMAL(19,4),
+    "netProceedsAmount" DECIMAL(19,4),
+    "buyerName" TEXT,
+    "buyerIdNumber" TEXT,
+    "saleDate" TIMESTAMP(3),
+    "initiatedAt" TIMESTAMP(3),
+    "completedAt" TIMESTAMP(3),
+    "cancelledAt" TIMESTAMP(3),
+    "liquidationNotes" TEXT,
+    "liquidatedBy" TEXT,
 
     CONSTRAINT "asset_liquidations_pkey" PRIMARY KEY ("id")
 );
@@ -984,15 +1082,27 @@ CREATE TABLE "estate_tax_compliance" (
     "id" UUID NOT NULL,
     "estateId" UUID NOT NULL,
     "kraPin" VARCHAR(20),
-    "incomeTaxPaid" BOOLEAN NOT NULL DEFAULT false,
-    "capitalGainsTaxPaid" BOOLEAN NOT NULL DEFAULT false,
-    "stampDutyPaid" BOOLEAN NOT NULL DEFAULT false,
-    "taxClearanceCertificateNo" VARCHAR(100),
-    "taxClearanceIssuedAt" TIMESTAMP(3),
-    "lastKraSyncAt" TIMESTAMP(3),
-    "kraSyncStatus" VARCHAR(50),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "status" "TaxStatus" NOT NULL,
+    "incomeTaxLiabilityAmount" DECIMAL(19,4) NOT NULL DEFAULT 0,
+    "capitalGainsTaxLiabilityAmount" DECIMAL(19,4) NOT NULL DEFAULT 0,
+    "stampDutyLiabilityAmount" DECIMAL(19,4) NOT NULL DEFAULT 0,
+    "otherLeviesLiabilityAmount" DECIMAL(19,4) NOT NULL DEFAULT 0,
+    "totalPaidAmount" DECIMAL(19,4) NOT NULL DEFAULT 0,
+    "lastPaymentDate" TIMESTAMP(3),
+    "paymentHistory" JSONB[],
+    "clearanceCertificateNo" TEXT,
+    "clearanceDate" TIMESTAMP(3),
+    "clearanceIssuedBy" TEXT,
+    "assessmentDate" TIMESTAMP(3),
+    "assessmentReference" TEXT,
+    "assessedBy" TEXT,
+    "exemptionReason" TEXT,
+    "exemptionCertificateNo" TEXT,
+    "exemptedBy" TEXT,
+    "exemptionDate" TIMESTAMP(3),
+    "requiresProfessionalValuation" BOOLEAN NOT NULL DEFAULT false,
+    "isUnderInvestigation" BOOLEAN NOT NULL DEFAULT false,
+    "notes" TEXT,
 
     CONSTRAINT "estate_tax_compliance_pkey" PRIMARY KEY ("id")
 );
@@ -1001,18 +1111,28 @@ CREATE TABLE "estate_tax_compliance" (
 CREATE TABLE "debts" (
     "id" UUID NOT NULL,
     "estateId" UUID NOT NULL,
-    "description" TEXT NOT NULL,
-    "type" "DebtType" NOT NULL,
-    "amount" DOUBLE PRECISION NOT NULL,
-    "outstandingBalance" DOUBLE PRECISION NOT NULL,
-    "priority" "DebtPriority" NOT NULL DEFAULT 'MEDIUM',
-    "tier" "DebtTier" NOT NULL,
-    "isSecured" BOOLEAN NOT NULL DEFAULT false,
-    "securedAssetId" UUID,
-    "dueDate" TIMESTAMP(3),
-    "isStatuteBarred" BOOLEAN NOT NULL DEFAULT false,
-    "status" "DebtStatus" NOT NULL DEFAULT 'OUTSTANDING',
     "creditorName" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "initialAmountAmount" DECIMAL(19,4) NOT NULL,
+    "initialAmountCurrency" TEXT NOT NULL DEFAULT 'KES',
+    "outstandingBalanceAmount" DECIMAL(19,4) NOT NULL,
+    "outstandingBalanceCurrency" TEXT NOT NULL DEFAULT 'KES',
+    "interestRate" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "currency" TEXT NOT NULL DEFAULT 'KES',
+    "priorityTier" "DebtTier" NOT NULL,
+    "type" "DebtType" NOT NULL,
+    "isSecured" BOOLEAN NOT NULL DEFAULT false,
+    "securedAssetId" TEXT,
+    "status" "DebtStatus" NOT NULL,
+    "isStatuteBarred" BOOLEAN NOT NULL DEFAULT false,
+    "dueDate" TIMESTAMP(3),
+    "disputeReason" TEXT,
+    "lastPaymentDate" TIMESTAMP(3),
+    "totalPaidAmount" DECIMAL(19,4) NOT NULL DEFAULT 0,
+    "creditorContact" TEXT,
+    "referenceNumber" TEXT,
+    "evidenceDocumentId" TEXT,
+    "requiresCourtApproval" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -1023,14 +1143,27 @@ CREATE TABLE "debts" (
 CREATE TABLE "gifts_inter_vivos" (
     "id" UUID NOT NULL,
     "estateId" UUID NOT NULL,
-    "recipientId" UUID NOT NULL,
+    "recipientId" TEXT NOT NULL,
+    "recipientName" TEXT,
+    "description" TEXT NOT NULL,
     "assetType" "AssetType" NOT NULL,
-    "valueAtGiftTimeKES" DOUBLE PRECISION NOT NULL,
-    "dateOfGift" TIMESTAMP(3) NOT NULL,
-    "description" TEXT,
+    "valueAtTimeOfGiftAmount" DECIMAL(19,4) NOT NULL,
+    "valueAtTimeOfGiftCurrency" TEXT NOT NULL DEFAULT 'KES',
+    "dateGiven" TIMESTAMP(3) NOT NULL,
+    "isFormalGift" BOOLEAN NOT NULL DEFAULT false,
+    "deedOfGiftRef" TEXT,
+    "witnesses" TEXT[],
     "isSubjectToHotchpot" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "hotchpotMultiplier" DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    "status" "GiftStatus" NOT NULL,
+    "contestReason" TEXT,
+    "contestedBy" TEXT,
+    "contestedAt" TIMESTAMP(3),
+    "courtOrderRef" TEXT,
+    "givenDuringLifetime" BOOLEAN NOT NULL DEFAULT true,
+    "relationshipToDeceased" TEXT,
+    "notes" TEXT,
+    "requiresReconciliation" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "gifts_inter_vivos_pkey" PRIMARY KEY ("id")
 );
@@ -1041,12 +1174,33 @@ CREATE TABLE "legal_dependants" (
     "estateId" UUID NOT NULL,
     "dependantId" UUID NOT NULL,
     "deceasedId" UUID NOT NULL,
-    "basisSection" "KenyanLawSection" NOT NULL,
+    "dependantName" TEXT NOT NULL,
+    "relationship" "DependantRelationship" NOT NULL,
+    "lawSection" "KenyanLawSection" NOT NULL,
     "dependencyLevel" "DependencyLevel" NOT NULL,
-    "monthlyNeeds" DOUBLE PRECISION,
-    "dependencyPercentage" DOUBLE PRECISION NOT NULL DEFAULT 100,
+    "dateOfBirth" TIMESTAMP(3),
+    "age" INTEGER,
+    "isMinor" BOOLEAN NOT NULL DEFAULT false,
+    "isIncapacitated" BOOLEAN NOT NULL DEFAULT false,
+    "hasDisability" BOOLEAN NOT NULL DEFAULT false,
+    "disabilityPercentage" DOUBLE PRECISION,
+    "monthlyMaintenanceNeedsAmount" DECIMAL(19,4) NOT NULL,
+    "monthlyMaintenanceNeedsCurrency" TEXT NOT NULL DEFAULT 'KES',
+    "annualSupportProvidedAmount" DECIMAL(19,4),
+    "proposedAllocationAmount" DECIMAL(19,4),
     "isVerified" BOOLEAN NOT NULL DEFAULT false,
-    "custodialParentId" UUID,
+    "verifiedBy" TEXT,
+    "verifiedAt" TIMESTAMP(3),
+    "status" "DependantStatus" NOT NULL,
+    "rejectionReason" TEXT,
+    "appealedReason" TEXT,
+    "custodialParentId" TEXT,
+    "guardianId" TEXT,
+    "courtCaseNumber" TEXT,
+    "courtOrderRef" TEXT,
+    "requiresCourtDetermination" BOOLEAN NOT NULL DEFAULT false,
+    "notes" TEXT,
+    "riskLevel" "RiskLevel" NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -1057,10 +1211,18 @@ CREATE TABLE "legal_dependants" (
 CREATE TABLE "dependant_evidence" (
     "id" UUID NOT NULL,
     "dependantId" UUID NOT NULL,
-    "evidenceType" TEXT NOT NULL,
-    "documentId" UUID,
-    "description" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "type" "EvidenceType" NOT NULL,
+    "documentUrl" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "isVerified" BOOLEAN NOT NULL DEFAULT false,
+    "verifiedBy" TEXT,
+    "verifiedAt" TIMESTAMP(3),
+    "validationNotes" TEXT,
+    "validationScore" INTEGER NOT NULL DEFAULT 0,
+    "uploadedBy" TEXT NOT NULL,
+    "uploadedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expiresAt" TIMESTAMP(3),
+    "isExpired" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "dependant_evidence_pkey" PRIMARY KEY ("id")
 );
@@ -1075,11 +1237,17 @@ CREATE TABLE "wills" (
     "isRevoked" BOOLEAN NOT NULL DEFAULT false,
     "revocationMethod" "RevocationMethod",
     "revokedAt" TIMESTAMP(3),
-    "supersedesId" UUID,
+    "supersedesWillId" UUID,
+    "supersededByWillId" UUID,
+    "executionDate" TIMESTAMP(3),
     "funeralWishes" TEXT,
     "burialLocation" TEXT,
     "residuaryClause" TEXT,
+    "storageLocation" TEXT,
     "probateCaseNumber" TEXT,
+    "isValid" BOOLEAN NOT NULL DEFAULT false,
+    "validationErrors" TEXT[],
+    "capacityDeclaration" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -1090,12 +1258,29 @@ CREATE TABLE "wills" (
 CREATE TABLE "will_executors" (
     "id" UUID NOT NULL,
     "willId" UUID NOT NULL,
-    "executorId" UUID,
-    "fullName" TEXT,
-    "email" TEXT,
-    "phone" TEXT,
-    "isPrimary" BOOLEAN NOT NULL DEFAULT false,
-    "appointmentType" "ExecutorAppointmentType" NOT NULL DEFAULT 'TESTAMENTARY',
+    "identityType" "ExecutorType" NOT NULL,
+    "identityUserId" TEXT,
+    "identityFamilyMemberId" TEXT,
+    "identityExternalDetails" JSONB,
+    "priorityLevel" TEXT NOT NULL,
+    "priorityOrder" INTEGER NOT NULL,
+    "appointmentType" "AppointmentType" NOT NULL,
+    "appointmentDate" TIMESTAMP(3) NOT NULL,
+    "consentStatus" "ConsentStatus" NOT NULL,
+    "consentDate" TIMESTAMP(3),
+    "consentNotes" TEXT,
+    "isQualified" BOOLEAN NOT NULL DEFAULT false,
+    "qualificationReasons" TEXT[],
+    "isMinor" BOOLEAN NOT NULL DEFAULT false,
+    "isMentallyIncapacitated" BOOLEAN NOT NULL DEFAULT false,
+    "hasCriminalRecord" BOOLEAN NOT NULL DEFAULT false,
+    "isBankrupt" BOOLEAN NOT NULL DEFAULT false,
+    "contactInfo" JSONB,
+    "powers" TEXT[],
+    "restrictions" TEXT[],
+    "compensation" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "will_executors_pkey" PRIMARY KEY ("id")
 );
@@ -1104,44 +1289,76 @@ CREATE TABLE "will_executors" (
 CREATE TABLE "will_witnesses" (
     "id" UUID NOT NULL,
     "willId" UUID NOT NULL,
-    "witnessId" UUID,
-    "fullName" TEXT NOT NULL,
-    "nationalId" TEXT,
-    "status" "WitnessStatus" NOT NULL DEFAULT 'PENDING',
+    "identityType" "WitnessType" NOT NULL,
+    "identityUserId" TEXT,
+    "identityExternalDetails" JSONB,
+    "status" TEXT NOT NULL,
+    "eligibility" JSONB NOT NULL,
+    "verificationMethod" "VerificationMethod",
+    "verificationDocumentId" TEXT,
+    "signatureType" "SignatureType",
     "signedAt" TIMESTAMP(3),
+    "signatureLocation" TEXT,
+    "executionDate" TIMESTAMP(3),
+    "presenceType" TEXT NOT NULL,
+    "declarations" JSONB NOT NULL,
+    "contactInfo" JSONB,
+    "notes" TEXT,
+    "evidenceIds" TEXT[],
+    "invitedAt" TIMESTAMP(3),
+    "remindedAt" TIMESTAMP(3)[],
+    "lastContactAttempt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "will_witnesses_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "beneficiary_assignments" (
+CREATE TABLE "will_bequest" (
     "id" UUID NOT NULL,
     "willId" UUID NOT NULL,
     "assetId" UUID,
-    "isResiduary" BOOLEAN NOT NULL DEFAULT false,
-    "sharePercentage" DOUBLE PRECISION,
-    "specificAmount" DOUBLE PRECISION,
-    "beneficiaryType" "BeneficiaryType" NOT NULL,
-    "userId" UUID,
-    "familyMemberId" UUID,
-    "externalName" TEXT,
-    "conditionType" "BequestConditionType" NOT NULL DEFAULT 'NONE',
-    "conditionDetails" TEXT,
-    "alternateAssignmentId" UUID,
+    "beneficiary" JSONB NOT NULL,
+    "bequestType" "BequestType" NOT NULL,
+    "specificAssetId" TEXT,
+    "percentage" DOUBLE PRECISION,
+    "fixedAmountAmount" DECIMAL(19,4),
+    "fixedAmountCurrency" TEXT,
+    "residuaryShare" DOUBLE PRECISION,
+    "lifeInterestDetails" JSONB,
+    "trustDetails" JSONB,
+    "conditions" JSONB[],
+    "priority" "BequestPriority" NOT NULL,
+    "executionOrder" INTEGER NOT NULL,
+    "alternateBeneficiary" JSONB,
+    "alternateConditions" JSONB[],
+    "description" TEXT NOT NULL,
+    "notes" TEXT,
+    "isVested" BOOLEAN NOT NULL DEFAULT false,
+    "isSubjectToHotchpot" BOOLEAN NOT NULL DEFAULT false,
+    "isValid" BOOLEAN NOT NULL DEFAULT false,
+    "validationErrors" TEXT[],
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "beneficiary_assignments_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "will_bequest_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "codicils" (
     "id" UUID NOT NULL,
     "willId" UUID NOT NULL,
-    "title" VARCHAR(200) NOT NULL,
+    "title" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "codicilDate" TIMESTAMP(3) NOT NULL,
-    "versionNumber" INTEGER NOT NULL DEFAULT 1,
+    "versionNumber" INTEGER NOT NULL,
+    "executionDate" TIMESTAMP(3),
+    "witnesses" TEXT[],
+    "amendmentType" "CodicilAmendmentType" NOT NULL,
+    "affectedClauses" TEXT[],
+    "legalBasis" TEXT,
+    "isDependent" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -1152,8 +1369,24 @@ CREATE TABLE "codicils" (
 CREATE TABLE "disinheritance_records" (
     "id" UUID NOT NULL,
     "willId" UUID NOT NULL,
-    "disinheritedMemberId" UUID NOT NULL,
-    "reason" TEXT,
+    "disinheritedPerson" JSONB NOT NULL,
+    "reasonCategory" "DisinheritanceReasonCategory" NOT NULL,
+    "reasonDescription" TEXT NOT NULL,
+    "legalBasis" TEXT,
+    "evidence" JSONB[],
+    "appliesToBequests" TEXT[],
+    "isCompleteDisinheritance" BOOLEAN NOT NULL,
+    "reinstatementConditions" TEXT[],
+    "isAcknowledgedByDisinherited" BOOLEAN NOT NULL DEFAULT false,
+    "acknowledgmentDate" TIMESTAMP(3),
+    "acknowledgmentMethod" TEXT,
+    "legalRiskLevel" "RiskLevel" NOT NULL,
+    "riskMitigationSteps" TEXT[],
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "deactivatedReason" TEXT,
+    "deactivatedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "disinheritance_records_pkey" PRIMARY KEY ("id")
 );
@@ -1333,6 +1566,30 @@ CREATE TABLE "audit_logs" (
 );
 
 -- CreateTable
+CREATE TABLE "_ExecutorUser" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_ExecutorUser_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
+CREATE TABLE "_WitnessUser" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_WitnessUser_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
+CREATE TABLE "_AssignmentBeneficiaryUser" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_AssignmentBeneficiaryUser_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
 CREATE TABLE "_WitnessIdentityDocuments" (
     "A" UUID NOT NULL,
     "B" UUID NOT NULL,
@@ -1357,6 +1614,22 @@ CREATE TABLE "_FamilyMemberUser" (
 );
 
 -- CreateTable
+CREATE TABLE "_BeneficiaryFamilyMember" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_BeneficiaryFamilyMember_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
+CREATE TABLE "_CustodialParent" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_CustodialParent_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
 CREATE TABLE "_CohabitationChildren" (
     "A" UUID NOT NULL,
     "B" UUID NOT NULL,
@@ -1370,6 +1643,22 @@ CREATE TABLE "_FamilyMemberLifeInterest" (
     "B" UUID NOT NULL,
 
     CONSTRAINT "_FamilyMemberLifeInterest_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
+CREATE TABLE "_SecuredDebtAsset" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_SecuredDebtAsset_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
+CREATE TABLE "_DisinheritedMember" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_DisinheritedMember_AB_pkey" PRIMARY KEY ("A","B")
 );
 
 -- CreateIndex
@@ -1562,7 +1851,7 @@ CREATE UNIQUE INDEX "vehicle_asset_details_registrationNumber_key" ON "vehicle_a
 CREATE UNIQUE INDEX "business_asset_details_assetId_key" ON "business_asset_details"("assetId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "asset_co_owners_assetId_userId_key" ON "asset_co_owners"("assetId", "userId");
+CREATE UNIQUE INDEX "asset_co_owners_assetId_familyMemberId_key" ON "asset_co_owners"("assetId", "familyMemberId");
 
 -- CreateIndex
 CREATE INDEX "asset_liquidations_assetId_idx" ON "asset_liquidations"("assetId");
@@ -1574,10 +1863,16 @@ CREATE UNIQUE INDEX "estate_tax_compliance_estateId_key" ON "estate_tax_complian
 CREATE UNIQUE INDEX "estate_tax_compliance_kraPin_key" ON "estate_tax_compliance"("kraPin");
 
 -- CreateIndex
-CREATE INDEX "debts_estateId_tier_idx" ON "debts"("estateId", "tier");
+CREATE INDEX "debts_estateId_priorityTier_idx" ON "debts"("estateId", "priorityTier");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "legal_dependants_estateId_dependantId_key" ON "legal_dependants"("estateId", "dependantId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "wills_supersedesWillId_key" ON "wills"("supersedesWillId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "wills_supersededByWillId_key" ON "wills"("supersededByWillId");
 
 -- CreateIndex
 CREATE INDEX "wills_testatorId_status_idx" ON "wills"("testatorId", "status");
@@ -1607,6 +1902,15 @@ CREATE INDEX "audit_logs_actorId_idx" ON "audit_logs"("actorId");
 CREATE INDEX "audit_logs_action_timestamp_idx" ON "audit_logs"("action", "timestamp");
 
 -- CreateIndex
+CREATE INDEX "_ExecutorUser_B_index" ON "_ExecutorUser"("B");
+
+-- CreateIndex
+CREATE INDEX "_WitnessUser_B_index" ON "_WitnessUser"("B");
+
+-- CreateIndex
+CREATE INDEX "_AssignmentBeneficiaryUser_B_index" ON "_AssignmentBeneficiaryUser"("B");
+
+-- CreateIndex
 CREATE INDEX "_WitnessIdentityDocuments_B_index" ON "_WitnessIdentityDocuments"("B");
 
 -- CreateIndex
@@ -1616,10 +1920,22 @@ CREATE INDEX "_FamilyCreator_B_index" ON "_FamilyCreator"("B");
 CREATE INDEX "_FamilyMemberUser_B_index" ON "_FamilyMemberUser"("B");
 
 -- CreateIndex
+CREATE INDEX "_BeneficiaryFamilyMember_B_index" ON "_BeneficiaryFamilyMember"("B");
+
+-- CreateIndex
+CREATE INDEX "_CustodialParent_B_index" ON "_CustodialParent"("B");
+
+-- CreateIndex
 CREATE INDEX "_CohabitationChildren_B_index" ON "_CohabitationChildren"("B");
 
 -- CreateIndex
 CREATE INDEX "_FamilyMemberLifeInterest_B_index" ON "_FamilyMemberLifeInterest"("B");
+
+-- CreateIndex
+CREATE INDEX "_SecuredDebtAsset_B_index" ON "_SecuredDebtAsset"("B");
+
+-- CreateIndex
+CREATE INDEX "_DisinheritedMember_B_index" ON "_DisinheritedMember"("B");
 
 -- AddForeignKey
 ALTER TABLE "user_profiles" ADD CONSTRAINT "user_profiles_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1760,7 +2076,7 @@ ALTER TABLE "asset_valuations" ADD CONSTRAINT "asset_valuations_assetId_fkey" FO
 ALTER TABLE "asset_co_owners" ADD CONSTRAINT "asset_co_owners_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "asset_co_owners" ADD CONSTRAINT "asset_co_owners_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "asset_co_owners" ADD CONSTRAINT "asset_co_owners_familyMemberId_fkey" FOREIGN KEY ("familyMemberId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "asset_liquidations" ADD CONSTRAINT "asset_liquidations_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1772,13 +2088,7 @@ ALTER TABLE "estate_tax_compliance" ADD CONSTRAINT "estate_tax_compliance_estate
 ALTER TABLE "debts" ADD CONSTRAINT "debts_estateId_fkey" FOREIGN KEY ("estateId") REFERENCES "estates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "debts" ADD CONSTRAINT "debts_securedAssetId_fkey" FOREIGN KEY ("securedAssetId") REFERENCES "assets"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "gifts_inter_vivos" ADD CONSTRAINT "gifts_inter_vivos_estateId_fkey" FOREIGN KEY ("estateId") REFERENCES "estates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "gifts_inter_vivos" ADD CONSTRAINT "gifts_inter_vivos_recipientId_fkey" FOREIGN KEY ("recipientId") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "legal_dependants" ADD CONSTRAINT "legal_dependants_estateId_fkey" FOREIGN KEY ("estateId") REFERENCES "estates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1790,52 +2100,31 @@ ALTER TABLE "legal_dependants" ADD CONSTRAINT "legal_dependants_dependantId_fkey
 ALTER TABLE "legal_dependants" ADD CONSTRAINT "legal_dependants_deceasedId_fkey" FOREIGN KEY ("deceasedId") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "legal_dependants" ADD CONSTRAINT "legal_dependants_custodialParentId_fkey" FOREIGN KEY ("custodialParentId") REFERENCES "family_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "dependant_evidence" ADD CONSTRAINT "dependant_evidence_dependantId_fkey" FOREIGN KEY ("dependantId") REFERENCES "legal_dependants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "wills" ADD CONSTRAINT "wills_testatorId_fkey" FOREIGN KEY ("testatorId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "wills" ADD CONSTRAINT "wills_supersedesId_fkey" FOREIGN KEY ("supersedesId") REFERENCES "wills"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "wills" ADD CONSTRAINT "wills_supersedesWillId_fkey" FOREIGN KEY ("supersedesWillId") REFERENCES "wills"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "will_executors" ADD CONSTRAINT "will_executors_willId_fkey" FOREIGN KEY ("willId") REFERENCES "wills"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "will_executors" ADD CONSTRAINT "will_executors_executorId_fkey" FOREIGN KEY ("executorId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "will_witnesses" ADD CONSTRAINT "will_witnesses_willId_fkey" FOREIGN KEY ("willId") REFERENCES "wills"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "will_witnesses" ADD CONSTRAINT "will_witnesses_witnessId_fkey" FOREIGN KEY ("witnessId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "will_bequest" ADD CONSTRAINT "will_bequest_willId_fkey" FOREIGN KEY ("willId") REFERENCES "wills"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "beneficiary_assignments" ADD CONSTRAINT "beneficiary_assignments_willId_fkey" FOREIGN KEY ("willId") REFERENCES "wills"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "beneficiary_assignments" ADD CONSTRAINT "beneficiary_assignments_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "beneficiary_assignments" ADD CONSTRAINT "beneficiary_assignments_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "beneficiary_assignments" ADD CONSTRAINT "beneficiary_assignments_familyMemberId_fkey" FOREIGN KEY ("familyMemberId") REFERENCES "family_members"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "beneficiary_assignments" ADD CONSTRAINT "beneficiary_assignments_alternateAssignmentId_fkey" FOREIGN KEY ("alternateAssignmentId") REFERENCES "beneficiary_assignments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "will_bequest" ADD CONSTRAINT "will_bequest_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "assets"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "codicils" ADD CONSTRAINT "codicils_willId_fkey" FOREIGN KEY ("willId") REFERENCES "wills"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "disinheritance_records" ADD CONSTRAINT "disinheritance_records_willId_fkey" FOREIGN KEY ("willId") REFERENCES "wills"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "disinheritance_records" ADD CONSTRAINT "disinheritance_records_disinheritedMemberId_fkey" FOREIGN KEY ("disinheritedMemberId") REFERENCES "family_members"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "distribution_scenarios" ADD CONSTRAINT "distribution_scenarios_estateId_fkey" FOREIGN KEY ("estateId") REFERENCES "estates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1865,6 +2154,24 @@ ALTER TABLE "notifications" ADD CONSTRAINT "notifications_recipientId_fkey" FORE
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "_ExecutorUser" ADD CONSTRAINT "_ExecutorUser_A_fkey" FOREIGN KEY ("A") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_ExecutorUser" ADD CONSTRAINT "_ExecutorUser_B_fkey" FOREIGN KEY ("B") REFERENCES "will_executors"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_WitnessUser" ADD CONSTRAINT "_WitnessUser_A_fkey" FOREIGN KEY ("A") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_WitnessUser" ADD CONSTRAINT "_WitnessUser_B_fkey" FOREIGN KEY ("B") REFERENCES "will_witnesses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_AssignmentBeneficiaryUser" ADD CONSTRAINT "_AssignmentBeneficiaryUser_A_fkey" FOREIGN KEY ("A") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_AssignmentBeneficiaryUser" ADD CONSTRAINT "_AssignmentBeneficiaryUser_B_fkey" FOREIGN KEY ("B") REFERENCES "will_bequest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "_WitnessIdentityDocuments" ADD CONSTRAINT "_WitnessIdentityDocuments_A_fkey" FOREIGN KEY ("A") REFERENCES "documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1883,6 +2190,18 @@ ALTER TABLE "_FamilyMemberUser" ADD CONSTRAINT "_FamilyMemberUser_A_fkey" FOREIG
 ALTER TABLE "_FamilyMemberUser" ADD CONSTRAINT "_FamilyMemberUser_B_fkey" FOREIGN KEY ("B") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "_BeneficiaryFamilyMember" ADD CONSTRAINT "_BeneficiaryFamilyMember_A_fkey" FOREIGN KEY ("A") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_BeneficiaryFamilyMember" ADD CONSTRAINT "_BeneficiaryFamilyMember_B_fkey" FOREIGN KEY ("B") REFERENCES "will_bequest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_CustodialParent" ADD CONSTRAINT "_CustodialParent_A_fkey" FOREIGN KEY ("A") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_CustodialParent" ADD CONSTRAINT "_CustodialParent_B_fkey" FOREIGN KEY ("B") REFERENCES "legal_dependants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "_CohabitationChildren" ADD CONSTRAINT "_CohabitationChildren_A_fkey" FOREIGN KEY ("A") REFERENCES "cohabitation_records"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1893,3 +2212,15 @@ ALTER TABLE "_FamilyMemberLifeInterest" ADD CONSTRAINT "_FamilyMemberLifeInteres
 
 -- AddForeignKey
 ALTER TABLE "_FamilyMemberLifeInterest" ADD CONSTRAINT "_FamilyMemberLifeInterest_B_fkey" FOREIGN KEY ("B") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_SecuredDebtAsset" ADD CONSTRAINT "_SecuredDebtAsset_A_fkey" FOREIGN KEY ("A") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_SecuredDebtAsset" ADD CONSTRAINT "_SecuredDebtAsset_B_fkey" FOREIGN KEY ("B") REFERENCES "debts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_DisinheritedMember" ADD CONSTRAINT "_DisinheritedMember_A_fkey" FOREIGN KEY ("A") REFERENCES "disinheritance_records"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_DisinheritedMember" ADD CONSTRAINT "_DisinheritedMember_B_fkey" FOREIGN KEY ("B") REFERENCES "family_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;

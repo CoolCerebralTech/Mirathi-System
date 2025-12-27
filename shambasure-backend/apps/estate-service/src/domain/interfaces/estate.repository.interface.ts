@@ -1,22 +1,24 @@
 // domain/repositories/estate.repository.interface.ts
-import { Estate } from '../aggregates/estate.aggregate';
+import { Estate, EstateStatus } from '../aggregates/estate.aggregate';
 import { UniqueEntityID } from '../base/unique-entity-id';
 import { MoneyVO } from '../value-objects/money.vo';
 
 /**
  * Estate Repository Interface
  *
- * Defines the contract for persisting and retrieving Estate aggregates
+ * Repository Pattern implementation for the Estate Aggregate Root.
  *
- * Design Patterns:
- * - Repository Pattern (DDD)
- * - Unit of Work (transaction management)
- * - Optimistic Locking (version-based concurrency)
+ * KEY INNOVATIONS:
+ * 1. Multi-criteria search with S.45 debt priority filtering
+ * 2. Liquidity forecasting queries for cash management
+ * 3. Dispute impact analysis for distribution blocking
+ * 4. Batch operations for bulk administration
+ * 5. Real-time solvency monitoring
  *
  * Legal Compliance:
- * - All operations atomic (transaction boundary = aggregate)
- * - Events persisted with aggregate (audit trail)
- * - Soft delete support (legal retention)
+ * - All operations within transaction boundaries
+ * - Full audit trail with domain events
+ * - Kenyan legal requirement compliance in queries
  *
  * NestJS Injection Token: ESTATE_REPOSITORY
  */
@@ -24,200 +26,289 @@ import { MoneyVO } from '../value-objects/money.vo';
 export const ESTATE_REPOSITORY = 'ESTATE_REPOSITORY';
 
 export interface IEstateRepository {
+  // ===========================================================================
+  // CORE CRUD OPERATIONS
+  // ===========================================================================
+
   /**
    * Save estate (create or update)
    *
-   * Includes:
-   * - Persist aggregate state
-   * - Save all child entities (assets, debts, dependants, gifts)
-   * - Append domain events to event store
-   * - Publish integration events
+   * INNOVATION: Transactional save with child entity cascade
+   * Ensures all child entities (assets, debts, dependants) are saved atomically
    *
-   * Transaction:
-   * - All operations in single database transaction
-   * - Rollback on any failure
-   *
-   * Concurrency:
-   * - Uses optimistic locking (WHERE version = expectedVersion)
-   * - Throws ConcurrencyError if version mismatch
-   *
-   * @throws ConcurrencyError if version conflict
-   * @throws PersistenceError if database error
+   * @throws ConcurrencyError if optimistic lock fails (version mismatch)
+   * @throws PersistenceError on database failure
    */
   save(estate: Estate): Promise<void>;
 
   /**
    * Find estate by ID
    *
-   * Returns:
-   * - Fully hydrated aggregate with all entities
-   * - Null if not found or soft deleted
-   *
-   * Performance:
-   * - Uses eager loading for child entities
-   * - Single query with JOINs
+   * INNOVATION: Deep hydration with all child entities
+   * Returns fully reconstituted aggregate with all business invariants
    */
   findById(id: UniqueEntityID): Promise<Estate | null>;
 
   /**
-   * Find estate by deceased ID
+   * Find estate by deceased ID (One-per-deceased constraint)
    *
-   * Business Rule:
-   * - One estate per deceased person
-   * - Most common lookup pattern
+   * BUSINESS RULE: Only one active estate per deceased person
    */
-  findByDeceasedId(deceasedId: UniqueEntityID): Promise<Estate | null>;
+  findByDeceasedId(deceasedId: string): Promise<Estate | null>;
 
   /**
-   * Find estates by status
+   * Find estates by multiple criteria
    *
-   * Use Cases:
-   * - Find all testate estates
-   * - Find all intestate estates
-   * - Find all frozen estates
-   * - Find estates ready for distribution
+   * INNOVATION: Supports complex multi-dimensional filtering
+   * Used for court reports, executor dashboards, compliance audits
    */
-  findByStatus(criteria: {
-    isTestate?: boolean;
-    isIntestate?: boolean;
-    isFrozen?: boolean;
-    isReadyForDistribution?: boolean;
-  }): Promise<Estate[]>;
-
-  /**
-   * Find estates by value range
-   *
-   * Use Cases:
-   * - High-value estates requiring court supervision
-   * - Small estates eligible for summary administration
-   */
-  findByValueRange(minValue: MoneyVO, maxValue: MoneyVO): Promise<Estate[]>;
-
-  /**
-   * Find insolvent estates
-   *
-   * Business Rule:
-   * - Insolvent estates require special handling
-   * - May need bankruptcy proceedings
-   */
-  findInsolventEstates(): Promise<Estate[]>;
-
-  /**
-   * Find estates with outstanding critical debts
-   *
-   * Business Rule:
-   * - S.45(a)-(c) debts must be paid before distribution
-   * - These estates are blocked from distribution
-   */
-  findEstatesWithCriticalDebts(): Promise<Estate[]>;
+  find(criteria?: EstateSearchCriteria): Promise<Estate[]>;
 
   /**
    * Check if estate exists for deceased
    *
-   * Performance:
-   * - Lightweight check (doesn't load full aggregate)
-   * - Used before estate creation
+   * Prevents duplicate estate creation
    */
-  existsForDeceased(deceasedId: UniqueEntityID): Promise<boolean>;
+  existsForDeceased(deceasedId: string): Promise<boolean>;
 
   /**
-   * Delete estate (soft delete)
+   * Soft delete estate (legal retention)
    *
-   * Legal Requirement:
-   * - Soft delete only (set deletedAt timestamp)
-   * - Never hard delete (audit trail)
-   * - Retained for legal minimum period
-   *
-   * @param reason - Why estate is being deleted
+   * LEGAL REQUIREMENT: Never hard delete, retain for 7+ years
    */
-  delete(id: UniqueEntityID, reason: string): Promise<void>;
+  softDelete(id: UniqueEntityID, reason: string, deletedBy: string): Promise<void>;
+
+  // ===========================================================================
+  // SPECIALIZED BUSINESS QUERIES
+  // ===========================================================================
 
   /**
-   * Count estates by criteria
+   * Find estates requiring court attention
+   *
+   * CRITERIA:
+   * - High-value estates (>10M KES)
+   * - Active disputes
+   * - Require court determination
+   * - Frozen status
+   */
+  findEstatesRequiringCourtAttention(): Promise<Estate[]>;
+
+  /**
+   * Find estates ready for distribution (The "Green Light" Query)
+   *
+   * CRITERIA:
+   * - Tax cleared
+   * - No active disputes
+   * - All S.45(a)-(c) debts paid
+   * - Status = READY_FOR_DISTRIBUTION
+   */
+  findEstatesReadyForDistribution(): Promise<Estate[]>;
+
+  /**
+   * Find insolvent estates (Liabilities > Assets)
+   *
+   * INNOVATION: Real-time solvency calculation
+   * Used for bankruptcy proceedings
+   */
+  findInsolventEstates(): Promise<Estate[]>;
+
+  /**
+   * Find estates with critical S.45 debts outstanding
+   *
+   * CRITERIA: Funeral, Testamentary, or Secured debts unpaid
+   * Blocks distribution until cleared
+   */
+  findEstatesWithCriticalDebts(): Promise<Estate[]>;
+
+  /**
+   * Find estates requiring liquidation for cash
+   *
+   * INNOVATION: Liquidity forecasting query
+   * Identifies estates that need asset sales to meet obligations
+   */
+  findEstatesRequiringLiquidation(): Promise<Estate[]>;
+
+  /**
+   * Find estates with high-risk dependants
+   *
+   * CRITERIA: Dependants with riskLevel = HIGH
+   * May require court supervision
+   */
+  findEstatesWithHighRiskDependants(): Promise<Estate[]>;
+
+  /**
+   * Find estates with pending tax compliance
+   *
+   * CRITERIA: Tax status not CLEARED or EXEMPT
+   * The "Gatekeeper" blocker query
+   */
+  findEstatesWithPendingTaxCompliance(): Promise<Estate[]>;
+
+  // ===========================================================================
+  // BATCH OPERATIONS & ANALYTICS
+  // ===========================================================================
+
+  /**
+   * Count estates by various criteria
    *
    * Use Cases:
    * - Dashboard statistics
-   * - Reporting
+   * - Court workload planning
+   * - Resource allocation
    */
-  count(criteria?: {
-    isTestate?: boolean;
-    isIntestate?: boolean;
-    isFrozen?: boolean;
-  }): Promise<number>;
+  count(criteria?: EstateCountCriteria): Promise<number>;
 
   /**
-   * Search estates
+   * Search estates with pagination and sorting
    *
-   * Search by:
-   * - Deceased name
-   * - Estate ID
-   * - Date of death range
-   * - Net value range
-   *
-   * Returns paginated results
+   * INNOVATION: Full-text search with financial filtering
+   * Used by executors, lawyers, court officers
    */
   search(criteria: EstateSearchCriteria): Promise<PaginatedResult<Estate>>;
 
   /**
-   * Get estate statistics
+   * Get comprehensive estate statistics
    *
-   * Returns:
-   * - Total estates
-   * - Total value under management
-   * - Solvency statistics
-   * - Distribution readiness stats
+   * INNOVATION: Real-time financial analytics
+   * Provides insights for system monitoring and reporting
    */
   getStatistics(): Promise<EstateStatistics>;
 
   /**
-   * Begin transaction
+   * Batch update estate statuses
    *
-   * For operations spanning multiple aggregates:
-   * - Create estate + create will
-   * - Transfer assets between estates
+   * Use Cases:
+   * - Bulk freeze/unfreeze for court orders
+   * - Mass status updates for system maintenance
+   */
+  batchUpdateStatus(
+    criteria: EstateBatchCriteria,
+    newStatus: EstateStatus,
+    updatedBy: string,
+    reason: string,
+  ): Promise<number>;
+
+  /**
+   * Find estates nearing statutory deadlines
    *
-   * Returns transaction context for commit/rollback
+   * INNOVATION: Deadline management for legal compliance
+   * Alerts for time-sensitive actions
+   */
+  findEstatesNearingDeadlines(daysThreshold: number): Promise<Estate[]>;
+
+  // ===========================================================================
+  // TRANSACTION MANAGEMENT
+  // ===========================================================================
+
+  /**
+   * Begin transaction for complex operations
+   *
+   * Use Cases:
+   * - Multi-aggregate operations
+   * - Financial reconciliations
+   * - Bulk data imports
    */
   beginTransaction(): Promise<TransactionContext>;
 }
 
+// ===========================================================================
+// SUPPORTING INTERFACES
+// ===========================================================================
+
+// ===========================================================================
+// SUPPORTING INTERFACES
+// ===========================================================================
+
 /**
  * Estate Search Criteria
+ *
+ * INNOVATION: Multi-dimensional filtering for complex queries
  */
 export interface EstateSearchCriteria {
-  // Deceased info
-  deceasedName?: string;
+  // Basic Identity
+  id?: string;
   deceasedId?: string;
+  deceasedName?: string;
+  executorId?: string;
 
-  // Date filters
+  // Timeline Filters
   dateOfDeathFrom?: Date;
   dateOfDeathTo?: Date;
-  createdFrom?: Date;
-  createdTo?: Date;
+  createdAtFrom?: Date;
+  createdAtTo?: Date;
+  updatedAtFrom?: Date;
+  updatedAtTo?: Date;
 
-  // Status filters
-  isTestate?: boolean;
-  isIntestate?: boolean;
+  // Status Filters
+  status?: EstateStatus | EstateStatus[];
   isFrozen?: boolean;
-  isReadyForDistribution?: boolean;
+  isInsolvent?: boolean;
+  hasActiveDisputes?: boolean;
+  requiresCourtSupervision?: boolean;
 
-  // Value filters
+  // Financial Filters
+  minNetWorth?: MoneyVO;
+  maxNetWorth?: MoneyVO;
+  minCashOnHand?: MoneyVO;
+  maxCashOnHand?: MoneyVO;
   minGrossValue?: MoneyVO;
   maxGrossValue?: MoneyVO;
-  minNetValue?: MoneyVO;
-  maxNetValue?: MoneyVO;
 
-  // Solvency
-  isSolvent?: boolean;
+  // Tax Compliance Filters
+  taxStatus?: string | string[];
+  hasTaxClearance?: boolean;
+
+  // Asset Filters
+  hasRealEstate?: boolean;
+  hasBusinessAssets?: boolean;
+  hasHighValueAssets?: boolean;
+
+  // Debt Filters
+  hasSecuredDebts?: boolean;
+  hasCriticalDebts?: boolean;
+  maxDebtToAssetRatio?: number;
+
+  // Dependant Filters
+  hasDependants?: boolean;
+  hasMinorDependants?: boolean;
+  hasHighRiskDependants?: boolean;
+
+  // Administrative
+  courtCaseNumber?: string;
+  kraPin?: string;
 
   // Pagination
   page?: number;
   pageSize?: number;
+  offset?: number;
+  limit?: number;
 
   // Sorting
-  sortBy?: 'createdAt' | 'deceasedName' | 'netValue' | 'dateOfDeath';
+  sortBy?:
+    | 'createdAt'
+    | 'updatedAt'
+    | 'dateOfDeath'
+    | 'deceasedName'
+    | 'netWorth'
+    | 'cashOnHand'
+    | 'status';
   sortOrder?: 'ASC' | 'DESC';
 }
+/**
+ * Estate Count Criteria
+ */
+export type EstateCountCriteria = Omit<
+  EstateSearchCriteria,
+  'page' | 'pageSize' | 'offset' | 'limit' | 'sortBy' | 'sortOrder'
+>;
+
+/**
+ * Estate Batch Criteria
+ */
+export type EstateBatchCriteria = Omit<
+  EstateSearchCriteria,
+  'page' | 'pageSize' | 'offset' | 'limit' | 'sortBy' | 'sortOrder'
+>;
 
 /**
  * Paginated Result
@@ -230,42 +321,97 @@ export interface PaginatedResult<T> {
   totalPages: number;
   hasNext: boolean;
   hasPrevious: boolean;
+  hasMore?: boolean;
 }
 
 /**
- * Estate Statistics
+ * Comprehensive Estate Statistics
+ *
+ * INNOVATION: Real-time dashboard metrics for executors and courts
  */
 export interface EstateStatistics {
+  // Basic Counts
   totalEstates: number;
-  testateEstates: number;
-  intestateEstates: number;
+  activeEstates: number;
+  closedEstates: number;
+
+  // Status Breakdown
+  estatesByStatus: Record<EstateStatus, number>;
   frozenEstates: number;
+  distributingEstates: number;
+  readyForDistribution: number;
 
+  // Financial Overview
+  totalNetWorth: MoneyVO;
   totalGrossValue: MoneyVO;
-  totalNetValue: MoneyVO;
   totalLiabilities: MoneyVO;
+  totalCashOnHand: MoneyVO;
+  totalReservedCash: MoneyVO;
 
+  // Solvency Analysis
   solventEstates: number;
   insolventEstates: number;
+  averageSolvencyRatio: number;
 
-  estatesReadyForDistribution: number;
-  estatesBlockedByDebts: number;
+  // Tax Compliance
+  taxClearedEstates: number;
+  taxPendingEstates: number;
+  taxExemptEstates: number;
 
-  averageEstateValue: MoneyVO;
+  // Debt Analysis
+  estatesWithCriticalDebts: number;
+  totalOutstandingDebts: MoneyVO;
+  averageDebtPerEstate: MoneyVO;
+
+  // Asset Analysis
+  totalAssets: number;
+  estatesWithRealEstate: number;
+  estatesWithBusinessAssets: number;
+  averageAssetsPerEstate: number;
+
+  // Dependant Analysis
+  estatesWithDependants: number;
+  totalDependants: number;
+  estatesWithMinorDependants: number;
+  estatesWithHighRiskDependants: number;
+
+  // Legal & Dispute Analysis
+  estatesWithActiveDisputes: number;
+  estatesRequiringCourtSupervision: number;
+  estatesWithCourtCases: number;
+
+  // Timeline Analysis
+  averageAdministrationDays: number;
+  estatesNearingDeadlines: number;
+
+  // Value Distribution
+  top10PercentValue: MoneyVO;
   medianEstateValue: MoneyVO;
+  averageEstateValue: MoneyVO;
+
+  // Performance Metrics
+  distributionSuccessRate: number;
+  liquidationSuccessRate: number;
+  disputeResolutionRate: number;
 }
 
 /**
- * Transaction Context
+ * Transaction Context for Unit of Work
  */
 export interface TransactionContext {
   id: string;
   commit(): Promise<void>;
   rollback(): Promise<void>;
+  isActive: boolean;
+  startTime: Date;
 }
 
+// ===========================================================================
+// REPOSITORY ERRORS (Domain Exceptions)
+// ===========================================================================
+
 /**
- * Repository Errors
+ * Estate Not Found Error
  */
 export class EstateNotFoundError extends Error {
   constructor(id: string) {
@@ -274,6 +420,10 @@ export class EstateNotFoundError extends Error {
   }
 }
 
+/**
+ * Estate Already Exists Error
+ * (One estate per deceased rule violation)
+ */
 export class EstateAlreadyExistsError extends Error {
   constructor(deceasedId: string) {
     super(`Estate already exists for deceased: ${deceasedId}`);
@@ -281,19 +431,114 @@ export class EstateAlreadyExistsError extends Error {
   }
 }
 
+/**
+ * Concurrency Error (Optimistic Locking Failure)
+ */
 export class ConcurrencyError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(aggregateId: string, expectedVersion: number, actualVersion: number) {
+    super(
+      `Concurrency conflict for estate ${aggregateId}. Expected version ${expectedVersion}, found ${actualVersion}`,
+    );
     this.name = 'ConcurrencyError';
+    this.aggregateId = aggregateId;
+    this.expectedVersion = expectedVersion;
+    this.actualVersion = actualVersion;
   }
+
+  public readonly aggregateId: string;
+  public readonly expectedVersion: number;
+  public readonly actualVersion: number;
 }
 
+/**
+ * Persistence Error (Database/Infrastructure Failure)
+ */
 export class PersistenceError extends Error {
   constructor(
     message: string,
     public readonly cause?: Error,
+    public readonly operation?: string,
   ) {
     super(message);
     this.name = 'PersistenceError';
   }
+}
+
+/**
+ * Invalid Search Criteria Error
+ */
+export class InvalidSearchCriteriaError extends Error {
+  constructor(criteria: any, reason: string) {
+    super(`Invalid search criteria: ${reason}. Criteria: ${JSON.stringify(criteria)}`);
+    this.name = 'InvalidSearchCriteriaError';
+  }
+}
+
+// ===========================================================================
+// UTILITY FUNCTIONS
+// ===========================================================================
+
+/**
+ * Create default search criteria
+ */
+export function createDefaultSearchCriteria(): EstateSearchCriteria {
+  return {
+    page: 1,
+    pageSize: 20,
+    sortBy: 'createdAt',
+    sortOrder: 'DESC',
+  };
+}
+
+/**
+ * Validate search criteria
+ */
+export function validateSearchCriteria(criteria: EstateSearchCriteria): void {
+  if (criteria.page && criteria.page < 1) {
+    throw new InvalidSearchCriteriaError(criteria, 'Page must be >= 1');
+  }
+
+  if (criteria.pageSize && (criteria.pageSize < 1 || criteria.pageSize > 100)) {
+    throw new InvalidSearchCriteriaError(criteria, 'Page size must be between 1 and 100');
+  }
+
+  if (criteria.minNetWorth && criteria.maxNetWorth) {
+    if (criteria.minNetWorth.isGreaterThan(criteria.maxNetWorth)) {
+      throw new InvalidSearchCriteriaError(
+        criteria,
+        'Min net worth cannot be greater than max net worth',
+      );
+    }
+  }
+
+  if (criteria.dateOfDeathFrom && criteria.dateOfDeathTo) {
+    if (criteria.dateOfDeathFrom > criteria.dateOfDeathTo) {
+      throw new InvalidSearchCriteriaError(
+        criteria,
+        'Date of death from cannot be after date of death to',
+      );
+    }
+  }
+}
+
+/**
+ * Calculate pagination metadata
+ */
+export function calculatePaginationMetadata(
+  total: number,
+  page: number,
+  pageSize: number,
+): Omit<PaginatedResult<any>, 'items'> {
+  const totalPages = Math.ceil(total / pageSize);
+  const hasPrevious = page > 1;
+  const hasNext = page < totalPages;
+
+  return {
+    total,
+    page,
+    pageSize,
+    totalPages,
+    hasPrevious,
+    hasNext,
+  };
 }
