@@ -426,36 +426,72 @@ export class GiftInterVivos extends Entity<GiftInterVivosProps> {
   // ===========================================================================
   // GETTERS
   // ===========================================================================
-
   get estateId(): string {
     return this.props.estateId;
   }
-
   get recipientId(): string {
     return this.props.recipientId;
   }
-
-  get valueAtTimeOfGift(): MoneyVO {
-    return this.props.valueAtTimeOfGift;
+  get recipientName(): string | undefined {
+    return this.props.recipientName;
   }
-
-  get status(): GiftStatus {
-    return this.props.status;
+  get description(): string {
+    return this.props.description;
   }
-
   get assetType(): AssetType {
     return this.props.assetType;
   }
-
+  get valueAtTimeOfGift(): MoneyVO {
+    return this.props.valueAtTimeOfGift;
+  }
   get dateGiven(): Date {
     return this.props.dateGiven;
+  }
+
+  get isFormalGift(): boolean {
+    return this.props.isFormalGift;
+  }
+  get deedOfGiftRef(): string | undefined {
+    return this.props.deedOfGiftRef;
+  }
+  get witnesses(): string[] {
+    return [...(this.props.witnesses || [])];
   }
 
   get isSubjectToHotchpot(): boolean {
     return this.props.isSubjectToHotchpot;
   }
+  get hotchpotMultiplier(): number | undefined {
+    return this.props.hotchpotMultiplier;
+  }
 
-  get hotchpotValue(): MoneyVO {
-    return this.getHotchpotValue();
+  get status(): GiftStatus {
+    return this.props.status;
+  }
+  get contestReason(): string | undefined {
+    return this.props.contestReason;
+  }
+  get contestedBy(): string | undefined {
+    return this.props.contestedBy;
+  }
+  get contestedAt(): Date | undefined {
+    return this.props.contestedAt;
+  }
+  get courtOrderRef(): string | undefined {
+    return this.props.courtOrderRef;
+  }
+
+  get givenDuringLifetime(): boolean {
+    return this.props.givenDuringLifetime;
+  }
+  get relationshipToDeceased(): string | undefined {
+    return this.props.relationshipToDeceased;
+  }
+
+  get notes(): string | undefined {
+    return this.props.notes;
+  }
+  get requiresReconciliation(): boolean {
+    return this.props.requiresReconciliation;
   }
 }

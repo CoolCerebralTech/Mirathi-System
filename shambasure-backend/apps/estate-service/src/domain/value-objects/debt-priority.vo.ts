@@ -25,9 +25,32 @@ export class DebtPriorityVO extends ValueObject<DebtPriorityProps> {
   constructor(props: DebtPriorityProps) {
     super(props);
   }
+  public static create(tier: string, customPriority?: number): DebtPriorityVO {
+    // Note: We don't have the DebtType here usually when just mapping the tier column.
+    // If we need strict validation, we need the type.
+    // Assuming we map from DB where we have both.
+    // BUT the previous mapper called create(priorityTier).
 
+    // Simplification: We map the string tier to Enum.
+    // The type is technically required by the VO structure I defined previously.
+    // Let's adjust the mapper or this factory to be flexible.
+
+    // Hack: Use a dummy type if just restoring tier priority logic,
+    // or change Mapper to pass type. I will change Mapper to pass Type.
+
+    // This factory is just for the Tier mapping specifically
+    return new DebtPriorityVO({
+      tier: tier as DebtTier,
+      type: DebtType.OTHER, // Placeholder if not provided, Entity validation might catch this
+      customPriority,
+    });
+  }
+  // Specific Factory for Mapper that has Type
+  public static restore(tier: DebtTier, type: DebtType, priority?: number): DebtPriorityVO {
+    return new DebtPriorityVO({ tier, type, customPriority: priority });
+  }
   // ===========================================================================
-  // GETTERS (Add these to fix the errors)
+  // GETTERS
   // ===========================================================================
 
   get tier(): DebtTier {

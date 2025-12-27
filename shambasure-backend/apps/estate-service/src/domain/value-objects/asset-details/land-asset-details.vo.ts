@@ -23,7 +23,9 @@ export class LandAssetDetailsVO extends ValueObject<LandAssetDetailsProps> {
   constructor(props: LandAssetDetailsProps) {
     super(props);
   }
-
+  public static create(props: LandAssetDetailsProps): LandAssetDetailsVO {
+    return new LandAssetDetailsVO(props);
+  }
   protected validate(): void {
     if (!this.props.titleDeedNumber?.trim())
       throw new ValueObjectValidationError('Title Deed Required', 'titleDeedNumber');

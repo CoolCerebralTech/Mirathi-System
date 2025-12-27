@@ -21,6 +21,7 @@ export class AssetTypeVO extends SimpleValueObject<string> {
 
   // Secondary types
   static readonly DIGITAL = 'DIGITAL';
+  static readonly INTELLECTUAL_PROPERTY = 'INTELLECTUAL_PROPERTY';
   static readonly PERSONAL_EFFECTS = 'PERSONAL_EFFECTS';
   static readonly LIVESTOCK = 'LIVESTOCK';
   static readonly OTHER = 'OTHER';
@@ -31,6 +32,7 @@ export class AssetTypeVO extends SimpleValueObject<string> {
     AssetTypeVO.FINANCIAL,
     AssetTypeVO.BUSINESS,
     AssetTypeVO.DIGITAL,
+    AssetTypeVO.INTELLECTUAL_PROPERTY,
     AssetTypeVO.PERSONAL_EFFECTS,
     AssetTypeVO.LIVESTOCK,
     AssetTypeVO.OTHER,
@@ -87,5 +89,20 @@ export class AssetTypeVO extends SimpleValueObject<string> {
   }
   static createBusiness(): AssetTypeVO {
     return new AssetTypeVO(AssetTypeVO.BUSINESS);
+  }
+  static createDigital(): AssetTypeVO {
+    return new AssetTypeVO(AssetTypeVO.DIGITAL);
+  }
+  static createIntellectualProperty(): AssetTypeVO {
+    return new AssetTypeVO(AssetTypeVO.INTELLECTUAL_PROPERTY);
+  }
+  static createLivestock(): AssetTypeVO {
+    return new AssetTypeVO(AssetTypeVO.LIVESTOCK);
+  }
+  static createPersonalEffects(): AssetTypeVO {
+    return new AssetTypeVO(AssetTypeVO.PERSONAL_EFFECTS);
+  }
+  static createOther(): AssetTypeVO {
+    return new AssetTypeVO(AssetTypeVO.OTHER);
   }
 }

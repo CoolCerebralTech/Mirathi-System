@@ -20,7 +20,9 @@ export class BusinessAssetDetailsVO extends ValueObject<BusinessAssetDetailsProp
   constructor(props: BusinessAssetDetailsProps) {
     super(props);
   }
-
+  public static create(props: BusinessAssetDetailsProps): BusinessAssetDetailsVO {
+    return new BusinessAssetDetailsVO(props);
+  }
   protected validate(): void {
     if (!this.props.businessName?.trim())
       throw new ValueObjectValidationError('Business Name Required', 'businessName');

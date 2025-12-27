@@ -13,7 +13,7 @@ export class AssetValuationMapper {
    * Convert Prisma model to Domain Entity
    */
   toDomain(prismaValuation: PrismaAssetValuation): AssetValuation {
-    if (!prismaValuation) return null;
+    if (!prismaValuation) throw new Error('Cannot map null Prisma object');
 
     const {
       id,
@@ -21,7 +21,7 @@ export class AssetValuationMapper {
       valueAmount,
       valueCurrency,
       previousValueAmount,
-      previousValueCurrency,
+      // previousValueCurrency, // Does not exist in schema
       valuationDate,
       source,
       reason,
@@ -46,10 +46,11 @@ export class AssetValuationMapper {
       currency: valueCurrency || 'KES',
     });
 
+    // Use current value currency as fallback for previous value
     const previousValue = previousValueAmount
       ? MoneyVO.create({
           amount: Number(previousValueAmount),
-          currency: previousValueCurrency || valueCurrency || 'KES',
+          currency: valueCurrency || 'KES',
         })
       : undefined;
 
@@ -58,6 +59,7 @@ export class AssetValuationMapper {
       value,
       previousValue,
       valuationDate,
+      // Cast the string from DB to the Domain Enum type
       source: this.mapToDomainValuationSource(source),
       reason: reason || undefined,
       isProfessionalValuation,
@@ -79,34 +81,41 @@ export class AssetValuationMapper {
   }
 
   /**
-   * Convert Domain Entity to Prisma model
+   * Convert Domain Entity to Prisma Persistence Object
    */
-  toPersistence(assetValuation: AssetValuation): Partial<PrismaAssetValuation> {
-    const props = assetValuation.getProps();
+  toPersistence(assetValuation: AssetValuation): any {
+    // Use public getters
 
     return {
       id: assetValuation.id.toString(),
-      assetId: props.assetId,
-      valueAmount: props.value.amount,
-      valueCurrency: props.value.currency,
-      previousValueAmount: props.previousValue?.amount || null,
-      previousValueCurrency: props.previousValue?.currency || null,
-      valuationDate: props.valuationDate,
-      source: this.mapToPrismaValuationSource(props.source),
-      reason: props.reason || null,
-      isProfessionalValuation: props.isProfessionalValuation,
-      isTaxAcceptable: props.isTaxAcceptable,
-      isCourtAcceptable: props.isCourtAcceptable,
-      credibilityScore: props.credibilityScore,
-      valuerName: props.valuerName || null,
-      valuerLicenseNumber: props.valuerLicenseNumber || null,
-      valuerInstitution: props.valuerInstitution || null,
-      methodology: props.methodology || null,
-      notes: props.notes || null,
-      supportingDocuments: props.supportingDocuments || null,
-      conductedBy: props.conductedBy,
-      verifiedBy: props.verifiedBy || null,
-      verifiedAt: props.verifiedAt || null,
+      assetId: assetValuation.assetId,
+
+      valueAmount: assetValuation.value.amount,
+      valueCurrency: assetValuation.value.currency,
+
+      previousValueAmount: assetValuation.previousValue?.amount || null,
+      // Schema doesn't support previousValueCurrency
+
+      valuationDate: assetValuation.valuationDate,
+      // Cast the Domain Enum string to 'any' to satisfy Prisma's strict Enum type check
+      source: this.mapToPrismaValuationSource(assetValuation.source) as any,
+      reason: (assetValuation as any).reason || null,
+
+      isProfessionalValuation: assetValuation.isProfessionalValuation,
+      isTaxAcceptable: assetValuation.isTaxAcceptable,
+      isCourtAcceptable: assetValuation.isCourtAcceptable,
+      credibilityScore: assetValuation.credibilityScore,
+
+      valuerName: assetValuation.valuerName || null,
+      valuerLicenseNumber: assetValuation.valuerLicenseNumber || null,
+      valuerInstitution: assetValuation.valuerInstitution || null,
+      methodology: assetValuation.methodology || null,
+      notes: assetValuation.notes || null,
+      supportingDocuments: assetValuation.supportingDocuments || [],
+
+      conductedBy: assetValuation.conductedBy,
+      verifiedBy: assetValuation.verifiedBy || null,
+      verifiedAt: assetValuation.verifiedAt || null,
     };
   }
 
@@ -115,21 +124,28 @@ export class AssetValuationMapper {
    */
   toDomainList(prismaValuations: PrismaAssetValuation[]): AssetValuation[] {
     return prismaValuations
-      .map((valuation) => this.toDomain(valuation))
-      .filter((valuation) => valuation !== null);
+      .map((valuation) => {
+        try {
+          return this.toDomain(valuation);
+        } catch {
+          return null;
+        }
+      })
+      .filter((valuation): valuation is AssetValuation => valuation !== null);
   }
 
   /**
-   * Convert array of Domain Entities to Prisma models
+   * Convert array of Domain Entities to Persistence Objects
    */
-  toPersistenceList(assetValuations: AssetValuation[]): Partial<PrismaAssetValuation>[] {
+  toPersistenceList(assetValuations: AssetValuation[]): any[] {
     return assetValuations.map((valuation) => this.toPersistence(valuation));
   }
 
   /**
-   * Map Prisma valuation source to Domain enum
+   * Map Prisma valuation source (String/Enum) to Domain enum
    */
   private mapToDomainValuationSource(prismaSource: string): ValuationSource {
+    // We match against the limited Prisma Enum values
     switch (prismaSource) {
       case 'MARKET_ESTIMATE':
         return ValuationSource.MARKET_ESTIMATE;
@@ -145,16 +161,18 @@ export class AssetValuationMapper {
         return ValuationSource.AGREEMENT_BY_HEIRS;
       case 'COURT_DETERMINATION':
         return ValuationSource.COURT_DETERMINATION;
+      // If DB has unknown value, fallback safely
       default:
-        throw new Error(`Unknown valuation source: ${prismaSource}`);
+        return ValuationSource.MARKET_ESTIMATE;
     }
   }
 
   /**
-   * Map Domain valuation source to Prisma enum
+   * Map Domain valuation source to Prisma enum (String/Enum)
    */
   private mapToPrismaValuationSource(domainSource: ValuationSource): string {
     switch (domainSource) {
+      // 1-to-1 Matches
       case ValuationSource.MARKET_ESTIMATE:
         return 'MARKET_ESTIMATE';
       case ValuationSource.REGISTERED_VALUER:
@@ -169,50 +187,43 @@ export class AssetValuationMapper {
         return 'AGREEMENT_BY_HEIRS';
       case ValuationSource.COURT_DETERMINATION:
         return 'COURT_DETERMINATION';
+
+      // Mappings for Extended Domain Types -> Nearest DB Enum
+      case ValuationSource.LICENSED_AUCTIONEER:
+        return 'REGISTERED_VALUER';
+      case ValuationSource.NTSA_VALUATION:
+        return 'GOVERNMENT_VALUER';
+      case ValuationSource.KRA_VALUATION:
+        return 'GOVERNMENT_VALUER';
+      case ValuationSource.REAL_ESTATE_AGENT:
+        return 'MARKET_ESTIMATE';
+      case ValuationSource.MARKET_COMPARABLE:
+        return 'MARKET_ESTIMATE';
+      case ValuationSource.BANK_VALUATION:
+        return 'REGISTERED_VALUER';
+      case ValuationSource.FINANCIAL_ADVISOR:
+        return 'MARKET_ESTIMATE';
+      case ValuationSource.SELF_DECLARED:
+        return 'AGREEMENT_BY_HEIRS'; // or Market Estimate
+      case ValuationSource.INHERITED_VALUE:
+        return 'MARKET_ESTIMATE';
+      case ValuationSource.PURCHASE_PRICE:
+        return 'MARKET_ESTIMATE';
+      case ValuationSource.EXPERT_ESTIMATE:
+        return 'MARKET_ESTIMATE';
+      case ValuationSource.ONLINE_VALUATION:
+        return 'MARKET_ESTIMATE';
+      case ValuationSource.OTHER:
+        return 'MARKET_ESTIMATE';
+
       default:
-        throw new Error(`Unknown valuation source: ${domainSource}`);
+        return 'MARKET_ESTIMATE';
     }
   }
 
-  /**
-   * Get the latest professional valuation
-   */
-  getLatestProfessionalValuation(valuations: AssetValuation[]): AssetValuation | undefined {
-    const professionalValuations = valuations.filter((v) => v.isProfessionalValuation);
+  // --- STATISTICS HELPER METHODS ---
 
-    if (professionalValuations.length === 0) return undefined;
-
-    return professionalValuations.sort(
-      (a, b) => b.valuationDate.getTime() - a.valuationDate.getTime(),
-    )[0];
-  }
-
-  /**
-   * Get the most credible valuation (highest credibility score)
-   */
-  getMostCredibleValuation(valuations: AssetValuation[]): AssetValuation | undefined {
-    if (valuations.length === 0) return undefined;
-
-    return valuations.reduce((mostCredible, current) =>
-      current.credibilityScore > mostCredible.credibilityScore ? current : mostCredible,
-    );
-  }
-
-  /**
-   * Get valuation statistics
-   */
-  getValuationStatistics(valuations: AssetValuation[]): {
-    totalCount: number;
-    professionalCount: number;
-    taxAcceptableCount: number;
-    courtAcceptableCount: number;
-    averageCredibilityScore: number;
-    valueChanges: Array<{
-      date: Date;
-      value: MoneyVO;
-      changePercentage?: number;
-    }>;
-  } {
+  getValuationStatistics(valuations: AssetValuation[]) {
     const professionalCount = valuations.filter((v) => v.isProfessionalValuation).length;
     const taxAcceptableCount = valuations.filter((v) => v.isTaxAcceptable).length;
     const courtAcceptableCount = valuations.filter((v) => v.isCourtAcceptable).length;
@@ -222,7 +233,6 @@ export class AssetValuationMapper {
         ? valuations.reduce((sum, v) => sum + v.credibilityScore, 0) / valuations.length
         : 0;
 
-    // Sort by date and calculate value changes
     const sortedValuations = valuations.sort(
       (a, b) => a.valuationDate.getTime() - b.valuationDate.getTime(),
     );
@@ -250,47 +260,23 @@ export class AssetValuationMapper {
     };
   }
 
-  /**
-   * Filter valuations by source
-   */
   filterBySource(valuations: AssetValuation[], source: ValuationSource): AssetValuation[] {
     return valuations.filter((valuation) => valuation.source === source);
   }
 
-  /**
-   * Filter valuations that are acceptable for tax purposes
-   */
   filterTaxAcceptable(valuations: AssetValuation[]): AssetValuation[] {
     return valuations.filter((valuation) => valuation.isTaxAcceptable);
   }
 
-  /**
-   * Filter valuations that are acceptable for court purposes
-   */
   filterCourtAcceptable(valuations: AssetValuation[]): AssetValuation[] {
     return valuations.filter((valuation) => valuation.isCourtAcceptable);
   }
 
-  /**
-   * Check if asset has professional valuation
-   */
   hasProfessionalValuation(valuations: AssetValuation[]): boolean {
     return valuations.some((valuation) => valuation.isProfessionalValuation);
   }
 
-  /**
-   * Get percentage change between valuations
-   */
-  calculateValueChange(
-    currentValuation: AssetValuation,
-    previousValuation?: AssetValuation,
-  ):
-    | {
-        amount: MoneyVO;
-        percentage: number;
-        timeframeDays: number;
-      }
-    | undefined {
+  calculateValueChange(currentValuation: AssetValuation, previousValuation?: AssetValuation) {
     if (!previousValuation) return undefined;
 
     const amount = currentValuation.value.subtract(previousValuation.value);

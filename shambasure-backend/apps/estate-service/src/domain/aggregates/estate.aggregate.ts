@@ -1013,49 +1013,99 @@ export class Estate extends AggregateRoot<EstateProps> {
       requiresCourtSupervision: false,
     });
   }
-
+  public static reconstitute(props: EstateProps, id: UniqueEntityID): Estate {
+    return new Estate(props, id);
+  }
   // ===========================================================================
   // GETTERS - "The Public Interface"
   // ===========================================================================
 
+  get name(): string {
+    return this.props.name;
+  }
+  get deceasedId(): string {
+    return this.props.deceasedId;
+  }
+  get deceasedName(): string {
+    return this.props.deceasedName;
+  }
+  get dateOfDeath(): Date {
+    return this.props.dateOfDeath;
+  }
   get status(): EstateStatus {
     return this.props.status;
   }
-
-  get netWorth(): MoneyVO {
-    return this.calculateNetWorth();
+  get kraPin(): string {
+    return this.props.kraPin;
   }
 
-  get distributablePool(): MoneyVO {
-    return this.calculateDistributablePool();
+  get assets(): Asset[] {
+    return [...this.props.assets];
+  }
+  get activeLiquidations(): AssetLiquidation[] {
+    return [...this.props.activeLiquidations];
+  }
+  get debts(): Debt[] {
+    return [...this.props.debts];
+  }
+  get gifts(): GiftInterVivos[] {
+    return [...this.props.gifts];
+  }
+  get dependants(): LegalDependant[] {
+    return [...this.props.dependants];
   }
 
-  get availableCash(): MoneyVO {
-    return this.calculateAvailableCash();
+  get taxCompliance(): EstateTaxCompliance {
+    return this.props.taxCompliance;
+  }
+
+  get cashOnHand(): MoneyVO {
+    return this.props.cashOnHand;
+  }
+  get cashReservedForDebts(): MoneyVO {
+    return this.props.cashReservedForDebts;
+  }
+  get cashReservedForTaxes(): MoneyVO {
+    return this.props.cashReservedForTaxes;
   }
 
   get isFrozen(): boolean {
     return this.props.isFrozen;
   }
-
-  get taxStatus(): string {
-    return this.props.taxCompliance.status.value;
+  get freezeReason(): string | undefined {
+    return this.props.freezeReason;
+  }
+  get frozenBy(): string | undefined {
+    return this.props.frozenBy;
+  }
+  get frozenAt(): Date | undefined {
+    return this.props.frozenAt;
   }
 
-  get assetCount(): number {
-    return this.props.assets.length;
-  }
-
-  get debtCount(): number {
-    return this.props.debts.length;
-  }
-
-  get dependantCount(): number {
-    return this.props.dependants.length;
-  }
-
-  get activeDisputes(): boolean {
+  get hasActiveDisputes(): boolean {
     return this.props.hasActiveDisputes;
+  }
+  get requiresCourtSupervision(): boolean {
+    return this.props.requiresCourtSupervision;
+  }
+  get isInsolvent(): boolean {
+    return this.props.isInsolvent;
+  }
+
+  get createdAt(): Date {
+    return this.props.createdAt;
+  }
+  get updatedAt(): Date {
+    return this.props.updatedAt;
+  }
+  get createdBy(): string {
+    return this.props.createdBy;
+  }
+  get executorId(): string | undefined {
+    return this.props.executorId;
+  }
+  get courtCaseNumber(): string | undefined {
+    return this.props.courtCaseNumber;
   }
 
   // ===========================================================================

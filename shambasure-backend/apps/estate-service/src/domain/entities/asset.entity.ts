@@ -660,27 +660,41 @@ export class Asset extends Entity<AssetProps> {
   get estateId(): string {
     return this.props.estateId;
   }
-
-  get type(): AssetTypeVO {
-    return this.props.type;
+  get name(): string {
+    return this.props.name;
   }
-
   get currentValue(): MoneyVO {
     return this.props.currentValue;
+  }
+  get description(): string | undefined {
+    return this.props.description;
+  }
+  get type(): AssetTypeVO {
+    return this.props.type;
   }
 
   get isEncumbered(): boolean {
     return this.props.isEncumbered;
   }
-
+  get encumbranceDetails(): string | undefined {
+    return this.props.encumbranceDetails;
+  }
   get status(): AssetStatus {
     return this.props.status;
   }
-
-  get liquidation(): AssetLiquidation | undefined {
-    return this.props.liquidation;
+  get location(): string | undefined {
+    return this.props.location;
   }
 
+  get purchaseDate(): Date | undefined {
+    return this.props.purchaseDate;
+  }
+  get sourceOfFunds(): string | undefined {
+    return this.props.sourceOfFunds;
+  }
+  get isVerified(): boolean {
+    return this.props.isVerified;
+  }
   // Strategy Pattern accessors (read-only)
   get landDetails(): LandAssetDetailsVO | undefined {
     return this.props.landDetails;
@@ -697,7 +711,15 @@ export class Asset extends Entity<AssetProps> {
   get businessDetails(): BusinessAssetDetailsVO | undefined {
     return this.props.businessDetails;
   }
-
+  get coOwnership(): AssetCoOwnership | undefined {
+    return this.props.coOwnership;
+  }
+  get valuations(): AssetValuation[] {
+    return [...this.props.valuations];
+  }
+  get liquidation(): AssetLiquidation | undefined {
+    return this.props.liquidation;
+  }
   /**
    * Get the most recent professional valuation
    */

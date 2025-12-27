@@ -60,7 +60,6 @@
     "convict": "^6.2.4",
     "csurf": "^1.11.0",
     "csv-writer": "^1.6.0",
-    "diskusage": "^1.2.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",

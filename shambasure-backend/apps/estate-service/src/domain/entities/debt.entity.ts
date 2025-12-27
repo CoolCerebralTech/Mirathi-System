@@ -519,54 +519,81 @@ export class Debt extends Entity<DebtProps> {
   // GETTERS
   // ===========================================================================
 
+  get estateId(): string {
+    return this.props.estateId;
+  }
+  get creditorName(): string {
+    return this.props.creditorName;
+  }
+  get description(): string {
+    return this.props.description;
+  }
+
+  get initialAmount(): MoneyVO {
+    return this.props.initialAmount;
+  }
+  get outstandingBalance(): MoneyVO {
+    return this.props.outstandingBalance;
+  }
+  get interestRate(): number {
+    return this.props.interestRate;
+  }
+  get currency(): string {
+    return this.props.currency;
+  }
+
   get priority(): DebtPriorityVO {
     return this.props.priority;
   }
-
   get tier(): DebtTier {
     return this.props.tier;
   }
-
   get type(): DebtType {
     return this.props.type;
   }
-
-  get outstandingBalance(): MoneyVO {
-    return this.props.outstandingBalance;
+  get isSecured(): boolean {
+    return this.props.isSecured;
+  }
+  get securedAssetId(): string | undefined {
+    return this.props.securedAssetId;
   }
 
   get status(): DebtStatus {
     return this.props.status;
   }
-
-  get isSecured(): boolean {
-    return this.props.isSecured;
-  }
-
-  get securedAssetId(): string | undefined {
-    return this.props.securedAssetId;
-  }
-
   get isStatuteBarred(): boolean {
     return this.props.isStatuteBarred;
   }
+  get dueDate(): Date | undefined {
+    return this.props.dueDate;
+  }
+  get disputeReason(): string | undefined {
+    return this.props.disputeReason;
+  }
 
+  get lastPaymentDate(): Date | undefined {
+    return this.props.lastPaymentDate;
+  }
   get totalPaid(): MoneyVO {
     return this.props.totalPaid;
   }
 
-  get creditorName(): string {
-    return this.props.creditorName;
+  get creditorContact(): string | undefined {
+    return this.props.creditorContact;
   }
-
-  get estateId(): string {
-    return this.props.estateId;
+  get referenceNumber(): string | undefined {
+    return this.props.referenceNumber;
+  }
+  get evidenceDocumentId(): string | undefined {
+    return this.props.evidenceDocumentId;
+  }
+  get requiresCourtApproval(): boolean | undefined {
+    return this.props.requiresCourtApproval;
   }
 
   get createdAt(): Date {
     return this.props.createdAt;
   }
-
   get updatedAt(): Date {
     return this.props.updatedAt;
   }

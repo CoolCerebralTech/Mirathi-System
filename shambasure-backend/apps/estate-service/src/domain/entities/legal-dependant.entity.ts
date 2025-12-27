@@ -687,55 +687,96 @@ export class LegalDependant extends Entity<LegalDependantProps> {
   get estateId(): string {
     return this.props.estateId;
   }
-
+  get deceasedId(): string {
+    return this.props.deceasedId;
+  }
   get dependantId(): string {
     return this.props.dependantId;
   }
-
   get dependantName(): string {
     return this.props.dependantName;
   }
-
   get relationship(): DependantRelationship {
     return this.props.relationship;
   }
-
-  get status(): DependantStatus {
-    return this.props.status;
-  }
-
   get lawSection(): KenyanLawSection {
     return this.props.lawSection;
   }
-
   get dependencyLevel(): DependencyLevel {
     return this.props.dependencyLevel;
   }
 
+  get dateOfBirth(): Date | undefined {
+    return this.props.dateOfBirth;
+  }
+  get age(): number | undefined {
+    return this.props.age;
+  }
   get isMinor(): boolean {
     return this.props.isMinor;
   }
-
   get isIncapacitated(): boolean {
     return this.props.isIncapacitated;
+  }
+  get hasDisability(): boolean {
+    return this.props.hasDisability;
+  }
+  get disabilityPercentage(): number | undefined {
+    return this.props.disabilityPercentage;
   }
 
   get monthlyMaintenanceNeeds(): MoneyVO {
     return this.props.monthlyMaintenanceNeeds;
   }
-
-  get evidence(): DependantEvidence[] {
-    return this.props.evidence;
+  get annualSupportProvided(): MoneyVO | undefined {
+    return this.props.annualSupportProvided;
+  }
+  get proposedAllocation(): MoneyVO | undefined {
+    return this.props.proposedAllocation;
   }
 
+  get evidence(): DependantEvidence[] {
+    return [...this.props.evidence];
+  }
   get isVerified(): boolean {
     return this.props.isVerified;
+  }
+  get verifiedBy(): string | undefined {
+    return this.props.verifiedBy;
+  }
+  get verifiedAt(): Date | undefined {
+    return this.props.verifiedAt;
+  }
+
+  get status(): DependantStatus {
+    return this.props.status;
+  }
+  get rejectionReason(): string | undefined {
+    return this.props.rejectionReason;
+  }
+  get appealedReason(): string | undefined {
+    return this.props.appealedReason;
+  }
+
+  get custodialParentId(): string | undefined {
+    return this.props.custodialParentId;
+  }
+  get guardianId(): string | undefined {
+    return this.props.guardianId;
+  }
+  get courtCaseNumber(): string | undefined {
+    return this.props.courtCaseNumber;
+  }
+  get courtOrderRef(): string | undefined {
+    return this.props.courtOrderRef;
+  }
+  get notes(): string | undefined {
+    return this.props.notes;
   }
 
   get riskLevel(): 'LOW' | 'MEDIUM' | 'HIGH' {
     return this.props.riskLevel;
   }
-
   get requiresCourtDetermination(): boolean {
     return this.props.requiresCourtDetermination;
   }
@@ -743,7 +784,6 @@ export class LegalDependant extends Entity<LegalDependantProps> {
   get createdAt(): Date {
     return this.props.createdAt;
   }
-
   get updatedAt(): Date {
     return this.props.updatedAt;
   }

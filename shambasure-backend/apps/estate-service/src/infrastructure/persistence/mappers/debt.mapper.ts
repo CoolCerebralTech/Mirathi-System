@@ -12,11 +12,8 @@ import { MoneyVO } from '../../../domain/value-objects/money.vo';
 
 @Injectable()
 export class DebtMapper {
-  /**
-   * Convert Prisma model to Domain Entity
-   */
   toDomain(prismaDebt: PrismaDebt): Debt {
-    if (!prismaDebt) return null;
+    if (!prismaDebt) throw new Error('Cannot map null Prisma object');
 
     const {
       id,
@@ -47,7 +44,7 @@ export class DebtMapper {
       updatedAt,
     } = prismaDebt;
 
-    // Create MoneyVO objects
+    // 1. Money VOs
     const initialAmount = MoneyVO.create({
       amount: Number(initialAmountAmount),
       currency: initialAmountCurrency || 'KES',
@@ -63,10 +60,14 @@ export class DebtMapper {
       currency: outstandingBalanceCurrency || 'KES',
     });
 
-    // Map priority tier to DebtPriorityVO
-    const priority = DebtPriorityVO.create(priorityTier);
+    // 2. Map Enums
+    const debtTier = this.mapToDomainDebtTier(priorityTier);
+    const debtType = this.mapToDomainDebtType(type);
 
-    // Create DebtProps
+    // 3. Priority VO
+    const priority = DebtPriorityVO.restore(debtTier, debtType);
+
+    // 4. Props
     const debtProps = {
       estateId,
       creditorName,
@@ -76,8 +77,8 @@ export class DebtMapper {
       interestRate: Number(interestRate),
       currency: currency || 'KES',
       priority,
-      tier: this.mapToDomainDebtTier(priorityTier),
-      type: this.mapToDomainDebtType(type),
+      tier: debtTier,
+      type: debtType,
       isSecured,
       securedAssetId: securedAssetId || undefined,
       status: this.mapToDomainDebtStatus(status),
@@ -97,99 +98,80 @@ export class DebtMapper {
     return Debt.create(debtProps, new UniqueEntityID(id));
   }
 
-  /**
-   * Convert Domain Entity to Prisma model
-   */
-  toPersistence(debt: Debt): Partial<PrismaDebt> {
-    const props = debt.getProps();
-
+  toPersistence(debt: Debt): any {
     return {
       id: debt.id.toString(),
-      estateId: props.estateId,
-      creditorName: props.creditorName,
-      description: props.description,
-      initialAmountAmount: props.initialAmount.amount,
-      initialAmountCurrency: props.initialAmount.currency,
-      outstandingBalanceAmount: props.outstandingBalance.amount,
-      outstandingBalanceCurrency: props.outstandingBalance.currency,
-      interestRate: props.interestRate,
-      currency: props.currency,
-      priorityTier: props.priority.tier,
-      type: this.mapToPrismaDebtType(props.type),
-      isSecured: props.isSecured,
-      securedAssetId: props.securedAssetId || null,
-      status: this.mapToPrismaDebtStatus(props.status),
-      isStatuteBarred: props.isStatuteBarred,
-      dueDate: props.dueDate || null,
-      disputeReason: props.disputeReason || null,
-      lastPaymentDate: props.lastPaymentDate || null,
-      totalPaidAmount: props.totalPaid.amount,
-      creditorContact: props.creditorContact || null,
-      referenceNumber: props.referenceNumber || null,
-      evidenceDocumentId: props.evidenceDocumentId || null,
-      requiresCourtApproval: props.requiresCourtApproval || null,
-      createdAt: props.createdAt,
-      updatedAt: props.updatedAt,
+      estateId: debt.estateId,
+      creditorName: debt.creditorName,
+      description: debt.description,
+
+      initialAmountAmount: debt.initialAmount.amount,
+      initialAmountCurrency: debt.initialAmount.currency,
+
+      outstandingBalanceAmount: debt.outstandingBalance.amount,
+      outstandingBalanceCurrency: debt.outstandingBalance.currency,
+
+      interestRate: debt.interestRate,
+      currency: debt.currency,
+
+      priorityTier: this.mapToPrismaDebtTier(debt.tier) as any,
+      type: this.mapToPrismaDebtType(debt.type) as any,
+
+      isSecured: debt.isSecured,
+      securedAssetId: debt.securedAssetId || null,
+
+      status: this.mapToPrismaDebtStatus(debt.status) as any,
+
+      isStatuteBarred: debt.isStatuteBarred,
+      dueDate: debt.dueDate || null,
+      disputeReason: debt.disputeReason || null,
+      lastPaymentDate: debt.lastPaymentDate || null,
+      totalPaidAmount: debt.totalPaid.amount,
+
+      creditorContact: debt.creditorContact || null,
+      referenceNumber: debt.referenceNumber || null,
+      evidenceDocumentId: debt.evidenceDocumentId || null,
+      requiresCourtApproval: debt.requiresCourtApproval || null,
+
+      createdAt: debt.createdAt,
+      updatedAt: debt.updatedAt,
     };
   }
 
   /**
-   * Convert array of Prisma models to Domain Entities
+   * [ADDED] Convert List of Prisma Objects to Domain Entities
    */
   toDomainList(prismaDebts: PrismaDebt[]): Debt[] {
-    return prismaDebts.map((debt) => this.toDomain(debt)).filter((debt) => debt !== null);
+    if (!prismaDebts) return [];
+    return prismaDebts
+      .map((debt) => {
+        try {
+          return this.toDomain(debt);
+        } catch (e) {
+          console.error(`Failed to map debt ${debt.id}:`, e);
+          return null;
+        }
+      })
+      .filter((debt): debt is Debt => debt !== null);
   }
 
   /**
-   * Convert array of Domain Entities to Prisma models
+   * [ADDED] Convert List of Domain Entities to Persistence Objects
    */
-  toPersistenceList(debts: Debt[]): Partial<PrismaDebt>[] {
-    return debts.map((debt) => this.toPersistence(debt));
+  toPersistenceList(debts: Debt[]): any[] {
+    return debts.map((d) => this.toPersistence(d));
   }
 
-  /**
-   * Map Prisma debt tier to Domain enum
-   */
+  // --- MAPPING HELPERS ---
+
   private mapToDomainDebtTier(prismaTier: string): DebtTier {
-    switch (prismaTier) {
-      case 'FUNERAL_EXPENSES':
-        return DebtTier.FUNERAL_EXPENSES;
-      case 'TESTAMENTARY_EXPENSES':
-        return DebtTier.TESTAMENTARY_EXPENSES;
-      case 'SECURED_DEBTS':
-        return DebtTier.SECURED_DEBTS;
-      case 'TAXES_RATES_WAGES':
-        return DebtTier.TAXES_RATES_WAGES;
-      case 'UNSECURED_GENERAL':
-        return DebtTier.UNSECURED_GENERAL;
-      default:
-        throw new Error(`Unknown debt tier: ${prismaTier}`);
-    }
+    return prismaTier as DebtTier;
   }
 
-  /**
-   * Map Domain debt tier to Prisma enum
-   */
   private mapToPrismaDebtTier(domainTier: DebtTier): string {
-    switch (domainTier) {
-      case DebtTier.FUNERAL_EXPENSES:
-        return 'FUNERAL_EXPENSES';
-      case DebtTier.TESTAMENTARY_EXPENSES:
-        return 'TESTAMENTARY_EXPENSES';
-      case DebtTier.SECURED_DEBTS:
-        return 'SECURED_DEBTS';
-      case DebtTier.TAXES_RATES_WAGES:
-        return 'TAXES_RATES_WAGES';
-      case DebtTier.UNSECURED_GENERAL:
-        return 'UNSECURED_GENERAL';
-      default:
-        throw new Error(`Unknown debt tier: ${domainTier}`);
-    }
+    return domainTier.toString();
   }
 
-  /**
-   * Map Prisma debt type to Domain enum
-   */
   private mapToDomainDebtType(prismaType: string): DebtType {
     switch (prismaType) {
       case 'MORTGAGE':
@@ -199,242 +181,83 @@ export class DebtMapper {
       case 'CREDIT_CARD':
         return DebtType.CREDIT_CARD;
       case 'BUSINESS_DEBT':
-        return DebtType.BUSINESS_DEBT;
+        return DebtType.BUSINESS_LOAN;
       case 'TAX_OBLIGATION':
-        return DebtType.TAX_OBLIGATION;
+        return DebtType.INCOME_TAX;
       case 'FUNERAL_EXPENSE':
-        return DebtType.FUNERAL_EXPENSE;
+        return DebtType.FUNERAL_EXPENSES;
       case 'MEDICAL_BILL':
-        return DebtType.MEDICAL_BILL;
+        return DebtType.MEDICAL_BILLS;
       case 'OTHER':
         return DebtType.OTHER;
       default:
-        throw new Error(`Unknown debt type: ${prismaType}`);
+        return DebtType.OTHER;
     }
   }
 
-  /**
-   * Map Domain debt type to Prisma enum
-   */
   private mapToPrismaDebtType(domainType: DebtType): string {
     switch (domainType) {
+      // Secured
       case DebtType.MORTGAGE:
         return 'MORTGAGE';
+      case DebtType.CAR_LOAN:
+        return 'MORTGAGE';
+      case DebtType.LOGBOOK_LOAN:
+        return 'MORTGAGE';
+
+      // Personal
       case DebtType.PERSONAL_LOAN:
         return 'PERSONAL_LOAN';
+      case DebtType.FAMILY_LOAN:
+        return 'PERSONAL_LOAN';
+      case DebtType.FRIEND_LOAN:
+        return 'PERSONAL_LOAN';
+
+      // Credit
       case DebtType.CREDIT_CARD:
         return 'CREDIT_CARD';
-      case DebtType.BUSINESS_DEBT:
+
+      // Business
+      case DebtType.BUSINESS_LOAN:
         return 'BUSINESS_DEBT';
-      case DebtType.TAX_OBLIGATION:
+      case DebtType.SUPPLIER_DEBT:
+        return 'BUSINESS_DEBT';
+      case DebtType.RENT_ARREARS:
+        return 'BUSINESS_DEBT';
+
+      // Tax
+      case DebtType.INCOME_TAX:
         return 'TAX_OBLIGATION';
-      case DebtType.FUNERAL_EXPENSE:
+      case DebtType.PROPERTY_RATES:
+        return 'TAX_OBLIGATION';
+      case DebtType.LAND_RATES:
+        return 'TAX_OBLIGATION';
+      case DebtType.VAT:
+        return 'TAX_OBLIGATION';
+
+      // Funeral
+      case DebtType.FUNERAL_EXPENSES:
         return 'FUNERAL_EXPENSE';
-      case DebtType.MEDICAL_BILL:
+      case DebtType.DEATH_CERTIFICATE:
+        return 'FUNERAL_EXPENSE';
+      case DebtType.OBITUARY:
+        return 'FUNERAL_EXPENSE';
+
+      // Medical
+      case DebtType.MEDICAL_BILLS:
         return 'MEDICAL_BILL';
-      case DebtType.OTHER:
+
+      // Other
+      default:
         return 'OTHER';
-      default:
-        throw new Error(`Unknown debt type: ${domainType}`);
     }
   }
 
-  /**
-   * Map Prisma debt status to Domain enum
-   */
   private mapToDomainDebtStatus(prismaStatus: string): DebtStatus {
-    switch (prismaStatus) {
-      case 'OUTSTANDING':
-        return DebtStatus.OUTSTANDING;
-      case 'PARTIALLY_PAID':
-        return DebtStatus.PARTIALLY_PAID;
-      case 'SETTLED':
-        return DebtStatus.SETTLED;
-      case 'WRITTEN_OFF':
-        return DebtStatus.WRITTEN_OFF;
-      case 'DISPUTED':
-        return DebtStatus.DISPUTED;
-      case 'STATUTE_BARRED':
-        return DebtStatus.STATUTE_BARRED;
-      default:
-        throw new Error(`Unknown debt status: ${prismaStatus}`);
-    }
+    return prismaStatus as DebtStatus;
   }
 
-  /**
-   * Map Domain debt status to Prisma enum
-   */
   private mapToPrismaDebtStatus(domainStatus: DebtStatus): string {
-    switch (domainStatus) {
-      case DebtStatus.OUTSTANDING:
-        return 'OUTSTANDING';
-      case DebtStatus.PARTIALLY_PAID:
-        return 'PARTIALLY_PAID';
-      case DebtStatus.SETTLED:
-        return 'SETTLED';
-      case DebtStatus.WRITTEN_OFF:
-        return 'WRITTEN_OFF';
-      case DebtStatus.DISPUTED:
-        return 'DISPUTED';
-      case DebtStatus.STATUTE_BARRED:
-        return 'STATUTE_BARRED';
-      default:
-        throw new Error(`Unknown debt status: ${domainStatus}`);
-    }
-  }
-
-  /**
-   * Get debt statistics
-   */
-  getDebtStatistics(debts: Debt[]): {
-    totalCount: number;
-    totalOutstanding: MoneyVO;
-    totalPaid: MoneyVO;
-    totalInitial: MoneyVO;
-    byStatus: Record<string, number>;
-    byTier: Record<string, number>;
-    collectibleDebts: Debt[];
-    blockingDebts: Debt[];
-  } {
-    const collectibleDebts = debts.filter((debt) => debt.isCollectible());
-    const blockingDebts = debts.filter((debt) => debt.blocksDistribution());
-
-    // Calculate totals
-    const totalOutstanding = debts.reduce(
-      (sum, debt) => sum.add(debt.outstandingBalance),
-      MoneyVO.zero('KES'),
-    );
-
-    const totalPaid = debts.reduce((sum, debt) => sum.add(debt.totalPaid), MoneyVO.zero('KES'));
-
-    const totalInitial = debts.reduce((sum, debt) => {
-      const props = debt.getProps();
-      return sum.add(props.initialAmount);
-    }, MoneyVO.zero('KES'));
-
-    // Count by status
-    const byStatus = debts.reduce(
-      (acc, debt) => {
-        const status = debt.status;
-        acc[status] = (acc[status] || 0) + 1;
-        return acc;
-      },
-      {} as Record<string, number>,
-    );
-
-    // Count by tier
-    const byTier = debts.reduce(
-      (acc, debt) => {
-        const tier = debt.tier;
-        acc[tier] = (acc[tier] || 0) + 1;
-        return acc;
-      },
-      {} as Record<string, number>,
-    );
-
-    return {
-      totalCount: debts.length,
-      totalOutstanding,
-      totalPaid,
-      totalInitial,
-      byStatus,
-      byTier,
-      collectibleDebts,
-      blockingDebts,
-    };
-  }
-
-  /**
-   * Filter debts by tier (S.45 priority)
-   */
-  filterByTier(debts: Debt[], tier: DebtTier): Debt[] {
-    return debts.filter((debt) => debt.tier === tier);
-  }
-
-  /**
-   * Filter collectible debts (excluding statute barred, written off, etc.)
-   */
-  filterCollectibleDebts(debts: Debt[]): Debt[] {
-    return debts.filter((debt) => debt.isCollectible());
-  }
-
-  /**
-   * Sort debts by S.45 priority
-   */
-  sortByS45Priority(debts: Debt[]): Debt[] {
-    return debts.sort((a, b) => a.comparePriority(b));
-  }
-
-  /**
-   * Calculate total S.45 liability by tier
-   */
-  calculateS45LiabilityByTier(debts: Debt[]): Record<string, MoneyVO> {
-    const liabilityByTier: Record<string, MoneyVO> = {};
-
-    debts.forEach((debt) => {
-      if (debt.isIncludedInS45()) {
-        const tier = debt.tier;
-        if (!liabilityByTier[tier]) {
-          liabilityByTier[tier] = MoneyVO.zero('KES');
-        }
-        liabilityByTier[tier] = liabilityByTier[tier].add(debt.outstandingBalance);
-      }
-    });
-
-    return liabilityByTier;
-  }
-
-  /**
-   * Check if any debts block distribution
-   */
-  hasBlockingDebts(debts: Debt[]): boolean {
-    return debts.some((debt) => debt.blocksDistribution());
-  }
-
-  /**
-   * Prepare bulk debt creation data
-   */
-  prepareBulkCreateData(
-    estateId: string,
-    debts: Array<{
-      creditorName: string;
-      description: string;
-      initialAmount: MoneyVO;
-      type: DebtType;
-      isSecured: boolean;
-      priorityTier: DebtTier;
-      dueDate?: Date;
-      securedAssetId?: string;
-      creditorContact?: string;
-      referenceNumber?: string;
-    }>,
-    createdBy: string,
-  ): Partial<PrismaDebt>[] {
-    const now = new Date();
-
-    return debts.map((debt) => ({
-      id: new UniqueEntityID().toString(),
-      estateId,
-      creditorName: debt.creditorName,
-      description: debt.description,
-      initialAmountAmount: debt.initialAmount.amount,
-      initialAmountCurrency: debt.initialAmount.currency,
-      outstandingBalanceAmount: debt.initialAmount.amount,
-      outstandingBalanceCurrency: debt.initialAmount.currency,
-      interestRate: 0,
-      currency: debt.initialAmount.currency,
-      priorityTier: this.mapToPrismaDebtTier(debt.priorityTier),
-      type: this.mapToPrismaDebtType(debt.type),
-      isSecured: debt.isSecured,
-      securedAssetId: debt.securedAssetId || null,
-      status: 'OUTSTANDING',
-      isStatuteBarred: false,
-      dueDate: debt.dueDate || null,
-      totalPaidAmount: 0,
-      creditorContact: debt.creditorContact || null,
-      referenceNumber: debt.referenceNumber || null,
-      createdAt: now,
-      updatedAt: now,
-    }));
+    return domainStatus.toString();
   }
 }

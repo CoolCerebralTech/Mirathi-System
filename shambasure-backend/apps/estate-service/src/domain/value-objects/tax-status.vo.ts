@@ -49,10 +49,22 @@ export class TaxStatusVO extends SimpleValueObject<string> {
     return [TaxStatusVO.ASSESSED, TaxStatusVO.PARTIALLY_PAID].includes(this.props.value);
   }
 
+  static pending(): TaxStatusVO {
+    return new TaxStatusVO(TaxStatusVO.PENDING);
+  }
+  static assessed(): TaxStatusVO {
+    return new TaxStatusVO(TaxStatusVO.ASSESSED);
+  }
+  static partiallyPaid(): TaxStatusVO {
+    return new TaxStatusVO(TaxStatusVO.PARTIALLY_PAID);
+  }
   static cleared(): TaxStatusVO {
     return new TaxStatusVO(TaxStatusVO.CLEARED);
   }
-  static pending(): TaxStatusVO {
-    return new TaxStatusVO(TaxStatusVO.PENDING);
+  static exempt(): TaxStatusVO {
+    return new TaxStatusVO(TaxStatusVO.EXEMPT);
+  }
+  static disputed(): TaxStatusVO {
+    return new TaxStatusVO(TaxStatusVO.DISPUTED);
   }
 }

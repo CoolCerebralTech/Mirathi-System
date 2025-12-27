@@ -13,6 +13,7 @@ import {
   VehicleAssetDetailsVO,
 } from '../../../domain/value-objects/asset-details';
 import { AssetTypeVO } from '../../../domain/value-objects/asset-type.vo';
+import { KenyanCountyVO } from '../../../domain/value-objects/kenyan-county.vo';
 import { MoneyVO } from '../../../domain/value-objects/money.vo';
 import { AssetCoOwnerMapper } from './asset-co-owner.mapper';
 import { AssetLiquidationMapper } from './asset-liquidation.mapper';
@@ -40,12 +41,11 @@ export class AssetMapper {
       assetLiquidations?: any[];
     },
   ): Asset {
-    if (!prismaAsset) return null;
+    if (!prismaAsset) throw new Error('Cannot map null Prisma Asset to Domain');
 
     const {
       id,
       estateId,
-      ownerId,
       name,
       description,
       location,
@@ -69,16 +69,14 @@ export class AssetMapper {
       assetLiquidations = [],
     } = prismaAsset;
 
-    // Map current value
     const currentValue = MoneyVO.create({
       amount: Number(currentValueAmount),
       currency: currentValueCurrency || 'KES',
     });
 
-    // Map asset type
     const assetType = this.mapToDomainAssetType(type);
 
-    // Map asset details based on type
+    // Map details
     const assetDetails = this.mapAssetDetails(assetType, {
       landDetails,
       vehicleDetails,
@@ -86,20 +84,15 @@ export class AssetMapper {
       businessDetails,
     });
 
-    // Map co-ownership structure
     const coOwnership = this.mapCoOwnershipStructure(
       coOwners,
       coOwnershipType,
       totalSharePercentage,
     );
 
-    // Map valuations
     const mappedValuations = this.valuationMapper.toDomainList(valuations);
-
-    // Map active liquidation
     const liquidation = this.mapActiveLiquidation(assetLiquidations);
 
-    // Create AssetProps
     const assetProps = {
       estateId,
       name,
@@ -126,59 +119,73 @@ export class AssetMapper {
    * Convert Domain Entity to Prisma model
    */
   toPersistence(asset: Asset): any {
-    const props = asset.getProps();
-
     return {
       id: asset.id.toString(),
-      estateId: props.estateId,
-      ownerId: props.estateId, // Using estateId as ownerId for now
-      name: props.name,
-      description: props.description || null,
-      location: props.location || null,
-      type: this.mapToPrismaAssetType(props.type),
-      status: this.mapToPrismaAssetStatus(props.status),
-      currentValueAmount: props.currentValue.amount,
-      currentValueCurrency: props.currentValue.currency,
-      isEncumbered: props.isEncumbered,
-      encumbranceDetails: props.encumbranceDetails || null,
-      coOwnershipType: props.coOwnership?.ownershipType
-        ? this.mapToPrismaCoOwnershipType(props.coOwnership.ownershipType)
+      estateId: asset.estateId,
+      ownerId: asset.estateId,
+      name: asset.name,
+      description: asset.description || null,
+      location: asset.location || null,
+      type: this.mapToPrismaAssetType(asset.type),
+      status: this.mapToPrismaAssetStatus(asset.status),
+      currentValueAmount: asset.currentValue.amount,
+      currentValueCurrency: asset.currentValue.currency,
+      isEncumbered: asset.isEncumbered,
+      encumbranceDetails: asset.encumbranceDetails || null,
+      coOwnershipType: asset.coOwnership?.ownershipType
+        ? this.mapToPrismaCoOwnershipType(asset.coOwnership.ownershipType)
         : null,
-      totalSharePercentage: props.coOwnership?.totalSharePercentage || null,
-      purchaseDate: props.purchaseDate || null,
-      sourceOfFunds: props.sourceOfFunds || null,
-      isVerified: props.isVerified,
+      totalSharePercentage: asset.coOwnership?.totalSharePercentage || null,
+      purchaseDate: asset.purchaseDate || null,
+      sourceOfFunds: asset.sourceOfFunds || null,
+      isVerified: asset.isVerified,
     };
   }
 
   /**
-   * Map asset details based on asset type (Strategy Pattern)
+   * [ADDED] Convert List of Prisma Objects to Domain Entities
+   * This fixes the "Property 'toDomainList' does not exist" error in EstateMapper
    */
-  private mapAssetDetails(
-    assetType: AssetTypeVO,
-    details: {
-      landDetails?: any;
-      vehicleDetails?: any;
-      financialDetails?: any;
-      businessDetails?: any;
-    },
-  ): {
-    landDetails?: LandAssetDetailsVO;
-    vehicleDetails?: VehicleAssetDetailsVO;
-    financialDetails?: FinancialAssetDetailsVO;
-    businessDetails?: BusinessAssetDetailsVO;
-  } {
+  toDomainList(prismaAssets: any[]): Asset[] {
+    if (!prismaAssets) return [];
+    return prismaAssets
+      .map((asset) => {
+        try {
+          return this.toDomain(asset);
+        } catch (e) {
+          console.error(`Failed to map asset ${asset.id}:`, e);
+          return null;
+        }
+      })
+      .filter((asset): asset is Asset => asset !== null);
+  }
+
+  /**
+   * [ADDED] Convert List of Domain Entities to Persistence Objects
+   */
+  toPersistenceList(assets: Asset[]): any[] {
+    return assets.map((a) => this.toPersistence(a));
+  }
+
+  // --- MAPPING HELPERS ---
+
+  private mapAssetDetails(assetType: AssetTypeVO, details: any): any {
     switch (assetType.value) {
       case 'LAND':
         if (details.landDetails) {
           return {
             landDetails: LandAssetDetailsVO.create({
               titleDeedNumber: details.landDetails.titleDeedNumber,
-              parcelNumber: details.landDetails.parcelNumber || undefined,
-              county: details.landDetails.county,
-              subCounty: details.landDetails.subCounty || undefined,
-              acreage: details.landDetails.acreage,
-              landUse: details.landDetails.landUse || undefined,
+              landReferenceNumber: details.landDetails.landReferenceNumber || 'UNKNOWN',
+              county: new KenyanCountyVO(details.landDetails.county),
+              subCounty: details.landDetails.subCounty,
+              locationDescription: details.landDetails.locationDescription,
+              acreage: Number(details.landDetails.acreage),
+              landUse: details.landDetails.landUse || 'RESIDENTIAL',
+              registeredOwner: details.landDetails.registeredOwner || 'UNKNOWN',
+              registrationDate: details.landDetails.registrationDate
+                ? new Date(details.landDetails.registrationDate)
+                : undefined,
             }),
           };
         }
@@ -191,7 +198,11 @@ export class AssetMapper {
               registrationNumber: details.vehicleDetails.registrationNumber,
               make: details.vehicleDetails.make,
               model: details.vehicleDetails.model,
-              chassisNumber: details.vehicleDetails.chassisNumber || undefined,
+              year: Number(details.vehicleDetails.year),
+              chassisNumber: details.vehicleDetails.chassisNumber,
+              engineNumber: details.vehicleDetails.engineNumber,
+              color: details.vehicleDetails.color,
+              logbookNumber: details.vehicleDetails.logbookNumber,
             }),
           };
         }
@@ -204,7 +215,14 @@ export class AssetMapper {
               institutionName: details.financialDetails.institutionName,
               accountNumber: details.financialDetails.accountNumber,
               accountType: details.financialDetails.accountType,
-              branchName: details.financialDetails.branchName || undefined,
+              branchName: details.financialDetails.branchName,
+              accountHolderName: details.financialDetails.accountHolderName || 'Unknown',
+              currency: details.financialDetails.currency || 'KES',
+              interestRate: details.financialDetails.interestRate
+                ? Number(details.financialDetails.interestRate)
+                : undefined,
+              isJointAccount: !!details.financialDetails.isJointAccount,
+              jointAccountHolders: details.financialDetails.jointAccountHolders || [],
             }),
           };
         }
@@ -215,202 +233,83 @@ export class AssetMapper {
           return {
             businessDetails: BusinessAssetDetailsVO.create({
               businessName: details.businessDetails.businessName,
-              registrationNumber: details.businessDetails.registrationNumber || undefined,
-              sharePercentage: details.businessDetails.sharePercentage,
+              registrationNumber: details.businessDetails.registrationNumber,
+              shareholdingPercentage: Number(
+                details.businessDetails.sharePercentage ||
+                  details.businessDetails.shareholdingPercentage,
+              ),
+              businessType: details.businessDetails.businessType || 'LIMITED_COMPANY',
+              numberOfShares: details.businessDetails.numberOfShares,
+              registeredAddress: details.businessDetails.registeredAddress,
             }),
           };
         }
         break;
     }
-
     return {};
   }
 
-  /**
-   * Map co-ownership structure
-   */
-  private mapCoOwnershipStructure(
-    coOwners: any[],
-    ownershipType: string | null,
-    totalSharePercentage: number | null,
-  ) {
-    if (!coOwners || coOwners.length === 0) {
-      return undefined;
+  private mapToDomainAssetType(prismaType: string): AssetTypeVO {
+    try {
+      return new AssetTypeVO(prismaType);
+    } catch {
+      return AssetTypeVO.createOther();
     }
+  }
 
-    const mappedCoOwners = this.coOwnerMapper.toDomainList(coOwners);
+  private mapToDomainAssetStatus(status: string): AssetStatus {
+    return status as AssetStatus;
+  }
 
+  private mapToPrismaAssetStatus(status: AssetStatus): string {
+    return status;
+  }
+
+  private mapToPrismaCoOwnershipType(type: CoOwnershipType): string {
+    return type;
+  }
+
+  private mapToPrismaAssetType(type: AssetTypeVO): string {
+    const mapping: any = {
+      LAND: 'LAND_PARCEL',
+      FINANCIAL: 'FINANCIAL_ASSET',
+      BUSINESS: 'BUSINESS_INTEREST',
+      DIGITAL: 'DIGITAL_ASSET',
+      VEHICLE: 'VEHICLE',
+      INTELLECTUAL_PROPERTY: 'INTELLECTUAL_PROPERTY',
+      LIVESTOCK: 'LIVESTOCK',
+      PERSONAL_EFFECTS: 'PERSONAL_EFFECTS',
+      OTHER: 'OTHER',
+    };
+    return mapping[type.value] || type.value;
+  }
+
+  private mapActiveLiquidation(liquidations: any[]) {
+    if (!liquidations || liquidations.length === 0) return undefined;
+    const active = liquidations.filter((l) =>
+      ['IN_PROGRESS', 'PENDING', 'APPROVED', 'LISTED_FOR_SALE', 'AUCTION_SCHEDULED'].includes(
+        l.status,
+      ),
+    );
+    if (active.length === 0) return undefined;
+
+    active.sort((a, b) => new Date(b.initiatedAt).getTime() - new Date(a.initiatedAt).getTime());
+
+    return this.liquidationMapper.toDomain(active[0]);
+  }
+
+  private mapCoOwnershipStructure(coOwners: any[], type: string | null, total: number | null) {
+    if (!coOwners || coOwners.length === 0) return undefined;
+    const mapped = this.coOwnerMapper.toDomainList(coOwners);
     return {
-      coOwners: mappedCoOwners,
-      ownershipType: ownershipType
-        ? this.mapToDomainCoOwnershipType(ownershipType)
-        : mappedCoOwners[0]?.ownershipType || CoOwnershipType.TENANCY_IN_COMMON,
+      coOwners: mapped,
+      ownershipType: type ? (type as CoOwnershipType) : CoOwnershipType.TENANCY_IN_COMMON,
       totalSharePercentage:
-        totalSharePercentage || mappedCoOwners.reduce((sum, co) => sum + co.sharePercentage, 0),
+        total !== null ? Number(total) : mapped.reduce((s, c) => s + c.sharePercentage, 0),
     };
   }
-
   /**
-   * Map active liquidation
-   */
-  private mapActiveLiquidation(liquidations: any[]) {
-    if (!liquidations || liquidations.length === 0) {
-      return undefined;
-    }
-
-    // Get the most recent active liquidation
-    const activeLiquidations = liquidations.filter((l) =>
-      ['IN_PROGRESS', 'PENDING', 'APPROVED'].includes(l.status),
-    );
-
-    if (activeLiquidations.length === 0) {
-      return undefined;
-    }
-
-    // Sort by initiatedAt (newest first) and take the first
-    const latestLiquidation = activeLiquidations.sort(
-      (a, b) => new Date(b.initiatedAt || 0).getTime() - new Date(a.initiatedAt || 0).getTime(),
-    )[0];
-
-    return this.liquidationMapper.toDomain(latestLiquidation);
-  }
-
-  /**
-   * Map Prisma asset type to Domain AssetTypeVO
-   */
-  private mapToDomainAssetType(prismaType: string): AssetTypeVO {
-    switch (prismaType) {
-      case 'LAND_PARCEL':
-        return AssetTypeVO.createLand();
-      case 'PROPERTY':
-        return AssetTypeVO.createLand(); // Properties are also land
-      case 'VEHICLE':
-        return AssetTypeVO.createVehicle();
-      case 'FINANCIAL_ASSET':
-        return AssetTypeVO.createFinancial();
-      case 'BUSINESS_INTEREST':
-        return AssetTypeVO.createBusiness();
-      case 'DIGITAL_ASSET':
-        return AssetTypeVO.createDigital();
-      case 'INTELLECTUAL_PROPERTY':
-        return AssetTypeVO.createIntellectualProperty();
-      case 'LIVESTOCK':
-        return AssetTypeVO.createLivestock();
-      case 'PERSONAL_EFFECTS':
-        return AssetTypeVO.createPersonalEffects();
-      case 'OTHER':
-        return AssetTypeVO.createOther();
-      default:
-        throw new Error(`Unknown asset type: ${prismaType}`);
-    }
-  }
-
-  /**
-   * Map Domain AssetTypeVO to Prisma asset type
-   */
-  private mapToPrismaAssetType(assetType: AssetTypeVO): string {
-    switch (assetType.value) {
-      case 'LAND':
-        return 'LAND_PARCEL';
-      case 'VEHICLE':
-        return 'VEHICLE';
-      case 'FINANCIAL':
-        return 'FINANCIAL_ASSET';
-      case 'BUSINESS':
-        return 'BUSINESS_INTEREST';
-      case 'DIGITAL':
-        return 'DIGITAL_ASSET';
-      case 'INTELLECTUAL_PROPERTY':
-        return 'INTELLECTUAL_PROPERTY';
-      case 'LIVESTOCK':
-        return 'LIVESTOCK';
-      case 'PERSONAL_EFFECTS':
-        return 'PERSONAL_EFFECTS';
-      case 'OTHER':
-        return 'OTHER';
-      default:
-        throw new Error(`Unknown asset type: ${assetType.value}`);
-    }
-  }
-
-  /**
-   * Map Prisma asset status to Domain enum
-   */
-  private mapToDomainAssetStatus(prismaStatus: string): AssetStatus {
-    switch (prismaStatus) {
-      case 'ACTIVE':
-        return AssetStatus.ACTIVE;
-      case 'VERIFIED':
-        return AssetStatus.VERIFIED;
-      case 'FROZEN':
-        return AssetStatus.FROZEN;
-      case 'LIQUIDATING':
-        return AssetStatus.LIQUIDATING;
-      case 'LIQUIDATED':
-        return AssetStatus.LIQUIDATED;
-      case 'TRANSFERRED':
-        return AssetStatus.TRANSFERRED;
-      case 'DISPUTED':
-        return AssetStatus.DISPUTED;
-      default:
-        throw new Error(`Unknown asset status: ${prismaStatus}`);
-    }
-  }
-
-  /**
-   * Map Domain asset status to Prisma enum
-   */
-  private mapToPrismaAssetStatus(domainStatus: AssetStatus): string {
-    switch (domainStatus) {
-      case AssetStatus.ACTIVE:
-        return 'ACTIVE';
-      case AssetStatus.VERIFIED:
-        return 'VERIFIED';
-      case AssetStatus.FROZEN:
-        return 'FROZEN';
-      case AssetStatus.LIQUIDATING:
-        return 'LIQUIDATING';
-      case AssetStatus.LIQUIDATED:
-        return 'LIQUIDATED';
-      case AssetStatus.TRANSFERRED:
-        return 'TRANSFERRED';
-      case AssetStatus.DISPUTED:
-        return 'DISPUTED';
-      default:
-        throw new Error(`Unknown asset status: ${domainStatus}`);
-    }
-  }
-
-  /**
-   * Map Prisma co-ownership type to Domain enum
-   */
-  private mapToDomainCoOwnershipType(prismaType: string): CoOwnershipType {
-    switch (prismaType) {
-      case 'JOINT_TENANCY':
-        return CoOwnershipType.JOINT_TENANCY;
-      case 'TENANCY_IN_COMMON':
-        return CoOwnershipType.TENANCY_IN_COMMON;
-      default:
-        throw new Error(`Unknown co-ownership type: ${prismaType}`);
-    }
-  }
-
-  /**
-   * Map Domain co-ownership type to Prisma enum
-   */
-  private mapToPrismaCoOwnershipType(domainType: CoOwnershipType): string {
-    switch (domainType) {
-      case CoOwnershipType.JOINT_TENANCY:
-        return 'JOINT_TENANCY';
-      case CoOwnershipType.TENANCY_IN_COMMON:
-        return 'TENANCY_IN_COMMON';
-      default:
-        throw new Error(`Unknown co-ownership type: ${domainType}`);
-    }
-  }
-
-  /**
-   * Prepare asset details for persistence based on asset type
+   * Prepare polymorphic asset details for Prisma create/update
    */
   prepareAssetDetailsForPersistence(asset: Asset): {
     landDetails?: any;
@@ -418,58 +317,56 @@ export class AssetMapper {
     financialDetails?: any;
     businessDetails?: any;
   } {
-    const props = asset.getProps();
     const details: any = {};
 
-    switch (props.type.value) {
+    switch (asset.type.value) {
       case 'LAND':
-        if (props.landDetails) {
+        if (asset.landDetails) {
+          // Prisma syntax for nested create
           details.landDetails = {
             create: {
-              titleDeedNumber: props.landDetails.titleDeedNumber,
-              parcelNumber: props.landDetails.parcelNumber,
-              county: props.landDetails.county,
-              subCounty: props.landDetails.subCounty,
-              acreage: props.landDetails.acreage,
-              landUse: props.landDetails.landUse,
+              titleDeedNumber: asset.landDetails.toJSON().titleDeedNumber,
+              landReferenceNumber: asset.landDetails.toJSON().landReferenceNumber,
+              parcelNumber: asset.landDetails.toJSON().parcelNumber,
+              county: asset.landDetails.toJSON().county?.name || 'NAIROBI', // Extract primitive
+              subCounty: asset.landDetails.toJSON().subCounty,
+              locationDescription: asset.landDetails.toJSON().locationDescription,
+              acreage: asset.landDetails.toJSON().acreage,
+              landUse: asset.landDetails.toJSON().landUse,
+              registeredOwner: asset.landDetails.toJSON().registeredOwner,
+              registrationDate: asset.landDetails.toJSON().registrationDate,
             },
           };
         }
         break;
 
       case 'VEHICLE':
-        if (props.vehicleDetails) {
+        if (asset.vehicleDetails) {
           details.vehicleDetails = {
-            create: {
-              registrationNumber: props.vehicleDetails.registrationNumber,
-              make: props.vehicleDetails.make,
-              model: props.vehicleDetails.model,
-              chassisNumber: props.vehicleDetails.chassisNumber,
-            },
+            create: asset.vehicleDetails.toJSON(),
           };
         }
         break;
 
       case 'FINANCIAL':
-        if (props.financialDetails) {
+        if (asset.financialDetails) {
           details.financialDetails = {
-            create: {
-              institutionName: props.financialDetails.institutionName,
-              accountNumber: props.financialDetails.accountNumber,
-              accountType: props.financialDetails.accountType,
-              branchName: props.financialDetails.branchName,
-            },
+            create: asset.financialDetails.toJSON(),
           };
         }
         break;
 
       case 'BUSINESS':
-        if (props.businessDetails) {
+        if (asset.businessDetails) {
+          const bizJson = asset.businessDetails.toJSON();
           details.businessDetails = {
             create: {
-              businessName: props.businessDetails.businessName,
-              registrationNumber: props.businessDetails.registrationNumber,
-              sharePercentage: props.businessDetails.sharePercentage,
+              businessName: bizJson.businessName,
+              registrationNumber: bizJson.registrationNumber,
+              sharePercentage: bizJson.shareholdingPercentage, // Map name difference
+              businessType: bizJson.businessType,
+              numberOfShares: bizJson.numberOfShares,
+              registeredAddress: bizJson.registeredAddress,
             },
           };
         }
@@ -480,18 +377,16 @@ export class AssetMapper {
   }
 
   /**
-   * Prepare co-owners for persistence
+   * Prepare co-owners list for Prisma
    */
   prepareCoOwnersForPersistence(asset: Asset): any {
-    const props = asset.getProps();
-
-    if (!props.coOwnership || props.coOwnership.coOwners.length === 0) {
+    if (!asset.coOwnership || asset.coOwnership.coOwners.length === 0) {
       return {};
     }
 
     return {
       coOwners: {
-        create: props.coOwnership.coOwners.map((coOwner) =>
+        create: asset.coOwnership.coOwners.map((coOwner) =>
           this.coOwnerMapper.toPersistence(coOwner),
         ),
       },
@@ -499,82 +394,17 @@ export class AssetMapper {
   }
 
   /**
-   * Prepare valuations for persistence
+   * Prepare valuations history for Prisma
    */
   prepareValuationsForPersistence(asset: Asset): any {
-    const props = asset.getProps();
-
-    if (props.valuations.length === 0) {
+    if (asset.valuations.length === 0) {
       return {};
     }
 
     return {
       valuations: {
-        create: props.valuations.map((valuation) => this.valuationMapper.toPersistence(valuation)),
+        create: asset.valuations.map((valuation) => this.valuationMapper.toPersistence(valuation)),
       },
     };
-  }
-
-  /**
-   * Get asset summary for reporting
-   */
-  getAssetSummary(asset: Asset): {
-    id: string;
-    name: string;
-    type: string;
-    currentValue: number;
-    distributableValue: number;
-    isTransferable: boolean;
-    requiresRegistryTransfer: boolean;
-    status: string;
-  } {
-    const props = asset.getProps();
-
-    return {
-      id: asset.id.toString(),
-      name: props.name,
-      type: props.type.value,
-      currentValue: props.currentValue.amount,
-      distributableValue: asset.getDistributableValue().amount,
-      isTransferable: asset.isTransferable(),
-      requiresRegistryTransfer: asset.requiresRegistryTransfer(),
-      status: props.status,
-    };
-  }
-
-  /**
-   * Filter assets by transferability
-   */
-  filterTransferableAssets(assets: Asset[]): Asset[] {
-    return assets.filter((asset) => asset.isTransferable());
-  }
-
-  /**
-   * Get total value of assets
-   */
-  getTotalValue(assets: Asset[], includeOnlyTransferable: boolean = false): MoneyVO {
-    const filteredAssets = includeOnlyTransferable ? this.filterTransferableAssets(assets) : assets;
-
-    if (filteredAssets.length === 0) {
-      return MoneyVO.zero('KES');
-    }
-
-    return filteredAssets.reduce((total, asset) => {
-      const props = asset.getProps();
-      return total.add(props.currentValue);
-    }, MoneyVO.zero('KES'));
-  }
-
-  /**
-   * Get total distributable value of assets
-   */
-  getTotalDistributableValue(assets: Asset[]): MoneyVO {
-    if (assets.length === 0) {
-      return MoneyVO.zero('KES');
-    }
-
-    return assets.reduce((total, asset) => {
-      return total.add(asset.getDistributableValue());
-    }, MoneyVO.zero('KES'));
   }
 }

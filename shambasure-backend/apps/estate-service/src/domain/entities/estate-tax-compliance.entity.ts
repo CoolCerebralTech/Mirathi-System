@@ -424,40 +424,89 @@ export class EstateTaxCompliance extends Entity<EstateTaxComplianceProps> {
   public isLiability(): boolean {
     return this.props.status.isLiability() || !this.getRemainingBalance().isZero();
   }
-
+  public static reconstitute(
+    props: EstateTaxComplianceProps,
+    id: UniqueEntityID,
+  ): EstateTaxCompliance {
+    return new EstateTaxCompliance(props, id);
+  }
   // ===========================================================================
   // GETTERS
   // ===========================================================================
 
+  get estateId(): string {
+    return this.props.estateId;
+  }
+  get kraPin(): string {
+    return this.props.kraPin;
+  }
   get status(): TaxStatusVO {
     return this.props.status;
   }
 
-  get kraPin(): string {
-    return this.props.kraPin;
+  get incomeTaxLiability(): MoneyVO {
+    return this.props.incomeTaxLiability;
   }
-
-  get clearanceCertificateNo(): string | undefined {
-    return this.props.clearanceCertificateNo;
+  get capitalGainsTaxLiability(): MoneyVO {
+    return this.props.capitalGainsTaxLiability;
+  }
+  get stampDutyLiability(): MoneyVO {
+    return this.props.stampDutyLiability;
+  }
+  get otherLeviesLiability(): MoneyVO {
+    return this.props.otherLeviesLiability;
   }
 
   get totalPaid(): MoneyVO {
     return this.props.totalPaid;
   }
+  get lastPaymentDate(): Date | undefined {
+    return this.props.lastPaymentDate;
+  }
+  get paymentHistory(): any[] {
+    return [...this.props.paymentHistory];
+  } // Safe copy
 
-  get remainingBalance(): MoneyVO {
-    return this.getRemainingBalance();
+  get clearanceCertificateNo(): string | undefined {
+    return this.props.clearanceCertificateNo;
+  }
+  get clearanceDate(): Date | undefined {
+    return this.props.clearanceDate;
+  }
+  get clearanceIssuedBy(): string | undefined {
+    return this.props.clearanceIssuedBy;
+  }
+
+  get assessmentDate(): Date | undefined {
+    return this.props.assessmentDate;
+  }
+  get assessmentReference(): string | undefined {
+    return this.props.assessmentReference;
+  }
+  get assessedBy(): string | undefined {
+    return this.props.assessedBy;
+  }
+
+  get exemptionReason(): string | undefined {
+    return this.props.exemptionReason;
+  }
+  get exemptionCertificateNo(): string | undefined {
+    return this.props.exemptionCertificateNo;
+  }
+  get exemptedBy(): string | undefined {
+    return this.props.exemptedBy;
+  }
+  get exemptionDate(): Date | undefined {
+    return this.props.exemptionDate;
   }
 
   get requiresProfessionalValuation(): boolean {
     return this.props.requiresProfessionalValuation;
   }
-
   get isUnderInvestigation(): boolean {
     return this.props.isUnderInvestigation;
   }
-
-  get estateId(): string {
-    return this.props.estateId;
+  get notes(): string | undefined {
+    return this.props.notes;
   }
 }

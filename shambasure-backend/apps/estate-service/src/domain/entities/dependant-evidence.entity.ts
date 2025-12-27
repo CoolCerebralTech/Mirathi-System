@@ -230,44 +230,40 @@ export class DependantEvidence extends Entity<DependantEvidenceProps> {
   get dependantId(): string {
     return this.props.dependantId;
   }
-
   get type(): EvidenceType {
     return this.props.type;
   }
-
   get documentUrl(): string {
     return this.props.documentUrl;
   }
-
   get description(): string {
     return this.props.description;
   }
-
   get isVerified(): boolean {
     return this.props.isVerified;
   }
-
-  get isExpired(): boolean {
-    return this.props.isExpired;
-  }
-
-  get validationScore(): number {
-    return this.props.validationScore;
-  }
-
-  get uploadedBy(): string {
-    return this.props.uploadedBy;
-  }
-
-  get uploadedAt(): Date {
-    return this.props.uploadedAt;
-  }
-
   get verifiedBy(): string | undefined {
     return this.props.verifiedBy;
   }
-
   get verifiedAt(): Date | undefined {
     return this.props.verifiedAt;
+  }
+  get uploadedBy(): string {
+    return this.props.uploadedBy;
+  }
+  get uploadedAt(): Date {
+    return this.props.uploadedAt;
+  }
+  get expiresAt(): Date | undefined {
+    return this.props.expiresAt;
+  }
+  get isExpired(): boolean {
+    return this.props.isExpired;
+  }
+  get validationNotes(): string | undefined {
+    return this.props.validationNotes;
+  }
+  get validationScore(): number {
+    return this.props.validationScore;
   }
 }

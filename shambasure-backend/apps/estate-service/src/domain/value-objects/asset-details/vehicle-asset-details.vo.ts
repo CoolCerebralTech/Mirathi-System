@@ -21,7 +21,9 @@ export class VehicleAssetDetailsVO extends ValueObject<VehicleAssetDetailsProps>
   constructor(props: VehicleAssetDetailsProps) {
     super(props);
   }
-
+  public static create(props: VehicleAssetDetailsProps): VehicleAssetDetailsVO {
+    return new VehicleAssetDetailsVO(props);
+  }
   protected validate(): void {
     // Basic Kenyan Plate Validation (KAA 123A, KBZ 999Z, etc.)
     // Regex allows old formats (KAA 123) and new formats (KAA 123A) and diplomatic/govt (simplified)

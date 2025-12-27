@@ -23,7 +23,9 @@ export class FinancialAssetDetailsVO extends ValueObject<FinancialAssetDetailsPr
   constructor(props: FinancialAssetDetailsProps) {
     super(props);
   }
-
+  public static create(props: FinancialAssetDetailsProps): FinancialAssetDetailsVO {
+    return new FinancialAssetDetailsVO(props);
+  }
   protected validate(): void {
     if (!this.props.institutionName?.trim())
       throw new ValueObjectValidationError('Institution Name Required', 'institutionName');
