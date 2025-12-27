@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { RelationshipType } from '@prisma/client';
 import { Transform, TransformFnParams, Type } from 'class-transformer';
 import {
   IsArray,
@@ -22,7 +23,6 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import { RelationshipType } from '@shamba/common';
 import { IsKenyanPhoneNumber } from '@shamba/common';
 
 // ============================================================================

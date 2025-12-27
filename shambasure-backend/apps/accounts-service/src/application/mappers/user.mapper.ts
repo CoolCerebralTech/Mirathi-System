@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-
-import { RelationshipType, UserRole } from '@shamba/common';
+import { RelationshipType, UserRole } from '@prisma/client';
 
 import { PaginatedResult, UserStats } from '../../domain/interfaces';
 import { LoginSession, User } from '../../domain/models';

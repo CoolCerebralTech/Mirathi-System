@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
 import { Transform, TransformFnParams, Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
@@ -22,7 +23,6 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import { UserRole } from '@shamba/common';
 import { BaseResponseDto, PaginationMetaDto, PaginationQueryDto } from '@shamba/common';
 
 // ============================================================================

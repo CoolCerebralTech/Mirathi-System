@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-
-import { RelationshipType } from '@shamba/common';
+import { RelationshipType } from '@prisma/client';
 
 import { Address, NextOfKin, UserProfile } from '../../domain/models';
 import { PhoneNumber } from '../../domain/value-objects';

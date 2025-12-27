@@ -8,9 +8,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { randomUUID } from 'crypto';
-
-import { UserRole } from '@shamba/common';
 
 import { UsersBulkUpdatedEvent } from '../../domain/events';
 import type {

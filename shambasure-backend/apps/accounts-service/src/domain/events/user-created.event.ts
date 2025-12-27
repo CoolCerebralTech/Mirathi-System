@@ -1,4 +1,4 @@
-import { UserRole } from '@shamba/common';
+import { UserRole } from '@prisma/client';
 
 import { DomainEvent } from './domain-event.base';
 

@@ -1,6 +1,5 @@
+import { UserRole } from '@prisma/client';
 import { randomUUID } from 'crypto';
-
-import { UserRole } from '@shamba/common';
 
 import {
   DomainEvent,

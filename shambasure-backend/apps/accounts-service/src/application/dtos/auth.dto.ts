@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
 import { Transform, TransformFnParams, Type } from 'class-transformer';
 import {
   Equals,
@@ -15,7 +16,6 @@ import {
 } from 'class-validator';
 import { IsStrongPassword } from 'class-validator';
 
-import { UserRole } from '@shamba/common';
 import { BaseResponseDto } from '@shamba/common';
 import { IsSecurePassword, Match } from '@shamba/common';
 

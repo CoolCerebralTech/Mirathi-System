@@ -1,4 +1,4 @@
-import { RelationshipType } from '@shamba/common';
+import { RelationshipType } from '@prisma/client';
 
 import { PhoneNumber } from '../value-objects';
 

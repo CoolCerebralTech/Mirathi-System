@@ -13,9 +13,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
 
 import { CurrentUser, JwtAuthGuard, type JwtPayload, Roles, RolesGuard } from '@shamba/auth';
-import { UserRole } from '@shamba/common';
 
 import {
   AdminBulkUpdateUsersRequestDto,

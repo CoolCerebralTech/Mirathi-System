@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
 import { Transform, TransformFnParams, Type } from 'class-transformer';
 import {
   IsArray,
@@ -16,7 +17,6 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import { UserRole } from '@shamba/common';
 import { BaseResponseDto } from '@shamba/common';
 
 // ============================================================================
