@@ -129,69 +129,67 @@ src/estate-service/src/domain/
 │
 
 
-
-src/application/
-├── common/
-│   ├── application.error.ts
-│   └── result.wrapper.ts
+src/estate-service/src/application/will/
 │
-└── will/
-    ├── commands/                         # [WRITE SIDE]
-    │   ├── handlers/
-    │   │   ├── create-will.handler.ts
-    │   │   ├── update-will-metadata.handler.ts
-    │   │   ├── add-beneficiary.handler.ts
-    │   │   ├── remove-beneficiary.handler.ts
-    │   │   ├── assign-residuary-estate.handler.ts
-    │   │   ├── appoint-executor.handler.ts
-    │   │   ├── remove-executor.handler.ts
-    │   │   ├── add-witness.handler.ts
-    │   │   ├── record-disinheritance.handler.ts
-    │   │   ├── revoke-will.handler.ts
-    │   │   ├── execute-will.handler.ts
-    │   │   └── supersede-will.handler.ts
-    │   │
-    │   └── impl/
-    │       ├── create-will.command.ts
-    │       ├── update-will-metadata.command.ts
-    │       ├── add-beneficiary.command.ts
-    │       ├── remove-beneficiary.command.ts
-    │       ├── assign-residuary-estate.command.ts
-    │       ├── appoint-executor.command.ts
-    │       ├── remove-executor.command.ts
-    │       ├── add-witness.command.ts
-    │       ├── record-disinheritance.command.ts
-    │       ├── revoke-will.command.ts
-    │       ├── execute-will.command.ts
-    │       └── supersede-will.command.ts
-    │
-    ├── queries/                          # [READ SIDE]
-    │   ├── handlers/
-    │   │   ├── get-will-by-id.handler.ts
-    │   │   ├── get-will-summary.handler.ts
-    │   │   ├── get-will-validity.handler.ts
-    │   │   ├── get-testator-will-history.handler.ts
-    │   │   ├── search-wills.handler.ts
-    │   │   ├── get-will-readiness.handler.ts
-    │   │   └── get-executor-assignments.handler.ts
-    │   │
-    │   ├── impl/
-    │   │   ├── get-will-by-id.query.ts
-    │   │   ├── get-will-summary.query.ts
-    │   │   ├── get-will-validity.query.ts
-    │   │   ├── get-testator-will-history.query.ts
-    │   │   ├── search-wills.query.ts
-    │   │   ├── get-will-readiness.query.ts
-    │   │   └── get-executor-assignments.query.ts
-    │   │
-    │   └── read-models/
-    │       ├── will-detail.vm.ts
-    │       ├── will-summary.vm.ts
-    │       ├── will-validity.vm.ts
-    │       ├── will-history.vm.ts
-    │       ├── will-list-item.vm.ts
-    │       └── will-readiness.vm.ts
-    │
-    └── services/                         # [ORCHESTRATION / CROSS-CUTTING]
-        ├── will-audit.service.ts
-        └── will-readiness.service.ts
+├── commands/                                  # ⚡ WRITE SIDE (State Changes)
+│   ├── dtos/                                  # Data Transfer Objects (Validation Layer)
+│   │   ├── create-will.dto.ts
+│   │   ├── execute-will.dto.ts
+│   │   ├── beneficiary-assignment.dto.ts
+│   │   ├── executor-appointment.dto.ts
+│   │   ├── witness-management.dto.ts
+│   │   ├── disinheritance.dto.ts
+│   │   └── codicil.dto.ts
+│   │
+│   ├── handlers/                              # Business Logic (The "How")
+│   │   ├── create-draft-will.handler.ts
+│   │   ├── execute-will.handler.ts            # 🛡️ Critical: S.11 Logic here
+│   │   ├── revoke-will.handler.ts
+│   │   ├── add-beneficiary.handler.ts
+│   │   ├── appoint-executor.handler.ts
+│   │   ├── add-witness.handler.ts             # Pre-execution nomination
+│   │   ├── record-witness-signature.handler.ts # During execution
+│   │   ├── record-disinheritance.handler.ts   # 🛡️ Critical: S.26 Logic here
+│   │   ├── add-codicil.handler.ts
+│   │   └── update-capacity-declaration.handler.ts
+│   │
+│   └── impl/                                  # Command Objects (The "What")
+│       ├── create-draft-will.command.ts
+│       ├── execute-will.command.ts
+│       ├── ... (matching handlers)
+│
+├── queries/                                   # 🔍 READ SIDE (Data Retrieval)
+│   ├── dtos/
+│   │   ├── will-search.dto.ts
+│   │   └── compliance-report-request.dto.ts
+│   │
+│   ├── handlers/
+│   │   ├── get-will-by-id.handler.ts
+│   │   ├── get-active-will.handler.ts
+│   │   ├── get-testator-history.handler.ts    # Audit trail for probate
+│   │   ├── get-will-compliance-report.handler.ts # 🛡️ The "Radar"
+│   │   └── search-wills.handler.ts
+│   │
+│   ├── impl/
+│   │   ├── get-will-by-id.query.ts
+│   │   ├── ... (matching handlers)
+│   │
+│   └── view-models/                           # Read Models (Optimized for UI)
+│       ├── will-detail.vm.ts
+│       ├── will-summary.vm.ts
+│       ├── compliance-report.vm.ts            # Warnings/Violations list
+│       └── executor-dashboard.vm.ts
+│
+├── services/                                  # 🧩 ORCHESTRATION & DOMAIN LOGIC BRIDGES
+│   ├── will-compliance.service.ts             # Runs the "Radar" logic across Aggregate
+│   ├── will-pdf-generator.service.ts          # Orchestrates PDF creation (Adapter pattern)
+│   └── audit-logger.service.ts                # Legal audit trail specific to Wills
+│
+├── events/                                    # 📢 EVENT SUBSCRIBERS (Side Effects)
+│   ├── will-executed.subscriber.ts            # Triggers Succession Automation Service
+│   ├── will-revoked.subscriber.ts
+│   └── beneficiary-added.subscriber.ts        # Validates against Family Service
+│
+└── interfaces/                                # 🔌 PORTS (External Dependencies)
+    ├── family-service.interface.ts            # To validate "Who is this person?"
+    └── notification-service.interface.ts      # To alert Executors/Witnesses
