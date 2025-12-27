@@ -11,6 +11,8 @@ export interface BeneficiaryIdentityProps {
     kraPin?: string;
     relationship?: string;
   };
+  // Optional derived props for reconstruction
+  identityType?: string;
 }
 
 /**
@@ -26,6 +28,16 @@ export interface BeneficiaryIdentityProps {
 export class BeneficiaryIdentity extends ValueObject<BeneficiaryIdentityProps> {
   constructor(props: BeneficiaryIdentityProps) {
     super(props);
+  }
+  // --- FACTORY FOR MAPPER ---
+  public static create(props: any): BeneficiaryIdentity {
+    // Basic validation or cleanup before instantiation
+    return new BeneficiaryIdentity({
+      type: props.type,
+      userId: props.userId,
+      familyMemberId: props.familyMemberId,
+      externalDetails: props.externalDetails,
+    });
   }
 
   protected validate(): void {
@@ -67,7 +79,7 @@ export class BeneficiaryIdentity extends ValueObject<BeneficiaryIdentityProps> {
 
       default:
         throw new ValueObjectValidationError(
-          `Invalid beneficiary type: ${this.props.type}`,
+          `Invalid beneficiary type: $string{this.props.type}`,
           'type',
         );
     }

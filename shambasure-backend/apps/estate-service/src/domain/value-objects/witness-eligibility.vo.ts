@@ -29,6 +29,19 @@ export class WitnessEligibility extends ValueObject<WitnessEligibilityProps> {
   constructor(props: WitnessEligibilityProps) {
     super(props);
   }
+  public static create(props: any): WitnessEligibility {
+    // Basic defaults if DB JSON is incomplete (legacy data support)
+    return new WitnessEligibility({
+      isEligible: props.isEligible ?? false,
+      reasons: props.reasons ?? [],
+      age: props.age ?? 0,
+      isBeneficiary: props.isBeneficiary ?? false,
+      isExecutor: props.isExecutor ?? false,
+      isTestatorSpouse: props.isTestatorSpouse ?? false,
+      isMentallyCompetent: props.isMentallyCompetent ?? true,
+      hasCriminalRecord: props.hasCriminalRecord ?? false,
+    });
+  }
 
   protected validate(): void {
     const reasons: string[] = [];

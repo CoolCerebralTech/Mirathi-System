@@ -30,9 +30,20 @@ export interface TestatorCapacityDeclarationProps {
  * - Must recall persons with natural claims
  * - Declaration should be voluntary and free from undue influence
  */
-export class TestatorCapacityDeclaration extends ValueObject<TestactorCapacityDeclarationProps> {
+export class TestatorCapacityDeclaration extends ValueObject<TestatorCapacityDeclarationProps> {
   constructor(props: TestatorCapacityDeclarationProps) {
     super(props);
+  }
+  public static create(props: any): TestatorCapacityDeclaration {
+    return new TestatorCapacityDeclaration({
+      status: props.status,
+      declarationDate: props.declarationDate ? new Date(props.declarationDate) : new Date(),
+      assessedBy: props.assessedBy,
+      assessmentNotes: props.assessmentNotes,
+      supportingDocumentIds: props.supportingDocumentIds || [],
+      isVoluntarilyMade: props.isVoluntarilyMade ?? true,
+      isFreeFromUndueInfluence: props.isFreeFromUndueInfluence ?? true,
+    });
   }
 
   protected validate(): void {
@@ -113,7 +124,7 @@ export class TestatorCapacityDeclaration extends ValueObject<TestactorCapacityDe
   public isLegallySufficient(): boolean {
     // Self-declaration alone may not be sufficient for large estates
     if (this.props.status === 'SELF_DECLARATION') {
-      return this.supportingDocumentIds.length > 0;
+      return this.props.supportingDocumentIds.length > 0;
     }
 
     return (

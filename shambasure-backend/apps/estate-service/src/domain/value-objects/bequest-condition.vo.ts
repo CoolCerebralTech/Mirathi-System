@@ -60,7 +60,7 @@ export class BequestCondition extends ValueObject<BequestConditionProps> {
 
       default:
         throw new ValueObjectValidationError(
-          `Invalid bequest condition type: ${this.props.type}`,
+          `Invalid bequest condition type: ${String(this.props.type)}`,
           'type',
         );
     }
@@ -162,33 +162,38 @@ export class BequestCondition extends ValueObject<BequestConditionProps> {
    */
   public evaluate(currentFacts: Record<string, any>): boolean {
     switch (this.props.type) {
-      case 'AGE_REQUIREMENT':
+      case 'AGE_REQUIREMENT': {
         const beneficiaryAge = currentFacts.beneficiaryAge;
         const requiredAge = this.props.parameters?.age;
         return beneficiaryAge >= requiredAge;
+      }
 
-      case 'SURVIVAL':
+      case 'SURVIVAL': {
         const beneficiaryAlive = currentFacts.beneficiaryAlive;
         const survivalDays = this.props.parameters?.survivalDays;
         const daysSurvived = currentFacts.daysSurvived;
         return beneficiaryAlive && daysSurvived >= survivalDays;
+      }
 
-      case 'EDUCATION':
+      case 'EDUCATION': {
         const beneficiaryEducation = currentFacts.beneficiaryEducation;
         const requiredLevel = this.props.parameters?.educationLevel;
         return beneficiaryEducation === requiredLevel;
+      }
 
-      case 'MARRIAGE':
+      case 'MARRIAGE': {
         const beneficiaryMarried = currentFacts.beneficiaryMarried;
         const marriageAllowed = this.props.parameters?.marriageAllowed;
         return marriageAllowed ? beneficiaryMarried : !beneficiaryMarried;
+      }
 
-      case 'ALTERNATE':
+      case 'ALTERNATE': {
         const primaryAlive = currentFacts.primaryBeneficiaryAlive;
-        return !primaryAlive; // Condition met if primary is dead
+        return !primaryAlive;
+      }
 
       case 'NONE':
-        return true; // No conditions, always met
+        return true;
 
       default:
         return false;
@@ -206,9 +211,10 @@ export class BequestCondition extends ValueObject<BequestConditionProps> {
         return `If beneficiary survives by ${this.props.parameters?.survivalDays} days`;
       case 'EDUCATION':
         return `Upon completion of ${this.props.parameters?.educationLevel} education`;
-      case 'MARRIAGE':
+      case 'MARRIAGE': {
         const allowed = this.props.parameters?.marriageAllowed;
         return allowed ? 'Upon marriage' : 'Only if not married';
+      }
       case 'ALTERNATE':
         return `Alternate beneficiary if primary deceased`;
       case 'NONE':
@@ -217,14 +223,20 @@ export class BequestCondition extends ValueObject<BequestConditionProps> {
         return 'Unknown condition';
     }
   }
-
-  public toJSON(): Record<string, any> {
+  public static create(props: any): BequestCondition {
+    return new BequestCondition({
+      type: props.type,
+      details: props.details,
+      parameters: props.parameters,
+      isMet: props.isMet,
+    });
+  }
+  public toJSON() {
     return {
       type: this.props.type,
       details: this.props.details,
       parameters: this.props.parameters,
-      description: this.getDescription(),
-      isConditional: this.props.type !== 'NONE',
+      isMet: this.props.isMet,
     };
   }
 

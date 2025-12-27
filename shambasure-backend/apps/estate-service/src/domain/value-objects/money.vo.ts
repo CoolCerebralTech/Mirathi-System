@@ -34,7 +34,9 @@ export class MoneyVO extends ValueObject<MoneyProps> {
     }
     return a.isLessThan(b) ? a : b;
   }
-
+  public static create(props: MoneyProps): MoneyVO {
+    return new MoneyVO(props);
+  }
   /**
    * Get the maximum of two amounts
    */

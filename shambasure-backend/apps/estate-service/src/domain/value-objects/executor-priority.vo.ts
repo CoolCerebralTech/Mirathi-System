@@ -23,6 +23,13 @@ export class ExecutorPriority extends ValueObject<ExecutorPriorityProps> {
   constructor(props: ExecutorPriorityProps) {
     super(props);
   }
+  public get level(): string {
+    return this.props.priority;
+  }
+
+  public get order(): number {
+    return this.props.order || 1;
+  }
 
   protected validate(): void {
     // Validate priority type
@@ -102,14 +109,42 @@ export class ExecutorPriority extends ValueObject<ExecutorPriorityProps> {
       (this.props.priority === 'SUBSTITUTE' && !this.props.isChain)
     );
   }
+  /**
+   * [NEW] Factory for Mapper to reconstitute from DB columns
+   */
+  public static create(priorityLevel: string, priorityOrder: number): ExecutorPriority {
+    // Map raw DB string to Domain Enum safely
+    let priority: ExecutorPriorityType;
+    let isChain = false;
+
+    // Normalize input
+    const level = priorityLevel.toUpperCase();
+
+    if (level === 'PRIMARY') {
+      priority = 'PRIMARY';
+    } else if (level === 'SUBSTITUTE') {
+      priority = 'SUBSTITUTE';
+      // Logic: If order > 1 for a substitute, implies a chain/ranking
+      isChain = priorityOrder > 1;
+    } else if (level === 'CO_EXECUTOR' || level === 'JOINT') {
+      priority = 'CO_EXECUTOR';
+    } else {
+      // Fallback or Error
+      priority = 'PRIMARY';
+    }
+
+    return new ExecutorPriority({
+      priority,
+      order: priorityOrder,
+      isChain,
+    });
+  }
 
   public toJSON(): Record<string, any> {
     return {
       priority: this.props.priority,
       order: this.props.order,
       isChain: this.props.isChain,
-      label: this.getLabel(),
-      canActAlone: this.canActAlone(),
     };
   }
 

@@ -22,30 +22,34 @@ export class ExecutionDate extends ValueObject<ExecutionDateProps> {
   constructor(props: ExecutionDateProps) {
     super(props);
   }
+  /**
+   * Public accessor for the raw Date object.
+   * Required by Mappers to save to the database.
+   */
+  public get value(): Date {
+    return this.props.date;
+  }
 
   protected validate(): void {
-    // Date cannot be in the future
     const now = new Date();
-    if (this.props.date > now) {
+    // Allow a small buffer (e.g. 1 minute) for server time differences if "now" is used
+    if (this.props.date.getTime() > now.getTime() + 60000) {
       throw new ValueObjectValidationError('Execution date cannot be in the future', 'date');
     }
 
-    // Must have at least 2 witnesses (S.11 LSA)
     if (this.props.witnessesPresent < 2) {
       throw new ValueObjectValidationError(
-        'Must have at least 2 witnesses present for will execution',
+        'Must have at least 2 witnesses present for will execution (S.11 LSA)',
         'witnessesPresent',
       );
     }
 
-    // Timezone validation
     try {
       Intl.DateTimeFormat(undefined, { timeZone: this.props.timezone });
-    } catch (error) {
+    } catch {
       throw new ValueObjectValidationError(`Invalid timezone: ${this.props.timezone}`, 'timezone');
     }
 
-    // Location validation if provided
     if (this.props.location && this.props.location.length > 200) {
       throw new ValueObjectValidationError(
         'Location description too long (max 200 characters)',
@@ -107,6 +111,35 @@ export class ExecutionDate extends ValueObject<ExecutionDateProps> {
       ageInDays: this.getAgeInDays(),
       isValid: this.isWithinLastDays(365 * 50), // Roughly 50 years validity check
     };
+  }
+  /**
+   * [NEW] Generic factory method for Mappers
+   * Handles Date objects or ISO strings coming from DB/API
+   */
+  public static create(
+    dateInput: Date | string,
+    witnessesPresent: number = 2, // Default to minimum legal req if not tracked in DB column
+    location?: string,
+    timezone: string = 'Africa/Nairobi',
+  ): ExecutionDate {
+    let date: Date;
+
+    if (dateInput instanceof Date) {
+      date = dateInput;
+    } else {
+      date = new Date(dateInput);
+    }
+
+    if (isNaN(date.getTime())) {
+      throw new ValueObjectValidationError('Invalid execution date provided', 'date');
+    }
+
+    return new ExecutionDate({
+      date,
+      witnessesPresent,
+      location,
+      timezone,
+    });
   }
 
   // Static factory methods
