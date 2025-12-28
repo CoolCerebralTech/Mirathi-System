@@ -26,8 +26,8 @@ import { GiftInterVivosMapper } from '../mappers/gift-inter-vivos.mapper';
 import { LegalDependantMapper } from '../mappers/legal-dependant.mapper';
 
 @Injectable()
-export class EstateRepository implements IEstateRepository {
-  private readonly logger = new Logger(EstateRepository.name);
+export class PrismaEstateRepository implements IEstateRepository {
+  private readonly logger = new Logger(PrismaEstateRepository.name);
 
   constructor(
     private readonly prisma: PrismaService,

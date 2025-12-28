@@ -26,8 +26,8 @@ import { WillWitnessMapper } from '../mappers/will-witness.mapper';
 import { WillMapper } from '../mappers/will.mapper';
 
 @Injectable()
-export class WillRepository implements IWillRepository {
-  private readonly logger = new Logger(WillRepository.name);
+export class PrismaWillRepository implements IWillRepository {
+  private readonly logger = new Logger(PrismaWillRepository.name);
 
   constructor(
     private readonly prisma: PrismaService,
