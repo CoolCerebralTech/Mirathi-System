@@ -4,7 +4,7 @@ import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { UniqueEntityID } from '../../../../../domain/base/unique-entity-id';
 import { Debt } from '../../../../../domain/entities/debt.entity';
 import { DebtTier } from '../../../../../domain/enums/debt-tier.enum';
-import { DebtType } from '../../../../../domain/enums/debt-type.enum';
+import { DebtTypeHelper } from '../../../../../domain/enums/debt-type.enum';
 import { ESTATE_REPOSITORY } from '../../../../../domain/interfaces/estate.repository.interface';
 import type { IEstateRepository } from '../../../../../domain/interfaces/estate.repository.interface';
 import { DebtPriorityVO } from '../../../../../domain/value-objects/debt-priority.vo';
@@ -42,15 +42,12 @@ export class AddDebtHandler implements ICommandHandler<AddDebtCommand> {
       // 2. Determine Priority (S.45 Logic Map)
       let priority: DebtPriorityVO;
 
-      // Basic mapping strategy based on Debt Type
-      // In a real scenario, this mapping might live in a Domain Service or Helper
-      if ([DebtType.FUNERAL_EXPENSES].includes(dto.type)) {
+      if (DebtTypeHelper.isFuneralExpense(dto.type)) {
         priority = DebtPriorityVO.createFuneralExpense(dto.type);
-      } else if ([DebtType.MORTGAGE, DebtType.ASSET_FINANCE].includes(dto.type)) {
+      } else if (DebtTypeHelper.isSecured(dto.type)) {
         priority = DebtPriorityVO.createSecuredDebt(dto.type);
-      } else if ([DebtType.TAX_ARREARS, DebtType.ESTATE_DUTY].includes(dto.type)) {
-        // Taxes are usually Tier 4 (S.45(c))
-        priority = DebtPriorityVO.create({ tier: DebtTier.TAXES_RATES_WAGES, type: dto.type });
+      } else if (DebtTypeHelper.isTaxDebt(dto.type)) {
+        priority = DebtPriorityVO.restore(DebtTier.TAXES_RATES_WAGES, dto.type);
       } else {
         priority = DebtPriorityVO.createUnsecuredDebt(dto.type);
       }

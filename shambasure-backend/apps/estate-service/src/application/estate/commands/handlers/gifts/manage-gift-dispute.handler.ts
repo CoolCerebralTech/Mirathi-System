@@ -1,7 +1,8 @@
-import { Inject, Logger } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 
 import { UniqueEntityID } from '../../../../../domain/base/unique-entity-id';
+import { GiftStatus } from '../../../../../domain/entities/gift-inter-vivos.entity';
 import { ESTATE_REPOSITORY } from '../../../../../domain/interfaces/estate.repository.interface';
 import type { IEstateRepository } from '../../../../../domain/interfaces/estate.repository.interface';
 import { Result } from '../../../../common/result';
@@ -12,8 +13,6 @@ import {
 
 @CommandHandler(ContestGiftCommand)
 export class ContestGiftHandler implements ICommandHandler<ContestGiftCommand> {
-  private readonly logger = new Logger(ContestGiftHandler.name);
-
   constructor(@Inject(ESTATE_REPOSITORY) private readonly estateRepository: IEstateRepository) {}
 
   async execute(command: ContestGiftCommand): Promise<Result<void>> {
@@ -36,8 +35,6 @@ export class ContestGiftHandler implements ICommandHandler<ContestGiftCommand> {
 
 @CommandHandler(ResolveGiftDisputeCommand)
 export class ResolveGiftDisputeHandler implements ICommandHandler<ResolveGiftDisputeCommand> {
-  private readonly logger = new Logger(ResolveGiftDisputeHandler.name);
-
   constructor(@Inject(ESTATE_REPOSITORY) private readonly estateRepository: IEstateRepository) {}
 
   async execute(command: ResolveGiftDisputeCommand): Promise<Result<void>> {
@@ -50,12 +47,11 @@ export class ResolveGiftDisputeHandler implements ICommandHandler<ResolveGiftDis
       if (!gift) return Result.fail(new Error(`Gift not found`));
 
       // Reclassification logic handled by domain entity method
-      if (dto.outcome === 'RECLASSIFIED_AS_LOAN') {
+      if (dto.outcome === GiftStatus.RECLASSIFIED_AS_LOAN) {
         gift.reclassifyAsLoan(dto.resolutionDetails, dto.resolvedBy);
-      } else if (dto.outcome === 'EXCLUDED') {
+      } else if (dto.outcome === GiftStatus.EXCLUDED) {
         gift.excludeFromHotchpot(dto.resolutionDetails, dto.resolvedBy, dto.courtOrderReference);
       } else {
-        // General resolution
         gift.resolveContestation(
           dto.outcome,
           dto.resolutionDetails,

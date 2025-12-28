@@ -154,6 +154,12 @@ export class DebtPriorityVO extends ValueObject<DebtPriorityProps> {
       tier: DebtTier.UNSECURED_GENERAL,
     });
   }
+  static createTaxDebt(type: DebtType): DebtPriorityVO {
+    return new DebtPriorityVO({
+      type,
+      tier: DebtTier.TAXES_RATES_WAGES,
+    });
+  }
 
   /**
    * Get S.45 legal reference for this priority

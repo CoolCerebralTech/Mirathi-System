@@ -1,4 +1,4 @@
-import { Inject, Logger } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 
 import { UniqueEntityID } from '../../../../../domain/base/unique-entity-id';
@@ -18,11 +18,10 @@ import {
 
 @CommandHandler(InitiateLiquidationCommand)
 export class InitiateLiquidationHandler implements ICommandHandler<InitiateLiquidationCommand> {
-  private readonly logger = new Logger(InitiateLiquidationHandler.name);
   constructor(@Inject(ESTATE_REPOSITORY) private readonly estateRepository: IEstateRepository) {}
 
   async execute(command: InitiateLiquidationCommand): Promise<Result<void>> {
-    const { dto, correlationId } = command;
+    const { dto } = command;
     try {
       const estate = await this.estateRepository.findById(new UniqueEntityID(dto.estateId));
       if (!estate) return Result.fail(new Error(`Estate not found`));
