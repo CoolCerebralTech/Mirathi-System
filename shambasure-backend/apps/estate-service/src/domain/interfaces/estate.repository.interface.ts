@@ -1,4 +1,4 @@
-// domain/repositories/estate.repository.interface.ts
+// domain/interfaces/estate.repository.interface.ts
 import { Estate, EstateStatus } from '../aggregates/estate.aggregate';
 import { UniqueEntityID } from '../base/unique-entity-id';
 import { MoneyVO } from '../value-objects/money.vo';

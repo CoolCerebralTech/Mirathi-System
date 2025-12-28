@@ -193,3 +193,127 @@ src/estate-service/src/application/will/
 └── interfaces/                                # 🔌 PORTS (External Dependencies)
     ├── family-service.interface.ts            # To validate "Who is this person?"
     └── notification-service.interface.ts      # To alert Executors/Witnesses
+
+
+src/estate-service/src/application/estate/
+│
+├── commands/                                  # ⚡ WRITE SIDE (State Changes & Business Rules)
+│   ├── dtos/                                  # Data Transfer Objects (Input Validation)
+│   │   // --- Estate Lifecycle ---
+│   │   ├── create-estate.dto.ts
+│   │   ├── freeze-estate.dto.ts               # Requires reason (e.g., "Court Order")
+│   │   ├── unfreeze-estate.dto.ts
+│   │   ├── close-estate.dto.ts
+│   │
+│   │   // --- Asset Management (Polymorphic) ---
+│   │   ├── add-asset.dto.ts                   # Generic wrapper
+│   │   ├── add-land-asset.dto.ts              # Specifics: LR Number, Title Deed
+│   │   ├── add-financial-asset.dto.ts         # Specifics: Bank, Account No
+│   │   ├── update-asset-value.dto.ts          # Valuation history
+│   │   ├── encumber-asset.dto.ts              # Mark as collateral
+│   │   ├── manage-asset-co-ownership.dto.ts   # Add/Remove co-owners
+│   │
+│   │   // --- Liquidation (The Cash Converter) ---
+│   │   ├── initiate-liquidation.dto.ts
+│   │   ├── approve-liquidation.dto.ts         # Court/Executor approval
+│   │   ├── record-liquidation-sale.dto.ts     # Sale details & buyer info
+│   │
+│   │   // --- Debt Management (S.45 Engine) ---
+│   │   ├── add-debt.dto.ts
+│   │   ├── pay-debt.dto.ts                    # Manual single payment
+│   │   ├── execute-s45-waterfall.dto.ts       # 🚀 Auto-pay highest priority debts
+│   │   ├── dispute-debt.dto.ts
+│   │   ├── write-off-debt.dto.ts
+│   │
+│   │   // --- Tax Compliance (The Gatekeeper) ---
+│   │   ├── record-tax-assessment.dto.ts
+│   │   ├── record-tax-payment.dto.ts
+│   │   ├── upload-clearance-certificate.dto.ts
+│   │   ├── apply-for-tax-exemption.dto.ts
+│   │
+│   │   // --- Dependants (S.26/S.29) ---
+│   │   ├── file-dependant-claim.dto.ts
+│   │   ├── verify-dependant-evidence.dto.ts
+│   │   ├── adjudicate-claim.dto.ts            # Approve/Reject logic
+│   │
+│   │   // --- Gifts (S.35 Hotchpot) ---
+│   │   ├── record-gift-inter-vivos.dto.ts
+│   │   ├── contest-gift.dto.ts
+│   │   └── resolve-gift-dispute.dto.ts
+│   │
+│   ├── handlers/                              # Use Cases / Business Logic
+│   │   // --- Lifecycle Handlers ---
+│   │   ├── create-estate.handler.ts
+│   │   ├── manage-estate-freeze.handler.ts
+│   │
+│   │   // --- Inventory Handlers ---
+│   │   ├── add-asset.handler.ts               # Uses Factory Methods based on type
+│   │   ├── manage-asset-valuation.handler.ts  # Enforces professional valuation rules
+│   │   ├── liquidation-process.handler.ts     # Manages the complex liquidation state machine
+│   │
+│   │   // --- Liability Handlers ---
+│   │   ├── manage-debt-registry.handler.ts    # Add/Update debts
+│   │   ├── debt-payment.handler.ts            # 🛡️ Critical: Enforces S.45 Priority
+│   │   ├── manage-tax-compliance.handler.ts
+│   │
+│   │   // --- Claimant Handlers ---
+│   │   ├── manage-dependants.handler.ts       # S.29 Risk Analysis
+│   │   └── manage-hotchpot-gifts.handler.ts   # S.35 Calculations
+│   │
+│   └── impl/                                  # NestJS CQRS Command Classes
+│       ├── create-estate.command.ts
+│       ├── execute-s45-waterfall.command.ts
+│       └── ... (matching handlers)
+│
+├── queries/                                   # 🔍 READ SIDE (Reporting & Analytics)
+│   ├── dtos/
+│   │   ├── estate-search.dto.ts               # Filter by Status, Date, Net Worth
+│   │   ├── financial-report.dto.ts
+│   │   └── solvency-check.dto.ts
+│   │
+│   ├── handlers/
+│   │   ├── get-estate-by-id.handler.ts
+│   │   ├── get-estate-financials.handler.ts   # Net Worth, Liquidity, Solvency Ratio
+│   │   ├── get-s45-priority-list.handler.ts   # "Who gets paid next?"
+│   │   ├── check-distribution-readiness.handler.ts # 🚦 The 7-point check
+│   │   └── get-hotchpot-analysis.handler.ts   # Impact of gifts on distribution
+│   │
+│   ├── impl/
+│   │   ├── get-estate-financials.query.ts
+│   │   └── ... (matching handlers)
+│   │
+│   └── view-models/                           # Specialized Return Objects
+│       ├── estate-dashboard.vm.ts             # High-level overview
+│       ├── asset-inventory.vm.ts              # Detailed list with co-ownership info
+│       ├── debt-waterfall.vm.ts               # Visualizing S.45 priority
+│       ├── solvency-radar.vm.ts               # 🚀 Insolvency warning system
+│       └── distribution-preview.vm.ts         # "If we distributed today, who gets what?"
+│
+├── services/                                  # 🧠 DOMAIN ORCHESTRATION & CALCULATORS
+│   ├── estate-solvency.service.ts             # The "Solvency Radar" Engine
+│   │                                          # Monitors Assets vs Liabilities in real-time
+│   │
+│   ├── s45-priority.service.ts                # The "Waterfall" Engine
+│   │                                          # Calculates exact payment order
+│   │
+│   ├── distribution-readiness.service.ts      # The "Gatekeeper"
+│   │                                          # Runs the 7-point validation check
+│   │
+│   ├── hotchpot-calculator.service.ts         # The "S.35 Math"
+│   │                                          # Adjusts shares based on Gifts Inter Vivos
+│   │
+│   └── document-verification.service.ts       # Integration with external AI/Manual verification
+│
+├── events/                                    # 📢 EVENT SUBSCRIBERS (Side Effects)
+│   ├── estate-insolvency-alert.subscriber.ts  # Notifications when Net Worth dips < 0
+│   ├── high-risk-dependant.subscriber.ts      # Alerts legal team on S.29 disputes
+│   └── tax-clearance.subscriber.ts            # Unlocks distribution when Tax Cleared
+│
+├── jobs/                                      # ⏰ BACKGROUND TASKS (Cron)
+│   ├── statute-barred-debt-checker.job.ts     # Auto-flags debts > 6/12 years old
+│   └── liquidation-deadline-monitor.job.ts    # Alerts if assets aren't sold in time
+│
+└── interfaces/                                # 🔌 PORTS (External Dependencies)
+    ├── storage.interface.ts                   # For Document URLs
+    ├── notification.interface.ts              # Email/SMS
+    └── family-service.interface.ts            # Validating kinship
