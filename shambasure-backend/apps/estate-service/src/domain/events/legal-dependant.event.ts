@@ -1,7 +1,7 @@
 // src/estate-service/src/domain/events/legal-dependant.event.ts
 import { DomainEvent } from '../base/domain-event';
-import { EvidenceType } from '../entities/dependant-evidence.entity';
 import { DependantRelationship, DependantStatus } from '../entities/legal-dependant.entity';
+import { EvidenceType } from '../enums/evidence-type.enum';
 import { KenyanLawSection } from '../enums/kenyan-law-section.enum';
 
 export class LegalDependantCreatedEvent extends DomainEvent<{

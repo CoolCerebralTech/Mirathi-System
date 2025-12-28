@@ -103,6 +103,25 @@ import {
 // =============================================================================
 import { ESTATE_REPOSITORY } from './domain/interfaces/estate.repository.interface';
 import { WILL_REPOSITORY } from './domain/interfaces/will.repository.interface';
+// Estate Mappers
+import { AssetCoOwnerMapper } from './infrastructure/persistence/mappers/asset-co-owner.mapper';
+// 👈 NEW IMPORT
+import { AssetLiquidationMapper } from './infrastructure/persistence/mappers/asset-liquidation.mapper';
+import { AssetValuationMapper } from './infrastructure/persistence/mappers/asset-valuation.mapper';
+import { AssetMapper } from './infrastructure/persistence/mappers/asset.mapper';
+// Will Mappers
+import { BeneficiaryAssignmentMapper } from './infrastructure/persistence/mappers/beneficiary-assignment.mapper';
+import { CodicilMapper } from './infrastructure/persistence/mappers/codicil.mapper';
+import { DebtMapper } from './infrastructure/persistence/mappers/debt.mapper';
+import { DependantEvidenceMapper } from './infrastructure/persistence/mappers/dependant-evidence.mapper';
+import { DisinheritanceRecordMapper } from './infrastructure/persistence/mappers/disinheritance-record.mapper';
+import { EstateTaxComplianceMapper } from './infrastructure/persistence/mappers/estate-tax-compliance.mapper';
+import { EstateMapper } from './infrastructure/persistence/mappers/estate.mapper';
+import { ExecutorNominationMapper } from './infrastructure/persistence/mappers/executor-nomination.mapper';
+import { GiftInterVivosMapper } from './infrastructure/persistence/mappers/gift-inter-vivos.mapper';
+import { LegalDependantMapper } from './infrastructure/persistence/mappers/legal-dependant.mapper';
+import { WillWitnessMapper } from './infrastructure/persistence/mappers/will-witness.mapper';
+import { WillMapper } from './infrastructure/persistence/mappers/will.mapper';
 // =============================================================================
 // INFRASTRUCTURE (Repositories)
 // =============================================================================
@@ -216,6 +235,25 @@ const EstateQueryHandlers = [
     // Repositories
     PrismaWillRepository,
     PrismaEstateRepository,
+    // --- 2. WILL MAPPERS ---
+    WillMapper,
+    ExecutorNominationMapper,
+    WillWitnessMapper,
+    BeneficiaryAssignmentMapper,
+    CodicilMapper,
+    DisinheritanceRecordMapper,
+
+    // --- 3. ESTATE MAPPERS ---
+    EstateMapper,
+    AssetMapper,
+    AssetCoOwnerMapper,
+    AssetValuationMapper,
+    DebtMapper,
+    LegalDependantMapper,
+    DependantEvidenceMapper,
+    GiftInterVivosMapper,
+    AssetLiquidationMapper,
+    EstateTaxComplianceMapper,
 
     // Handlers
     ...WillCommandHandlers,

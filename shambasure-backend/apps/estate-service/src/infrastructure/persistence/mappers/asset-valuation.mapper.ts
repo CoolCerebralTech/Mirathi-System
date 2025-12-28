@@ -21,7 +21,6 @@ export class AssetValuationMapper {
       valueAmount,
       valueCurrency,
       previousValueAmount,
-      // previousValueCurrency, // Does not exist in schema
       valuationDate,
       source,
       reason,
@@ -40,13 +39,11 @@ export class AssetValuationMapper {
       verifiedAt,
     } = prismaValuation;
 
-    // Create MoneyVO objects
     const value = MoneyVO.create({
       amount: Number(valueAmount),
       currency: valueCurrency || 'KES',
     });
 
-    // Use current value currency as fallback for previous value
     const previousValue = previousValueAmount
       ? MoneyVO.create({
           amount: Number(previousValueAmount),
@@ -59,7 +56,6 @@ export class AssetValuationMapper {
       value,
       previousValue,
       valuationDate,
-      // Cast the string from DB to the Domain Enum type
       source: this.mapToDomainValuationSource(source),
       reason: reason || undefined,
       isProfessionalValuation,
@@ -84,8 +80,6 @@ export class AssetValuationMapper {
    * Convert Domain Entity to Prisma Persistence Object
    */
   toPersistence(assetValuation: AssetValuation): any {
-    // Use public getters
-
     return {
       id: assetValuation.id.toString(),
       assetId: assetValuation.assetId,
@@ -94,10 +88,9 @@ export class AssetValuationMapper {
       valueCurrency: assetValuation.value.currency,
 
       previousValueAmount: assetValuation.previousValue?.amount || null,
-      // Schema doesn't support previousValueCurrency
 
       valuationDate: assetValuation.valuationDate,
-      // Cast the Domain Enum string to 'any' to satisfy Prisma's strict Enum type check
+      // Cast explicitly to satisfy Prisma Enum types
       source: this.mapToPrismaValuationSource(assetValuation.source) as any,
       reason: (assetValuation as any).reason || null,
 
@@ -119,9 +112,6 @@ export class AssetValuationMapper {
     };
   }
 
-  /**
-   * Convert array of Prisma models to Domain Entities
-   */
   toDomainList(prismaValuations: PrismaAssetValuation[]): AssetValuation[] {
     return prismaValuations
       .map((valuation) => {
@@ -134,21 +124,17 @@ export class AssetValuationMapper {
       .filter((valuation): valuation is AssetValuation => valuation !== null);
   }
 
-  /**
-   * Convert array of Domain Entities to Persistence Objects
-   */
   toPersistenceList(assetValuations: AssetValuation[]): any[] {
     return assetValuations.map((valuation) => this.toPersistence(valuation));
   }
 
   /**
-   * Map Prisma valuation source (String/Enum) to Domain enum
+   * Map Prisma valuation source (DB Enum) to Domain enum
    */
   private mapToDomainValuationSource(prismaSource: string): ValuationSource {
-    // We match against the limited Prisma Enum values
     switch (prismaSource) {
       case 'MARKET_ESTIMATE':
-        return ValuationSource.MARKET_ESTIMATE;
+        return ValuationSource.MARKET_COMPARABLE;
       case 'REGISTERED_VALUER':
         return ValuationSource.REGISTERED_VALUER;
       case 'GOVERNMENT_VALUER':
@@ -158,61 +144,51 @@ export class AssetValuationMapper {
       case 'INSURANCE_VALUATION':
         return ValuationSource.INSURANCE_VALUATION;
       case 'AGREEMENT_BY_HEIRS':
-        return ValuationSource.AGREEMENT_BY_HEIRS;
+        // Best fit: heirs agreeing usually implies self-declaration or inheritance logic
+        return ValuationSource.SELF_DECLARED;
       case 'COURT_DETERMINATION':
-        return ValuationSource.COURT_DETERMINATION;
-      // If DB has unknown value, fallback safely
+        // Domain doesn't have strict Court Enum, map to Other
+        return ValuationSource.OTHER;
       default:
-        return ValuationSource.MARKET_ESTIMATE;
+        return ValuationSource.OTHER;
     }
   }
 
   /**
-   * Map Domain valuation source to Prisma enum (String/Enum)
+   * Map Domain valuation source to Prisma enum (DB Enum)
    */
   private mapToPrismaValuationSource(domainSource: ValuationSource): string {
     switch (domainSource) {
-      // 1-to-1 Matches
-      case ValuationSource.MARKET_ESTIMATE:
-        return 'MARKET_ESTIMATE';
+      // --- Group 1: Registered/Professional -> REGISTERED_VALUER ---
       case ValuationSource.REGISTERED_VALUER:
+      case ValuationSource.LICENSED_AUCTIONEER:
+      case ValuationSource.BANK_VALUATION: // Banks typically use registered valuers
         return 'REGISTERED_VALUER';
+
+      // --- Group 2: Government -> GOVERNMENT_VALUER ---
       case ValuationSource.GOVERNMENT_VALUER:
+      case ValuationSource.NTSA_VALUATION:
+      case ValuationSource.KRA_VALUATION:
         return 'GOVERNMENT_VALUER';
+
+      // --- Group 3: Direct Mapping ---
       case ValuationSource.CHARTERED_SURVEYOR:
         return 'CHARTERED_SURVEYOR';
       case ValuationSource.INSURANCE_VALUATION:
         return 'INSURANCE_VALUATION';
-      case ValuationSource.AGREEMENT_BY_HEIRS:
-        return 'AGREEMENT_BY_HEIRS';
-      case ValuationSource.COURT_DETERMINATION:
-        return 'COURT_DETERMINATION';
 
-      // Mappings for Extended Domain Types -> Nearest DB Enum
-      case ValuationSource.LICENSED_AUCTIONEER:
-        return 'REGISTERED_VALUER';
-      case ValuationSource.NTSA_VALUATION:
-        return 'GOVERNMENT_VALUER';
-      case ValuationSource.KRA_VALUATION:
-        return 'GOVERNMENT_VALUER';
-      case ValuationSource.REAL_ESTATE_AGENT:
-        return 'MARKET_ESTIMATE';
-      case ValuationSource.MARKET_COMPARABLE:
-        return 'MARKET_ESTIMATE';
-      case ValuationSource.BANK_VALUATION:
-        return 'REGISTERED_VALUER';
-      case ValuationSource.FINANCIAL_ADVISOR:
-        return 'MARKET_ESTIMATE';
+      // --- Group 4: Informal/Agreements -> AGREEMENT_BY_HEIRS ---
       case ValuationSource.SELF_DECLARED:
-        return 'AGREEMENT_BY_HEIRS'; // or Market Estimate
       case ValuationSource.INHERITED_VALUE:
-        return 'MARKET_ESTIMATE';
+        return 'AGREEMENT_BY_HEIRS';
+
+      // --- Group 5: Market Estimates (Default bucket) -> MARKET_ESTIMATE ---
+      case ValuationSource.MARKET_COMPARABLE:
+      case ValuationSource.REAL_ESTATE_AGENT:
+      case ValuationSource.FINANCIAL_ADVISOR:
       case ValuationSource.PURCHASE_PRICE:
-        return 'MARKET_ESTIMATE';
       case ValuationSource.EXPERT_ESTIMATE:
-        return 'MARKET_ESTIMATE';
       case ValuationSource.ONLINE_VALUATION:
-        return 'MARKET_ESTIMATE';
       case ValuationSource.OTHER:
         return 'MARKET_ESTIMATE';
 

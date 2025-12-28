@@ -90,7 +90,6 @@ export class FreezeEstateHandler implements ICommandHandler<FreezeEstateCommand>
 
 @CommandHandler(UnfreezeEstateCommand)
 export class UnfreezeEstateHandler implements ICommandHandler<UnfreezeEstateCommand> {
-  private readonly logger = new Logger(UnfreezeEstateHandler.name);
   constructor(@Inject(ESTATE_REPOSITORY) private readonly estateRepository: IEstateRepository) {}
 
   async execute(command: UnfreezeEstateCommand): Promise<Result<void>> {
