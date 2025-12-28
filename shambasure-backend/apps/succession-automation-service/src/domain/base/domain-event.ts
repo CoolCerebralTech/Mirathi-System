@@ -48,7 +48,7 @@ export abstract class DomainEvent<T = any> {
   /**
    * Get event payload
    */
-  protected getPayload(): T {
+  public getPayload(): T {
     return this.payload;
   }
 

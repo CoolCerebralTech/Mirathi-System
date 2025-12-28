@@ -1,83 +1,165 @@
 // src/succession-automation/src/domain/entities/generated-form.entity.ts
 import { Entity } from '../base/entity';
 import { UniqueEntityID } from '../base/unique-entity-id';
-import { KenyanFormType } from '../value-objects/kenyan-form-type.vo';
+import { KenyanFormTypeEnum } from '../value-objects/kenyan-form-type.vo';
 
 /**
  * Generated Form Entity
  *
- * PURPOSE: Represents a specific legal document generated for a probate application.
+ * PURPOSE: Represents a form that has been generated for the probate application.
  * Owned by: ProbateApplication Aggregate
  *
  * LEGAL CONTEXT:
- * Each generated form is a snapshot of the estate/family data at a specific point in time.
- * Forms must be regenerated if underlying data changes before filing.
- *
- * LIFECYCLE:
- * 1. Created when FormStrategyService generates the form
- * 2. Draft → Awaiting Review → Approved → Filed
- * 3. Can be regenerated if data changes
- * 4. Immutable once filed (audit trail)
+ * Each form in the probate bundle has a lifecycle:
+ * 1. GENERATED: Created by system (PDF/DOCX template filled)
+ * 2. REVIEWED: User reviews and approves content
+ * 3. SIGNED: Required signatures obtained (digital/wet)
+ * 4. FILED: Submitted to court registry
+ * 5. ACCEPTED: Court accepts the form (no objections)
+ * 6. REJECTED: Court requires corrections
  *
  * STORAGE:
- * - Form data (JSON) stored in database for reconstruction
- * - Rendered documents (PDF/DOCX) stored in S3/cloud storage
- * - URLs have expiration for security
+ * - Primary: AWS S3 (encrypted, versioned)
+ * - Backup: Court-approved digital registry
+ * - Metadata: Database with audit trail
  */
 
 export enum FormStatus {
-  DRAFT = 'DRAFT', // Generated but not reviewed
-  AWAITING_REVIEW = 'AWAITING_REVIEW', // Submitted for user review
-  APPROVED = 'APPROVED', // User approved, ready to file
+  PENDING_GENERATION = 'PENDING_GENERATION', // Queued for generation
+  GENERATED = 'GENERATED', // Form created, ready for review
+  UNDER_REVIEW = 'UNDER_REVIEW', // User is reviewing
+  APPROVED = 'APPROVED', // User approved the form
+  SIGNATURE_PENDING = 'SIGNATURE_PENDING', // Waiting for signatures
+  SIGNED = 'SIGNED', // All signatures obtained
   FILED = 'FILED', // Submitted to court
-  REJECTED = 'REJECTED', // Court rejected (needs revision)
+  COURT_ACCEPTED = 'COURT_ACCEPTED', // Court accepted without queries
+  COURT_REJECTED = 'COURT_REJECTED', // Court rejected/requires correction
+  AMENDED = 'AMENDED', // Form was amended after rejection
   SUPERSEDED = 'SUPERSEDED', // Replaced by newer version
+  ARCHIVED = 'ARCHIVED', // After grant issued
 }
 
-export enum FormFormat {
+export enum StorageProvider {
+  AWS_S3 = 'AWS_S3',
+  AZURE_BLOB = 'AZURE_BLOB',
+  GOOGLE_CLOUD_STORAGE = 'GOOGLE_CLOUD_STORAGE',
+  LOCAL_FILE_SYSTEM = 'LOCAL_FILE_SYSTEM',
+  COURT_E_FILING = 'COURT_E_FILING', // Integrated with court e-filing system
+}
+
+export enum FileFormat {
   PDF = 'PDF',
-  DOCX = 'DOCX', // Editable Word document
-  JSON = 'JSON', // Raw data only (no rendering)
+  DOCX = 'DOCX',
+  XML = 'XML', // For court e-filing systems
+  HTML = 'HTML', // For preview
+  JSON = 'JSON', // For data export
+}
+
+export enum SignatureType {
+  DIGITAL_SIGNATURE = 'DIGITAL_SIGNATURE', // PKI-based
+  ELECTRONIC_SIGNATURE = 'ELECTRONIC_SIGNATURE', // Click-to-sign
+  WET_SIGNATURE = 'WET_SIGNATURE', // Physical signature scanned
+  BIOMETRIC = 'BIOMETRIC', // Fingerprint/facial
+  WITNESSED = 'WITNESSED', // Witness present
+  NOTARIZED = 'NOTARIZED', // Notary public stamp
+}
+
+interface FormSignature {
+  signatoryId: string; // Reference to person (FamilyMember or Executor)
+  signatoryName: string;
+  signatureType: SignatureType;
+  signedAt: Date;
+  signatureId?: string; // Reference to stored signature
+  ipAddress?: string;
+  deviceInfo?: string;
+  isWitnessPresent?: boolean;
+  witnessName?: string;
+  notaryName?: string;
+  notaryStampNumber?: string;
+}
+
+interface FormVersion {
+  versionNumber: number;
+  generatedAt: Date;
+  generatedBy: string; // 'system' or user ID
+  changesDescription?: string;
+  storageUrl: string;
+  fileSizeBytes: number;
+  checksum: string; // For integrity verification
+  templateVersion: string;
 }
 
 interface GeneratedFormProps {
-  formType: KenyanFormType;
+  // Form Identity
+  formType: KenyanFormTypeEnum;
+  formCode: string; // e.g., "P&A 1"
+  displayName: string;
+
+  // Status & Lifecycle
   status: FormStatus;
-  formData: Record<string, any>; // The actual data (petitioner, assets, etc.)
-  version: number; // Form version (for regeneration tracking)
+  currentVersion: number;
 
   // Storage
-  storageUrl?: string; // S3/cloud URL to rendered document
-  format: FormFormat;
-  sizeBytes?: number;
-  checksum?: string; // SHA-256 for integrity verification
+  storageProvider: StorageProvider;
+  storageUrl: string; // Current version URL
+  fileFormat: FileFormat;
+  fileSizeBytes: number;
+  checksum: string;
 
-  // Generation metadata
-  generatedAt: Date;
-  generatedBy: string; // User ID who triggered generation
-  templateVersion: string; // Which template version was used?
+  // Content
+  templateVersion: string;
+  dataSource: string; // Which service provided data (e.g., 'estate-service')
+  dataHash: string; // Hash of data used to generate form
 
-  // Review & Approval
-  reviewedAt?: Date;
-  reviewedBy?: string;
-  approvedAt?: Date;
-  approvedBy?: string;
+  // Signatures
+  signatures: FormSignature[];
+  requiredSignatories: number; // How many signatures needed
+  isFullySigned: boolean;
 
-  // Filing
-  filedAt?: Date;
+  // Filing Information
   courtCaseNumber?: string;
-  courtReceiptNumber?: string;
+  filingDate?: Date;
+  filingReference?: string;
+  courtStampNumber?: string;
 
-  // Rejection
+  // Rejection/Amendment
   rejectionReason?: string;
-  rejectionDate?: Date;
+  courtQueries?: string[];
+  amendmentsRequired?: string[];
+  amendedBy?: string;
+  amendedAt?: Date;
 
-  // Versioning (if superseded)
-  supersededBy?: string; // ID of newer form
-  supersededAt?: Date;
+  // Generation Details
+  generatedAt: Date;
+  generatedBy: string; // 'system' or user ID
+  generationDurationMs?: number;
 
-  // Expiry (for security)
-  expiresAt?: Date; // URL expiration
+  // Review Process
+  reviewedBy?: string;
+  reviewedAt?: Date;
+  reviewNotes?: string;
+
+  // Version History
+  versions: FormVersion[];
+
+  // Metadata
+  pageCount: number;
+  isNotarizationRequired: boolean;
+  isCommissionerOathsRequired: boolean;
+  isCourtStampRequired: boolean;
+
+  // Links
+  relatedFormIds: string[]; // Other forms in the bundle
+  dependsOnFormIds: string[]; // Forms that must be filed before this
+
+  // Audit
+  lastAccessedAt?: Date;
+  lastAccessedBy?: string;
+  accessCount: number;
+
+  // Notes
+  internalNotes?: string;
+  userNotes?: string;
 }
 
 export class GeneratedForm extends Entity<GeneratedFormProps> {
@@ -87,36 +169,52 @@ export class GeneratedForm extends Entity<GeneratedFormProps> {
 
   // ==================== GETTERS ====================
 
-  get formType(): KenyanFormType {
+  get formType(): KenyanFormTypeEnum {
     return this.props.formType;
+  }
+
+  get formCode(): string {
+    return this.props.formCode;
+  }
+
+  get displayName(): string {
+    return this.props.displayName;
   }
 
   get status(): FormStatus {
     return this.props.status;
   }
 
-  get formData(): Record<string, any> {
-    return { ...this.props.formData }; // Return copy
+  get currentVersion(): number {
+    return this.props.currentVersion;
   }
 
-  get version(): number {
-    return this.props.version;
-  }
-
-  get storageUrl(): string | undefined {
+  get storageUrl(): string {
     return this.props.storageUrl;
   }
 
-  get format(): FormFormat {
-    return this.props.format;
+  get fileFormat(): FileFormat {
+    return this.props.fileFormat;
   }
 
-  get sizeBytes(): number | undefined {
-    return this.props.sizeBytes;
+  get signatures(): FormSignature[] {
+    return [...this.props.signatures];
   }
 
-  get checksum(): string | undefined {
-    return this.props.checksum;
+  get requiredSignatories(): number {
+    return this.props.requiredSignatories;
+  }
+
+  get isFullySigned(): boolean {
+    return this.props.isFullySigned;
+  }
+
+  get courtCaseNumber(): string | undefined {
+    return this.props.courtCaseNumber;
+  }
+
+  get filingDate(): Date | undefined {
+    return this.props.filingDate;
   }
 
   get generatedAt(): Date {
@@ -127,285 +225,406 @@ export class GeneratedForm extends Entity<GeneratedFormProps> {
     return this.props.generatedBy;
   }
 
-  get templateVersion(): string {
-    return this.props.templateVersion;
-  }
-
-  get reviewedAt(): Date | undefined {
-    return this.props.reviewedAt;
-  }
-
-  get approvedAt(): Date | undefined {
-    return this.props.approvedAt;
-  }
-
-  get filedAt(): Date | undefined {
-    return this.props.filedAt;
-  }
-
-  get courtCaseNumber(): string | undefined {
-    return this.props.courtCaseNumber;
-  }
-
-  get rejectionReason(): string | undefined {
-    return this.props.rejectionReason;
-  }
-
-  get expiresAt(): Date | undefined {
-    return this.props.expiresAt;
+  get versions(): FormVersion[] {
+    return [...this.props.versions];
   }
 
   // ==================== DERIVED PROPERTIES ====================
 
   /**
-   * Is this form ready to be filed?
+   * Can this form be filed?
    */
-  public isReadyToFile(): boolean {
-    return this.props.status === FormStatus.APPROVED;
+  public canBeFiled(): boolean {
+    return this.props.status === FormStatus.SIGNED || this.props.status === FormStatus.APPROVED;
   }
 
   /**
-   * Has this form been filed?
+   * Does this form need signatures?
    */
-  public isFiled(): boolean {
-    return this.props.status === FormStatus.FILED;
+  public needsSignatures(): boolean {
+    return (
+      (this.props.status === FormStatus.APPROVED ||
+        this.props.status === FormStatus.SIGNATURE_PENDING) &&
+      !this.props.isFullySigned
+    );
   }
 
   /**
-   * Is this form editable?
+   * Number of signatures obtained
    */
-  public isEditable(): boolean {
-    return [FormStatus.DRAFT, FormStatus.REJECTED].includes(this.props.status);
+  public getSignaturesCount(): number {
+    return this.props.signatures.length;
   }
 
   /**
-   * Is this form expired? (URL no longer accessible)
+   * Number of signatures remaining
    */
-  public isExpired(): boolean {
-    if (!this.props.expiresAt) return false;
-    return new Date() > this.props.expiresAt;
+  public getSignaturesRemaining(): number {
+    return Math.max(0, this.props.requiredSignatories - this.getSignaturesCount());
   }
 
   /**
-   * Has this form been superseded by a newer version?
+   * Has this form been rejected by court?
    */
-  public isSuperseded(): boolean {
-    return this.props.status === FormStatus.SUPERSEDED;
+  public isRejected(): boolean {
+    return this.props.status === FormStatus.COURT_REJECTED;
   }
 
   /**
-   * Get human-readable form name
+   * Does this form require amendments?
    */
-  public getFormName(): string {
-    return `${this.props.formType.getFormCode()} - ${this.props.formType.displayName}`;
+  public requiresAmendments(): boolean {
+    return !!this.props.amendmentsRequired && this.props.amendmentsRequired.length > 0;
   }
 
   /**
-   * Get file extension based on format
+   * Get the latest version
    */
-  public getFileExtension(): string {
-    return this.props.format.toLowerCase();
+  public getLatestVersion(): FormVersion {
+    return [...this.props.versions].sort((a, b) => b.versionNumber - a.versionNumber)[0];
   }
 
   /**
-   * Get suggested filename
+   * Get form download URL (with temporary access token)
    */
-  public getSuggestedFilename(): string {
-    const formCode = this.props.formType.getFormCode().replace(/[^a-zA-Z0-9]/g, '_');
-    const timestamp = this.props.generatedAt.toISOString().split('T')[0];
-    return `${formCode}_v${this.props.version}_${timestamp}.${this.getFileExtension()}`;
+  public getDownloadUrl(expiresInMinutes: number = 60): string {
+    // In production, this would generate a pre-signed URL
+    return `${this.props.storageUrl}?token=temporary&expires=${expiresInMinutes}`;
+  }
+
+  /**
+   * Get form preview URL (HTML version)
+   */
+  public getPreviewUrl(): string | undefined {
+    if (this.props.fileFormat === FileFormat.HTML) {
+      return this.props.storageUrl;
+    }
+
+    // Convert to preview URL if not HTML
+    return `${this.props.storageUrl.replace(/\.(pdf|docx)$/, '')}.html`;
   }
 
   // ==================== BUSINESS LOGIC ====================
 
   /**
-   * Mark form as awaiting review
-   * BUSINESS RULE: Can only transition from DRAFT
+   * Mark form as generated
    */
-  public submitForReview(): void {
+  public markAsGenerated(
+    storageUrl: string,
+    fileSizeBytes: number,
+    checksum: string,
+    generationDurationMs?: number,
+  ): void {
     this.ensureNotDeleted();
 
-    if (this.props.status !== FormStatus.DRAFT) {
-      throw new Error(`Cannot submit form with status ${this.props.status} for review`);
+    if (this.props.status !== FormStatus.PENDING_GENERATION) {
+      throw new Error(`Cannot mark as generated - status is ${this.props.status}`);
+    }
+
+    const version: FormVersion = {
+      versionNumber: 1,
+      generatedAt: new Date(),
+      generatedBy: this.props.generatedBy,
+      storageUrl,
+      fileSizeBytes,
+      checksum,
+      templateVersion: this.props.templateVersion,
+    };
+
+    this.updateState({
+      status: FormStatus.GENERATED,
+      storageUrl,
+      fileSizeBytes,
+      checksum,
+      generationDurationMs,
+      versions: [version],
+      currentVersion: 1,
+    });
+  }
+
+  /**
+   * Mark form as under review
+   */
+  public markAsUnderReview(userId: string): void {
+    this.ensureNotDeleted();
+
+    if (this.props.status !== FormStatus.GENERATED) {
+      throw new Error(`Cannot mark as under review - status is ${this.props.status}`);
     }
 
     this.updateState({
-      status: FormStatus.AWAITING_REVIEW,
+      status: FormStatus.UNDER_REVIEW,
+      reviewedBy: userId,
     });
   }
 
   /**
    * Approve form
-   * BUSINESS RULE: Must be in AWAITING_REVIEW or REJECTED status
    */
-  public approve(approvedBy: string): void {
+  public approve(userId: string, notes?: string): void {
     this.ensureNotDeleted();
 
-    if (![FormStatus.AWAITING_REVIEW, FormStatus.REJECTED].includes(this.props.status)) {
-      throw new Error(`Cannot approve form with status ${this.props.status}`);
+    if (this.props.status !== FormStatus.UNDER_REVIEW) {
+      throw new Error(`Cannot approve - status is ${this.props.status}`);
     }
 
     this.updateState({
-      status: FormStatus.APPROVED,
-      approvedAt: new Date(),
-      approvedBy,
+      status:
+        this.props.requiredSignatories > 0 ? FormStatus.SIGNATURE_PENDING : FormStatus.APPROVED,
+      reviewedBy: userId,
+      reviewedAt: new Date(),
+      reviewNotes: notes,
     });
   }
 
   /**
-   * Mark form as filed with court
-   * BUSINESS RULE: Must be APPROVED first
+   * Add signature
    */
-  public markAsFiled(courtCaseNumber?: string, courtReceiptNumber?: string): void {
+  public addSignature(signature: FormSignature): void {
     this.ensureNotDeleted();
 
-    if (this.props.status !== FormStatus.APPROVED) {
-      throw new Error(`Cannot file form with status ${this.props.status}. Must be APPROVED first.`);
+    if (!this.needsSignatures()) {
+      throw new Error('Cannot add signature - form does not need signatures');
+    }
+
+    // Check if signatory already signed
+    const alreadySigned = this.props.signatures.some(
+      (s) => s.signatoryId === signature.signatoryId && s.signatureType === signature.signatureType,
+    );
+
+    if (alreadySigned) {
+      throw new Error('Signatory has already signed this form');
+    }
+
+    const newSignatures = [...this.props.signatures, signature];
+    const isFullySigned = newSignatures.length >= this.props.requiredSignatories;
+
+    this.updateState({
+      signatures: newSignatures,
+      isFullySigned,
+      status: isFullySigned ? FormStatus.SIGNED : FormStatus.SIGNATURE_PENDING,
+    });
+  }
+
+  /**
+   * Mark form as filed
+   */
+  public markAsFiled(
+    courtCaseNumber: string,
+    filingReference: string,
+    filingDate: Date = new Date(),
+  ): void {
+    this.ensureNotDeleted();
+
+    if (!this.canBeFiled()) {
+      throw new Error(`Cannot file - form is not ready. Status: ${this.props.status}`);
+    }
+
+    if (!this.props.isFullySigned && this.props.requiredSignatories > 0) {
+      throw new Error('Cannot file - form is not fully signed');
     }
 
     this.updateState({
       status: FormStatus.FILED,
-      filedAt: new Date(),
       courtCaseNumber,
-      courtReceiptNumber,
+      filingReference,
+      filingDate,
     });
   }
 
   /**
-   * Reject form (court or internal review)
-   * BUSINESS RULE: Cannot reject if already filed
+   * Court accepts form
    */
-  public reject(reason: string): void {
+  public courtAccepts(_acceptedAt: Date = new Date()): void {
     this.ensureNotDeleted();
 
-    if (this.props.status === FormStatus.FILED) {
-      throw new Error('Cannot reject a form that has already been filed');
+    if (this.props.status !== FormStatus.FILED) {
+      throw new Error(`Cannot accept - form is not filed. Status: ${this.props.status}`);
     }
 
     this.updateState({
-      status: FormStatus.REJECTED,
+      status: FormStatus.COURT_ACCEPTED,
+    });
+  }
+
+  /**
+   * Court rejects form
+   */
+  public courtRejects(reason: string, queries: string[], amendmentsRequired?: string[]): void {
+    this.ensureNotDeleted();
+
+    if (this.props.status !== FormStatus.FILED) {
+      throw new Error(`Cannot reject - form is not filed. Status: ${this.props.status}`);
+    }
+
+    this.updateState({
+      status: FormStatus.COURT_REJECTED,
       rejectionReason: reason,
-      rejectionDate: new Date(),
+      courtQueries: queries,
+      amendmentsRequired,
     });
   }
 
   /**
-   * Supersede this form with a newer version
-   * BUSINESS RULE: Form must not be filed
+   * Amend form after rejection
    */
-  public supersede(newFormId: string, reason?: string): void {
-    this.ensureNotDeleted();
-
-    if (this.props.status === FormStatus.FILED) {
-      throw new Error('Cannot supersede a form that has already been filed');
-    }
-
-    this.updateState({
-      status: FormStatus.SUPERSEDED,
-      supersededBy: newFormId,
-      supersededAt: new Date(),
-      rejectionReason: reason || 'Superseded by newer version',
-    });
-  }
-
-  /**
-   * Update storage URL after rendering
-   * BUSINESS RULE: Can only update if not filed
-   */
-  public updateStorageUrl(
-    url: string,
-    sizeBytes: number,
+  public amend(
+    newStorageUrl: string,
+    fileSizeBytes: number,
     checksum: string,
-    expiresAt?: Date,
+    amendedBy: string,
+    changesDescription?: string,
   ): void {
     this.ensureNotDeleted();
 
-    if (this.props.status === FormStatus.FILED) {
-      throw new Error('Cannot update storage URL of filed form');
+    if (this.props.status !== FormStatus.COURT_REJECTED) {
+      throw new Error(`Cannot amend - form is not rejected. Status: ${this.props.status}`);
     }
 
-    this.updateState({
-      storageUrl: url,
-      sizeBytes,
+    const newVersionNumber = this.props.currentVersion + 1;
+    const version: FormVersion = {
+      versionNumber: newVersionNumber,
+      generatedAt: new Date(),
+      generatedBy: amendedBy,
+      changesDescription,
+      storageUrl: newStorageUrl,
+      fileSizeBytes,
       checksum,
-      expiresAt,
+      templateVersion: this.props.templateVersion,
+    };
+
+    const versions = [...this.props.versions, version];
+
+    this.updateState({
+      storageUrl: newStorageUrl,
+      fileSizeBytes,
+      checksum,
+      currentVersion: newVersionNumber,
+      versions,
+      amendedBy,
+      amendedAt: new Date(),
+      // Reset signatures if amendments affect content
+      signatures: [],
+      isFullySigned: false,
+      status:
+        this.props.requiredSignatories > 0 ? FormStatus.SIGNATURE_PENDING : FormStatus.GENERATED,
     });
   }
 
   /**
-   * Regenerate URL (refresh expiration)
+   * Update related forms
    */
-  public regenerateUrl(newUrl: string, newExpiresAt: Date): void {
+  public updateRelatedForms(relatedFormIds: string[]): void {
     this.ensureNotDeleted();
 
     this.updateState({
-      storageUrl: newUrl,
-      expiresAt: newExpiresAt,
+      relatedFormIds,
     });
   }
 
   /**
-   * Update form data (if in DRAFT or REJECTED status)
-   * BUSINESS RULE: Only editable forms can be updated
+   * Add internal notes
    */
-  public updateFormData(newData: Record<string, any>): void {
+  public addInternalNotes(notes: string): void {
     this.ensureNotDeleted();
 
-    if (!this.isEditable()) {
-      throw new Error(`Cannot update form data in status ${this.props.status}`);
-    }
+    this.updateState({
+      internalNotes: this.props.internalNotes
+        ? `${this.props.internalNotes}\n---\n${notes}`
+        : notes,
+    });
+  }
+
+  /**
+   * Add user notes
+   */
+  public addUserNotes(notes: string): void {
+    this.ensureNotDeleted();
 
     this.updateState({
-      formData: newData,
+      userNotes: this.props.userNotes ? `${this.props.userNotes}\n---\n${notes}` : notes,
+    });
+  }
+
+  /**
+   * Record access
+   */
+  public recordAccess(userId: string): void {
+    this.ensureNotDeleted();
+
+    this.updateState({
+      lastAccessedAt: new Date(),
+      lastAccessedBy: userId,
+      accessCount: this.props.accessCount + 1,
     });
   }
 
   // ==================== FACTORY METHODS ====================
 
   /**
-   * Create a new draft form
+   * Create a new form pending generation
    */
-  public static createDraft(
-    formType: KenyanFormType,
-    formData: Record<string, any>,
+  public static createPending(
+    formType: KenyanFormTypeEnum,
+    formCode: string,
+    displayName: string,
+    requiredSignatories: number,
     generatedBy: string,
     templateVersion: string,
-    format: FormFormat = FormFormat.PDF,
+    dataSource: string,
+    dataHash: string,
   ): GeneratedForm {
     const id = UniqueEntityID.newID();
 
     return new GeneratedForm(id, {
       formType,
-      status: FormStatus.DRAFT,
-      formData,
-      version: 1,
-      format,
+      formCode,
+      displayName,
+      status: FormStatus.PENDING_GENERATION,
+      currentVersion: 0,
+      storageProvider: StorageProvider.AWS_S3, // Default
+      storageUrl: '',
+      fileFormat: FileFormat.PDF,
+      fileSizeBytes: 0,
+      checksum: '',
+      templateVersion,
+      dataSource,
+      dataHash,
+      signatures: [],
+      requiredSignatories,
+      isFullySigned: false,
       generatedAt: new Date(),
       generatedBy,
-      templateVersion,
+      versions: [],
+      pageCount: 0,
+      isNotarizationRequired: false,
+      isCommissionerOathsRequired: false,
+      isCourtStampRequired: false,
+      relatedFormIds: [],
+      dependsOnFormIds: [],
+      accessCount: 0,
     });
   }
 
   /**
-   * Create from existing form (for regeneration)
+   * Create from KenyanFormType VO
    */
-  public static regenerate(
-    originalForm: GeneratedForm,
-    newFormData: Record<string, any>,
+  public static fromFormType(
+    formTypeVO: any, // Would be KenyanFormType VO in real implementation
     generatedBy: string,
+    dataSource: string,
+    dataHash: string,
   ): GeneratedForm {
-    const id = UniqueEntityID.newID();
-
-    return new GeneratedForm(id, {
-      formType: originalForm.formType,
-      status: FormStatus.DRAFT,
-      formData: newFormData,
-      version: originalForm.version + 1,
-      format: originalForm.format,
-      generatedAt: new Date(),
+    return GeneratedForm.createPending(
+      formTypeVO.formType,
+      formTypeVO.formCode,
+      formTypeVO.displayName,
+      0, // Default no signatures
       generatedBy,
-      templateVersion: originalForm.templateVersion,
-    });
+      formTypeVO.version,
+      dataSource,
+      dataHash,
+    );
   }
 
   /**
@@ -422,74 +641,69 @@ export class GeneratedForm extends Entity<GeneratedFormProps> {
     return entity;
   }
 
-  // ==================== VALIDATION ====================
-
-  /**
-   * Validate form data completeness
-   */
-  public validateCompleteness(): { isValid: boolean; errors: string[] } {
-    const errors: string[] = [];
-
-    // Check required fields based on form type
-    const requiredFields = this.getRequiredFields();
-
-    for (const field of requiredFields) {
-      if (!this.props.formData[field]) {
-        errors.push(`Missing required field: ${field}`);
-      }
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors,
-    };
-  }
-
-  /**
-   * Get required fields for this form type
-   */
-  private getRequiredFields(): string[] {
-    // This would be defined based on form type
-    // For now, return common fields
-    return ['petitioner', 'deceased', 'court'];
-  }
-
   // ==================== SERIALIZATION ====================
 
   public toJSON(): Record<string, any> {
     return {
       id: this.id.toString(),
-      formType: this.props.formType.toJSON(),
-      formCode: this.props.formType.getFormCode(),
-      formName: this.getFormName(),
+      formType: this.props.formType,
+      formCode: this.props.formCode,
+      displayName: this.props.displayName,
       status: this.props.status,
-      formData: this.props.formData,
-      version: this.props.version,
+      currentVersion: this.props.currentVersion,
+      storageProvider: this.props.storageProvider,
       storageUrl: this.props.storageUrl,
-      format: this.props.format,
-      sizeBytes: this.props.sizeBytes,
+      fileFormat: this.props.fileFormat,
+      fileSizeBytes: this.props.fileSizeBytes,
       checksum: this.props.checksum,
+      templateVersion: this.props.templateVersion,
+      dataSource: this.props.dataSource,
+      dataHash: this.props.dataHash,
+      signatures: this.props.signatures,
+      requiredSignatories: this.props.requiredSignatories,
+      isFullySigned: this.props.isFullySigned,
+      courtCaseNumber: this.props.courtCaseNumber,
+      filingDate: this.props.filingDate?.toISOString(),
+      filingReference: this.props.filingReference,
+      courtStampNumber: this.props.courtStampNumber,
+      rejectionReason: this.props.rejectionReason,
+      courtQueries: this.props.courtQueries,
+      amendmentsRequired: this.props.amendmentsRequired,
+      amendedBy: this.props.amendedBy,
+      amendedAt: this.props.amendedAt?.toISOString(),
       generatedAt: this.props.generatedAt.toISOString(),
       generatedBy: this.props.generatedBy,
-      templateVersion: this.props.templateVersion,
+      generationDurationMs: this.props.generationDurationMs,
+      reviewedBy: this.props.reviewedBy,
       reviewedAt: this.props.reviewedAt?.toISOString(),
-      approvedAt: this.props.approvedAt?.toISOString(),
-      filedAt: this.props.filedAt?.toISOString(),
-      courtCaseNumber: this.props.courtCaseNumber,
-      courtReceiptNumber: this.props.courtReceiptNumber,
-      rejectionReason: this.props.rejectionReason,
-      rejectionDate: this.props.rejectionDate?.toISOString(),
-      supersededBy: this.props.supersededBy,
-      supersededAt: this.props.supersededAt?.toISOString(),
-      expiresAt: this.props.expiresAt?.toISOString(),
+      reviewNotes: this.props.reviewNotes,
+      versions: this.props.versions.map((v) => ({
+        ...v,
+        generatedAt: v.generatedAt.toISOString(),
+      })),
+      pageCount: this.props.pageCount,
+      isNotarizationRequired: this.props.isNotarizationRequired,
+      isCommissionerOathsRequired: this.props.isCommissionerOathsRequired,
+      isCourtStampRequired: this.props.isCourtStampRequired,
+      relatedFormIds: this.props.relatedFormIds,
+      dependsOnFormIds: this.props.dependsOnFormIds,
+      lastAccessedAt: this.props.lastAccessedAt?.toISOString(),
+      lastAccessedBy: this.props.lastAccessedBy,
+      accessCount: this.props.accessCount,
+      internalNotes: this.props.internalNotes,
+      userNotes: this.props.userNotes,
       createdAt: this.createdAt.toISOString(),
       updatedAt: this.updatedAt.toISOString(),
       // Derived
-      isReadyToFile: this.isReadyToFile(),
-      isFiled: this.isFiled(),
-      isEditable: this.isEditable(),
-      isExpired: this.isExpired(),
-      suggestedFilename: this.getSuggestedFilename(),
+      canBeFiled: this.canBeFiled(),
+      needsSignatures: this.needsSignatures(),
+      signaturesCount: this.getSignaturesCount(),
+      signaturesRemaining: this.getSignaturesRemaining(),
+      isRejected: this.isRejected(),
+      requiresAmendments: this.requiresAmendments(),
+      latestVersion: this.getLatestVersion(),
+      downloadUrl: this.getDownloadUrl(),
+      previewUrl: this.getPreviewUrl(),
     };
   }
 }

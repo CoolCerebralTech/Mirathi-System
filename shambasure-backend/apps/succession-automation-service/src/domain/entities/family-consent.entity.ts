@@ -223,11 +223,22 @@ export class FamilyConsent extends Entity<FamilyConsentProps> {
    * Can this consent be requested?
    */
   public canSendRequest(): boolean {
-    return (
-      this.props.status === ConsentStatus.PENDING &&
-      (this.props.phoneNumber || this.props.email) &&
-      !this.isExpired()
-    );
+    // First check if status is PENDING
+    if (this.props.status !== ConsentStatus.PENDING) {
+      return false;
+    }
+
+    // Check if we have at least one contact method
+    if (!this.props.phoneNumber && !this.props.email) {
+      return false;
+    }
+
+    // Check if not expired
+    if (this.isExpired()) {
+      return false;
+    }
+
+    return true;
   }
 
   /**
