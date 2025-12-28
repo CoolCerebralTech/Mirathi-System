@@ -360,3 +360,63 @@ src/estate-service/src/application/estate/
     ├── storage.interface.ts                   # For Document URLs
     ├── notification.interface.ts              # Email/SMS
     └── family-service.interface.ts            # Validating kinship
+
+src/estate-service/src/presentation/estate/
+│
+├── controllers/
+│   ├── estate.command.controller.ts       # [WRITE API] Central Hub for Estate Mutations.
+│   │                                      # Endpoints: POST /estates, PATCH /estates/{id}/freeze
+│   │                                      # Assets: POST /estates/{id}/assets
+│   │                                      # Debts: POST /estates/{id}/debts/waterfall (S.45)
+│   │
+│   └── estate.query.controller.ts         # [READ API] Analytics & Reporting Hub.
+│                                          # Endpoints: GET /estates/{id}/dashboard
+│                                          # GET /estates/{id}/solvency-radar
+│                                          # GET /estates/{id}/debts (Waterfall view)
+│
+├── dtos/
+│   ├── request/                           # [INPUTS] Validated via class-validator
+│   │                                      # NOTE: These wrap Application DTOs for Swagger Documentation
+│   │   // --- Lifecycle Management ---
+│   │   ├── create-estate.request.dto.ts   # Initial setup (Death Cert, Executor)
+│   │   ├── freeze-estate.request.dto.ts   # Handling Disputes/Court Orders
+│   │   ├── close-estate.request.dto.ts    # Final Closure (Destructive)
+│   │
+│   │   // --- Asset Inventory (Polymorphic) ---
+│   │   ├── add-asset.request.dto.ts       # Union type (Land | Vehicle | Financial)
+│   │   ├── update-valuation.request.dto.ts # For Professional Valuers
+│   │   ├── manage-co-ownership.request.dto.ts # S.41 Adjustments
+│   │
+│   │   // --- Liability Engine (S.45) ---
+│   │   ├── add-debt.request.dto.ts        # Categorizes Priority (Funeral vs Secured)
+│   │   ├── pay-debt.request.dto.ts        # Manual single payment
+│   │   ├── execute-waterfall.request.dto.ts # "Here is 1M KES, pay what you can"
+│   │   ├── dispute-debt.request.dto.ts    # Blocking payment
+│   │
+│   │   // --- The Cash Converter (Liquidation) ---
+│   │   ├── initiate-liquidation.request.dto.ts # Setting Reserve Price
+│   │   ├── record-sale.request.dto.ts     # Capturing Buyer KYC & Proceeds
+│   │
+│   │   // --- The Gatekeeper (Tax) ---
+│   │   ├── record-tax-assessment.request.dto.ts
+│   │   ├── upload-tax-clearance.request.dto.ts
+│   │
+│   │   // --- Human Element (S.29 & S.35) ---
+│   │   ├── file-dependant-claim.request.dto.ts
+│   │   ├── verify-evidence.request.dto.ts
+│   │   └── record-gift.request.dto.ts     # Hotchpot Input
+│   │
+│   └── response/                          # [OUTPUTS] Swagger documented (@ApiProperty)
+│       ├── estate-dashboard.response.dto.ts   # The "Cockpit" (Net Worth, Status)
+│       ├── solvency-radar.response.dto.ts     # Financial Health Score (Critical Feature)
+│       ├── asset-inventory.response.dto.ts    # Detailed List with Encumbrances
+│       ├── debt-waterfall.response.dto.ts     # Visualizing Priority Layers (Tier 1..5)
+│       ├── distribution-preview.response.dto.ts # "Who gets what if we close today?"
+│       ├── tax-compliance.response.dto.ts     # The "Gatekeeper" Status
+│       └── paginated-estate.response.dto.ts   # Generic Wrapper
+│
+└── mappers/
+    └── estate-presenter.mapper.ts         # [TRANSFORMER]
+                                           # Converts Application ViewModels -> HTTP JSON.
+                                           # Handles masking, currency formatting, and
+                                           # HTTP Status Code mapping (e.g. Domain Error -> 400/409).
