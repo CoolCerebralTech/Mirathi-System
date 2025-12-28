@@ -194,7 +194,50 @@ src/estate-service/src/application/will/
     ├── family-service.interface.ts            # To validate "Who is this person?"
     └── notification-service.interface.ts      # To alert Executors/Witnesses
 
-
+src/estate-service/src/presentation/will/
+│
+├── controllers/
+│   ├── will.command.controller.ts         # [WRITE API]
+│   │                                      # Handles all state changes (Drafting, Signing, Revoking).
+│   │                                      # Endpoints: POST /wills, POST /wills/{id}/execute, etc.
+│   │
+│   └── will.query.controller.ts           # [READ API]
+│                                          # Handles data retrieval and reports.
+│                                          # Endpoints: GET /wills/{id}, GET /wills/{id}/compliance-report
+│
+├── dtos/
+│   ├── request/                           # [INPUTS] Validated via class-validator
+│   │   # --- Lifecycle Management ---
+│   │   ├── create-draft-will.dto.ts       # Initial setup (S.5 Capacity inputs)
+│   │   ├── execute-will.dto.ts            # The "Ceremony" inputs (S.11 Witnesses)
+│   │   ├── revoke-will.dto.ts             # Reason & Method (Marriage/Destruction)
+│   │
+│   │   # --- Asset & Beneficiary Mgmt ---
+│   │   ├── add-beneficiary.dto.ts         # Bequests & Gifts
+│   │   ├── record-disinheritance.dto.ts   # S.26 Exclusion Records
+│   │
+│   │   # --- Administrative Appointments ---
+│   │   ├── appoint-executor.dto.ts        # Nomination details
+│   │   ├── add-witness.dto.ts             # Nomination of witnesses (Draft phase)
+│   │   ├── record-witness-signature.dto.ts # Digital signing event
+│   │
+│   │   # --- Amendments & Updates ---
+│   │   ├── add-codicil.dto.ts             # Formal amendment to executed will
+│   │   ├── update-capacity.dto.ts         # Uploading medical evidence
+│   │   └── will-search-filter.dto.ts      # For the advanced search query
+│   │
+│   └── response/                          # [OUTPUTS] Swagger documented (@ApiProperty)
+│       ├── will-detail.response.dto.ts    # Full Aggregate view (Deep)
+│       ├── will-summary.response.dto.ts   # List view (Lightweight)
+│       ├── compliance-report.response.dto.ts # The "Radar" (Violations/Warnings)
+│       ├── executor-assignment.response.dto.ts # "My Jobs" dashboard item
+│       └── paginated-will.response.dto.ts # Generic wrapper for search results
+│
+└── mappers/
+    └── will-presenter.mapper.ts           # [TRANSFORMER]
+                                           # Decouples Application ViewModels from API JSON.
+                                           # Handles date formatting and status code mapping.
+                                           
 src/estate-service/src/application/estate/
 │
 ├── commands/                                  # ⚡ WRITE SIDE (State Changes & Business Rules)
