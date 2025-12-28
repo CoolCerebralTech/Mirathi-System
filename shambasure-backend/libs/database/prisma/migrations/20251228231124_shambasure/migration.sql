@@ -5,19 +5,85 @@ CREATE TYPE "UserRole" AS ENUM ('USER', 'ADMIN', 'VERIFIER', 'AUDITOR');
 CREATE TYPE "Gender" AS ENUM ('MALE', 'FEMALE', 'OTHERS');
 
 -- CreateEnum
-CREATE TYPE "RoadmapPhase" AS ENUM ('PRE_FILING', 'FILING_AND_GAZETTE', 'CONFIRMATION', 'DISTRIBUTION', 'CLOSED');
+CREATE TYPE "RoadmapPhase" AS ENUM ('PRE_FILING', 'FILING', 'CONFIRMATION', 'DISTRIBUTION', 'CLOSURE');
 
 -- CreateEnum
-CREATE TYPE "TaskStatus" AS ENUM ('LOCKED', 'PENDING', 'IN_PROGRESS', 'COMPLETED', 'SKIPPED');
+CREATE TYPE "TaskStatus" AS ENUM ('LOCKED', 'PENDING', 'IN_PROGRESS', 'COMPLETED', 'SKIPPED', 'WAIVED', 'BLOCKED', 'FAILED');
 
 -- CreateEnum
-CREATE TYPE "ProbateApplicationType" AS ENUM ('GRANT_OF_PROBATE', 'LETTERS_OF_ADMINISTRATION', 'SUMMARY_ADMINISTRATION', 'LIMITED_GRANT');
+CREATE TYPE "ProbateApplicationType" AS ENUM ('GRANT_OF_PROBATE', 'LETTERS_OF_ADMINISTRATION', 'LETTERS_OF_ADMIN_WILL_ANNEXED', 'SUMMARY_ADMINISTRATION', 'LIMITED_GRANT_AD_LITEM', 'LIMITED_GRANT_COLLECTION', 'ISLAMIC_GRANT', 'CUSTOMARY_GRANT');
 
 -- CreateEnum
-CREATE TYPE "KenyanFormType" AS ENUM ('PA1_PETITION', 'PA5_PETITION_SUMMARY', 'PA80_PETITION_INTESTATE', 'PA12_AFFIDAVIT_MEANS', 'PA38_CONSENT', 'PA57_GUARANTEE', 'CHIEFS_LETTER_TEMPLATE');
+CREATE TYPE "CourtJurisdiction" AS ENUM ('HIGH_COURT', 'MAGISTRATE_COURT', 'KADHIS_COURT', 'CUSTOMARY_COURT', 'FAMILY_DIVISION', 'COMMERCIAL_COURT');
 
 -- CreateEnum
-CREATE TYPE "ConsentStatus" AS ENUM ('PENDING', 'GRANTED', 'DECLINED', 'NOT_REQUIRED');
+CREATE TYPE "CasePriority" AS ENUM ('URGENT', 'HIGH', 'NORMAL', 'LOW');
+
+-- CreateEnum
+CREATE TYPE "FilingConfidence" AS ENUM ('HIGH', 'MEDIUM', 'LOW', 'VERY_LOW', 'BLOCKED');
+
+-- CreateEnum
+CREATE TYPE "RoadmapStatus" AS ENUM ('DRAFT', 'ACTIVE', 'PAUSED', 'BLOCKED', 'COMPLETED', 'ABANDONED', 'ESCALATED');
+
+-- CreateEnum
+CREATE TYPE "TaskPriority" AS ENUM ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW');
+
+-- CreateEnum
+CREATE TYPE "TaskTrigger" AS ENUM ('MANUAL', 'AUTOMATIC', 'EVENT_DRIVEN', 'SCHEDULED', 'READINESS_BASED');
+
+-- CreateEnum
+CREATE TYPE "ProofType" AS ENUM ('DOCUMENT_UPLOAD', 'DIGITAL_SIGNATURE', 'SMS_VERIFICATION', 'EMAIL_VERIFICATION', 'COURT_RECEIPT', 'BANK_SLIP', 'WITNESS_SIGNATURE', 'AFFIDAVIT');
+
+-- CreateEnum
+CREATE TYPE "TaskCategory" AS ENUM ('IDENTITY_VERIFICATION', 'FAMILY_STRUCTURE', 'GUARDIANSHIP', 'ASSET_DISCOVERY', 'DEBT_SETTLEMENT', 'DOCUMENT_COLLECTION', 'DOCUMENT_VALIDATION', 'CUSTOMARY_DOCUMENTS', 'FORM_GENERATION', 'FORM_REVIEW', 'SIGNATURE_COLLECTION', 'COURT_SELECTION', 'FEE_PAYMENT', 'LODGEMENT', 'GAZETTE_PUBLICATION', 'COURT_ATTENDANCE', 'GRANT_ISSUANCE', 'GRANT_CONFIRMATION', 'ASSET_TRANSFER', 'DEBT_PAYMENT', 'TAX_CLEARANCE', 'FINAL_ACCOUNTS', 'ESTATE_CLOSURE', 'BENEFICIARY_NOTIFICATION', 'WILL_SPECIFIC', 'ISLAMIC_SPECIFIC', 'POLYGAMOUS_SPECIFIC', 'MINOR_SPECIFIC', 'DISPUTE_RESOLUTION');
+
+-- CreateEnum
+CREATE TYPE "RiskSourceType" AS ENUM ('FAMILY_SERVICE', 'GUARDIANSHIP_SERVICE', 'MARRIAGE_SERVICE', 'ESTATE_SERVICE', 'WILL_SERVICE', 'ASSET_SERVICE', 'DEBT_SERVICE', 'COMPLIANCE_ENGINE', 'READINESS_ASSESSMENT', 'FORM_STRATEGY', 'DOCUMENT_SERVICE', 'KRA_SERVICE', 'LANDS_REGISTRY', 'NTSA_SERVICE', 'USER_INPUT', 'SYSTEM_VALIDATION', 'THIRD_PARTY_API');
+
+-- CreateEnum
+CREATE TYPE "DetectionMethod" AS ENUM ('RULE_ENGINE', 'API_VALIDATION', 'MANUAL_REVIEW', 'SYSTEM_SCAN', 'EVENT_DRIVEN', 'CROSS_CONTEXT_CHECK', 'LEGAL_ANALYSIS', 'DATA_INTEGRITY_CHECK');
+
+-- CreateEnum
+CREATE TYPE "ResolutionTrigger" AS ENUM ('EVENT_BASED', 'MANUAL_ACTION', 'SYSTEM_AUTO', 'COURT_ORDER', 'TIME_BASED');
+
+-- CreateEnum
+CREATE TYPE "KenyanFormType" AS ENUM ('PA1_PETITION', 'PA5_PETITION_SUMMARY', 'PA80_PETITION_INTESTATE', 'PA81_PETITION_ADMINISTRATION', 'ISLAMIC_PETITION', 'PA12_AFFIDAVIT_MEANS', 'AFFIDAVIT_DUE_EXECUTION', 'AFFIDAVIT_OF_SEARCH', 'AFFIDAVIT_OF_IDENTIFICATION', 'AFFIDAVIT_SUPPORTING_POLYGAMY', 'ISLAMIC_AFFIDAVIT', 'PA38_CONSENT', 'PA57_GUARANTEE', 'ISLAMIC_CONSENT', 'CONSENT_MINOR', 'CONSENT_CREDITOR', 'CHIEFS_LETTER_TEMPLATE', 'ELDERS_AFFIDAVIT', 'GRANT_OF_PROBATE', 'GRANT_LETTERS_ADMINISTRATION', 'CONFIRMATION_GRANT');
+
+-- CreateEnum
+CREATE TYPE "ApplicationStatus" AS ENUM ('DRAFT', 'PENDING_FORMS', 'UNDER_REVIEW', 'PENDING_SIGNATURES', 'PENDING_CONSENTS', 'PENDING_FEE', 'READY_TO_FILE', 'FILED', 'COURT_REVIEW', 'GAZETTE_PUBLISHED', 'GRANTED', 'REJECTED', 'AMENDMENT_REQUIRED', 'WITHDRAWN', 'ABANDONED');
+
+-- CreateEnum
+CREATE TYPE "FilingPriority" AS ENUM ('URGENT', 'HIGH', 'NORMAL', 'LOW');
+
+-- CreateEnum
+CREATE TYPE "FormStatus" AS ENUM ('PENDING_GENERATION', 'GENERATED', 'UNDER_REVIEW', 'APPROVED', 'SIGNATURE_PENDING', 'SIGNED', 'FILED', 'COURT_ACCEPTED', 'COURT_REJECTED', 'AMENDED', 'SUPERSEDED', 'ARCHIVED');
+
+-- CreateEnum
+CREATE TYPE "FormCategory" AS ENUM ('PRIMARY_PETITION', 'SUPPORTING_AFFIDAVIT', 'CONSENT', 'GUARANTEE', 'NOTICE', 'SCHEDULE', 'COURT_ORDER', 'CUSTOMARY', 'ISLAMIC', 'DISTRIBUTION');
+
+-- CreateEnum
+CREATE TYPE "StorageProvider" AS ENUM ('AWS_S3', 'AZURE_BLOB', 'GOOGLE_CLOUD_STORAGE', 'LOCAL_FILE_SYSTEM', 'COURT_E_FILING');
+
+-- CreateEnum
+CREATE TYPE "FileFormat" AS ENUM ('PDF', 'DOCX', 'XML', 'HTML', 'JSON');
+
+-- CreateEnum
+CREATE TYPE "ConsentStatus" AS ENUM ('PENDING', 'GRANTED', 'DECLINED', 'NOT_REQUIRED', 'EXPIRED', 'WITHDRAWN');
+
+-- CreateEnum
+CREATE TYPE "RiskCategory" AS ENUM ('MISSING_DOCUMENT', 'INVALID_DOCUMENT', 'EXPIRED_DOCUMENT', 'FORGED_DOCUMENT', 'MINOR_WITHOUT_GUARDIAN', 'UNDEFINED_POLYGAMOUS_STRUCTURE', 'DISPUTED_RELATIONSHIP', 'COHABITATION_CLAIM', 'ILLEGITIMATE_CHILD_CLAIM', 'ASSET_VERIFICATION_FAILED', 'INSOLVENT_ESTATE', 'MISSING_ASSET_VALUATION', 'ENCUMBERED_ASSET', 'FRAUDULENT_ASSET_TRANSFER', 'INVALID_WILL_SIGNATURE', 'MINOR_EXECUTOR', 'BENEFICIARY_AS_WITNESS', 'CONTESTED_WILL', 'UNDUE_INFLUENCE', 'WRONG_COURT', 'NON_RESIDENT_APPLICANT', 'FORUM_NON_CONVENIENS', 'TAX_CLEARANCE_MISSING', 'KRA_PIN_MISSING', 'CAPITAL_GAINS_TAX_UNPAID', 'STATUTE_BARRED_DEBT', 'DELAYED_FILING', 'FAMILY_DISPUTE', 'CRIMINAL_INVESTIGATION', 'BANKRUPTCY_PENDING', 'DATA_INCONSISTENCY', 'EXTERNAL_API_FAILURE');
+
+-- CreateEnum
+CREATE TYPE "RiskStatus" AS ENUM ('ACTIVE', 'RESOLVED', 'SUPERSEDED', 'EXPIRED', 'DISPUTED');
+
+-- CreateEnum
+CREATE TYPE "ConsentMethod" AS ENUM ('SMS_OTP', 'EMAIL_LINK', 'DIGITAL_SIGNATURE', 'WET_SIGNATURE', 'BIOMETRIC', 'WITNESS_MARK', 'IN_PERSON');
+
+-- CreateEnum
+CREATE TYPE "FamilyRole" AS ENUM ('SURVIVING_SPOUSE', 'ADULT_CHILD', 'MINOR_CHILD', 'GUARDIAN_OF_MINOR', 'BENEFICIARY', 'EXECUTOR', 'ADMINISTRATOR', 'PARENT', 'SIBLING', 'OTHER_RELATIVE');
+
+-- CreateEnum
+CREATE TYPE "ResolutionMethod" AS ENUM ('EVENT_DRIVEN', 'MANUAL_RESOLUTION', 'SYSTEM_AUTO_RESOLVE', 'COURT_ORDER', 'TIME_BASED', 'ADMIN_OVERRIDE');
 
 -- CreateEnum
 CREATE TYPE "SuccessionRegime" AS ENUM ('TESTATE', 'INTESTATE', 'PARTIALLY_INTESTATE', 'CUSTOMARY');
@@ -1425,14 +1491,33 @@ CREATE TABLE "computed_share_details" (
 CREATE TABLE "readiness_assessments" (
     "id" UUID NOT NULL,
     "estateId" UUID NOT NULL,
-    "readinessScore" INTEGER NOT NULL DEFAULT 0,
-    "status" "ReadinessStatus" NOT NULL DEFAULT 'IN_PROGRESS',
+    "familyId" UUID,
     "contextRegime" "SuccessionRegime" NOT NULL,
     "contextMarriage" "SuccessionMarriageType" NOT NULL,
     "contextReligion" "SuccessionReligion" NOT NULL,
+    "isMinorInvolved" BOOLEAN NOT NULL DEFAULT false,
+    "hasDisputedAssets" BOOLEAN NOT NULL DEFAULT false,
+    "isBusinessAssetsInvolved" BOOLEAN NOT NULL DEFAULT false,
+    "isForeignAssetsInvolved" BOOLEAN NOT NULL DEFAULT false,
+    "isEstateInsolvent" BOOLEAN NOT NULL DEFAULT false,
+    "hasDependantsWithDisabilities" BOOLEAN NOT NULL DEFAULT false,
+    "targetCourtJurisdiction" "CourtJurisdiction" NOT NULL,
+    "estimatedComplexityScore" INTEGER NOT NULL DEFAULT 1,
+    "readinessScore" INTEGER NOT NULL DEFAULT 0,
+    "status" "ReadinessStatus" NOT NULL DEFAULT 'IN_PROGRESS',
+    "filingConfidence" "FilingConfidence" NOT NULL DEFAULT 'LOW',
+    "riskBreakdown" JSONB NOT NULL,
+    "nextMilestone" TEXT,
+    "estimatedDaysToReady" INTEGER,
     "missingDocuments" JSONB,
-    "blockingIssues" JSONB,
+    "blockingIssues" TEXT[],
     "recommendedStrategy" TEXT,
+    "lastAssessedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastRecalculationTrigger" VARCHAR(100),
+    "totalRecalculations" INTEGER NOT NULL DEFAULT 0,
+    "isComplete" BOOLEAN NOT NULL DEFAULT false,
+    "completedAt" TIMESTAMP(3),
+    "version" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -1443,14 +1528,36 @@ CREATE TABLE "readiness_assessments" (
 CREATE TABLE "risk_flags" (
     "id" UUID NOT NULL,
     "assessmentId" UUID NOT NULL,
-    "severity" "RiskSeverity" NOT NULL DEFAULT 'HIGH',
-    "category" TEXT NOT NULL,
+    "severity" "RiskSeverity" NOT NULL,
+    "category" "RiskCategory" NOT NULL,
+    "riskStatus" "RiskStatus" NOT NULL DEFAULT 'ACTIVE',
     "description" TEXT NOT NULL,
-    "mitigationSteps" TEXT,
-    "source" "RiskSource" NOT NULL,
-    "sourceId" UUID,
+    "legalBasis" TEXT NOT NULL,
+    "mitigationSteps" TEXT[],
+    "sourceType" "RiskSourceType" NOT NULL,
+    "serviceName" TEXT NOT NULL,
+    "detectionMethod" "DetectionMethod" NOT NULL,
+    "detectionRuleId" TEXT NOT NULL,
+    "sourceEntityId" TEXT,
+    "sourceEntityType" TEXT,
+    "sourceAggregateId" TEXT,
+    "sourceDetails" JSONB,
+    "isBlocking" BOOLEAN NOT NULL DEFAULT false,
+    "impactScore" INTEGER NOT NULL DEFAULT 0,
+    "affectedEntityIds" TEXT[],
+    "affectedAggregateIds" TEXT[],
+    "documentGap" JSONB,
+    "expectedResolutionEvents" TEXT[],
+    "autoResolveTimeout" TIMESTAMP(3),
     "isResolved" BOOLEAN NOT NULL DEFAULT false,
     "resolvedAt" TIMESTAMP(3),
+    "resolutionMethod" "ResolutionMethod",
+    "resolvedBy" TEXT,
+    "resolutionNotes" TEXT,
+    "lastReviewedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "reviewCount" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "risk_flags_pkey" PRIMARY KEY ("id")
 );
@@ -1459,13 +1566,51 @@ CREATE TABLE "risk_flags" (
 CREATE TABLE "probate_applications" (
     "id" UUID NOT NULL,
     "estateId" UUID NOT NULL,
+    "readinessAssessmentId" UUID NOT NULL,
+    "successionContext" JSONB NOT NULL,
+    "readinessScore" JSONB,
     "applicationType" "ProbateApplicationType" NOT NULL,
+    "status" "ApplicationStatus" NOT NULL DEFAULT 'DRAFT',
+    "priority" "FilingPriority" NOT NULL DEFAULT 'NORMAL',
     "applicantUserId" UUID NOT NULL,
+    "applicantFullName" TEXT NOT NULL,
+    "applicantRelationship" TEXT NOT NULL,
+    "applicantContact" JSONB NOT NULL,
+    "targetCourtJurisdiction" "CourtJurisdiction" NOT NULL,
+    "targetCourtName" VARCHAR(150) NOT NULL,
     "courtStation" VARCHAR(100) NOT NULL,
-    "caseNumber" VARCHAR(100),
-    "filingDate" TIMESTAMP(3),
-    "formsGenerated" BOOLEAN NOT NULL DEFAULT false,
-    "allConsentsReceived" BOOLEAN NOT NULL DEFAULT false,
+    "courtRegistry" TEXT,
+    "estimatedProcessingDays" INTEGER,
+    "filingFeeAmount" DECIMAL(19,4) NOT NULL DEFAULT 0,
+    "filingFeePaid" BOOLEAN NOT NULL DEFAULT false,
+    "filingFeePaidAt" TIMESTAMP(3),
+    "estimatedFilingDate" TIMESTAMP(3),
+    "estimatedGrantDate" TIMESTAMP(3),
+    "filedAt" TIMESTAMP(3),
+    "filingMethod" TEXT,
+    "courtCaseNumber" VARCHAR(100),
+    "courtFileNumber" TEXT,
+    "courtReceiptNumber" TEXT,
+    "courtReviewDate" TIMESTAMP(3),
+    "gazettePublishedDate" TIMESTAMP(3),
+    "gazetteNoticeId" TEXT,
+    "objectionDeadline" TIMESTAMP(3),
+    "grantedDate" TIMESTAMP(3),
+    "grantNumber" TEXT,
+    "grantType" TEXT,
+    "grantIssuedBy" TEXT,
+    "rejectionReason" TEXT,
+    "rejectionDate" TIMESTAMP(3),
+    "amendmentsRequired" TEXT[],
+    "amendmentDeadline" TIMESTAMP(3),
+    "withdrawnAt" TIMESTAMP(3),
+    "withdrawalReason" TEXT,
+    "totalFormsGenerated" INTEGER NOT NULL DEFAULT 0,
+    "totalConsentsRequired" INTEGER NOT NULL DEFAULT 0,
+    "lastStatusChangeAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "notes" TEXT,
+    "internalNotes" TEXT,
+    "version" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -1477,9 +1622,43 @@ CREATE TABLE "generated_forms" (
     "id" UUID NOT NULL,
     "applicationId" UUID NOT NULL,
     "formType" "KenyanFormType" NOT NULL,
-    "s3Url" TEXT NOT NULL,
+    "formCode" VARCHAR(50) NOT NULL,
+    "displayName" TEXT NOT NULL,
+    "status" "FormStatus" NOT NULL DEFAULT 'PENDING_GENERATION',
+    "currentVersion" INTEGER NOT NULL DEFAULT 0,
+    "storageProvider" "StorageProvider" NOT NULL DEFAULT 'AWS_S3',
+    "storageUrl" TEXT NOT NULL,
+    "fileFormat" "FileFormat" NOT NULL DEFAULT 'PDF',
+    "fileSizeBytes" INTEGER NOT NULL DEFAULT 0,
+    "checksum" TEXT,
+    "templateVersion" TEXT,
+    "dataSource" TEXT,
+    "dataHash" TEXT,
+    "signatures" JSONB,
+    "requiredSignatories" INTEGER NOT NULL DEFAULT 0,
+    "isFullySigned" BOOLEAN NOT NULL DEFAULT false,
+    "courtCaseNumber" TEXT,
+    "filingDate" TIMESTAMP(3),
+    "filingReference" TEXT,
+    "courtStampNumber" TEXT,
+    "rejectionReason" TEXT,
+    "courtQueries" TEXT[],
+    "amendmentsRequired" TEXT[],
+    "versions" JSONB,
+    "generatedBy" TEXT,
     "generatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "metadata" JSONB,
+    "reviewedBy" UUID,
+    "reviewedAt" TIMESTAMP(3),
+    "reviewNotes" TEXT,
+    "pageCount" INTEGER NOT NULL DEFAULT 0,
+    "isNotarizationRequired" BOOLEAN NOT NULL DEFAULT false,
+    "isCommissionerOathsRequired" BOOLEAN NOT NULL DEFAULT false,
+    "isCourtStampRequired" BOOLEAN NOT NULL DEFAULT false,
+    "relatedFormIds" TEXT[],
+    "dependsOnFormIds" TEXT[],
+    "lastAccessedAt" TIMESTAMP(3),
+    "accessCount" INTEGER NOT NULL DEFAULT 0,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "generated_forms_pkey" PRIMARY KEY ("id")
 );
@@ -1489,12 +1668,36 @@ CREATE TABLE "family_consents" (
     "id" UUID NOT NULL,
     "applicationId" UUID NOT NULL,
     "familyMemberId" UUID NOT NULL,
-    "role" TEXT NOT NULL,
-    "consentStatus" "ConsentStatus" NOT NULL DEFAULT 'PENDING',
+    "fullName" TEXT NOT NULL,
+    "nationalId" TEXT,
+    "phoneNumber" TEXT,
+    "email" TEXT,
+    "role" "FamilyRole" NOT NULL,
+    "relationshipToDeceased" TEXT NOT NULL,
+    "status" "ConsentStatus" NOT NULL DEFAULT 'PENDING',
+    "method" "ConsentMethod",
+    "requestSentAt" TIMESTAMP(3),
+    "requestSentVia" TEXT,
+    "requestExpiresAt" TIMESTAMP(3),
+    "respondedAt" TIMESTAMP(3),
     "consentGivenAt" TIMESTAMP(3),
+    "declinedAt" TIMESTAMP(3),
+    "withdrawnAt" TIMESTAMP(3),
     "digitalSignatureId" TEXT,
-    "rejectionReason" TEXT,
+    "signatureMethod" "ConsentMethod",
+    "verificationCode" TEXT,
+    "ipAddress" TEXT,
+    "deviceInfo" TEXT,
+    "declineReason" TEXT,
+    "declineCategory" TEXT,
+    "withdrawalReason" TEXT,
+    "hasLegalRepresentative" BOOLEAN NOT NULL DEFAULT false,
+    "legalRepresentativeName" TEXT,
+    "legalRepresentativeContact" TEXT,
+    "notes" TEXT,
+    "internalNotes" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "family_consents_pkey" PRIMARY KEY ("id")
 );
@@ -1503,8 +1706,40 @@ CREATE TABLE "family_consents" (
 CREATE TABLE "executor_roadmaps" (
     "id" UUID NOT NULL,
     "estateId" UUID NOT NULL,
+    "readinessAssessmentId" UUID NOT NULL,
+    "successionContext" JSONB NOT NULL,
+    "readinessScore" JSONB,
     "currentPhase" "RoadmapPhase" NOT NULL DEFAULT 'PRE_FILING',
+    "status" "RoadmapStatus" NOT NULL DEFAULT 'DRAFT',
     "percentComplete" INTEGER NOT NULL DEFAULT 0,
+    "phases" JSONB NOT NULL,
+    "phaseHistory" JSONB NOT NULL,
+    "totalTasks" INTEGER NOT NULL DEFAULT 0,
+    "completedTasks" INTEGER NOT NULL DEFAULT 0,
+    "skippedTasks" INTEGER NOT NULL DEFAULT 0,
+    "overdueTasks" INTEGER NOT NULL DEFAULT 0,
+    "blockedTasks" INTEGER NOT NULL DEFAULT 0,
+    "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "estimatedCompletionDate" TIMESTAMP(3),
+    "actualCompletionDate" TIMESTAMP(3),
+    "totalTimeSpentHours" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "blockedByRiskIds" TEXT[],
+    "resolvesRiskIds" TEXT[],
+    "linkedDocumentGaps" TEXT[],
+    "analytics" JSONB NOT NULL,
+    "userId" UUID NOT NULL,
+    "executorName" TEXT NOT NULL,
+    "lastActiveAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "daysInactive" INTEGER NOT NULL DEFAULT 0,
+    "autoTransitionEnabled" BOOLEAN NOT NULL DEFAULT true,
+    "autoTaskGenerationEnabled" BOOLEAN NOT NULL DEFAULT true,
+    "escalationThresholdDays" INTEGER NOT NULL DEFAULT 14,
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastOptimizedAt" TIMESTAMP(3),
+    "optimizationCount" INTEGER NOT NULL DEFAULT 0,
+    "notes" TEXT,
+    "internalNotes" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "executor_roadmaps_pkey" PRIMARY KEY ("id")
@@ -1516,13 +1751,57 @@ CREATE TABLE "roadmap_tasks" (
     "roadmapId" UUID NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
-    "category" TEXT NOT NULL,
+    "shortCode" VARCHAR(50) NOT NULL,
+    "category" "TaskCategory" NOT NULL,
+    "priority" "TaskPriority" NOT NULL,
     "status" "TaskStatus" NOT NULL DEFAULT 'PENDING',
+    "phase" "RoadmapPhase" NOT NULL,
+    "orderIndex" INTEGER NOT NULL,
+    "dependsOnTaskIds" TEXT[],
+    "blocksTaskIds" TEXT[],
+    "applicableContexts" TEXT[],
+    "triggers" "TaskTrigger"[],
+    "legalReferences" JSONB NOT NULL,
+    "detailedInstructions" TEXT[],
+    "quickTips" TEXT[],
+    "commonMistakes" TEXT[],
+    "externalLinks" JSONB NOT NULL,
+    "courtSpecificInstructions" JSONB,
+    "requiresProof" BOOLEAN NOT NULL DEFAULT false,
+    "proofTypes" "ProofType"[],
+    "proofDocumentType" TEXT,
     "dueDate" TIMESTAMP(3),
+    "startDate" TIMESTAMP(3),
+    "endDate" TIMESTAMP(3),
+    "startedAt" TIMESTAMP(3),
     "completedAt" TIMESTAMP(3),
-    "dependsOnTaskId" UUID,
-    "proofDocumentId" UUID,
+    "skippedAt" TIMESTAMP(3),
+    "lastRemindedAt" TIMESTAMP(3),
+    "estimatedTimeMinutes" INTEGER NOT NULL DEFAULT 0,
+    "timeSpentMinutes" INTEGER NOT NULL DEFAULT 0,
+    "completedBy" TEXT,
+    "completionNotes" TEXT,
+    "skipReason" TEXT,
+    "waiverReason" TEXT,
+    "failureReason" TEXT,
+    "isOverdue" BOOLEAN NOT NULL DEFAULT false,
+    "retryCount" INTEGER NOT NULL DEFAULT 0,
+    "lastAttemptedAt" TIMESTAMP(3),
+    "reminderIntervalDays" INTEGER NOT NULL DEFAULT 7,
+    "escalationLevel" INTEGER NOT NULL DEFAULT 0,
+    "autoEscalateAfterDays" INTEGER NOT NULL DEFAULT 14,
+    "relatedRiskFlagIds" TEXT[],
+    "relatedDocumentGapIds" TEXT[],
+    "externalServiceId" TEXT,
+    "externalTaskId" TEXT,
+    "history" JSONB NOT NULL,
+    "templateVersion" TEXT,
+    "tags" TEXT[],
+    "createdBy" TEXT,
+    "lastModifiedBy" TEXT,
+    "lastModifiedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "roadmap_tasks_pkey" PRIMARY KEY ("id")
 );
@@ -1884,10 +2163,31 @@ CREATE UNIQUE INDEX "distribution_scenarios_estateId_scenarioName_key" ON "distr
 CREATE UNIQUE INDEX "readiness_assessments_estateId_key" ON "readiness_assessments"("estateId");
 
 -- CreateIndex
-CREATE INDEX "probate_applications_estateId_idx" ON "probate_applications"("estateId");
+CREATE INDEX "risk_flags_sourceEntityId_sourceType_idx" ON "risk_flags"("sourceEntityId", "sourceType");
+
+-- CreateIndex
+CREATE INDEX "risk_flags_category_riskStatus_idx" ON "risk_flags"("category", "riskStatus");
+
+-- CreateIndex
+CREATE INDEX "probate_applications_estateId_status_idx" ON "probate_applications"("estateId", "status");
+
+-- CreateIndex
+CREATE INDEX "probate_applications_courtCaseNumber_idx" ON "probate_applications"("courtCaseNumber");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "family_consents_applicationId_familyMemberId_key" ON "family_consents"("applicationId", "familyMemberId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "executor_roadmaps_estateId_key" ON "executor_roadmaps"("estateId");
+
+-- CreateIndex
+CREATE INDEX "roadmap_tasks_roadmapId_status_idx" ON "roadmap_tasks"("roadmapId", "status");
+
+-- CreateIndex
+CREATE INDEX "roadmap_tasks_category_idx" ON "roadmap_tasks"("category");
+
+-- CreateIndex
+CREATE INDEX "roadmap_tasks_priority_isOverdue_idx" ON "roadmap_tasks"("priority", "isOverdue");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "notification_templates_name_unique" ON "notification_templates"("name");
@@ -2131,6 +2431,9 @@ ALTER TABLE "distribution_scenarios" ADD CONSTRAINT "distribution_scenarios_esta
 
 -- AddForeignKey
 ALTER TABLE "computed_share_details" ADD CONSTRAINT "computed_share_details_scenarioId_fkey" FOREIGN KEY ("scenarioId") REFERENCES "distribution_scenarios"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "readiness_assessments" ADD CONSTRAINT "readiness_assessments_estateId_fkey" FOREIGN KEY ("estateId") REFERENCES "estates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "risk_flags" ADD CONSTRAINT "risk_flags_assessmentId_fkey" FOREIGN KEY ("assessmentId") REFERENCES "readiness_assessments"("id") ON DELETE CASCADE ON UPDATE CASCADE;

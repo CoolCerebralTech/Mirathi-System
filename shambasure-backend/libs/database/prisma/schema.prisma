@@ -21,11 +21,11 @@ enum Gender {
   OTHERS
 }
 enum RoadmapPhase {
-  PRE_FILING           
-  FILING_AND_GAZETTE   
-  CONFIRMATION         
-  DISTRIBUTION         
-  CLOSED
+  PRE_FILING
+  FILING
+  CONFIRMATION
+  DISTRIBUTION
+  CLOSURE
 }
 enum TaskStatus {
   LOCKED
@@ -33,27 +33,317 @@ enum TaskStatus {
   IN_PROGRESS
   COMPLETED
   SKIPPED
+  WAIVED
+  BLOCKED
+  FAILED
 }
 enum ProbateApplicationType {
-  GRANT_OF_PROBATE           // P&A 1
-  LETTERS_OF_ADMINISTRATION  // P&A 80
-  SUMMARY_ADMINISTRATION     // P&A 5
-  LIMITED_GRANT              // Ad Litem / Collection
+  GRANT_OF_PROBATE
+  LETTERS_OF_ADMINISTRATION
+  LETTERS_OF_ADMIN_WILL_ANNEXED
+  SUMMARY_ADMINISTRATION
+  LIMITED_GRANT_AD_LITEM
+  LIMITED_GRANT_COLLECTION
+  ISLAMIC_GRANT
+  CUSTOMARY_GRANT
+}
+enum CourtJurisdiction {
+  HIGH_COURT
+  MAGISTRATE_COURT
+  KADHIS_COURT
+  CUSTOMARY_COURT
+  FAMILY_DIVISION
+  COMMERCIAL_COURT
+}
+enum CasePriority {
+  URGENT
+  HIGH
+  NORMAL
+  LOW
+}
+enum FilingConfidence {
+  HIGH
+  MEDIUM
+  LOW
+  VERY_LOW
+  BLOCKED
+}
+enum RoadmapStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  BLOCKED
+  COMPLETED
+  ABANDONED
+  ESCALATED
+}
+enum TaskPriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+enum TaskTrigger {
+  MANUAL
+  AUTOMATIC
+  EVENT_DRIVEN
+  SCHEDULED
+  READINESS_BASED
+}
+enum ProofType {
+  DOCUMENT_UPLOAD
+  DIGITAL_SIGNATURE
+  SMS_VERIFICATION
+  EMAIL_VERIFICATION
+  COURT_RECEIPT
+  BANK_SLIP
+  WITNESS_SIGNATURE
+  AFFIDAVIT
+}
+enum TaskCategory {
+  IDENTITY_VERIFICATION
+  FAMILY_STRUCTURE
+  GUARDIANSHIP
+  ASSET_DISCOVERY
+  DEBT_SETTLEMENT
+  DOCUMENT_COLLECTION
+  DOCUMENT_VALIDATION
+  CUSTOMARY_DOCUMENTS
+  FORM_GENERATION
+  FORM_REVIEW
+  SIGNATURE_COLLECTION
+  COURT_SELECTION
+  FEE_PAYMENT
+  LODGEMENT
+  GAZETTE_PUBLICATION
+  COURT_ATTENDANCE
+  GRANT_ISSUANCE
+  GRANT_CONFIRMATION
+  ASSET_TRANSFER
+  DEBT_PAYMENT
+  TAX_CLEARANCE
+  FINAL_ACCOUNTS
+  ESTATE_CLOSURE
+  BENEFICIARY_NOTIFICATION
+  WILL_SPECIFIC
+  ISLAMIC_SPECIFIC
+  POLYGAMOUS_SPECIFIC
+  MINOR_SPECIFIC
+  DISPUTE_RESOLUTION
+}
+enum RiskSourceType {
+  FAMILY_SERVICE
+  GUARDIANSHIP_SERVICE
+  MARRIAGE_SERVICE
+  ESTATE_SERVICE
+  WILL_SERVICE
+  ASSET_SERVICE
+  DEBT_SERVICE
+  COMPLIANCE_ENGINE
+  READINESS_ASSESSMENT
+  FORM_STRATEGY
+  DOCUMENT_SERVICE
+  KRA_SERVICE
+  LANDS_REGISTRY
+  NTSA_SERVICE
+  USER_INPUT
+  SYSTEM_VALIDATION
+  THIRD_PARTY_API
+}
+enum DetectionMethod {
+  RULE_ENGINE
+  API_VALIDATION
+  MANUAL_REVIEW
+  SYSTEM_SCAN
+  EVENT_DRIVEN
+  CROSS_CONTEXT_CHECK
+  LEGAL_ANALYSIS
+  DATA_INTEGRITY_CHECK
+}
+enum ResolutionTrigger {
+  EVENT_BASED
+  MANUAL_ACTION
+  SYSTEM_AUTO
+  COURT_ORDER
+  TIME_BASED
 }
 enum KenyanFormType {
+  // Primary
   PA1_PETITION
   PA5_PETITION_SUMMARY
   PA80_PETITION_INTESTATE
+  PA81_PETITION_ADMINISTRATION
+  ISLAMIC_PETITION
+  // Supporting
   PA12_AFFIDAVIT_MEANS
+  AFFIDAVIT_DUE_EXECUTION
+  AFFIDAVIT_OF_SEARCH
+  AFFIDAVIT_OF_IDENTIFICATION
+  AFFIDAVIT_SUPPORTING_POLYGAMY
+  ISLAMIC_AFFIDAVIT
+  // Consents & Guarantees
   PA38_CONSENT
   PA57_GUARANTEE
+  ISLAMIC_CONSENT
+  CONSENT_MINOR
+  CONSENT_CREDITOR
+  // Customary
   CHIEFS_LETTER_TEMPLATE
+  ELDERS_AFFIDAVIT
+  // Output Documents
+  GRANT_OF_PROBATE
+  GRANT_LETTERS_ADMINISTRATION
+  CONFIRMATION_GRANT
+}
+enum ApplicationStatus {
+  DRAFT
+  PENDING_FORMS
+  UNDER_REVIEW
+  PENDING_SIGNATURES
+  PENDING_CONSENTS
+  PENDING_FEE
+  READY_TO_FILE
+  FILED
+  COURT_REVIEW
+  GAZETTE_PUBLISHED
+  GRANTED
+  REJECTED
+  AMENDMENT_REQUIRED
+  WITHDRAWN
+  ABANDONED
+}
+enum FilingPriority {
+  URGENT
+  HIGH
+  NORMAL
+  LOW
+}
+enum FormStatus {
+  PENDING_GENERATION
+  GENERATED
+  UNDER_REVIEW
+  APPROVED
+  SIGNATURE_PENDING
+  SIGNED
+  FILED
+  COURT_ACCEPTED
+  COURT_REJECTED
+  AMENDED
+  SUPERSEDED
+  ARCHIVED
+}
+enum FormCategory {
+  PRIMARY_PETITION
+  SUPPORTING_AFFIDAVIT
+  CONSENT
+  GUARANTEE
+  NOTICE
+  SCHEDULE
+  COURT_ORDER
+  CUSTOMARY
+  ISLAMIC
+  DISTRIBUTION
+}
+enum StorageProvider {
+  AWS_S3
+  AZURE_BLOB
+  GOOGLE_CLOUD_STORAGE
+  LOCAL_FILE_SYSTEM
+  COURT_E_FILING
+}
+enum FileFormat {
+  PDF
+  DOCX
+  XML
+  HTML
+  JSON
 }
 enum ConsentStatus {
   PENDING
   GRANTED
   DECLINED
   NOT_REQUIRED
+  EXPIRED
+  WITHDRAWN
+}
+enum RiskCategory {
+  // Document Issues
+  MISSING_DOCUMENT
+  INVALID_DOCUMENT
+  EXPIRED_DOCUMENT
+  FORGED_DOCUMENT
+  // Family Structure
+  MINOR_WITHOUT_GUARDIAN
+  UNDEFINED_POLYGAMOUS_STRUCTURE
+  DISPUTED_RELATIONSHIP
+  COHABITATION_CLAIM
+  ILLEGITIMATE_CHILD_CLAIM
+  // Estate Issues
+  ASSET_VERIFICATION_FAILED
+  INSOLVENT_ESTATE
+  MISSING_ASSET_VALUATION
+  ENCUMBERED_ASSET
+  FRAUDULENT_ASSET_TRANSFER
+  // Will Issues
+  INVALID_WILL_SIGNATURE
+  MINOR_EXECUTOR
+  BENEFICIARY_AS_WITNESS
+  CONTESTED_WILL
+  UNDUE_INFLUENCE
+  // Jurisdiction
+  WRONG_COURT
+  NON_RESIDENT_APPLICANT
+  FORUM_NON_CONVENIENS
+  // Tax & Compliance
+  TAX_CLEARANCE_MISSING
+  KRA_PIN_MISSING
+  CAPITAL_GAINS_TAX_UNPAID
+  // Time-Based
+  STATUTE_BARRED_DEBT
+  DELAYED_FILING
+  // Other
+  FAMILY_DISPUTE
+  CRIMINAL_INVESTIGATION
+  BANKRUPTCY_PENDING
+  // System
+  DATA_INCONSISTENCY
+  EXTERNAL_API_FAILURE
+}
+enum RiskStatus {
+  ACTIVE
+  RESOLVED
+  SUPERSEDED
+  EXPIRED
+  DISPUTED
+}
+enum ConsentMethod {
+  SMS_OTP
+  EMAIL_LINK
+  DIGITAL_SIGNATURE
+  WET_SIGNATURE
+  BIOMETRIC
+  WITNESS_MARK
+  IN_PERSON
+}
+enum FamilyRole {
+  SURVIVING_SPOUSE
+  ADULT_CHILD
+  MINOR_CHILD
+  GUARDIAN_OF_MINOR
+  BENEFICIARY
+  EXECUTOR
+  ADMINISTRATOR
+  PARENT
+  SIBLING
+  OTHER_RELATIVE
+}
+enum ResolutionMethod {
+  EVENT_DRIVEN
+  MANUAL_RESOLUTION
+  SYSTEM_AUTO_RESOLVE
+  COURT_ORDER
+  TIME_BASED
+  ADMIN_OVERRIDE
 }
 enum SuccessionRegime {
   TESTATE              // Valid Will exists
@@ -1717,7 +2007,7 @@ model Estate {
   gifts          GiftInterVivos[]
   dependants     LegalDependant[]
   distributionScenarios DistributionScenario[]
-
+  readinessAssessments ReadinessAssessment[]
   // --- Audit ---
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
@@ -2446,32 +2736,51 @@ model ComputedShareDetail {
 // Purpose: "The Digital Lawyer". Generates forms, tracks readiness, guides the user.
 // Updates: Includes SuccessionContext and RiskSource for traceability.
 // ============================================================================
-
 // =============================================================================
 // AGGREGATE 1: READINESS ASSESSMENT
 // Purpose: Analyzes Family + Estate to tell user if they are ready to go to court.
 // =============================================================================
 model ReadinessAssessment {
   id                  String   @id @default(uuid()) @db.Uuid()
-  
-  // --- Target ---
+  // --- Target Identification ---
   estateId            String   @unique @db.Uuid() 
-  
-  // --- Scorecard ---
-  readinessScore      Int      @default(0) // 0-100%
-  status              ReadinessStatus @default(IN_PROGRESS)
-  
-  // --- [NEW] SUCCESSION CONTEXT (Value Object Flattened) ---
-  // This drives the entire logic engine (e.g., Islamic cases need different forms)
-  contextRegime       SuccessionRegime   // TESTATE, INTESTATE
-  contextMarriage     SuccessionMarriageType // MONOGAMOUS, POLYGAMOUS
-  contextReligion     SuccessionReligion // STATUTORY, ISLAMIC, HINDU, CUSTOMARY
-  
-  // --- Findings ---
-  missingDocuments    Json?    // ["DeathCert", "ChiefLetter"]
-  blockingIssues      Json?    // ["MinorWithoutGuardian", "DisputedAsset"]
-  recommendedStrategy String?  // e.g. "Apply to Kadhi's Court for Grant"
-  
+  estate              Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  familyId            String?  @db.Uuid() // Optional link for context 
+  contextRegime             SuccessionRegime
+  contextMarriage           SuccessionMarriageType
+  contextReligion           SuccessionReligion
+  // Critical Context Flags (Stored for fast querying/indexing)
+  isMinorInvolved              Boolean @default(false)
+  hasDisputedAssets            Boolean @default(false)
+  isBusinessAssetsInvolved     Boolean @default(false)
+  isForeignAssetsInvolved      Boolean @default(false)
+  isEstateInsolvent            Boolean @default(false)
+  hasDependantsWithDisabilities Boolean @default(false)
+  // Derived Context properties
+  targetCourtJurisdiction   CourtJurisdiction
+  estimatedComplexityScore  Int      @default(1) // 1-10
+  readinessScore      Int               @default(0) // 0-100%
+  status              ReadinessStatus   @default(IN_PROGRESS)
+  filingConfidence    FilingConfidence  @default(LOW)
+  // Stores { critical: Int, high: Int, medium: Int, low: Int }
+  riskBreakdown       Json 
+  nextMilestone       String?
+  estimatedDaysToReady Int?
+  // Stores DocumentGap[] as JSON (Transient/UI state)
+  missingDocuments    Json?
+  // Stores blocking issues as String[]
+  blockingIssues      String[]
+  // The generated advice string
+  recommendedStrategy String? @db.Text  
+  // --- Lifecycle & Audit ---
+  lastAssessedAt           DateTime @default(now())
+  lastRecalculationTrigger String?  @db.VarChar(100) // e.g., "manual_update", "asset_verified"
+  totalRecalculations      Int      @default(0)
+  // Completion Logic
+  isComplete          Boolean  @default(false)
+  completedAt         DateTime?
+  // Optimistic Concurrency
+  version             Int      @default(1)
   // --- Child Entities ---
   riskFlags           RiskFlag[]
   
@@ -2484,21 +2793,47 @@ model RiskFlag {
   id              String   @id @default(uuid()) @db.Uuid()
   assessmentId    String   @db.Uuid()
   assessment      ReadinessAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  
-  // --- Risk Details ---
-  severity        RiskSeverity @default(HIGH)
-  category        String   // "DOCUMENT", "FAMILY_DISPUTE", "ASSET_VERIFICATION"
+  // --- Core Risk Info ---
+  severity        RiskSeverity
+  category        RiskCategory
+  riskStatus      RiskStatus   @default(ACTIVE)
   description     String   @db.Text
-  mitigationSteps String?  @db.Text
+  legalBasis      String   @db.Text // "S.56 LSA - Death Certificate mandatory"
+  // Mitigation steps stored as Postgres Array
+  mitigationSteps String[] 
+  sourceType          RiskSourceType
+  serviceName         String   // e.g., "family-service"
+  detectionMethod     DetectionMethod
+  detectionRuleId     String   // e.g., "RULE_DEATH_CERT_REQUIRED"
+  // Weak References (Traceability)
+  sourceEntityId      String?  
+  sourceEntityType    String?  
+  sourceAggregateId   String?  
+  // Complex Source Data (LegalReferences[], confidenceScore, etc.)
+  sourceDetails       Json? 
+  isBlocking          Boolean  @default(false)
+  impactScore         Int      @default(0) // 1-10
+  // Scope: IDs of things affected by this risk (Postgres Arrays)
+  affectedEntityIds    String[]
+  affectedAggregateIds String[]
+  // Linked Document Gap (Value Object as JSON)
+  documentGap          Json? 
+  expectedResolutionEvents String[]
+  autoResolveTimeout       DateTime?
+  // Resolution State
+  isResolved           Boolean   @default(false) // Derived/Cached from status
+  resolvedAt           DateTime?
+  resolutionMethod     ResolutionMethod?
+  resolvedBy           String?   // "system" or User ID
+  resolutionNotes      String?   @db.Text
+  // --- Review Metadata ---
+  lastReviewedAt       DateTime  @default(now())
+  reviewCount          Int       @default(0)
   
-  // --- [NEW] EVIDENCE SOURCE ---
-  // Where did we find this risk? (Traceability)
-  source          RiskSource
-  sourceId        String?  @db.Uuid() // ID of the specific entity (e.g., Will ID, Asset ID)
-  
-  isResolved      Boolean  @default(false)
-  resolvedAt      DateTime?
-  
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  @@index([sourceEntityId, sourceType])
+  @@index([category, riskStatus])
   @@map("risk_flags")
 }
 // =============================================================================
@@ -2509,29 +2844,69 @@ model RiskFlag {
 model ProbateApplication {
   id                  String   @id @default(uuid()) @db.Uuid()
   estateId            String   @db.Uuid()
-  
-  // --- Application Details ---
-  // The system suggests this based on ReadinessAssessment Context
-  applicationType     ProbateApplicationType 
-  applicantUserId     String   @db.Uuid()    
-  
+  readinessAssessmentId String @db.Uuid() // Link to the assessment that authorized this
+  successionContext   Json 
+  readinessScore      Json?
+  // --- Core Details ---
+  applicationType     ProbateApplicationType
+  status              ApplicationStatus       @default(DRAFT)
+  priority            FilingPriority          @default(NORMAL)
+  // --- Applicant Details ---
+  applicantUserId       String   @db.Uuid()
+  applicantFullName     String
+  applicantRelationship String
+  applicantContact      Json     // { phone, email, physicalAddress }
   // --- Court Interaction ---
-  courtStation        String   @db.VarChar(100)
-  caseNumber          String?  @db.VarChar(100) 
-  filingDate          DateTime?
-  
-  // --- Automation Status ---
-  formsGenerated      Boolean  @default(false)
-  allConsentsReceived Boolean  @default(false)
-  
+  targetCourtJurisdiction CourtJurisdiction
+  targetCourtName         String   @db.VarChar(150)
+  courtStation            String   @db.VarChar(100)
+  courtRegistry           String?
+  estimatedProcessingDays Int?
+  // --- Financials ---
+  filingFeeAmount         Decimal  @default(0) @db.Decimal(19, 4)
+  filingFeePaid           Boolean  @default(false)
+  filingFeePaidAt         DateTime?
+  // --- Timeline & Dates ---
+  estimatedFilingDate     DateTime?
+  estimatedGrantDate      DateTime?
+  // --- Filing Records ---
+  filedAt                 DateTime?
+  filingMethod            String?  // 'E_FILING', 'PHYSICAL', etc.
+  courtCaseNumber         String?  @db.VarChar(100)
+  courtFileNumber         String?
+  courtReceiptNumber      String?
+  // --- Court Response ---
+  courtReviewDate         DateTime?
+  gazettePublishedDate    DateTime?
+  gazetteNoticeId         String?
+  objectionDeadline       DateTime?
+  // --- Grant Issuance ---
+  grantedDate             DateTime?
+  grantNumber             String?
+  grantType               String?
+  grantIssuedBy           String?
+  // --- Rejection & Withdrawal ---
+  rejectionReason         String?   @db.Text
+  rejectionDate           DateTime?
+  amendmentsRequired      String[]  // Postgres Array
+  amendmentDeadline       DateTime?
+  withdrawnAt             DateTime?
+  withdrawalReason        String?
+  // --- Analytics & Metadata ---
+  totalFormsGenerated     Int       @default(0)
+  totalConsentsRequired   Int       @default(0)
+  lastStatusChangeAt      DateTime  @default(now())
+  notes                   String?   @db.Text
+  internalNotes           String?   @db.Text
+  version                 Int       @default(1)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
   // --- Child Entities ---
-  generatedForms      GeneratedForm[]
-  familyConsents      FamilyConsent[]
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  
-  @@index([estateId])
+  generatedForms          GeneratedForm[]
+  familyConsents          FamilyConsent[]
+
+  @@index([estateId, status])
+  @@index([courtCaseNumber])
   @@map("probate_applications")
 }
 
@@ -2539,65 +2914,242 @@ model GeneratedForm {
   id              String   @id @default(uuid()) @db.Uuid()
   applicationId   String   @db.Uuid()
   application     ProbateApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  
-  formType        KenyanFormType
-  s3Url           String   @db.Text
-  generatedAt     DateTime @default(now())
-  
-  metadata        Json?    
+  // --- Identity ---
+  formType        KenyanFormType // Using the exact Enum from VO
+  formCode        String             @db.VarChar(50) // e.g., "P&A 1"
+  displayName     String
+  // --- Lifecycle ---
+  status          FormStatus      @default(PENDING_GENERATION)
+  currentVersion  Int             @default(0)
+  // --- Storage ---
+  storageProvider StorageProvider @default(AWS_S3)
+  storageUrl      String          @db.Text
+  fileFormat      FileFormat      @default(PDF)
+  fileSizeBytes   Int             @default(0)
+  checksum        String?
+  // --- Content Source ---
+  templateVersion String?
+  dataSource      String?         // e.g., 'estate-service'
+  dataHash        String?
+  // --- Signatures (Complex JSON) ---
+  // Stores array of FormSignature: 
+  // [{ signatoryId, signatureType, signedAt, witnessName... }]
+  signatures      Json?           
+  requiredSignatories Int         @default(0)
+  isFullySigned       Boolean     @default(false)
+  // --- Filing Metadata ---
+  courtCaseNumber     String?
+  filingDate          DateTime?
+  filingReference     String?
+  courtStampNumber    String?
+  // --- Rejections & Amendments ---
+  rejectionReason     String?     @db.Text
+  courtQueries        String[]    
+  amendmentsRequired  String[]
+  // --- Version History (Complex JSON) ---
+  // Stores array of FormVersion:
+  // [{ versionNumber, generatedAt, storageUrl, checksum... }]
+  versions            Json?
+  // --- Review Process ---
+  generatedBy         String?     // 'system' or UserID
+  generatedAt         DateTime    @default(now())
+  reviewedBy          String?     @db.Uuid()
+  reviewedAt          DateTime?
+  reviewNotes         String?
+  // --- Metadata ---
+  pageCount                   Int     @default(0)
+  isNotarizationRequired      Boolean @default(false)
+  isCommissionerOathsRequired Boolean @default(false)
+  isCourtStampRequired        Boolean @default(false)
+  relatedFormIds      String[]    // IDs of related forms
+  dependsOnFormIds    String[]    // IDs of prerequisite forms
+  // --- Access Log ---
+  lastAccessedAt      DateTime?
+  accessCount         Int         @default(0)
+  updatedAt           DateTime    @updatedAt  
   
   @@map("generated_forms")
 }
-
 model FamilyConsent {
   id              String   @id @default(uuid()) @db.Uuid()
   applicationId   String   @db.Uuid()
   application     ProbateApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  
-  familyMemberId  String   @db.Uuid()
-  role            String   // "Beneficiary", "HouseholdHead"
-  
-  consentStatus   ConsentStatus @default(PENDING)
+  // --- Identity ---
+  familyMemberId  String   @db.Uuid() // Link to FamilyMember
+  fullName        String
+  nationalId      String?
+  phoneNumber     String?
+  email           String?
+  // --- Role ---
+  role                   FamilyRole
+  relationshipToDeceased String
+  // --- Status ---
+  status          ConsentStatus @default(PENDING)
+  method          ConsentMethod?
+  // --- Request Tracking ---
+  requestSentAt   DateTime?
+  requestSentVia  String?    // 'SMS', 'EMAIL', 'BOTH'
+  requestExpiresAt DateTime?
+  // --- Response Tracking ---
+  respondedAt     DateTime?
   consentGivenAt  DateTime?
-  digitalSignatureId String? 
-  rejectionReason String?  @db.Text
-  
-  createdAt       DateTime @default(now())
+  declinedAt      DateTime?
+  withdrawnAt     DateTime?
+  // --- Evidence ---
+  digitalSignatureId String?
+  signatureMethod    ConsentMethod?
+  verificationCode   String?      // OTP used
+  ipAddress          String?
+  deviceInfo         String?
+  // --- Decline/Withdrawal Logic ---
+  declineReason      String?      @db.Text
+  declineCategory    String?      // 'DISPUTE', 'NOT_INFORMED', etc.
+  withdrawalReason   String?      @db.Text
+  // --- Legal Rep ---
+  hasLegalRepresentative     Boolean @default(false)
+  legalRepresentativeName    String?
+  legalRepresentativeContact String?
+  // --- Notes ---
+  notes           String?      @db.Text
+  internalNotes   String?      @db.Text
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([applicationId, familyMemberId]) // One consent per member per application
   @@map("family_consents")
 }
 // =============================================================================
-// AGGREGATE 3: EXECUTOR ROADMAP (The GPS)
-// Purpose: Dynamic Task List based on Context.
+// AGGREGATE ROOT: EXECUTOR ROADMAP
+// Purpose: AI-Powered Legal GPS System. Manages the execution workflow.
 // =============================================================================
 model ExecutorRoadmap {
   id                  String   @id @default(uuid()) @db.Uuid()
+  // --- Target & Context ---
   estateId            String   @unique @db.Uuid()
-  
-  currentPhase        RoadmapPhase @default(PRE_FILING)
-  percentComplete     Int          @default(0)
-  
+  readinessAssessmentId String @db.Uuid()
+  // Snapshot of context at creation/regeneration (Json)
+  successionContext   Json
+  readinessScore      Json?
+  // --- Current State ---
+  currentPhase        RoadmapPhase   @default(PRE_FILING)
+  status              RoadmapStatus  @default(DRAFT)
+  percentComplete     Int            @default(0)
+  // --- Phase Tracking (Complex JSON) ---
+  // Stores Map<RoadmapPhase, PhaseProgress>
+  phases              Json
+  // Stores PhaseHistory[]
+  phaseHistory        Json
+  // --- Counters ---
+  totalTasks          Int      @default(0)
+  completedTasks      Int      @default(0)
+  skippedTasks        Int      @default(0)
+  overdueTasks        Int      @default(0)
+  blockedTasks        Int      @default(0)
+  // --- Time Tracking ---
+  startedAt               DateTime  @default(now())
+  estimatedCompletionDate DateTime?
+  actualCompletionDate    DateTime?
+  totalTimeSpentHours     Float     @default(0)
+  // --- Risk Integration (Arrays of IDs) ---
+  blockedByRiskIds    String[]
+  resolvesRiskIds     String[]
+  linkedDocumentGaps  String[]
+  // --- Analytics (JSON) ---
+  analytics           Json
+  // --- User Progress ---
+  userId              String    @db.Uuid()
+  executorName        String
+  lastActiveAt        DateTime  @default(now())
+  daysInactive        Int       @default(0)
+  // --- Automation Settings ---
+  autoTransitionEnabled     Boolean @default(true)
+  autoTaskGenerationEnabled Boolean @default(true)
+  escalationThresholdDays   Int     @default(14)
+  // --- Metadata ---
+  version             Int       @default(1)
+  lastOptimizedAt     DateTime?
+  optimizationCount   Int       @default(0)
+  notes               String?   @db.Text
+  internalNotes       String?   @db.Text
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  // --- Child Entities ---
   tasks               RoadmapTask[]
-  
-  updatedAt           DateTime @updatedAt
+
   @@map("executor_roadmaps")
 }
 model RoadmapTask {
-  id              String   @id @default(uuid()) @db.Uuid()
-  roadmapId       String   @db.Uuid()
-  roadmap         ExecutorRoadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
-  
-  title           String   
-  description     String   @db.Text
-  category        String   
-  
-  status          TaskStatus @default(PENDING)
-  dueDate         DateTime?
-  completedAt     DateTime?
-  
-  dependsOnTaskId String?  @db.Uuid() 
-  proofDocumentId String?  @db.Uuid() 
-  
-  createdAt       DateTime @default(now())
+  id                  String   @id @default(uuid()) @db.Uuid()
+  roadmapId           String   @db.Uuid()
+  roadmap             ExecutorRoadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  // --- Identity ---
+  title               String
+  description         String   @db.Text
+  shortCode           String   @db.VarChar(50) // e.g. "DOC-001"
+  category            TaskCategory
+  priority            TaskPriority
+  status              TaskStatus @default(PENDING)
+  // --- Ordering ---
+  phase               RoadmapPhase
+  orderIndex          Int
+  // --- Dependencies (Arrays of IDs) ---
+  dependsOnTaskIds    String[]
+  blocksTaskIds       String[]
+  // --- Logic & Triggers ---
+  applicableContexts  String[]
+  triggers            TaskTrigger[]
+  legalReferences     Json     // Stores LegalReference[]
+  // --- Instructions & Content ---
+  detailedInstructions String[]
+  quickTips            String[]
+  commonMistakes       String[]
+  externalLinks        Json     // Stores ExternalLink[]
+  courtSpecificInstructions Json? // Map<Jurisdiction, Instruction>
+  // --- Proof Requirements ---
+  requiresProof        Boolean   @default(false)
+  proofTypes           ProofType[]
+  proofDocumentType    String?   // Mapped to DocumentGapType enum string
+  // --- Timing ---
+  dueDate              DateTime?
+  startDate            DateTime?
+  endDate              DateTime?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  skippedAt            DateTime?
+  lastRemindedAt       DateTime?
+  estimatedTimeMinutes Int       @default(0)
+  timeSpentMinutes     Int       @default(0)
+  // --- Status Details ---
+  completedBy          String?   // User ID
+  completionNotes      String?   @db.Text
+  skipReason           String?   @db.Text
+  waiverReason         String?   @db.Text
+  failureReason        String?   @db.Text
+  isOverdue            Boolean   @default(false)
+  // --- Retry & Escalation ---
+  retryCount           Int       @default(0)
+  lastAttemptedAt      DateTime?
+  reminderIntervalDays Int       @default(7)
+  escalationLevel      Int       @default(0)
+  autoEscalateAfterDays Int      @default(14)
+  // --- Integration & Metadata ---
+  relatedRiskFlagIds    String[]
+  relatedDocumentGapIds String[]
+  externalServiceId     String?
+  externalTaskId        String?
+  history               Json     // Stores TaskHistoryEntry[]
+  templateVersion       String?
+  tags                  String[]
+  // --- Audit ---
+  createdBy             String?
+  lastModifiedBy        String?
+  lastModifiedAt        DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([roadmapId, status])
+  @@index([category])
+  @@index([priority, isOverdue])
   @@map("roadmap_tasks")
 }
 // =============================================================================

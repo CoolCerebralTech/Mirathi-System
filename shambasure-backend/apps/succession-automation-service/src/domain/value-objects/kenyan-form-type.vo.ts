@@ -417,11 +417,6 @@ export class KenyanFormType extends ValueObject<KenyanFormTypeProps> {
 
     try {
       // Create safe evaluation context
-      const evalContext = {
-        context,
-        estateValue,
-        ...KenyanFormType.CONDITIONS,
-      };
 
       // Simple evaluation (in real system, use a safe evaluator like vm2)
       const condition = this.props.conditionalLogic
