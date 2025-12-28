@@ -2,9 +2,9 @@ import { Inject, Logger } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 
 import { UniqueEntityID } from '../../../../../domain/base/unique-entity-id';
-import { AssetType } from '../../../../../domain/enums/asset-type.enum';
 import { ESTATE_REPOSITORY } from '../../../../../domain/interfaces/estate.repository.interface';
 import type { IEstateRepository } from '../../../../../domain/interfaces/estate.repository.interface';
+import { AssetTypeVO } from '../../../../../domain/value-objects/asset-type.vo';
 import { Result } from '../../../../common/result';
 import { CheckSolvencyQuery } from '../../impl/estate-dashboard.query';
 import { SolvencyRadarVM } from '../../view-models/solvency-radar.vm';
@@ -18,8 +18,13 @@ export class CheckSolvencyHandler implements IQueryHandler<CheckSolvencyQuery> {
   async execute(query: CheckSolvencyQuery): Promise<Result<SolvencyRadarVM>> {
     const { dto } = query;
     try {
+      this.logger.log(`Running solvency check for Estate ID: ${dto.estateId}`);
+
       const estate = await this.estateRepository.findById(new UniqueEntityID(dto.estateId));
-      if (!estate) return Result.fail(new Error(`Estate not found: ${dto.estateId}`));
+      if (!estate) {
+        this.logger.warn(`Estate not found: ${dto.estateId}`);
+        return Result.fail(new Error(`Estate not found: ${dto.estateId}`));
+      }
 
       // 1. Calculate Aggregates
       const totalAssets = estate.assets.reduce((sum, a) => sum + a.currentValue.amount, 0);
@@ -28,7 +33,7 @@ export class CheckSolvencyHandler implements IQueryHandler<CheckSolvencyQuery> {
 
       // 2. Liquidity Analysis
       const financialAssets = estate.assets
-        .filter((a) => a.type.value === AssetType.FINANCIAL)
+        .filter((a) => a.type.equals(AssetTypeVO.createFinancial())) // ✅ safe VO comparison
         .reduce((sum, a) => sum + a.currentValue.amount, 0);
 
       const liquidTotal = cashOnHand + financialAssets;
@@ -108,8 +113,16 @@ export class CheckSolvencyHandler implements IQueryHandler<CheckSolvencyQuery> {
         recommendations,
       });
 
+      this.logger.log(
+        `Solvency check complete for Estate ID: ${dto.estateId}. Risk Level: ${riskLevel}, Health Score: ${healthScore}`,
+      );
+
       return Result.ok(vm);
     } catch (error) {
+      this.logger.error(
+        `Failed to run solvency check for Estate ID: ${dto.estateId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       return Result.fail(error as Error);
     }
   }

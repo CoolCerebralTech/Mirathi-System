@@ -77,7 +77,9 @@ export class AssetTypeVO extends SimpleValueObject<string> {
   isLiquid(): boolean {
     return [AssetTypeVO.FINANCIAL, AssetTypeVO.DIGITAL].includes(this.props.value);
   }
-
+  static create(type: string): AssetTypeVO {
+    return new AssetTypeVO(type);
+  }
   static createLand(): AssetTypeVO {
     return new AssetTypeVO(AssetTypeVO.LAND);
   }

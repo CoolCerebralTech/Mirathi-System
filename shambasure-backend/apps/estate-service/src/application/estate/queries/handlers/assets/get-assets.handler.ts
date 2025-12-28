@@ -1,5 +1,6 @@
 import { Inject } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
+import { AssetTypeVO } from 'apps/estate-service/src/domain/value-objects/asset-type.vo';
 
 import { UniqueEntityID } from '../../../../../domain/base/unique-entity-id';
 import { ESTATE_REPOSITORY } from '../../../../../domain/interfaces/estate.repository.interface';
@@ -19,7 +20,11 @@ export class GetEstateAssetsHandler implements IQueryHandler<GetEstateAssetsQuer
       if (!estate) return Result.fail(new Error(`Estate not found`));
 
       let assets = estate.assets;
-      if (dto.type) assets = assets.filter((a) => a.type.value === dto.type);
+      if (dto.type) {
+        const filterType = AssetTypeVO.create(dto.type);
+        assets = assets.filter((a) => a.type.equals(filterType));
+      }
+
       if (dto.status) assets = assets.filter((a) => a.status === dto.status);
       if (dto.isEncumbered !== undefined)
         assets = assets.filter((a) => a.isEncumbered === dto.isEncumbered);
@@ -41,10 +46,11 @@ export class GetEstateAssetsHandler implements IQueryHandler<GetEstateAssetsQuer
         estateSharePercentage:
           (a.getDistributableValue().amount / a.currentValue.amount) * 100 || 100,
         identifier:
-          a.landDetails?.titleDeedNumber ||
-          a.vehicleDetails?.registrationNumber ||
-          a.financialDetails?.accountNumber ||
+          a.landDetails?.toJSON().titleDeedNumber ||
+          a.vehicleDetails?.toJSON().registrationNumber ||
+          a.financialDetails?.toJSON().accountNumber ||
           'N/A',
+
         location: a.location,
       }));
 

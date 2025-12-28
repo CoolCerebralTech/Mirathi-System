@@ -1,6 +1,7 @@
 import { Inject, Logger } from '@nestjs/common';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 
+import { EstateStatus } from '../../../../../domain/aggregates/estate.aggregate';
 import { UniqueEntityID } from '../../../../../domain/base/unique-entity-id';
 import { ESTATE_REPOSITORY } from '../../../../../domain/interfaces/estate.repository.interface';
 import type { IEstateRepository } from '../../../../../domain/interfaces/estate.repository.interface';
@@ -17,8 +18,13 @@ export class GetEstateDashboardHandler implements IQueryHandler<GetEstateDashboa
   async execute(query: GetEstateDashboardQuery): Promise<Result<EstateDashboardVM>> {
     const { dto } = query;
     try {
+      this.logger.log(`Fetching estate dashboard for Estate ID: ${dto.estateId}`);
+
       const estate = await this.estateRepository.findById(new UniqueEntityID(dto.estateId));
-      if (!estate) return Result.fail(new Error(`Estate not found: ${dto.estateId}`));
+      if (!estate) {
+        this.logger.warn(`Estate not found: ${dto.estateId}`);
+        return Result.fail(new Error(`Estate not found: ${dto.estateId}`));
+      }
 
       const netWorth = estate.calculateNetWorth();
       const grossAssets = estate.assets.reduce((sum, a) => sum + a.currentValue.amount, 0);
@@ -74,15 +80,20 @@ export class GetEstateDashboardHandler implements IQueryHandler<GetEstateDashboa
         dependantCount: estate.dependants.length,
         openDisputeCount: estate.hasActiveDisputes ? 1 : 0,
         administrationProgress:
-          estate.status === 'READY_FOR_DISTRIBUTION'
+          estate.status === EstateStatus.DISTRIBUTING // ✅ use enum
             ? 90
-            : estate.status === 'LIQUIDATING'
+            : estate.status === EstateStatus.LIQUIDATING
               ? 50
               : 20,
       });
 
+      this.logger.log(`Estate dashboard built successfully for Estate ID: ${dto.estateId}`);
       return Result.ok(vm);
     } catch (error) {
+      this.logger.error(
+        `Failed to build estate dashboard for Estate ID: ${dto.estateId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       return Result.fail(error as Error);
     }
   }
