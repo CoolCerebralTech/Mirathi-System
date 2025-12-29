@@ -1,30 +1,37 @@
 // src/succession-automation/src/domain/repositories/i-readiness.repository.ts
 import { ReadinessAssessment } from '../aggregates/readiness-assessment.aggregate';
-import { RiskCategory, RiskSeverity } from '../entities/risk-flag.entity';
+import { RiskCategory } from '../entities/risk-flag.entity';
 import { ReadinessStatus } from '../value-objects/readiness-score.vo';
 
+export const READINESS_ASSESSMENT_REPOSITORY = 'READINESS_ASSESSMENT_REPOSITORY';
+
 /**
- * Readiness Assessment Repository Interface
- *
- * PURPOSE: Define the contract for persisting and retrieving ReadinessAssessment aggregates
- *
- * DESIGN PRINCIPLES:
- * - Interface (not implementation) - keeps domain layer clean
- * - Aggregate-oriented (save/load entire aggregate, not individual risks)
- * - Query methods return domain objects, not DTOs
- * - Support for optimistic locking via version
- *
- * IMPLEMENTATION NOTE:
- * Infrastructure layer (PrismaReadinessRepository) will implement this.
+ * Standard Pagination Options
  */
-export const READINESS_REPOSITORY = 'READINESS_REPOSITORY';
+export interface RepositoryQueryOptions {
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+/**
+ * Paginated Result Wrapper
+ */
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pages: number;
+  limit: number;
+}
 
 export interface IReadinessRepository {
   // ==================== CORE CRUD OPERATIONS ====================
 
   /**
    * Save a new assessment or update existing
-   * IMPORTANT: Must persist all child entities (RiskFlags) atomically
+   * MUST persist all child entities (RiskFlags) atomically
    */
   save(assessment: ReadinessAssessment): Promise<void>;
 
@@ -34,8 +41,7 @@ export interface IReadinessRepository {
   findById(id: string): Promise<ReadinessAssessment | null>;
 
   /**
-   * Find assessment by estate ID (most common query)
-   * BUSINESS RULE: One assessment per estate
+   * Find assessment by estate ID (1:1 Relationship)
    */
   findByEstateId(estateId: string): Promise<ReadinessAssessment | null>;
 
@@ -45,7 +51,7 @@ export interface IReadinessRepository {
   existsByEstateId(estateId: string): Promise<boolean>;
 
   /**
-   * Delete assessment (soft delete for audit trail)
+   * Delete assessment (Soft delete recommended)
    */
   delete(id: string): Promise<void>;
 
@@ -53,191 +59,71 @@ export interface IReadinessRepository {
 
   /**
    * Find all assessments with a specific status
-   * Use case: Dashboard showing all "Ready to File" cases
    */
   findByStatus(status: ReadinessStatus): Promise<ReadinessAssessment[]>;
 
   /**
-   * Find all assessments with critical risks
-   * Use case: Priority queue for support team
+   * Find all assessments with critical blocking risks
    */
   findWithCriticalRisks(): Promise<ReadinessAssessment[]>;
 
   /**
    * Find assessments with score in range
-   * Use case: Analytics - "How many cases are 50-79% ready?"
    */
   findByScoreRange(minScore: number, maxScore: number): Promise<ReadinessAssessment[]>;
 
   /**
    * Find stale assessments (not updated in X hours)
-   * Use case: Trigger recalculation for cases with old data
+   * Use case: Triggering background recalculation jobs
    */
   findStaleAssessments(staleHours: number): Promise<ReadinessAssessment[]>;
 
   /**
-   * Find assessments that can be completed (ready to file)
-   * Use case: Nudge users to finalize their cases
+   * Find assessments ready to complete/file
    */
   findReadyToComplete(): Promise<ReadinessAssessment[]>;
 
   /**
-   * Find assessments with specific risk category
-   * Use case: "Show me all cases with minor guardianship issues"
+   * Find assessments containing a specific risk category
    */
   findByRiskCategory(category: RiskCategory): Promise<ReadinessAssessment[]>;
 
-  // ==================== AGGREGATE STATISTICS ====================
+  // ==================== PAGINATION SUPPORT ====================
 
-  /**
-   * Count total assessments
-   */
+  findAllPaginated(options: RepositoryQueryOptions): Promise<PaginatedResult<ReadinessAssessment>>;
+
+  findByStatusPaginated(
+    status: ReadinessStatus,
+    options: RepositoryQueryOptions,
+  ): Promise<PaginatedResult<ReadinessAssessment>>;
+
+  // ==================== STATISTICS ====================
+
   count(): Promise<number>;
-
-  /**
-   * Count assessments by status
-   */
   countByStatus(status: ReadinessStatus): Promise<number>;
-
-  /**
-   * Get average readiness score across all active assessments
-   */
   getAverageScore(): Promise<number>;
 
   /**
-   * Get most common risk categories
-   * Use case: Identify system-wide patterns
+   * Analytics: Get most common risk categories across the system
    */
   getMostCommonRisks(limit: number): Promise<Array<{ category: RiskCategory; count: number }>>;
 
   // ==================== BATCH OPERATIONS ====================
 
   /**
-   * Save multiple assessments in a single transaction
-   * Use case: Bulk recalculation triggered by external event
+   * Save multiple assessments (bulk recalculation)
    */
   saveAll(assessments: ReadinessAssessment[]): Promise<void>;
 
-  /**
-   * Find assessments by multiple estate IDs
-   * Use case: Batch processing for related estates
-   */
   findByEstateIds(estateIds: string[]): Promise<ReadinessAssessment[]>;
 
   // ==================== RISK FLAG QUERIES ====================
 
   /**
-   * Find all assessments with unresolved risks of specific severity
-   * Use case: Support team prioritization
-   */
-  findWithUnresolvedRisksBySeverity(severity: RiskSeverity): Promise<ReadinessAssessment[]>;
-
-  /**
-   * Find assessments with specific risk source
-   * Use case: When Family Service updates a guardian, find affected assessments
+   * Find assessments affected by a specific source event
+   * e.g. "Find all assessments that have risks generated by Family Member X"
    */
   findByRiskSource(sourceType: string, sourceEntityId: string): Promise<ReadinessAssessment[]>;
 
-  /**
-   * Count unresolved risks across all assessments
-   * Use case: System health dashboard
-   */
   countUnresolvedRisks(): Promise<number>;
-
-  // ==================== ADVANCED QUERIES ====================
-
-  /**
-   * Find assessments that improved score in last N days
-   * Use case: Success metrics, user engagement tracking
-   */
-  findRecentImprovements(days: number): Promise<ReadinessAssessment[]>;
-
-  /**
-   * Find assessments blocked for longest time
-   * Use case: Identify cases needing manual intervention
-   */
-  findLongestBlocked(limit: number): Promise<ReadinessAssessment[]>;
-
-  /**
-   * Find assessments with specific succession context attributes
-   * Use case: "Show me all Islamic intestate cases with minors"
-   */
-  findByContextAttributes(filters: {
-    regime?: string;
-    marriageType?: string;
-    religion?: string;
-    hasMinors?: boolean;
-  }): Promise<ReadinessAssessment[]>;
-
-  // ==================== AUDIT & COMPLIANCE ====================
-
-  /**
-   * Get assessment history (all versions via event sourcing)
-   * Use case: Legal audit trail
-   */
-  getHistory(assessmentId: string): Promise<
-    Array<{
-      version: number;
-      eventType: string;
-      occurredAt: Date;
-      payload: any;
-    }>
-  >;
-
-  /**
-   * Find assessments modified by specific user
-   * Use case: Track assessor activity
-   */
-  findByModifiedBy(userId: string): Promise<ReadinessAssessment[]>;
-
-  /**
-   * Get assessment snapshot at specific point in time
-   * Use case: "What did this assessment look like 2 weeks ago?"
-   */
-  getSnapshotAt(assessmentId: string, timestamp: Date): Promise<ReadinessAssessment | null>;
-}
-
-/**
- * Query Options for Pagination & Sorting
- */
-export interface QueryOptions {
-  page?: number;
-  limit?: number;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-}
-
-/**
- * Extended Repository Interface with Pagination Support
- */
-export interface IReadinessRepositoryPaginated extends IReadinessRepository {
-  /**
-   * Find with pagination
-   */
-  findAll(options: QueryOptions): Promise<{
-    items: ReadinessAssessment[];
-    total: number;
-    page: number;
-    pages: number;
-  }>;
-
-  /**
-   * Find by status with pagination
-   */
-  findByStatusPaginated(
-    status: ReadinessStatus,
-    options: QueryOptions,
-  ): Promise<{
-    items: ReadinessAssessment[];
-    total: number;
-    page: number;
-    pages: number;
-  }>;
-}
-
-/**
- * Repository Factory (for testing/mocking)
- */
-export interface IReadinessRepositoryFactory {
-  create(): IReadinessRepository;
 }
