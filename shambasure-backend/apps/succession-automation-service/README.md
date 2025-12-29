@@ -293,3 +293,64 @@ src/succession-automation/src/application/roadmap/
     ├── i-document-service.adapter.ts          # To verify proofs/attachments
     ├── i-notification-service.adapter.ts      # To send push/email reminders
     └── i-ai-prediction.adapter.ts             # Interface for the ML Time Estimation model
+
+src/succession-automation/src/presentation/roadmap/
+│
+├── controllers/
+│   ├── roadmap.command.controller.ts      # [WRITE API] Central Hub for Roadmap Mutations.
+│   │                                      # Endpoints: POST /roadmaps (Generate)
+│   │                                      # POST /roadmaps/{id}/optimize (AI Re-calc)
+│   │                                      #
+│   │                                      # Task Ops: POST /roadmaps/{id}/tasks/{taskId}/start
+│   │                                      #           POST /roadmaps/{id}/tasks/{taskId}/proof
+│   │                                      #           POST /roadmaps/{id}/tasks/{taskId}/skip
+│   │                                      #           POST /roadmaps/{id}/tasks/{taskId}/waive
+│   │                                      #
+│   │                                      # Phase: PATCH /roadmaps/{id}/phase/transition
+│   │                                      # Risk:  POST /roadmaps/{id}/risks/link
+│   │
+│   └── roadmap.query.controller.ts        # [READ API] Dashboard & Executor Insights.
+│                                          # Endpoints: GET /roadmaps/{id}/dashboard (Main Cockpit)
+│                                          # GET /roadmaps/{id}/tasks (Paginated & Filtered List)
+│                                          # GET /roadmaps/{id}/tasks/{taskId} (Deep Detail)
+│                                          # GET /roadmaps/{id}/analytics (Time/Cost Stats)
+│                                          # GET /roadmaps/{id}/critical-path (Bottleneck View)
+│
+├── dtos/
+│   ├── request/                           # [INPUTS] Validated & Swagger Decorated (@ApiProperty)
+│   │   // --- Lifecycle & Generation ---
+│   │   ├── generate-roadmap.request.dto.ts    # Initial trigger (estateId, readinessId)
+│   │   ├── regenerate-roadmap.request.dto.ts  # Context change trigger
+│   │   ├── optimize-roadmap.request.dto.ts    # AI Trigger (Speed vs Cost preference)
+│   │
+│   │   // --- Task Execution (The Daily Work) ---
+│   │   ├── submit-task-proof.request.dto.ts   # Uploads, Receipts, Notes
+│   │   ├── skip-task.request.dto.ts           # Requires reason
+│   │   ├── waive-task.request.dto.ts          # Requires court order ref
+│   │   ├── escalate-task.request.dto.ts       # "Help me" trigger
+│   │
+│   │   // --- Phase Management ---
+│   │   ├── transition-phase.request.dto.ts    # Explicit move to next stage
+│   │
+│   │   // --- Risk Integration ---
+│   │   ├── link-risk.request.dto.ts           # Blocking logic
+│   │
+│   │   // --- Query Filters (GET Params) ---
+│   │   ├── task-filter.request.dto.ts         # Phase, Status, Priority, Overdue
+│   │
+│   └── response/                          # [OUTPUTS] ViewModels mapped to Clean JSON
+│       ├── roadmap-dashboard.response.dto.ts  # Progress bars, Phase Status, Next Action
+│       ├── task-list.response.dto.ts          # Paginated summary list
+│       ├── task-detail.response.dto.ts        # Instructions, Links, History, Dependencies
+│       ├── roadmap-analytics.response.dto.ts  # Charts: Estimated vs Actual, Efficiency
+│       ├── critical-path.response.dto.ts      # Linear list of blocking tasks
+│
+└── mappers/
+    └── roadmap-presenter.mapper.ts        # [TRANSFORMER]
+                                           # Converts App ViewModels -> Response DTOs
+                                           # Handles:
+                                           # - Date ISO string formatting
+                                           # - Task Status Icons/Colors
+                                           # - Localized Phase Names
+                                           # - Hiding internal IDs/Metadata
+                                           

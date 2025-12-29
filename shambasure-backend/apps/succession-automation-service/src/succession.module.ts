@@ -38,16 +38,53 @@ import {
   SimulateScoreHandler,
 } from './application/readiness/queries/handlers';
 // =============================================================================
-// 3. DOMAIN SERVICES
+// 5. DOMAIN & APPLICATION SERVICES
 // =============================================================================
+// Readiness
 import { ComplianceRuleEngineService } from './application/readiness/services/compliance-rule-engine.service';
 import { ContextAnalyzerService } from './application/readiness/services/context-analyzer.service';
 import { GapAnalysisService } from './application/readiness/services/gap-analysis.service';
 import { StrategyGeneratorService } from './application/readiness/services/strategy-generator.service';
 // =============================================================================
+// 3. HANDLERS: EXECUTOR ROADMAP (Commands)
+// =============================================================================
+import { GenerateRoadmapHandler } from './application/roadmap/commands/handlers/generate-roadmap.handler';
+import { OptimizeRoadmapHandler } from './application/roadmap/commands/handlers/optimization.handlers';
+import { TransitionPhaseHandler } from './application/roadmap/commands/handlers/phase.handlers';
+import { LinkRiskToTaskHandler } from './application/roadmap/commands/handlers/risk.handlers';
+import {
+  SkipTaskHandler,
+  StartTaskHandler,
+  SubmitTaskProofHandler,
+} from './application/roadmap/commands/handlers/task-execution.handlers';
+// =============================================================================
+// 4. HANDLERS: EXECUTOR ROADMAP (Queries)
+// =============================================================================
+import {
+  GetCriticalPathHandler,
+  GetRoadmapAnalyticsHandler,
+  GetRoadmapDashboardHandler,
+} from './application/roadmap/queries/handlers/dashboard.handlers';
+import {
+  GetTaskDetailsHandler,
+  GetTaskHistoryHandler,
+  GetTaskListHandler,
+} from './application/roadmap/queries/handlers/task.handlers';
+// Roadmap (Smart Navigation & Automation)
+import { CriticalPathEngineService } from './application/roadmap/services/smart-navigation/critical-path-engine.service';
+import { EfficiencyScorerService } from './application/roadmap/services/smart-navigation/efficiency-scorer.service';
+import { PredictiveAnalysisService } from './application/roadmap/services/smart-navigation/predictive-analysis.service';
+import { AutoGeneratorService } from './application/roadmap/services/task-automation/auto-generator.service';
+import { DependencyResolverService } from './application/roadmap/services/task-automation/dependency-resolver.service';
+import { ProofValidatorService } from './application/roadmap/services/task-automation/proof-validator.service';
+// =============================================================================
 // CONSTANTS & TOKENS
 // =============================================================================
 import { READINESS_ASSESSMENT_REPOSITORY } from './domain/repositories/i-readiness.repository';
+import { EXECUTOR_ROADMAP_REPOSITORY } from './domain/repositories/i-roadmap.repository';
+// =============================================================================
+// INFRASTRUCTURE (Adapters)
+// =============================================================================
 import { DocumentServiceAdapter } from './infrastructure/adapters/document-service.adapter';
 import { EstateServiceAdapter } from './infrastructure/adapters/estate-service.adapter';
 import { FamilyServiceAdapter } from './infrastructure/adapters/family-service.adapter';
@@ -62,15 +99,20 @@ import { ReadinessAssessmentMapper } from './infrastructure/persistence/mappers/
 import { RiskFlagMapper } from './infrastructure/persistence/mappers/risk-flag.mapper';
 import { RoadmapTaskMapper } from './infrastructure/persistence/mappers/roadmap-task.mapper';
 // =============================================================================
-// INFRASTRUCTURE (Repositories & Adapters)
+// INFRASTRUCTURE (Repositories)
 // =============================================================================
+import { PrismaExecutorRoadmapRepository } from './infrastructure/persistence/repositories/prisma-executor-roadmap.repository';
 import { PrismaReadinessRepository } from './infrastructure/persistence/repositories/prisma-readiness-assessment.repository';
-import { HealthController } from './presentantion/health/health.controller';
 // =============================================================================
 // CONTROLLERS
 // =============================================================================
-import { ReadinessCommandController } from './presentantion/readiness/controllers/readiness.command.controller';
-import { ReadinessQueryController } from './presentantion/readiness/controllers/readiness.query.controller';
+import { HealthController } from './presentation/health/health.controller';
+// Readiness Controllers (using existing path)
+import { ReadinessCommandController } from './presentation/readiness/controllers/readiness.command.controller';
+import { ReadinessQueryController } from './presentation/readiness/controllers/readiness.query.controller';
+// Roadmap Controllers (using new path)
+import { RoadmapCommandController } from './presentation/roadmap/controllers/roadmap.command.controller';
+import { RoadmapQueryController } from './presentation/roadmap/controllers/roadmap.query.controller';
 
 // --- HANDLER ARRAYS ---
 
@@ -94,6 +136,34 @@ const ReadinessQueryHandlers = [
   SimulateScoreHandler,
 ];
 
+const RoadmapCommandHandlers = [
+  GenerateRoadmapHandler,
+  OptimizeRoadmapHandler,
+  StartTaskHandler,
+  SubmitTaskProofHandler,
+  SkipTaskHandler,
+  TransitionPhaseHandler,
+  LinkRiskToTaskHandler,
+];
+
+const RoadmapQueryHandlers = [
+  GetRoadmapDashboardHandler,
+  GetRoadmapAnalyticsHandler,
+  GetCriticalPathHandler,
+  GetTaskListHandler,
+  GetTaskDetailsHandler,
+  GetTaskHistoryHandler,
+];
+
+const RoadmapServices = [
+  CriticalPathEngineService,
+  PredictiveAnalysisService,
+  EfficiencyScorerService,
+  AutoGeneratorService,
+  DependencyResolverService,
+  ProofValidatorService,
+];
+
 @Module({
   imports: [
     CqrsModule,
@@ -103,7 +173,13 @@ const ReadinessQueryHandlers = [
     ObservabilityModule.register({ serviceName: 'succession-service', version: '1.0.0' }),
     NotificationModule,
   ],
-  controllers: [HealthController, ReadinessCommandController, ReadinessQueryController],
+  controllers: [
+    HealthController,
+    ReadinessCommandController,
+    ReadinessQueryController,
+    RoadmapCommandController,
+    RoadmapQueryController,
+  ],
   providers: [
     // --- 1. MAPPERS ---
     ReadinessAssessmentMapper,
@@ -119,12 +195,18 @@ const ReadinessQueryHandlers = [
     ContextAnalyzerService,
     GapAnalysisService,
     StrategyGeneratorService,
+    ...RoadmapServices,
 
     // --- 3. REPOSITORIES ---
     PrismaReadinessRepository,
+    PrismaExecutorRoadmapRepository,
     {
       provide: READINESS_ASSESSMENT_REPOSITORY,
       useExisting: PrismaReadinessRepository,
+    },
+    {
+      provide: EXECUTOR_ROADMAP_REPOSITORY,
+      useExisting: PrismaExecutorRoadmapRepository,
     },
 
     // --- 4. EXTERNAL ADAPTERS ---
@@ -147,7 +229,9 @@ const ReadinessQueryHandlers = [
     // --- 5. CQRS HANDLERS ---
     ...ReadinessCommandHandlers,
     ...ReadinessQueryHandlers,
+    ...RoadmapCommandHandlers,
+    ...RoadmapQueryHandlers,
   ],
-  exports: [READINESS_ASSESSMENT_REPOSITORY],
+  exports: [READINESS_ASSESSMENT_REPOSITORY, EXECUTOR_ROADMAP_REPOSITORY],
 })
 export class SuccessionModule {}
