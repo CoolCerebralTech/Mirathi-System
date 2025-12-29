@@ -1,24 +1,41 @@
 // src/succession-automation/src/infrastructure/persistence/repositories/prisma-readiness-assessment.repository.ts
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  Prisma,
+  ReadinessAssessment as PrismaReadinessAssessmentModelType,
+  ReadinessStatus as PrismaReadinessStatus,
+  RiskCategory as PrismaRiskCategory,
+  RiskFlag as PrismaRiskFlagModelType,
+  RiskSeverity as PrismaRiskSeverity,
+  RiskSourceType as PrismaRiskSourceType,
+  RiskStatus as PrismaRiskStatus,
+  SuccessionMarriageType as PrismaSuccessionMarriageType,
+  SuccessionRegime as PrismaSuccessionRegime,
+  SuccessionReligion as PrismaSuccessionReligion,
+} from '@prisma/client';
 
+// Import Prisma types
 import { PrismaService } from '@shamba/database';
 
 import { ReadinessAssessment } from '../../../domain/aggregates/readiness-assessment.aggregate';
 import { RiskCategory, RiskSeverity } from '../../../domain/entities/risk-flag.entity';
 import {
   IReadinessRepository,
-  IReadinessRepositoryPaginated,
   PaginatedResult,
   RepositoryQueryOptions,
 } from '../../../domain/repositories/i-readiness.repository';
+// Corrected import
 import { ReadinessStatus } from '../../../domain/value-objects/readiness-score.vo';
-import { ReadinessAssessmentMapper } from '../mappers/readiness-assessment.mapper';
+import {
+  PrismaReadinessAssessmentModel,
+  ReadinessAssessmentMapper,
+} from '../mappers/readiness-assessment.mapper';
+import { PrismaRiskFlagModel } from '../mappers/risk-flag.mapper';
+
+// Used for consistency in loadAggregates helper
 
 @Injectable()
-export class PrismaReadinessRepository
-  implements IReadinessRepository, IReadinessRepositoryPaginated
-{
+export class PrismaReadinessRepository implements IReadinessRepository {
   private readonly logger = new Logger(PrismaReadinessRepository.name);
 
   constructor(private readonly prisma: PrismaService) {}
@@ -27,7 +44,7 @@ export class PrismaReadinessRepository
 
   async save(assessment: ReadinessAssessment): Promise<void> {
     try {
-      const { assessment: assessmentData, risks: riskData } =
+      const { assessment: assessmentPersistenceData, risks: riskPersistenceData } =
         ReadinessAssessmentMapper.toPersistence(assessment);
 
       const assessmentId = assessment.id.toString();
@@ -51,32 +68,34 @@ export class PrismaReadinessRepository
           // Update Assessment
           await tx.readinessAssessment.update({
             where: { id: assessmentId },
-            data: assessmentData,
+            // Cast to Prisma's generated type for safety
+            data: assessmentPersistenceData as Prisma.ReadinessAssessmentUpdateInput,
           });
 
           // Replace RiskFlags (Full replacement strategy for aggregates)
-          // First, delete existing
           await tx.riskFlag.deleteMany({
             where: { assessmentId },
           });
         } else {
           // Create New Assessment
           await tx.readinessAssessment.create({
-            data: assessmentData,
+            // Cast to Prisma's generated type for safety
+            data: assessmentPersistenceData as Prisma.ReadinessAssessmentCreateInput,
           });
         }
 
         // 2. Insert Risk Flags
-        if (riskData.length > 0) {
-          // Ensure assessmentId is set on all risks
-          const risksWithFK = riskData.map((r: any) => ({
+        if (riskPersistenceData.length > 0) {
+          // Ensure assessmentId is set on all risks before creating
+          const risksWithFK = riskPersistenceData.map((r: any) => ({
             ...r,
             assessmentId,
           }));
 
           await tx.riskFlag.createMany({
-            data: risksWithFK,
-            skipDuplicates: true, // Idempotency
+            // Cast to Prisma's generated type for safety
+            data: risksWithFK as Prisma.RiskFlagCreateManyInput[],
+            skipDuplicates: true,
           });
         }
       });
@@ -100,7 +119,11 @@ export class PrismaReadinessRepository
         where: { assessmentId: id },
       });
 
-      return ReadinessAssessmentMapper.toDomain(assessmentModel, riskModels);
+      // Use the mapper's specific model interface for type safety
+      return ReadinessAssessmentMapper.toDomain(
+        assessmentModel as PrismaReadinessAssessmentModel,
+        riskModels as PrismaRiskFlagModel[],
+      );
     } catch (error) {
       this.logger.error(`Error finding assessment by ID ${id}: ${error.message}`);
       throw error;
@@ -119,7 +142,10 @@ export class PrismaReadinessRepository
         where: { assessmentId: assessmentModel.id },
       });
 
-      return ReadinessAssessmentMapper.toDomain(assessmentModel, riskModels);
+      return ReadinessAssessmentMapper.toDomain(
+        assessmentModel as PrismaReadinessAssessmentModel,
+        riskModels as PrismaRiskFlagModel[],
+      );
     } catch (error) {
       this.logger.error(`Error finding assessment for estate ${estateId}: ${error.message}`);
       throw error;
@@ -136,7 +162,6 @@ export class PrismaReadinessRepository
   async delete(id: string): Promise<void> {
     try {
       await this.prisma.$transaction(async (tx) => {
-        // Delete children first (though cascade might handle this, explicit is safer in code)
         await tx.riskFlag.deleteMany({
           where: { assessmentId: id },
         });
@@ -154,10 +179,12 @@ export class PrismaReadinessRepository
   // ==================== QUERY OPERATIONS ====================
 
   async findByStatus(status: ReadinessStatus): Promise<ReadinessAssessment[]> {
-    // Leveraging the denormalized 'status' column mapped in mapper
+    // Map domain enum to Prisma enum
+    const prismaStatus = this.mapToPrismaReadinessStatus(status);
+
     const assessments = await this.prisma.readinessAssessment.findMany({
       where: {
-        status: status as string,
+        status: prismaStatus,
       },
     });
     return this.loadAggregates(assessments);
@@ -167,8 +194,8 @@ export class PrismaReadinessRepository
     // Find IDs where Critical Risks exist
     const assessmentIds = await this.prisma.riskFlag.findMany({
       where: {
-        severity: 'CRITICAL',
-        riskStatus: 'ACTIVE',
+        severity: PrismaRiskSeverity.CRITICAL,
+        riskStatus: PrismaRiskStatus.ACTIVE,
       },
       select: { assessmentId: true },
       distinct: ['assessmentId'],
@@ -186,16 +213,14 @@ export class PrismaReadinessRepository
   }
 
   async findByScoreRange(minScore: number, maxScore: number): Promise<ReadinessAssessment[]> {
-    // Leveraging the denormalized 'readinessScore' column (Int)
+    // Using the 'readinessScore' Int column from schema
     const assessments = await this.prisma.readinessAssessment.findMany({
       where: {
-        // Note: The schema definition had 'readinessScore Int'.
-        // If it's stored as Int column:
-        readinessScoreValue: {
+        readinessScore: {
           gte: minScore,
           lte: maxScore,
         },
-      } as any, // Casting because Prisma types generated might differ slightly depending on schema updates
+      },
     });
 
     return this.loadAggregates(assessments);
@@ -210,7 +235,7 @@ export class PrismaReadinessRepository
         lastAssessedAt: {
           lt: cutoff,
         },
-        isComplete: false, // Completed ones don't need recalculation
+        isComplete: false,
       },
     });
 
@@ -218,10 +243,9 @@ export class PrismaReadinessRepository
   }
 
   async findReadyToComplete(): Promise<ReadinessAssessment[]> {
-    // Logic: Status is READY_TO_FILE and not yet complete
     const assessments = await this.prisma.readinessAssessment.findMany({
       where: {
-        status: 'READY_TO_FILE',
+        status: PrismaReadinessStatus.READY_TO_FILE,
         isComplete: false,
       },
     });
@@ -230,10 +254,13 @@ export class PrismaReadinessRepository
   }
 
   async findByRiskCategory(category: RiskCategory): Promise<ReadinessAssessment[]> {
+    // Map domain enum to Prisma enum
+    const prismaCategory = this.mapToPrismaRiskCategory(category);
+
     const assessmentIds = await this.prisma.riskFlag.findMany({
       where: {
-        category: category as string, // Enum match
-        riskStatus: 'ACTIVE',
+        category: prismaCategory,
+        riskStatus: PrismaRiskStatus.ACTIVE,
       },
       select: { assessmentId: true },
       distinct: ['assessmentId'],
@@ -257,7 +284,7 @@ export class PrismaReadinessRepository
     const limit = options.limit || 20;
     const skip = (page - 1) * limit;
 
-    const orderBy = options.sortBy
+    const orderBy: Prisma.ReadinessAssessmentOrderByWithRelationInput = options.sortBy
       ? { [options.sortBy]: options.sortOrder || 'desc' }
       : { updatedAt: 'desc' };
 
@@ -289,8 +316,14 @@ export class PrismaReadinessRepository
     const limit = options.limit || 20;
     const skip = (page - 1) * limit;
 
-    const where = { status: status as string };
-    const orderBy = options.sortBy
+    // Map domain enum to Prisma enum
+    const prismaStatus = this.mapToPrismaReadinessStatus(status);
+
+    const where: Prisma.ReadinessAssessmentWhereInput = {
+      status: prismaStatus,
+    };
+
+    const orderBy: Prisma.ReadinessAssessmentOrderByWithRelationInput = options.sortBy
       ? { [options.sortBy]: options.sortOrder || 'desc' }
       : { updatedAt: 'desc' };
 
@@ -322,27 +355,28 @@ export class PrismaReadinessRepository
   }
 
   async countByStatus(status: ReadinessStatus): Promise<number> {
+    const prismaStatus = this.mapToPrismaReadinessStatus(status);
     return await this.prisma.readinessAssessment.count({
-      where: { status: status as string },
+      where: { status: prismaStatus },
     });
   }
 
   async getAverageScore(): Promise<number> {
     const aggregations = await this.prisma.readinessAssessment.aggregate({
       _avg: {
-        readinessScoreValue: true,
+        readinessScore: true, // Using the Int column from schema
       },
     });
-    return aggregations._avg.readinessScoreValue || 0;
+    // Use optional chaining and nullish coalescing for safety
+    return aggregations._avg.readinessScore ?? 0;
   }
 
   async getMostCommonRisks(
     limit: number,
   ): Promise<Array<{ category: RiskCategory; count: number }>> {
-    // Group by category on RiskFlag table
     const groups = await this.prisma.riskFlag.groupBy({
       by: ['category'],
-      where: { riskStatus: 'ACTIVE' },
+      where: { riskStatus: PrismaRiskStatus.ACTIVE },
       _count: {
         category: true,
       },
@@ -355,7 +389,7 @@ export class PrismaReadinessRepository
     });
 
     return groups.map((g) => ({
-      category: g.category as RiskCategory,
+      category: this.mapToDomainRiskCategory(g.category),
       count: g._count.category,
     }));
   }
@@ -363,34 +397,34 @@ export class PrismaReadinessRepository
   // ==================== BATCH OPERATIONS ====================
 
   async saveAll(assessments: ReadinessAssessment[]): Promise<void> {
-    // Saving Aggregates in batch is complex because of child relationships.
-    // We execute sequentially inside a transaction to ensure integrity.
     await this.prisma.$transaction(async (tx) => {
       for (const assessment of assessments) {
-        // Reuse logic from single save, but using the transaction client 'tx'
-        // Ideally refactor 'save' to accept a tx, but for now we inline logic or just loop.
-        // For performance, we loop `save` but wrapped in one transaction block.
+        const { assessment: assessmentPersistenceData, risks: riskPersistenceData } =
+          ReadinessAssessmentMapper.toPersistence(assessment);
 
-        // Note: Calling this.save() inside here won't use the transaction.
-        // We implement the save logic directly here.
-
-        const { assessment: data, risks } = ReadinessAssessmentMapper.toPersistence(assessment);
-
-        // Upsert Assessment
-        await tx.readinessAssessment.upsert({
+        const existing = await tx.readinessAssessment.findUnique({
           where: { id: assessment.id.toString() },
-          update: data,
-          create: data,
+          select: { version: true },
         });
 
-        // Replace Risks
-        await tx.riskFlag.deleteMany({ where: { assessmentId: assessment.id.toString() } });
-        if (risks.length > 0) {
-          const risksWithFK = risks.map((r: any) => ({
+        if (existing) {
+          await tx.readinessAssessment.update({
+            where: { id: assessment.id.toString() },
+            data: assessmentPersistenceData as Prisma.ReadinessAssessmentUpdateInput,
+          });
+          await tx.riskFlag.deleteMany({ where: { assessmentId: assessment.id.toString() } });
+        } else {
+          await tx.readinessAssessment.create({
+            data: assessmentPersistenceData as Prisma.ReadinessAssessmentCreateInput,
+          });
+        }
+
+        if (riskPersistenceData.length > 0) {
+          const risksWithFK = riskPersistenceData.map((r: any) => ({
             ...r,
             assessmentId: assessment.id.toString(),
           }));
-          await tx.riskFlag.createMany({ data: risksWithFK });
+          await tx.riskFlag.createMany({ data: risksWithFK as Prisma.RiskFlagCreateManyInput[] });
         }
       }
     });
@@ -408,10 +442,12 @@ export class PrismaReadinessRepository
   // ==================== RISK FLAG QUERIES ====================
 
   async findWithUnresolvedRisksBySeverity(severity: RiskSeverity): Promise<ReadinessAssessment[]> {
+    const prismaSeverity = this.mapToPrismaRiskSeverity(severity);
+
     const assessmentIds = await this.prisma.riskFlag.findMany({
       where: {
-        severity: severity as string,
-        riskStatus: 'ACTIVE',
+        severity: prismaSeverity,
+        riskStatus: PrismaRiskStatus.ACTIVE,
       },
       select: { assessmentId: true },
       distinct: ['assessmentId'],
@@ -429,10 +465,14 @@ export class PrismaReadinessRepository
     sourceType: string,
     sourceEntityId: string,
   ): Promise<ReadinessAssessment[]> {
+    // Validate and map sourceType to Prisma enum
+    const prismaSourceType = this.mapToPrismaRiskSourceType(sourceType);
+
     const assessmentIds = await this.prisma.riskFlag.findMany({
       where: {
-        sourceType: sourceType,
+        sourceType: prismaSourceType,
         sourceEntityId: sourceEntityId,
+        riskStatus: PrismaRiskStatus.ACTIVE,
       },
       select: { assessmentId: true },
       distinct: ['assessmentId'],
@@ -449,7 +489,7 @@ export class PrismaReadinessRepository
   async countUnresolvedRisks(): Promise<number> {
     return await this.prisma.riskFlag.count({
       where: {
-        riskStatus: 'ACTIVE',
+        riskStatus: PrismaRiskStatus.ACTIVE,
       },
     });
   }
@@ -460,13 +500,10 @@ export class PrismaReadinessRepository
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
 
-    // Finding items updated recently where score is high is a heuristic
-    // True improvement tracking requires history table/event store.
-    // Here we return active, high scoring assessments updated recently.
     const assessments = await this.prisma.readinessAssessment.findMany({
       where: {
         updatedAt: { gte: cutoff },
-        readinessScoreValue: { gte: 80 }, // Assuming improvement implies crossing threshold
+        readinessScore: { gte: 80 }, // Using the Int column
       },
     });
 
@@ -474,14 +511,13 @@ export class PrismaReadinessRepository
   }
 
   async findLongestBlocked(limit: number): Promise<ReadinessAssessment[]> {
-    // Assessments blocked and created longest ago
     const assessments = await this.prisma.readinessAssessment.findMany({
       where: {
-        status: 'BLOCKED',
+        status: PrismaReadinessStatus.BLOCKED,
         isComplete: false,
       },
       orderBy: {
-        createdAt: 'asc', // Oldest first
+        createdAt: 'asc', // Oldest blocked first
       },
       take: limit,
     });
@@ -497,9 +533,14 @@ export class PrismaReadinessRepository
   }): Promise<ReadinessAssessment[]> {
     const where: Prisma.ReadinessAssessmentWhereInput = {};
 
-    if (filters.regime) where.contextRegime = filters.regime as any; // Enum
-    if (filters.marriageType) where.contextMarriage = filters.marriageType as any;
-    if (filters.religion) where.contextReligion = filters.religion as any;
+    // FIXED: Use top-level Enums, NOT Prisma.EnumName
+    if (filters.regime) where.contextRegime = filters.regime as PrismaSuccessionRegime;
+
+    if (filters.marriageType)
+      where.contextMarriage = filters.marriageType as PrismaSuccessionMarriageType;
+
+    if (filters.religion) where.contextReligion = filters.religion as PrismaSuccessionReligion;
+
     if (filters.hasMinors !== undefined) where.isMinorInvolved = filters.hasMinors;
 
     const assessments = await this.prisma.readinessAssessment.findMany({ where });
@@ -511,29 +552,40 @@ export class PrismaReadinessRepository
   async getHistory(
     assessmentId: string,
   ): Promise<Array<{ version: number; eventType: string; occurredAt: Date; payload: any }>> {
-    // This requires an Event Store or Audit Log table.
-    // Returning empty array as strict placeholder for now, assuming Audit service handles this separately.
+    // Placeholder implementation for event sourcing/audit log.
+    await Promise.resolve();
+    this.logger.warn(
+      `[ReadinessRepo] getHistory for ${assessmentId} is a placeholder and not fully implemented.`,
+    );
     return [];
   }
 
   async findByModifiedBy(userId: string): Promise<ReadinessAssessment[]> {
-    // Schema doesn't currently store 'lastModifiedBy' on root, relying on Audit logs.
-    // If needed, we would add that column.
+    // Placeholder implementation.
+    await Promise.resolve();
+    this.logger.warn(
+      `[ReadinessRepo] findByModifiedBy for ${userId} is a placeholder and not fully implemented.`,
+    );
     return [];
   }
 
   async getSnapshotAt(assessmentId: string, timestamp: Date): Promise<ReadinessAssessment | null> {
-    // Requires Temporal Tables or Event Sourcing.
-    // Fallback: Return current if close enough, or null.
+    // Placeholder implementation for temporal queries.
+    await Promise.resolve();
+    this.logger.warn(
+      `[ReadinessRepo] getSnapshotAt for ${assessmentId} at ${timestamp.toISOString()} is a placeholder and not fully implemented.`,
+    );
     return null;
   }
 
-  // ==================== HELPER METHODS ====================
+  // ==================== PRIVATE HELPER METHODS ====================
 
   /**
-   * Efficiently loads Aggregate Roots by fetching children in batch
+   * Efficiently loads ReadinessAssessment aggregates by fetching related RiskFlags in batch.
    */
-  private async loadAggregates(models: any[]): Promise<ReadinessAssessment[]> {
+  private async loadAggregates(
+    models: PrismaReadinessAssessmentModelType[],
+  ): Promise<ReadinessAssessment[]> {
     if (models.length === 0) return [];
 
     const ids = models.map((m) => m.id);
@@ -544,7 +596,7 @@ export class PrismaReadinessRepository
     });
 
     // Group risks by assessment ID
-    const riskMap = new Map<string, any[]>();
+    const riskMap = new Map<string, PrismaRiskFlagModelType[]>();
     allRisks.forEach((risk) => {
       const existing = riskMap.get(risk.assessmentId) || [];
       existing.push(risk);
@@ -554,7 +606,68 @@ export class PrismaReadinessRepository
     // Reconstitute Aggregates
     return models.map((model) => {
       const risks = riskMap.get(model.id) || [];
-      return ReadinessAssessmentMapper.toDomain(model, risks);
+      return ReadinessAssessmentMapper.toDomain(
+        model as PrismaReadinessAssessmentModel,
+        risks as PrismaRiskFlagModel[],
+      );
     });
+  }
+
+  // ==================== ENUM MAPPING HELPERS ====================
+
+  /**
+   * Map domain ReadinessStatus to Prisma ReadinessStatus
+   */
+  private mapToPrismaReadinessStatus(status: ReadinessStatus): PrismaReadinessStatus {
+    const mapping: Record<ReadinessStatus, PrismaReadinessStatus> = {
+      [ReadinessStatus.IN_PROGRESS]: PrismaReadinessStatus.IN_PROGRESS,
+      [ReadinessStatus.READY_TO_FILE]: PrismaReadinessStatus.READY_TO_FILE,
+      [ReadinessStatus.BLOCKED]: PrismaReadinessStatus.BLOCKED,
+      [ReadinessStatus.NEARLY_READY]: PrismaReadinessStatus.IN_PROGRESS, // Map to closest match
+      [ReadinessStatus.NEEDS_WORK]: PrismaReadinessStatus.IN_PROGRESS, // Map to closest match
+    };
+    return mapping[status] || PrismaReadinessStatus.IN_PROGRESS;
+  }
+
+  /**
+   * Map domain RiskSeverity to Prisma RiskSeverity
+   */
+  private mapToPrismaRiskSeverity(severity: RiskSeverity): PrismaRiskSeverity {
+    const mapping: Record<RiskSeverity, PrismaRiskSeverity> = {
+      [RiskSeverity.CRITICAL]: PrismaRiskSeverity.CRITICAL,
+      [RiskSeverity.HIGH]: PrismaRiskSeverity.HIGH,
+      [RiskSeverity.MEDIUM]: PrismaRiskSeverity.MEDIUM,
+      [RiskSeverity.LOW]: PrismaRiskSeverity.LOW,
+    };
+    return mapping[severity];
+  }
+
+  /**
+   * Map domain RiskCategory to Prisma RiskCategory
+   */
+  private mapToPrismaRiskCategory(category: RiskCategory): PrismaRiskCategory {
+    // Direct mapping since they have the same values
+    return category as unknown as PrismaRiskCategory;
+  }
+
+  /**
+   * Map Prisma RiskCategory to domain RiskCategory
+   */
+  private mapToDomainRiskCategory(category: PrismaRiskCategory): RiskCategory {
+    // Direct mapping since they have the same values
+    return category as unknown as RiskCategory;
+  }
+
+  /**
+   * Map string sourceType to Prisma RiskSourceType
+   */
+  private mapToPrismaRiskSourceType(sourceType: string): PrismaRiskSourceType {
+    // Validate that the sourceType is a valid Prisma enum value
+    if (Object.values(PrismaRiskSourceType).includes(sourceType as PrismaRiskSourceType)) {
+      return sourceType as PrismaRiskSourceType;
+    }
+    // Default fallback
+    this.logger.warn(`Unknown sourceType: ${sourceType}, defaulting to SYSTEM_VALIDATION`);
+    return PrismaRiskSourceType.SYSTEM_VALIDATION;
   }
 }

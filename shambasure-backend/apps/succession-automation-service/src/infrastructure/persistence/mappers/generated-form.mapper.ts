@@ -95,7 +95,6 @@ export class GeneratedFormMapper {
     const props = (domainEntity as any).props;
 
     // 2. Construct Persistence Object
-    // Note: JSON fields (signatures, versions) are passed as Objects. Prisma serializes them.
     return {
       id: domainEntity.id.toString(),
       ...(applicationId ? { applicationId } : {}),
@@ -136,10 +135,6 @@ export class GeneratedFormMapper {
       rejectionReason: props.rejectionReason || null,
       courtQueries: props.courtQueries || [],
       amendmentsRequired: props.amendmentsRequired || [],
-      // Note: amendedBy/amendedAt usually tracked in versions or audit logs,
-      // but if schema has them, we map them. Domain entity has them as props.
-      // Assuming schema doesn't have specific column, or we rely on versions.
-      // If schema allows extra fields, fine. Otherwise ignore if not in schema.
 
       // --- Generation Details ---
       generatedAt: props.generatedAt,
@@ -263,7 +258,6 @@ export class GeneratedFormMapper {
       lastAccessedAt: raw.lastAccessedAt || undefined,
       accessCount: raw.accessCount,
 
-      // Note: Internal Notes/User Notes are not in Prisma schema, so undefined
       internalNotes: undefined,
       userNotes: undefined,
     };
@@ -272,11 +266,15 @@ export class GeneratedFormMapper {
     return GeneratedForm.reconstitute(raw.id, props, raw.createdAt, raw.updatedAt);
   }
 
+  /**
+   * Helper: Map array of Prisma models to Domain Entities
+   */
+  public static toDomainArray(models: PrismaGeneratedFormModel[]): GeneratedForm[] {
+    return models.map((model) => this.toDomain(model));
+  }
+
   // ==================== HELPERS ====================
 
-  /**
-   * Helper to safely parse Prisma JSON fields
-   */
   private static parseJsonField(field: any): any {
     if (field === null || field === undefined) return null;
     if (typeof field === 'object') return field;
@@ -291,9 +289,6 @@ export class GeneratedFormMapper {
     return null;
   }
 
-  /**
-   * Map Domain FormType to Prisma string
-   */
   private static mapDomainFormTypeToPrisma(formType: any): string {
     if (formType && typeof formType.toString === 'function') {
       return formType.toString();
