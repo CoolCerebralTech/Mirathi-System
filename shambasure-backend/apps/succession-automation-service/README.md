@@ -127,3 +127,59 @@ src/succession-automation/src/application/readiness/
     ├── i-family-service.adapter.ts            # For fetching fresh Family data during recalculation
     ├── i-estate-service.adapter.ts            # For fetching fresh Estate data
     └── i-document-service.adapter.ts          # For checking document existence
+
+
+src/succession-automation/src/presentation/readiness/
+│
+├── controllers/
+│   ├── readiness.command.controller.ts    # [WRITE API] Central Hub for Assessment Mutations.
+│   │                                      # Endpoints: POST /readiness (Initialize)
+│   │                                      # PATCH /readiness/{id}/complete
+│   │                                      # POST /readiness/{id}/recalculate
+│   │                                      #
+│   │                                      # Risk Ops: PATCH /readiness/{id}/risks/{riskId}/resolve
+│   │                                      #           PATCH /readiness/{id}/risks/{riskId}/dispute
+│   │                                      #           POST /readiness/{id}/risks/{riskId}/mitigation
+│   │                                      #
+│   │                                      # Context: PUT /readiness/{id}/context
+│   │
+│   └── readiness.query.controller.ts      # [READ API] Dashboard & Legal Insights.
+│                                          # Endpoints: GET /readiness/{id}/dashboard (Traffic Light)
+│                                          # GET /readiness/{id}/strategy (Markdown Roadmap)
+│                                          # GET /readiness/{id}/checklist (Document Gaps)
+│                                          # GET /readiness/{id}/risks (Filtered Register)
+│                                          # POST /readiness/{id}/simulate (What-If Analysis)
+│
+├── dtos/
+│   ├── request/                           # [INPUTS] Validated & Swagger Decorated (@ApiProperty)
+│   │   // --- Lifecycle Management ---
+│   │   ├── initialize-assessment.request.dto.ts   # Trigger analysis for Estate
+│   │   ├── complete-assessment.request.dto.ts     # Lock & Prepare for Filing
+│   │   ├── force-recalculation.request.dto.ts     # Manual "Refresh" from Estate Data
+│   │
+│   │   // --- Risk Management (The "Digital Lawyer" Interaction) ---
+│   │   ├── resolve-risk.request.dto.ts        # Manual Resolution Notes
+│   │   ├── dispute-risk.request.dto.ts        # "This law doesn't apply because..."
+│   │   ├── acknowledge-warning.request.dto.ts # For Low/Medium non-blocking risks
+│   │   ├── update-mitigation.request.dto.ts   # Logging progress steps
+│   │
+│   │   // --- Context & Strategy ---
+│   │   ├── update-context.request.dto.ts      # Changing the Legal Lens (e.g., Will found)
+│   │   ├── override-strategy.request.dto.ts   # Lawyer/Admin Override
+│   │
+│   │   // --- Simulation ---
+│   │   ├── simulate-score.request.dto.ts      # List of Risk IDs to tentatively fix
+│   │
+│   └── response/                          # [OUTPUTS] ViewModels mapped to Clean JSON
+│       ├── readiness-dashboard.response.dto.ts # The "Cockpit" (Score, Status, Top Risks)
+│       ├── risk-detail.response.dto.ts         # Rich UI Object (Colors, Icons, Legal Basis)
+│       ├── strategy-roadmap.response.dto.ts    # Full Markdown Text & Milestones
+│       ├── filing-checklist.response.dto.ts    # Separated by "Mandatory" vs "Optional"
+│       ├── simulation-result.response.dto.ts   # "Ghost Score" comparison
+│       └── document-gap.response.dto.ts        # Instructions on how to get missing docs
+│
+└── mappers/
+    └── readiness-presenter.mapper.ts      # [TRANSFORMER]
+                                           # Converts Application ViewModels -> Response DTOs
+                                           # Handles date formatting, currency display,
+                                           # and mapping Domain Enums to UI-friendly strings.
