@@ -19,6 +19,7 @@ import {
   RiskFlagAutoResolved,
   RiskFlagDetected,
   RiskFlagResolved,
+  RiskMitigationActionTaken,
 } from '../events/readiness-assessment.events';
 import {
   DocumentGap,
@@ -886,6 +887,68 @@ export class ReadinessAssessment extends AggregateRoot<ReadinessAssessmentProps>
     };
 
     return severityMap[gapSeverity];
+  }
+  /**
+   * Admin Override: Force a specific strategy text
+   */
+  public overrideStrategy(newStrategy: string): void {
+    this.ensureNotDeleted();
+    this.ensureNotComplete();
+
+    this.updateState({
+      recommendedStrategy: newStrategy,
+      lastAssessedAt: new Date(),
+    });
+
+    this.addDomainEvent(
+      new RecommendedStrategyUpdated(
+        this.id.toString(),
+        this.getAggregateType(),
+        this.getVersion(),
+        {
+          estateId: this.props.estateId,
+          strategy: newStrategy,
+        },
+      ),
+    );
+  }
+
+  /**
+   * Record a mitigation action without resolving the risk
+   */
+  public recordRiskMitigation(
+    riskId: string,
+    action: string,
+    userId: string,
+    followUpDate?: Date,
+  ): void {
+    this.ensureNotDeleted();
+
+    const risk = this.props.riskFlags.find((r) => r.id.equals(riskId));
+    if (!risk) {
+      throw new Error(`Risk ${riskId} not found`);
+    }
+
+    // Update risk internal state (e.g. review counts)
+    risk.markAsReviewed();
+
+    // Emit event for audit trail
+    this.addDomainEvent(
+      new RiskMitigationActionTaken(
+        this.id.toString(),
+        this.getAggregateType(),
+        this.getVersion(),
+        {
+          estateId: this.props.estateId,
+          riskId: riskId,
+          action: action,
+          actionBy: userId,
+          actionAt: new Date(),
+          expectedOutcome: 'Mitigation recorded',
+          followUpDate: followUpDate,
+        },
+      ),
+    );
   }
   // ==================== FACTORY METHODS ====================
 
