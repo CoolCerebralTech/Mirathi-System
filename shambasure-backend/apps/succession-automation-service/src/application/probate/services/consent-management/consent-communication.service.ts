@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+
+import { ConfigService } from '@shamba/config';
 
 import { ConsentMethod, FamilyConsent } from '../../../../domain/entities/family-consent.entity';
 

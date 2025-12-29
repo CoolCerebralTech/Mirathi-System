@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 
-// --- SHARED LIBS ---
 import { AuthModule as SharedAuthModule } from '@shamba/auth';
+// --- SHARED LIBS ---
+import { ConfigModule } from '@shamba/config';
 import { DatabaseModule } from '@shamba/database';
 import { MessagingModule } from '@shamba/messaging';
 import { NotificationModule } from '@shamba/notification';
@@ -229,6 +230,7 @@ const ProbateServices = [
 
 @Module({
   imports: [
+    ConfigModule,
     CqrsModule,
     DatabaseModule,
     SharedAuthModule,
