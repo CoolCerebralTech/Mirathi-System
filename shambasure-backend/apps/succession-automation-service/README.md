@@ -32,3 +32,98 @@ src/succession-automation/src/domain/
     ├── i-readiness.repository.ts
     ├── i-probate-application.repository.ts
     └── i-roadmap.repository.ts
+
+
+src/succession-automation/src/application/readiness/
+│
+├── commands/                                  # ⚡ WRITE SIDE (State Mutations)
+│   ├── dtos/                                  # Data Transfer Objects (Input Validation)
+│   │   // --- Lifecycle Management ---
+│   │   ├── initialize-assessment.dto.ts       # Triggers first run (e.g., new Estate created)
+│   │   ├── complete-assessment.dto.ts         # "I am filing today" (Locks the state)
+│   │   ├── force-recalculation.dto.ts         # Manual "Refresh" button
+│   │
+│   │   // --- Risk Management (The "Digital Lawyer" Interaction) ---
+│   │   ├── resolve-risk-manually.dto.ts       # User says "I fixed this offline"
+│   │   ├── dispute-risk.dto.ts                # User says "This law doesn't apply to me"
+│   │   ├── acknowledge-warning.dto.ts         # For non-blocking LOW risks
+│   │   ├── update-risk-mitigation.dto.ts      # Tracking user notes/progress
+│   │
+│   │   // --- Context & Strategy ---
+│   │   ├── update-succession-context.dto.ts   # Critical: "We found a Will" / "Polygamy detected"
+│   │   ├── override-strategy.dto.ts           # Admin override for edge cases
+│   │
+│   ├── handlers/                              # Command Handlers (Orchestration)
+│   │   // --- Lifecycle ---
+│   │   ├── initialize-assessment.handler.ts   # Factory.create()
+│   │   ├── complete-assessment.handler.ts     # Validates > 80% & No Blockers -> Emits Completed
+│   │   ├── force-recalculation.handler.ts     # Re-runs Rules Engine
+│   │
+│   │   // --- Risk Handling ---
+│   │   ├── resolve-risk.handler.ts            # Updates RiskFlag entity
+│   │   ├── manage-risk-dispute.handler.ts     # Flags risk as DISPUTED
+│   │
+│   │   // --- Context ---
+│   │   ├── update-context.handler.ts          # Changes Court Jurisdiction logic
+│   │
+│   └── impl/                                  # NestJS CQRS Command Classes
+│       ├── initialize-assessment.command.ts
+│       ├── resolve-risk.command.ts
+│       └── ... (matching handlers)
+│
+├── queries/                                   # 🔍 READ SIDE (UI & Reporting)
+│   ├── dtos/
+│   │   ├── get-assessment.dto.ts
+│   │   ├── filter-risks.dto.ts                # By Severity, Category, Source
+│   │   ├── simulate-score.dto.ts              # "What if I fix X?" (Innovation)
+│   │
+│   ├── handlers/
+│   │   ├── get-assessment-dashboard.handler.ts # Main Traffic Light View
+│   │   ├── get-blocking-issues.handler.ts      # The "To-Do List" for filing
+│   │   ├── get-document-checklist.handler.ts   # Extracted from DocumentGaps
+│   │   ├── simulate-resolution-impact.handler.ts # Returns projected score
+│   │
+│   ├── impl/
+│   │   ├── get-assessment-dashboard.query.ts
+│   │   └── ... (matching handlers)
+│   │
+│   └── view-models/                           # Specialized Return Objects
+│       ├── readiness-dashboard.vm.ts          # Score, Status, Strategy Text
+│       ├── risk-detail.vm.ts                  # Legal Basis, Mitigation Steps
+│       ├── filing-checklist.vm.ts             # Grouped by "Critical" vs "Optional"
+│       └── strategy-roadmap.vm.ts             # The "Digital Lawyer" advice block
+│
+├── services/                                  # 🧠 DOMAIN SERVICES (Pure Logic Injectables)
+│   ├── compliance-rule-engine.service.ts      # The "Engine". Runs ALL rules against Estate/Family data
+│   │                                          # Returns: RiskFlag[]
+│   │
+│   ├── strategy-generator.service.ts          # Generates the Markdown advice based on Context
+│   │
+│   ├── gap-analysis.service.ts                # Maps RiskFlags -> DocumentGaps
+│   │
+│   └── context-analyzer.service.ts            # Determines High Court vs Magistrate vs Kadhi
+│
+├── events/                                    # 📢 EVENT SUBSCRIBERS (Cross-Context Listeners)
+│   // --- Family Service Listeners ---
+│   ├── family-member-created.subscriber.ts    # Triggers: Minor check, Polygamy check
+│   ├── guardian-appointed.subscriber.ts       # Triggers: Auto-resolve MINOR_WITHOUT_GUARDIAN
+│   ├── marriage-verified.subscriber.ts        # Triggers: Resolve COHABITATION_CLAIM
+│
+│   // --- Estate Service Listeners ---
+│   ├── asset-created.subscriber.ts            # Triggers: Asset Verification Risk
+│   ├── asset-verified.subscriber.ts           # Triggers: Auto-resolve ASSET_VERIFICATION_FAILED
+│   ├── debt-added.subscriber.ts               # Triggers: Solvency Check
+│   ├── death-cert-uploaded.subscriber.ts      # Triggers: Auto-resolve MISSING_DEATH_CERT
+│
+│   // --- Document Service Listeners ---
+│   ├── document-verified.subscriber.ts        # Triggers: Resolve specific document gaps
+│
+├── jobs/                                      # ⏰ BACKGROUND TASKS
+│   ├── daily-readiness-refresh.job.ts         # Recalculates stale assessments (> 7 days)
+│   ├── risk-expiration-monitor.job.ts         # Cleans up expired risks (Time-based resolution)
+│   └── auto-resolve-retry.job.ts              # Retries resolving risks waiting on external APIs
+│
+└── interfaces/                                # 🔌 EXTERNAL PORTS (Dependency Inversion)
+    ├── i-family-service.adapter.ts            # For fetching fresh Family data during recalculation
+    ├── i-estate-service.adapter.ts            # For fetching fresh Estate data
+    └── i-document-service.adapter.ts          # For checking document existence
