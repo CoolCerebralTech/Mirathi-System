@@ -8,8 +8,43 @@ import { MessagingModule } from '@shamba/messaging';
 import { NotificationModule } from '@shamba/notification';
 import { ObservabilityModule } from '@shamba/observability';
 
+import {
+  RecordConsentDeclineHandler,
+  RecordConsentGrantHandler,
+  RequestFamilyConsentHandler,
+} from './application/probate/commands/handlers/consent-management.handlers';
+import {
+  FileApplicationHandler,
+  PayFilingFeeHandler,
+  RecordCourtResponseHandler,
+  RecordGazettePublicationHandler,
+  RecordGrantIssuanceHandler,
+} from './application/probate/commands/handlers/filing-interaction.handlers';
+import {
+  GenerateFormBundleHandler,
+  ReviewFormHandler,
+  SignFormHandler,
+} from './application/probate/commands/handlers/form-strategy.handlers';
 // =============================================================================
-// 1. HANDLERS: READINESS ASSESSMENT (Commands)
+// 2. HANDLERS: PROBATE APPLICATION (Commands)
+// =============================================================================
+import {
+  AutoGenerateApplicationHandler,
+  CreateApplicationHandler,
+  WithdrawApplicationHandler,
+} from './application/probate/commands/handlers/lifecycle.handlers';
+import { GetConsentStatusHandler } from './application/probate/queries/handlers/consents-view.handlers';
+// =============================================================================
+// 3. HANDLERS: PROBATE APPLICATION (Queries)
+// =============================================================================
+import { GetApplicationDashboardHandler } from './application/probate/queries/handlers/dashboard.handlers';
+import { ValidateFilingReadinessHandler } from './application/probate/queries/handlers/filing-readiness.handlers';
+import { GetGeneratedFormsHandler } from './application/probate/queries/handlers/forms-view.handlers';
+import { ConsentCommunicationService } from './application/probate/services/consent-management/consent-communication.service';
+import { FeeCalculatorService } from './application/probate/services/court-integration/fee-calculator.service';
+import { PdfAssemblerService } from './application/probate/services/form-strategy/pdf-assembler.service';
+// =============================================================================
+// 1. HANDLERS: READINESS ASSESSMENT
 // =============================================================================
 import {
   AcknowledgeWarningHandler,
@@ -27,9 +62,6 @@ import {
   I_ESTATE_SERVICE,
   I_FAMILY_SERVICE,
 } from './application/readiness/interfaces/adapters.interface';
-// =============================================================================
-// 2. HANDLERS: READINESS ASSESSMENT (Queries)
-// =============================================================================
 import {
   FilterRisksHandler,
   GetAssessmentDashboardHandler,
@@ -46,7 +78,7 @@ import { ContextAnalyzerService } from './application/readiness/services/context
 import { GapAnalysisService } from './application/readiness/services/gap-analysis.service';
 import { StrategyGeneratorService } from './application/readiness/services/strategy-generator.service';
 // =============================================================================
-// 3. HANDLERS: EXECUTOR ROADMAP (Commands)
+// 4. HANDLERS: EXECUTOR ROADMAP
 // =============================================================================
 import { GenerateRoadmapHandler } from './application/roadmap/commands/handlers/generate-roadmap.handler';
 import { OptimizeRoadmapHandler } from './application/roadmap/commands/handlers/optimization.handlers';
@@ -57,9 +89,6 @@ import {
   StartTaskHandler,
   SubmitTaskProofHandler,
 } from './application/roadmap/commands/handlers/task-execution.handlers';
-// =============================================================================
-// 4. HANDLERS: EXECUTOR ROADMAP (Queries)
-// =============================================================================
 import {
   GetCriticalPathHandler,
   GetRoadmapAnalyticsHandler,
@@ -70,18 +99,22 @@ import {
   GetTaskHistoryHandler,
   GetTaskListHandler,
 } from './application/roadmap/queries/handlers/task.handlers';
-// Roadmap (Smart Navigation & Automation)
+// Roadmap
 import { CriticalPathEngineService } from './application/roadmap/services/smart-navigation/critical-path-engine.service';
 import { EfficiencyScorerService } from './application/roadmap/services/smart-navigation/efficiency-scorer.service';
 import { PredictiveAnalysisService } from './application/roadmap/services/smart-navigation/predictive-analysis.service';
 import { AutoGeneratorService } from './application/roadmap/services/task-automation/auto-generator.service';
 import { DependencyResolverService } from './application/roadmap/services/task-automation/dependency-resolver.service';
 import { ProofValidatorService } from './application/roadmap/services/task-automation/proof-validator.service';
+import { PROBATE_APPLICATION_REPOSITORY } from './domain/repositories/i-probate-application.repository';
 // =============================================================================
 // CONSTANTS & TOKENS
 // =============================================================================
 import { READINESS_ASSESSMENT_REPOSITORY } from './domain/repositories/i-readiness.repository';
 import { EXECUTOR_ROADMAP_REPOSITORY } from './domain/repositories/i-roadmap.repository';
+import { ComplianceEngineService } from './domain/services/compliance-engine.service';
+// Probate Application
+import { FormStrategyService } from './domain/services/form-strategy.service';
 // =============================================================================
 // INFRASTRUCTURE (Adapters)
 // =============================================================================
@@ -102,21 +135,23 @@ import { RoadmapTaskMapper } from './infrastructure/persistence/mappers/roadmap-
 // INFRASTRUCTURE (Repositories)
 // =============================================================================
 import { PrismaExecutorRoadmapRepository } from './infrastructure/persistence/repositories/prisma-executor-roadmap.repository';
+import { PrismaProbateApplicationRepository } from './infrastructure/persistence/repositories/prisma-probate-application.repository';
 import { PrismaReadinessRepository } from './infrastructure/persistence/repositories/prisma-readiness-assessment.repository';
 // =============================================================================
 // CONTROLLERS
 // =============================================================================
 import { HealthController } from './presentation/health/health.controller';
-// Readiness Controllers (using existing path)
+import { ProbateCommandController } from './presentation/probate/controllers/probate.command.controller';
+import { ProbateQueryController } from './presentation/probate/controllers/probate.query.controller';
 import { ReadinessCommandController } from './presentation/readiness/controllers/readiness.command.controller';
 import { ReadinessQueryController } from './presentation/readiness/controllers/readiness.query.controller';
-// Roadmap Controllers (using new path)
 import { RoadmapCommandController } from './presentation/roadmap/controllers/roadmap.command.controller';
 import { RoadmapQueryController } from './presentation/roadmap/controllers/roadmap.query.controller';
 
 // --- HANDLER ARRAYS ---
 
-const ReadinessCommandHandlers = [
+const ReadinessHandlers = [
+  // Commands
   InitializeAssessmentHandler,
   CompleteAssessmentHandler,
   ForceRecalculationHandler,
@@ -126,9 +161,7 @@ const ReadinessCommandHandlers = [
   OverrideStrategyHandler,
   ResolveRiskManuallyHandler,
   UpdateRiskMitigationHandler,
-];
-
-const ReadinessQueryHandlers = [
+  // Queries
   FilterRisksHandler,
   GetAssessmentDashboardHandler,
   GetDocumentChecklistHandler,
@@ -136,7 +169,8 @@ const ReadinessQueryHandlers = [
   SimulateScoreHandler,
 ];
 
-const RoadmapCommandHandlers = [
+const RoadmapHandlers = [
+  // Commands
   GenerateRoadmapHandler,
   OptimizeRoadmapHandler,
   StartTaskHandler,
@@ -144,15 +178,36 @@ const RoadmapCommandHandlers = [
   SkipTaskHandler,
   TransitionPhaseHandler,
   LinkRiskToTaskHandler,
-];
-
-const RoadmapQueryHandlers = [
+  // Queries
   GetRoadmapDashboardHandler,
   GetRoadmapAnalyticsHandler,
   GetCriticalPathHandler,
   GetTaskListHandler,
   GetTaskDetailsHandler,
   GetTaskHistoryHandler,
+];
+
+const ProbateHandlers = [
+  // Commands
+  CreateApplicationHandler,
+  AutoGenerateApplicationHandler,
+  WithdrawApplicationHandler,
+  GenerateFormBundleHandler,
+  ReviewFormHandler,
+  SignFormHandler,
+  RequestFamilyConsentHandler,
+  RecordConsentGrantHandler,
+  RecordConsentDeclineHandler,
+  PayFilingFeeHandler,
+  FileApplicationHandler,
+  RecordCourtResponseHandler,
+  RecordGazettePublicationHandler,
+  RecordGrantIssuanceHandler,
+  // Queries
+  GetApplicationDashboardHandler,
+  GetGeneratedFormsHandler,
+  GetConsentStatusHandler,
+  ValidateFilingReadinessHandler,
 ];
 
 const RoadmapServices = [
@@ -162,6 +217,14 @@ const RoadmapServices = [
   AutoGeneratorService,
   DependencyResolverService,
   ProofValidatorService,
+];
+
+const ProbateServices = [
+  FormStrategyService,
+  ComplianceEngineService,
+  PdfAssemblerService,
+  ConsentCommunicationService,
+  FeeCalculatorService,
 ];
 
 @Module({
@@ -179,6 +242,8 @@ const RoadmapServices = [
     ReadinessQueryController,
     RoadmapCommandController,
     RoadmapQueryController,
+    ProbateCommandController,
+    ProbateQueryController,
   ],
   providers: [
     // --- 1. MAPPERS ---
@@ -196,10 +261,14 @@ const RoadmapServices = [
     GapAnalysisService,
     StrategyGeneratorService,
     ...RoadmapServices,
+    ...ProbateServices,
 
     // --- 3. REPOSITORIES ---
     PrismaReadinessRepository,
     PrismaExecutorRoadmapRepository,
+    PrismaProbateApplicationRepository,
+
+    // Bind Interfaces to Implementations
     {
       provide: READINESS_ASSESSMENT_REPOSITORY,
       useExisting: PrismaReadinessRepository,
@@ -207,6 +276,10 @@ const RoadmapServices = [
     {
       provide: EXECUTOR_ROADMAP_REPOSITORY,
       useExisting: PrismaExecutorRoadmapRepository,
+    },
+    {
+      provide: PROBATE_APPLICATION_REPOSITORY,
+      useExisting: PrismaProbateApplicationRepository,
     },
 
     // --- 4. EXTERNAL ADAPTERS ---
@@ -227,11 +300,14 @@ const RoadmapServices = [
     },
 
     // --- 5. CQRS HANDLERS ---
-    ...ReadinessCommandHandlers,
-    ...ReadinessQueryHandlers,
-    ...RoadmapCommandHandlers,
-    ...RoadmapQueryHandlers,
+    ...ReadinessHandlers,
+    ...RoadmapHandlers,
+    ...ProbateHandlers,
   ],
-  exports: [READINESS_ASSESSMENT_REPOSITORY, EXECUTOR_ROADMAP_REPOSITORY],
+  exports: [
+    READINESS_ASSESSMENT_REPOSITORY,
+    EXECUTOR_ROADMAP_REPOSITORY,
+    PROBATE_APPLICATION_REPOSITORY,
+  ],
 })
 export class SuccessionModule {}
