@@ -354,3 +354,115 @@ src/succession-automation/src/presentation/roadmap/
                                            # - Localized Phase Names
                                            # - Hiding internal IDs/Metadata
                                            
+src/succession-automation/src/application/probate-application/
+│
+├── commands/                                      # ⚡ WRITE SIDE (State Mutations)
+│   ├── dtos/                                      # Data Transfer Objects (Validation)
+│   │   // --- 1. Lifecycle & Initialization ---
+│   │   ├── create-application.dto.ts              # Manual start
+│   │   ├── auto-generate-from-readiness.dto.ts    # Triggered by Readiness Audit
+│   │   ├── withdraw-application.dto.ts            # User exit
+│   │
+│   │   // --- 2. Smart Form Strategy (The "Engine") ---
+│   │   ├── generate-form-bundle.dto.ts            # Triggers VO logic to pick forms
+│   │   ├── regenerate-forms.dto.ts                # When Context/Estate Value changes
+│   │   ├── review-form.dto.ts                     # User "Approves" a generated draft
+│   │   ├── sign-form.dto.ts                       # Digital/Wet signature capture
+│   │   ├── amend-form.dto.ts                      # Handling Court Rejections
+│   │
+│   │   // --- 3. Consent Management (S.56 Compliance) ---
+│   │   ├── request-family-consent.dto.ts          # Triggers SMS/Email
+│   │   ├── record-consent-grant.dto.ts            # OTP Verification / Upload
+│   │   ├── record-consent-decline.dto.ts          # Captures dispute reason (Risk)
+│   │   ├── mark-consent-not-required.dto.ts       # Legal override (with audit note)
+│   │
+│   │   // --- 4. Filing & Court Interaction ---
+│   │   ├── pay-filing-fee.dto.ts                  # Integrates with Payment Gateway
+│   │   ├── file-application.dto.ts                # The "Big Commit" (Locks aggregate)
+│   │   ├── record-court-response.dto.ts           # Accepted / Rejected / Queries
+│   │   ├── record-gazette-publication.dto.ts      # Starts 30-day timer
+│   │   ├── record-grant-issuance.dto.ts           # The Goal (Terminal State)
+│   │
+│   ├── handlers/                                  # Command Handlers (Orchestration)
+│   │   // --- Lifecycle ---
+│   │   ├── create-application.handler.ts          # Factory: ProbateApplication.create()
+│   │   ├── auto-generate.handler.ts               # Factory: ProbateApplication.autoGenerate()
+│   │
+│   │   // --- Forms ---
+│   │   ├── generate-form-bundle.handler.ts        # CALLS: FormStrategyService + PdfService
+│   │   ├── process-form-signature.handler.ts      # Validates signature -> Updates Entity
+│   │
+│   │   // --- Consents ---
+│   │   ├── manage-consent-request.handler.ts      # CALLS: NotificationService (SMS/Email)
+│   │   ├── process-consent-response.handler.ts    # Logic: Updates Entity -> Checks AllConsentsReceived
+│   │
+│   │   // --- Filing ---
+│   │   ├── execute-filing.handler.ts              # Logic: Checks Readiness -> Fees -> Submits
+│   │   ├── process-court-outcome.handler.ts       # Handles Rejection loops or Grant issuance
+│   │
+│   └── impl/                                      # NestJS Command Classes
+│       ├── create-application.command.ts
+│       ├── generate-form-bundle.command.ts
+│       └── ... (matching handlers)
+│
+├── queries/                                       # 🔍 READ SIDE (UI & Reporting)
+│   ├── dtos/
+│   │   ├── get-application-dashboard.dto.ts
+│   │   ├── get-form-preview.dto.ts                # Secure temporary URL generation
+│   │   ├── get-consent-status.dto.ts              # Matrix of family responses
+│   │   ├── check-filing-readiness.dto.ts          # Pre-flight check (Fees + Forms + Consents)
+│   │   ├── get-filing-fees.dto.ts                 # Dynamic calculation based on Court/Forms
+│   │
+│   ├── handlers/
+│   │   ├── get-application-dashboard.handler.ts   # Returns progress bars, status
+│   │   ├── get-generated-forms.handler.ts         # Lists forms with their statuses/versions
+│   │   ├── calculate-filing-fees.handler.ts       # Uses VO logic to sum up costs
+│   │   ├── validate-filing-readiness.handler.ts   # Returns KenyanLegalResult (Warnings/Violations)
+│   │
+│   ├── impl/
+│   │   ├── get-application-dashboard.query.ts
+│   │   └── ... (matching handlers)
+│   │
+│   └── view-models/                               # Specialized Return Objects
+│       ├── application-dashboard.vm.ts            # % Complete, Next Action
+│       ├── form-bundle.vm.ts                      # Grouped by Category (Petition, Affidavit, etc.)
+│       ├── consent-matrix.vm.ts                   # Who agreed, who declined, who is pending
+│       ├── filing-preview.vm.ts                   # Fee breakdown, Court Station details
+│
+├── services/                                      # 🧠 DOMAIN SERVICES (Pure Logic)
+│   ├── form-strategy/                             # THE INNOVATION ENGINE
+│   │   ├── form-strategy-orchestrator.service.ts  # Uses KenyanFormType.generateFormBundle()
+│   │   ├── pdf-assembler.service.ts               # Maps Domain Entities -> PDF Templates
+│   │   └── form-validator.service.ts              # "Did they sign P&A 5? Is P&A 12 attached?"
+│   │
+│   ├── consent-management/
+│   │   ├── consent-communication.service.ts       # Manages SMS/Email templates & tokens
+│   │   └── otp-verification.service.ts            # Security for Digital Consents
+│   │
+│   └── court-integration/
+│       ├── fee-calculator.service.ts              # Centralized fee logic (Court + Forms)
+│       └── filing-validator.service.ts            # Final "Sanity Check" before locking
+│
+├── events/                                        # 📢 EVENT SUBSCRIBERS
+│   // --- Internal Reactions ---
+│   ├── on-readiness-assessed.subscriber.ts        # Trigger: Auto-generate Application
+│   ├── on-forms-generated.subscriber.ts           # Trigger: Notify User to Review
+│   ├── on-consent-received.subscriber.ts          # Trigger: Check "Is Ready To File?"
+│   ├── on-filing-fee-paid.subscriber.ts           # Trigger: Unlock "File Now" button
+│   ├── on-application-filed.subscriber.ts         # Trigger: Update Roadmap Phase
+│
+│   // --- External Integrations ---
+│   ├── court-notification-listener.subscriber.ts  # Webhooks from Judiciary (if available)
+│
+├── jobs/                                          # ⏰ BACKGROUND TASKS
+│   ├── consent-expiry-monitor.job.ts              # Checks PENDING consents > 30 days
+│   ├── gazette-timeline-monitor.job.ts            # Tracks the 30-day Gazette period
+│   ├── abandoned-application-cleaner.job.ts       # Flags Drafts inactive > 90 days
+│   └── court-status-poller.job.ts                 # Periodically checks court portal (mock/real)
+│
+└── interfaces/                                    # 🔌 EXTERNAL PORTS
+    ├── i-pdf-generator.adapter.ts                 # Adapter for PDF Engine (e.g., Puppeteer/DocRaptor)
+    ├── i-payment-gateway.adapter.ts               # Adapter for M-PESA / Card
+    ├── i-communication.adapter.ts                 # Adapter for SMS/Email
+    └── i-storage.adapter.ts                       # Adapter for S3 (Forms)
+    

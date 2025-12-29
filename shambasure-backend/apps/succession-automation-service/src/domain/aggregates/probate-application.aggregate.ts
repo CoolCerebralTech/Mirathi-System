@@ -249,7 +249,20 @@ export class ProbateApplication extends AggregateRoot<ProbateApplicationProps> {
   get estateId(): string {
     return this.props.estateId;
   }
+  get applicantFullName(): string {
+    return this.props.applicantFullName;
+  }
+  get applicantRelationship(): string {
+    return this.props.applicantRelationship;
+  }
 
+  get applicantContact(): { phone?: string; email?: string; physicalAddress?: string } {
+    return { ...this.props.applicantContact };
+  }
+
+  get courtStation(): string {
+    return this.props.courtStation;
+  }
   get readinessAssessmentId(): string {
     return this.props.readinessAssessmentId;
   }
