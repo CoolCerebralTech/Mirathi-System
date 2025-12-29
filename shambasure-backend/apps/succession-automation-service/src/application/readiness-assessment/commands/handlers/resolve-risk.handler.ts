@@ -4,7 +4,7 @@ import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { READINESS_ASSESSMENT_REPOSITORY } from '../../../../domain/repositories/i-readiness.repository';
 import type { IReadinessRepository } from '../../../../domain/repositories/i-readiness.repository';
 import { Result } from '../../../common/result';
-import { ResolveRiskCommand } from '../impl/resolve-risk.manually.command';
+import { ResolveRiskCommand } from '../impl/resolve-risk.command';
 
 @CommandHandler(ResolveRiskCommand)
 export class ResolveRiskHandler implements ICommandHandler<ResolveRiskCommand> {
