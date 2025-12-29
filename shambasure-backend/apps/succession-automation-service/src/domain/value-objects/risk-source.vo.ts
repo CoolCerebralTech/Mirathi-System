@@ -705,7 +705,29 @@ export class RiskSource extends ValueObject<RiskSourceProps> {
       autoResolveTime: this.getAutoResolveTime()?.toISOString(),
     };
   }
-
+  /**
+   * Reconstitute from persisted data
+   * Use this for reconstituting from database JSON
+   */
+  public static reconstitute(json: Record<string, any>): RiskSource {
+    return new RiskSource({
+      sourceType: json.sourceType as RiskSourceType,
+      sourceEntityId: json.sourceEntityId,
+      sourceEntityType: json.sourceEntityType,
+      sourceAggregateId: json.sourceAggregateId,
+      serviceName: json.serviceName,
+      detectionMethod: json.detectionMethod as DetectionMethod,
+      detectionRuleId: json.detectionRuleId,
+      legalReferences: json.legalReferences as LegalReference[],
+      detectedAt: new Date(json.detectedAt),
+      resolutionTriggers: json.resolutionTriggers as ResolutionTrigger[],
+      expectedResolutionEvents: json.expectedResolutionEvents,
+      autoResolveTimeoutHours: json.autoResolveTimeoutHours,
+      confidenceScore: json.confidenceScore,
+      requiresManualReview: json.requiresManualReview,
+      notes: json.notes,
+    });
+  }
   /**
    * Deserialize from JSON
    */

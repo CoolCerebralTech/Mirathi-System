@@ -4,8 +4,8 @@ import {
   ProbateApplication,
   ProbateApplicationType,
 } from '../aggregates/probate-application.aggregate';
-import { ConsentStatus, FamilyConsent } from '../entities/family-consent.entity';
-import { FormStatus, GeneratedForm } from '../entities/generated-form.entity';
+import { ConsentStatus } from '../entities/family-consent.entity';
+import { FormStatus } from '../entities/generated-form.entity';
 
 /**
  * Probate Application Repository Interface
@@ -15,7 +15,7 @@ import { FormStatus, GeneratedForm } from '../entities/generated-form.entity';
  * IMPLEMENTATION NOTE:
  * Infrastructure layer (PrismaProbateRepository) will implement this.
  */
-
+export const PROBATE_REPOSITORY = 'PROBATE_REPOSITORY';
 export interface IProbateApplicationRepository {
   // ==================== CORE CRUD OPERATIONS ====================
 

@@ -64,7 +64,7 @@ export enum SignatureType {
   NOTARIZED = 'NOTARIZED', // Notary public stamp
 }
 
-interface FormSignature {
+export interface FormSignature {
   signatoryId: string; // Reference to person (FamilyMember or Executor)
   signatoryName: string;
   signatureType: SignatureType;
@@ -78,7 +78,7 @@ interface FormSignature {
   notaryStampNumber?: string;
 }
 
-interface FormVersion {
+export interface FormVersion {
   versionNumber: number;
   generatedAt: Date;
   generatedBy: string; // 'system' or user ID
@@ -89,7 +89,7 @@ interface FormVersion {
   templateVersion: string;
 }
 
-interface GeneratedFormProps {
+export interface GeneratedFormProps {
   // Form Identity
   formType: KenyanFormTypeEnum;
   formCode: string; // e.g., "P&A 1"

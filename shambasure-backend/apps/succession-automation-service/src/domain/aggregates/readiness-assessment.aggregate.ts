@@ -59,7 +59,7 @@ import { SuccessionContext, SuccessionRegime } from '../value-objects/succession
  * - WillValidated → Resolves INVALID_WILL_SIGNATURE
  */
 
-interface ReadinessAssessmentProps {
+export interface ReadinessAssessmentProps {
   estateId: string;
   familyId?: string;
   successionContext: SuccessionContext;

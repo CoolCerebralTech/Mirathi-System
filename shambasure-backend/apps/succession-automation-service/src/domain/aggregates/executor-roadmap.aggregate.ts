@@ -100,7 +100,7 @@ export interface RoadmapAnalytics {
   recommendedAccelerations: string[];
 }
 
-interface ExecutorRoadmapProps {
+export interface ExecutorRoadmapProps {
   // Identity & Context
   estateId: string;
   successionContext: SuccessionContext;

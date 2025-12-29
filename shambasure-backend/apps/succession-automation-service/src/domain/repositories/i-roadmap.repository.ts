@@ -16,6 +16,7 @@ import {
  * Infrastructure layer (PrismaRoadmapRepository) will implement this.
  */
 
+export const ROADMAP_REPOSITORY = 'ROADMAP_REPOSITORY';
 export interface IRoadmapRepository {
   // ==================== CORE CRUD OPERATIONS ====================
 

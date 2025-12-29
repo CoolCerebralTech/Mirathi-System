@@ -90,7 +90,7 @@ export enum FilingPriority {
   LOW = 'LOW', // Simple, uncontested
 }
 
-interface ProbateApplicationProps {
+export interface ProbateApplicationProps {
   // Identity & Context
   estateId: string;
   readinessAssessmentId: string; // Required link to ReadinessAssessment

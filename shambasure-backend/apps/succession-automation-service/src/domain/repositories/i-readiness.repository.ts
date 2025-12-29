@@ -1,6 +1,6 @@
 // src/succession-automation/src/domain/repositories/i-readiness.repository.ts
 import { ReadinessAssessment } from '../aggregates/readiness-assessment.aggregate';
-import { RiskCategory, RiskFlag, RiskSeverity } from '../entities/risk-flag.entity';
+import { RiskCategory, RiskSeverity } from '../entities/risk-flag.entity';
 import { ReadinessStatus } from '../value-objects/readiness-score.vo';
 
 /**
@@ -17,6 +17,7 @@ import { ReadinessStatus } from '../value-objects/readiness-score.vo';
  * IMPLEMENTATION NOTE:
  * Infrastructure layer (PrismaReadinessRepository) will implement this.
  */
+export const READINESS_REPOSITORY = 'READINESS_REPOSITORY';
 
 export interface IReadinessRepository {
   // ==================== CORE CRUD OPERATIONS ====================

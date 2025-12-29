@@ -354,7 +354,22 @@ export class DocumentGap extends ValueObject<DocumentGapProps> {
       urgencyMessage: this.getUrgencyMessage(),
     };
   }
-
+  /**
+   * Reconstitute from persisted data
+   * Use this for reconstituting from database JSON
+   */
+  public static reconstitute(json: Record<string, any>): DocumentGap {
+    return new DocumentGap({
+      type: json.type as DocumentGapType,
+      severity: json.severity as DocumentGapSeverity,
+      description: json.description,
+      legalBasis: json.legalBasis,
+      obtainingInstructions: json.obtainingInstructions,
+      estimatedTimeDays: json.estimatedTimeDays,
+      alternativeOptions: json.alternativeOptions,
+      isWaivable: json.isWaivable,
+    });
+  }
   /**
    * Deserialize from JSON
    */
