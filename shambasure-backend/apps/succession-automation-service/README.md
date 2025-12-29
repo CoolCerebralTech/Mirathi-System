@@ -183,3 +183,113 @@ src/succession-automation/src/presentation/readiness/
                                            # Converts Application ViewModels -> Response DTOs
                                            # Handles date formatting, currency display,
                                            # and mapping Domain Enums to UI-friendly strings.
+
+
+src/succession-automation/src/application/roadmap/
+│
+├── commands/                                  # ⚡ WRITE SIDE (State Mutations)
+│   ├── dtos/                                  # Data Transfer Objects (Input Validation)
+│   │   // --- Lifecycle & Generation ---
+│   │   ├── generate-roadmap.dto.ts            # "Auto-Generate" trigger (Input: Readiness ID)
+│   │   ├── regenerate-roadmap.dto.ts          # "Context Changed" trigger (e.g., Will found later)
+│   │   ├── optimize-roadmap.dto.ts            # "AI Optimize" trigger (re-orders based on court load)
+│   │
+│   │   // --- Task Execution (The Daily Work) ---
+│   │   ├── start-task.dto.ts                  # Tracks time/status
+│   │   ├── submit-task-proof.dto.ts           # Uploads doc/receipt to complete task
+│   │   ├── complete-task-manually.dto.ts      # For non-proof tasks
+│   │   ├── skip-task.dto.ts                   # Requires reason (Audit trail)
+│   │   ├── waive-task.dto.ts                  # Requires Court Order ID
+│   │
+│   │   // --- Phase Management ---
+│   │   ├── transition-phase.dto.ts            # Move from PRE_FILING -> FILING
+│   │   ├── force-phase-override.dto.ts        # Admin/Legal Team intervention
+│   │
+│   │   // --- Risk & Blocker Integration ---
+│   │   ├── link-risk-to-task.dto.ts           # "This task is blocked by Risk X"
+│   │   ├── unlock-blocked-task.dto.ts         # "Risk X resolved, unlocking task"
+│   │   ├── escalate-stalled-task.dto.ts       # "Help! I'm stuck" (Triggers human legal review)
+│   │
+│   ├── handlers/                              # Command Handlers (Orchestration)
+│   │   // --- Lifecycle ---
+│   │   ├── generate-roadmap.handler.ts        # Orchestrates Context + Readiness -> Roadmap Factory
+│   │   ├── optimize-roadmap.handler.ts        # Calls PredictiveService -> Updates Dates/Priorities
+│   │
+│   │   // --- Execution ---
+│   │   ├── execute-task-action.handler.ts     # Handles Start/Complete/Fail logic
+│   │   ├── verify-task-proof.handler.ts       # Checks doc upload with Document Service before completing
+│   │
+│   │   // --- Safety ---
+│   │   ├── handle-task-escalation.handler.ts  # Notifies legal team + updates Aggregate status
+│   │
+│   └── impl/                                  # NestJS CQRS Command Classes
+│       ├── generate-roadmap.command.ts
+│       ├── submit-task-proof.command.ts
+│       └── ... (matching handlers)
+│
+├── queries/                                   # 🔍 READ SIDE (UI & Reporting)
+│   ├── dtos/
+│   │   ├── get-roadmap-dashboard.dto.ts
+│   │   ├── get-upcoming-tasks.dto.ts          # Filter by "Next 7 Days"
+│   │   ├── get-critical-path.dto.ts           # "Show me only what blocks filing"
+│   │   ├── get-proof-history.dto.ts           # Audit log for a specific task
+│   │
+│   ├── handlers/
+│   │   ├── get-executor-dashboard.handler.ts  # The Main UI View (Progress, Phase, Next Step)
+│   │   ├── get-smart-next-step.handler.ts     # The "GPS" Logic (Returns single best action)
+│   │   ├── get-roadmap-analytics.handler.ts   # Time/Cost estimates vs Actuals
+│   │   ├── get-task-dependencies.handler.ts   # Visualization graph (D3.js data structure)
+│   │
+│   ├── impl/
+│   │   ├── get-executor-dashboard.query.ts
+│   │   └── ... (matching handlers)
+│   │
+│   └── view-models/                           # Specialized Return Objects
+│       ├── roadmap-dashboard.vm.ts            # Phase progress bars, alerts
+│       ├── task-detail.vm.ts                  # Instructions, links, proof status
+│       ├── legal-timeline.vm.ts               # Gantt chart data
+│       └── smart-recommendation.vm.ts         # "Do this because..." (AI reasoning)
+│
+├── services/                                  # 🧠 DOMAIN SERVICES (Pure Logic & Orchestration)
+│   ├── smart-navigation/                      # INNOVATION CORE
+│   │   ├── predictive-analysis.service.ts     # ML: "Cases like this take 45 days"
+│   │   ├── critical-path-engine.service.ts    # Graph algo: Finds bottlenecks
+│   │   └── efficiency-scorer.service.ts       # Compares user speed vs benchmarks
+│   │
+│   ├── task-automation/
+│   │   ├── proof-validator.service.ts         # Validates uploaded proofs (e.g., Receipt OCR)
+│   │   ├── dependency-resolver.service.ts     # Unlocks children when parent completes
+│   │   └── auto-generator.service.ts          # Maps SuccessionContext -> Task Templates
+│   │
+│   └── external-integration/
+│       ├── court-backlog-monitor.service.ts   # Adjusts estimates based on Judiciary data
+│       └── legal-resource-linker.service.ts   # Attaches dynamic help guides/videos
+│
+├── events/                                    # 📢 EVENT SUBSCRIBERS
+│   // --- Internal Reactions ---
+│   ├── unlock-next-tasks.subscriber.ts        # Listens to: RoadmapTaskCompleted
+│   ├── check-phase-completion.subscriber.ts   # Listens to: RoadmapTaskCompleted
+│   ├── update-analytics.subscriber.ts         # Listens to: RoadmapTaskCompleted (Recalcs efficiency)
+│
+│   // --- Readiness/Risk Integration ---
+│   ├── blocking-risk-detected.subscriber.ts   # Listens to: RiskIdentified (Blocks tasks)
+│   ├── risk-resolved.subscriber.ts            # Listens to: RiskResolved (Unblocks tasks)
+│
+│   // --- Document Integration ---
+│   ├── document-approved.subscriber.ts        # Listens to: DocumentVerified (Auto-completes "Collect Doc" tasks)
+│   ├── document-rejected.subscriber.ts        # Listens to: DocumentRejected (Re-opens task as FAILED)
+│
+│   // --- Court/External Integration ---
+│   ├── court-date-scheduled.subscriber.ts     # Updates "Attend Hearing" task due date
+│
+├── jobs/                                      # ⏰ BACKGROUND TASKS
+│   ├── overdue-task-monitor.job.ts            # Marks tasks overdue, sends reminders
+│   ├── auto-escalation-daemon.job.ts          # Checks blocked tasks > threshold -> Alerts Legal
+│   ├── weekly-executor-digest.job.ts          # Generates "Week in Review" email
+│   └── stale-roadmap-refresher.job.ts         # Re-runs optimization for inactive roadmaps
+│
+└── interfaces/                                # 🔌 EXTERNAL PORTS
+    ├── i-readiness-service.adapter.ts         # To fetch latest Risk profile
+    ├── i-document-service.adapter.ts          # To verify proofs/attachments
+    ├── i-notification-service.adapter.ts      # To send push/email reminders
+    └── i-ai-prediction.adapter.ts             # Interface for the ML Time Estimation model
