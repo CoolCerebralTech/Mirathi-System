@@ -8,35 +8,96 @@ import { toast } from 'sonner';
 
 import {
   type GenerateRoadmapInput,
-  type SubmitProofInput,
+  type OptimizeRoadmapInput,
+  type TransitionPhaseInput,
+  type LinkRiskInput,
+  type SubmitTaskProofInput,
   type SkipTaskInput,
-  type TaskFilterParams,
+  type WaiveTaskInput,
+  type EscalateTaskInput,
+  type TaskFilterInput,
   type RoadmapDashboardResponse,
   type RoadmapAnalyticsResponse,
-  type TaskSummaryResponse,
   type TaskDetailResponse,
-} from './roadmap.types';
+  type TaskListResponse,
+} from '../../types/roadmap.types';
 
-const BASE_URL = '/succession/roadmaps';
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
+const BASE_URL = '/api/succession/roadmaps';
 
 export const roadmapKeys = {
   all: ['roadmap'] as const,
   detail: (id: string) => [...roadmapKeys.all, id] as const,
   dashboard: (id: string) => [...roadmapKeys.detail(id), 'dashboard'] as const,
   analytics: (id: string) => [...roadmapKeys.detail(id), 'analytics'] as const,
-  tasks: (id: string, filters: any) => [...roadmapKeys.detail(id), 'tasks', filters] as const,
+  criticalPath: (id: string) => [...roadmapKeys.detail(id), 'critical-path'] as const,
+  tasks: (id: string, filters?: TaskFilterInput) => [...roadmapKeys.detail(id), 'tasks', filters] as const,
   task: (roadmapId: string, taskId: string) => [...roadmapKeys.detail(roadmapId), 'task', taskId] as const,
+  taskHistory: (roadmapId: string, taskId: string) => [...roadmapKeys.detail(roadmapId), 'task', taskId, 'history'] as const,
 };
 
 // ============================================================================
-// API FUNCTIONS
+// API FUNCTIONS (COMMANDS - WRITE)
 // ============================================================================
 
+// --- Lifecycle Commands ---
 const generateRoadmap = async (data: GenerateRoadmapInput) => {
   const res = await apiClient.post<{ id: string }>(BASE_URL, data);
   return res.data;
 };
 
+const optimizeRoadmap = async (id: string, data: OptimizeRoadmapInput) => {
+  const res = await apiClient.post<{ status: string }>(`${BASE_URL}/${id}/optimize`, data);
+  return res.data;
+};
+
+// --- Task Execution Commands ---
+const startTask = async (id: string, taskId: string) => {
+  const res = await apiClient.post<{ message: string }>(`${BASE_URL}/${id}/tasks/${taskId}/start`);
+  return res.data;
+};
+
+const submitTaskProof = async (id: string, taskId: string, data: SubmitTaskProofInput) => {
+  const res = await apiClient.post<{ message: string }>(`${BASE_URL}/${id}/tasks/${taskId}/proof`, data);
+  return res.data;
+};
+
+const skipTask = async (id: string, taskId: string, data: SkipTaskInput) => {
+  const res = await apiClient.post<{ message: string }>(`${BASE_URL}/${id}/tasks/${taskId}/skip`, data);
+  return res.data;
+};
+
+// Note: The controllers don't have waive and escalate endpoints yet, but they're in the DTOs
+// We'll add them for completeness
+const waiveTask = async (id: string, taskId: string, data: WaiveTaskInput) => {
+  const res = await apiClient.post<{ message: string }>(`${BASE_URL}/${id}/tasks/${taskId}/waive`, data);
+  return res.data;
+};
+
+const escalateTask = async (id: string, taskId: string, data: EscalateTaskInput) => {
+  const res = await apiClient.post<{ message: string }>(`${BASE_URL}/${id}/tasks/${taskId}/escalate`, data);
+  return res.data;
+};
+
+// --- Phase & Risk Commands ---
+const transitionPhase = async (id: string, data: TransitionPhaseInput) => {
+  const res = await apiClient.patch<{ message: string }>(`${BASE_URL}/${id}/phase/transition`, data);
+  return res.data;
+};
+
+const linkRisk = async (id: string, data: LinkRiskInput) => {
+  const res = await apiClient.post<{ message: string }>(`${BASE_URL}/${id}/risks/link`, data);
+  return res.data;
+};
+
+// ============================================================================
+// API FUNCTIONS (QUERIES - READ)
+// ============================================================================
+
+// --- Dashboard & Insights ---
 const getDashboard = async (id: string): Promise<RoadmapDashboardResponse> => {
   const res = await apiClient.get<RoadmapDashboardResponse>(`${BASE_URL}/${id}/dashboard`);
   return res.data;
@@ -47,8 +108,19 @@ const getAnalytics = async (id: string): Promise<RoadmapAnalyticsResponse> => {
   return res.data;
 };
 
-const getTasks = async (id: string, params: TaskFilterParams): Promise<{ items: TaskSummaryResponse[], meta: any }> => {
-  const res = await apiClient.get<{ items: TaskSummaryResponse[], meta: any }>(`${BASE_URL}/${id}/tasks`, { params });
+const getCriticalPath = async (id: string) => {
+  const res = await apiClient.get(`${BASE_URL}/${id}/critical-path`);
+  return res.data;
+};
+
+// --- Task Management ---
+const getTasks = async (id: string, filters?: TaskFilterInput): Promise<TaskListResponse> => {
+  const res = await apiClient.get<TaskListResponse>(`${BASE_URL}/${id}/tasks`, { 
+    params: filters,
+    paramsSerializer: {
+      indexes: null, // Important for array params like status[]
+    },
+  });
   return res.data;
 };
 
@@ -57,35 +129,154 @@ const getTaskDetail = async (id: string, taskId: string): Promise<TaskDetailResp
   return res.data;
 };
 
-const startTask = async ({ id, taskId }: { id: string; taskId: string }) => {
-  const res = await apiClient.post(`${BASE_URL}/${id}/tasks/${taskId}/start`);
-  return res.data;
-};
-
-const submitProof = async ({ id, taskId, data }: { id: string; taskId: string; data: SubmitProofInput }) => {
-  const res = await apiClient.post(`${BASE_URL}/${id}/tasks/${taskId}/proof`, data);
-  return res.data;
-};
-
-const skipTask = async ({ id, taskId, data }: { id: string; taskId: string; data: SkipTaskInput }) => {
-  const res = await apiClient.post(`${BASE_URL}/${id}/tasks/${taskId}/skip`, data);
+const getTaskHistory = async (id: string, taskId: string) => {
+  const res = await apiClient.get(`${BASE_URL}/${id}/tasks/${taskId}/history`);
   return res.data;
 };
 
 // ============================================================================
-// HOOKS
+// REACT QUERY HOOKS (MUTATIONS)
 // ============================================================================
 
+// --- Lifecycle Mutations ---
 export const useGenerateRoadmap = (options?: { onSuccess?: (data: { id: string }) => void }) => {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: generateRoadmap,
     onSuccess: (data) => {
       toast.success('Roadmap Generated');
+      // Invalidate all roadmap queries since we have a new one
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.all });
       options?.onSuccess?.(data);
     },
     onError: (err) => toast.error('Generation Failed', { description: extractErrorMessage(err) }),
   });
 };
+
+export const useOptimizeRoadmap = (id: string, options?: { onSuccess?: () => void }) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: OptimizeRoadmapInput) => optimizeRoadmap(id, data),
+    onSuccess: () => {
+      toast.success('Roadmap Optimized');
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.dashboard(id) });
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.analytics(id) });
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.criticalPath(id) });
+      options?.onSuccess?.();
+    },
+    onError: (err) => toast.error('Optimization Failed', { description: extractErrorMessage(err) }),
+  });
+};
+
+// --- Task Execution Mutations ---
+export const useStartTask = (id: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (taskId: string) => startTask(id, taskId),
+    onSuccess: () => {
+      toast.info('Task Started');
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.dashboard(id) });
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.tasks(id) });
+      // Also invalidate the specific task detail
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.detail(id) });
+    },
+    onError: (err) => toast.error('Start Failed', { description: extractErrorMessage(err) }),
+  });
+};
+
+export const useSubmitTaskProof = (id: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, data }: { taskId: string; data: SubmitTaskProofInput }) =>
+      submitTaskProof(id, taskId, data),
+    onSuccess: () => {
+      toast.success('Task Completed!');
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.dashboard(id) });
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.tasks(id) });
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.analytics(id) });
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.criticalPath(id) });
+    },
+    onError: (err) => toast.error('Submission Failed', { description: extractErrorMessage(err) }),
+  });
+};
+
+export const useSkipTask = (id: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, data }: { taskId: string; data: SkipTaskInput }) =>
+      skipTask(id, taskId, data),
+    onSuccess: () => {
+      toast.warning('Task Skipped');
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.dashboard(id) });
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.tasks(id) });
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.analytics(id) });
+    },
+    onError: (err) => toast.error('Skip Failed', { description: extractErrorMessage(err) }),
+  });
+};
+
+export const useWaiveTask = (id: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, data }: { taskId: string; data: WaiveTaskInput }) =>
+      waiveTask(id, taskId, data),
+    onSuccess: () => {
+      toast.info('Task Waived');
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.dashboard(id) });
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.tasks(id) });
+    },
+    onError: (err) => toast.error('Waiver Failed', { description: extractErrorMessage(err) }),
+  });
+};
+
+export const useEscalateTask = (id: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId, data }: { taskId: string; data: EscalateTaskInput }) =>
+      escalateTask(id, taskId, data),
+    onSuccess: () => {
+      toast.warning('Task Escalated');
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.dashboard(id) });
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.tasks(id) });
+    },
+    onError: (err) => toast.error('Escalation Failed', { description: extractErrorMessage(err) }),
+  });
+};
+
+// --- Phase & Risk Mutations ---
+export const useTransitionPhase = (id: string, options?: { onSuccess?: () => void }) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: TransitionPhaseInput) => transitionPhase(id, data),
+    onSuccess: () => {
+      toast.success('Phase Transitioned');
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.dashboard(id) });
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.analytics(id) });
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.tasks(id) });
+      options?.onSuccess?.();
+    },
+    onError: (err) => toast.error('Transition Failed', { description: extractErrorMessage(err) }),
+  });
+};
+
+export const useLinkRisk = (id: string, options?: { onSuccess?: () => void }) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: LinkRiskInput) => linkRisk(id, data),
+    onSuccess: () => {
+      toast.info('Risk Linked');
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.dashboard(id) });
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.tasks(id) });
+      queryClient.invalidateQueries({ queryKey: roadmapKeys.criticalPath(id) });
+      options?.onSuccess?.();
+    },
+    onError: (err) => toast.error('Link Failed', { description: extractErrorMessage(err) }),
+  });
+};
+
+// ============================================================================
+// REACT QUERY HOOKS (QUERIES)
+// ============================================================================
 
 export const useRoadmapDashboard = (id: string) => {
   return useQuery({
@@ -103,7 +294,15 @@ export const useRoadmapAnalytics = (id: string) => {
   });
 };
 
-export const useRoadmapTasks = (id: string, filters: TaskFilterParams) => {
+export const useCriticalPath = (id: string) => {
+  return useQuery({
+    queryKey: roadmapKeys.criticalPath(id),
+    queryFn: () => getCriticalPath(id),
+    enabled: !!id,
+  });
+};
+
+export const useRoadmapTasks = (id: string, filters?: TaskFilterInput) => {
   return useQuery({
     queryKey: roadmapKeys.tasks(id, filters),
     queryFn: () => getTasks(id, filters),
@@ -119,38 +318,10 @@ export const useTaskDetail = (roadmapId: string, taskId: string) => {
   });
 };
 
-export const useStartTask = (roadmapId: string) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (taskId: string) => startTask({ id: roadmapId, taskId }),
-    onSuccess: () => {
-      toast.info('Task Started');
-      queryClient.invalidateQueries({ queryKey: roadmapKeys.detail(roadmapId) });
-    },
-  });
-};
-
-export const useSubmitProof = (roadmapId: string) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ taskId, data }: { taskId: string; data: SubmitProofInput }) => 
-      submitProof({ id: roadmapId, taskId, data }),
-    onSuccess: () => {
-      toast.success('Task Completed!');
-      queryClient.invalidateQueries({ queryKey: roadmapKeys.detail(roadmapId) });
-    },
-    onError: (err) => toast.error('Submission Failed', { description: extractErrorMessage(err) }),
-  });
-};
-
-export const useSkipTask = (roadmapId: string) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ taskId, data }: { taskId: string; data: SkipTaskInput }) => 
-      skipTask({ id: roadmapId, taskId, data }),
-    onSuccess: () => {
-      toast.warning('Task Skipped');
-      queryClient.invalidateQueries({ queryKey: roadmapKeys.detail(roadmapId) });
-    },
+export const useTaskHistory = (roadmapId: string, taskId: string) => {
+  return useQuery({
+    queryKey: roadmapKeys.taskHistory(roadmapId, taskId),
+    queryFn: () => getTaskHistory(roadmapId, taskId),
+    enabled: !!roadmapId && !!taskId,
   });
 };

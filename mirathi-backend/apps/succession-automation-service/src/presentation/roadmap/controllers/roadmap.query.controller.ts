@@ -43,7 +43,7 @@ import { RoadmapPresenterMapper } from '../mappers/roadmap-presenter.mapper';
 @ApiTags('Succession Roadmap [Read]')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('succession/roadmaps')
+@Controller('roadmaps')
 export class RoadmapQueryController {
   constructor(private readonly queryBus: QueryBus) {}
 

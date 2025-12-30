@@ -43,7 +43,7 @@ import {
 @ApiTags('Succession Roadmap [Write]')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('succession/roadmaps')
+@Controller('roadmaps')
 export class RoadmapCommandController {
   constructor(private readonly commandBus: CommandBus) {}
 

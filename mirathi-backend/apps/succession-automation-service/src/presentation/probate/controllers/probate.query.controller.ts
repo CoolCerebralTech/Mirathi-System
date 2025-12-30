@@ -22,7 +22,7 @@ import { ProbatePresenterMapper } from '../mappers/probate-presenter.mapper';
 @ApiTags('Probate Application [Queries]')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('probate-applications')
+@Controller('probate')
 export class ProbateQueryController {
   constructor(private readonly queryBus: QueryBus) {}
 

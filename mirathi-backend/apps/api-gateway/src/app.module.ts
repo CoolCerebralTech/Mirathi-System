@@ -57,7 +57,7 @@ export class AppModule implements NestModule {
         configKey: 'ESTATE_SERVICE_URL',
       },
       {
-        path: 'succession-automation',
+        path: 'succession',
         url: this.configService.get('SUCCESSION_AUTOMATION_SERVICE_URL'),
         configKey: 'SUCCESSION_AUTOMATION_SERVICE_URL',
       },

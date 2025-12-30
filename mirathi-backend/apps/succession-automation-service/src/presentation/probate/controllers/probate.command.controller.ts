@@ -54,7 +54,7 @@ import {
 @ApiTags('Probate Application [Commands]')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('probate-applications')
+@Controller('probate')
 export class ProbateCommandController {
   constructor(private readonly commandBus: CommandBus) {}
 
