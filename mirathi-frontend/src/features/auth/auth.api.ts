@@ -41,7 +41,7 @@ import {
   LogoutResponseSchema,
   RequestEmailChangeResponseSchema,
   ConfirmEmailChangeResponseSchema,
-} from '../../types';
+} from '../../types/auth.types';
 import { toast } from 'sonner';
 
 // ============================================================================
