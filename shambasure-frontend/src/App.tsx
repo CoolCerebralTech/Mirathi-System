@@ -27,7 +27,7 @@ import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 // Dashboard
 import { ProfilePage } from './pages/users/ProfilePage';
 import { SettingsPage } from './pages/users/SettingsPage';
-import { AssetsPage } from './pages/assets/AssetsPage';
+import { AssetsPage } from './pages/estate/AssetInventoryPage';
 import { DocumentsPage } from './pages/documents/DocumentsPage';
 import { DocumentDetailPage } from './pages/documents/DocumentDetailPage';
 // Not Found

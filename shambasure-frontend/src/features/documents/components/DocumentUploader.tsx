@@ -7,7 +7,7 @@ import { Upload, X, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useUploadDocument } from '../document.api';
-import { useAssets } from '../../assets/assets.api';
+import { useAssets } from '../../estate/estate.api';
 import {
   UploadDocumentSchema,
   DocumentCategoryEnum,

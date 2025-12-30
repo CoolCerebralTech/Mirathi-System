@@ -6,7 +6,7 @@ import { ArrowLeft, AlertTriangle, LinkIcon } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { useDocument } from '../../features/documents/document.api';
-import { useAsset } from '../../features/assets/assets.api';
+import { useAsset } from '../../features/estate/estate.api';
 import { DocumentVersions } from '../../features/documents/components/DocumentVersions';
 import type { DocumentStatus } from '../../types/document.types';
 
