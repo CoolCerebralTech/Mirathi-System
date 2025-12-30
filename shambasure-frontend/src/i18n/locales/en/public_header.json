@@ -1,10 +1,12 @@
 {
   "nav": {
-    "features": "Features",
-    "security": "Security",
-    "about": "About Us",
-    "contact": "Contact",
-    "sign_in": "Sign In",
-    "get_started": "Get Started"
+    "platform": "Platform",
+    "architecture": "Architecture",
+    "security": "Trust & Security",
+    "pricing": "Pricing",
+    "about": "Our Mission",
+    "contact": "Support",
+    "sign_in": "Log In",
+    "get_started": "Start Readiness Audit"
   }
 }

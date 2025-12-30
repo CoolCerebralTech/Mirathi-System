@@ -1,35 +1,46 @@
 // FILE: src/components/layout/PublicFooter.tsx
+// CONTEXT: Mirathi (Dark Mode, Legal-Tech Compliance)
 
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Mail, Phone, MapPin, Shield, Lock, type LucideIcon } from 'lucide-react';
-
+import { 
+  Mail, 
+  Phone, 
+  MapPin, 
+  ShieldCheck, 
+  Lock, 
+  Scale, 
+  Server,
+  type LucideIcon 
+} from 'lucide-react';
 
 import { Logo } from '../common/Logo';
 
-// --- Data (Defined outside the component for performance) ---
+// --- Data ---
 
+// Mapped to the System Architecture
 const productLinks = [
-  { id: 'features', to: '/features' },
-  { id: 'trust_security', to: '/security' },
-  { id: 'pricing', to: '/pricing' },
-  { id: 'about', to: '/about' },
+  { id: 'family_service', to: '/features#family' },
+  { id: 'estate_service', to: '/features#estate' },
+  { id: 'succession_service', to: '/features#succession' },
+  { id: 'document_vault', to: '/features#documents' },
 ];
 
-const supportLinks = [
-  { id: 'contact', to: '/contact' },
-  { id: 'help_center', to: '/help' },
-  { id: 'faq', to: '/faq' },
-  { id: 'community', to: '/community' },
+const resourceLinks = [
+  { id: 'knowledge_base', to: '/learn' },
+  { id: 'cap_160_guide', to: '/learn/law-of-succession' },
+  { id: 'security_whitepaper', to: '/security' },
+  { id: 'developer_api', to: '/docs/api' },
 ];
 
 const legalLinks = [
   { id: 'privacy_policy', to: '/privacy-policy' },
   { id: 'terms_of_service', to: '/terms-of-service' },
+  { id: 'data_protection_addendum', to: '/dpa' },
 ];
 
-// --- Sub-components for Readability ---
+// --- Sub-components ---
 
 type FooterLinkColumnProps = {
   titleKey: string;
@@ -39,15 +50,15 @@ type FooterLinkColumnProps = {
 
 const FooterLinkColumn: React.FC<FooterLinkColumnProps> = ({ titleKey, links, t }) => (
   <div>
-    <h3 className="font-serif text-sm font-semibold uppercase tracking-elegant text-text">
+    <h3 className="font-serif text-sm font-bold uppercase tracking-widest text-amber-500">
       {t(titleKey)}
     </h3>
-    <ul className="mt-4 space-y-3">
+    <ul className="mt-6 space-y-4">
       {links.map((link) => (
         <li key={link.id}>
           <Link
             to={link.to}
-            className="text-sm text-text-subtle transition-colors duration-300 hover:text-primary"
+            className="text-sm text-slate-400 transition-colors duration-300 hover:text-white hover:translate-x-1 inline-block"
           >
             {t(`links.${link.id}`)}
           </Link>
@@ -67,14 +78,15 @@ const ContactLink: React.FC<ContactLinkProps> = ({ href, Icon, text }) => (
   <li>
     <a
       href={href}
-      className="flex items-start gap-3 text-sm text-text-subtle transition-colors duration-300 hover:text-primary"
+      className="group flex items-start gap-3 text-sm text-slate-400 transition-colors duration-300 hover:text-amber-400"
     >
-      <Icon className="mt-0.5 h-4 w-4 flex-shrink-0" />
-      <span>{text}</span>
+      <div className="mt-0.5 flex h-5 w-5 items-center justify-center rounded bg-slate-800 group-hover:bg-amber-500/10 transition-colors">
+        <Icon className="h-3 w-3" />
+      </div>
+      <span className="leading-relaxed">{text}</span>
     </a>
   </li>
 );
-
 
 // --- Main Component ---
 
@@ -83,49 +95,64 @@ export function PublicFooter() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-neutral-200 bg-background-subtle font-sans">
+    <footer className="border-t border-slate-800 bg-slate-950 font-sans text-slate-200">
       <div className="mx-auto max-w-7xl px-6 py-16 sm:px-8 lg:py-20">
         
         {/* Main content grid */}
-        <div className="grid grid-cols-1 gap-12 lg:grid-cols-3 lg:gap-8">
+        <div className="grid grid-cols-1 gap-16 lg:grid-cols-4 lg:gap-8">
           
           {/* Brand Section */}
-          <div className="col-span-1 space-y-6">
+          <div className="col-span-1 lg:col-span-1 space-y-8">
             <Link to="/" className="inline-block transition-opacity hover:opacity-80">
-              <Logo className="h-12 w-12" />
+              <Logo 
+                sizeClassName="h-12 w-auto" 
+                className="text-white" 
+                showTagline={false} // Clean logo for footer
+              />
             </Link>
-            <p className="max-w-xs text-sm leading-relaxed text-text-subtle">
-              {t('tagline', 'Preserving generational wealth through trusted digital estate planning.')}
+            <p className="max-w-xs text-sm leading-relaxed text-slate-400">
+              {t('tagline', 'The Active Intelligence Engine for Kenyan Succession. Deterministic, Secure, and Legally Compliant.')}
             </p>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                <Shield className="h-4 w-4" />
-                <span>SSL Secured</span>
+            
+            {/* Trust Badges */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-3 text-xs text-slate-500">
+                <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                <span className="font-medium text-slate-400">SOC 2 Compliant Infrastructure</span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                <Lock className="h-4 w-4" />
-                <span>Encrypted</span>
+              <div className="flex items-center gap-3 text-xs text-slate-500">
+                <Lock className="h-4 w-4 text-emerald-500" />
+                <span className="font-medium text-slate-400">AES-256 Data Vault</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs text-slate-500">
+                <Server className="h-4 w-4 text-emerald-500" />
+                <span className="font-medium text-slate-400">Kenyan Data Sovereignty</span>
               </div>
             </div>
           </div>
 
           {/* Links Section */}
-          <div className="col-span-1 grid grid-cols-2 gap-8 lg:col-span-2 sm:grid-cols-3">
-            <FooterLinkColumn titleKey="headings.product" links={productLinks} t={t} />
-            <FooterLinkColumn titleKey="headings.support" links={supportLinks} t={t} />
+          <div className="col-span-1 grid grid-cols-2 gap-10 sm:grid-cols-3 lg:col-span-3">
+            <FooterLinkColumn titleKey="headings.platform" links={productLinks} t={t} />
+            <FooterLinkColumn titleKey="headings.resources" links={resourceLinks} t={t} />
 
             {/* Contact Column */}
             <div className="col-span-2 sm:col-span-1">
-              <h3 className="font-serif text-sm font-semibold uppercase tracking-elegant text-text">
+              <h3 className="font-serif text-sm font-bold uppercase tracking-widest text-amber-500">
                 {t('headings.contact', 'Contact')}
               </h3>
-              <ul className="mt-4 space-y-4">
-                <ContactLink href="mailto:info@shambasure.com" Icon={Mail} text="info@shambasure.com" />
-                <ContactLink href="tel:+254700000000" Icon={Phone} text="+254 700 000 000" />
+              <ul className="mt-6 space-y-5">
+                <ContactLink href="mailto:legal@mirathi.com" Icon={Mail} text="legal@mirathi.com" />
+                <ContactLink href="tel:+254700000000" Icon={Phone} text="+254 700 MIRATHI" />
                 <li>
-                  <div className="flex items-start gap-3 text-sm text-text-subtle">
-                    <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                    <span>Nairobi, Kenya</span>
+                  <div className="flex items-start gap-3 text-sm text-slate-400">
+                    <div className="mt-0.5 flex h-5 w-5 items-center justify-center rounded bg-slate-800">
+                      <MapPin className="h-3 w-3" />
+                    </div>
+                    <span className="leading-relaxed">
+                      Mirathi Legal Tech Labs<br />
+                      Nairobi, Kenya
+                    </span>
                   </div>
                 </li>
               </ul>
@@ -133,18 +160,29 @@ export function PublicFooter() {
           </div>
         </div>
 
-        {/* Unified Bottom Bar */}
-        <div className="mt-16 border-t border-neutral-200 pt-8">
+        {/* Legal Disclaimer & Bottom Bar */}
+        <div className="mt-16 border-t border-slate-800 pt-8">
+          
+          {/* Important LegalTech Disclaimer */}
+          <div className="mb-8 rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+             <div className="flex gap-3">
+               <Scale className="h-5 w-5 flex-shrink-0 text-slate-500" />
+               <p className="text-xs leading-relaxed text-slate-500">
+                 <strong>Disclaimer:</strong> {t('disclaimer', 'Mirathi is a technology platform that automates the generation of legal forms based on user input. We are not a law firm and do not provide legal advice. The "Readiness Score" and "Succession Copilot" are for informational purposes only. For complex disputes, please consult an Advocate of the High Court of Kenya.')}
+               </p>
+             </div>
+          </div>
+
           <div className="flex flex-col-reverse items-center justify-between gap-6 sm:flex-row">
-            <p className="text-xs text-text-muted">
-              &copy; {currentYear} {t('copyright', 'Shamba Sure. All rights reserved.')}
+            <p className="text-xs text-slate-500">
+              &copy; {currentYear} {t('copyright', 'Mirathi. All rights reserved.')}
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
               {legalLinks.map((link) => (
                 <Link
                   key={link.id}
                   to={link.to}
-                  className="text-xs text-text-muted transition-colors duration-300 hover:text-primary"
+                  className="text-xs text-slate-500 transition-colors duration-300 hover:text-amber-400"
                 >
                   {t(`links.${link.id}`)}
                 </Link>

@@ -1,24 +1,25 @@
 {
-  "tagline": "Preserving generational wealth through trusted digital estate planning.",
+  "tagline": "The Active Intelligence Engine for Kenyan Succession. Deterministic, Secure, and Legally Compliant.",
   "headings": {
-    "product": "Product",
-    "support": "Support",
-    "contact": "Contact"
+    "platform": "Platform",
+    "resources": "Resources",
+    "contact": "Contact Support"
   },
   "links": {
-    "features": "Features",
-    "trust_security": "Trust & Security",
-    "pricing": "Pricing",
-    "about": "About Us",
+    "family_service": "Family Service (Identity)",
+    "estate_service": "Estate Service (Inventory)",
+    "succession_service": "Succession Service (Process)",
+    "document_vault": "Document Vault",
+    
+    "knowledge_base": "Knowledge Base",
+    "cap_160_guide": "Guide to Cap 160",
+    "security_whitepaper": "Security Whitepaper",
+    "developer_api": "Developer API",
+
     "privacy_policy": "Privacy Policy",
     "terms_of_service": "Terms of Service",
-    "cookie_policy": "Cookie Policy",
-    "data_protection": "Data Protection",
-    "contact": "Contact",
-    "help_center": "Help Center",
-    "faq": "FAQ",
-    "community": "Community"
+    "data_protection_addendum": "Data Processing Addendum (DPA)"
   },
-  "copyright": "Shamba Sure. All rights reserved.",
-  "built_with": "Built with trust for Kenyan families"
+  "disclaimer": "Mirathi is a technology platform that automates the generation of legal forms based on user input. We are not a law firm and do not provide legal advice. The \"Readiness Score\" and \"Succession Copilot\" are for informational purposes only. For complex disputes, please consult an Advocate of the High Court of Kenya.",
+  "copyright": "Mirathi. All rights reserved."
 }

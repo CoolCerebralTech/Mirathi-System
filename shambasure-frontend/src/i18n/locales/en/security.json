@@ -1,119 +1,43 @@
 {
   "hero": {
-    "badge": "Bank-Grade Protection",
     "title": "Your Trust is",
-    "title_accent": "Our Foundation",
-    "description": "When you entrust us with your family's most important documents, we take that responsibility seriously. Every security measure we implement is designed to protect your legacy and earn your confidence."
+    "title_accent": "Our Constitution.",
+    "description": "When you entrust Mirathi with your family's legacy, we treat it with the same rigor as a financial institution. Our \"Active Intelligence\" is built on a foundation of zero-trust security."
   },
-
   "features": {
-    "eyebrow": "Multi-Layered Protection",
-    "title": "Security at Every Level",
-    "description": "We've implemented comprehensive security measures across infrastructure, data, and access control to ensure your documents remain safe, private, and under your control.",
-
     "encryption": {
-      "title": "End-to-End Encryption",
-      "description": "Your data is encrypted from the moment it leaves your device until you view it again. No one, not even Shamba Sure, can access your unencrypted documents.",
-      "badge": "AES-256 Encryption"
+      "title": "AES-256 Data Vault",
+      "description": "All documents in the Document Service are encrypted at rest using industry-standard AES-256. Even our database administrators cannot read your files."
     },
-    "infrastructure": {
-      "title": "Secure Cloud Infrastructure",
-      "description": "We partner with leading cloud providers who meet the highest global standards for security and reliability, ensuring your data is stored in a world-class environment.",
-      "badge": "Tier IV Data Centers"
+    "sovereignty": {
+      "title": "Kenyan Data Sovereignty",
+      "description": "We comply with the Data Protection Act 2019 by hosting all sensitive data within legally compliant Availability Zones."
     },
-    "access_control": {
-      "title": "You Control Your Data",
-      "description": "You have complete control over who can view your documents and family information. Your privacy settings are paramount.",
-      "badge": "Granular Permissions"
+    "rbac": {
+      "title": "Strict RBAC",
+      "description": "Role-Based Access Control ensures a \"Verifier\" only sees redacted documents assigned to their queue, preserving your privacy."
     },
-    "data_privacy": {
-      "title": "Kenyan Data Law Compliant",
-      "description": "We are fully compliant with the Kenya Data Protection Act (DPA). Your data is handled with the utmost respect for your rights and local regulations.",
-      "badge": "DPA Certified"
-    },
-    "audits": {
-      "title": "Regular Security Audits",
-      "description": "We engage independent security experts to regularly audit our systems and test our defenses, ensuring we stay ahead of potential threats.",
-      "badge": "Independent Verification"
-    },
-    "support": {
-      "title": "Secure Customer Support",
-      "description": "Our support team is trained in security best practices. We will never ask for your password and have strict protocols to protect your account.",
-      "badge": "Verified Support"
+    "claim_check": {
+      "title": "\"Claim Check\" Pattern",
+      "description": "Services never pass raw files. They pass secure \"Document IDs\". The Document Service acts as the sole, secure gatekeeper."
     }
   },
-
-  "compliance": {
-    "eyebrow": "Certifications & Standards",
-    "title": "Compliance You Can Trust",
-    "description": "We adhere to the highest industry standards and Kenyan regulations to ensure your data is handled with the utmost care and legal compliance.",
-
-    "kdpa": {
-      "title": "Kenya Data Protection Act (KDPA)",
-      "description": "Fully compliant with the KDPA, ensuring your data rights and privacy are always protected."
-    },
-    "iso": {
-      "title": "ISO 27001 Standards",
-      "description": "Aligned with international standards for information security management and control."
-    },
-    "legal": {
-      "title": "Legal Data Stewardship",
-      "description": "Our policies are built on transparency, accountability, and Kenyan data governance laws."
-    },
-    "backup": {
-      "title": "Redundant Cloud Backups",
-      "description": "We maintain secure, encrypted backups in multiple regions to ensure your data remains safe even in disaster scenarios."
-    }
-  },
-
   "promises": {
-    "eyebrow": "Our Commitment",
-    "title": "What We Promise You",
-
     "no_selling": {
       "title": "We Never Sell Your Data",
-      "description": "Your personal information and documents will never be sold, shared, or used for advertising. Ever."
+      "description": "Your family information is yours. We do not sell, rent, or trade your personal data to third parties."
     },
-    "full_control": {
-      "title": "You Stay in Control",
-      "description": "You decide who can view or edit your data — and you can revoke access at any time."
+    "encryption_first": {
+      "title": "Encryption First",
+      "description": "We prioritize encryption at every layer. Data is encrypted in transit (TLS 1.3) and at rest."
     },
-    "transparent": {
-      "title": "Transparent Practices",
-      "description": "We clearly explain our data policies, so you always know how your information is used and protected."
+    "data_rights": {
+      "title": "Your Data Rights",
+      "description": "You can request an export or deletion of your data at any time, in full compliance with the KDPA."
     },
-    "kenyan_law": {
-      "title": "Protected Under Kenyan Law",
-      "description": "Your information is governed by Kenya’s data protection laws, giving you strong legal safeguards and recourse."
-    }
-  },
-
-  "faq": {
-    "eyebrow": "Common Questions",
-    "title": "Your Questions, Answered",
-    "description": "Transparency builds trust. Here are detailed answers to the most common security and privacy questions.",
-
-    "q1": "Who can see my documents?",
-    "a1": "Only you and the individuals you explicitly grant access to (such as designated heirs or trusted contacts) can see your documents. Our internal team cannot view the content of your encrypted files.",
-
-    "q2": "Where is my data stored?",
-    "a2": "Your data is stored in highly secure, geographically distributed data centers managed by our top-tier cloud infrastructure partners. This ensures high availability and disaster recovery.",
-
-    "q3": "Is this platform legally compliant in Kenya?",
-    "a3": "Yes. We have designed Shamba Sure to be fully compliant with the Kenya Data Protection Act (DPA) and other relevant regulations. We are committed to upholding the legal standards for data privacy and security.",
-
-    "q4": "What happens to my data if I close my account?",
-    "a4": "If you choose to close your account, you will have the option to securely download all of your data. Following a grace period, your data will be permanently and irretrievably deleted from our systems in accordance with data protection best practices.",
-
-    "q5": "How often are your systems tested?",
-    "a5": "We perform continuous monitoring and quarterly penetration tests to identify and address vulnerabilities before they can be exploited.",
-
-    "q6": "How do you handle data breaches?",
-    "a6": "In the unlikely event of a data breach, our incident response protocol ensures immediate containment, transparent communication, and compliance with KDPA breach reporting obligations.",
-
-    "more_questions": {
-      "title": "Still Have Questions?",
-      "description": "Our security team is here to help. Contact us directly for detailed answers about our security practices."
+    "audit_logs": {
+      "title": "Immutable Audit Logs",
+      "description": "Every action within the system is logged. This creates a forensic trail for legal validity."
     }
   }
 }

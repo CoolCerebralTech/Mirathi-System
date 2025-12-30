@@ -1,60 +1,129 @@
-// FILE: src/pages/public/FeaturesPage.tsx
-// VERSION 3: Old Money Refined - Interactive Feature Showcase
-
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
-  FileText,
-  Users,
-  CheckCircle2,
-  Smartphone,
-  Shield,
-  Globe,
-  ArrowRight,
-  Landmark,
-  Scale,
-  Clock,
-  Lock,
+  FileText, // For Generated Forms
+  Users, // For Family Service
+  CheckCircle2, // General Checkmark
+  Shield, // For Estate Service (Protection)
+  ArrowRight, // CTA Arrow
+  Brain, // For Succession Service (Intelligence)
+  Lock, // For Security/Encryption
+  Scale, // For Compliance/Law
+  Zap, // For Automation/Efficiency
+  UserCheck, // For Collaboration/Roles (Account Service)
+  TrendingUp, // For Metrics/Growth
+  BarChart3, // For Dashboard/Overview (API Gateway)
+  Eye, // For Document Service (Verification)
+  Sparkles, // General accent / "intelligence"
+  Network // For Event-Driven architecture
 } from 'lucide-react';
 
-import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button'; // Reusing the Button component
 
-import WillVisual from '../../assets/visual-will.png';
-import FamilyVisual from '../../assets/visual-family.png';
-import VaultVisual from '../../assets/visual-vault.png';
-import MediationVisual from '../../assets/visual-mediation.png';
-import TrackingVisual from '../../assets/visual-tracking.png';
+// Import the NEW AI-generated product UI images - ensure these paths are correct
+import DashboardOverview from '../../assets/dashboard-overview.png';
+import FamilyBuilderUI from '../../assets/family-builder-ui.png';
+import AssetInventoryUI from '../../assets/asset-inventory-ui.png';
+import ReadinessAssessmentUI from '../../assets/readiness-assessment-ui.png';
+import FormGeneratorUI from '../../assets/form-generator-ui.png';
+import DocumentVerificationUI from '../../assets/document-verification-ui.png';
+import CollaborationUI from '../../assets/collaboration-ui.png';
 
 
-// Data for interactive showcase section
-const showcaseFeatures = [
+// Product features organized by service for the interactive tour
+const productFeatures = [
   {
-    id: 'will_creation',
-    icon: FileText,
-    visual: WillVisual,
+    id: 'dashboard_overview',
+    icon: BarChart3,
+    image: DashboardOverview,
+    color: 'amber',
+    category: 'API Gateway / Overview',
+    titleKey: 'tour.dashboard_overview.title',
+    defaultTitle: 'Executive Estate Dashboard',
+    descriptionKey: 'tour.dashboard_overview.description',
+    defaultDescription: 'Unified view of your estate’s solvency, family graph, and succession readiness score, aggregated by the API Gateway.',
+    detailKey: 'tour.dashboard_overview.detail',
+    defaultDetail: 'A high-level, real-time aggregation of your entire Mirathi profile, providing critical insights into your family structure, asset valuation, and the current status of your succession process. This view is powered by the API Gateway, combining data from all microservices into one intuitive interface.'
   },
   {
-    id: 'family_tree',
+    id: 'family_builder',
     icon: Users,
-    visual: FamilyVisual,
+    image: FamilyBuilderUI,
+    color: 'blue',
+    category: 'Family Service',
+    titleKey: 'tour.family_builder.title',
+    defaultTitle: 'Kinship Truth Engine',
+    descriptionKey: 'tour.family_builder.description',
+    defaultDescription: 'Visually map all legal and biological relationships, including S.40 polygamous houses and guardianship assignments.',
+    detailKey: 'tour.family_builder.detail',
+    defaultDetail: 'The Family Service allows you to build a precise digital twin of your family tree, strictly adhering to the Children Act and Marriage Act. It intelligently models complex kinship structures like polygamous houses (S.40) and tracks guardianship, ensuring every rightful beneficiary is accounted for, preventing future disputes over identity.'
   },
   {
-    id: 'document_vault',
-    icon: Lock,
-    visual: VaultVisual,
+    id: 'document_verification',
+    icon: Eye,
+    image: DocumentVerificationUI,
+    color: 'cyan', // New color for Document Service
+    category: 'Document Service',
+    titleKey: 'tour.document_verification.title',
+    defaultTitle: 'Intelligent Document Vault',
+    descriptionKey: 'tour.document_verification.description',
+    defaultDescription: 'Securely upload, OCR-scan, and verify all critical legal documents (Title Deeds, Death Certificates) with the Document Service.',
+    detailKey: 'tour.document_verification.detail',
+    defaultDetail: 'Our Document Service acts as your intelligent utility. It securely stores all legal files (e.g., Title Deeds, ID scans) in an AES-256 encrypted S3 bucket. Advanced OCR extracts key data, which is then sent for manual verification by a VERIFIER, ensuring data accuracy and compliance for legal audit trails. This employs the "Claim Check" pattern, storing only IDs in other services.'
   },
   {
-    id: 'mediation_tools',
-    icon: Scale,
-    visual: MediationVisual,
+    id: 'asset_inventory',
+    icon: Shield,
+    image: AssetInventoryUI,
+    color: 'emerald',
+    category: 'Estate Service',
+    titleKey: 'tour.asset_inventory.title',
+    defaultTitle: 'Economic Truth Engine',
+    descriptionKey: 'tour.asset_inventory.description',
+    defaultDescription: 'Manage all assets and debts. Real-time solvency calculations enforce S.45 priority, blocking distribution if the estate is insolvent.',
+    detailKey: 'tour.asset_inventory.detail',
+    defaultDetail: 'The Estate Service provides a deterministic inventory of all assets and liabilities. It dynamically calculates the Net Estate Value and enforces S.45 priority rules (Funeral > Secured > Unsecured Debts). Any change triggers a "Dirty Flag" recalculation, and the "Insolvency Radar" proactively alerts users, preventing illegal distributions and financial chaos.'
   },
   {
-    id: 'succession_tracking',
-    icon: Clock,
-    visual: TrackingVisual,
+    id: 'readiness_assessment',
+    icon: Brain,
+    image: ReadinessAssessmentUI,
+    color: 'purple',
+    category: 'Succession Service',
+    titleKey: 'tour.readiness_assessment.title',
+    defaultTitle: 'Succession Readiness Audit',
+    descriptionKey: 'tour.readiness_assessment.description',
+    defaultDescription: 'Get a real-time compliance score. The system prevents form generation until legal readiness reaches 80%.',
+    detailKey: 'tour.readiness_assessment.detail',
+    defaultDetail: 'The Succession Service continuously assesses your readiness for court filing. It runs a "Context Detection" engine to identify the succession regime (e.g., Islamic, Polygamous, Small Estate) and prevents form generation if the ReadinessScore is below 80%. This ensures you are legally robust before approaching the court, minimizing delays and rejections.'
   },
+  {
+    id: 'form_generator',
+    icon: FileText,
+    image: FormGeneratorUI,
+    color: 'purple',
+    category: 'Succession Service',
+    titleKey: 'tour.form_generator.title',
+    defaultTitle: 'Automated Court Form Generation',
+    descriptionKey: 'tour.form_generator.description',
+    defaultDescription: 'Instantly generate compliant P&A 80, P&A 5, and orchestrate digital signing of Form 38 consents.',
+    detailKey: 'tour.form_generator.detail',
+    defaultDetail: 'Once your estate is fully reconciled and the Readiness Assessment is complete, the ProbateApplication aggregate within the Succession Service automatically generates all necessary court forms (P&A 80, P&A 5). It also orchestrates the digital signing of Family Consents (Form 38), streamlining the entire documentation process for filing.'
+  },
+  {
+    id: 'collaboration',
+    icon: UserCheck,
+    image: CollaborationUI,
+    color: 'sky', // New color for Collaboration
+    category: 'Account Service / Collaboration',
+    titleKey: 'tour.collaboration.title',
+    defaultTitle: 'Role-Based Collaboration',
+    descriptionKey: 'tour.collaboration.description',
+    defaultDescription: 'Securely collaborate with family, lawyers, and verifiers using strict Role-Based Access Control (RBAC).',
+    detailKey: 'tour.collaboration.detail',
+    defaultDetail: 'Mirathi’s Account Service provides robust Role-Based Access Control (RBAC). Users, Verifiers, Admins, and Auditors have strictly defined access policies. For example, a VERIFIER can only see documents assigned to their queue with PII redacted, ensuring data protection (KDPA 2019) and secure collaboration without compromising sensitive information.'
+  }
 ];
 
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -64,233 +133,187 @@ const showcaseFeatures = [
 export function FeaturesPage() {
   const { t } = useTranslation(['features', 'common']);
   const navigate = useNavigate();
-  const [activeShowcase, setActiveShowcase] = React.useState(0);
+  const [activeFeature, setActiveFeature] = React.useState(0);
 
-  const platformHighlights = [
+  // Platform Capabilities, directly mapped to architectural benefits
+  const capabilities = React.useMemo(() => [
     { 
-      icon: Smartphone, 
-      id: 'mobile_first',
-      color: 'primary' as const,
-    },
-    { 
-      icon: Shield, 
-      id: 'security', 
-      color: 'accent-burgundy' as const,
-    },
-    { 
-      icon: Globe, 
-      id: 'language', 
-      color: 'secondary' as const,
-    },
-    { 
-      icon: Landmark, 
-      id: 'compliance', 
-      color: 'primary' as const,
+      icon: Brain, 
+      id: 'intelligence',
+      color: 'purple',
+      features: ['Active Intelligence Engine', 'Context Detection', 'Rule-based Determinism']
     },
     { 
       icon: Scale, 
-      id: 'mediation', 
-      color: 'accent-burgundy' as const,
+      id: 'compliance', 
+      color: 'blue',
+      features: ['Law of Succession Act (Cap 160)', 'Children & Marriage Act', 'Court Procedures Rules']
     },
     { 
-      icon: Users, 
-      id: 'heir_access', 
-      color: 'secondary' as const,
+      icon: Lock, 
+      id: 'security', 
+      color: 'emerald',
+      features: ['Data Protection Act 2019', 'AES-256 Encryption', 'Role-Based Access Control (RBAC)']
     },
-  ];
+    { 
+      icon: Zap, 
+      id: 'automation', 
+      color: 'amber',
+      features: ['Automated Form Generation', 'Digital Consent Orchestration', 'Dynamic Task Roadmaps']
+    },
+    { 
+      icon: Network, // Changed icon for workflow to emphasize event-driven
+      id: 'event_driven_workflow', // Updated ID
+      color: 'pink', // New color for Event-Driven
+      features: ['Asynchronous Microservices', 'Loose Coupling', '"Death Event" Triggers']
+    },
+    { 
+      icon: UserCheck, 
+      id: 'strict_separation', // New ID
+      color: 'sky', // New color for Strict Separation
+      features: ['Identity (Family) from Inventory (Estate)', 'Inventory from Process (Succession)', 'Prevents "God Object" issues']
+    },
+  ], []);
 
   return (
-    <div className="bg-background font-sans text-text">
+    <div className="bg-slate-950 font-sans text-slate-100">
       
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* HERO SECTION - Split Screen with Floating Cards */}
+      {/* HERO SECTION - Product Tour Intro */}
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      <section className="relative overflow-hidden border-b border-neutral-200">
+      <section className="relative overflow-hidden border-b border-slate-800">
         {/* Decorative gradient background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-background via-background-subtle to-primary/5"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950"></div>
         
-        {/* Decorative pattern */}
-        <div className="absolute inset-0 opacity-[0.02]">
+        {/* Subtle grid pattern */}
+        <div className="absolute inset-0 opacity-[0.03]">
           <div className="absolute inset-0" style={{
-            backgroundImage: 'radial-gradient(circle at 2px 2px, rgb(184, 134, 11) 1px, transparent 0)',
+            backgroundImage: 'radial-gradient(circle at 2px 2px, rgb(251, 191, 36) 1px, transparent 0)',
             backgroundSize: '40px 40px'
           }}></div>
         </div>
 
         <div className="container relative mx-auto px-6 lg:px-8">
-          <div className="grid min-h-[80vh] items-center gap-12 py-20 lg:grid-cols-2 lg:gap-16 lg:py-28">
+          <div className="mx-auto max-w-4xl py-20 text-center lg:py-28">
             
-            {/* Left Column: Content */}
-            <div className="animate-fade-in text-center lg:text-left">
-              <Badge className="mb-6 border-primary/30 bg-primary/10 px-4 py-1.5 font-serif text-sm font-medium text-primary shadow-soft">
-                {t('hero.badge', 'Comprehensive Platform')}
-              </Badge>
-              
-              <h1 className="font-display text-5xl font-bold tracking-tight text-text sm:text-6xl lg:text-7xl">
-                {t('hero.title', 'Everything You Need for')}
-                <span className="mt-2 block text-primary">
-                  {t('hero.title_accent', 'Peaceful Succession')}
-                </span>
-              </h1>
-              
-              <p className="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-text-subtle sm:text-xl lg:mx-0">
-                {t('hero.description', 'From digital will creation to dispute prevention, Shamba Sure provides a complete ecosystem for securing your family\'s land legacy.')}
-              </p>
-              
-              <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row lg:justify-start">
-                 <Button 
-              size="lg" 
-              onClick={() => navigate('/register')} 
-              className="
-                group w-full bg-primary text-lg font-semibold text-primary-foreground 
-                shadow-elegant transition-all duration-300 
-                hover:bg-primary-hover hover:shadow-premium hover:-translate-y-1
-                p-0 sm:w-auto
-              "
-            >
-              <div className="flex w-full items-center justify-between px-6 py-3 sm:w-auto">
-                <span>{t('common:get_started', 'Get Started Free')}</span>
-                
-                {/* A more elegant chevron icon */}
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  width="24" height="24" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="2.5"
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  className="ml-4 h-5 w-5 transition-transform duration-300 group-hover:translate-x-1"
-                >
-                  <polyline points="9 18 15 12 9 6"></polyline>
-                </svg>
-              </div>
-            </Button>
-                <Button 
-                  size="lg" 
-                  variant="outline"
-                  onClick={() => navigate('/contact')} 
-                  className="w-full border-2 border-neutral-300 text-lg font-medium transition-all duration-300 hover:border-primary hover:bg-neutral-50 hover:text-primary sm:w-auto"
-                >
-                  {t('hero.contact_us', 'Schedule Demo')}
-                </Button>
-              </div>
-
-              <div className="mt-12 flex flex-wrap items-center justify-center gap-6 text-sm text-text-muted lg:justify-start">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-secondary" />
-                  <span>{t('hero.trust.no_credit', 'No credit card required')}</span>
+            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-6 py-3 backdrop-blur-md">
+              <Sparkles className="h-5 w-5 text-amber-400" />
+              <span className="text-sm font-semibold text-amber-100 uppercase tracking-wide">
+                {t('hero.badge', 'Platform Capabilities & Architecture')}
+              </span>
+            </div>
+            
+            <h1 className="font-serif text-5xl font-bold tracking-tight text-white sm:text-6xl lg:text-7xl">
+              {t('hero.title', 'Inside the Active Intelligence Engine')}
+            </h1>
+            
+            <p className="mx-auto mt-8 max-w-3xl text-xl leading-relaxed text-slate-300">
+              {t('hero.description', 'Explore the deterministic features that make Mirathi the most advanced succession planning platform, engineered for Kenyan legal reality.')}
+            </p>
+            
+            <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
+              <Button 
+                size="lg" 
+                onClick={() => navigate('/register')} 
+                className="group w-full sm:w-auto bg-gradient-to-r from-amber-500 to-amber-600 text-lg font-bold text-slate-950 shadow-xl shadow-amber-500/25 transition-all duration-300 hover:shadow-2xl hover:shadow-amber-500/40 hover:-translate-y-1 border-0 rounded-xl px-6 py-3"
+              >
+                <div className="flex w-full items-center justify-center gap-3">
+                  <span>{t('hero.cta_main', 'Start Free Readiness Audit')}</span>
+                  <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-secondary" />
-                  <span>{t('hero.trust.free_trial', 'Free forever for basic features')}</span>
-                </div>
-              </div>
+              </Button>
+              <Button 
+                size="lg" 
+                variant="outline" 
+                onClick={() => navigate('/contact')} 
+                className="w-full border-2 border-slate-600 bg-slate-800/50 text-lg font-medium text-slate-100 backdrop-blur-md transition-all duration-300 hover:bg-slate-700/50 hover:border-slate-500 sm:w-auto rounded-xl px-6 py-3"
+              >
+                {t('hero.cta_secondary', 'Schedule Technical Demo')}
+              </Button>
             </div>
 
-            {/* Right Column: Floating Feature Cards */}
-            <div className="relative hidden animate-fade-in lg:block" style={{ animationDelay: '200ms' }}>
-              <div className="absolute inset-0 rounded-full bg-primary/5 blur-3xl"></div>
-              <div className="relative space-y-4">
-                
-                {/* Card 1: Digital Will */}
-                <div className="animate-slide-up rounded-elegant border border-neutral-200/50 bg-background/80 p-6 shadow-soft backdrop-blur-sm transition-all duration-500 hover:scale-105 hover:shadow-lifted" style={{ animationDelay: '300ms' }}>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-shrink-0 rounded-lg bg-primary/10 p-3">
-                      <FileText className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-serif text-base font-bold text-text">Digital Will Creator</h3>
-                      <p className="mt-1 text-sm text-text-subtle">Guided, legally compliant process</p>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Card 2: Family Tree */}
-                <div className="animate-slide-up translate-x-8 rounded-elegant border border-neutral-200/50 bg-background/80 p-6 shadow-soft backdrop-blur-sm transition-all duration-500 hover:scale-105 hover:shadow-lifted" style={{ animationDelay: '400ms' }}>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-shrink-0 rounded-lg bg-secondary/10 p-3">
-                      <Users className="h-6 w-6 text-secondary" />
-                    </div>
-                    <div>
-                      <h3 className="font-serif text-base font-bold text-text">HeirLink™ Family Tree</h3>
-                      <p className="mt-1 text-sm text-text-subtle">Visually assign heirs and assets</p>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Card 3: Secure Vault */}
-                <div className="animate-slide-up translate-x-4 rounded-elegant border border-neutral-200/50 bg-background/80 p-6 shadow-soft backdrop-blur-sm transition-all duration-500 hover:scale-105 hover:shadow-lifted" style={{ animationDelay: '500ms' }}>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-shrink-0 rounded-lg bg-accent-burgundy/10 p-3">
-                      <Shield className="h-6 w-6 text-accent-burgundy" />
-                    </div>
-                    <div>
-                      <h3 className="font-serif text-base font-bold text-text">Secure Document Vault</h3>
-                      <p className="mt-1 text-sm text-text-subtle">Bank-grade encryption</p>
-                    </div>
-                  </div>
-                </div>
-
+            <div className="mt-12 flex flex-wrap items-center justify-center gap-6 text-sm text-slate-400">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-amber-400" />
+                <span>{t('hero.trust.no_credit', 'No credit card required')}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-amber-400" />
+                <span>{t('hero.trust.setup', 'Guided setup in minutes')}</span>
               </div>
             </div>
-
           </div>
         </div>
       </section>
 
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* INTERACTIVE SHOWCASE - Hover to Preview */}
+      {/* INTERACTIVE PRODUCT TOUR - Microservice Deep-Dive */}
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      <section className="border-y border-neutral-200 bg-background-subtle py-20 lg:py-32">
+      <section className="border-b border-slate-800 bg-slate-900 py-20 lg:py-32">
         <div className="container mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="grid items-start gap-16 lg:grid-cols-2">
+          
+          <div className="mx-auto max-w-3xl text-center mb-16">
+            <span className="text-sm font-bold uppercase tracking-widest text-amber-400">
+              {t('tour.eyebrow', 'Service Deep-Dive')}
+            </span>
+            <h2 className="mt-4 font-serif text-4xl font-bold tracking-tight text-white sm:text-5xl">
+              {t('tour.title', 'Mirathi\'s Microservices in Action')}
+            </h2>
+            <p className="mt-6 text-lg leading-relaxed text-slate-400">
+              {t('tour.description', 'Click through each module to understand the boundaries, responsibilities, and interactions of our Event-Driven Microservices ecosystem.')}
+            </p>
+          </div>
+
+          <div className="grid items-start gap-12 lg:grid-cols-5">
             
-            {/* Left: Feature List */}
-            <div className="lg:sticky lg:top-28">
-              <p className="mb-4 font-serif text-sm font-semibold uppercase tracking-elegant text-primary">
-                {t('showcase.eyebrow', 'Complete Toolkit')}
-              </p>
-              <h2 className="font-display text-4xl font-bold tracking-tight text-text sm:text-5xl">
-                {t('showcase.title', 'A Powerful, Unified System')}
-              </h2>
-              <p className="mt-6 text-lg leading-relaxed text-text-subtle">
-                {t('showcase.description', 'Each feature is designed to work seamlessly with the others, creating a single source of truth for your family\'s legacy.')}
-              </p>
-              
-              <div className="mt-10 space-y-3">
-                {showcaseFeatures.map((feature, index) => (
+            {/* Left: Feature Navigation */}
+            <div className="lg:col-span-2">
+              <div className="space-y-4 lg:sticky lg:top-28">
+                {productFeatures.map((feature, index) => (
                   <button
                     key={feature.id}
-                    onClick={() => setActiveShowcase(index)}
-                    onMouseEnter={() => setActiveShowcase(index)}
+                    onClick={() => setActiveFeature(index)}
                     className={`
-                      w-full cursor-pointer rounded-elegant border p-5 text-left transition-all duration-300
-                      ${activeShowcase === index
-                        ? 'border-primary/30 bg-background shadow-soft'
-                        : 'border-transparent hover:bg-background/50'
+                      w-full cursor-pointer rounded-xl border p-5 text-left transition-all duration-300 group
+                      ${activeFeature === index
+                        ? 'border-amber-500/40 bg-slate-800/70 shadow-lg shadow-amber-500/10'
+                        : 'border-slate-800 bg-slate-900/30 hover:bg-slate-800/50 hover:border-slate-700'
                       }
                     `}
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-start gap-4">
                       <div className={`
                         flex-shrink-0 rounded-lg p-3 transition-all duration-300
-                        ${activeShowcase === index
-                          ? 'scale-110 bg-primary/10'
-                          : 'bg-neutral-200/50'
+                        ${activeFeature === index
+                          ? feature.color === 'amber' ? 'scale-110 bg-amber-500/20' :
+                            feature.color === 'blue' ? 'scale-110 bg-blue-500/20' :
+                            feature.color === 'emerald' ? 'scale-110 bg-emerald-500/20' :
+                            feature.color === 'purple' ? 'scale-110 bg-purple-500/20' :
+                            feature.color === 'cyan' ? 'scale-110 bg-cyan-500/20' :
+                            'scale-110 bg-sky-500/20'
+                          : 'bg-slate-800 group-hover:bg-slate-700' // Consistent hover for inactive
                         }
                       `}>
                         <feature.icon className={`h-6 w-6 transition-colors duration-300 ${
-                          activeShowcase === index ? 'text-primary' : 'text-text-subtle'
+                          activeFeature === index 
+                            ? feature.color === 'amber' ? 'text-amber-400' :
+                              feature.color === 'blue' ? 'text-blue-400' :
+                              feature.color === 'emerald' ? 'text-emerald-400' :
+                              feature.color === 'purple' ? 'text-purple-400' :
+                              feature.color === 'cyan' ? 'text-cyan-400' :
+                              'text-sky-400'
+                            : 'text-slate-500 group-hover:text-slate-400' // Consistent hover for inactive
                         }`} />
                       </div>
-                      <div className="flex-1">
-                        <h3 className="font-serif text-lg font-bold text-text">
-                          {t(`showcase.${feature.id}.title`, feature.id)}
+                      <div className="flex-1 min-w-0">
+                        <div className="mb-1 inline-flex items-center gap-2 rounded-full bg-slate-800/50 px-3 py-1 text-xs font-medium text-slate-400">
+                          {feature.category}
+                        </div>
+                        <h3 className="font-semibold text-lg text-white mb-1">
+                          {t(feature.titleKey, feature.defaultTitle)}
                         </h3>
-                        <p className="mt-1 text-sm text-text-subtle">
-                          {t(`showcase.${feature.id}.description`, 'Feature description')}
+                        <p className="text-sm text-slate-400 line-clamp-2">
+                          {t(feature.descriptionKey, feature.defaultDescription)}
                         </p>
                       </div>
                     </div>
@@ -299,57 +322,100 @@ export function FeaturesPage() {
               </div>
             </div>
 
-            {/* Right: Visual Preview */}
-            <div className="relative h-[600px] overflow-hidden rounded-elegant border border-neutral-200 bg-neutral-100 shadow-lifted">
-              {showcaseFeatures.map((feature, index) => (
-                <div
-                  key={feature.id}
-                  className={`
-                    absolute inset-0 transition-all duration-700
-                    ${activeShowcase === index 
-                      ? 'z-10 opacity-100 scale-100' 
-                      : 'z-0 opacity-0 scale-95'
-                    }
-                  `}
-                >
-                  <img
-                    src={feature.visual}
-                    alt={t(`showcase.${feature.id}.title`, feature.id)}
-                    className="h-full w-full object-cover"
+            {/* Right: Feature Preview */}
+            <div className="lg:col-span-3">
+              <div className="relative h-[600px] overflow-hidden rounded-2xl border border-slate-800 bg-slate-800 shadow-2xl">
+                {productFeatures.map((feature, index) => (
+                  <div
+                    key={feature.id}
+                    className={`
+                      absolute inset-0 transition-all duration-700
+                      ${activeFeature === index 
+                        ? 'z-10 opacity-100 scale-100' 
+                        : 'z-0 opacity-0 scale-95'
+                      }
+                    `}
+                  >
+                    <img
+                      src={feature.image}
+                      alt={t(feature.titleKey, feature.defaultTitle)}
+                      className="h-full w-full object-cover"
+                    />
+                    {/* Overlay gradient for better text visibility */}
+                    <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-slate-950/90 to-transparent"></div>
+                    
+                    {/* Feature description overlay */}
+                    <div className="absolute inset-x-0 bottom-0 p-8">
+                      <div className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold mb-3 ${
+                        feature.color === 'amber' ? 'bg-amber-500/20 border border-amber-500/30 text-amber-300' :
+                        feature.color === 'blue' ? 'bg-blue-500/20 border border-blue-500/30 text-blue-300' :
+                        feature.color === 'emerald' ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-300' :
+                        feature.color === 'purple' ? 'bg-purple-500/20 border border-purple-500/30 text-purple-300' :
+                        feature.color === 'cyan' ? 'bg-cyan-500/20 border border-cyan-500/30 text-cyan-300' :
+                        'bg-sky-500/20 border border-sky-500/30 text-sky-300'
+                      }`}>
+                        <feature.icon className="h-4 w-4" />
+                        {feature.category}
+                      </div>
+                      <h3 className="font-serif text-2xl font-bold text-white mb-2">
+                        {t(feature.titleKey, feature.defaultTitle)}
+                      </h3>
+                      <p className="text-slate-300 max-w-2xl">
+                        {t(feature.detailKey, feature.defaultDetail)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Feature navigation dots */}
+              <div className="mt-6 flex justify-center gap-2">
+                {productFeatures.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setActiveFeature(index)}
+                    className={`
+                      h-2 rounded-full transition-all duration-300
+                      ${activeFeature === index 
+                        ? 'w-8 bg-amber-500' 
+                        : 'w-2 bg-slate-700 hover:bg-slate-600'
+                      }
+                    `}
+                    aria-label={`View feature ${index + 1}`}
                   />
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* PLATFORM HIGHLIGHTS - Trust Pillars */}
+      {/* PLATFORM CAPABILITIES - Key Architectural Benefits */}
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      <section className="py-20 lg:py-32">
+      <section className="py-20 lg:py-32 bg-slate-950">
         <div className="container mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
-            <p className="mb-4 font-serif text-sm font-semibold uppercase tracking-elegant text-secondary">
-              {t('highlights.eyebrow', 'Built for Kenya')}
-            </p>
-            <h2 className="font-display text-4xl font-bold tracking-tight text-text sm:text-5xl">
-              {t('highlights.title', 'Designed for Kenyan Families')}
+            <span className="text-sm font-bold uppercase tracking-widest text-amber-400">
+              {t('capabilities.eyebrow', 'Core Tenets')}
+            </span>
+            <h2 className="mt-4 font-serif text-4xl font-bold tracking-tight text-white sm:text-5xl">
+              {t('capabilities.title', 'Engineered for Trust & Compliance')}
             </h2>
-            <p className="mx-auto mt-6 max-w-3xl text-lg leading-relaxed text-text-subtle">
-              {t('highlights.description', 'Every feature is crafted with deep understanding of Kenya\'s unique land ownership challenges, cultural dynamics, and legal framework.')}
+            <p className="mx-auto mt-6 text-lg leading-relaxed text-slate-400">
+              {t('capabilities.description', 'Mirathi\'s foundation is built upon strict adherence to Kenyan law and modern, event-driven architectural principles.')}
             </p>
           </div>
           
-          <div className="mx-auto mt-20 grid max-w-6xl gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {platformHighlights.map((highlight, index) => (
-              <HighlightCard
-                key={highlight.id}
-                icon={highlight.icon}
-                title={t(`highlights.${highlight.id}.title`, highlight.id)}
-                description={t(`highlights.${highlight.id}.description`, 'Description')}
-                badge={t(`highlights.${highlight.id}.badge`, 'Badge')}
-                color={highlight.color}
+          <div className="mx-auto mt-16 grid max-w-6xl gap-8 md:grid-cols-2 lg:grid-cols-3">
+            {capabilities.map((capability, index) => (
+              <CapabilityCard
+                key={capability.id}
+                icon={capability.icon}
+                title={t(`capabilities.${capability.id}.title`, capability.id)}
+                description={t(`capabilities.${capability.id}.description`, 'Description')}
+                features={capability.features.map(f => t(`capabilities.${capability.id}.${f.toLowerCase().replace(/[^a-z0-9]/g, '_')}`, f))}
+                color={capability.color}
                 index={index}
               />
             ))}
@@ -358,45 +424,82 @@ export function FeaturesPage() {
       </section>
 
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      {/* TECHNICAL SPECS - For Technical Buyers */}
+      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      <section className="border-y border-slate-800 bg-slate-900 py-20 lg:py-28">
+        <div className="container mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl text-center mb-16">
+            <span className="text-sm font-bold uppercase tracking-widest text-blue-400">
+              {t('specs.eyebrow', 'Technical Excellence')}
+            </span>
+            <h2 className="mt-4 font-serif text-4xl font-bold tracking-tight text-white sm:text-5xl">
+              {t('specs.title', 'Enterprise-Grade Infrastructure')}
+            </h2>
+          </div>
+
+          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+            {[
+              { icon: Lock, label: 'specs.encryption', value: 'AES-256', color: 'emerald' },
+              { icon: Shield, label: 'specs.compliance', value: 'KDPA + SOC 2', color: 'blue' },
+              { icon: Zap, label: 'specs.uptime', value: '99.9% SLA', color: 'amber' },
+              { icon: TrendingUp, label: 'specs.scale', value: 'Event-Driven', color: 'purple' }
+            ].map((spec, i) => (
+              <div key={i} className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 text-center backdrop-blur-sm">
+                <div className={`mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg ${
+                  spec.color === 'emerald' ? 'bg-emerald-500/20' :
+                  spec.color === 'blue' ? 'bg-blue-500/20' :
+                  spec.color === 'amber' ? 'bg-amber-500/20' :
+                  'bg-purple-500/20'
+                }`}>
+                  <spec.icon className={`h-6 w-6 ${
+                    spec.color === 'emerald' ? 'text-emerald-400' :
+                    spec.color === 'blue' ? 'text-blue-400' :
+                    spec.color === 'amber' ? 'text-amber-400' :
+                    'text-purple-400'
+                  }`} />
+                </div>
+                <div className="font-serif text-2xl font-bold text-white">{spec.value}</div>
+                <p className="mt-2 text-sm text-slate-400">{t(spec.label)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
       {/* FINAL CTA SECTION */}
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      <section className="border-t border-neutral-200 bg-gradient-to-b from-background-subtle to-background">
-        <div className="mx-auto max-w-7xl px-6 py-24 sm:px-8 lg:py-32">
+      <section className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 py-24 lg:py-32 border-t border-slate-800">
+        <div className="mx-auto max-w-7xl px-6 lg:px-12">
           <div className="mx-auto max-w-3xl text-center">
-            <h2 className="font-display text-4xl font-bold tracking-tight text-text sm:text-5xl lg:text-6xl">
-              {t('cta.title', 'Start Protecting Your Legacy Today')}
+            <div className="mb-8 inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-6 py-3 text-sm font-semibold text-amber-400 border border-amber-500/20">
+              <Sparkles className="h-4 w-4" />
+              {t('cta.badge', 'Ready to empower your legacy?')}
+            </div>
+
+            <h2 className="font-serif text-4xl font-bold tracking-tight text-white md:text-5xl lg:text-6xl">
+              {t('cta.title', 'Experience Mirathi Today')}
             </h2>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-text-subtle sm:text-xl">
-              {t('cta.description', 'Join thousands of Kenyan families who trust Shamba Sure to secure their land inheritance and preserve family harmony.')}
+            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-300 md:text-xl">
+              {t('cta.description', 'Join the growing number of Kenyan families who trust Mirathi to guide their succession journey with unparalleled intelligence and precision.')}
             </p>
-            
-            <div className="mt-12 flex justify-center">
+
+            <div className="mt-12 flex flex-col sm:flex-row justify-center gap-4">
               <Button 
                 size="lg" 
                 onClick={() => navigate('/register')} 
-                className="
-                  group w-full max-w-md bg-primary text-lg font-semibold text-primary-foreground 
-                  shadow-elegant transition-all duration-300 
-                  hover:shadow-premium p-0 relative overflow-hidden sm:w-auto
-                "
+                className="group w-full max-w-md bg-gradient-to-r from-amber-500 to-amber-600 text-lg font-bold text-slate-950 shadow-xl shadow-amber-500/30 transition-all duration-300 hover:shadow-2xl hover:shadow-amber-500/50 hover:-translate-y-1 p-0 relative overflow-hidden sm:w-auto border-0 rounded-xl"
                 style={{ lineHeight: '1' }}
               >
-                <div className="flex items-center">
-                  <span className="px-8 py-5">
-                    {t('common:get_started', 'Create Free Account')}
-                  </span>
-                  <div className="
-                    h-full self-stretch px-6 py-5 flex items-center 
-                    bg-primary-hover transition-colors duration-300
-                  ">
-                    <ArrowRight className="h-6 w-6 transition-transform duration-300 group-hover:translate-x-1.5" />
-                  </div>
+                <div className="flex items-center justify-center gap-4 px-8 py-5">
+                  <span>{t('cta.button', 'Start Your Free Trial')}</span>
+                  <ArrowRight className="h-6 w-6 transition-transform duration-300 group-hover:translate-x-2" />
                 </div>
               </Button>
             </div>
 
-            <p className="mt-8 text-sm text-text-muted">
-              {t('cta.guarantee', 'No credit card required • Free forever for basic features')}
+            <p className="mt-6 text-sm text-slate-500">
+              {t('cta.guarantee', 'No credit card required • Comprehensive readiness assessment • Full compliance support')}
             </p>
           </div>
         </div>
@@ -406,61 +509,75 @@ export function FeaturesPage() {
 }
 
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-// HIGHLIGHT CARD COMPONENT
+// CAPABILITY CARD COMPONENT
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-function HighlightCard({ 
+function CapabilityCard({ 
   icon: Icon, 
   title, 
-  description, 
-  badge,
+  description,
+  features,
   color,
   index
 }: { 
   icon: React.ElementType; 
   title: string; 
-  description: string; 
-  badge: string;
-  color: 'primary' | 'secondary' | 'accent-burgundy';
+  description: string;
+  features: string[];
+  color: string;
   index: number;
 }) {
-  const colorVariants = {
-    primary: {
-      iconContainer: 'bg-primary/10 group-hover:bg-primary/20',
-      iconColor: 'text-primary',
-      badge: 'border-primary/30 bg-primary/10 text-primary'
+  const colorVariants: Record<string, { iconContainer: string; iconColor: string }> = {
+    purple: {
+      iconContainer: 'bg-purple-500/10 group-hover:bg-purple-500/20',
+      iconColor: 'text-purple-400'
     },
-    secondary: {
-      iconContainer: 'bg-secondary/10 group-hover:bg-secondary/20',
-      iconColor: 'text-secondary',
-      badge: 'border-secondary/30 bg-secondary/10 text-secondary'
+    blue: {
+      iconContainer: 'bg-blue-500/10 group-hover:bg-blue-500/20',
+      iconColor: 'text-blue-400'
     },
-    'accent-burgundy': {
-      iconContainer: 'bg-accent-burgundy/10 group-hover:bg-accent-burgundy/20',
-      iconColor: 'text-accent-burgundy',
-      badge: 'border-accent-burgundy/30 bg-accent-burgundy/10 text-accent-burgundy'
+    emerald: {
+      iconContainer: 'bg-emerald-500/10 group-hover:bg-emerald-500/20',
+      iconColor: 'text-emerald-400'
+    },
+    amber: {
+      iconContainer: 'bg-amber-500/10 group-hover:bg-amber-500/20',
+      iconColor: 'text-amber-400'
+    },
+    pink: { // New color for Event-Driven Workflow
+      iconContainer: 'bg-pink-500/10 group-hover:bg-pink-500/20',
+      iconColor: 'text-pink-400'
+    },
+    sky: { // New color for Strict Separation
+      iconContainer: 'bg-sky-500/10 group-hover:bg-sky-500/20',
+      iconColor: 'text-sky-400'
     }
   };
 
-  const selectedColor = colorVariants[color];
+  const selectedColor = colorVariants[color] || colorVariants.purple;
 
   return (
     <div 
-      className="group animate-fade-in rounded-elegant border border-neutral-200 bg-background p-8 text-left shadow-soft transition-all duration-300 hover:-translate-y-2 hover:border-neutral-300 hover:shadow-lifted"
+      className="group rounded-2xl border border-slate-800 bg-slate-900/50 p-8 text-left backdrop-blur-sm transition-all duration-300 hover:-translate-y-2 hover:border-slate-700 hover:shadow-xl hover:shadow-slate-900/50"
       style={{ animationDelay: `${index * 100}ms` }}
     >
       <div className={`mb-6 inline-flex rounded-xl p-4 transition-all duration-300 group-hover:scale-110 ${selectedColor.iconContainer}`}>
         <Icon className={`h-8 w-8 ${selectedColor.iconColor}`} />
       </div>
-      <Badge className={`mb-3 w-fit text-xs font-medium ${selectedColor.badge}`}>
-        {badge}
-      </Badge>
-      <h3 className="mb-3 font-serif text-xl font-bold text-text">
+      <h3 className="mb-3 font-serif text-xl font-bold text-white">
         {title}
       </h3>
-      <p className="text-sm leading-relaxed text-text-subtle">
+      <p className="mb-6 text-sm leading-relaxed text-slate-400">
         {description}
       </p>
+      <ul className="space-y-2">
+        {features.map((feature, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
+            <CheckCircle2 className={`h-4 w-4 mt-0.5 flex-shrink-0 ${selectedColor.iconColor}`} />
+            <span>{feature}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

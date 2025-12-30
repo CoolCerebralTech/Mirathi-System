@@ -1,19 +1,17 @@
-// FILE: src/pages/auth/components/RegisterForm.tsx
-
-// 1. ADD 'Controller' to the import
-import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   Mail, 
   Lock, 
-  User as UserIcon, 
-  Shield, 
+  User, 
+  ShieldCheck, 
   CheckCircle2, 
   AlertCircle, 
   Info,
-  UserPlus
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 
@@ -27,59 +25,46 @@ import { Input } from '../../../components/ui/Input';
 import { Label } from '../../../components/ui/Label';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import { PasswordStrengthIndicator } from '../../../components/auth/PasswordStrengthIndicator';
+import type { SubmitHandler } from 'react-hook-form';
 
-// ... PasswordRequirements component remains the same ...
+// ============================================================================
+// PASSWORD REQUIREMENTS COMPONENT
+// ============================================================================
+
 interface PasswordRequirementsProps {
   password: string;
   show: boolean;
 }
 
 function PasswordRequirements({ password, show }: PasswordRequirementsProps) {
-  const { t } = useTranslation(['auth']);
-
   if (!show) return null;
 
   const requirements = [
-    {
-      met: password.length >= 8,
-      label: t('auth:password_req_length', 'At least 8 characters'),
-    },
-    {
-      met: /[A-Z]/.test(password),
-      label: t('auth:password_req_uppercase', 'One uppercase letter'),
-    },
-    {
-      met: /[a-z]/.test(password),
-      label: t('auth:password_req_lowercase', 'One lowercase letter'),
-    },
-    {
-      met: /[0-9]/.test(password),
-      label: t('auth:password_req_number', 'One number'),
-    },
-    {
-      met: /[^A-Za-z0-9]/.test(password),
-      label: t('auth:password_req_special', 'One special character'),
-    },
+    { met: password.length >= 8, label: 'At least 8 characters' },
+    { met: /[A-Z]/.test(password), label: 'One uppercase letter' },
+    { met: /[a-z]/.test(password), label: 'One lowercase letter' },
+    { met: /[0-9]/.test(password), label: 'One number' },
+    { met: /[^A-Za-z0-9]/.test(password), label: 'One special character' },
   ];
 
   return (
-    <div className="mt-3 space-y-2 rounded-elegant border border-neutral-200 bg-background-subtle p-3 text-xs">
-      <p className="flex items-center gap-1.5 font-semibold text-text">
-        <Info size={14} />
-        {t('auth:password_requirements', 'Password Requirements')}
+    <div className="mt-3 space-y-2 rounded-xl border border-slate-700/50 bg-slate-900/30 p-4">
+      <p className="flex items-center gap-2 text-xs font-semibold text-slate-300">
+        <Info size={14} className="text-amber-400" />
+        Password Requirements
       </p>
       <ul className="space-y-1.5">
         {requirements.map((req, index) => (
           <li
             key={index}
-            className={`flex items-center gap-2 transition-colors duration-300 ${
-              req.met ? 'text-secondary' : 'text-text-muted'
+            className={`flex items-center gap-2 text-xs transition-colors duration-200 ${
+              req.met ? 'text-emerald-400' : 'text-slate-500'
             }`}
           >
             {req.met ? (
               <CheckCircle2 size={14} className="flex-shrink-0" />
             ) : (
-              <div className="h-3.5 w-3.5 flex-shrink-0 rounded-full border-2 border-neutral-300" />
+              <div className="h-3.5 w-3.5 flex-shrink-0 rounded-full border border-slate-700" />
             )}
             <span>{req.label}</span>
           </li>
@@ -102,10 +87,10 @@ export function RegisterForm() {
   const deviceIdRef = useRef<string | null>(null);
   useEffect(() => {
     const getDeviceId = () => {
-      let id = localStorage.getItem('shamba_device_id');
+      let id = localStorage.getItem('mirathi_device_id');
       if (!id) {
         id = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        localStorage.setItem('shamba_device_id', id);
+        localStorage.setItem('mirathi_device_id', id);
       }
       return id;
     };
@@ -116,7 +101,7 @@ export function RegisterForm() {
     register,
     handleSubmit,
     watch,
-    control, // <--- 2. GET CONTROL HERE
+    control,
     formState: { errors },
   } = useForm<RegisterInput>({
     resolver: zodResolver(RegisterRequestSchema),
@@ -151,137 +136,189 @@ export function RegisterForm() {
           });
         },
         onError: (error) => {
-          console.error("Registration form submission error:", error);
+          console.error("Registration error:", error);
         },
       },
     );
   };
 
   return (
-    <div className="w-full space-y-8">
-      <div className="space-y-4 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-primary/20 bg-primary/5 shadow-soft">
-          <UserPlus className="h-8 w-8 text-primary" />
+    <div className="w-full max-w-md mx-auto">
+      
+      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      {/* HEADER */}
+      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      <div className="mb-8 text-center">
+        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/20 shadow-xl shadow-amber-500/10">
+          <Sparkles className="h-10 w-10 text-amber-400" />
         </div>
-        <div className="space-y-2">
-          <h1 className="font-display text-3xl font-bold tracking-tight text-text sm:text-4xl">
-            {t('auth:create_account', 'Create Your Account')}
-          </h1>
-          <p className="text-base leading-relaxed text-text-subtle">
-            {t('auth:get_started_prompt', 'Join thousands protecting their family\'s land legacy')}
-          </p>
-        </div>
-        <div className="mx-auto flex w-fit items-center gap-2 rounded-full border border-secondary/20 bg-secondary/5 px-4 py-1.5 text-xs font-medium text-secondary">
-          <Shield className="h-3.5 w-3.5" />
-          <span>{t('auth:secure_registration', 'Secure Registration')}</span>
+        
+        <h1 className="font-serif text-3xl font-bold tracking-tight text-white mb-3">
+          {t('auth:create_account', 'Create Your Account')}
+        </h1>
+        
+        <p className="text-base text-slate-400 leading-relaxed mb-6">
+          {t('auth:get_started_prompt', 'Join thousands of Kenyan families protecting their legacy with Mirathi.')}
+        </p>
+
+        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-400">
+          <ShieldCheck className="h-4 w-4" />
+          <span>{t('auth:secure_registration', 'Encrypted & Secure')}</span>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      {/* FORM */}
+      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      <div onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        
         {/* Name Fields */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <div className="space-y-2">
-                <Label htmlFor="firstName" className="font-serif text-sm font-semibold text-text">
-                {t('auth:first_name', 'First Name')}<span className="ml-1 text-danger">*</span>
-                </Label>
-                <div className="relative">
-                <UserIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-                <Input
-                    id="firstName"
-                    type="text"
-                    placeholder={t('auth:first_name_placeholder', 'John')}
-                    autoComplete="given-name"
-                    disabled={isPending}
-                    className={`pl-10 ${errors.firstName ? 'border-danger focus:border-danger focus:ring-danger/20' : 'border-neutral-300 focus:border-primary focus:ring-primary/20'}`}
-                    {...register('firstName')}
-                />
-                </div>
-                {errors.firstName && <p className="flex items-center gap-1.5 text-sm text-danger"><AlertCircle size={14} /><span>{errors.firstName.message}</span></p>}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="firstName" className="text-sm font-medium text-slate-300">
+              {t('auth:first_name', 'First Name')}
+              <span className="ml-1 text-amber-400">*</span>
+            </Label>
+            <div className="relative">
+              <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <Input
+                id="firstName"
+                type="text"
+                placeholder={t('auth:first_name_placeholder', 'John')}
+                autoComplete="given-name"
+                disabled={isPending}
+                className={`pl-10 bg-slate-900/50 text-white placeholder:text-slate-600 border ${
+                  errors.firstName ? 'border-red-500/50 focus:border-red-500' : 'border-slate-700/50 focus:border-amber-500'
+                } focus:ring-2 focus:ring-amber-500/20 transition-all`}
+                {...register('firstName')}
+              />
             </div>
-            <div className="space-y-2">
-                <Label htmlFor="lastName" className="font-serif text-sm font-semibold text-text">
-                {t('auth:last_name', 'Last Name')}<span className="ml-1 text-danger">*</span>
-                </Label>
-                <div className="relative">
-                <UserIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-                <Input
-                    id="lastName"
-                    type="text"
-                    placeholder={t('auth:last_name_placeholder', 'Doe')}
-                    autoComplete="family-name"
-                    disabled={isPending}
-                    className={`pl-10 ${errors.lastName ? 'border-danger focus:border-danger focus:ring-danger/20' : 'border-neutral-300 focus:border-primary focus:ring-primary/20'}`}
-                    {...register('lastName')}
-                />
-                </div>
-                {errors.lastName && <p className="flex items-center gap-1.5 text-sm text-danger"><AlertCircle size={14} /><span>{errors.lastName.message}</span></p>}
+            {errors.firstName && (
+              <p className="flex items-center gap-1.5 text-xs text-red-400">
+                <AlertCircle size={12} />
+                <span>{errors.firstName.message as string}</span>
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="lastName" className="text-sm font-medium text-slate-300">
+              {t('auth:last_name', 'Last Name')}
+              <span className="ml-1 text-amber-400">*</span>
+            </Label>
+            <div className="relative">
+              <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+              <Input
+                id="lastName"
+                type="text"
+                placeholder={t('auth:last_name_placeholder', 'Doe')}
+                autoComplete="family-name"
+                disabled={isPending}
+                className={`pl-10 bg-slate-900/50 text-white placeholder:text-slate-600 border ${
+                  errors.lastName ? 'border-red-500/50 focus:border-red-500' : 'border-slate-700/50 focus:border-amber-500'
+                } focus:ring-2 focus:ring-amber-500/20 transition-all`}
+                {...register('lastName')}
+              />
             </div>
+            {errors.lastName && (
+              <p className="flex items-center gap-1.5 text-xs text-red-400">
+                <AlertCircle size={12} />
+                <span>{errors.lastName.message as string}</span>
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Email Field */}
         <div className="space-y-2">
-            <Label htmlFor="email" className="font-serif text-sm font-semibold text-text">
-                {t('auth:email', 'Email Address')}<span className="ml-1 text-danger">*</span>
-            </Label>
-            <div className="relative">
-            <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+          <Label htmlFor="email" className="text-sm font-medium text-slate-300">
+            {t('auth:email', 'Email Address')}
+            <span className="ml-1 text-amber-400">*</span>
+          </Label>
+          <div className="relative">
+            <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <Input
-                id="email"
-                type="email"
-                placeholder={t('auth:email_placeholder', 'you@example.com')}
-                autoComplete="email"
-                disabled={isPending}
-                className={`pl-10 ${errors.email ? 'border-danger focus:border-danger focus:ring-danger/20' : 'border-neutral-300 focus:border-primary focus:ring-primary/20'}`}
-                {...register('email')}
+              id="email"
+              type="email"
+              placeholder={t('auth:email_placeholder', 'you@example.com')}
+              autoComplete="email"
+              disabled={isPending}
+              className={`pl-10 bg-slate-900/50 text-white placeholder:text-slate-600 border ${
+                errors.email ? 'border-red-500/50 focus:border-red-500' : 'border-slate-700/50 focus:border-amber-500'
+              } focus:ring-2 focus:ring-amber-500/20 transition-all`}
+              {...register('email')}
             />
-            </div>
-            {errors.email && <p className="flex items-center gap-1.5 text-sm text-danger"><AlertCircle size={14} /><span>{errors.email.message}</span></p>}
+          </div>
+          {errors.email && (
+            <p className="flex items-center gap-1.5 text-xs text-red-400">
+              <AlertCircle size={12} />
+              <span>{errors.email.message as string}</span>
+            </p>
+          )}
         </div>
 
-        {/* Password Fields */}
+        {/* Password Field */}
         <div className="space-y-2">
-            <Label htmlFor="password" className="font-serif text-sm font-semibold text-text">
-                {t('auth:password', 'Password')}<span className="ml-1 text-danger">*</span>
-            </Label>
-            <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-                <Input
-                    id="password"
-                    type="password"
-                    placeholder={t('auth:password_placeholder', 'Create a strong password')}
-                    autoComplete="new-password"
-                    disabled={isPending}
-                    onFocus={() => setShowPasswordRequirements(true)}
-                    className={`pl-10 ${errors.password ? 'border-danger focus:border-danger focus:ring-danger/20' : 'border-neutral-300 focus:border-primary focus:ring-primary/20'}`}
-                    {...register('password')}
-                />
-            </div>
-            <PasswordStrengthIndicator password={watchedPassword} />
-            <PasswordRequirements password={watchedPassword} show={showPasswordRequirements} />
-            {errors.password && <p className="flex items-center gap-1.5 text-sm text-danger"><AlertCircle size={14} /><span>{errors.password.message}</span></p>}
-        </div>
-        <div className="space-y-2">
-            <Label htmlFor="passwordConfirmation" className="font-serif text-sm font-semibold text-text">
-                {t('auth:confirm_password', 'Confirm Password')}<span className="ml-1 text-danger">*</span>
-            </Label>
-            <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-                <Input
-                    id="passwordConfirmation"
-                    type="password"
-                    placeholder={t('auth:confirm_password_placeholder', 'Re-enter your password')}
-                    autoComplete="new-password"
-                    disabled={isPending}
-                    className={`pl-10 ${errors.passwordConfirmation ? 'border-danger focus:border-danger focus:ring-danger/20' : 'border-neutral-300 focus:border-primary focus:ring-primary/20'}`}
-                    {...register('passwordConfirmation')}
-                />
-            </div>
-            {errors.passwordConfirmation && <p className="flex items-center gap-1.5 text-sm text-danger"><AlertCircle size={14} /><span>{errors.passwordConfirmation.message}</span></p>}
+          <Label htmlFor="password" className="text-sm font-medium text-slate-300">
+            {t('auth:password', 'Password')}
+            <span className="ml-1 text-amber-400">*</span>
+          </Label>
+          <div className="relative">
+            <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Input
+              id="password"
+              type="password"
+              placeholder={t('auth:password_placeholder', '••••••••')}
+              autoComplete="new-password"
+              disabled={isPending}
+              onFocus={() => setShowPasswordRequirements(true)}
+              className={`pl-10 bg-slate-900/50 text-white placeholder:text-slate-600 border ${
+                errors.password ? 'border-red-500/50 focus:border-red-500' : 'border-slate-700/50 focus:border-amber-500'
+              } focus:ring-2 focus:ring-amber-500/20 transition-all`}
+              {...register('password')}
+            />
+          </div>
+          <PasswordStrengthIndicator password={watchedPassword} />
+          <PasswordRequirements password={watchedPassword} show={showPasswordRequirements} />
+          {errors.password && (
+            <p className="flex items-center gap-1.5 text-xs text-red-400">
+              <AlertCircle size={12} />
+              <span>{errors.password.message as string}</span>
+            </p>
+          )}
         </div>
 
-        {/* --- FIXED: Terms Checkbox using Controller --- */}
-        <div className="space-y-3">
-          <div className="flex items-start space-x-2">
+        {/* Confirm Password */}
+        <div className="space-y-2">
+          <Label htmlFor="passwordConfirmation" className="text-sm font-medium text-slate-300">
+            {t('auth:confirm_password', 'Confirm Password')}
+            <span className="ml-1 text-amber-400">*</span>
+          </Label>
+          <div className="relative">
+            <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Input
+              id="passwordConfirmation"
+              type="password"
+              placeholder={t('auth:confirm_password_placeholder', '••••••••')}
+              autoComplete="new-password"
+              disabled={isPending}
+              className={`pl-10 bg-slate-900/50 text-white placeholder:text-slate-600 border ${
+                errors.passwordConfirmation ? 'border-red-500/50 focus:border-red-500' : 'border-slate-700/50 focus:border-amber-500'
+              } focus:ring-2 focus:ring-amber-500/20 transition-all`}
+              {...register('passwordConfirmation')}
+            />
+          </div>
+          {errors.passwordConfirmation && (
+            <p className="flex items-center gap-1.5 text-xs text-red-400">
+              <AlertCircle size={12} />
+              <span>{errors.passwordConfirmation.message as string}</span>
+            </p>
+          )}
+        </div>
+
+        {/* Terms & Conditions */}
+        <div className="space-y-4 pt-2">
+          <div className="flex items-start gap-3">
             <Controller
               name="acceptedTerms"
               control={control}
@@ -291,67 +328,106 @@ export function RegisterForm() {
                   checked={field.value}
                   onCheckedChange={field.onChange}
                   disabled={isPending}
-                  className="mt-0.5 border-neutral-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                  className="mt-1 border-slate-600 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
                 />
               )}
             />
-            <Label htmlFor="acceptedTerms" className="cursor-pointer select-none text-sm font-normal leading-relaxed text-text peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-              {t('auth:accept_terms_prefix', 'I agree to the')}{' '}
-              <Link to="/terms" className="font-medium text-primary transition-colors hover:text-primary-hover hover:underline" target="_blank">
-                {t('auth:terms_of_service', 'Terms of Service')}
-              </Link>{' & '}<Link to="/privacy" className="font-medium text-primary transition-colors hover:text-primary-hover hover:underline" target="_blank">
-                {t('auth:privacy_policy', 'Privacy Policy')}
-              </Link><span className="ml-1 text-danger">*</span>
+            <Label htmlFor="acceptedTerms" className="cursor-pointer text-sm text-slate-400 leading-relaxed">
+              I agree to the{' '}
+              <Link to="/terms" className="text-amber-400 hover:text-amber-300 underline" target="_blank">
+                Terms of Service
+              </Link>
+              {' '}and{' '}
+              <Link to="/privacy" className="text-amber-400 hover:text-amber-300 underline" target="_blank">
+                Privacy Policy
+              </Link>
+              <span className="ml-1 text-amber-400">*</span>
             </Label>
           </div>
-          {errors.acceptedTerms && <p className="flex items-center gap-1.5 text-sm text-danger"><AlertCircle size={14} /><span>{errors.acceptedTerms.message}</span></p>}
+          {errors.acceptedTerms && (
+            <p className="flex items-center gap-1.5 text-xs text-red-400">
+              <AlertCircle size={12} />
+              <span>{errors.acceptedTerms.message as string}</span>
+            </p>
+          )}
+
+          <div className="flex items-start gap-3">
+            <Controller
+              name="marketingOptIn"
+              control={control}
+              render={({ field }) => (
+                <Checkbox
+                  id="marketingOptIn"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  disabled={isPending}
+                  className="mt-1 border-slate-600 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+                />
+              )}
+            />
+            <Label htmlFor="marketingOptIn" className="cursor-pointer text-sm text-slate-500 leading-relaxed">
+              Send me updates about succession law and Mirathi features
+            </Label>
+          </div>
         </div>
 
-        {/* --- FIXED: Marketing Checkbox using Controller --- */}
-        <div className="flex items-start space-x-2">
-          <Controller
-            name="marketingOptIn"
-            control={control}
-            render={({ field }) => (
-              <Checkbox
-                id="marketingOptIn"
-                checked={field.value}
-                onCheckedChange={field.onChange}
-                disabled={isPending}
-                className="mt-0.5 border-neutral-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-              />
-            )}
-          />
-          <Label htmlFor="marketingOptIn" className="cursor-pointer select-none text-sm font-normal leading-relaxed text-text-subtle peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-            {t('auth:marketing_opt_in', 'Yes, I would like to receive marketing communications about new features, updates, and special offers. I can unsubscribe at any time.')}
-          </Label>
-        </div>
-
+        {/* Submit Button */}
         <Button
           type="submit"
-          className="w-full bg-primary font-sans text-base font-semibold text-primary-foreground shadow-soft transition-all duration-300 hover:bg-primary-hover hover:shadow-lifted"
+          onClick={handleSubmit(onSubmit)}
+          className="group w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold py-3.5 rounded-xl shadow-lg shadow-amber-500/20 hover:shadow-xl hover:shadow-amber-500/30 transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
           isLoading={isPending}
           disabled={isPending}
           size="lg"
         >
-          {isPending ? t('auth:creating_account', 'Creating Account...') : t('auth:create_account', 'Create Account')}
+          <div className="flex items-center justify-center gap-2">
+            <span>
+              {isPending 
+                ? t('auth:creating_account', 'Creating Account...') 
+                : t('auth:create_account', 'Create Account')}
+            </span>
+            {!isPending && <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />}
+          </div>
         </Button>
-      </form>
-
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-neutral-200" /></div>
-        <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-3 font-medium text-text-muted">{t('common:or', 'Or')}</span></div>
       </div>
-      <div className="space-y-4 text-center">
-        <p className="text-sm text-text-subtle">{t('auth:have_account', 'Already have an account?')}</p>
-        <Link to="/login" className="inline-flex items-center gap-2 rounded font-serif text-base font-semibold text-primary transition-all duration-300 hover:text-primary-hover hover:underline focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
-          {t('auth:sign_in_now', 'Sign In to Your Account')}
+
+      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      {/* DIVIDER */}
+      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      <div className="relative my-8">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-slate-800" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-slate-950 px-3 font-medium text-slate-600">
+            {t('common:or', 'Already have an account?')}
+          </span>
+        </div>
+      </div>
+
+      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      {/* LOGIN LINK */}
+      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      <div className="text-center">
+        <Link 
+          to="/login" 
+          className="inline-flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-amber-400 transition-colors"
+        >
+          {t('auth:sign_in_now', 'Sign in to your account')}
+          <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
-      <div className="rounded-elegant border border-secondary/20 bg-secondary/5 p-4">
-        <p className="flex items-start gap-3 text-xs leading-relaxed text-text-subtle">
-          <Shield size={16} className="mt-0.5 flex-shrink-0 text-secondary" />
-          <span>{t('auth:security_notice_registration', 'Your data is protected with enterprise-grade security. We use device tracking for enhanced security and comply with GDPR and KDPA requirements. Marketing communications are optional and can be managed in your account settings.')}</span>
+
+      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      {/* COMPLIANCE NOTICE */}
+      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      <div className="mt-8 rounded-xl border border-slate-800/50 bg-slate-900/30 p-4">
+        <p className="flex items-start gap-3 text-xs leading-relaxed text-slate-500">
+          <ShieldCheck size={16} className="mt-0.5 flex-shrink-0 text-emerald-500" />
+          <span>
+            Protected by AES-256 encryption. Compliant with Kenya's Data Protection Act 2019. 
+            Your data is stored securely and never shared with third parties.
+          </span>
         </p>
       </div>
     </div>

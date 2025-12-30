@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { User, Settings, LogOut, ChevronDown } from 'lucide-react';
 
-import { useAuthStore } from '../../store/auth.store';
 import { useLogout } from '../../features/auth/auth.api';
 import { Avatar } from './Avatar';
 import {
@@ -16,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '../ui/DropdownMenu';
 import { Button } from '../ui/Button';
+import { usePersistentAuthStore } from '../../store/auth-persistent';
 
 /**
  * A reusable user menu dropdown component, typically placed in the application header.
@@ -23,7 +23,7 @@ import { Button } from '../ui/Button';
  */
 export function UserMenu() {
   const { t } = useTranslation(['header', 'auth']);
-  const user = useAuthStore((state) => state.user);
+  const user = usePersistentAuthStore((state) => state.user);
   const { mutate: logout, isPending } = useLogout();
   const navigate = useNavigate();
 
