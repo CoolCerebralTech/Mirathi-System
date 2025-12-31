@@ -1,130 +1,219 @@
-import * as React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Building2, Wallet, AlertTriangle, ArrowRight, Gavel } from 'lucide-react';
+import { 
+  Briefcase, 
+  FileText, 
+  Gavel, 
+  TrendingUp, 
+  ChevronRight, 
+  AlertTriangle 
+} from 'lucide-react';
 
+import { Card, CardContent } from '../../components/ui';
+import { LoadingSpinner } from '../../components/common';
+
+// Feature Components
+import { EstateHeader } from '../../features/estate/components/shared/EstateHeader';
+import { EstateSummaryCards } from '../../features/estate/components/dashboard/EstateSummaryCards';
+import { SolvencyWidget } from '../../features/estate/components/dashboard/SolvencyWidget';
+import { CashFlowWidget } from '../../features/estate/components/dashboard/CashFlowWidget';
+import { QuickActions } from '../../features/estate/components/dashboard/QuickActions';
+import { RecentActivity } from '../../features/estate/components/dashboard/RecentActivity';
+
+// Dialogs
+import { AddAssetDialog } from '../../features/estate/dialogs/AddAssetDialog';
+import { AddDebtDialog } from '../../features/estate/dialogs/AddDebtDialog';
+import { AddDependantDialog } from '../../features/estate/dialogs/AddDependantDialog';
+import { AddGiftDialog } from '../../features/estate/dialogs/AddGiftDialog';
+
+// API
 import { useEstateDashboard } from '../../features/estate/estate.api';
-import { SolvencyRadarWidget } from '../../features/estate/components/SolvencyRadarWidget';
-import { AddAssetDialog } from '../../features/estate/components/AddAssetDialog';
-// Assuming we have a similar dialog for Debts, or we link to the debts page
-import { Button } from '../../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
-import { Tabs, TabsList, TabsTrigger } from '../../components/ui/Tabs';
-import { LoadingSpinner } from '../../components/common/LoadingSpinner';
-import { Badge } from '../../components/ui/Badge';
 
-export function EstateDashboardPage() {
-  const { id } = useParams<{ id: string }>();
+export const EstateDashboardPage: React.FC = () => {
+  const { id: estateId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { data: dashboard, isLoading } = useEstateDashboard(id || '');
+  
+  // Dialog State Management
+  const [activeDialog, setActiveDialog] = useState<string | null>(null);
 
-  if (isLoading || !dashboard) return <div className="h-screen flex items-center justify-center"><LoadingSpinner /></div>;
+  // Data Fetching
+  const { data: dashboard, isLoading } = useEstateDashboard(estateId!);
+
+  if (isLoading || !dashboard || !estateId) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <LoadingSpinner size="lg" text="Loading estate context..." />
+      </div>
+    );
+  }
+
+  // Navigation Helper
+  const navTo = (path: string) => navigate(`/estates/${estateId}/${path}`);
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">{dashboard.name}</h1>
-            <Badge variant={dashboard.isFrozen ? 'destructive' : 'outline'}>
-              {dashboard.status}
-            </Badge>
-          </div>
-          <p className="text-muted-foreground">
-            Deceased: {dashboard.deceasedName} • Date of Death: {new Date(dashboard.dateOfDeath).toLocaleDateString()}
-          </p>
-        </div>
-        <div className="flex gap-2">
-           {/* Quick Actions */}
-           <AddAssetDialog estateId={dashboard.id} />
-           <Button variant="outline" onClick={() => navigate(`/dashboard/estate/${id}/debts`)}>
-             Record Liability
-           </Button>
-        </div>
-      </div>
+    <div className="min-h-screen bg-slate-50/50 pb-20">
+      
+      {/* 1. Top Navigation & Context */}
+      <EstateHeader estate={dashboard} />
 
-      {/* Tabs for Navigation (acting as sub-menu) */}
-      <Tabs defaultValue="dashboard" className="w-full">
-        <TabsList>
-          <TabsTrigger value="dashboard">Overview</TabsTrigger>
-          <TabsTrigger value="assets" onClick={() => navigate(`/dashboard/estate/${id}/assets`)}>Assets Registry</TabsTrigger>
-          <TabsTrigger value="debts" onClick={() => navigate(`/dashboard/estate/${id}/debts`)}>Liabilities (S.45)</TabsTrigger>
-          <TabsTrigger value="distribution" onClick={() => navigate(`/dashboard/estate/${id}/distribution`)}>Distribution</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <main className="mx-auto max-w-7xl p-6 space-y-6">
         
-        {/* Left Column: Financial Radar */}
-        <div className="lg:col-span-1">
-          <SolvencyRadarWidget estateId={dashboard.id} />
+        {/* 2. Key Figures (Net Worth, Assets, Liabilities) */}
+        <EstateSummaryCards data={dashboard} />
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          
+          {/* 3. Main Operational Column (Left - 2/3 width) */}
+          <div className="space-y-6 lg:col-span-2">
+            
+            {/* Navigation Cards (Modules) */}
+            <div className="grid grid-cols-2 gap-4">
+                <ModuleCard 
+                    icon={TrendingUp} 
+                    title="Asset Inventory" 
+                    description="Real Estate, Vehicles, Cash"
+                    onClick={() => navTo('assets')} 
+                    color="text-green-600"
+                    bg="bg-green-50"
+                />
+                <ModuleCard 
+                    icon={Briefcase} 
+                    title="Debt Management" 
+                    description="S.45 Priority Waterfall"
+                    onClick={() => navTo('debts')} 
+                    color="text-red-600"
+                    bg="bg-red-50"
+                />
+                <ModuleCard 
+                    icon={FileText} 
+                    title="Tax Compliance" 
+                    description="Clearance & Filings"
+                    onClick={() => navTo('tax')} 
+                    color="text-blue-600"
+                    bg="bg-blue-50"
+                />
+                <ModuleCard 
+                    icon={Gavel} 
+                    title="Distribution" 
+                    description="Beneficiaries & Shares"
+                    onClick={() => navTo('distribution')} 
+                    color="text-purple-600"
+                    bg="bg-purple-50"
+                />
+            </div>
+
+            {/* Financial Health */}
+            <div className="grid gap-6 md:grid-cols-2">
+                <SolvencyWidget estateId={estateId} />
+                <CashFlowWidget data={dashboard} />
+            </div>
+
+            {/* Audit Trail */}
+            <RecentActivity />
+          </div>
+
+          {/* 4. Sidebar Column (Right - 1/3 width) */}
+          <div className="space-y-6">
+            
+            {/* Actions Panel */}
+            <QuickActions onAction={setActiveDialog} />
+
+            {/* Warnings / Alerts Container */}
+            {dashboard.isFrozen && (
+                <Card className="border-red-200 bg-red-50">
+                    <CardContent className="pt-6">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+                            <div>
+                                <h4 className="font-semibold text-red-900">Estate is Frozen</h4>
+                                <p className="text-sm text-red-700 mt-1">
+                                    {dashboard.freezeReason || "Administrative hold active."}
+                                </p>
+                                <p className="text-xs text-red-600 mt-2">
+                                    Assets cannot be sold and debts cannot be paid until unfrozen.
+                                </p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Progress Status */}
+            <Card>
+                <CardContent className="pt-6">
+                    <h4 className="text-sm font-semibold mb-2">Administration Progress</h4>
+                    <div className="flex items-end gap-2">
+                        <span className="text-3xl font-bold">{dashboard.administrationProgress}%</span>
+                        <span className="text-sm text-muted-foreground mb-1">Complete</span>
+                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full mt-2 overflow-hidden">
+                        <div 
+                            className="h-full bg-slate-900 transition-all duration-1000" 
+                            style={{ width: `${dashboard.administrationProgress}%` }} 
+                        />
+                    </div>
+                </CardContent>
+            </Card>
+
+          </div>
         </div>
+      </main>
 
-        {/* Right Column: Stats & Breakdown */}
-        <div className="lg:col-span-2 space-y-6">
-           
-           {/* Net Worth Cards */}
-           <div className="grid gap-4 md:grid-cols-3">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Gross Assets</CardTitle>
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{dashboard.grossAssets.formatted}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Liabilities</CardTitle>
-                  <Wallet className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-red-600">
-                    -{dashboard.totalLiabilities.formatted}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className={dashboard.isSolvent ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Net Estate Value</CardTitle>
-                  <Gavel className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{dashboard.netWorth.formatted}</div>
-                </CardContent>
-              </Card>
-           </div>
+      {/* ------------------------------------------------------------------ */}
+      {/* Dialogs Layer */}
+      {/* ------------------------------------------------------------------ */}
+      
+      <AddAssetDialog 
+        open={activeDialog === 'ADD_ASSET'} 
+        onOpenChange={(open) => !open && setActiveDialog(null)}
+        estateId={estateId} 
+      />
 
-           {/* Alerts Banner */}
-           {dashboard.isFrozen && (
-             <div className="bg-red-100 border-l-4 border-red-500 p-4 rounded-r shadow-sm flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-red-700 mt-0.5" />
-                <div>
-                  <h4 className="font-bold text-red-800">Estate Frozen</h4>
-                  <p className="text-sm text-red-700">
-                    This estate is currently frozen by Court Order or Dispute. Assets cannot be distributed.
-                  </p>
-                </div>
-             </div>
-           )}
+      <AddDebtDialog 
+        open={activeDialog === 'ADD_DEBT'} 
+        onOpenChange={(open) => !open && setActiveDialog(null)}
+        estateId={estateId} 
+      />
 
-           {/* Call to Action */}
-           <Card className="bg-slate-900 text-white">
-             <CardContent className="pt-6 flex justify-between items-center">
-               <div>
-                 <h3 className="font-bold text-lg">Ready for Distribution?</h3>
-                 <p className="text-slate-300 text-sm">
-                   Run the readiness check to see if you can file Form P&A 5.
-                 </p>
-               </div>
-               <Button variant="secondary" onClick={() => navigate(`/dashboard/succession`)}>
-                 Check Readiness <ArrowRight className="ml-2 h-4 w-4" />
-               </Button>
-             </CardContent>
-           </Card>
-        </div>
-      </div>
+      <AddDependantDialog
+        open={activeDialog === 'FILE_CLAIM'}
+        onOpenChange={(open) => !open && setActiveDialog(null)}
+        estateId={estateId}
+      />
+
+      <AddGiftDialog
+        open={activeDialog === 'ADD_GIFT'}
+        onOpenChange={(open) => !open && setActiveDialog(null)}
+        estateId={estateId}
+      />
+
+      {/* Note: 'PAY_DEBT' and 'TAX_PAYMENT' are usually context-specific 
+          and might redirect to the specific page or open a selector dialog first. 
+          For brevity, we handle the main creation actions here. */}
+
     </div>
   );
-}
+};
+
+// Local Component for the Navigation Grid
+const ModuleCard = ({ 
+    icon: Icon, title, description, onClick, color, bg 
+}: { 
+    icon: any, title: string, description: string, onClick: () => void, color: string, bg: string 
+}) => (
+    <div 
+        onClick={onClick}
+        className="group relative flex cursor-pointer items-center justify-between overflow-hidden rounded-xl border bg-white p-4 transition-all hover:border-primary/50 hover:shadow-md"
+    >
+        <div className="flex items-center gap-4">
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${bg} ${color}`}>
+                <Icon className="h-5 w-5" />
+            </div>
+            <div>
+                <h3 className="font-semibold text-slate-900">{title}</h3>
+                <p className="text-xs text-muted-foreground">{description}</p>
+            </div>
+        </div>
+        <ChevronRight className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-1 group-hover:text-primary" />
+    </div>
+);
