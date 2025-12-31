@@ -8,10 +8,10 @@ import { useDocuments } from '../document.api';
 import { 
   type Document, 
   type DocumentCategory 
-} from '../../../types/document.types';
+} from '@/types/document.types';
 
-import { LoadingSpinner, EmptyState } from '../../../components/common';
-import { Button } from '../../../components/ui';
+import { LoadingSpinner, EmptyState } from '@/components/common';
+import { Button } from '@/components/ui';
 
 // ============================================================================
 // PROPS

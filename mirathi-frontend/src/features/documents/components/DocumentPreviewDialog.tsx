@@ -16,11 +16,15 @@ import {
   DialogTitle, 
   DialogDescription,
   DialogFooter,
-  Button 
-} from '../../../components/ui';
+  Button, 
+  Badge,
+  Calendar
+} from '@/components/ui';
 
 import { useDocumentDownloadUrl } from '../document.api';
-import { type Document } from '../../../types/document.types';
+import { type Document } from '@/types/document.types';
+import { DocumentVerificationBadge } from './DocumentVerificationBadge';
+import { format } from 'date-fns';
 
 // ============================================================================
 // PROPS
@@ -167,6 +171,16 @@ export const DocumentPreviewDialog: React.FC<DocumentPreviewDialogProps> = ({
           <DialogDescription>
             {isPdf ? 'PDF Document' : 'Image File'} • {(document.sizeBytes / 1024 / 1024).toFixed(2)} MB
           </DialogDescription>
+          {/* Add verification status and expiry info */}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <DocumentVerificationBadge document={document} showIcon={true} />
+            {document.expiryDate && (
+              <Badge variant="outline" className="text-xs">
+                <Calendar className="h-3 w-3 mr-1" />
+                Expires: {format(new Date(document.expiryDate), 'MMM d, yyyy')}
+              </Badge>
+            )}
+          </div>
         </DialogHeader>
 
         {/* Content Area */}

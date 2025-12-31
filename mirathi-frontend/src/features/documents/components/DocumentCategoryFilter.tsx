@@ -10,12 +10,12 @@ import {
   FileBox 
 } from 'lucide-react';
 
-import { cn } from '../../../lib/utils';
-import { Button } from '../../../components/ui';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui';
 import { 
   DocumentCategoryEnum, 
   type DocumentCategory 
-} from '../../../types/document.types';
+} from '@/types/document.types';
 
 // ============================================================================
 // CONFIGURATION

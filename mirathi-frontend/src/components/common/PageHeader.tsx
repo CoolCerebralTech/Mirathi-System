@@ -1,13 +1,12 @@
-// FILE: src/components/common/PageHeader.tsx
-
 import * as React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, type LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 interface PageHeaderProps {
   title: string;
   description?: string;
+  icon?: LucideIcon;
   actions?: React.ReactNode;
   className?: string;
   /** Whether to show a back button */
@@ -19,6 +18,7 @@ interface PageHeaderProps {
 export function PageHeader({
   title,
   description,
+  icon: Icon,
   actions,
   className,
   showBackButton,
@@ -36,13 +36,24 @@ export function PageHeader({
             <span>Back</span>
           </Link>
         )}
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
-          {description && (
-            <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+
+        {/* Icon + Title */}
+        <div className="flex items-start gap-3">
+          {Icon && (
+            <div className="mt-1 rounded-md bg-muted p-2">
+              <Icon className="h-5 w-5 text-foreground" />
+            </div>
           )}
+
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+            {description && (
+              <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+            )}
+          </div>
         </div>
       </div>
+
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
   );

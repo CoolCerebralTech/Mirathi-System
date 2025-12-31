@@ -28,3 +28,5 @@ export * from './ScrollArea';
 export * from './form';
 export * from './popover';
 export * from './calendar';
+export * from './Tooltip';
+export * from './Accordion';

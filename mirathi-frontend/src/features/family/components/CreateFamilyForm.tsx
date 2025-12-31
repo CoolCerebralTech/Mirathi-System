@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
   Button
-} from '../../../components/ui';
+} from '@/components/ui';
 
 import { useCreateFamily } from '../family.api';
 import { 
@@ -25,7 +25,7 @@ import {
   type CreateFamilyInput, 
   Gender,
   KenyanCounty
-} from '../../../types/family.types';
+} from '@/types/family.types';
 
 interface CreateFamilyFormProps {
   onSuccess: (familyId: string) => void;

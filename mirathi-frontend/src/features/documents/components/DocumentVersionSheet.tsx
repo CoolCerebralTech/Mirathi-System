@@ -11,7 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-import { cn } from '../../../lib/utils';
+import { cn } from '@/lib/utils';
 import { 
   Sheet, 
   SheetContent, 
@@ -21,11 +21,11 @@ import {
   Button,
   Badge,
   ScrollArea
-} from '../../../components/ui';
+} from '@/components/ui';
 
-import { LoadingSpinner } from '../../../components/common';
+import { LoadingSpinner } from '@/components/common';
 import { useDocumentVersions } from '../document.api';
-import { type Document } from '../../../types/document.types';
+import { type Document } from '@/types/document.types';
 
 // ============================================================================
 // PROPS

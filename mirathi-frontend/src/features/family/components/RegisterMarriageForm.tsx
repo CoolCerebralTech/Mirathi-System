@@ -19,7 +19,7 @@ import {
   SelectValue,
   Button,
   Checkbox,
-} from '../../../components/ui';
+} from '@/components/ui';
 
 import { useRegisterMarriage } from '../family.api';
 import {
@@ -27,7 +27,7 @@ import {
   MarriageType,
   type FamilyMemberResponse,
   type RegisterMarriageInput,
-} from '../../../types/family.types';
+} from '@/types/family.types';
 
 interface RegisterMarriageFormProps {
   familyId: string;

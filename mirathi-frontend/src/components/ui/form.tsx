@@ -124,6 +124,25 @@ const FormControl = React.forwardRef<
 
 FormControl.displayName = "FormControl";
 
+// --- ADDED THIS COMPONENT ---
+const FormDescription = React.forwardRef<
+  HTMLParagraphElement,
+  React.HTMLAttributes<HTMLParagraphElement>
+>(({ className, ...props }, ref) => {
+  const { formDescriptionId } = useFormField();
+
+  return (
+    <p
+      ref={ref}
+      id={formDescriptionId}
+      className={cn("text-sm text-muted-foreground", className)}
+      {...props}
+    />
+  );
+});
+FormDescription.displayName = "FormDescription";
+// ----------------------------
+
 const FormMessage = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>
@@ -147,10 +166,13 @@ const FormMessage = React.forwardRef<
 FormMessage.displayName = "FormMessage";
 
 export {
+  // eslint-disable-next-line react-refresh/only-export-components
+  useFormField,
   Form,
   FormItem,
   FormLabel,
   FormControl,
+  FormDescription,
   FormMessage,
   FormField,
 };

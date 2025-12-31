@@ -8,10 +8,10 @@ import {
   DropdownMenuContent, 
   DropdownMenuItem, 
   DropdownMenuTrigger 
-} from '../../../components/ui';
-import { Avatar, AvatarFallback } from '../../../components/common';
+} from '@/components/ui';
+import { Avatar, AvatarFallback } from '@/components/common';
 import { LegalStatusBadge } from './LegalStatusBadge';
-import { type FamilyMemberResponse } from '../../../types/family.types';
+import { type FamilyMemberResponse } from '@/types/family.types';
 
 interface FamilyMemberCardProps {
   member: FamilyMemberResponse;

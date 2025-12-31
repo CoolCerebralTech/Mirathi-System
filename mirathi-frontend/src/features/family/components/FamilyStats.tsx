@@ -1,7 +1,7 @@
 import React from 'react';
 import { Users, UserMinus, UserCheck, GitFork } from 'lucide-react';
-import { Card, CardContent } from '../../../components/ui';
-import { type FamilyStats as FamilyStatsType } from '../../../types/family.types';
+import { Card, CardContent } from '@/components/ui';
+import { type FamilyStats as FamilyStatsType } from '@/types/family.types';
 
 interface FamilyStatsProps {
   stats: FamilyStatsType;

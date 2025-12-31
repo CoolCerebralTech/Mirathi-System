@@ -9,10 +9,10 @@ import {
   User,
   Activity
 } from 'lucide-react';
-import { cn } from '../../../lib/utils';
-import { Badge, ScrollArea } from '../../../components/ui';
+import { cn } from '@/lib/utils';
+import { Badge, ScrollArea } from '@/components/ui';
 import { 
-  type FamilyMemberResponse} from '../../../types/family.types';
+  type FamilyMemberResponse} from '@/types/family.types';
 
 // ============================================================================
 // PROPS

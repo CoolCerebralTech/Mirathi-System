@@ -9,13 +9,15 @@ import {
   Eye, 
   History, 
   FileImage,
-  CheckCircle2,
-  AlertCircle,
-  Clock
+  ShieldAlert,
+  MapPin,
+  User,
+  Scale,
+  Banknote
 } from 'lucide-react';
 import { format } from 'date-fns';
 
-import { cn } from '../../../lib/utils';
+import { cn } from '@/lib/utils';
 import { 
   Card, 
   Button, 
@@ -25,13 +27,16 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
   Badge
-} from '../../../components/ui';
+} from '@/components/ui';
 
 import { useDeleteDocument } from '../document.api';
 import { 
   type Document, 
-  DocumentStatusEnum 
-} from '../../../types/document.types';
+  DocumentStatusEnum,
+  DocumentCategoryEnum
+} from '@/types/document.types';
+
+import { DocumentVerificationBadge } from './DocumentVerificationBadge';
 
 // ============================================================================
 // PROPS
@@ -60,33 +65,25 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   // Helpers
   // --------------------------------------------------------------------------
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case DocumentStatusEnum.enum.VERIFIED:
-        return "bg-green-100 text-green-700 hover:bg-green-100/80 border-green-200";
-      case DocumentStatusEnum.enum.REJECTED:
-        return "bg-red-100 text-red-700 hover:bg-red-100/80 border-red-200";
-      case DocumentStatusEnum.enum.PENDING_VERIFICATION:
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case DocumentCategoryEnum.enum.LAND_OWNERSHIP:
+        return <MapPin className="h-4 w-4 text-blue-500" />;
+      case DocumentCategoryEnum.enum.IDENTITY_PROOF:
+        return <User className="h-4 w-4 text-green-500" />;
+      case DocumentCategoryEnum.enum.SUCCESSION_DOCUMENT:
+        return <Scale className="h-4 w-4 text-purple-500" />;
+      case DocumentCategoryEnum.enum.FINANCIAL_PROOF:
+        return <Banknote className="h-4 w-4 text-amber-500" />;
       default:
-        return "bg-amber-100 text-amber-700 hover:bg-amber-100/80 border-amber-200";
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case DocumentStatusEnum.enum.VERIFIED:
-        return <CheckCircle2 className="h-3 w-3 mr-1" />;
-      case DocumentStatusEnum.enum.REJECTED:
-        return <AlertCircle className="h-3 w-3 mr-1" />;
-      default:
-        return <Clock className="h-3 w-3 mr-1" />;
+        return <FileText className="h-4 w-4 text-gray-500" />;
     }
   };
 
   const getFileIcon = (mimeType: string) => {
-    if (mimeType.includes('image')) return <FileImage className="h-8 w-8 text-blue-500" />;
-    if (mimeType.includes('pdf')) return <FileText className="h-8 w-8 text-red-500" />;
-    return <FileText className="h-8 w-8 text-gray-500" />;
+    if (mimeType.includes('image')) return <FileImage className="h-6 w-6 text-blue-500" />;
+    if (mimeType.includes('pdf')) return <FileText className="h-6 w-6 text-red-500" />;
+    return <FileText className="h-6 w-6 text-gray-500" />;
   };
 
   const formatFileSize = (bytes: number) => {
@@ -96,6 +93,9 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
+
+  const isExpired = document.expiryDate && new Date(document.expiryDate) < new Date();
+  const isCritical = document.metadata?.isCriticalForSuccession === true;
 
   // --------------------------------------------------------------------------
   // Handlers
@@ -118,12 +118,50 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   // --------------------------------------------------------------------------
 
   return (
-    <Card className={cn("group relative flex flex-col justify-between overflow-hidden transition-all hover:shadow-md", className)}>
+    <Card className={cn(
+      "group relative flex flex-col justify-between overflow-hidden transition-all hover:shadow-md border-l-4",
+      isCritical && "border-l-amber-500",
+      isExpired && "border-l-red-500",
+      document.status === DocumentStatusEnum.enum.VERIFIED && "border-l-green-500",
+      document.status === DocumentStatusEnum.enum.REJECTED && "border-l-red-500",
+      className
+    )}>
       
+      {/* Critical Document Indicator */}
+      {isCritical && (
+        <div className="absolute top-2 right-2">
+          <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+            Critical
+          </Badge>
+        </div>
+      )}
+
       {/* HEADER: Icon & Menu */}
       <div className="flex items-start justify-between p-4 pb-2">
-        <div className="rounded-lg bg-muted/30 p-2.5 transition-colors group-hover:bg-muted/50">
-          {getFileIcon(document.mimeType)}
+        <div className="flex items-start gap-3">
+          <div className={cn(
+            "rounded-lg p-2.5 transition-colors",
+            isCritical ? "bg-amber-100" : "bg-muted/30"
+          )}>
+            {getCategoryIcon(document.category)}
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <DocumentVerificationBadge 
+                document={document} 
+                showIcon={true}
+                className="mb-0"
+              />
+            </div>
+            <h3 className="line-clamp-1 font-medium text-sm" title={document.fileName}>
+              {document.fileName}
+            </h3>
+            {document.documentNumber && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                No: {document.documentNumber}
+              </p>
+            )}
+          </div>
         </div>
 
         <DropdownMenu>
@@ -161,33 +199,59 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
         </DropdownMenu>
       </div>
 
-      {/* BODY: Info */}
-      <div className="flex flex-col gap-1 px-4 py-2">
-        <div className="flex items-center justify-between">
-            <Badge 
-                variant="secondary" 
-                className={cn("px-1.5 py-0 text-[10px] font-medium border", getStatusColor(document.status))}
-            >
-                {getStatusIcon(document.status)}
-                {document.status.replace('_', ' ')}
-            </Badge>
+      {/* BODY: Additional Info */}
+      <div className="px-4 py-2">
+        <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+          <div className="flex items-center gap-2">
+            {getFileIcon(document.mimeType)}
+            <span>{formatFileSize(document.sizeBytes)}</span>
+            <span>•</span>
+            <span className="capitalize">{document.category.replace(/_/g, ' ').toLowerCase()}</span>
+          </div>
+          
+          {document.issueDate && (
+            <span>Issued: {format(new Date(document.issueDate), 'MMM yyyy')}</span>
+          )}
         </div>
 
-        <h3 className="line-clamp-1 font-medium text-sm mt-2" title={document.fileName}>
-          {document.fileName}
-        </h3>
-        
-        <p className="text-xs text-muted-foreground capitalize">
-          {document.category.replace(/_/g, ' ').toLowerCase()}
-        </p>
+        {/* Expiry Warning */}
+        {isExpired && (
+          <div className="flex items-center gap-1 rounded bg-red-50 p-2 mb-2">
+            <ShieldAlert className="h-3 w-3 text-red-600" />
+            <p className="text-xs text-red-700">
+              Expired on {document.expiryDate ? format(new Date(document.expiryDate), 'MMM d, yyyy') : 'unknown date'}
+            </p>
+          </div>
+        )}
+
+        {/* Issuing Authority */}
+        {document.issuingAuthority && (
+          <p className="text-xs text-muted-foreground">
+            Issued by: {document.issuingAuthority}
+          </p>
+        )}
       </div>
 
-      {/* FOOTER: Metadata */}
-      <div className="flex items-center justify-between border-t bg-muted/10 px-4 py-3 text-[10px] text-muted-foreground">
-        <span>{formatFileSize(document.sizeBytes)}</span>
-        {document.createdAt && (
-          <span>{format(new Date(document.createdAt), 'MMM d, yyyy')}</span>
-        )}
+      {/* FOOTER: Metadata & Actions */}
+      <div className="flex items-center justify-between border-t bg-muted/10 px-4 py-3">
+        <div className="text-[10px] text-muted-foreground">
+          {document.createdAt && (
+            <span>Uploaded {format(new Date(document.createdAt), 'MMM d, yyyy')}</span>
+          )}
+          {document.verifiedAt && document.status === DocumentStatusEnum.enum.VERIFIED && (
+            <span className="ml-2">• Verified {format(new Date(document.verifiedAt), 'MMM d')}</span>
+          )}
+        </div>
+        
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="h-6 text-xs"
+          onClick={() => onPreview?.(document)}
+        >
+          <Eye className="h-3 w-3 mr-1" />
+          View
+        </Button>
       </div>
     </Card>
   );
