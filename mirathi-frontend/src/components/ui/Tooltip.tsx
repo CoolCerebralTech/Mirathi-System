@@ -1,13 +1,18 @@
 // FILE: src/components/ui/Tooltip.tsx
-
 import * as React from 'react';
 import * as RadixTooltip from '@radix-ui/react-tooltip';
 import { cn } from '@/lib/utils';
 
+// Main tooltip root
 export const Tooltip = RadixTooltip.Root;
 
+// Tooltip trigger
 export const TooltipTrigger = RadixTooltip.Trigger;
 
+// Tooltip provider
+export const TooltipProvider = RadixTooltip.Provider;
+
+// Tooltip content wrapper
 export const TooltipContent: React.FC<RadixTooltip.TooltipContentProps & { className?: string }> = ({
   className,
   side = 'top',

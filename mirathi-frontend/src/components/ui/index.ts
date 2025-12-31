@@ -30,3 +30,4 @@ export * from './popover';
 export * from './calendar';
 export * from './Tooltip';
 export * from './Accordion';
+export * from './RadioGroup';
