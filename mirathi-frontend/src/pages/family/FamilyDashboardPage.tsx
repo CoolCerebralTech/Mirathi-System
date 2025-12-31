@@ -1,136 +1,302 @@
-import * as React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Users, AlertTriangle, Baby, Share2, Plus } from 'lucide-react';
+// FILE: src/pages/family/FamilyDashboardPage.tsx
 
-import { useAuthStore } from '../../store/auth.store';
-import { useFamilyDashboard } from '../../features/family/family.api';
-import { CreateFamilyForm } from '../../features/family/components/CreateFamilyForm';
-import { FamilyTree } from '../../features/family/components/FamilyTree'; // Assumes you have the graph/list component
-import { AddMemberDialog } from '../../features/family/components/AddMemberDialog';
+import React, { useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { 
+  Users, 
+  GitBranch, 
+  ShieldCheck, 
+  Plus, 
+  UserPlus, 
+  HeartHandshake, 
+  Home 
+} from 'lucide-react';
 
-import { Button } from '../../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/Tabs';
-import { LoadingSpinner } from '../../components/common/LoadingSpinner';
+import { 
+  Tabs, 
+  TabsContent, 
+  TabsList, 
+  TabsTrigger,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle
+} from '../../components/ui';
+import { LoadingSpinner, PageHeader } from '../../components/common';
 
-export function FamilyDashboardPage() {
-  const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
+// Features
+import { 
+  FamilyStats, 
+  SuccessionReadinessCard, 
+  FamilyTree, 
+  PolygamyDistributionView, 
+  FamilyMemberCard,
+  AddMemberForm,
+  RegisterMarriageForm,
+  EstablishHouseForm,
+  LegalStatusBadge
+} from '../../features/family/components';
+
+import { 
+  useFamilyDashboard, 
+  useFamilyGraph 
+} from '../../features/family/family.api';
+
+import { type FamilyMemberResponse } from '../../types/family.types';
+
+export const FamilyDashboardPage: React.FC = () => {
+  const { id: familyId } = useParams<{ id: string }>();
+  const [activeTab, setActiveTab] = useState('members');
   
-  // We assume the user's ID lets us find their family, or we fetch a list
-  // For this implementation, we try to fetch the primary family linked to the user
-  const { data: family, isLoading, isError } = useFamilyDashboard(user?.id || ''); 
+  // Modal States
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [isMarriageOpen, setIsMarriageOpen] = useState(false);
+  const [isHouseOpen, setIsHouseOpen] = useState(false);
 
-  // STATE: If no family found, show creation mode
-  const [isCreating, setIsCreating] = React.useState(false);
+  // 1. Fetch Dashboard Data
+  const { 
+    data: dashboard, 
+    isLoading: isDashboardLoading 
+  } = useFamilyDashboard(familyId!);
 
-  if (isLoading) return <div className="h-96 flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
+  // 2. Fetch Graph (Used for Members List & Tree)
+  const { 
+    data: graph, 
+    isLoading: isGraphLoading 
+  } = useFamilyGraph(familyId!);
 
-  // Scenario 1: No Family Tree Found -> Prompt Creation
-  if (isError || !family) {
+  if (isDashboardLoading || isGraphLoading || !familyId) {
     return (
-      <div className="container max-w-3xl py-10">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold tracking-tight">Welcome to Mirathi Family</h1>
-          <p className="text-muted-foreground mt-2">
-            To start securing your legacy and succession plan, we first need to map your family tree.
-          </p>
-        </div>
-        <Card className="border-dashed border-2">
-          <CardContent className="pt-6">
-            <CreateFamilyForm onSuccess={(id) => navigate(0)} /> 
-          </CardContent>
-        </Card>
+      <div className="flex h-screen items-center justify-center">
+        <LoadingSpinner size="lg" text="Loading estate context..." />
       </div>
     );
   }
 
-  // Scenario 2: Family Dashboard
+  if (!dashboard || !graph) return <div>Estate not found.</div>;
+
+  // 3. Robust Data Transformation (No 'any')
+  // We map the lightweight GraphNode to the full FamilyMemberResponse structure.
+  // We fill missing API data with safe defaults for the UI list view.
+  const memberList: FamilyMemberResponse[] = graph.nodes.map((node) => {
+    const nameParts = node.data.fullName.split(' ');
+    const firstName = nameParts[0];
+    const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+
+    return {
+      id: node.id,
+      familyId: familyId,
+      identity: {
+          fullName: node.data.fullName,
+          officialName: node.data.fullName,
+          first: firstName,
+          last: lastName,
+          gender: node.data.gender,
+          dateOfBirth: node.data.dateOfBirth,
+          // age is optional
+      },
+      vitalStatus: { 
+          isAlive: node.data.isAlive, 
+          isMissing: false 
+      },
+      verification: { 
+          isVerified: node.data.isVerified, 
+          status: node.data.isVerified ? 'VERIFIED' : 'PENDING' 
+      },
+      polygamyContext: { 
+          isPolygamousFamily: dashboard.structure.polygamyStatus !== 'MONOGAMOUS', 
+          belongsToHouseName: node.data.houseColor ? 'House Member' : undefined,
+          // 'isHouseHead' was missing in your original code causing the type error
+          isHouseHead: node.data.isHeadOfFamily 
+      },
+      legalStatus: { 
+          isMinor: false, 
+          isAdult: true, // Defaulting for list view if age unknown
+          hasGuardian: false,
+          qualifiesForS29: false, 
+          inheritanceEligibility: 'FULL' 
+      },
+      // 'context' was missing in your original code
+      context: {
+          // These are optional in the type definition, but the object itself is required
+      },
+      kinship: { 
+          parents: [], 
+          spouses: [], 
+          children: [], 
+          siblings: [] 
+      }
+    };
+  });
+
   return (
-    <div className="space-y-8 p-6">
-      {/* Header Stats */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{family.name}</h1>
-          <p className="text-muted-foreground">
-            {family.county} • {family.stats.totalMembers} Members • {family.structure.type.replace('_', ' ')}
-          </p>
+    <div className="flex flex-col gap-6 p-6 pb-20">
+      
+      {/* A. Header & Stats */}
+      <div className="flex flex-col gap-6">
+        <div className="flex items-start justify-between">
+             <PageHeader 
+                title={dashboard.name} 
+                description={`Estate Administered in ${dashboard.county}`} 
+             />
+             <div className="flex items-center gap-2">
+                 <LegalStatusBadge 
+                    status={{
+                        isMinor: false, isAdult: true, hasGuardian: false, qualifiesForS29: false, 
+                        inheritanceEligibility: dashboard.completeness.score > 80 ? 'FULL' : 'PENDING_VERIFICATION'
+                    }} 
+                    className="h-8"
+                 />
+             </div>
         </div>
-        <div className="flex gap-2">
-           <Button variant="outline" onClick={() => navigate(`/dashboard/family/${family.familyId}/polygamy`)}>
-             <Share2 className="mr-2 h-4 w-4" /> Section 40 Analysis
-           </Button>
-           <AddMemberDialog familyId={family.familyId} />
-        </div>
+
+        <FamilyStats stats={dashboard.stats} />
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Verified Members</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{family.stats.verifiedMembers}</div>
-            <p className="text-xs text-muted-foreground">
-              {Math.round((family.stats.verifiedMembers / family.stats.totalMembers) * 100)}% Identity Confidence
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Potential Dependents</CardTitle>
-            <Baby className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{family.stats.potentialDependents}</div>
-            <p className="text-xs text-muted-foreground">Minors & Students (S.29)</p>
-          </CardContent>
-        </Card>
+        {/* B. Left Panel: Main Content */}
+        <div className="lg:col-span-8">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="mb-4">
+              <TabsTrigger value="members">
+                <Users className="mr-2 h-4 w-4" /> Members
+              </TabsTrigger>
+              <TabsTrigger value="structure">
+                <GitBranch className="mr-2 h-4 w-4" /> Family Tree
+              </TabsTrigger>
+              <TabsTrigger value="analysis">
+                <ShieldCheck className="mr-2 h-4 w-4" /> Legal Analysis
+              </TabsTrigger>
+            </TabsList>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-             <CardTitle className="text-sm font-medium">Readiness Score</CardTitle>
-             <AlertTriangle className={`h-4 w-4 ${family.completeness.score < 80 ? 'text-amber-500' : 'text-green-500'}`} />
-          </CardHeader>
-          <CardContent>
-             <div className="text-2xl font-bold">{family.completeness.score}%</div>
-             <p className="text-xs text-muted-foreground">Succession Compliance</p>
-          </CardContent>
-        </Card>
+            {/* TAB 1: MEMBERS */}
+            <TabsContent value="members" className="space-y-4">
+              <div className="flex justify-end gap-2">
+                 <Button variant="outline" size="sm" onClick={() => setIsMarriageOpen(true)}>
+                    <HeartHandshake className="mr-2 h-4 w-4" /> Register Marriage
+                 </Button>
+                 <Button size="sm" onClick={() => setIsAddMemberOpen(true)}>
+                    <UserPlus className="mr-2 h-4 w-4" /> Add Member
+                 </Button>
+              </div>
+
+              <div className="grid gap-4">
+                {memberList.map((member) => (
+                  <FamilyMemberCard 
+                    key={member.id} 
+                    member={member} 
+                    onVerify={(id) => console.log('Verify', id)}
+                  />
+                ))}
+              </div>
+            </TabsContent>
+
+            {/* TAB 2: STRUCTURE */}
+            <TabsContent value="structure" className="space-y-6">
+               <FamilyTree familyId={familyId} />
+               
+               {dashboard.structure.polygamyStatus !== 'MONOGAMOUS' && (
+                  <div className="mt-8">
+                      <div className="mb-4 flex items-center justify-between">
+                          <h3 className="text-lg font-semibold">Polygamous Distribution</h3>
+                          <Button variant="outline" size="sm" onClick={() => setIsHouseOpen(true)}>
+                              <Home className="mr-2 h-4 w-4" /> Establish House
+                          </Button>
+                      </div>
+                      <PolygamyDistributionView familyId={familyId} />
+                  </div>
+               )}
+            </TabsContent>
+
+            {/* TAB 3: ANALYSIS */}
+            <TabsContent value="analysis">
+                <div className="space-y-6">
+                    <SuccessionReadinessCard familyId={familyId} />
+                    
+                    {/* Placeholder for future detailed analysis widgets */}
+                    <div className="rounded-lg border p-6 text-center text-muted-foreground">
+                        Detailed S.29 Dependency Reports and S.35/38 Distribution Matrix 
+                        will appear here once membership data is complete.
+                    </div>
+                </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        {/* C. Right Panel: Readiness & Actions */}
+        <div className="space-y-6 lg:col-span-4">
+            <SuccessionReadinessCard familyId={familyId} />
+            
+            <div className="rounded-xl border bg-slate-50 p-4">
+                <h4 className="mb-3 font-semibold">Quick Actions</h4>
+                <div className="flex flex-col gap-2">
+                    <Button variant="secondary" className="justify-start" onClick={() => setIsAddMemberOpen(true)}>
+                        <Plus className="mr-2 h-4 w-4" /> Add Beneficiary
+                    </Button>
+                    <Button variant="secondary" className="justify-start" onClick={() => setIsMarriageOpen(true)}>
+                        <HeartHandshake className="mr-2 h-4 w-4" /> Record Marriage
+                    </Button>
+                    {dashboard.structure.polygamyStatus !== 'MONOGAMOUS' && (
+                        <Button variant="secondary" className="justify-start" onClick={() => setIsHouseOpen(true)}>
+                            <Home className="mr-2 h-4 w-4" /> Manage Houses
+                        </Button>
+                    )}
+                </div>
+            </div>
+        </div>
+
       </div>
 
-      {/* Main Content Area */}
-      <Tabs defaultValue="tree" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="tree">Family Tree</TabsTrigger>
-          <TabsTrigger value="list">Member List</TabsTrigger>
-          <TabsTrigger value="issues">
-             Missing Data 
-             {family.completeness.missingFieldsCount > 0 && (
-               <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-600">
-                 {family.completeness.missingFieldsCount}
-               </span>
-             )}
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="tree" className="space-y-4">
-           {/* The Visual Graph Component */}
-           <FamilyTree /> 
-        </TabsContent>
-        
-        <TabsContent value="list">
-          <Card>
-            <CardContent className="pt-6">
-               <p className="text-muted-foreground">List view implementation here...</p>
-               {/* Iterate over members and use FamilyMemberCard here */}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {/* ------------------------------------------------------------------ */}
+      {/* Dialogs */}
+      {/* ------------------------------------------------------------------ */}
+
+      {/* 1. Add Member */}
+      <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
+        <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+                <DialogTitle>Add Family Member</DialogTitle>
+            </DialogHeader>
+            <AddMemberForm 
+                familyId={familyId} 
+                onSuccess={() => setIsAddMemberOpen(false)}
+                onCancel={() => setIsAddMemberOpen(false)}
+            />
+        </DialogContent>
+      </Dialog>
+
+      {/* 2. Register Marriage */}
+      <Dialog open={isMarriageOpen} onOpenChange={setIsMarriageOpen}>
+        <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+                <DialogTitle>Register Marriage</DialogTitle>
+            </DialogHeader>
+            <RegisterMarriageForm 
+                familyId={familyId} 
+                members={memberList}
+                onSuccess={() => setIsMarriageOpen(false)}
+                onCancel={() => setIsMarriageOpen(false)}
+            />
+        </DialogContent>
+      </Dialog>
+
+      {/* 3. Establish House */}
+      <Dialog open={isHouseOpen} onOpenChange={setIsHouseOpen}>
+        <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+                <DialogTitle>Establish Polygamous House</DialogTitle>
+            </DialogHeader>
+            <EstablishHouseForm 
+                familyId={familyId} 
+                members={memberList}
+                onSuccess={() => setIsHouseOpen(false)}
+                onCancel={() => setIsHouseOpen(false)}
+            />
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
-}
+};

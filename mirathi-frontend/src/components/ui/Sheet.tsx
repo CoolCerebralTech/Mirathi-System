@@ -4,9 +4,14 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cn } from '../../lib/utils';
 import { X } from 'lucide-react';
 
+// Root + Trigger + Close
 const Sheet = DialogPrimitive.Root;
 const SheetTrigger = DialogPrimitive.Trigger;
 const SheetClose = DialogPrimitive.Close;
+
+// -----------------------------------------------------------------------------
+// Content
+// -----------------------------------------------------------------------------
 
 interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
@@ -52,4 +57,56 @@ const SheetContent = React.forwardRef<
 ));
 SheetContent.displayName = 'SheetContent';
 
-export { Sheet, SheetTrigger, SheetContent, SheetClose };
+// -----------------------------------------------------------------------------
+// Header + Title + Description
+// -----------------------------------------------------------------------------
+
+const SheetHeader = React.forwardRef<
+  React.ElementRef<'div'>,
+  React.ComponentPropsWithoutRef<'div'>
+>(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn('flex flex-col space-y-2 text-center sm:text-left', className)}
+    {...props}
+  />
+));
+SheetHeader.displayName = 'SheetHeader';
+
+const SheetTitle = React.forwardRef<
+  React.ElementRef<'h2'>,
+  React.ComponentPropsWithoutRef<'h2'>
+>(({ className, ...props }, ref) => (
+  <h2
+    ref={ref}
+    className={cn('text-lg font-semibold text-foreground', className)}
+    {...props}
+  />
+));
+SheetTitle.displayName = 'SheetTitle';
+
+const SheetDescription = React.forwardRef<
+  React.ElementRef<'p'>,
+  React.ComponentPropsWithoutRef<'p'>
+>(({ className, ...props }, ref) => (
+  <p
+    ref={ref}
+    className={cn('text-sm text-muted-foreground', className)}
+    {...props}
+  />
+));
+SheetDescription.displayName = 'SheetDescription';
+
+// -----------------------------------------------------------------------------
+// Exports
+// -----------------------------------------------------------------------------
+
+export {
+  Sheet,
+  SheetTrigger,
+  SheetContent,
+  SheetClose,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+};

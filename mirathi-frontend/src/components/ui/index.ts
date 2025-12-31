@@ -24,4 +24,7 @@ export * from './Tabs';
 export * from './HoverCard';
 export * from './Progress';
 export * from './Separator';
-
+export * from './ScrollArea';
+export * from './form';
+export * from './popover';
+export * from './calendar';

@@ -12,7 +12,9 @@ As a frontend developer, you do not talk to family-service or estate-service dir
 
 🔌 The API Layer
 
-Base URL: `https://api.mirathi.com/v1 (The "Digital Lawyer" rejecting bad data).
+Base URL: `https://api.mirathi.com/ (The "Digital Lawyer" rejecting bad data).
+
+DEVELOPMENT VITE_API_BASE_URL=http://localhost:3000/api
 
 The "Smart Document" Pattern (Critical)
 

@@ -1,11 +1,5 @@
 // FILE: src/components/layouts/index.ts
 
-/**
- * Centralized exports for all layout components
- * Import layouts like: import { DashboardLayout, AuthLayout } from '@/components/layouts'
-import { AdminLayout } from './AdminLayout';
- */
-
 // Dashboard (Protected)
 export { DashboardLayout } from './DashboardLayout';
 export { Sidebar } from './Sidebar';

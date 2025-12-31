@@ -1,172 +1,187 @@
-// FILE: src/pages/DocumentsPage.tsx
+import React, { useState } from 'react';
+import { Plus } from 'lucide-react';
 
-import * as React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { Upload, FileText, AlertTriangle } from 'lucide-react';
-import type { PaginationState } from '@tanstack/react-table';
-
-import { PageHeader } from '../../components/common/PageHeader';
-import { Button } from '../../components/ui/Button';
-import { DataTable } from '../../components/ui/DataTable';
-import { LoadingSpinner } from '../../components/common/LoadingSpinner';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
+import { 
+  PageHeader, 
+  SearchBar 
+} from '../../components/common';
+import { 
+  Button, 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
   DialogTitle,
   DialogDescription,
-} from '../../components/ui/Dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '../../components/ui/AlertDialog';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Label
+} from '../../components/ui';
 
-import { getDocumentColumns } from '../../features/documents/components/DocumentsTable';
-import { DocumentUploader } from '../../features/documents/components/DocumentUploader';
-import { useDocuments, useDeleteDocument } from '../../features/documents/document.api';
-import type { Document } from '../../types/document.types';
+// Feature Components
+import { 
+  DocumentVaultGrid, 
+  DocumentCategoryFilter, 
+  SmartUploader, 
+  DocumentPreviewDialog, 
+  DocumentVersionSheet 
+} from '../../features/documents/components';
 
-export function DocumentsPage() {
-  const { t } = useTranslation(['documents', 'common']);
-  const navigate = useNavigate();
+import { 
+  DocumentCategoryEnum, 
+  type Document, 
+  type DocumentCategory 
+} from '../../types/document.types';
 
-  const [isUploaderOpen, setIsUploaderOpen] = React.useState(false);
-  const [docToDelete, setDocToDelete] = React.useState<Document | null>(null);
+export const DocumentsPage: React.FC = () => {
+  // --------------------------------------------------------------------------
+  // State
+  // --------------------------------------------------------------------------
 
-  const [pagination, setPagination] = React.useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 10,
-  });
+  // Filter & Search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | null>(null);
 
-  const documentsQuery = useDocuments({
-    page: pagination.pageIndex + 1,
-    limit: pagination.pageSize,
-  });
+  // Modal States
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isVersionsOpen, setIsVersionsOpen] = useState(false);
+  
+  // Selection State
+  const [activeDocument, setActiveDocument] = useState<Document | null>(null);
+  
+  // Upload Configuration State
+  const [uploadCategory, setUploadCategory] = useState<DocumentCategory>(DocumentCategoryEnum.enum.OTHER);
 
-  const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
+  // --------------------------------------------------------------------------
+  // Handlers
+  // --------------------------------------------------------------------------
 
-  const columns = React.useMemo(
-    () =>
-      getDocumentColumns(t, {
-        onDelete: (docId: string) => {
-          const doc = documentsQuery.data?.data.find((d) => d.id === docId);
-          if (doc) setDocToDelete(doc);
-        },
-        onEdit: (doc: Document) => navigate(`/dashboard/documents/${doc.id}`),
-        onViewVersions: (doc: Document) => navigate(`/dashboard/documents/${doc.id}`),
-      }),
-    [navigate, t, documentsQuery.data?.data]
-  );
-
-  const handleDeleteConfirm = () => {
-    if (!docToDelete) return;
-
-    deleteDocument(docToDelete.id, {
-      onSuccess: () => setDocToDelete(null),
-      onError: () => setDocToDelete(null),
-    });
+  const handlePreview = (doc: Document) => {
+    setActiveDocument(doc);
+    setIsPreviewOpen(true);
   };
 
-  const documents = documentsQuery.data?.data ?? [];
-  const pageCount = documentsQuery.data?.totalPages ?? 0;
-
-  const renderContent = () => {
-    if (documentsQuery.isLoading) {
-      return (
-        <div className="flex h-96 items-center justify-center">
-          <LoadingSpinner size="lg" />
-        </div>
-      );
-    }
-
-    if (documentsQuery.isError) {
-      return (
-        <div className="flex flex-col items-center justify-center text-center text-destructive">
-          <AlertTriangle className="mx-auto h-12 w-12" />
-          <p className="mt-4 font-semibold">{t('common:error_loading_data')}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{t('common:please_try_again')}</p>
-        </div>
-      );
-    }
-
-    if (documents.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed py-16 text-center">
-          <FileText className="h-12 w-12 text-muted-foreground" />
-          <h3 className="mt-4 text-lg font-medium">{t('no_documents_title')}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">{t('no_documents_prompt')}</p>
-          <Button onClick={() => setIsUploaderOpen(true)} className="mt-6">
-            <Upload className="mr-2 h-4 w-4" />
-            {t('upload_first_document')}
-          </Button>
-        </div>
-      );
-    }
-
-    return (
-      <DataTable
-        columns={columns}
-        data={documents}
-        pageCount={pageCount}
-        pagination={pagination}
-        onPaginationChange={setPagination}
-      />
-    );
+  const handleVersions = (doc: Document) => {
+    setActiveDocument(doc);
+    setIsVersionsOpen(true);
   };
+
+  const handleUploadComplete = () => {
+    setIsUploadOpen(false);
+    // The query invalidation happens inside the SmartUploader hook
+  };
+
+  // --------------------------------------------------------------------------
+  // Render
+  // --------------------------------------------------------------------------
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={t('title')}
-        description={t('description')}
-        actions={
-          <Button onClick={() => setIsUploaderOpen(true)}>
-            <Upload className="mr-2 h-4 w-4" />
-            {t('upload_document')}
+    <div className="flex flex-col gap-6 p-6">
+      
+      {/* 1. Header & Actions */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <PageHeader 
+          title="Digital Vault" 
+          description="Securely store, manage, and verify your legal estate documents."
+        />
+        
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setIsUploadOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Upload Document
           </Button>
-        }
+        </div>
+      </div>
+
+      {/* 2. Toolbar (Search & Filter) */}
+      <div className="flex flex-col gap-4 border-b pb-6">
+        <div className="w-full md:max-w-md">
+            <SearchBar 
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search by file name..." 
+                onSearch={setSearchQuery} 
+            />
+        </div>
+        
+        <DocumentCategoryFilter 
+          selectedCategory={selectedCategory} 
+          onSelect={setSelectedCategory} 
+        />
+      </div>
+
+      {/* 3. Main Content Grid */}
+      <DocumentVaultGrid 
+        category={selectedCategory || undefined}
+        searchQuery={searchQuery}
+        onPreview={handlePreview}
+        onViewVersions={handleVersions}
+        className="min-h-[500px]"
       />
 
-      {renderContent()}
+      {/* ------------------------------------------------------------------ */}
+      {/* Dialogs & Modals */}
+      {/* ------------------------------------------------------------------ */}
 
-      <Dialog open={isUploaderOpen} onOpenChange={setIsUploaderOpen}>
-        <DialogContent className="sm:max-w-[650px]">
+      {/* A. Upload Dialog */}
+      <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{t('upload_new_document')}</DialogTitle>
-            <DialogDescription>{t('upload_prompt')}</DialogDescription>
+            <DialogTitle>Upload to Vault</DialogTitle>
+            <DialogDescription>
+              Add a new document to your permanent record.
+            </DialogDescription>
           </DialogHeader>
-          <DocumentUploader
-            onSuccess={() => setIsUploaderOpen(false)}
-            onCancel={() => setIsUploaderOpen(false)}
-          />
+
+          <div className="grid gap-4 py-4">
+            {/* Category Selector for General Uploads */}
+            <div className="flex flex-col gap-2">
+                <Label>Document Category</Label>
+                <Select 
+                    value={uploadCategory} 
+                    onValueChange={(val) => setUploadCategory(val as DocumentCategory)}
+                >
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {Object.values(DocumentCategoryEnum.enum).map((cat) => (
+                            <SelectItem key={cat} value={cat}>
+                                {cat.replace(/_/g, ' ')}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {/* The Smart Component */}
+            <SmartUploader 
+              category={uploadCategory}
+              onUploadComplete={handleUploadComplete}
+              label="Select File"
+              className="mt-2"
+            />
+          </div>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!docToDelete} onOpenChange={() => setDocToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('common:are_you_sure')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('delete_confirm_message', {
-                filename: docToDelete?.fileName ?? 'this document',
-              })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t('common:cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isDeleting}>
-              {isDeleting ? t('common:deleting') : t('common:delete')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* B. Preview Dialog */}
+      <DocumentPreviewDialog 
+        document={activeDocument}
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+      />
+
+      {/* C. Version History Sheet */}
+      <DocumentVersionSheet 
+        document={activeDocument}
+        isOpen={isVersionsOpen}
+        onClose={() => setIsVersionsOpen(false)}
+      />
+
     </div>
   );
-}
+};

@@ -30,7 +30,7 @@ import {
   type VerificationMetrics,
   type UploadAnalytics,
 } from '../../types/document.types';
-import { documentKeys } from './document.api';
+import { documentKeys } from '../documents/document.api';
 
 // ============================================================================
 // CONFIGURATION
