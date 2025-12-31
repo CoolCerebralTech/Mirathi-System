@@ -1,6 +1,5 @@
 // ============================================================================
 // estate.api.ts - Estate Service API Layer
-// Complete integration with backend DTOs and controllers
 // ============================================================================
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
