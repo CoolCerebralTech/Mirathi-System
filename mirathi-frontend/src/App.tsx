@@ -10,13 +10,14 @@ import { DashboardLayout } from './components/layout/DashboardLayout';
 // Route Guards
 import { ProtectedRoute, GuestRoute } from './router/ProtectedRoute';
 
-// === Import ALL Pages ===
+// === Pages ===
 // Public
 import { HomePage } from './pages/public/HomePage';
 import { AboutPage } from './pages/public/AboutPage';
 import { FeaturesPage } from './pages/public/FeaturesPage';
 import { ContactPage } from './pages/public/ContactPage';
 import { SecurityPage } from './pages/public/SecurityPage';
+
 // Auth
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
@@ -24,19 +25,47 @@ import { VerifyEmailPage } from './pages/auth';
 import { PendingVerificationPage } from './pages/auth/PendingVerificationPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
-// Dashboard
+
+// Onboarding (The Bridge)
+import { OnboardingPage } from './pages/onboarding';
+
+// Dashboard Core
+import { DashboardHome } from './pages/DashboardHome';
 import { ProfilePage } from './pages/users/ProfilePage';
 import { SettingsPage } from './pages/users/SettingsPage';
-import { AssetsPage } from './pages/estate/AssetInventoryPage';
 import { DocumentsPage } from './pages/documents/DocumentsPage';
-import { DocumentDetailPage } from './pages/documents/DocumentDetailPage';
+
+// Estate Service
+import { 
+  EstateListPage, 
+  CreateEstatePage, 
+  EstateDashboardPage,
+  AssetDetailsPage,
+  DebtManagementPage,
+  TaxCompliancePage,
+  DistributionPage
+} from './pages/estate';
+
+// Family Service
+import {
+  FamilyListPage,
+  FamilyDashboardPage,
+  MemberProfilePage
+} from './pages/family';
+
+// Guardianship Service
+import {
+  GuardianshipListPage,
+  GuardianshipDetailsPage
+} from './pages/guardianship';
+
 // Not Found
 import { NotFoundPage } from './pages/NotFoundPage';
 
 function App() {
   return (
     <Routes>
-      {/* --- Public Routes --- */}
+      {/* 1. Public Routes */}
       <Route element={<PublicLayout />}>
         <Route index element={<HomePage />} />
         <Route path="about" element={<AboutPage />} />
@@ -45,7 +74,7 @@ function App() {
         <Route path="security" element={<SecurityPage />} />
       </Route>
 
-      {/* --- Authentication Routes (for guests only) --- */}
+      {/* 2. Guest Routes (Login/Register) */}
       <Route element={<GuestRoute />}>
         <Route element={<AuthLayout />}>
           <Route path="login" element={<LoginPage />} />
@@ -57,20 +86,52 @@ function App() {
         </Route>
       </Route>
 
-      {/* --- Dashboard / Protected Routes --- */}
-      <Route path="/dashboard" element={<ProtectedRoute />}>
-        <Route element={<DashboardLayout />}>
+      {/* 3. Protected Routes Wrapper */}
+      <Route element={<ProtectedRoute />}>
+        
+        {/* A. Onboarding (Standalone - No Dashboard Layout) */}
+        <Route path="/onboarding" element={<OnboardingPage />} />
+
+        {/* B. Dashboard Area (Uses Dashboard Layout) */}
+        <Route path="/dashboard" element={<DashboardLayout />}>
+          
+          {/* Index: The Traffic Controller */}
+          <Route index element={<DashboardHome />} />
+          
+          {/* User Management */}
           <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
-          <Route path="assets" element={<AssetsPage />} />
-          <Route path="documents">
-            <Route index element={<DocumentsPage />} />
-            <Route path=":id" element={<DocumentDetailPage />} />
+          <Route path="documents" element={<DocumentsPage />} />
+
+          {/* --- ESTATE SERVICE --- */}
+          <Route path="estates">
+            <Route index element={<EstateListPage />} />
+            <Route path="new" element={<CreateEstatePage />} />
+            <Route path=":id" element={<EstateDashboardPage />} />
+            <Route path=":id/assets" element={<EstateDashboardPage />} />
+            <Route path=":id/assets/:assetId" element={<AssetDetailsPage />} />
+            <Route path=":id/debts" element={<DebtManagementPage />} />
+            <Route path="/estates/:id/tax" element={<TaxCompliancePage />} />
+            <Route path="/estates/:id/distribution" element={<DistributionPage />} />
           </Route>
+
+          {/* --- FAMILY SERVICE --- */}
+          <Route path="families">
+            <Route index element={<FamilyListPage />} />
+            <Route path=":id" element={<FamilyDashboardPage />} />
+            <Route path=":familyId/member/:memberId" element={<MemberProfilePage />} />
+          </Route>
+
+          {/* --- GUARDIANSHIP SERVICE --- */}
+          <Route path="guardianship">
+            <Route index element={<GuardianshipListPage />} />
+            <Route path=":id" element={<GuardianshipDetailsPage />} />
+          </Route>
+
         </Route>
       </Route>
 
-      {/* --- Not Found Route (Catch-all) --- */}
+      {/* 4. Catch-all */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );

@@ -17,10 +17,10 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger,
   DropdownMenuLabel
-} from '../../../../components/ui';
+} from '@/components/ui';
 import { EstateStatusBadge } from './EstateStatusBadge';
 import { useFreezeEstate, useUnfreezeEstate } from '../../estate.api';
-import { type EstateDashboardResponse } from '../../../../types/estate.types';
+import { type EstateDashboardResponse } from '@/types/estate.types';
 
 interface EstateHeaderProps {
   estate: EstateDashboardResponse;

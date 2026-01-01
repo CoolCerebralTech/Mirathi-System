@@ -1,168 +1,102 @@
+// pages/estate/CreateEstatePage.tsx
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { ArrowLeft, Loader2, Save } from 'lucide-react';
-
-import { 
-  Form, FormControl, FormField, FormItem, FormLabel, FormMessage, 
-  Input, Button, Separator 
-} from '../../components/ui';
-import { PageHeader } from '../../components/common';
-import { useCreateEstate } from '../../features/estate/estate.api';
-import { 
-  CreateEstateRequestSchema, 
-  type CreateEstateInput 
-} from '../../types/estate.types';
+import { ArrowLeft, FileText } from 'lucide-react';
+import { Button } from '@/components/ui';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui';
+import { Alert, AlertDescription } from '@/components/ui';
+import { EstateForm } from '@/features/estate/forms';
 
 export const CreateEstatePage: React.FC = () => {
   const navigate = useNavigate();
-  
-  const form = useForm<CreateEstateInput>({
-    resolver: zodResolver(CreateEstateRequestSchema),
-    defaultValues: {
-      name: '',
-      deceasedName: '',
-      kraPin: '',
-      initialCash: { amount: 0, currency: 'KES' },
-      // executorId would typically come from the logged-in user context
-      executorId: 'user-uuid-placeholder' 
-    }
-  });
 
-  const { mutate, isPending } = useCreateEstate({
-    onSuccess: (data) => {
-      // Redirect to the dashboard of the new estate
-      navigate(`/estates/${data.id}`);
-    }
-  });
+  const handleSuccess = (data: { id: string }) => {
+    navigate(`/estates/${data.id}`);
+  };
+
+  const handleCancel = () => {
+    navigate('/estates');
+  };
 
   return (
-    <div className="mx-auto max-w-2xl p-6">
-      
+    <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="mb-8">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="mb-4 pl-0 text-muted-foreground"
-          onClick={() => navigate('/estates')}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Registry
-        </Button>
-        <PageHeader 
-          title="Initialize New Estate" 
-          description="Create a digital ledger for assets, liabilities, and distribution."
-        />
+      <div className="bg-white border-b">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/estates')}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Estates
+            </Button>
+          </div>
+          <div className="mt-4">
+            <h1 className="text-3xl font-bold text-slate-900">Create New Estate</h1>
+            <p className="text-slate-600 mt-1">
+              Initialize a new estate administration ledger
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Form Card */}
-      <div className="rounded-xl border bg-card p-6 shadow-sm">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit((data) => mutate(data))} className="space-y-6">
-            
-            {/* Section 1: Deceased Details */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-slate-900">Deceased Information</h3>
-              <Separator />
-              
-              <FormField control={form.control} name="deceasedName" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Full Name of Deceased</FormLabel>
-                  <FormControl><Input placeholder="e.g. The Late John Doe" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
+      {/* Content */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Info Alert */}
+        <Alert className="mb-6 border-blue-200 bg-blue-50">
+          <FileText className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-800">
+            <strong>Getting Started:</strong> You'll need the deceased's personal information, 
+            KRA PIN, and death certificate details. You can add assets, debts, and other 
+            information after creating the estate.
+          </AlertDescription>
+        </Alert>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="dateOfDeath" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Date of Death</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} onChange={(e) => field.onChange(new Date(e.target.value).toISOString())} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+        {/* Form Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Estate Information</CardTitle>
+            <CardDescription>
+              Enter the details of the deceased and the executor managing this estate
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <EstateForm
+              onSuccess={handleSuccess}
+              onCancel={handleCancel}
+            />
+          </CardContent>
+        </Card>
 
-                <FormField control={form.control} name="kraPin" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>KRA PIN (Deceased)</FormLabel>
-                    <FormControl><Input placeholder="A000..." {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
-            </div>
-
-            {/* Section 2: Estate Details */}
-            <div className="space-y-4 pt-4">
-              <h3 className="text-sm font-semibold text-slate-900">Estate Administration Details</h3>
-              <Separator />
-
-              <FormField control={form.control} name="name" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Estate Label (System Name)</FormLabel>
-                  <FormControl><Input placeholder="e.g. Estate of John Doe (2025)" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-
-              <FormField control={form.control} name="courtCaseNumber" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Succession Cause / Court Case No.</FormLabel>
-                  <FormControl><Input placeholder="e.g. E123 of 2025" {...field} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-            </div>
-
-            {/* Section 3: Financials */}
-            <div className="space-y-4 pt-4">
-              <h3 className="text-sm font-semibold text-slate-900">Opening Balance</h3>
-              <Separator />
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="initialCash.amount" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cash on Hand</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        {...field} 
-                        onChange={e => field.onChange(parseFloat(e.target.value))} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField control={form.control} name="initialCash.currency" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Currency</FormLabel>
-                    <FormControl><Input disabled {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="pt-6">
-              <Button type="submit" className="w-full" size="lg" disabled={isPending}>
-                {isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating Ledger...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" /> Create Estate Ledger
-                  </>
-                )}
-              </Button>
-            </div>
-
-          </form>
-        </Form>
+        {/* Help Section */}
+        <Card className="mt-6 border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-base">Need Help?</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-slate-600 space-y-2">
+            <p>
+              <strong>KRA PIN Format:</strong> The KRA PIN should be in the format A123456789Z 
+              (one letter, nine digits, one letter).
+            </p>
+            <p>
+              <strong>Executor ID:</strong> This should be the user ID of the person who will 
+              manage this estate in the system.
+            </p>
+            <p>
+              <strong>Court Case Number:</strong> If probate or letters of administration have 
+              been granted, enter the court case reference number here.
+            </p>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

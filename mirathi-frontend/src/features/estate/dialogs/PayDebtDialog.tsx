@@ -1,114 +1,160 @@
-import React from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Banknote } from 'lucide-react';
-import { 
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
-  Form, FormControl, FormField, FormItem, FormLabel, FormMessage,
-  Input, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-} from '../../../../components/ui';
+// dialogs/PayDebtDialog.tsx
 
-import { usePayDebt } from '../../estate.api';
-import { PayDebtRequestSchema, type PayDebtInput, type DebtItemResponse } from '../../../../types/estate.types';
-import { MoneyDisplay } from '../../components/shared/MoneyDisplay';
+import React, { useState } from 'react';
+import { useForm, type SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Loader2 } from 'lucide-react';
+import * as z from 'zod';
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  FormDescription,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui';
+import { Button } from '@/components/ui';
+
+import { PayDebtRequestSchema, type PayDebtInput } from '@/types/estate.types';
+import { usePayDebt } from '../estate.api';
+
+type PayDebtFormValues = z.input<typeof PayDebtRequestSchema>;
 
 interface PayDebtDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   estateId: string;
-  debt: DebtItemResponse | null;
+  debtId: string;
+  debtDescription: string;
+  outstandingAmount: number;
+  trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
-export const PayDebtDialog: React.FC<PayDebtDialogProps> = ({ 
-  open, 
-  onOpenChange, 
-  estateId, 
-  debt 
+export const PayDebtDialog: React.FC<PayDebtDialogProps> = ({
+  estateId,
+  debtId,
+  debtDescription,
+  outstandingAmount,
+  trigger,
+  open: controlledOpen,
+  onOpenChange,
+  onSuccess,
 }) => {
-  const form = useForm<PayDebtInput>({
+  const [internalOpen, setInternalOpen] = useState(false);
+  const { mutate, isPending } = usePayDebt(estateId);
+  
+  const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
+
+  const form = useForm<PayDebtFormValues>({
     resolver: zodResolver(PayDebtRequestSchema),
     defaultValues: {
-      amount: { amount: debt?.outstandingAmount.amount || 0, currency: 'KES' },
-      paymentMethod: 'BANK_TRANSFER',
-      reference: ''
-    }
+      amount: { amount: outstandingAmount, currency: 'KES' },
+      paymentMethod: '',
+      reference: '',
+    },
   });
 
-  // Reset form when debt changes
-  React.useEffect(() => {
-    if (debt) {
-      form.reset({
-        amount: { amount: debt.outstandingAmount.amount, currency: debt.outstandingAmount.currency },
-        paymentMethod: 'BANK_TRANSFER',
-        reference: ''
-      });
-    }
-  }, [debt, form]);
-
-  const { mutate, isPending } = usePayDebt(estateId);
-
-  const onSubmit = (data: PayDebtInput) => {
-    if (!debt) return;
+  const onSubmit: SubmitHandler<PayDebtFormValues> = (data) => {
     mutate(
-      { debtId: debt.id, data },
-      { onSuccess: () => onOpenChange(false) }
+      { debtId, data: data as PayDebtInput },
+      {
+        onSuccess: () => {
+          form.reset();
+          setOpen(false);
+          onSuccess?.();
+        },
+      }
     );
   };
 
-  if (!debt) return null;
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={isOpen} onOpenChange={setOpen}>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Banknote className="h-5 w-5 text-green-600" />
-            Record Payment
-          </DialogTitle>
+          <DialogTitle>Record Debt Payment</DialogTitle>
           <DialogDescription>
-            Paying <strong>{debt.creditorName}</strong>
-            <br />
-            Outstanding: <MoneyDisplay amount={debt.outstandingAmount} className="font-bold text-slate-700" />
+            Record a payment for: <span className="font-semibold">{debtDescription}</span>
           </DialogDescription>
         </DialogHeader>
-
+        
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-            
-            <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="amount.amount" render={({ field }) => (
-                    <FormItem><FormLabel>Amount Paid</FormLabel><FormControl><Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl><FormMessage /></FormItem>
-                )} />
-                 <FormField control={form.control} name="amount.currency" render={({ field }) => (
-                    <FormItem><FormLabel>Currency</FormLabel><FormControl><Input disabled {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-            </div>
-
-            <FormField control={form.control} name="paymentMethod" render={({ field }) => (
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="amount.amount"
+              render={({ field }) => (
                 <FormItem>
-                    <FormLabel>Payment Method</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                        <SelectContent>
-                            <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
-                            <SelectItem value="MPESA">M-Pesa / Mobile Money</SelectItem>
-                            <SelectItem value="CHEQUE">Cheque</SelectItem>
-                            <SelectItem value="CASH">Cash</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <FormMessage />
+                  <FormLabel>Payment Amount</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-slate-500 text-sm">KES</span>
+                      <Input
+                        type="number"
+                        className="pl-12"
+                        placeholder="0.00"
+                        {...field}
+                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    Outstanding: KES {outstandingAmount.toLocaleString()}
+                  </FormDescription>
+                  <FormMessage />
                 </FormItem>
-            )} />
+              )}
+            />
 
-            <FormField control={form.control} name="reference" render={({ field }) => (
-                <FormItem><FormLabel>Transaction Ref (Optional)</FormLabel><FormControl><Input placeholder="e.g. QXJ45..." {...field} /></FormControl><FormMessage /></FormItem>
-            )} />
+            <FormField
+              control={form.control}
+              name="paymentMethod"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Payment Method</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Bank Transfer, M-Pesa, Cheque" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-            <div className="flex justify-end gap-3 pt-2">
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                <Button type="submit" disabled={isPending}>
-                    {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Confirm Payment
-                </Button>
+            <FormField
+              control={form.control}
+              name="reference"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Transaction Reference (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Receipt or transaction number" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isPending} className="bg-slate-900">
+                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Record Payment
+              </Button>
             </div>
           </form>
         </Form>

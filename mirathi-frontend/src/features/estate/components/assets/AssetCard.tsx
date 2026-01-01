@@ -1,88 +1,97 @@
+// components/assets/AssetCard.tsx
+
 import React from 'react';
-import { Building2, Car, Briefcase, Coins, MoreVertical } from 'lucide-react';
-import { Card, Button, Badge, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../../../../components/ui';
+import { MoreHorizontal, ShieldAlert, Lock } from 'lucide-react';
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  Button,
+  Badge
+} from '@/components/ui';
 import { MoneyDisplay } from '../shared/MoneyDisplay';
-import { AssetType, AssetStatus, type AssetItemResponse } from '../../../../types/estate.types';
-import { cn } from '../../../../lib/utils';
+import { AssetTypeFields } from './AssetTypeFields';
+import { CoOwnershipPanel } from './CoOwnershipPanel';
+import { AssetStatus, type AssetItemResponse } from '@/types/estate.types';
+import { cn } from '@/lib/utils';
 
 interface AssetCardProps {
-    asset: AssetItemResponse;
-    onClick?: () => void;
-    onEdit?: () => void;
+  asset: AssetItemResponse;
+  onViewDetails: (id: string) => void;
+  onEdit: (id: string) => void;
 }
 
-export const AssetCard: React.FC<AssetCardProps> = ({ asset, onClick, onEdit }) => {
-    
-    // Helper to get Icon based on type
-    const getIcon = (type: string) => {
-        switch(type) {
-            case AssetType.LAND: return <Building2 className="h-8 w-8 text-emerald-600" />;
-            case AssetType.VEHICLE: return <Car className="h-8 w-8 text-blue-600" />;
-            case AssetType.BUSINESS: return <Briefcase className="h-8 w-8 text-purple-600" />;
-            case AssetType.FINANCIAL: return <Coins className="h-8 w-8 text-amber-600" />;
-            default: return <Building2 className="h-8 w-8 text-slate-600" />;
-        }
-    };
+export const AssetCard: React.FC<AssetCardProps> = ({ asset, onViewDetails, onEdit }) => {
+  const isEncumbered = asset.isEncumbered;
 
-    // Helper for Status Color
-    const getStatusColor = (status: string) => {
-        switch(status) {
-            case AssetStatus.ACTIVE: return "bg-green-100 text-green-700 hover:bg-green-100";
-            case AssetStatus.SOLD: return "bg-slate-100 text-slate-700 hover:bg-slate-100";
-            case AssetStatus.DISPUTED: return "bg-red-100 text-red-700 hover:bg-red-100";
-            case AssetStatus.PENDING_VERIFICATION: return "bg-amber-100 text-amber-700 hover:bg-amber-100";
-            default: return "bg-slate-100 text-slate-700";
-        }
-    };
+  return (
+    <Card className={cn(
+      "transition-all hover:shadow-md",
+      asset.status === AssetStatus.SOLD && "opacity-75 bg-slate-50"
+    )}>
+      <CardHeader className="flex flex-row items-start justify-between pb-2 space-y-0">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-[10px] font-bold tracking-wide">
+              {asset.type}
+            </Badge>
+            {isEncumbered && (
+              <Badge variant="destructive" className="text-[10px] px-1.5 gap-1">
+                <Lock className="h-3 w-3" /> Encumbered
+              </Badge>
+            )}
+          </div>
+          <h3 className="font-semibold text-lg leading-none truncate max-w-[200px]" title={asset.name}>
+            {asset.name}
+          </h3>
+        </div>
 
-    return (
-        <Card className="group relative overflow-hidden hover:shadow-md transition-all cursor-pointer" onClick={onClick}>
-            <div className="absolute top-3 right-3 z-10">
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 bg-white/50 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-                            <MoreVertical className="h-4 w-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={e => { e.stopPropagation(); onEdit?.(); }}>Edit Details</DropdownMenuItem>
-                        <DropdownMenuItem onClick={e => e.stopPropagation()}>View Valuation History</DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8 -mt-1 -mr-2">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onViewDetails(asset.id)}>
+              View Details
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onEdit(asset.id)}>
+              Update Valuation
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </CardHeader>
 
-            <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                    <div className="rounded-xl bg-slate-50 p-4 border border-slate-100">
-                        {getIcon(asset.type)}
-                    </div>
-                    <Badge className={cn("pointer-events-none", getStatusColor(asset.status))}>
-                        {asset.status.replace(/_/g, ' ')}
-                    </Badge>
-                </div>
+      <CardContent className="space-y-4">
+        {/* Value Display */}
+        <div className="py-2">
+          <p className="text-xs text-muted-foreground uppercase">Current Valuation</p>
+          <div className="text-2xl font-bold text-slate-900">
+            <MoneyDisplay amount={asset.currentValue} />
+          </div>
+        </div>
 
-                <div className="space-y-1">
-                    <h3 className="font-semibold text-lg line-clamp-1" title={asset.name}>
-                        {asset.name}
-                    </h3>
-                    <p className="text-sm text-muted-foreground capitalize">
-                        {asset.type.toLowerCase()} {asset.description ? `• ${asset.description}` : ''}
-                    </p>
-                </div>
+        {/* Polymorphic Details */}
+        <AssetTypeFields asset={asset} />
 
-                <div className="mt-4 pt-4 border-t flex items-center justify-between">
-                    <div className="flex flex-col">
-                        <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Current Value</span>
-                        <MoneyDisplay amount={asset.currentValue} className="text-lg font-bold" />
-                    </div>
-                    
-                    {asset.isEncumbered && (
-                        <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 text-[10px]">
-                            Encumbered
-                        </Badge>
-                    )}
-                </div>
-            </div>
-        </Card>
-    );
+        {/* Encumbrance Warning */}
+        {isEncumbered && (
+          <div className="flex items-start gap-2 bg-red-50 p-2 rounded text-xs text-red-700 border border-red-100">
+            <ShieldAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>
+              {asset.encumbranceDetails || 'Asset is linked to a debt or claim.'}
+            </span>
+          </div>
+        )}
+
+        {/* Ownership */}
+        <CoOwnershipPanel asset={asset} />
+      </CardContent>
+    </Card>
+  );
 };

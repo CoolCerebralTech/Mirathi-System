@@ -1,68 +1,71 @@
+// components/dashboard/QuickActions.tsx
+
 import React from 'react';
 import { 
   PlusCircle, 
-  MinusCircle, 
-  FileText, 
-  Gavel, 
-  Banknote,
-  Gift
+  Banknote, 
+  Users, 
+  Gift 
 } from 'lucide-react';
-import { Button, Card, CardHeader, CardTitle, CardContent } from '../../../../components/ui';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
+import { Button } from '@/components/ui';
 
 interface QuickActionsProps {
-  onAction: (action: string) => void;
+  estateId: string;
+  onAction: (actionType: 'ADD_ASSET' | 'ADD_DEBT' | 'FILE_CLAIM' | 'RECORD_GIFT') => void;
 }
 
 export const QuickActions: React.FC<QuickActionsProps> = ({ onAction }) => {
   return (
-    <Card>
+    <Card className="shadow-sm">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Quick Actions</CardTitle>
+        <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
       </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+      <CardContent className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         
         <Button 
-            variant="outline" 
-            className="justify-start h-auto py-3 px-4 border-dashed border-2 hover:border-solid hover:border-green-300 hover:bg-green-50"
-            onClick={() => onAction('ADD_ASSET')}
+          variant="outline" 
+          className="h-auto flex-col gap-2 py-4 hover:bg-slate-50 hover:border-blue-300 transition-all border-dashed"
+          onClick={() => onAction('ADD_ASSET')}
         >
-            <div className="mr-3 rounded-full bg-green-100 p-2 text-green-600">
-                <PlusCircle className="h-4 w-4" />
-            </div>
-            <div className="text-left">
-                <div className="text-sm font-semibold">Record Asset</div>
-                <div className="text-[10px] text-muted-foreground">Add land, vehicle, or cash</div>
-            </div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+            <PlusCircle className="h-5 w-5" />
+          </div>
+          <span className="font-medium text-slate-700">Add Asset</span>
         </Button>
 
         <Button 
-            variant="outline" 
-            className="justify-start h-auto py-3 px-4 border-dashed border-2 hover:border-solid hover:border-red-300 hover:bg-red-50"
-            onClick={() => onAction('ADD_DEBT')}
+          variant="outline" 
+          className="h-auto flex-col gap-2 py-4 hover:bg-slate-50 hover:border-red-300 transition-all border-dashed"
+          onClick={() => onAction('ADD_DEBT')}
         >
-            <div className="mr-3 rounded-full bg-red-100 p-2 text-red-600">
-                <MinusCircle className="h-4 w-4" />
-            </div>
-            <div className="text-left">
-                <div className="text-sm font-semibold">Add Liability</div>
-                <div className="text-[10px] text-muted-foreground">Record debt or expense</div>
-            </div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600">
+            <Banknote className="h-5 w-5" />
+          </div>
+          <span className="font-medium text-slate-700">Record Debt</span>
         </Button>
 
-        <div className="grid grid-cols-2 gap-2 mt-2">
-            <Button variant="ghost" size="sm" className="justify-start text-xs" onClick={() => onAction('PAY_DEBT')}>
-                <Banknote className="mr-2 h-3.5 w-3.5 text-slate-500" /> Pay Debt
-            </Button>
-            <Button variant="ghost" size="sm" className="justify-start text-xs" onClick={() => onAction('ADD_GIFT')}>
-                <Gift className="mr-2 h-3.5 w-3.5 text-slate-500" /> S.35 Gift
-            </Button>
-            <Button variant="ghost" size="sm" className="justify-start text-xs" onClick={() => onAction('FILE_CLAIM')}>
-                <Gavel className="mr-2 h-3.5 w-3.5 text-slate-500" /> S.29 Claim
-            </Button>
-            <Button variant="ghost" size="sm" className="justify-start text-xs" onClick={() => onAction('TAX_PAYMENT')}>
-                <FileText className="mr-2 h-3.5 w-3.5 text-slate-500" /> Tax Filing
-            </Button>
-        </div>
+        <Button 
+          variant="outline" 
+          className="h-auto flex-col gap-2 py-4 hover:bg-slate-50 hover:border-amber-300 transition-all border-dashed"
+          onClick={() => onAction('FILE_CLAIM')}
+        >
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+            <Users className="h-5 w-5" />
+          </div>
+          <span className="font-medium text-slate-700">File Claim</span>
+        </Button>
+
+        <Button 
+          variant="outline" 
+          className="h-auto flex-col gap-2 py-4 hover:bg-slate-50 hover:border-purple-300 transition-all border-dashed"
+          onClick={() => onAction('RECORD_GIFT')}
+        >
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+            <Gift className="h-5 w-5" />
+          </div>
+          <span className="font-medium text-slate-700">Record Gift</span>
+        </Button>
 
       </CardContent>
     </Card>

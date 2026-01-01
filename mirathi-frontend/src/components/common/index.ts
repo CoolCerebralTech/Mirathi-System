@@ -12,7 +12,6 @@ export * from './StatusBadge';
 export * from './Avatar';
 export * from './ConfirmDialog';
 export * from './UserMenu';
-export * from './NotificationDropdown';
 export * from './SearchBar';
 export * from './StatCard';
 export * from './Modal';

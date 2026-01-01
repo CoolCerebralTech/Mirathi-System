@@ -1,73 +1,82 @@
-import React from 'react';
-import { formatDistanceToNow } from 'date-fns';
-import { Activity, FilePlus, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, ScrollArea } from '../../../../components/ui';
-import { cn } from '../../../../lib/utils';
+// components/dashboard/RecentActivity.tsx
 
-// Temporary interface until backend implements the audit endpoint
-export interface ActivityEvent {
+import React from 'react';
+import { format } from 'date-fns';
+import { Activity, FileText, DollarSign, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
+import { ScrollArea } from '@/components/ui';
+
+// Define structure for activity items
+export interface ActivityItem {
   id: string;
-  type: 'ASSET_ADDED' | 'DEBT_PAID' | 'ESTATE_FROZEN' | 'DOC_UPLOADED' | 'RISK_ALERT';
+  type: 'ASSET' | 'DEBT' | 'SYSTEM' | 'WARNING' | 'INFO';
   description: string;
-  timestamp: string;
-  actorName: string;
+  timestamp: string; // ISO Date string
+  user?: string;
 }
 
 interface RecentActivityProps {
-  activities?: ActivityEvent[]; // Optional for now
+  activities?: ActivityItem[]; 
 }
 
 export const RecentActivity: React.FC<RecentActivityProps> = ({ activities = [] }) => {
-  
   const getIcon = (type: string) => {
-    switch(type) {
-        case 'ASSET_ADDED': return <FilePlus className="h-4 w-4 text-blue-500" />;
-        case 'DEBT_PAID': return <DollarSign className="h-4 w-4 text-green-500" />;
-        case 'RISK_ALERT': return <AlertTriangle className="h-4 w-4 text-amber-500" />;
-        case 'ESTATE_FROZEN': return <Activity className="h-4 w-4 text-red-500" />;
-        default: return <CheckCircle2 className="h-4 w-4 text-slate-500" />;
+    switch (type) {
+      case 'ASSET': return <FileText className="h-4 w-4 text-blue-500" />;
+      case 'DEBT': return <DollarSign className="h-4 w-4 text-red-500" />;
+      case 'SYSTEM': return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
+      case 'WARNING': return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+      default: return <Activity className="h-4 w-4 text-slate-500" />;
     }
   };
 
   return (
-    <Card className="h-full max-h-[400px] flex flex-col">
+    <Card className="shadow-sm h-full">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center justify-between">
-            <span>Recent Activity</span>
-            <span className="text-xs font-normal text-muted-foreground cursor-pointer hover:underline">View All</span>
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <Activity className="h-5 w-5 text-slate-500" />
+          Recent Activity
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 p-0">
-        <ScrollArea className="h-[300px]">
+      <CardContent className="p-0">
+        <ScrollArea className="h-[300px] px-6">
+          <div className="space-y-6 py-4">
             {activities.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-40 text-muted-foreground text-sm">
-                    <Activity className="h-8 w-8 mb-2 opacity-20" />
-                    No recent activity recorded.
-                </div>
+              <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                <p className="text-sm italic">No recent activity recorded.</p>
+              </div>
             ) : (
-                <div className="flex flex-col">
-                    {activities.map((item, i) => (
-                        <div key={item.id} className={cn(
-                            "flex gap-3 px-6 py-3 hover:bg-slate-50 transition-colors",
-                            i !== activities.length - 1 && "border-b border-slate-100"
-                        )}>
-                            <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100">
-                                {getIcon(item.type)}
-                            </div>
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-sm font-medium text-slate-900">
-                                    {item.description}
-                                </span>
-                                <div className="flex items-center gap-2 text-xs text-slate-500">
-                                    <span>{item.actorName}</span>
-                                    <span>•</span>
-                                    <span>{formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}</span>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
+              activities.map((item, index) => (
+                <div key={item.id || index} className="flex gap-4 relative group">
+                  {/* Timeline Line */}
+                  {index !== activities.length - 1 && (
+                    <div className="absolute left-[11px] top-6 bottom-[-24px] w-px bg-slate-200 group-last:hidden" />
+                  )}
+                  
+                  {/* Icon Bubble */}
+                  <div className="relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-50 border border-slate-200 shadow-sm mt-0.5">
+                    {getIcon(item.type)}
+                  </div>
+                  
+                  {/* Content */}
+                  <div className="flex flex-col gap-1 pb-1">
+                    <p className="text-sm font-medium text-slate-900 leading-none">
+                      {item.description}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{format(new Date(item.timestamp), 'MMM d, h:mm a')}</span>
+                      {item.user && (
+                        <>
+                          <span className="text-slate-300">•</span>
+                          <span>{item.user}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              ))
             )}
+          </div>
         </ScrollArea>
       </CardContent>
     </Card>

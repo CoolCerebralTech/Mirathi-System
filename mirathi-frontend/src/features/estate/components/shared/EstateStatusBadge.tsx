@@ -1,8 +1,8 @@
 import React from 'react';
-import { Badge } from '../../../../components/ui';
-import { EstateStatus } from '../../../../types/estate.types';
+import { Badge } from '@/components/ui';
+import { EstateStatus } from '@/types/estate.types';
 import { Lock, CheckCircle, Activity, Archive, FileEdit } from 'lucide-react';
-import { cn } from '../../../../lib/utils';
+import { cn } from '@/lib/utils';
 
 interface EstateStatusBadgeProps {
   status: EstateStatus;

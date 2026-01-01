@@ -1,114 +1,103 @@
-import React from 'react';
-import { AlertTriangle, Info } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle, Button } from '../../../../components/ui';
-import { LoadingSpinner, EmptyState } from '../../../../components/common';
-import { useDebtWaterfall } from '../../estate.api';
+// components/debts/DebtWaterfallView.tsx
+
+import React, { useState } from 'react';
 import { DebtTierCard } from './DebtTierCard';
-import { type DebtItemResponse } from '../../../../types/estate.types';
+import { Progress } from '@/components/ui';
+import { MoneyDisplay } from '../shared/MoneyDisplay';
+import type { DebtWaterfallResponse } from '@/types/estate.types';
 
 interface DebtWaterfallViewProps {
-    estateId: string;
-    onPayDebt: (debtId: string, item: DebtItemResponse) => void;
-    onDispute: (debtId: string) => void;
+  data: DebtWaterfallResponse;
 }
 
-export const DebtWaterfallView: React.FC<DebtWaterfallViewProps> = ({ 
-    estateId, onPayDebt, onDispute 
-}) => {
-    const { data, isLoading } = useDebtWaterfall(estateId);
+export const DebtWaterfallView: React.FC<DebtWaterfallViewProps> = ({ data }) => {
+  const [openTier, setOpenTier] = useState<number | null>(data.highestPriorityOutstanding || 1);
 
-    if (isLoading) return <LoadingSpinner text="Analyzing S.45 Priorities..." />;
-    if (!data) return <EmptyState title="No Liabilities" description="No debts recorded yet." />;
+  const totalLiability = data.totalLiabilities.amount;
+  const totalPaid = data.totalPaid.amount;
+  const progress = totalLiability + totalPaid > 0 
+    ? (totalPaid / (totalPaid + totalLiability)) * 100 
+    : 100;
 
-    // Waterfall Logic: Check if previous tier is cleared to unlock the next
-    const isTier1Cleared = data.tier1_FuneralExpenses.every(d => d.status === 'PAID');
-    const isTier2Cleared = data.tier2_Testamentary.every(d => d.status === 'PAID');
-    const isTier3Cleared = data.tier3_SecuredDebts.every(d => d.status === 'PAID');
-    // Note: Tier 4 and 5 often run concurrently in practice depending on liquidity, 
-    // but strictly S.45 prefers taxes first. The UI enforces "Suggested" order via locking visual.
-    
-    // Strict Mode: Unlock only if previous is done
-    const isTier2Locked = !isTier1Cleared; 
-    const isTier3Locked = !isTier2Cleared; 
-    const isTier4Locked = !isTier3Cleared;
-    const isTier5Locked = !isTier4Cleared; // Assuming Tier 4 logic exists, usually Taxes
-
-    return (
-        <div className="space-y-6 max-w-4xl mx-auto">
-            
-            {/* Header / Instructions */}
-            <Alert className="bg-blue-50 border-blue-200">
-                <Info className="h-4 w-4 text-blue-600" />
-                <AlertTitle className="text-blue-800 font-semibold">Section 45 Compliance Active</AlertTitle>
-                <AlertDescription className="text-blue-700 text-xs mt-1">
-                    Kenyan law requires debts to be paid in this specific order. 
-                    Personal debts (Tier 5) cannot be paid until all previous tiers are settled.
-                </AlertDescription>
-            </Alert>
-
-            {/* Tier 1: Funeral */}
-            <DebtTierCard 
-                tierNumber={1}
-                title="Funeral Expenses"
-                description="Reasonable expenses for the burial."
-                items={data.tier1_FuneralExpenses}
-                isLocked={false}
-                onPayDebt={onPayDebt}
-                onDispute={onDispute}
-            />
-
-            {/* Tier 2: Testamentary */}
-            <DebtTierCard 
-                tierNumber={2}
-                title="Testamentary & Legal"
-                description="Expenses for obtaining Grant of Probate."
-                items={data.tier2_Testamentary}
-                isLocked={isTier2Locked}
-                onPayDebt={onPayDebt}
-                onDispute={onDispute}
-            />
-
-            {/* Tier 3: Secured */}
-            <DebtTierCard 
-                tierNumber={3}
-                title="Secured Debts"
-                description="Mortgages and loans backed by assets."
-                items={data.tier3_SecuredDebts}
-                isLocked={isTier3Locked}
-                onPayDebt={onPayDebt}
-                onDispute={onDispute}
-            />
-
-             {/* Tier 4: Taxes */}
-             <DebtTierCard 
-                tierNumber={4}
-                title="Taxes & Statutory Wages"
-                description="KRA arrears and domestic staff wages."
-                items={data.tier4_TaxesAndWages}
-                isLocked={isTier4Locked}
-                onPayDebt={onPayDebt}
-                onDispute={onDispute}
-            />
-
-             {/* Tier 5: Unsecured */}
-             <DebtTierCard 
-                tierNumber={5}
-                title="Unsecured Creditors"
-                description="Personal loans, credit cards, other claims."
-                items={data.tier5_Unsecured}
-                isLocked={isTier5Locked}
-                onPayDebt={onPayDebt}
-                onDispute={onDispute}
-            />
-
-            {!data.canPayNextTier && (
-                <div className="flex justify-center pt-4">
-                    <Button variant="outline" className="text-amber-600 border-amber-200 hover:bg-amber-50">
-                        <AlertTriangle className="mr-2 h-4 w-4" />
-                        Insolvency Warning: Liquidation required
-                    </Button>
-                </div>
-            )}
+  return (
+    <div className="space-y-6">
+      {/* Overall Progress Header */}
+      <div className="bg-slate-900 text-white rounded-lg p-6 shadow-md">
+        <div className="flex justify-between items-end mb-4">
+          <div>
+             <h2 className="text-lg font-semibold">Debt Settlement Progress</h2>
+             <p className="text-slate-400 text-sm">Strict adherence to S.45 Priority Rules</p>
+          </div>
+          <div className="text-right">
+             <div className="text-2xl font-bold"><MoneyDisplay amount={data.totalLiabilities} /></div>
+             <div className="text-xs text-slate-400">Remaining Liability</div>
+          </div>
         </div>
-    );
+        
+        {/* FIXED: Removed indicatorClassName, used tailwind child selector for color */}
+        <Progress 
+            value={progress} 
+            className="h-2 bg-slate-700 [&>*]:bg-emerald-500" 
+        />
+        
+        <div className="flex justify-between mt-2 text-xs text-slate-400">
+           <span>0% Settled</span>
+           <span>{progress.toFixed(0)}% Complete</span>
+        </div>
+      </div>
+
+      {/* The Waterfall Tiers */}
+      <div className="space-y-3">
+        <DebtTierCard 
+          tierNumber={1}
+          title="Funeral Expenses"
+          description="Reasonable expenses for the funeral and burial."
+          debts={data.tier1_FuneralExpenses}
+          isExpanded={openTier === 1}
+          onToggle={() => setOpenTier(openTier === 1 ? null : 1)}
+          canPay={data.canPayNextTier && data.highestPriorityOutstanding === 1}
+        />
+
+        <DebtTierCard 
+          tierNumber={2}
+          title="Testamentary Expenses"
+          description="Legal fees, court costs, and administration expenses."
+          debts={data.tier2_Testamentary}
+          isExpanded={openTier === 2}
+          onToggle={() => setOpenTier(openTier === 2 ? null : 2)}
+          canPay={data.canPayNextTier && data.highestPriorityOutstanding === 2}
+        />
+
+        <DebtTierCard 
+          tierNumber={3}
+          title="Secured Creditors"
+          description="Mortgages and loans secured by specific assets."
+          debts={data.tier3_SecuredDebts}
+          isExpanded={openTier === 3}
+          onToggle={() => setOpenTier(openTier === 3 ? null : 3)}
+          canPay={data.canPayNextTier && data.highestPriorityOutstanding === 3}
+        />
+
+        <DebtTierCard 
+          tierNumber={4}
+          title="Taxes & Wages"
+          description="KRA taxes and outstanding wages for domestic staff."
+          debts={data.tier4_TaxesAndWages}
+          isExpanded={openTier === 4}
+          onToggle={() => setOpenTier(openTier === 4 ? null : 4)}
+          canPay={data.canPayNextTier && data.highestPriorityOutstanding === 4}
+        />
+
+        <DebtTierCard 
+          tierNumber={5}
+          title="Unsecured Creditors"
+          description="Personal loans, credit cards, and other unsecured debts."
+          debts={data.tier5_Unsecured}
+          isExpanded={openTier === 5}
+          onToggle={() => setOpenTier(openTier === 5 ? null : 5)}
+          canPay={data.canPayNextTier && data.highestPriorityOutstanding === 5}
+        />
+      </div>
+    </div>
+  );
 };

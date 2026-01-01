@@ -1,6 +1,6 @@
 import React from 'react';
-import { cn } from '../../../../lib/utils';
-import { type Money } from '../../../../types/estate.types';
+import { cn } from '@/lib/utils';
+import { type Money } from '@/types/estate.types';
 
 interface MoneyDisplayProps {
   amount: number | Money;

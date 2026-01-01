@@ -1,78 +1,60 @@
+// components/debts/PaymentHistory.tsx
+
 import React from 'react';
 import { format } from 'date-fns';
-import { ArrowUpRight, CheckCircle2, FileText } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, ScrollArea, Badge } from '../../../../components/ui';
+import { CheckCheck, ArrowUpRight } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
 import { MoneyDisplay } from '../shared/MoneyDisplay';
-import { cn } from '../../../../lib/utils';
-
-// Logic: We define an interface for a Payment Event. 
-// In a real app, this would come from a specific GET /estate/{id}/payments endpoint
-export interface PaymentRecord {
-    id: string;
-    debtName: string;
-    amount: number;
-    currency: string;
-    date: string;
-    method: string;
-    reference?: string;
-}
+import type { DebtItemResponse } from '@/types/estate.types';
 
 interface PaymentHistoryProps {
-    payments?: PaymentRecord[]; // Made optional so it renders an empty state if data is missing
+  debts: DebtItemResponse[]; // We filter for PAID/PARTIALLY_PAID in the parent or here
 }
 
-export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ payments = [] }) => {
-    return (
-        <Card className="h-full">
-            <CardHeader className="pb-3 border-b">
-                <CardTitle className="text-base flex items-center gap-2">
-                    <ArrowUpRight className="h-5 w-5 text-slate-500" />
-                    Payment Outflows
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-                <ScrollArea className="h-[300px]">
-                    {payments.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-40 text-muted-foreground text-sm">
-                            <FileText className="h-8 w-8 mb-2 opacity-20" />
-                            No payments recorded yet.
-                        </div>
-                    ) : (
-                        <div className="flex flex-col">
-                            {payments.map((payment, i) => (
-                                <div key={payment.id} className={cn(
-                                    "flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors",
-                                    i !== payments.length - 1 && "border-b border-slate-100"
-                                )}>
-                                    <div className="flex items-center gap-3">
-                                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-green-600">
-                                            <CheckCircle2 className="h-4 w-4" />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-medium text-slate-900">{payment.debtName}</p>
-                                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                <span>{format(new Date(payment.date), 'MMM d, yyyy')}</span>
-                                                <span>•</span>
-                                                <span className="capitalize">{payment.method}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="font-bold text-slate-900">
-                                            <MoneyDisplay amount={{ amount: payment.amount, currency: payment.currency }} />
-                                        </div>
-                                        {payment.reference && (
-                                            <Badge variant="outline" className="text-[10px] h-5 font-normal text-slate-500">
-                                                #{payment.reference}
-                                            </Badge>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </ScrollArea>
-            </CardContent>
-        </Card>
-    );
+export const PaymentHistory: React.FC<PaymentHistoryProps> = ({ debts }) => {
+  // Flattening payments would ideally come from a specific 'payments' endpoint,
+  // but here we simulate it by showing the debts that have been paid/settled.
+  const paidDebts = debts.filter(d => d.status === 'PAID' || d.status === 'PARTIALLY_PAID');
+
+  return (
+    <Card className="shadow-sm h-full">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold text-slate-600">Recent Settlements</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {paidDebts.length === 0 ? (
+          <div className="text-sm text-muted-foreground text-center py-4">
+            No payments recorded yet.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {paidDebts.slice(0, 5).map(debt => (
+              <div key={debt.id} className="flex items-center justify-between border-b last:border-0 pb-3 last:pb-0">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                    <CheckCheck className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">{debt.creditorName}</p>
+                    <p className="text-xs text-muted-foreground">
+                        {/* Assuming updated at is the payment date for this MVP view */}
+                        {format(new Date(), 'MMM d, yyyy')} 
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-slate-900">
+                    <MoneyDisplay amount={debt.originalAmount} />
+                  </p>
+                  <p className="text-[10px] text-emerald-600 font-medium flex items-center justify-end gap-0.5">
+                    Settled <ArrowUpRight className="h-3 w-3" />
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 };

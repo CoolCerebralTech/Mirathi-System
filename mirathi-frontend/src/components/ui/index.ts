@@ -31,3 +31,5 @@ export * from './calendar';
 export * from './Tooltip';
 export * from './Accordion';
 export * from './RadioGroup';
+export * from './Collapsible';
+export * from './Skeleton';
