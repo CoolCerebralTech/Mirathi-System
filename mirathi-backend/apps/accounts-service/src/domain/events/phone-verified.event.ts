@@ -1,28 +1,22 @@
-import { DomainEvent } from './domain-event.base';
+// src/domain/events/phone-verified.event.ts
+import { DomainEvent } from './domain-event';
 
-/**
- * Defines the specific data payload for the PhoneVerifiedEvent.
- */
-export interface PhoneVerifiedEventData extends Record<string, unknown> {
-  /** The phone number in E.164 format. */
-  readonly phoneNumber: string;
-  readonly provider: 'Safaricom' | 'Airtel' | 'Telkom' | 'Unknown';
+export interface PhoneVerifiedEventPayload {
+  userId: string;
+  phoneNumber: string;
+  verifiedAt: string;
 }
 
-/**
- * PhoneVerifiedEvent
- *
- * Published when a user successfully verifies their phone number.
- * This can enable features like SMS notifications.
- */
-export class PhoneVerifiedEvent extends DomainEvent<PhoneVerifiedEventData> {
-  public readonly eventName = 'phone.verified';
-
-  constructor(props: { aggregateId: string } & PhoneVerifiedEventData) {
-    // Call the base class constructor with the user's ID and payload
-    super(props.aggregateId, {
-      phoneNumber: props.phoneNumber,
-      provider: props.provider,
+export class PhoneVerifiedEvent extends DomainEvent {
+  constructor(payload: PhoneVerifiedEventPayload) {
+    super({
+      aggregateId: payload.userId,
+      eventName: 'PhoneVerified',
+      metadata: payload,
     });
+  }
+
+  protected serialize(): PhoneVerifiedEventPayload {
+    return this.metadata as PhoneVerifiedEventPayload;
   }
 }

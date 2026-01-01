@@ -1,26 +1,22 @@
-import { DomainEvent } from './domain-event.base';
+// src/domain/events/user-deleted.event.ts
+import { DomainEvent } from './domain-event';
 
-/**
- * Defines the specific data payload for the UserDeletedEvent.
- */
-export interface UserDeletedEventData extends Record<string, unknown> {
-  readonly email: string;
-  /** The ID of the user (often an admin) who performed the deletion. Optional. */
-  readonly deletedBy?: string;
+export interface UserDeletedEventPayload {
+  userId: string;
+  deletedBy?: string;
+  deletedAt: string;
 }
 
-/**
- * UserDeletedEvent
- *
- * Published when a user's account is soft-deleted.
- */
-export class UserDeletedEvent extends DomainEvent<UserDeletedEventData> {
-  public readonly eventName = 'user.deleted';
-
-  constructor(props: { aggregateId: string } & UserDeletedEventData) {
-    super(props.aggregateId, {
-      email: props.email,
-      deletedBy: props.deletedBy,
+export class UserDeletedEvent extends DomainEvent {
+  constructor(payload: UserDeletedEventPayload) {
+    super({
+      aggregateId: payload.userId,
+      eventName: 'UserDeleted',
+      metadata: payload,
     });
+  }
+
+  protected serialize(): UserDeletedEventPayload {
+    return this.metadata as UserDeletedEventPayload;
   }
 }
