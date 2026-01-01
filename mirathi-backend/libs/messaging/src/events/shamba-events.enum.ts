@@ -11,12 +11,20 @@ export enum ShambaEvents {
   // =========================================================================
   // ACCOUNTS SERVICE EVENTS
   // =========================================================================
-  ACCOUNTS_USER_CREATED = 'accounts.user.created',
-  ACCOUNTS_USER_UPDATED = 'accounts.user.updated',
-  ACCOUNTS_USER_DELETED = 'accounts.user.deleted',
-  ACCOUNTS_PASSWORD_RESET_REQUESTED = 'accounts.password.reset.requested',
-  ACCOUNTS_PASSWORD_CHANGED = 'accounts.password.changed',
-  ACCOUNTS_PROFILE_UPDATED = 'accounts.profile.updated',
+  // Lifecycle
+  ACCOUNTS_USER_REGISTERED = 'accounts.user.registered', // UserRegisteredEvent
+  ACCOUNTS_USER_ACTIVATED = 'accounts.user.activated', // UserActivatedEvent
+  ACCOUNTS_ONBOARDING_COMPLETED = 'accounts.onboarding.completed', // UserOnboardingCompletedEvent
+  ACCOUNTS_USER_SUSPENDED = 'accounts.user.suspended', // UserSuspendedEvent
+  ACCOUNTS_USER_RESTORED = 'accounts.user.restored', // UserRestoredEvent
+  ACCOUNTS_USER_DELETED = 'accounts.user.deleted', // UserDeletedEvent
+  // Security & Access
+  ACCOUNTS_ROLE_CHANGED = 'accounts.role.changed', // RoleChangedEvent
+  ACCOUNTS_IDENTITY_LINKED = 'accounts.identity.linked', // IdentityLinkedEvent
+  ACCOUNTS_PHONE_VERIFIED = 'accounts.phone.verified', // PhoneVerifiedEvent
+  // User Data
+  ACCOUNTS_PROFILE_UPDATED = 'accounts.profile.updated', // ProfileUpdatedEvent
+  ACCOUNTS_SETTINGS_UPDATED = 'accounts.settings.updated', // SettingsUpdatedEvent
 
   // =========================================================================
   // SUCCESSION SERVICE EVENTS
@@ -37,13 +45,6 @@ export enum ShambaEvents {
   DOCUMENTS_DOCUMENT_VERIFIED = 'documents.document.verified',
   DOCUMENTS_DOCUMENT_REJECTED = 'documents.document.rejected',
   DOCUMENTS_DOCUMENT_DELETED = 'documents.document.deleted',
-
-  // =========================================================================
-  // NOTIFICATIONS SERVICE EVENTS (consumed by notifications-service)
-  // =========================================================================
-  NOTIFICATIONS_EMAIL_SENT = 'notifications.email.sent',
-  NOTIFICATIONS_SMS_SENT = 'notifications.sms.sent',
-  NOTIFICATIONS_PUSH_SENT = 'notifications.push.sent',
 }
 
 /**

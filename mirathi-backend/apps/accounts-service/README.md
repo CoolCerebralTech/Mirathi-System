@@ -32,16 +32,6 @@ domain/
 │   └── phone-verification.domain-service.ts
 └── index.ts            # ✅ Complete
 
-src/account-service/src/
-├── domain/                           # ✅ Already done (Complete)
-│   ├── aggregates/
-│   ├── entities/
-│   ├── value-objects/
-│   ├── events/
-│   ├── invariants/
-│   ├── errors/
-│   ├── ports/                       # ✅ UserRepositoryPort, OAuthProviderPort, SmsProviderPort
-│   └── services/
 │
 ├── application/
 │   ├── user/                        # Focus on User use cases
@@ -68,11 +58,6 @@ src/account-service/src/
 │   │   │   ├── get-user.handler.ts
 │   │   │   ├── list-sessions.handler.ts
 │   │   │   └── get-audit-log.handler.ts
-│   │   │
-│   │   └── services/                # Application services (coordination)
-│   │       ├── auth.service.ts      # OAuth flow coordination
-│   │       ├── phone-verification.service.ts  # OTP coordination
-│   │       └── audit.service.ts     # Audit coordination
 │   │
 │   └── admin/                       # Admin-specific use cases
 │       ├── commands/
@@ -94,10 +79,4 @@ src/account-service/src/
 │   │   │   ├── google.adapter.ts    # Implements OAuthProviderPort
 │   │   │   ├── apple.adapter.ts
 │   │   │   └── oauth-adapter.factory.ts
-│   │   └── sms/
-│   │       ├── safaricom.adapter.ts # Implements SmsProviderPort
-│   │       └── africastalking.adapter.ts
-│   │
-│   └── security/                    # Security implementations
-│       └── jwt.strategy.ts          # Uses auth lib
 │

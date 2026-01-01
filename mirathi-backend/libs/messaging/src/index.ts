@@ -8,3 +8,5 @@ export * from './messaging.service';
 export * from './interfaces/messaging.interface';
 export * from './interfaces/event-publisher.interface';
 export * from './interfaces/event-subscriber.interface';
+
+export * from './events/shamba-events.enum';
