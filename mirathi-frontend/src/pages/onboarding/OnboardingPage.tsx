@@ -11,13 +11,14 @@ export const OnboardingPage: React.FC = () => {
   const navigate = useNavigate();
   const { mutate: logout } = useLogout();
 
-  const handleSelection = (intent: UserIntent) => {
+   const handleSelection = (intent: UserIntent) => {
     if (intent === 'PLANNING') {
-      // User wants to write a Will -> Redirect to Will Creation Flow
-      navigate('/wills/dashboard'); // Or '/wills/new' depending on your pref
+      // Corrected Path: /dashboard/wills/...
+      // Assuming you will build wills later, for now we can redirect to dashboard root or a placeholder
+      navigate('/dashboard/wills'); 
     } else {
-      // User is an Executor -> Redirect to Estate Creation Flow
-      navigate('/estates/new'); 
+      // Corrected Path: /dashboard/estates/new
+      navigate('/dashboard/estates/new'); 
     }
   };
 

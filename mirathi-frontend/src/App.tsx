@@ -111,8 +111,8 @@ function App() {
             <Route path=":estateId/assets" element={<EstateDashboardPage />} />
             <Route path=":etateId/assets/:assetId" element={<AssetDetailsPage />} />
             <Route path=":estateId/debts" element={<DebtManagementPage />} />
-            <Route path="/estates/:estateId/tax" element={<TaxCompliancePage />} />
-            <Route path="/estates/:estateId/distribution" element={<DistributionPage />} />
+            <Route path=":estateId/tax" element={<TaxCompliancePage />} />
+            <Route path=":estateId/distribution" element={<DistributionPage />} />
           </Route>
 
           {/* --- FAMILY SERVICE --- */}
