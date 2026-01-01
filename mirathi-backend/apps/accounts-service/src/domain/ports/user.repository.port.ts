@@ -3,51 +3,92 @@ import { User } from '../aggregates/user.aggregate';
 
 /**
  * Repository port for User aggregate
- * This is an application contract that defines how we interact with User persistence
+ * Abstract class for NestJS dependency injection (can be used as token)
  */
-export interface UserRepositoryPort {
+export abstract class UserRepositoryPort {
   /**
    * Find user by ID
    */
-  findById(id: string): Promise<User | null>;
+  abstract findById(id: string): Promise<User | null>;
 
   /**
    * Find user by email (from any identity)
    */
-  findByEmail(email: string): Promise<User | null>;
+  abstract findByEmail(email: string): Promise<User | null>;
 
   /**
    * Find user by phone number
    */
-  findByPhoneNumber(phoneNumber: string): Promise<User | null>;
+  abstract findByPhoneNumber(phoneNumber: string): Promise<User | null>;
 
   /**
    * Find user by OAuth provider identity
    */
-  findByProviderIdentity(provider: string, providerUserId: string): Promise<User | null>;
+  abstract findByProviderIdentity(provider: string, providerUserId: string): Promise<User | null>;
+
+  /**
+   * Find user by multiple criteria (for admin/search)
+   */
+  abstract findByCriteria(criteria: {
+    status?: string;
+    role?: string;
+    county?: string;
+    createdAtFrom?: Date;
+    createdAtTo?: Date;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ users: User[]; total: number }>;
 
   /**
    * Save user (create or update)
    */
-  save(user: User): Promise<void>;
+  abstract save(user: User): Promise<void>;
 
   /**
    * Delete user (soft delete)
    */
-  delete(id: string): Promise<void>;
+  abstract delete(id: string): Promise<void>;
 
   /**
    * Check if email exists (across all identities)
    */
-  existsByEmail(email: string): Promise<boolean>;
+  abstract existsByEmail(email: string): Promise<boolean>;
 
   /**
    * Check if phone number exists
    */
-  existsByPhoneNumber(phoneNumber: string): Promise<boolean>;
+  abstract existsByPhoneNumber(phoneNumber: string): Promise<boolean>;
 
   /**
    * Check if provider identity exists
    */
-  existsByProviderIdentity(provider: string, providerUserId: string): Promise<boolean>;
+  abstract existsByProviderIdentity(provider: string, providerUserId: string): Promise<boolean>;
+
+  /**
+   * Get paginated users (for admin dashboard)
+   */
+  abstract getPaginatedUsers(options: {
+    page: number;
+    limit: number;
+    search?: string;
+    status?: string;
+    role?: string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }): Promise<{ users: User[]; total: number; page: number; totalPages: number }>;
+
+  /**
+   * Count users by status (for admin dashboard)
+   */
+  abstract countByStatus(): Promise<{ [status: string]: number }>;
+
+  /**
+   * Count users by role (for admin dashboard)
+   */
+  abstract countByRole(): Promise<{ [role: string]: number }>;
 }
+
+/**
+ * Injection token for UserRepositoryPort (for constructor injection)
+ */
+export const USER_REPOSITORY_PORT = 'USER_REPOSITORY_PORT';

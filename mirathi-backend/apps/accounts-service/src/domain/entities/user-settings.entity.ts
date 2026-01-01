@@ -5,6 +5,7 @@ import { Timestamp } from '../value-objects';
 
 /**
  * User Settings Entity
+ * Aligned with schema: UserSettings model
  *
  * Business Rules:
  * 1. Default values for all settings
@@ -213,14 +214,14 @@ export class UserSettings {
 
   /**
    * Check if user can receive a specific type of notification
-   * based on their settings and contact info availability
+   * based on their settings
    */
-  canReceiveNotification(type: 'email' | 'sms' | 'push', hasContactMethod: boolean): boolean {
+  canReceiveNotification(type: 'email' | 'sms' | 'push'): boolean {
     switch (type) {
       case 'email':
-        return this._emailNotifications && hasContactMethod;
+        return this._emailNotifications;
       case 'sms':
-        return this._smsNotifications && hasContactMethod;
+        return this._smsNotifications;
       case 'push':
         return this._pushNotifications;
       default:

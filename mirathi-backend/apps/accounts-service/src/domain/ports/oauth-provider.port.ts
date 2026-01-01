@@ -28,35 +28,41 @@ export interface OAuthUserProfile {
 
 /**
  * OAuth provider port for external authentication
+ * Abstract class for NestJS dependency injection (can be used as token)
  */
-export interface OAuthProviderPort {
+export abstract class OAuthProviderPort {
   /**
    * Get authorization URL for OAuth flow
    */
-  getAuthorizationUrl(state: string, redirectUri: string): string;
+  abstract getAuthorizationUrl(state: string, redirectUri: string): string;
 
   /**
    * Exchange authorization code for tokens
    */
-  exchangeCodeForToken(code: string, redirectUri: string): Promise<OAuthTokenResponse>;
+  abstract exchangeCodeForToken(code: string, redirectUri: string): Promise<OAuthTokenResponse>;
 
   /**
    * Get user profile from access token
    */
-  getUserProfile(accessToken: string): Promise<OAuthUserProfile>;
+  abstract getUserProfile(accessToken: string): Promise<OAuthUserProfile>;
 
   /**
    * Validate ID token
    */
-  validateIdToken(idToken: string): Promise<OAuthUserProfile>;
+  abstract validateIdToken(idToken: string): Promise<OAuthUserProfile>;
 
   /**
    * Refresh access token
    */
-  refreshToken(refreshToken: string): Promise<OAuthTokenResponse>;
+  abstract refreshToken(refreshToken: string): Promise<OAuthTokenResponse>;
 
   /**
    * Revoke token
    */
-  revokeToken(token: string): Promise<void>;
+  abstract revokeToken(token: string): Promise<void>;
 }
+
+/**
+ * Injection token for OAuthProviderPort (for constructor injection)
+ */
+export const OAUTH_PROVIDER_PORT = 'OAUTH_PROVIDER_PORT';

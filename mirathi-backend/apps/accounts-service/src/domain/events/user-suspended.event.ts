@@ -1,7 +1,7 @@
 // src/domain/events/user-suspended.event.ts
 import { DomainEvent } from './domain-event';
 
-export interface UserSuspendedEventPayload {
+export interface UserSuspendedEventData {
   userId: string;
   suspendedBy: string;
   reason?: string;
@@ -9,15 +9,22 @@ export interface UserSuspendedEventPayload {
 }
 
 export class UserSuspendedEvent extends DomainEvent {
-  constructor(payload: UserSuspendedEventPayload) {
+  constructor(private readonly data: UserSuspendedEventData) {
     super({
-      aggregateId: payload.userId,
+      aggregateId: data.userId,
       eventName: 'UserSuspended',
-      metadata: payload,
+      metadata: {
+        suspendedBy: data.suspendedBy,
+      },
     });
   }
 
-  protected serialize(): UserSuspendedEventPayload {
-    return this.metadata as UserSuspendedEventPayload;
+  protected serialize(): Record<string, any> {
+    return {
+      userId: this.data.userId,
+      suspendedBy: this.data.suspendedBy,
+      reason: this.data.reason,
+      suspendedAt: this.data.suspendedAt,
+    };
   }
 }

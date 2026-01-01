@@ -1,22 +1,28 @@
 // src/domain/events/user-deleted.event.ts
 import { DomainEvent } from './domain-event';
 
-export interface UserDeletedEventPayload {
+export interface UserDeletedEventData {
   userId: string;
   deletedBy?: string;
   deletedAt: string;
 }
 
 export class UserDeletedEvent extends DomainEvent {
-  constructor(payload: UserDeletedEventPayload) {
+  constructor(private readonly data: UserDeletedEventData) {
     super({
-      aggregateId: payload.userId,
+      aggregateId: data.userId,
       eventName: 'UserDeleted',
-      metadata: payload,
+      metadata: {
+        deletedBy: data.deletedBy,
+      },
     });
   }
 
-  protected serialize(): UserDeletedEventPayload {
-    return this.metadata as UserDeletedEventPayload;
+  protected serialize(): Record<string, any> {
+    return {
+      userId: this.data.userId,
+      deletedBy: this.data.deletedBy,
+      deletedAt: this.data.deletedAt,
+    };
   }
 }

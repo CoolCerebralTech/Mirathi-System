@@ -1,17 +1,17 @@
-// src/domain/events/profile-updated.event.ts
+// src/domain/events/settings-updated.event.ts
 import { DomainEvent } from './domain-event';
 
-export interface ProfileUpdatedEventData {
+export interface SettingsUpdatedEventData {
   userId: string;
   updatedFields: string[];
   updatedAt: string;
 }
 
-export class ProfileUpdatedEvent extends DomainEvent {
-  constructor(private readonly data: ProfileUpdatedEventData) {
+export class SettingsUpdatedEvent extends DomainEvent {
+  constructor(private readonly data: SettingsUpdatedEventData) {
     super({
       aggregateId: data.userId,
-      eventName: 'ProfileUpdated',
+      eventName: 'SettingsUpdated',
     });
   }
 

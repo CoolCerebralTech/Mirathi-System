@@ -7,6 +7,7 @@ import { Timestamp } from '../value-objects';
  * User Identity Entity
  *
  * Represents a linked OAuth identity from an external provider.
+ * Aligned with schema: UserIdentity model
  *
  * Business Rules:
  * 1. A user must have at least one identity
@@ -17,7 +18,7 @@ export interface UserIdentityProps {
   id: string;
   provider: AuthProvider;
   providerUserId: string;
-  email?: string; // Email from OAuth provider
+  email: string; // Email from OAuth provider (required in schema)
   isPrimary: boolean;
   linkedAt: Timestamp;
   lastUsedAt: Timestamp;
@@ -27,7 +28,7 @@ export class UserIdentity {
   private readonly _id: string;
   private readonly _provider: AuthProvider;
   private readonly _providerUserId: string;
-  private readonly _email?: string;
+  private readonly _email: string;
   private _isPrimary: boolean;
   private _linkedAt: Timestamp;
   private _lastUsedAt: Timestamp;
@@ -57,7 +58,7 @@ export class UserIdentity {
       throw new Error('UserIdentity must have a providerUserId');
     }
 
-    if (props.email && !this.isValidEmail(props.email)) {
+    if (!props.email || !this.isValidEmail(props.email)) {
       throw new Error(`Invalid email: ${props.email}`);
     }
   }
@@ -74,7 +75,7 @@ export class UserIdentity {
     id: string;
     provider: AuthProvider;
     providerUserId: string;
-    email?: string;
+    email: string;
     isPrimary: boolean;
   }): UserIdentity {
     const now = Timestamp.now();
@@ -97,7 +98,7 @@ export class UserIdentity {
     id: string;
     provider: AuthProvider;
     providerUserId: string;
-    email?: string;
+    email: string;
     isPrimary: boolean;
     linkedAt: Date;
     lastUsedAt: Date;
@@ -126,7 +127,7 @@ export class UserIdentity {
     return this._providerUserId;
   }
 
-  get email(): string | undefined {
+  get email(): string {
     return this._email;
   }
 
@@ -151,20 +152,11 @@ export class UserIdentity {
     this._isPrimary = isPrimary;
   }
 
-  updateEmail(newEmail?: string): void {
-    if (newEmail && !this.isValidEmail(newEmail)) {
-      throw new Error(`Invalid email: ${newEmail}`);
-    }
-    // Note: In real OAuth flow, email should come from provider, not be manually updated
-    // This is for cases where provider doesn't provide email initially
-  }
-
   /**
    * Check if this identity can be used for authentication
    */
   get isActive(): boolean {
-    // Identity is always active unless we add suspension logic
-    return true;
+    return true; // Identity is always active unless we add suspension logic
   }
 
   /**

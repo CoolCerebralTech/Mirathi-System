@@ -1,30 +1,41 @@
 // src/domain/events/user-registered.event.ts
+import { UserRole } from '@prisma/client';
+
 import { DomainEvent } from './domain-event';
 
-export interface UserRegisteredEventPayload {
+export interface UserRegisteredEventData {
   userId: string;
   provider: string;
   providerUserId: string;
-  email?: string;
+  email: string;
   firstName: string;
   lastName: string;
-  role: string;
+  role: UserRole;
   registeredAt: string;
 }
 
 export class UserRegisteredEvent extends DomainEvent {
-  constructor(payload: UserRegisteredEventPayload) {
+  constructor(private readonly data: UserRegisteredEventData) {
     super({
-      aggregateId: payload.userId,
+      aggregateId: data.userId,
       eventName: 'UserRegistered',
       metadata: {
-        provider: payload.provider,
-        providerUserId: payload.providerUserId,
+        provider: data.provider,
+        providerUserId: data.providerUserId,
       },
     });
   }
 
-  protected serialize(): UserRegisteredEventPayload {
-    return this.metadata as UserRegisteredEventPayload;
+  protected serialize(): Record<string, any> {
+    return {
+      userId: this.data.userId,
+      provider: this.data.provider,
+      providerUserId: this.data.providerUserId,
+      email: this.data.email,
+      firstName: this.data.firstName,
+      lastName: this.data.lastName,
+      role: this.data.role,
+      registeredAt: this.data.registeredAt,
+    };
   }
 }

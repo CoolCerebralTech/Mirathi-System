@@ -1,8 +1,8 @@
 // src/domain/errors/domain.errors.ts
-
 /**
- * Base class for all domain errors
+ * Domain-specific errors
  */
+
 export class DomainError extends Error {
   constructor(message: string) {
     super(message);
@@ -10,29 +10,27 @@ export class DomainError extends Error {
   }
 }
 
-/**
- * Thrown when trying to perform actions on deleted users
- */
 export class UserDeletedError extends DomainError {
-  constructor(message?: string) {
-    super(message || 'Cannot perform actions on a deleted user');
+  constructor(message: string) {
+    super(message);
     this.name = 'UserDeletedError';
   }
 }
 
-/**
- * Thrown when user is suspended
- */
 export class UserSuspendedError extends DomainError {
-  constructor(message?: string) {
-    super(message || 'User account is suspended');
+  constructor(message: string) {
+    super(message);
     this.name = 'UserSuspendedError';
   }
 }
 
-/**
- * Thrown when phone verification fails
- */
+export class LastIdentityError extends DomainError {
+  constructor() {
+    super('Cannot remove the last identity');
+    this.name = 'LastIdentityError';
+  }
+}
+
 export class PhoneVerificationError extends DomainError {
   constructor(message: string) {
     super(message);
@@ -40,22 +38,6 @@ export class PhoneVerificationError extends DomainError {
   }
 }
 
-/**
- * Thrown when trying to remove the last identity
- */
-export class LastIdentityError extends DomainError {
-  constructor() {
-    super('Cannot remove the last identity from user');
-    this.name = 'LastIdentityError';
-  }
-}
-
-/**
- * Thrown when trying to perform action without required identity
- */
-export class IdentityRequiredError extends DomainError {
-  constructor(action: string) {
-    super(`Identity is required to ${action}`);
-    this.name = 'IdentityRequiredError';
-  }
-}
+// Note: You mentioned we're not implementing phone verification,
+// but I'm keeping the error for completeness. We'll remove actual
+// verification logic but keep the structure in case we add it later.

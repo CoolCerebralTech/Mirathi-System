@@ -28,7 +28,8 @@ export class UserInvariants {
    * Invariant 3: Deleted users cannot be modified
    */
   static cannotModifyDeletedUser(user: User, action: string): void {
-    if (user.isDeleted) {
+    // Allow 'restore' and 'delete' (idempotent) to pass through
+    if (user.isDeleted && action !== 'restore' && action !== 'delete') {
       throw new Error(`Cannot ${action} a deleted user`);
     }
   }
@@ -46,7 +47,7 @@ export class UserInvariants {
    * Invariant 5: Phone verification requires phone number
    */
   static phoneVerificationRequiresPhone(user: User): void {
-    if (!user.profile?.phoneNumber && user.profile?.phoneVerified) {
+    if (user.profile?.phoneVerified && !user.profile.phoneNumber) {
       throw new Error('Phone cannot be verified without a phone number');
     }
   }
@@ -65,6 +66,20 @@ export class UserInvariants {
   }
 
   /**
+   * Invariant 7: Active users must have profile and settings
+   */
+  static activeUserMustHaveProfileAndSettings(user: User): void {
+    if (user.isActive) {
+      if (!user.profile) {
+        throw new Error('Active user must have a profile');
+      }
+      if (!user.settings) {
+        throw new Error('Active user must have settings');
+      }
+    }
+  }
+
+  /**
    * Validate all invariants
    */
   static validateAll(user: User, action: string = 'perform action'): void {
@@ -72,9 +87,11 @@ export class UserInvariants {
     this.onlyOnePrimaryIdentity(user);
     this.cannotModifyDeletedUser(user, action);
     this.profileAndSettingsBelongToUser(user);
+    this.phoneVerificationRequiresPhone(user);
+    this.activeUserMustHaveProfileAndSettings(user);
 
     // Only check suspension for non-admin actions
-    if (!action.includes('admin')) {
+    if (!action.includes('admin') && !action.includes('suspend') && !action.includes('unsuspend')) {
       this.cannotModifySuspendedUser(user, action);
     }
   }

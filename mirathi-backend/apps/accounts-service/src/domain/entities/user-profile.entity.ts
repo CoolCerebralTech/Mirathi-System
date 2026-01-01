@@ -3,11 +3,12 @@ import { County, PhoneNumber, Timestamp } from '../value-objects';
 
 /**
  * User Profile Entity
+ * Aligned with schema: UserProfile model
  *
  * Business Rules:
- * 1. Phone number must be verified before being marked as verified
+ * 1. Phone number is optional (as per our agreement)
  * 2. County is optional but must be valid if provided
- * 3. Phone verification requires OTP
+ * 3. First and last name are required
  */
 export interface UserProfileProps {
   id: string;
@@ -16,11 +17,10 @@ export interface UserProfileProps {
   lastName: string;
   avatarUrl?: string;
   phoneNumber?: PhoneNumber;
-  phoneVerified: boolean;
-  phoneVerificationRequestedAt?: Timestamp;
-  phoneVerificationAttempts: number;
+  phoneVerified: boolean; // Present in schema but optional feature
   county?: County;
   physicalAddress?: string;
+  postalAddress?: string;
   updatedAt: Timestamp;
 }
 
@@ -32,14 +32,10 @@ export class UserProfile {
   private _avatarUrl?: string;
   private _phoneNumber?: PhoneNumber;
   private _phoneVerified: boolean;
-  private _phoneVerificationRequestedAt?: Timestamp;
-  private _phoneVerificationAttempts: number;
   private _county?: County;
   private _physicalAddress?: string;
+  private _postalAddress?: string;
   private _updatedAt: Timestamp;
-
-  private static readonly MAX_VERIFICATION_ATTEMPTS = 3;
-  private static readonly VERIFICATION_CODE_EXPIRY_MINUTES = 5;
 
   constructor(props: UserProfileProps) {
     this.validate(props);
@@ -51,10 +47,9 @@ export class UserProfile {
     this._avatarUrl = props.avatarUrl;
     this._phoneNumber = props.phoneNumber;
     this._phoneVerified = props.phoneVerified;
-    this._phoneVerificationRequestedAt = props.phoneVerificationRequestedAt;
-    this._phoneVerificationAttempts = props.phoneVerificationAttempts;
     this._county = props.county;
     this._physicalAddress = props.physicalAddress;
+    this._postalAddress = props.postalAddress;
     this._updatedAt = props.updatedAt;
   }
 
@@ -75,20 +70,9 @@ export class UserProfile {
       throw new Error('Last name is required');
     }
 
-    // Phone verification validation
+    // Phone verification validation (simple check)
     if (props.phoneVerified && !props.phoneNumber) {
-      throw new Error('Cannot verify phone without phone number');
-    }
-
-    // Verification attempts validation
-    if (props.phoneVerificationAttempts < 0) {
-      throw new Error('Verification attempts cannot be negative');
-    }
-
-    if (props.phoneVerificationAttempts > UserProfile.MAX_VERIFICATION_ATTEMPTS) {
-      throw new Error(
-        `Exceeded maximum verification attempts: ${UserProfile.MAX_VERIFICATION_ATTEMPTS}`,
-      );
+      throw new Error('Cannot have phoneVerified without phone number');
     }
   }
 
@@ -109,7 +93,6 @@ export class UserProfile {
       lastName: props.lastName.trim(),
       avatarUrl: props.avatarUrl,
       phoneVerified: false,
-      phoneVerificationAttempts: 0,
       updatedAt: Timestamp.now(),
     });
   }
@@ -125,10 +108,9 @@ export class UserProfile {
     avatarUrl?: string;
     phoneNumber?: string;
     phoneVerified: boolean;
-    phoneVerificationRequestedAt?: Date;
-    phoneVerificationAttempts: number;
     county?: string;
     physicalAddress?: string;
+    postalAddress?: string;
     updatedAt: Date;
   }): UserProfile {
     return new UserProfile({
@@ -139,12 +121,9 @@ export class UserProfile {
       avatarUrl: props.avatarUrl,
       phoneNumber: props.phoneNumber ? PhoneNumber.create(props.phoneNumber) : undefined,
       phoneVerified: props.phoneVerified,
-      phoneVerificationRequestedAt: props.phoneVerificationRequestedAt
-        ? Timestamp.create(props.phoneVerificationRequestedAt)
-        : undefined,
-      phoneVerificationAttempts: props.phoneVerificationAttempts,
       county: props.county ? County.create(props.county) : undefined,
       physicalAddress: props.physicalAddress,
+      postalAddress: props.postalAddress,
       updatedAt: Timestamp.create(props.updatedAt),
     });
   }
@@ -182,20 +161,16 @@ export class UserProfile {
     return this._phoneVerified;
   }
 
-  get phoneVerificationRequestedAt(): Timestamp | undefined {
-    return this._phoneVerificationRequestedAt;
-  }
-
-  get phoneVerificationAttempts(): number {
-    return this._phoneVerificationAttempts;
-  }
-
   get county(): County | undefined {
     return this._county;
   }
 
   get physicalAddress(): string | undefined {
     return this._physicalAddress;
+  }
+
+  get postalAddress(): string | undefined {
+    return this._postalAddress;
   }
 
   get updatedAt(): Timestamp {
@@ -222,93 +197,34 @@ export class UserProfile {
     }
   }
 
-  updateAvatar(avatarUrl: string): void {
+  updateAvatar(avatarUrl?: string): void {
     if (avatarUrl !== this._avatarUrl) {
       this._avatarUrl = avatarUrl;
       this._updatedAt = Timestamp.now();
     }
   }
 
-  updatePhoneNumber(phoneNumber: PhoneNumber): void {
-    if (this._phoneNumber && this._phoneNumber.equals(phoneNumber)) {
-      return; // No change
-    }
+  updatePhoneNumber(phoneNumber?: PhoneNumber): void {
+    // Check if it's actually a change
+    const currentPhone = this._phoneNumber?.value;
+    const newPhone = phoneNumber?.value;
 
-    this._phoneNumber = phoneNumber;
-    this._phoneVerified = false;
-    this._phoneVerificationAttempts = 0;
-    this._phoneVerificationRequestedAt = undefined;
-    this._updatedAt = Timestamp.now();
-  }
-
-  removePhoneNumber(): void {
-    if (this._phoneNumber) {
-      this._phoneNumber = undefined;
-      this._phoneVerified = false;
-      this._phoneVerificationAttempts = 0;
-      this._phoneVerificationRequestedAt = undefined;
+    if (currentPhone !== newPhone) {
+      this._phoneNumber = phoneNumber;
+      this._phoneVerified = false; // Reset verification when phone changes
       this._updatedAt = Timestamp.now();
     }
   }
 
-  requestPhoneVerification(): void {
+  updatePhoneVerification(verified: boolean): void {
     if (!this._phoneNumber) {
-      throw new Error('Phone number must be set before requesting verification');
+      throw new Error('Cannot set phone verification without phone number');
     }
 
-    if (this._phoneVerified) {
-      throw new Error('Phone is already verified');
+    if (this._phoneVerified !== verified) {
+      this._phoneVerified = verified;
+      this._updatedAt = Timestamp.now();
     }
-
-    // Check if verification attempts are exhausted
-    if (this._phoneVerificationAttempts >= UserProfile.MAX_VERIFICATION_ATTEMPTS) {
-      throw new Error('Maximum verification attempts exceeded. Please contact support.');
-    }
-
-    // Check if there's a recent request
-    if (this._phoneVerificationRequestedAt) {
-      const minutesSinceLastRequest =
-        this._phoneVerificationRequestedAt.daysDifference(Timestamp.now()) * 24 * 60;
-      if (minutesSinceLastRequest < 1) {
-        // 1 minute cooldown
-        throw new Error('Please wait before requesting another verification code');
-      }
-    }
-
-    this._phoneVerificationRequestedAt = Timestamp.now();
-    this._updatedAt = Timestamp.now();
-  }
-
-  verifyPhone(): void {
-    if (!this._phoneNumber) {
-      throw new Error('Phone number must be set before verification');
-    }
-
-    if (this._phoneVerified) {
-      return; // Already verified
-    }
-
-    // Check if verification was requested
-    if (!this._phoneVerificationRequestedAt) {
-      throw new Error('Phone verification must be requested first');
-    }
-
-    // Check if verification code expired
-    const minutesSinceRequest =
-      this._phoneVerificationRequestedAt.daysDifference(Timestamp.now()) * 24 * 60;
-    if (minutesSinceRequest > UserProfile.VERIFICATION_CODE_EXPIRY_MINUTES) {
-      throw new Error('Verification code has expired. Please request a new one.');
-    }
-
-    this._phoneVerified = true;
-    this._phoneVerificationAttempts = 0;
-    this._phoneVerificationRequestedAt = undefined;
-    this._updatedAt = Timestamp.now();
-  }
-
-  recordVerificationAttempt(): void {
-    this._phoneVerificationAttempts++;
-    this._updatedAt = Timestamp.now();
   }
 
   updateCounty(county?: County): void {
@@ -324,45 +240,29 @@ export class UserProfile {
     const trimmedAddress = address?.trim();
 
     if (trimmedAddress === this._physicalAddress) {
-      return; // No change
+      return;
     }
 
     this._physicalAddress = trimmedAddress;
     this._updatedAt = Timestamp.now();
   }
 
-  /**
-   * Check if phone verification is in progress
-   */
-  get isVerificationInProgress(): boolean {
-    if (!this._phoneVerificationRequestedAt) {
-      return false;
+  updatePostalAddress(address?: string): void {
+    const trimmedAddress = address?.trim();
+
+    if (trimmedAddress === this._postalAddress) {
+      return;
     }
 
-    const minutesSinceRequest =
-      this._phoneVerificationRequestedAt.daysDifference(Timestamp.now()) * 24 * 60;
-    return minutesSinceRequest <= UserProfile.VERIFICATION_CODE_EXPIRY_MINUTES;
+    this._postalAddress = trimmedAddress;
+    this._updatedAt = Timestamp.now();
   }
 
   /**
-   * Check if verification attempts are exhausted
+   * Check if profile has minimum required information
    */
-  get isVerificationAttemptsExhausted(): boolean {
-    return this._phoneVerificationAttempts >= UserProfile.MAX_VERIFICATION_ATTEMPTS;
-  }
-
-  /**
-   * Get time remaining for verification code (in minutes)
-   */
-  get verificationTimeRemaining(): number {
-    if (!this._phoneVerificationRequestedAt) {
-      return 0;
-    }
-
-    const minutesSinceRequest =
-      this._phoneVerificationRequestedAt.daysDifference(Timestamp.now()) * 24 * 60;
-    const remaining = UserProfile.VERIFICATION_CODE_EXPIRY_MINUTES - minutesSinceRequest;
-    return Math.max(0, Math.floor(remaining));
+  get isComplete(): boolean {
+    return !!this._firstName && !!this._lastName;
   }
 
   /**
@@ -377,10 +277,9 @@ export class UserProfile {
       avatarUrl: this._avatarUrl,
       phoneNumber: this._phoneNumber?.value,
       phoneVerified: this._phoneVerified,
-      phoneVerificationRequestedAt: this._phoneVerificationRequestedAt?.value,
-      phoneVerificationAttempts: this._phoneVerificationAttempts,
       county: this._county?.value,
       physicalAddress: this._physicalAddress,
+      postalAddress: this._postalAddress,
       updatedAt: this._updatedAt.value,
     };
   }

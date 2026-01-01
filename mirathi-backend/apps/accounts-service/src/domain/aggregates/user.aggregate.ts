@@ -6,18 +6,20 @@ import { UserIdentity, UserProfile, UserSettings } from '../entities';
 import {
   DomainError,
   LastIdentityError,
-  PhoneVerificationError,
   UserDeletedError,
   UserSuspendedError,
 } from '../errors/domain.errors';
 import {
   DomainEvent,
   IdentityLinkedEvent,
-  PhoneVerifiedEvent,
   ProfileUpdatedEvent,
   RoleChangedEvent,
+  SettingsUpdatedEvent,
+  UserActivatedEvent,
   UserDeletedEvent,
+  UserOnboardingCompletedEvent,
   UserRegisteredEvent,
+  UserRestoredEvent,
   UserSuspendedEvent,
 } from '../events';
 import { UserInvariants } from '../invariants/user.invariants';
@@ -76,18 +78,22 @@ export class User {
   // ======================================================================
 
   static registerViaOAuth(props: {
-    provider: string;
+    provider: any;
     providerUserId: string;
-    email?: string;
-    firstName: string;
-    lastName: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
   }): User {
     const userId = uuidv4();
     const now = Timestamp.now();
 
+    // Use email parts for name if not provided
+    const firstName = props.firstName || props.email.split('@')[0] || 'User';
+    const lastName = props.lastName || '';
+
     const identity = UserIdentity.create({
       id: uuidv4(),
-      provider: props.provider as any,
+      provider: props.provider,
       providerUserId: props.providerUserId,
       email: props.email,
       isPrimary: true,
@@ -96,8 +102,8 @@ export class User {
     const profile = UserProfile.create({
       id: uuidv4(),
       userId: userId,
-      firstName: props.firstName,
-      lastName: props.lastName,
+      firstName,
+      lastName,
     });
 
     const settings = UserSettings.create({
@@ -110,8 +116,8 @@ export class User {
       role: UserRole.USER,
       status: AccountStatus.PENDING_ONBOARDING,
       identities: [identity],
-      profile: profile,
-      settings: settings,
+      profile,
+      settings,
       createdAt: now,
       updatedAt: now,
     });
@@ -122,8 +128,8 @@ export class User {
         provider: props.provider,
         providerUserId: props.providerUserId,
         email: props.email,
-        firstName: props.firstName,
-        lastName: props.lastName,
+        firstName,
+        lastName,
         role: UserRole.USER,
         registeredAt: now.toISOString(),
       }),
@@ -252,9 +258,9 @@ export class User {
     if (this.isSuspended) throw new UserSuspendedError(`Cannot ${action} while suspended`);
   }
 
-  private ensureActive(action: string) {
+  private ensureActiveOrPending(action: string) {
     if (!this.isActive && !this.isPendingOnboarding) {
-      throw new DomainError(`User must be active to ${action}`);
+      throw new DomainError(`User must be active or pending to ${action}`);
     }
   }
 
@@ -272,7 +278,7 @@ export class User {
   // IDENTITY MANAGEMENT
   // ======================================================================
 
-  linkIdentity(props: { provider: string; providerUserId: string; email?: string }) {
+  linkIdentity(props: { provider: any; providerUserId: string; email: string }) {
     this.ensureNotDeleted('link identity');
     this.ensureNotSuspended('link identity');
 
@@ -286,7 +292,7 @@ export class User {
 
     const identity = UserIdentity.create({
       id: uuidv4(),
-      provider: props.provider as any,
+      provider: props.provider,
       providerUserId: props.providerUserId,
       email: props.email,
       isPrimary: false,
@@ -351,12 +357,14 @@ export class User {
     firstName?: string;
     lastName?: string;
     avatarUrl?: string;
+    phoneNumber?: PhoneNumber;
     county?: string;
     physicalAddress?: string;
+    postalAddress?: string;
   }) {
     this.ensureNotDeleted('update profile');
     this.ensureNotSuspended('update profile');
-    this.ensureActive('update profile');
+    this.ensureActiveOrPending('update profile');
 
     const profile = this.ensureHasProfile();
     const updatedFields: string[] = [];
@@ -372,6 +380,11 @@ export class User {
       updatedFields.push('avatarUrl');
     }
 
+    if (props.phoneNumber !== undefined) {
+      profile.updatePhoneNumber(props.phoneNumber);
+      updatedFields.push('phoneNumber');
+    }
+
     if (props.county !== undefined) {
       profile.updateCounty(props.county ? County.create(props.county) : undefined);
       updatedFields.push('county');
@@ -380,6 +393,11 @@ export class User {
     if (props.physicalAddress !== undefined) {
       profile.updatePhysicalAddress(props.physicalAddress);
       updatedFields.push('physicalAddress');
+    }
+
+    if (props.postalAddress !== undefined) {
+      profile.updatePostalAddress(props.postalAddress);
+      updatedFields.push('postalAddress');
     }
 
     if (updatedFields.length > 0) {
@@ -396,10 +414,10 @@ export class User {
     UserInvariants.validateAll(this, 'update profile');
   }
 
-  updatePhoneNumber(phoneNumber: PhoneNumber): void {
+  updatePhoneNumber(phoneNumber?: PhoneNumber): void {
     this.ensureNotDeleted('update phone number');
     this.ensureNotSuspended('update phone number');
-    this.ensureActive('update phone number');
+    this.ensureActiveOrPending('update phone number');
 
     const profile = this.ensureHasProfile();
     profile.updatePhoneNumber(phoneNumber);
@@ -408,49 +426,16 @@ export class User {
     UserInvariants.validateAll(this, 'update phone number');
   }
 
-  removePhoneNumber(): void {
-    this.ensureNotDeleted('remove phone number');
-    this.ensureNotSuspended('remove phone number');
+  updatePhoneVerification(verified: boolean): void {
+    this.ensureNotDeleted('update phone verification');
+    this.ensureNotSuspended('update phone verification');
+    this.ensureActiveOrPending('update phone verification');
 
     const profile = this.ensureHasProfile();
-    profile.removePhoneNumber();
+    profile.updatePhoneVerification(verified);
     this.updateTimestamp();
 
-    UserInvariants.validateAll(this, 'remove phone number');
-  }
-
-  requestPhoneVerification(): void {
-    this.ensureNotDeleted('request phone verification');
-    this.ensureNotSuspended('request phone verification');
-    this.ensureActive('request phone verification');
-
-    const profile = this.ensureHasProfile();
-    profile.requestPhoneVerification();
-    this.updateTimestamp();
-
-    UserInvariants.validateAll(this, 'request phone verification');
-  }
-
-  markPhoneVerified(): void {
-    this.ensureNotDeleted('verify phone');
-    this.ensureNotSuspended('verify phone');
-    this.ensureActive('verify phone');
-
-    const profile = this.ensureHasProfile();
-    if (!profile.phoneNumber) throw new PhoneVerificationError('Phone must be set');
-
-    profile.verifyPhone();
-    this.updateTimestamp();
-
-    this.addDomainEvent(
-      new PhoneVerifiedEvent({
-        userId: this._id,
-        phoneNumber: profile.phoneNumber.value,
-        verifiedAt: Timestamp.now().toISOString(),
-      }),
-    );
-
-    UserInvariants.validateAll(this, 'verify phone');
+    UserInvariants.validateAll(this, 'update phone verification');
   }
 
   // ======================================================================
@@ -458,8 +443,8 @@ export class User {
   // ======================================================================
 
   updateSettings(props: {
-    language?: string;
-    theme?: string;
+    language?: any;
+    theme?: any;
     emailNotifications?: boolean;
     smsNotifications?: boolean;
     pushNotifications?: boolean;
@@ -467,18 +452,18 @@ export class User {
   }) {
     this.ensureNotDeleted('update settings');
     this.ensureNotSuspended('update settings');
-    this.ensureActive('update settings');
+    this.ensureActiveOrPending('update settings');
 
     const settings = this.ensureHasSettings();
     const updatedFields: string[] = [];
 
     if (props.language !== undefined) {
-      settings.updateLanguage(props.language as any);
+      settings.updateLanguage(props.language);
       updatedFields.push('language');
     }
 
     if (props.theme !== undefined) {
-      settings.updateTheme(props.theme as any);
+      settings.updateTheme(props.theme);
       updatedFields.push('theme');
     }
 
@@ -505,7 +490,7 @@ export class User {
     if (updatedFields.length > 0) {
       this.updateTimestamp();
       this.addDomainEvent(
-        new ProfileUpdatedEvent({
+        new SettingsUpdatedEvent({
           userId: this._id,
           updatedFields,
           updatedAt: Timestamp.now().toISOString(),
@@ -520,12 +505,21 @@ export class User {
   // ACCOUNT STATUS & ROLES
   // ======================================================================
 
-  activate() {
+  activate(activatedBy?: string) {
     this.ensureNotDeleted('activate');
     if (this.isActive) return;
 
     this._status = AccountStatus.ACTIVE;
     this.updateTimestamp();
+
+    this.addDomainEvent(
+      new UserActivatedEvent({
+        userId: this._id,
+        activatedBy,
+        activatedAt: Timestamp.now().toISOString(),
+      }),
+    );
+
     UserInvariants.validateAll(this, 'activate');
   }
 
@@ -535,6 +529,14 @@ export class User {
 
     this._status = AccountStatus.ACTIVE;
     this.updateTimestamp();
+
+    this.addDomainEvent(
+      new UserOnboardingCompletedEvent({
+        userId: this._id,
+        completedAt: Timestamp.now().toISOString(),
+      }),
+    );
+
     UserInvariants.validateAll(this, 'complete onboarding');
   }
 
@@ -621,6 +623,13 @@ export class User {
     this._deletedAt = undefined;
     this._status = AccountStatus.ACTIVE;
     this.updateTimestamp();
+
+    this.addDomainEvent(
+      new UserRestoredEvent({
+        userId: this._id,
+        restoredAt: Timestamp.now().toISOString(),
+      }),
+    );
 
     UserInvariants.validateAll(this, 'restore');
   }

@@ -1,22 +1,25 @@
 // src/domain/events/phone-verified.event.ts
 import { DomainEvent } from './domain-event';
 
-export interface PhoneVerifiedEventPayload {
+export interface PhoneVerifiedEventData {
   userId: string;
   phoneNumber: string;
   verifiedAt: string;
 }
 
 export class PhoneVerifiedEvent extends DomainEvent {
-  constructor(payload: PhoneVerifiedEventPayload) {
+  constructor(private readonly data: PhoneVerifiedEventData) {
     super({
-      aggregateId: payload.userId,
+      aggregateId: data.userId,
       eventName: 'PhoneVerified',
-      metadata: payload,
     });
   }
 
-  protected serialize(): PhoneVerifiedEventPayload {
-    return this.metadata as PhoneVerifiedEventPayload;
+  protected serialize(): Record<string, any> {
+    return {
+      userId: this.data.userId,
+      phoneNumber: this.data.phoneNumber,
+      verifiedAt: this.data.verifiedAt,
+    };
   }
 }
