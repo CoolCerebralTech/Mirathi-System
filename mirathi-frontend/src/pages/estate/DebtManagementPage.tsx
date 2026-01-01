@@ -6,10 +6,10 @@ import { ArrowLeft, Loader2, DollarSign, Info } from 'lucide-react';
 import { Button } from '@/components/ui';
 import {
   Card,
-  CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
+  CardContent,
 } from '@/components/ui';
 import { Alert, AlertDescription } from '@/components/ui';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui';
@@ -202,14 +202,18 @@ export const DebtManagementPage: React.FC = () => {
           </TabsList>
 
           <TabsContent value="waterfall">
-            <DebtWaterfallView debts={debts} estateId={estateId} />
+            <DebtWaterfallView data={debts} estateId={estateId} />
           </TabsContent>
 
           <TabsContent value="tier1">
             <DebtTierCard
               tierNumber={1}
-              tierName="Funeral Expenses"
+              title="Funeral Expenses"
+              description="Reasonable expenses for the funeral and burial."
               debts={debts.tier1_FuneralExpenses}
+              isExpanded={true}
+              onToggle={() => {}}
+              canPay={debts.canPayNextTier && debts.highestPriorityOutstanding === 1}
               estateId={estateId}
             />
           </TabsContent>
@@ -217,8 +221,12 @@ export const DebtManagementPage: React.FC = () => {
           <TabsContent value="tier2">
             <DebtTierCard
               tierNumber={2}
-              tierName="Testamentary & Administrative"
+              title="Testamentary & Administrative"
+              description="Legal fees, court costs, and administration expenses."
               debts={debts.tier2_Testamentary}
+              isExpanded={true}
+              onToggle={() => {}}
+              canPay={debts.canPayNextTier && debts.highestPriorityOutstanding === 2}
               estateId={estateId}
             />
           </TabsContent>
@@ -226,8 +234,12 @@ export const DebtManagementPage: React.FC = () => {
           <TabsContent value="tier3">
             <DebtTierCard
               tierNumber={3}
-              tierName="Secured Debts"
+              title="Secured Debts"
+              description="Mortgages and loans secured by specific assets."
               debts={debts.tier3_SecuredDebts}
+              isExpanded={true}
+              onToggle={() => {}}
+              canPay={debts.canPayNextTier && debts.highestPriorityOutstanding === 3}
               estateId={estateId}
             />
           </TabsContent>
@@ -235,8 +247,12 @@ export const DebtManagementPage: React.FC = () => {
           <TabsContent value="tier4">
             <DebtTierCard
               tierNumber={4}
-              tierName="Taxes & Wages"
+              title="Taxes & Wages"
+              description="KRA taxes and outstanding wages for domestic staff."
               debts={debts.tier4_TaxesAndWages}
+              isExpanded={true}
+              onToggle={() => {}}
+              canPay={debts.canPayNextTier && debts.highestPriorityOutstanding === 4}
               estateId={estateId}
             />
           </TabsContent>
@@ -244,8 +260,12 @@ export const DebtManagementPage: React.FC = () => {
           <TabsContent value="tier5">
             <DebtTierCard
               tierNumber={5}
-              tierName="Unsecured Debts"
+              title="Unsecured Debts"
+              description="Personal loans, credit cards, and other unsecured debts."
               debts={debts.tier5_Unsecured}
+              isExpanded={true}
+              onToggle={() => {}}
+              canPay={debts.canPayNextTier && debts.highestPriorityOutstanding === 5}
               estateId={estateId}
             />
           </TabsContent>

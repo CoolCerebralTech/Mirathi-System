@@ -9,23 +9,19 @@ import {
   TrendingUp 
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
-import { Skeleton } from '@/components/ui';
 import { Badge } from '@/components/ui';
-import { useSolvencyRadar } from '../../estate.api';
 import { cn } from '@/lib/utils';
+import type { SolvencyRadarResponse } from '@/types/estate.types';
 
 interface SolvencyWidgetProps {
-  estateId: string;
+  radar: SolvencyRadarResponse;
 }
 
-export const SolvencyWidget: React.FC<SolvencyWidgetProps> = ({ estateId }) => {
-  const { data, isLoading, error } = useSolvencyRadar(estateId);
+export const SolvencyWidget: React.FC<SolvencyWidgetProps> = ({ radar }) => {
+  // Data is now passed as a prop, no internal loading state needed here
+  const data = radar;
 
-  if (isLoading) {
-    return <Skeleton className="h-[350px] w-full rounded-xl" />;
-  }
-
-  if (error || !data) {
+  if (!data) {
     return (
       <Card className="h-full border-red-200 bg-red-50">
         <CardContent className="flex h-full flex-col items-center justify-center p-6 text-red-600">

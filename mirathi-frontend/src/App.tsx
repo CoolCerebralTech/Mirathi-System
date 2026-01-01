@@ -107,12 +107,12 @@ function App() {
           <Route path="estates">
             <Route index element={<EstateListPage />} />
             <Route path="new" element={<CreateEstatePage />} />
-            <Route path=":id" element={<EstateDashboardPage />} />
-            <Route path=":id/assets" element={<EstateDashboardPage />} />
-            <Route path=":id/assets/:assetId" element={<AssetDetailsPage />} />
-            <Route path=":id/debts" element={<DebtManagementPage />} />
-            <Route path="/estates/:id/tax" element={<TaxCompliancePage />} />
-            <Route path="/estates/:id/distribution" element={<DistributionPage />} />
+            <Route path=":estateId" element={<EstateDashboardPage />} />
+            <Route path=":estateId/assets" element={<EstateDashboardPage />} />
+            <Route path=":etateId/assets/:assetId" element={<AssetDetailsPage />} />
+            <Route path=":estateId/debts" element={<DebtManagementPage />} />
+            <Route path="/estates/:estateId/tax" element={<TaxCompliancePage />} />
+            <Route path="/estates/:estateId/distribution" element={<DistributionPage />} />
           </Route>
 
           {/* --- FAMILY SERVICE --- */}

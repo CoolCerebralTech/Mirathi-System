@@ -201,9 +201,9 @@ export const DistributionPage: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {/* --- FIX 1: Changed prop 'checklist' to 'check' and removed 'estateId' --- */}
               <ReadinessChecklist
-                checklist={distribution.readinessCheck}
-                estateId={estateId}
+                check={distribution.readinessCheck}
               />
             </CardContent>
           </Card>
@@ -212,7 +212,11 @@ export const DistributionPage: React.FC = () => {
         {/* Hotchpot Adjustment (if applicable) */}
         {gifts && gifts.items.length > 0 && (
           <div className="mb-8">
-            <HotchpotSummary gifts={gifts} estateId={estateId} />
+            {/* --- FIX 2: Passed specific money objects instead of the whole 'gifts' object --- */}
+            <HotchpotSummary 
+               netEstateValue={distribution.estateNetValue}
+               totalDistributablePool={distribution.totalDistributablePool}
+            />
           </div>
         )}
 
@@ -236,7 +240,7 @@ export const DistributionPage: React.FC = () => {
               <BeneficiaryShareCard
                 key={share.beneficiaryId}
                 share={share}
-                totalPool={distribution.totalDistributablePool}
+                /* --- FIX 3: Removed 'totalPool' prop as it was not part of the interface --- */
               />
             ))}
           </div>

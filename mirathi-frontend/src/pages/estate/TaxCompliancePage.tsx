@@ -13,7 +13,7 @@ import {
 } from '@/components/ui';
 import { Alert, AlertDescription } from '@/components/ui';
 import { Progress } from '@/components/ui';
-import { useEstateDashboard } from '@/features/estate/estate.api';
+import { useEstateDashboard, useDebtWaterfall } from '@/features/estate/estate.api';
 import { TaxStatusCard, TaxTimeline, MoneyDisplay } from '@/features/estate/components';
 import { RecordTaxPaymentDialog } from '@/features/estate/dialogs';
 
@@ -21,14 +21,15 @@ export const TaxCompliancePage: React.FC = () => {
   const { estateId } = useParams<{ estateId: string }>();
   const navigate = useNavigate();
 
-  const { data: dashboard, isLoading } = useEstateDashboard(estateId!);
+  const { data: dashboard, isLoading: dashboardLoading } = useEstateDashboard(estateId!);
+  const { data: debts, isLoading: debtsLoading } = useDebtWaterfall(estateId!);
 
   if (!estateId) {
     navigate('/estates');
     return null;
   }
 
-  if (isLoading || !dashboard) {
+  if (dashboardLoading || debtsLoading || !dashboard || !debts) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
@@ -38,21 +39,30 @@ export const TaxCompliancePage: React.FC = () => {
     );
   }
 
-  // Mock tax data - replace with actual API
+  // Calculate real tax data from Tier 4 (Taxes & Wages) debts
+  const taxDebts = debts.tier4_TaxesAndWages;
+  const totalAssessment = taxDebts.reduce((sum, d) => sum + d.originalAmount.amount, 0);
+  const totalOutstanding = taxDebts.reduce((sum, d) => sum + d.outstandingAmount.amount, 0);
+  const totalPaid = totalAssessment - totalOutstanding;
+
+  // Mock clearance data since it's not in the main Debt API
   const taxData = {
-    status: 'PENDING_PAYMENT',
-    assessmentAmount: 450000,
-    paidAmount: 150000,
-    outstandingAmount: 300000,
-    clearanceCertificate: null,
-    lastAssessment: new Date('2024-11-15'),
-    paymentDeadline: new Date('2025-02-15'),
+    clearanceCertificate: null, // This would come from an API field if available
+    paymentDeadline: new Date('2025-06-30'), // Statutory deadline example
   };
 
-  const completionPercentage = (taxData.paidAmount / taxData.assessmentAmount) * 100;
+  const completionPercentage = totalAssessment > 0 
+    ? (totalPaid / totalAssessment) * 100 
+    : 0;
+
   const daysUntilDeadline = Math.ceil(
     (taxData.paymentDeadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
   );
+
+  const handleUploadClearance = () => {
+    // Placeholder for upload logic dialog
+    console.log("Open upload dialog");
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -105,7 +115,7 @@ export const TaxCompliancePage: React.FC = () => {
                     <CheckCircle className="h-5 w-5 text-green-600" />
                     <span className="text-green-600">Cleared</span>
                   </>
-                ) : taxData.outstandingAmount > 0 ? (
+                ) : totalOutstanding > 0 ? (
                   <>
                     <Clock className="h-5 w-5 text-amber-600" />
                     <span className="text-amber-600">Pending</span>
@@ -134,12 +144,12 @@ export const TaxCompliancePage: React.FC = () => {
             <CardHeader>
               <CardDescription>Total Assessment</CardDescription>
               <CardTitle className="text-2xl">
-                <MoneyDisplay amount={taxData.assessmentAmount} currency="KES" />
+                <MoneyDisplay amount={totalAssessment} currency="KES" />
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-sm text-slate-600">
-                Assessed: {taxData.lastAssessment.toLocaleDateString()}
+                Based on recorded Tier 4 debts
               </div>
             </CardContent>
           </Card>
@@ -149,12 +159,12 @@ export const TaxCompliancePage: React.FC = () => {
             <CardHeader>
               <CardDescription>Outstanding Amount</CardDescription>
               <CardTitle className="text-2xl text-red-600">
-                <MoneyDisplay amount={taxData.outstandingAmount} currency="KES" />
+                <MoneyDisplay amount={totalOutstanding} currency="KES" />
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-sm text-slate-600">
-                Paid: <MoneyDisplay amount={taxData.paidAmount} currency="KES" />
+                Paid: <MoneyDisplay amount={totalPaid} currency="KES" />
               </div>
             </CardContent>
           </Card>
@@ -174,10 +184,11 @@ export const TaxCompliancePage: React.FC = () => {
               <Progress value={completionPercentage} className="h-2" />
               <div className="flex justify-between text-xs text-slate-500">
                 <span>
-                  <MoneyDisplay amount={taxData.paidAmount} currency="KES" /> paid
+                  <MoneyDisplay amount={totalPaid} currency="KES" /> paid
                 </span>
                 <span>
-                  <MoneyDisplay amount={taxData.assessmentAmount} currency="KES" /> total
+                  {/* --- FIX: Removed the 'total' prop from MoneyDisplay --- */}
+                  <MoneyDisplay amount={totalAssessment} currency="KES" /> total
                 </span>
               </div>
             </div>
@@ -200,40 +211,43 @@ export const TaxCompliancePage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Tax Status Details */}
           <div className="space-y-6">
-            <TaxStatusCard estateId={estateId} />
+            <TaxStatusCard 
+              taxStatus={dashboard.taxStatus}
+              outstandingTaxes={{
+                amount: totalOutstanding,
+                currency: 'KES',
+                formatted: `KES ${totalOutstanding.toLocaleString()}`
+              }}
+              onUploadClearance={handleUploadClearance}
+            />
 
             {/* Breakdown Card */}
             <Card>
               <CardHeader>
                 <CardTitle>Assessment Breakdown</CardTitle>
                 <CardDescription>
-                  Detailed breakdown of tax obligations
+                  Detailed breakdown of recorded tax obligations
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center pb-3 border-b">
-                    <span className="text-slate-600">Income Tax</span>
-                    <span className="font-semibold">
-                      <MoneyDisplay amount={200000} currency="KES" />
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pb-3 border-b">
-                    <span className="text-slate-600">Capital Gains Tax</span>
-                    <span className="font-semibold">
-                      <MoneyDisplay amount={150000} currency="KES" />
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pb-3 border-b">
-                    <span className="text-slate-600">Stamp Duty</span>
-                    <span className="font-semibold">
-                      <MoneyDisplay amount={100000} currency="KES" />
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2">
+                  {taxDebts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic">No tax assessments recorded.</p>
+                  ) : (
+                    taxDebts.map(debt => (
+                      <div key={debt.id} className="flex justify-between items-center pb-3 border-b last:border-0">
+                        <span className="text-slate-600">{debt.description}</span>
+                        <span className="font-semibold">
+                          <MoneyDisplay amount={debt.originalAmount} />
+                        </span>
+                      </div>
+                    ))
+                  )}
+                  
+                  <div className="flex justify-between items-center pt-2 border-t mt-2">
                     <span className="text-slate-900 font-semibold">Total</span>
                     <span className="text-lg font-bold">
-                      <MoneyDisplay amount={taxData.assessmentAmount} currency="KES" />
+                      <MoneyDisplay amount={totalAssessment} currency="KES" />
                     </span>
                   </div>
                 </div>
@@ -243,7 +257,7 @@ export const TaxCompliancePage: React.FC = () => {
 
           {/* Payment Timeline */}
           <div>
-            <TaxTimeline estateId={estateId} />
+            <TaxTimeline taxDebts={taxDebts} />
           </div>
         </div>
 
@@ -261,7 +275,7 @@ export const TaxCompliancePage: React.FC = () => {
                 <div className="font-semibold text-sm">Complete Payment</div>
                 <p className="text-sm text-slate-600 mt-1">
                   Pay the outstanding balance of{' '}
-                  <MoneyDisplay amount={taxData.outstandingAmount} currency="KES" />{' '}
+                  <MoneyDisplay amount={totalOutstanding} currency="KES" />{' '}
                   before {taxData.paymentDeadline.toLocaleDateString()}
                 </p>
               </div>
@@ -281,7 +295,7 @@ export const TaxCompliancePage: React.FC = () => {
                   Once payment is complete, obtain and upload the clearance certificate
                 </p>
               </div>
-              <Button size="sm" variant="outline" disabled={taxData.outstandingAmount > 0}>
+              <Button size="sm" variant="outline" disabled={totalOutstanding > 0}>
                 Upload
               </Button>
             </div>

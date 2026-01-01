@@ -18,6 +18,7 @@ interface DebtTierCardProps {
   isExpanded: boolean;
   onToggle: () => void;
   canPay: boolean;
+  estateId: string; // Added estateId to interface
 }
 
 export const DebtTierCard: React.FC<DebtTierCardProps> = ({

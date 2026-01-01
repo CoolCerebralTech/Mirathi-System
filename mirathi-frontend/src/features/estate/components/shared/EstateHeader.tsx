@@ -1,3 +1,5 @@
+// components/dashboard/EstateHeader.tsx
+
 import React from 'react';
 import { differenceInDays } from 'date-fns';
 import { 
@@ -24,13 +26,34 @@ import { type EstateDashboardResponse } from '@/types/estate.types';
 
 interface EstateHeaderProps {
   estate: EstateDashboardResponse;
+  onFreeze: () => void;
+  onUnfreeze: () => void;
+  onClose: () => void;
 }
 
-export const EstateHeader: React.FC<EstateHeaderProps> = ({ estate }) => {
+export const EstateHeader: React.FC<EstateHeaderProps> = ({ 
+  estate,
+  onFreeze,
+  onUnfreeze,
+  onClose 
+}) => {
+  // Internal mutations for direct action
   const { mutate: freeze } = useFreezeEstate(estate.id);
   const { mutate: unfreeze } = useUnfreezeEstate(estate.id);
 
   const daysPassed = differenceInDays(new Date(), new Date(estate.dateOfDeath));
+
+  const handleFreezeClick = () => {
+    // Perform the mutation
+    freeze({ reason: 'Manual freeze via Dashboard header' });
+    // Callback to parent (e.g. for logging or UI updates)
+    onFreeze();
+  };
+
+  const handleUnfreezeClick = () => {
+    unfreeze({ reason: 'Manual unfreeze via Dashboard header' });
+    onUnfreeze();
+  };
 
   return (
     <div className="flex flex-col gap-4 border-b bg-white p-6 pb-8 md:flex-row md:items-start md:justify-between">
@@ -80,17 +103,20 @@ export const EstateHeader: React.FC<EstateHeaderProps> = ({ estate }) => {
                 <DropdownMenuSeparator />
                 
                 {estate.isFrozen ? (
-                    <DropdownMenuItem onClick={() => unfreeze({ reason: 'Admin Request', resolutionReference: 'Manual' })}>
+                    <DropdownMenuItem onClick={handleUnfreezeClick}>
                         <Unlock className="mr-2 h-4 w-4 text-green-600" /> Unfreeze Estate
                     </DropdownMenuItem>
                 ) : (
-                    <DropdownMenuItem onClick={() => freeze({ reason: 'Admin Request' })}>
+                    <DropdownMenuItem onClick={handleFreezeClick}>
                         <Lock className="mr-2 h-4 w-4 text-amber-600" /> Freeze Estate
                     </DropdownMenuItem>
                 )}
                 
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600 focus:text-red-600">
+                <DropdownMenuItem 
+                  onClick={onClose}
+                  className="text-red-600 focus:text-red-600"
+                >
                     <Archive className="mr-2 h-4 w-4" /> Close Estate
                 </DropdownMenuItem>
             </DropdownMenuContent>

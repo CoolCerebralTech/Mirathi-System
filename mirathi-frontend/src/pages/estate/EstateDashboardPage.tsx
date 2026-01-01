@@ -66,6 +66,22 @@ export const EstateDashboardPage: React.FC = () => {
     );
   }
 
+  // --- Handlers for Quick Actions ---
+  const handleQuickAction = (actionType: 'ADD_ASSET' | 'ADD_DEBT' | 'FILE_CLAIM' | 'RECORD_GIFT') => {
+      // In a real app, these would open dialogs. 
+      // Assuming dialogs are handled by triggers elsewhere or we navigate to specific pages/modals.
+      // For now, we'll just log. In production, connect this to state that opens the relevant Dialog component.
+      console.log('Action triggered:', actionType);
+      
+      // Example navigation logic if we wanted to redirect instead of opening modals
+      // if (actionType === 'ADD_ASSET') navigate(`/estates/${estateId}/assets/new`);
+  };
+
+  // --- Handlers for Estate Header Actions ---
+  const handleFreeze = () => console.log("Freeze triggered");
+  const handleUnfreeze = () => console.log("Unfreeze triggered");
+  const handleClose = () => console.log("Close triggered");
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -82,9 +98,9 @@ export const EstateDashboardPage: React.FC = () => {
           </Button>
           <EstateHeader
             estate={dashboard}
-            onFreeze={() => {}}
-            onUnfreeze={() => {}}
-            onClose={() => {}}
+            onFreeze={handleFreeze}
+            onUnfreeze={handleUnfreeze}
+            onClose={handleClose}
           />
         </div>
       </div>
@@ -93,20 +109,21 @@ export const EstateDashboardPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Summary Cards */}
         <div className="mb-8">
-          <EstateSummaryCards dashboard={dashboard} />
+          <EstateSummaryCards data={dashboard} />
         </div>
 
         {/* Two Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Left Column - Solvency & Cash */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Pass radar data directly */}
             {radar && <SolvencyWidget radar={radar} />}
-            <CashFlowWidget dashboard={dashboard} />
+            <CashFlowWidget data={dashboard} />
           </div>
 
           {/* Right Column - Quick Actions */}
           <div>
-            <QuickActions estateId={estateId} />
+            <QuickActions estateId={estateId} onAction={handleQuickAction} />
           </div>
         </div>
 
@@ -129,15 +146,17 @@ export const EstateDashboardPage: React.FC = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
-            <RecentActivity estateId={estateId} />
+            <RecentActivity activities={[]} /* Passing empty array as placeholder until activity API is ready */ />
           </TabsContent>
 
           <TabsContent value="assets">
             {assets && (
               <AssetTable
-                assets={assets.items}
-                estateId={estateId}
-                onAssetClick={(assetId) => navigate(`/estates/${estateId}/assets/${assetId}`)}
+                data={assets.items}
+                onViewDetails={(assetId) => navigate(`/estates/${estateId}/assets/${assetId}`)}
+                // Provide placeholder handlers for required props if AssetTable requires them
+                onUpdateValuation={() => {}}
+                onLiquidate={() => {}}
               />
             )}
           </TabsContent>
@@ -145,7 +164,7 @@ export const EstateDashboardPage: React.FC = () => {
           <TabsContent value="debts">
             {debts && (
               <DebtWaterfallView
-                debts={debts}
+                data={debts}
                 estateId={estateId}
               />
             )}
@@ -154,8 +173,12 @@ export const EstateDashboardPage: React.FC = () => {
           <TabsContent value="dependants">
             {dependants && (
               <DependantTable
-                dependants={dependants.items}
-                estateId={estateId}
+                data={dependants.items}
+                // Provide placeholders for required handlers
+                onVerify={() => {}}
+                onReject={() => {}}
+                onSettle={() => {}}
+                onAddEvidence={() => {}}
               />
             )}
           </TabsContent>
@@ -163,8 +186,11 @@ export const EstateDashboardPage: React.FC = () => {
           <TabsContent value="gifts">
             {gifts && (
               <GiftTable
-                gifts={gifts.items}
-                estateId={estateId}
+                data={gifts.items}
+                totalHotchpotAddBack={gifts.totalHotchpotAddBack}
+                // Provide placeholders for required handlers
+                onContest={() => {}}
+                onResolve={() => {}}
               />
             )}
           </TabsContent>

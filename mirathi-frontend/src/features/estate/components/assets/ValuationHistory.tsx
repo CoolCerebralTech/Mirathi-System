@@ -2,14 +2,14 @@
 
 import React from 'react';
 import { format } from 'date-fns';
-import { TrendingUp, TrendingDown, Minus, History } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, History, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
 import { Badge } from '@/components/ui';
 import { MoneyDisplay } from '../shared/MoneyDisplay';
 import { ValuationSource, type Money } from '@/types/estate.types';
+import { useAssetDetails } from '@/features/estate/estate.api';
 
-// We define a local type for the history record as it wasn't in the main API types
-// but would be expected in a real-world usage of the system.
+// We define a local type for the history record
 export interface ValuationRecord {
   id: string;
   date: string; // ISO Date
@@ -18,15 +18,44 @@ export interface ValuationRecord {
   reason?: string;
 }
 
-interface ValuationHistoryProps {
-  history: ValuationRecord[];
+// Define the minimal shape of the asset we expect
+interface AssetWithHistory {
+  valuationHistory?: ValuationRecord[];
 }
 
-export const ValuationHistory: React.FC<ValuationHistoryProps> = ({ history }) => {
+interface ValuationHistoryProps {
+  assetId: string;
+  estateId: string;
+}
+
+export const ValuationHistory: React.FC<ValuationHistoryProps> = ({ assetId, estateId }) => {
+  // Fetch asset details to get the history
+  const { data: asset, isLoading } = useAssetDetails(estateId, assetId);
+
+  // Safely access valuation history using a specific type cast instead of 'any'
+  // We cast to unknown first to escape the inferred type, then to our interface
+  const history = (asset as unknown as AssetWithHistory)?.valuationHistory || [];
+
   // Sort history by date descending
   const sortedHistory = [...history].sort((a, b) => 
     new Date(b.date).getTime() - new Date(a.date).getTime()
   );
+
+  if (isLoading) {
+    return (
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <History className="h-5 w-5 text-slate-500" />
+            Valuation History
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex justify-center py-6">
+          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="shadow-sm">

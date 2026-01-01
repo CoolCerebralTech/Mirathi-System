@@ -48,7 +48,16 @@ export const HotchpotSummary: React.FC<HotchpotSummaryProps> = ({
              )}
             <p className="text-xs text-slate-400 uppercase tracking-wide">Gifts Inter Vivos</p>
             <div className="text-xl font-bold text-indigo-300">
-              <MoneyDisplay amount={hotchpotAmount} currency={netEstateValue.currency} />
+              {/* Manually constructed object for display since we calculated amount locally */}
+              <MoneyDisplay 
+                amount={{
+                    amount: hotchpotAmount,
+                    currency: netEstateValue.currency,
+                    formatted: '' // Formatted not strictly needed by MoneyDisplay usually if amount is number, but strictly typed it might be.
+                                  // Since MoneyDisplay handles 'amount={number}' OR 'amount={object}', we can just pass the number if supported,
+                                  // otherwise we construct the object. Assuming MoneyDisplay supports direct object props:
+                }} 
+              />
             </div>
           </div>
 

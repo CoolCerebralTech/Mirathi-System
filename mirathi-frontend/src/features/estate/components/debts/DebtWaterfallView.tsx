@@ -8,16 +8,17 @@ import type { DebtWaterfallResponse } from '@/types/estate.types';
 
 interface DebtWaterfallViewProps {
   data: DebtWaterfallResponse;
+  estateId: string;
 }
 
-export const DebtWaterfallView: React.FC<DebtWaterfallViewProps> = ({ data }) => {
+export const DebtWaterfallView: React.FC<DebtWaterfallViewProps> = ({ data, estateId }) => {
   const [openTier, setOpenTier] = useState<number | null>(data.highestPriorityOutstanding || 1);
 
   const totalLiability = data.totalLiabilities.amount;
   const totalPaid = data.totalPaid.amount;
   const progress = totalLiability + totalPaid > 0 
     ? (totalPaid / (totalPaid + totalLiability)) * 100 
-    : 100;
+    : (totalPaid > 0 ? 100 : 0);
 
   return (
     <div className="space-y-6">
@@ -34,7 +35,6 @@ export const DebtWaterfallView: React.FC<DebtWaterfallViewProps> = ({ data }) =>
           </div>
         </div>
         
-        {/* FIXED: Removed indicatorClassName, used tailwind child selector for color */}
         <Progress 
             value={progress} 
             className="h-2 bg-slate-700 [&>*]:bg-emerald-500" 
@@ -56,6 +56,7 @@ export const DebtWaterfallView: React.FC<DebtWaterfallViewProps> = ({ data }) =>
           isExpanded={openTier === 1}
           onToggle={() => setOpenTier(openTier === 1 ? null : 1)}
           canPay={data.canPayNextTier && data.highestPriorityOutstanding === 1}
+          estateId={estateId}
         />
 
         <DebtTierCard 
@@ -66,6 +67,7 @@ export const DebtWaterfallView: React.FC<DebtWaterfallViewProps> = ({ data }) =>
           isExpanded={openTier === 2}
           onToggle={() => setOpenTier(openTier === 2 ? null : 2)}
           canPay={data.canPayNextTier && data.highestPriorityOutstanding === 2}
+          estateId={estateId}
         />
 
         <DebtTierCard 
@@ -76,6 +78,7 @@ export const DebtWaterfallView: React.FC<DebtWaterfallViewProps> = ({ data }) =>
           isExpanded={openTier === 3}
           onToggle={() => setOpenTier(openTier === 3 ? null : 3)}
           canPay={data.canPayNextTier && data.highestPriorityOutstanding === 3}
+          estateId={estateId}
         />
 
         <DebtTierCard 
@@ -86,6 +89,7 @@ export const DebtWaterfallView: React.FC<DebtWaterfallViewProps> = ({ data }) =>
           isExpanded={openTier === 4}
           onToggle={() => setOpenTier(openTier === 4 ? null : 4)}
           canPay={data.canPayNextTier && data.highestPriorityOutstanding === 4}
+          estateId={estateId}
         />
 
         <DebtTierCard 
@@ -96,6 +100,7 @@ export const DebtWaterfallView: React.FC<DebtWaterfallViewProps> = ({ data }) =>
           isExpanded={openTier === 5}
           onToggle={() => setOpenTier(openTier === 5 ? null : 5)}
           canPay={data.canPayNextTier && data.highestPriorityOutstanding === 5}
+          estateId={estateId}
         />
       </div>
     </div>
