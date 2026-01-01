@@ -1096,7 +1096,7 @@ model User {
 
   // --- Back-relations from other services ---
   documentsUploaded         Document[]              @relation("DocumentUploader")
-  Document Document[] @relation("UserIdentityDocuments")
+  identityDocuments          Document[] @relation("UserIdentityDocuments")
   DocumentVerificationAttempt DocumentVerificationAttempt[]
   notifications       Notification[]
   auditLogsAsActor          AuditLog[]              @relation("AuditActor")  
@@ -1111,6 +1111,9 @@ model User {
   willExecutorRoles   WillExecutor[] @relation("ExecutorUser")
   witnessRoles        WillWitness[]  @relation("WitnessUser")
   beneficiaryOfAssignments       WillBequest[] @relation("AssignmentBeneficiaryUser")
+  @@index([status, createdAt]) // For onboarding queries
+  @@index([role, status]) // For admin queries
+  @@index([deletedAt]) // For soft delete queries
   @@map("users")
 }
 model UserIdentity {
@@ -1142,8 +1145,8 @@ model UserProfile {
   lastName        String       @db.VarChar(100)
   avatarUrl       String?      @db.Text
   
-  // --- Contact (Critical for M-Pesa & Notifications) ---
-  phoneNumber     String?      @unique @db.VarChar(20) // E.164 format (+254...)
+  // --- Contact ---
+  phoneNumber  String? @unique @db.VarChar(20) @map("phone_number") // E.164 format (+254...)
   phoneVerified Boolean      @default(false)
   
   // --- Location (Critical for Court Jurisdiction logic) ---
@@ -1152,7 +1155,7 @@ model UserProfile {
   postalAddress   String?      @db.VarChar(100)
   
   updatedAt       DateTime     @updatedAt
-
+  @@index([phoneNumber, phoneVerified])
   @@map("user_profiles")
 }
 model UserSettings {
@@ -1190,7 +1193,7 @@ model AuthSession {
   createdAt   DateTime @default(now())
   lastUsedAt  DateTime?
 
-  @@index([userId, expiresAt])
+  @@index([userId, revokedAt, expiresAt])
   @@map("auth_sessions")
 }
 model LoginAudit {

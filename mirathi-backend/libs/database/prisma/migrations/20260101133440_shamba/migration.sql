@@ -391,7 +391,7 @@ CREATE TABLE "user_profiles" (
     "firstName" VARCHAR(100) NOT NULL,
     "lastName" VARCHAR(100) NOT NULL,
     "avatarUrl" TEXT,
-    "phoneNumber" VARCHAR(20),
+    "phone_number" VARCHAR(20),
     "phoneVerified" BOOLEAN NOT NULL DEFAULT false,
     "county" "KenyanCounty",
     "physicalAddress" TEXT,
@@ -1914,6 +1914,15 @@ CREATE TABLE "_DisinheritedMember" (
 );
 
 -- CreateIndex
+CREATE INDEX "users_status_createdAt_idx" ON "users"("status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "users_role_status_idx" ON "users"("role", "status");
+
+-- CreateIndex
+CREATE INDEX "users_deletedAt_idx" ON "users"("deletedAt");
+
+-- CreateIndex
 CREATE INDEX "user_identities_userId_idx" ON "user_identities"("userId");
 
 -- CreateIndex
@@ -1923,7 +1932,10 @@ CREATE UNIQUE INDEX "user_identities_provider_providerUserId_key" ON "user_ident
 CREATE UNIQUE INDEX "user_profiles_userId_key" ON "user_profiles"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "user_profiles_phoneNumber_key" ON "user_profiles"("phoneNumber");
+CREATE UNIQUE INDEX "user_profiles_phone_number_key" ON "user_profiles"("phone_number");
+
+-- CreateIndex
+CREATE INDEX "user_profiles_phone_number_phoneVerified_idx" ON "user_profiles"("phone_number", "phoneVerified");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "user_settings_userId_key" ON "user_settings"("userId");
@@ -1932,7 +1944,7 @@ CREATE UNIQUE INDEX "user_settings_userId_key" ON "user_settings"("userId");
 CREATE UNIQUE INDEX "auth_sessions_refreshHash_key" ON "auth_sessions"("refreshHash");
 
 -- CreateIndex
-CREATE INDEX "auth_sessions_userId_expiresAt_idx" ON "auth_sessions"("userId", "expiresAt");
+CREATE INDEX "auth_sessions_userId_revokedAt_expiresAt_idx" ON "auth_sessions"("userId", "revokedAt", "expiresAt");
 
 -- CreateIndex
 CREATE INDEX "login_audit_userId_loggedAt_idx" ON "login_audit"("userId", "loggedAt");
