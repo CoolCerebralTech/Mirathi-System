@@ -1,9 +1,13 @@
 // src/application/commands/handlers/auth/complete-onboarding.handler.ts
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 
 import { User } from '../../../../domain/aggregates/user.aggregate';
 import { DomainError } from '../../../../domain/errors/domain.errors';
-import { EventPublisherPort } from '../../../../domain/ports/event-publisher.port';
+import {
+  EVENT_PUBLISHER_PORT,
+  EventPublisherPort,
+} from '../../../../domain/ports/event-publisher.port';
 import {
   USER_REPOSITORY_PORT,
   UserRepositoryPort,
@@ -11,21 +15,25 @@ import {
 import { DomainErrorException, UserNotFoundException } from '../../../exceptions/user.exception';
 import { CompleteOnboardingCommand } from '../../impl/auth/complete-onboarding.command';
 
-@Injectable()
-export class CompleteOnboardingHandler {
+@CommandHandler(CompleteOnboardingCommand)
+export class CompleteOnboardingHandler implements ICommandHandler<CompleteOnboardingCommand> {
   private readonly logger = new Logger(CompleteOnboardingHandler.name);
 
   constructor(
     @Inject(USER_REPOSITORY_PORT)
     private readonly userRepository: UserRepositoryPort,
+
+    @Inject(EVENT_PUBLISHER_PORT)
     private readonly eventPublisher: EventPublisherPort,
   ) {}
 
   async execute(command: CompleteOnboardingCommand): Promise<User> {
+    const { userId } = command;
+
     // 1. Find user
-    const user = await this.userRepository.findById(command.userId);
+    const user = await this.userRepository.findById(userId);
     if (!user) {
-      throw new UserNotFoundException(command.userId);
+      throw new UserNotFoundException(userId);
     }
 
     // 2. Complete onboarding via aggregate method
