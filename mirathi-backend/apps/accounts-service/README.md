@@ -32,51 +32,95 @@ domain/
 │   └── phone-verification.domain-service.ts
 └── index.ts            # ✅ Complete
 
+src/application/
 │
-├── application/
-│   ├── user/                        # Focus on User use cases
-│   │   ├── commands/                # ⚡ WRITE operations
-│   │   │   ├── register-user.command.ts
-│   │   │   ├── update-profile.command.ts
-│   │   │   ├── verify-phone.command.ts
-│   │   │   ├── update-settings.command.ts
-│   │   │   ├── link-identity.command.ts
-│   │   │   └── suspend-user.command.ts
-│   │   │
-│   │   ├── queries/                 # 🔍 READ operations
-│   │   │   ├── get-user.query.ts
-│   │   │   ├── list-sessions.query.ts
-│   │   │   └── get-audit-log.query.ts
-│   │   │
-│   │   ├── handlers/                # Command/Query handlers
-│   │   │   ├── register-user.handler.ts
-│   │   │   ├── update-profile.handler.ts
-│   │   │   ├── verify-phone.handler.ts
-│   │   │   ├── update-settings.handler.ts
+├── commands/                           # Write Operations (State Changes)
+│   ├── handlers/
+│   │   ├── auth/
+│   │   │   ├── register-user-via-oauth.handler.ts
 │   │   │   ├── link-identity.handler.ts
-│   │   │   ├── suspend-user.handler.ts
-│   │   │   ├── get-user.handler.ts
-│   │   │   ├── list-sessions.handler.ts
-│   │   │   └── get-audit-log.handler.ts
+│   │   │   └── complete-onboarding.handler.ts
+│   │   │
+│   │   ├── profile/
+│   │   │   ├── update-profile.handler.ts
+│   │   │   └── update-phone-number.handler.ts
+│   │   │
+│   │   ├── settings/
+│   │   │   └── update-settings.handler.ts
+│   │   │
+│   │   └── admin/
+│   │       ├── activate-user.handler.ts
+│   │       ├── suspend-user.handler.ts
+│   │       ├── unsuspend-user.handler.ts
+│   │       ├── change-user-role.handler.ts
+│   │       ├── delete-user.handler.ts
+│   │       └── restore-user.handler.ts
 │   │
-│   └── admin/                       # Admin-specific use cases
-│       ├── commands/
-│       │   ├── change-role.command.ts
-│       │   └── bulk-suspend.command.ts
-│       └── handlers/
-│           ├── change-role.handler.ts
-│           └── bulk-suspend.handler.ts
+│   └── impl/                           # Command DTOs
+│       ├── auth/
+│       │   ├── register-user-via-oauth.command.ts
+│       │   ├── link-identity.command.ts
+│       │   └── complete-onboarding.command.ts
+│       │
+│       ├── profile/
+│       │   ├── update-profile.command.ts
+│       │   └── update-phone-number.command.ts
+│       │
+│       ├── settings/
+│       │   └── update-settings.command.ts
+│       │
+│       └── admin/
+│           ├── activate-user.command.ts
+│           ├── suspend-user.command.ts
+│           ├── unsuspend-user.command.ts
+│           ├── change-user-role.command.ts
+│           ├── delete-user.command.ts
+│           └── restore-user.command.ts
 │
-├── infrastructure/
-│   ├── persistence/                 # Database implementations
-│   │   ├── repositories/
-│   │   │   └── user.repository.ts   # Implements UserRepositoryPort
-│   │   └── mappers/
-│   │       └── user.mapper.ts       # Domain ↔ Database mapping
+├── queries/                            # Read Operations (No State Changes)
+│   ├── handlers/
+│   │   ├── get-user-by-id.handler.ts
+│   │   ├── get-user-by-email.handler.ts
+│   │   ├── get-user-by-phone.handler.ts
+│   │   ├── get-current-user.handler.ts
+│   │   ├── search-users.handler.ts          # Admin only
+│   │   ├── get-user-statistics.handler.ts   # Admin only
+│   │   └── list-users-paginated.handler.ts  # Admin only
 │   │
-│   ├── adapters/                    # External service implementations
-│   │   ├── oauth/
-│   │   │   ├── google.adapter.ts    # Implements OAuthProviderPort
-│   │   │   ├── apple.adapter.ts
-│   │   │   └── oauth-adapter.factory.ts
+│   └── impl/
+│       ├── get-user-by-id.query.ts
+│       ├── get-user-by-email.query.ts
+│       ├── get-user-by-phone.query.ts
+│       ├── get-current-user.query.ts
+│       ├── search-users.query.ts
+│       ├── get-user-statistics.query.ts
+│       └── list-users-paginated.query.ts
 │
+├── events/                             # Domain Event Handlers
+│   ├── handlers/
+│   │   ├── user-registered.handler.ts
+│   │   ├── profile-updated.handler.ts
+│   │   ├── user-suspended.handler.ts
+│   │   ├── user-deleted.handler.ts
+│   │   └── role-changed.handler.ts
+│   │
+│   └── event-publisher.service.ts      # Publishes to RabbitMQ via @shamba/messaging
+│
+├── services/                           # Application Services (Orchestration)
+│   ├── user.service.ts                 # Main user orchestration
+│   ├── oauth-auth.service.ts           # OAuth flow orchestration
+│   └── user-admin.service.ts           # Admin operations orchestration
+│
+├── validators/                         # Input validation (separate from domain)
+│   ├── user-input.validator.ts
+│   ├── phone-number-input.validator.ts
+│   └── county-input.validator.ts
+│
+├── exceptions/                         # Application-specific exceptions
+│   ├── user-not-found.exception.ts
+│   ├── duplicate-email.exception.ts
+│   ├── duplicate-phone.exception.ts
+│   ├── unauthorized-operation.exception.ts
+│   └── oauth-provider.exception.ts
+│
+└── application.module.ts               # Main application module
