@@ -1,134 +1,141 @@
-import { useForm } from 'react-hook-form';
+import { useEffect } from 'react';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Bell, Mail, MessageSquare, Megaphone, Save } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Mail, MessageSquare, Bell } from 'lucide-react';
 
-import { UpdateMarketingPreferencesRequestSchema, type UpdateMarketingPreferencesInput } from '../../../types';
-import { useUpdateMarketingPreferences, useCurrentProfile } from '../../user/user.api'; // Adjust path
+import { useCurrentUser, useUpdateSettings } from '../user.api';
+import { UpdateSettingsInputSchema, type UpdateSettingsInput } from '../../../types/user.types';
 
 import { Button } from '../../../components/ui/Button';
-import { Checkbox } from '../../../components/ui/Checkbox';
 import { Label } from '../../../components/ui/Label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../../../components/ui/Card';
-import { Switch } from '../../../components/ui/Switch';
+import { Switch } from '../../../components/ui/Switch'; // Assuming you have a Switch component
 
-/**
- * A form for managing user marketing preferences.
- */
 export function MarketingPreferencesForm() {
-  const { t } = useTranslation(['user', 'common']);
-  const { data: currentProfile } = useCurrentProfile();
-  const { mutate: updatePreferences, isPending } = useUpdateMarketingPreferences();
+  const { t } = useTranslation(['settings', 'common']);
+  const { data: user } = useCurrentUser();
+  const { mutate: updateSettings, isPending } = useUpdateSettings();
 
-  const {
-    handleSubmit,
-    register,
-    watch,
-    setValue,
-    formState: { isDirty, isValid },
-  } = useForm<UpdateMarketingPreferencesInput>({
-    resolver: zodResolver(UpdateMarketingPreferencesRequestSchema),
-    mode: 'onTouched',
-    values: {
-      marketingOptIn: currentProfile?.marketingOptIn ?? false,
-      marketingCategories: (currentProfile?.marketingCategories as UpdateMarketingPreferencesInput['marketingCategories']) ?? [],
-      communicationChannels: (currentProfile?.communicationChannels as UpdateMarketingPreferencesInput['communicationChannels']) ?? [],
-    },
+  const { control, handleSubmit, reset, formState: { isDirty } } = useForm<UpdateSettingsInput>({
+    resolver: zodResolver(UpdateSettingsInputSchema),
   });
 
-  const marketingOptIn = watch('marketingOptIn');
+  useEffect(() => {
+    if (user?.settings) {
+      reset({
+        emailNotifications: user.settings.emailNotifications,
+        smsNotifications: user.settings.smsNotifications,
+        marketingOptIn: user.settings.marketingOptIn,
+      });
+    }
+  }, [user, reset]);
 
-  const onSubmit = (formData: UpdateMarketingPreferencesInput) => {
-    updatePreferences(formData);
+  const onSubmit = (data: UpdateSettingsInput) => {
+    updateSettings(data);
   };
 
-  const marketingCategories = [
-    { id: 'newsletter', label: t('user:category_newsletter', 'Newsletter') },
-    { id: 'promotions', label: t('user:category_promotions', 'Promotions & Offers') },
-    { id: 'product_updates', label: t('user:category_updates', 'Product Updates') },
-    { id: 'events', label: t('user:category_events', 'Events & Webinars') },
-  ];
-
-  const communicationChannels = [
-    { id: 'email', label: t('user:channel_email', 'Email'), icon: Mail },
-    { id: 'sms', label: t('user:channel_sms', 'SMS'), icon: MessageSquare },
-    { id: 'push', label: t('user:channel_push', 'Push Notifications'), icon: Bell },
-  ];
-
   return (
-    <Card className="shadow-lg">
-      <CardHeader>
-        <CardTitle>{t('user:marketing_title', 'Marketing Preferences')}</CardTitle>
-        <CardDescription>{t('user:marketing_description', 'Choose how you want to hear from us.')}</CardDescription>
-      </CardHeader>
-      <form onSubmit={handleSubmit(onSubmit)} noValidate>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <div className="space-y-0.5">
-              <Label htmlFor="marketingOptIn" className="text-base font-semibold">
-                {t('user:receive_communications', 'Receive Marketing Communications')}
-              </Label>
-              <p className="text-sm text-text-muted">
-                {t('user:opt_in_description', 'Stay up-to-date with new features and offers.')}
-              </p>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+      
+      {/* NOTIFICATIONS */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium text-slate-200 flex items-center gap-2">
+          <Bell className="h-5 w-5 text-amber-500" />
+          {t('settings:notifications', 'System Notifications')}
+        </h3>
+        
+        <div className="rounded-lg border border-slate-800 bg-slate-900/50 divide-y divide-slate-800">
+          
+          {/* Email Switch */}
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                <Mail className="h-4 w-4" />
+              </div>
+              <div>
+                <Label className="text-base font-medium">Email Notifications</Label>
+                <p className="text-xs text-slate-500">Receive critical updates about your estate via email.</p>
+              </div>
             </div>
-            <Switch
-              id="marketingOptIn"
-              checked={marketingOptIn}
-              onCheckedChange={(checked) => setValue('marketingOptIn', checked, { shouldDirty: true })}
-              disabled={isPending}
+            <Controller
+              control={control}
+              name="emailNotifications"
+              render={({ field }) => (
+                <Switch 
+                  checked={field.value} 
+                  onCheckedChange={field.onChange} 
+                  disabled={isPending}
+                />
+              )}
             />
           </div>
 
-          {marketingOptIn && (
-            <div className="space-y-6 rounded-lg border p-4 animate-in fade-in">
-              {/* Marketing Categories */}
-              <div className="space-y-3">
-                <Label className="font-semibold">{t('user:topics_interest', 'Topics of Interest')}</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {marketingCategories.map((category) => (
-                    <div key={category.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`category-${category.id}`}
-                        value={category.id}
-                        {...register('marketingCategories')}
-                        disabled={isPending}
-                      />
-                      <Label htmlFor={`category-${category.id}`} className="font-normal">{category.label}</Label>
-                    </div>
-                  ))}
-                </div>
+          {/* SMS Switch */}
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                <MessageSquare className="h-4 w-4" />
               </div>
-
-              {/* Communication Channels */}
-              <div className="space-y-3">
-                <Label className="font-semibold">{t('user:preferred_channels', 'Preferred Channels')}</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {communicationChannels.map((channel) => (
-                    <div key={channel.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`channel-${channel.id}`}
-                        value={channel.id}
-                        {...register('communicationChannels')}
-                        disabled={isPending}
-                      />
-                      <Label htmlFor={`channel-${channel.id}`} className="font-normal flex items-center gap-2">
-                        <channel.icon className="h-4 w-4 text-text-muted" />
-                        {channel.label}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
+              <div>
+                <Label className="text-base font-medium">SMS Notifications</Label>
+                <p className="text-xs text-slate-500">Get text alerts for urgent tasks (Standard rates apply).</p>
               </div>
             </div>
-          )}
-        </CardContent>
-        <CardFooter className="flex justify-end bg-neutral-50 p-4">
-          <Button type="submit" isLoading={isPending} disabled={!isDirty || !isValid || isPending}>
-            {t('common:save_preferences', 'Save Preferences')}
-          </Button>
-        </CardFooter>
-      </form>
-    </Card>
+            <Controller
+              control={control}
+              name="smsNotifications"
+              render={({ field }) => (
+                <Switch 
+                  checked={field.value} 
+                  onCheckedChange={field.onChange} 
+                  disabled={isPending}
+                />
+              )}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* MARKETING */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium text-slate-200 flex items-center gap-2">
+          <Megaphone className="h-5 w-5 text-amber-500" />
+          {t('settings:marketing', 'Communications')}
+        </h3>
+        
+        <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+           <div className="flex items-center justify-between">
+            <div className="space-y-1">
+                <Label className="text-base font-medium">Product Updates & Tips</Label>
+                <p className="text-xs text-slate-500">
+                  Stay updated on new features and succession law changes. No spam, ever.
+                </p>
+            </div>
+            <Controller
+              control={control}
+              name="marketingOptIn"
+              render={({ field }) => (
+                <Switch 
+                  checked={field.value} 
+                  onCheckedChange={field.onChange} 
+                  disabled={isPending}
+                />
+              )}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <Button 
+          type="submit" 
+          disabled={!isDirty || isPending}
+          isLoading={isPending}
+        >
+          <Save className="h-4 w-4 mr-2" />
+          {t('common:save_preferences', 'Save Preferences')}
+        </Button>
+      </div>
+    </form>
   );
 }

@@ -18,13 +18,10 @@ import { FeaturesPage } from './pages/public/FeaturesPage';
 import { ContactPage } from './pages/public/ContactPage';
 import { SecurityPage } from './pages/public/SecurityPage';
 
-// Auth
+// Auth (New Architecture)
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
-import { VerifyEmailPage } from './pages/auth';
-import { PendingVerificationPage } from './pages/auth/PendingVerificationPage';
-import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
-import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
+import { OAuthCallbackPage } from './pages/auth/OAuthCallbackPage';
 
 // Onboarding (The Bridge)
 import { OnboardingPage } from './pages/onboarding';
@@ -74,15 +71,16 @@ function App() {
         <Route path="security" element={<SecurityPage />} />
       </Route>
 
-      {/* 2. Guest Routes (Login/Register) */}
+      {/* 2. Guest Routes (Login/Register/Callback) */}
       <Route element={<GuestRoute />}>
+        
+        {/* OAuth Callback - Standalone (No Auth Layout) */}
+        <Route path="auth/callback" element={<OAuthCallbackPage />} />
+
+        {/* Standard Auth Pages */}
         <Route element={<AuthLayout />}>
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
-          <Route path="verify-email" element={<VerifyEmailPage />} />
-          <Route path="pending-verification" element={<PendingVerificationPage />} />
-          <Route path="forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="reset-password" element={<ResetPasswordPage />} />
         </Route>
       </Route>
 
@@ -107,9 +105,14 @@ function App() {
           <Route path="estates">
             <Route index element={<EstateListPage />} />
             <Route path="new" element={<CreateEstatePage />} />
+            
+            {/* Estate Details */}
             <Route path=":estateId" element={<EstateDashboardPage />} />
             <Route path=":estateId/assets" element={<EstateDashboardPage />} />
-            <Route path=":etateId/assets/:assetId" element={<AssetDetailsPage />} />
+            
+            {/* Fixed Typo: :etateId -> :estateId */}
+            <Route path=":estateId/assets/:assetId" element={<AssetDetailsPage />} />
+            
             <Route path=":estateId/debts" element={<DebtManagementPage />} />
             <Route path=":estateId/tax" element={<TaxCompliancePage />} />
             <Route path=":estateId/distribution" element={<DistributionPage />} />
