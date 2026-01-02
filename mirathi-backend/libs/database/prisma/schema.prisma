@@ -16,7 +16,6 @@ enum UserRole {
 }
 enum AuthProvider {
   GOOGLE
-  APPLE
 }
 enum AccountStatus {
   ACTIVE
@@ -1098,8 +1097,6 @@ model User {
   documentsUploaded         Document[]              @relation("DocumentUploader")
   identityDocuments          Document[] @relation("UserIdentityDocuments")
   DocumentVerificationAttempt DocumentVerificationAttempt[]
-  notifications       Notification[]
-  auditLogsAsActor          AuditLog[]              @relation("AuditActor")  
   // Back-relations from Family-Service
   createdFamilies     Family[]       @relation("FamilyCreator")
   familyMemberships   FamilyMember[] @relation("FamilyMemberUser")
@@ -3134,55 +3131,4 @@ model RoadmapTask {
   @@index([category])
   @@index([priority, isOverdue])
   @@map("roadmap_tasks")
-}
-// =============================================================================
-// NOTIFICATIONS SERVICE MODELS
-// Owner: notifications-service
-// =============================================================================
-
-model NotificationTemplate {
-  id      String              @id @default(uuid()) @db.Uuid()
-  name    String              @unique(map: "notification_templates_name_unique") @db.VarChar(100)
-  channel NotificationChannel
-  subject String?             @db.VarChar(255)
-  body    String              @db.Text
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  notifications Notification[]
-
-  @@map("notification_templates")
-}
-
-model Notification {
-  id          String             @id @default(uuid()) @db.Uuid()
-  channel     NotificationChannel
-  status      NotificationStatus @default(PENDING)
-  sentAt      DateTime?
-  failReason  String?            @db.Text
-  templateId  String             @db.Uuid()
-  template    NotificationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  recipientId String?            @db.Uuid()
-  recipient   User?              @relation(fields: [recipientId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  createdAt   DateTime           @default(now())
-
-  @@index([recipientId, status], map: "notifications_recipient_status_idx")
-  @@map("notifications")
-}
-// =============================================================================
-// AUDITING SERVICE MODEL
-// Owner: auditing-service
-// =============================================================================
-
-model AuditLog {
-  id        String   @id @default(uuid()) @db.Uuid()
-  timestamp DateTime @default(now())
-  actorId   String?  @db.Uuid()
-  actor     User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  action    String   @db.VarChar(100)
-  payload   Json
-
-  @@index([actorId], map: "audit_logs_actorId_idx")
-  @@index([action, timestamp], map: "audit_logs_action_timestamp_idx")
-  @@map("audit_logs")
 }

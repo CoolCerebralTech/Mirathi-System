@@ -2,7 +2,7 @@
 CREATE TYPE "UserRole" AS ENUM ('USER', 'VERIFIER', 'ADMIN');
 
 -- CreateEnum
-CREATE TYPE "AuthProvider" AS ENUM ('GOOGLE', 'APPLE');
+CREATE TYPE "AuthProvider" AS ENUM ('GOOGLE');
 
 -- CreateEnum
 CREATE TYPE "AccountStatus" AS ENUM ('ACTIVE', 'SUSPENDED', 'ARCHIVED', 'PENDING_ONBOARDING');
@@ -1780,44 +1780,6 @@ CREATE TABLE "roadmap_tasks" (
 );
 
 -- CreateTable
-CREATE TABLE "notification_templates" (
-    "id" UUID NOT NULL,
-    "name" VARCHAR(100) NOT NULL,
-    "channel" "NotificationChannel" NOT NULL,
-    "subject" VARCHAR(255),
-    "body" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "notification_templates_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "notifications" (
-    "id" UUID NOT NULL,
-    "channel" "NotificationChannel" NOT NULL,
-    "status" "NotificationStatus" NOT NULL DEFAULT 'PENDING',
-    "sentAt" TIMESTAMP(3),
-    "failReason" TEXT,
-    "templateId" UUID NOT NULL,
-    "recipientId" UUID,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "notifications_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "audit_logs" (
-    "id" UUID NOT NULL,
-    "timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "actorId" UUID,
-    "action" VARCHAR(100) NOT NULL,
-    "payload" JSONB NOT NULL,
-
-    CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "_ExecutorUser" (
     "A" UUID NOT NULL,
     "B" UUID NOT NULL,
@@ -2121,18 +2083,6 @@ CREATE INDEX "roadmap_tasks_category_idx" ON "roadmap_tasks"("category");
 CREATE INDEX "roadmap_tasks_priority_isOverdue_idx" ON "roadmap_tasks"("priority", "isOverdue");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "notification_templates_name_unique" ON "notification_templates"("name");
-
--- CreateIndex
-CREATE INDEX "notifications_recipient_status_idx" ON "notifications"("recipientId", "status");
-
--- CreateIndex
-CREATE INDEX "audit_logs_actorId_idx" ON "audit_logs"("actorId");
-
--- CreateIndex
-CREATE INDEX "audit_logs_action_timestamp_idx" ON "audit_logs"("action", "timestamp");
-
--- CreateIndex
 CREATE INDEX "_ExecutorUser_B_index" ON "_ExecutorUser"("B");
 
 -- CreateIndex
@@ -2365,15 +2315,6 @@ ALTER TABLE "family_consents" ADD CONSTRAINT "family_consents_applicationId_fkey
 
 -- AddForeignKey
 ALTER TABLE "roadmap_tasks" ADD CONSTRAINT "roadmap_tasks_roadmapId_fkey" FOREIGN KEY ("roadmapId") REFERENCES "executor_roadmaps"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "notifications" ADD CONSTRAINT "notifications_templateId_fkey" FOREIGN KEY ("templateId") REFERENCES "notification_templates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "notifications" ADD CONSTRAINT "notifications_recipientId_fkey" FOREIGN KEY ("recipientId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_ExecutorUser" ADD CONSTRAINT "_ExecutorUser_A_fkey" FOREIGN KEY ("A") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

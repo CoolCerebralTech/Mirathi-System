@@ -11,7 +11,6 @@ import { OAUTH_FACTORY_PORT } from '../domain/ports/oauth-factory.port';
 import { USER_REPOSITORY_PORT } from '../domain/ports/user.repository.port';
 import { DomainEventMapper } from './adapters/messaging/domain-event.mapper';
 import { MessagingEventPublisherAdapter } from './adapters/messaging/messaging-event-publisher.adapter';
-import { AppleOAuthAdapter } from './adapters/oauth/apple.adapter';
 import { GoogleOAuthAdapter } from './adapters/oauth/google.adapter';
 import { OAuthAdapterFactory } from './adapters/oauth/oauth-adapter.factory';
 import { UserMapper } from './persistence/mappers/user.mapper';
@@ -31,7 +30,6 @@ import { PrismaUserRepository } from './persistence/repositories/prisma-user.rep
 
     // --- OAuth Implementation ---
     GoogleOAuthAdapter,
-    AppleOAuthAdapter,
     OAuthAdapterFactory,
     // Bind Factory Port to Implementation
     {

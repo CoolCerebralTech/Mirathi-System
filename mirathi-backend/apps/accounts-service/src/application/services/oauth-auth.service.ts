@@ -12,7 +12,6 @@ export class OAuthAuthService {
   private readonly logger = new Logger(OAuthAuthService.name);
 
   constructor(
-    // FIX: Inject the Factory Port, not a specific Provider
     @Inject(OAUTH_FACTORY_PORT)
     private readonly oauthFactory: OAuthFactoryPort,
     private readonly userService: UserService,
@@ -56,12 +55,9 @@ export class OAuthAuthService {
     // 2. Get user profile
     let profile: OAuthUserProfile;
     try {
-      // Some providers (Apple) might need the ID token specifically
-      if (data.provider.toUpperCase() === 'APPLE' && tokens.id_token) {
-        profile = await adapter.validateIdToken(tokens.id_token);
-      } else {
-        profile = await adapter.getUserProfile(tokens.access_token);
-      }
+      // UPDATE: Removed Apple-specific ID Token check.
+      // Google standard flow uses the access token to fetch the profile.
+      profile = await adapter.getUserProfile(tokens.access_token);
     } catch (error) {
       this.logger.error(`Failed to get user profile from ${data.provider}`, error);
       throw new OAuthProviderException(data.provider, 'Failed to fetch user profile');
@@ -72,14 +68,11 @@ export class OAuthAuthService {
     let isNewUser = false;
 
     try {
-      // Check if user exists by email (Account Linking)
-      // Note: In strict security, we might only auto-link if emailVerified is true
       if (!profile.email) throw new Error('Email required');
 
       user = await this.userService.getUserByEmail(profile.email);
 
-      // User exists - ensure identity is linked
-      // This implicitly handles the "Login" case too
+      // User exists - link identity
       user = await this.userService.linkIdentity({
         userId: user.id,
         provider: profile.provider,
@@ -87,8 +80,7 @@ export class OAuthAuthService {
         email: profile.email,
       });
     } catch {
-      // If user not found (UserNotFoundException), we register
-      // Check e instance if needed, assuming generic flow here
+      // Register new user
       user = await this.userService.registerViaOAuth({
         provider: profile.provider,
         providerUserId: profile.providerUserId,

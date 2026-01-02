@@ -2,10 +2,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 
 import { OAuthProviderPort } from '../../../domain/ports/oauth-provider.port';
-import { AppleOAuthAdapter } from './apple.adapter';
 import { GoogleOAuthAdapter } from './google.adapter';
 
-export type OAuthProviderType = 'GOOGLE' | 'APPLE';
+// Updated type definition to exclude APPLE
+export type OAuthProviderType = 'GOOGLE';
 
 export interface OAuthProviderInfo {
   type: OAuthProviderType;
@@ -19,10 +19,7 @@ export class OAuthAdapterFactory implements OnModuleInit {
   private readonly logger = new Logger(OAuthAdapterFactory.name);
   private readonly adapterMap = new Map<OAuthProviderType, OAuthProviderPort>();
 
-  constructor(
-    private readonly googleAdapter: GoogleOAuthAdapter,
-    private readonly appleAdapter: AppleOAuthAdapter,
-  ) {}
+  constructor(private readonly googleAdapter: GoogleOAuthAdapter) {}
 
   onModuleInit() {
     this.initializeAdapters();
@@ -38,13 +35,7 @@ export class OAuthAdapterFactory implements OnModuleInit {
         this.logger.warn('Google OAuth adapter is not configured');
       }
 
-      // Initialize Apple adapter if configured
-      if (this.isAppleConfigured()) {
-        this.adapterMap.set('APPLE', this.appleAdapter);
-        this.logger.log('Apple OAuth adapter initialized');
-      } else {
-        this.logger.warn('Apple OAuth adapter is not configured');
-      }
+      // Removed Apple initialization logic
 
       if (this.adapterMap.size === 0) {
         this.logger.warn('No OAuth providers are configured');
@@ -63,18 +54,11 @@ export class OAuthAdapterFactory implements OnModuleInit {
     );
   }
 
-  private isAppleConfigured(): boolean {
-    return !!(
-      process.env.APPLE_TEAM_ID &&
-      process.env.APPLE_CLIENT_ID &&
-      process.env.APPLE_KEY_ID &&
-      process.env.APPLE_PRIVATE_KEY &&
-      process.env.APPLE_REDIRECT_URI
-    );
-  }
+  // Removed isAppleConfigured()
 
-  // Simplified type signature to avoid redundant constituents
   getAdapter(provider: string): OAuthProviderPort {
+    // Logic remains dynamic to handle potential future providers,
+    // but currently only allows 'GOOGLE'
     const normalizedProvider = provider.toUpperCase() as OAuthProviderType;
 
     if (!this.isProviderSupported(normalizedProvider)) {
@@ -114,6 +98,7 @@ export class OAuthAdapterFactory implements OnModuleInit {
       return null;
     }
 
+    // Removed APPLE from this record
     const info: Record<OAuthProviderType, OAuthProviderInfo> = {
       GOOGLE: {
         type: 'GOOGLE',
@@ -123,12 +108,6 @@ export class OAuthAdapterFactory implements OnModuleInit {
           'https://www.googleapis.com/auth/userinfo.profile',
           'https://www.googleapis.com/auth/userinfo.email',
         ],
-      },
-      APPLE: {
-        type: 'APPLE',
-        name: 'Apple',
-        enabled: this.isAppleConfigured(),
-        scopes: ['name', 'email'],
       },
     };
 
@@ -168,14 +147,12 @@ export class OAuthAdapterFactory implements OnModuleInit {
 
   /**
    * Factory method to create adapter instance (for manual creation)
-   * Note: This bypasses NestJS DI, use only if absolutely necessary
    */
   static createManualAdapter(provider: OAuthProviderType): OAuthProviderPort {
     switch (provider.toUpperCase()) {
       case 'GOOGLE':
         return new GoogleOAuthAdapter();
-      case 'APPLE':
-        return new AppleOAuthAdapter();
+      // Removed case 'APPLE'
       default:
         throw new Error(`Unsupported OAuth provider: ${provider}`);
     }
@@ -184,14 +161,11 @@ export class OAuthAdapterFactory implements OnModuleInit {
   /**
    * Validate all configured adapters
    */
-  // FIX: Removed async to resolve eslint error.
   validateAdapters(): Promise<{ [key in OAuthProviderType]?: boolean }> {
     const results: { [key in OAuthProviderType]?: boolean } = {};
 
     for (const [provider] of this.adapterMap.entries()) {
       try {
-        // Validation logic would go here.
-        // For now, existence in the map implies basic configuration success.
         results[provider] = true;
       } catch (error) {
         this.logger.warn(`Adapter validation failed for ${provider}:`, error);
@@ -202,9 +176,6 @@ export class OAuthAdapterFactory implements OnModuleInit {
     return Promise.resolve(results);
   }
 
-  /**
-   * Get adapter statistics (for monitoring)
-   */
   getAdapterStats(): {
     totalAdapters: number;
     enabledAdapters: number;
