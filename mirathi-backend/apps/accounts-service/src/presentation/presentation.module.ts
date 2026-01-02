@@ -5,6 +5,7 @@ import { GraphQLModule } from '@nestjs/graphql';
 import { join } from 'path';
 
 import { ApplicationModule } from '../application/application.module';
+import { AuthController } from './controllers/auth.controller';
 import { HealthController } from './controllers/health.controller';
 import { DateTimeScalar } from './graphql/scalars/date-time.scalar';
 import { PhoneNumberScalar } from './graphql/scalars/phone-number.scalar';
@@ -40,12 +41,11 @@ import { AdminResolver, AuthResolver, UserResolver } from './resolvers';
       introspection: process.env.NODE_ENV !== 'production',
       context: ({ req, res }) => ({ req, res }),
       formatError: (error) => {
-        // ... keep your error formatting
         return error;
       },
     }),
   ],
-  controllers: [HealthController],
+  controllers: [HealthController, AuthController],
   providers: [
     DateTimeScalar,
     PhoneNumberScalar,
