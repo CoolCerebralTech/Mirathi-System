@@ -124,3 +124,65 @@ src/application/
 │   └── oauth-provider.exception.ts
 │
 └── application.module.ts               # Main application module
+
+src/presentation/
+│
+├── graphql/
+│   ├── schema.graphql                 # GraphQL Schema Definition (SDL)
+│   └── scalars/                       # Custom Scalars
+│       ├── date-time.scalar.ts
+│       ├── phone-number.scalar.ts
+│       └── index.ts
+│
+├── resolvers/
+│   ├── auth.resolver.ts               # Auth: Login, Register, OAuth
+│   ├── user.resolver.ts               # User: Profile, Settings, Queries
+│   ├── admin.resolver.ts              # Admin: User management
+│   └── index.ts
+│
+├── dtos/
+│   ├── inputs/                        # GraphQL Input Types
+│   │   ├── auth/
+│   │   │   ├── oauth-callback.input.ts
+│   │   │   └── complete-onboarding.input.ts
+│   │   ├── user/
+│   │   │   ├── update-profile.input.ts
+│   │   │   ├── update-phone.input.ts
+│   │   │   └── update-settings.input.ts
+│   │   ├── admin/
+│   │   │   ├── suspend-user.input.ts
+│   │   │   ├── change-role.input.ts
+│   │   │   ├── search-users.input.ts
+│   │   │   └── list-users.input.ts
+│   │   └── index.ts
+│   │
+│   └── outputs/                       # GraphQL Object Types
+│       ├── user.output.ts             # UserOutput (main type)
+│       ├── user-profile.output.ts
+│       ├── user-settings.output.ts
+│       ├── user-identity.output.ts
+│       ├── auth-response.output.ts    # OAuth response
+│       ├── paginated-users.output.ts
+│       ├── user-statistics.output.ts
+│       └── index.ts
+│
+├── mappers/
+│   ├── user-presenter.mapper.ts       # Domain User → GraphQL Output
+│   ├── profile-presenter.mapper.ts
+│   ├── settings-presenter.mapper.ts
+│   └── index.ts
+│
+├── guards/
+│   ├── gql-auth.guard.ts             # JWT guard for GraphQL
+│   ├── gql-roles.guard.ts            # Roles guard for GraphQL
+│   └── index.ts
+│
+├── decorators/
+│   ├── current-user.decorator.ts     # @CurrentUser() for resolvers
+│   ├── roles.decorator.ts            # @Roles() for RBAC
+│   └── index.ts
+│
+├── filters/
+│   └── graphql-exception.filter.ts   # Global error handling
+│
+└── presentation.module.ts            # Main presentation module
