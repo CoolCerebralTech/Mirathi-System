@@ -1,6 +1,5 @@
 import { Prisma } from '@prisma/client';
-
-import { DocumentCategory, DocumentStatus } from '@shamba/common';
+import { DocumentCategory, DocumentStatus } from '@prisma/client';
 
 import { Document } from '../../domain/models/document.model';
 import {

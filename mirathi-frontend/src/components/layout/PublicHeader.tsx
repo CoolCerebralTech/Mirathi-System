@@ -1,249 +1,147 @@
 // FILE: src/components/layout/PublicHeader.tsx
-// CONTEXT: Mirathi (Dark Mode, Financial/Legal Trust)
+// CONTEXT: Mirathi (Clean, Professional, Trustworthy)
 
-import * as React from 'react';
+import { useState, useEffect } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Menu, X, ArrowRight, Lock } from 'lucide-react';
+import { Menu, X, ArrowRight } from 'lucide-react';
 
 import { Logo } from '../common/Logo';
 import { Button } from '../ui/Button';
 import { Sheet, SheetContent, SheetTrigger } from '../ui/Sheet';
 
 export function PublicHeader() {
-  const { t } = useTranslation(['public_header', 'common']);
-  const [scrolled, setScrolled] = React.useState(false);
+  useTranslation(['header', 'common']);
+  const [isScrolled, setIsScrolled] = useState(false);
 
-  // Scroll detection for the "Glass" effect
-  React.useEffect(() => {
+  // Handle scroll effect for the "Glass" header
+  useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
+      setIsScrolled(window.scrollY > 20);
     };
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const navLinks = React.useMemo(() => [
-    { labelKey: 'nav.platform', to: '/features' },
-    { labelKey: 'nav.architecture', to: '/how-it-works' }, // Linked to the "Service Map"
-    { labelKey: 'nav.security', to: '/security' },
-    { labelKey: 'nav.pricing', to: '/pricing' },
-  ], []);
+  const navLinks = [
+    { label: 'Solutions', to: '/solutions' },
+    { label: 'How it Works', to: '/how-it-works' },
+    { label: 'Pricing', to: '/pricing' },
+    { label: 'Resources', to: '/resources' },
+  ];
 
   return (
     <header 
       className={`
-        sticky top-0 z-50 w-full 
-        transition-all duration-500 ease-out border-b
-        ${scrolled 
-          ? 'border-slate-800 bg-slate-950/80 shadow-lg backdrop-blur-xl' 
-          : 'border-transparent bg-transparent'
+        fixed top-0 left-0 right-0 z-50 transition-all duration-300
+        ${isScrolled 
+          ? 'bg-white/90 backdrop-blur-md shadow-sm border-b border-neutral-200/50 py-2' 
+          : 'bg-transparent py-4'
         }
       `}
     >
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex h-24 items-center justify-between">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between">
           
-          {/* Logo Section */}
-          <div className="flex items-center">
-              <Logo 
-                className="transition-transform duration-300 hover:scale-105"
-                sizeClassName="h-14 w-auto" // Slightly larger for the detailed column icon
-                showTagline={true} // Show "Succession Copilot"
-              />
+          {/* 1. Logo Section */}
+          <div className="flex-shrink-0">
+            <Link to="/" className="flex items-center gap-2 group">
+              <Logo className="h-10 w-auto text-[#0F3D3E]" />
+            </Link>
           </div>
           
-          {/* Desktop Navigation */}
-          <nav 
-            className="hidden items-center space-x-2 lg:flex" 
-            aria-label="Main navigation"
-          >
+          {/* 2. Desktop Navigation */}
+          <nav className="hidden md:flex md:gap-x-8">
             {navLinks.map((link) => (
               <NavLink 
                 key={link.to} 
                 to={link.to} 
                 className={({ isActive }) => 
-                  `
-                    relative px-4 py-2 font-sans text-sm font-medium tracking-wide
-                    transition-all duration-300 ease-out
-                    ${isActive 
-                      ? 'text-amber-400' 
-                      : 'text-slate-300 hover:text-white'
-                    }
-                    after:absolute after:bottom-0 after:left-1/2 after:-translate-x-1/2 
-                    after:h-0.5 after:w-1/2
-                    after:origin-center after:scale-x-0 
-                    after:bg-amber-400 after:transition-transform after:duration-300
-                    ${isActive ? 'after:scale-x-100' : 'hover:after:scale-x-100'}
-                  `
+                  `text-sm font-medium transition-colors hover:text-[#C8A165] 
+                   ${isActive ? 'text-[#0F3D3E] font-bold' : 'text-neutral-600'}`
                 }
               >
-                {t(link.labelKey)}
+                {link.label}
               </NavLink>
             ))}
           </nav>
 
-          {/* Desktop CTA Buttons */}
-          <div className="hidden items-center space-x-6 lg:flex">
-            {/* Login Link */}
+          {/* 3. Action Buttons */}
+          <div className="hidden md:flex items-center gap-4">
             <Link 
               to="/login" 
-              className="
-                flex items-center gap-2 text-sm font-semibold text-slate-300
-                transition-all duration-300 hover:text-amber-400
-              "
+              className="text-sm font-semibold text-[#0F3D3E] hover:text-[#C8A165] transition-colors"
             >
-              <Lock className="h-4 w-4 opacity-70" />
-              {t('nav.sign_in')}
+              Sign in
             </Link>
-
-            {/* Get Started Button */}
             <Button 
               asChild 
-              className="
-                bg-gradient-to-r from-amber-500 to-amber-600 
-                font-sans text-sm font-bold text-slate-950 
-                shadow-[0_0_20px_rgba(245,158,11,0.2)] 
-                transition-all duration-300 
-                hover:shadow-[0_0_30px_rgba(245,158,11,0.4)] hover:-translate-y-0.5
-                border-0 rounded-lg
-              "
+              className="bg-[#0F3D3E] hover:bg-[#0F3D3E]/90 text-white border-none shadow-lg shadow-[#0F3D3E]/20"
             >
-              <Link to="/register" className="flex items-center px-6 py-2.5">
-                <span>{t('nav.get_started')}</span>
-                <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+              <Link to="/register" className="flex items-center gap-2">
+                Start My Plan <ArrowRight className="h-4 w-4 text-[#C8A165]" />
               </Link>
             </Button>
           </div>
 
-          {/* Mobile Menu */}
-          <MobileNav navLinks={navLinks} />
+          {/* 4. Mobile Menu Trigger */}
+          <div className="md:hidden">
+            <MobileMenu navLinks={navLinks} />
+          </div>
         </div>
       </div>
     </header>
   );
 }
 
-// Refined Mobile Navigation (Dark Mode)
-function MobileNav({ navLinks }: { navLinks: { labelKey: string; to: string }[] }) {
-  const { t } = useTranslation(['public_header', 'common']);
-  const [isOpen, setIsOpen] = React.useState(false);
-
-  // Prevent body scroll when menu is open
-  React.useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
+// Sub-component: Mobile Menu
+function MobileMenu({ navLinks }: { navLinks: { label: string; to: string }[] }) {
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="lg:hidden">
-      <Sheet open={isOpen} onOpenChange={setIsOpen}>
-        <SheetTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="
-              text-slate-300 transition-colors duration-300 
-              hover:bg-slate-800 hover:text-amber-400
-            "
-            aria-label="Toggle menu"
-          >
-            <Menu className="h-6 w-6" />
-          </Button>
-        </SheetTrigger>
-        
-        <SheetContent 
-          side="right" 
-          className="
-            w-full max-w-sm border-l border-slate-800 
-            bg-slate-950 text-slate-100
-          "
-        >
-          <div className="flex h-full flex-col">
-            
-            {/* Mobile Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-6">
-              <Link 
-                to="/" 
-                onClick={() => setIsOpen(false)}
-                className="transition-opacity hover:opacity-80"
-              >
-                <Logo sizeClassName="h-10 w-auto" />
-              </Link>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsOpen(false)}
-                className="text-slate-400 hover:bg-slate-800 hover:text-white"
-                aria-label="Close menu"
-              >
-                <X className="h-6 w-6" />
-              </Button>
-            </div>
-            
-            {/* Mobile Navigation Links */}
-            <nav 
-              className="flex flex-col space-y-2 py-8" 
-              aria-label="Mobile navigation"
-            >
-              {navLinks.map((link) => (
-                <NavLink
-                  key={link.to}
-                  to={link.to}
-                  onClick={() => setIsOpen(false)}
-                  className={({ isActive }) =>
-                    `
-                      rounded-lg px-4 py-3 font-serif text-lg font-medium
-                      transition-all duration-300
-                      ${isActive
-                        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                        : 'text-slate-300 hover:bg-slate-900 hover:text-white'
-                      }
-                    `
-                  }
-                >
-                  {t(link.labelKey)}
-                </NavLink>
-              ))}
-            </nav>
-            
-            {/* Mobile CTA Buttons */}
-            <div className="mt-auto flex flex-col space-y-4 border-t border-slate-800 pt-8">
-              <Button 
-                asChild 
-                size="lg" 
-                className="
-                  bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold
-                  shadow-lg
-                "
-              >
-                <Link to="/register" onClick={() => setIsOpen(false)}>
-                  {t('nav.get_started')}
-                </Link>
-              </Button>
-              <Button 
-                variant="outline" 
-                asChild 
-                size="lg" 
-                className="
-                  border-slate-700 bg-transparent text-slate-300
-                  hover:bg-slate-900 hover:text-white hover:border-slate-500
-                "
-              >
-                <Link to="/login" onClick={() => setIsOpen(false)}>
-                  {t('nav.sign_in')}
-                </Link>
-              </Button>
-            </div>
+    <Sheet open={isOpen} onOpenChange={setIsOpen}>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="text-[#0F3D3E]">
+          <Menu className="h-6 w-6" />
+          <span className="sr-only">Open menu</span>
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="right" className="w-full sm:w-[300px] border-l-[#C8A165]/20 bg-[#F8F9FA]">
+        <div className="flex flex-col gap-8 mt-6">
+          <div className="flex items-center justify-between border-b border-neutral-200 pb-4">
+            <Logo className="h-8 w-auto text-[#0F3D3E]" />
+            <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)}>
+              <X className="h-5 w-5" />
+            </Button>
           </div>
-        </SheetContent>
-      </Sheet>
-    </div>
+
+          <nav className="flex flex-col gap-4">
+            {navLinks.map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                onClick={() => setIsOpen(false)}
+                className="text-lg font-medium text-neutral-800 hover:text-[#C8A165] hover:pl-2 transition-all"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="flex flex-col gap-3 mt-auto border-t border-neutral-200 pt-6">
+            <Link to="/login" onClick={() => setIsOpen(false)}>
+              <Button variant="outline" className="w-full justify-start">
+                Sign In
+              </Button>
+            </Link>
+            <Link to="/register" onClick={() => setIsOpen(false)}>
+              <Button className="w-full bg-[#0F3D3E] text-white hover:bg-[#0F3D3E]/90">
+                Get Started
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }

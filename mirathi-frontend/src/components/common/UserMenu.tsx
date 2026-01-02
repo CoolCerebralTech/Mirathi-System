@@ -1,11 +1,9 @@
-// FILE: src/components/common/UserMenu.tsx
-
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { User, Settings, LogOut, ChevronDown } from 'lucide-react';
 
 import { useLogout } from '../../features/auth/auth.api';
-import { Avatar } from './Avatar';
+import { Avatar, AvatarFallback } from './Avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,10 +15,6 @@ import {
 import { Button } from '../ui/Button';
 import { usePersistentAuthStore } from '../../store/auth-persistent';
 
-/**
- * A reusable user menu dropdown component, typically placed in the application header.
- * It displays the current user's information and provides links to profile, settings, and logout.
- */
 export function UserMenu() {
   const { t } = useTranslation(['header', 'auth']);
   const user = usePersistentAuthStore((state) => state.user);
@@ -30,15 +24,12 @@ export function UserMenu() {
   const handleLogout = () => {
     logout(undefined, {
       onSuccess: () => {
-        // Redirect to login page after successful logout
         navigate('/login');
       },
     });
   };
 
   if (!user) {
-    // This component should only be rendered for authenticated users,
-    // so this is a safe fallback.
     return null;
   }
 
@@ -52,7 +43,9 @@ export function UserMenu() {
           variant="ghost"
           className="flex items-center gap-2 h-auto px-2 py-1.5 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <Avatar fallback={initials} />
+          <Avatar size="sm">
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
           <div className="hidden text-left md:block">
             <p className="text-sm font-medium">{fullName}</p>
             <p className="text-xs text-muted-foreground">

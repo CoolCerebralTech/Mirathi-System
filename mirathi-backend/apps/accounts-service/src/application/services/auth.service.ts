@@ -172,6 +172,10 @@ export class AuthService {
         marketingOptIn: dto.marketingOptIn ?? false,
       });
 
+      // 🚀 AUTO-VERIFY: Activate user immediately for production launch
+      // TODO: Remove this when email verification is re-enabled
+      user.activate();
+
       // Save user and profile in transaction
       await this.userRepo.save(user);
 
@@ -181,20 +185,21 @@ export class AuthService {
       // Publish domain events
       await this.publishDomainEvents(user);
 
-      // --- FIXED: Use crypto for random token generation ---
-      const verificationTokenString = crypto.randomBytes(32).toString('hex');
+      // ⚠️ SKIP EMAIL VERIFICATION FOR NOW
+      // Uncomment this section when ready to enable email verification:
+      /*
+    const verificationTokenString = crypto.randomBytes(32).toString('hex');
+    const verificationToken = TokenFactory.createEmailVerificationToken(
+      userId,
+      await this.hashingService.hash(verificationTokenString),
+      this.EMAIL_VERIFICATION_EXPIRY_HOURS,
+    );
+    await this.emailVerificationTokenRepo.save(verificationToken);
 
-      const verificationToken = TokenFactory.createEmailVerificationToken(
-        userId,
-        await this.hashingService.hash(verificationTokenString), // Hash it for storage
-        this.EMAIL_VERIFICATION_EXPIRY_HOURS,
-      );
-      await this.emailVerificationTokenRepo.save(verificationToken);
-
-      // Send verification email
-      this.sendVerificationEmail(user, verificationTokenString).catch((error) => {
-        this.logger.error('Failed to send verification email', error);
-      });
+    this.sendVerificationEmail(user, verificationTokenString).catch((error) => {
+      this.logger.error('Failed to send verification email', error);
+    });
+    */
 
       // Generate auth tokens
       const tokens = await this.generateTokens(user, {
@@ -216,10 +221,11 @@ export class AuthService {
         issuedAt,
       });
 
-      this.logger.log(`Successfully registered user: ${userId}`);
+      this.logger.log(`Successfully registered and auto-verified user: ${userId}`);
 
+      // Return with requiresEmailVerification: false since we auto-verified
       return this.authMapper.toAuthResponse(user, user.profile, tokens, tokenMetadata, {
-        requiresEmailVerification: true,
+        requiresEmailVerification: false, // ✅ Changed from true
       });
     } catch (error) {
       this.logger.error(`Registration failed for email: ${dto.email}`, error);

@@ -13,7 +13,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     configService: ConfigService,
     private readonly prisma: PrismaService,
   ) {
-    const secret = configService.get<'JWT_SECRET'>('JWT_SECRET');
+    const secret = configService.get('JWT_SECRET');
+
     if (!secret) {
       throw new Error('JWT_SECRET is not defined in configuration');
     }
@@ -21,22 +22,20 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: secret,
+      secretOrKey: String(secret),
     });
   }
 
   async validate(payload: JwtPayload): Promise<JwtPayload> {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, isActive: true, deletedAt: true }, // Select status fields
+      select: { id: true, isActive: true, deletedAt: true },
     });
 
-    // If user is not found, or is deleted, or is inactive, the token is invalid.
     if (!user || user.deletedAt !== null || !user.isActive) {
-      throw new UnauthorizedException('Invalid token: User not found or account is inactive.');
+      throw new UnauthorizedException('Invalid token: User not found or account is inactive');
     }
 
-    // The payload is valid, return it so the guard can attach it to the request.
     return payload;
   }
 }

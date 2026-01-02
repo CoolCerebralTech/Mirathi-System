@@ -4,32 +4,33 @@ import { useEffect } from 'react';
 import { PublicHeader } from './PublicHeader';
 import { PublicFooter } from './PublicFooter';
 
-
 export function PublicLayout() {
   const location = useLocation();
 
+  // Scroll to top whenever the route changes (Standard UX)
   useEffect(() => {
     window.scrollTo(0, 0); 
-}, [location.pathname]);
+  }, [location.pathname]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background antialiased">
-      {/* Header - Sticky with elegant shadow on scroll */}
+    // Background: A sophisticated off-white/grey, not stark white.
+    <div className="flex min-h-screen flex-col bg-[#F8F9FA] font-sans antialiased text-neutral-900 selection:bg-[#C8A165] selection:text-white">
+      
+      {/* Navigation */}
       <PublicHeader />
 
-      {/* Main Content Area with Fade-in Animation */}
+      {/* Main Content */}
       <main
-        key={location.pathname} 
-        className="flex-1 animate-fade-in"
+        className="flex-1 pt-16" // pt-16 accounts for the fixed header height
         role="main"
-        aria-label="Main content"
       >
-        <Outlet />
+        <div className="animate-fade-in">
+          <Outlet />
+        </div>
       </main>
 
-      {/* Footer - Elegant closure with trust elements */}
+      {/* Site Footer */}
       <PublicFooter />
-
       
     </div>
   );

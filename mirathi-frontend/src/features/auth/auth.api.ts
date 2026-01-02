@@ -512,16 +512,18 @@ export const useRegister = (options?: AuthMutationOptions) => {
       loginAction(storeData, rememberMe);
       queryClient.setQueryData(userKeys.profile(), authData.user);
 
+      // ✅ UPDATED SUCCESS MESSAGE: Reflects auto-verification
       toast.success('Account created successfully!', {
-        description: `Welcome, ${authData.user.firstName || authData.user.email}!`,
+        description: `Welcome, ${authData.user.firstName || authData.user.email}! Your account is ready to use.`,
         duration: 4000,
       });
 
       options?.onSuccess?.(authData);
 
-      console.log('[Auth] Registration successful:', {
+      console.log('[Auth] Registration successful (auto-verified):', {
         userId: authData.user.id,
         email: authData.user.email,
+        emailVerified: authData.user.emailVerified, // Should be true
         timestamp: new Date().toISOString(),
       });
     },
@@ -543,7 +545,6 @@ export const useRegister = (options?: AuthMutationOptions) => {
     },
   });
 };
-
 /**
  * Hook for user logout
  */

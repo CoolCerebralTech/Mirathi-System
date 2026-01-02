@@ -13,10 +13,10 @@ import { ProtectedRoute, GuestRoute } from './router/ProtectedRoute';
 // === Pages ===
 // Public
 import { HomePage } from './pages/public/HomePage';
-import { AboutPage } from './pages/public/AboutPage';
-import { FeaturesPage } from './pages/public/FeaturesPage';
-import { ContactPage } from './pages/public/ContactPage';
-import { SecurityPage } from './pages/public/SecurityPage';
+import { HowItWorksPage } from './pages/public/HowItWorksPage';
+import { SolutionsPage } from './pages/public/SolutionsPage';
+import { LegalPage } from './pages/public/LegalPage';
+
 
 // Auth
 import { LoginPage } from './pages/auth/LoginPage';
@@ -61,17 +61,20 @@ import {
 
 // Not Found
 import { NotFoundPage } from './pages/NotFoundPage';
+import { ComplianceReportPage, ExecuteWillPage, ExecutorDashboardPage, WillDashboardPage, WillEditorPage } from './pages/will';
 
 function App() {
   return (
     <Routes>
       {/* 1. Public Routes */}
       <Route element={<PublicLayout />}>
-        <Route index element={<HomePage />} />
-        <Route path="about" element={<AboutPage />} />
-        <Route path="features" element={<FeaturesPage />} />
-        <Route path="contact" element={<ContactPage />} />
-        <Route path="security" element={<SecurityPage />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="/how-it-works" element={<HowItWorksPage />} />
+        <Route path="/solutions" element={<SolutionsPage />} />
+        <Route path="/features" element={<SolutionsPage />} /> {/* Reuse for now */}
+        <Route path="/legal/*" element={<LegalPage />} />
+        <Route path="/privacy-policy" element={<LegalPage />} />
+        <Route path="/terms-of-service" element={<LegalPage />} />
       </Route>
 
       {/* 2. Guest Routes (Login/Register) */}
@@ -103,6 +106,13 @@ function App() {
           <Route path="settings" element={<SettingsPage />} />
           <Route path="documents" element={<DocumentsPage />} />
 
+          {/* 4.2. Will Module (Estate Planning) */}
+          <Route path="wills" element={<WillDashboardPage />} />
+          <Route path="will/:id/edit" element={<WillEditorPage />} />
+          <Route path="will/:id/compliance" element={<ComplianceReportPage />} />
+          <Route path="will/:id/execute" element={<ExecuteWillPage />} />
+          <Route path="will/:id/executor" element={<ExecutorDashboardPage />} />
+          
           {/* --- ESTATE SERVICE --- */}
           <Route path="estates">
             <Route index element={<EstateListPage />} />

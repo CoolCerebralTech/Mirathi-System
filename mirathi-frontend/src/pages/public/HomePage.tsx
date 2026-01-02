@@ -1,32 +1,24 @@
 // FILE: src/pages/public/HomePage.tsx
-// CONTEXT: Mirathi System Architecture (Identity -> Inventory -> Process)
-// DESIGN: Dark Mode, Fintech/Legal-Tech, Trust-First
+// VERSION 2.0: Market-Focused, Benefit-Driven
+// DESIGN: Light, Professional, High-Trust "Old Money" Aesthetic
 
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Shield, 
-  FileText, 
+  ShieldCheck, 
   Users, 
   ArrowRight, 
   CheckCircle, 
-  Brain, 
-  Zap, 
   Lock, 
   Scale, 
-  Sparkles, 
-  TrendingUp, 
-  Heart,
-  Activity,
-  Network,
-  FileCheck
-} from 'lucide-react';
+  HeartHandshake,
+  Landmark} from 'lucide-react';
 
 import { Button } from '../../components/ui/Button';
 
-// Ensure these image paths match your project structure
-import HeroImage from '../../assets/hero-mirathi.png';
+// --- VISUAL ASSETS ---
+import HeroImage from '../../assets/hero-mirathi-light.png'; // A lighter, more hopeful hero image
 import FamilyTreeViz from '../../assets/family-connections.png';
 import EstateInventory from '../../assets/estate-dashboard.png';
 import SuccessionRoadmap from '../../assets/succession-roadmap.png';
@@ -39,280 +31,182 @@ export function HomePage() {
   const { t } = useTranslation(['home', 'common']);
   const navigate = useNavigate();
 
-  // 1. HIGH LEVEL PILLARS (The Service Map)
+  // 1. THE CORE VALUE PROPOSITION (User-Friendly Language)
   const features = React.useMemo(() => [
     { 
       icon: Users, 
       titleKey: 'pillars.family.title',
-      defaultTitle: 'Family Service',
+      defaultTitle: 'Establish Your Legacy Line',
       descriptionKey: 'pillars.family.description',
-      defaultDesc: 'The Source of Kinship Truth. We map S.40 Houses and biological relationships to establish legal beneficiaries.',
-      color: 'blue',
-      label: 'Identity Layer'
+      defaultDesc: 'Create a single, undisputed source of truth for your family tree, ensuring all legal heirs are identified to prevent future disputes.',
+      color: 'navy'
     },
     { 
-      icon: Shield, 
+      icon: Landmark, 
       titleKey: 'pillars.estate.title',
-      defaultTitle: 'Estate Service',
+      defaultTitle: 'Organize Your Assets',
       descriptionKey: 'pillars.estate.description',
-      defaultDesc: 'The Economic Truth Engine. A deterministic inventory of Assets vs. Debts to ensure solvency before distribution.',
-      color: 'emerald',
-      label: 'Inventory Layer'
+      defaultDesc: 'Build a complete, verified inventory of all property—from land and vehicles to shares and bank accounts—for a clear view of your net worth.',
+      color: 'gold'
     },
     { 
-      icon: Brain, 
+      icon: Scale, 
       titleKey: 'pillars.succession.title',
-      defaultTitle: 'Succession Service',
+      defaultTitle: 'Automate the Legal Process',
       descriptionKey: 'pillars.succession.description',
-      defaultDesc: 'The Digital Lawyer. Automates compliance with Cap 160, generating court-ready forms (P&A 80, P&A 5).',
-      color: 'purple',
-      label: 'Process Layer'
+      defaultDesc: 'Our intelligent platform guides you through every required legal step, automatically preparing court documents and ensuring full compliance.',
+      color: 'navy'
     },
   ], []);
 
-  // 2. CRISIS STATS
-  const stats = React.useMemo(() => [
-    { value: '26.2%', label: 'Succession Conflicts', icon: TrendingUp },
-    { value: '38.6%', label: 'Family Land Loss', icon: Heart },
-    { value: '10+', label: 'Years in Court', icon: Scale },
+  // 2. THE PROBLEM WE SOLVE (The Emotional Hook)
+  const problems = React.useMemo(() => [
+    { value: '7 out of 10', label: 'Families face succession disputes', icon: HeartHandshake },
+    { value: 'KES 20B+', label: 'Tied up in unclaimed assets', icon: Lock },
+    { value: 'Years', label: 'Lost in court battles', icon: Scale },
   ], []);
 
-  // 3. DEEP DIVE (The "Constitution" Logic)
+  // 3. DETAILED FEATURES (Translating Tech to Benefits)
   const pillarsDetailed = React.useMemo(() => [
     {
       image: FamilyTreeViz,
-      color: 'blue',
-      label: 'Pillar One: Identity',
+      color: 'navy',
+      label: 'Clarity for Your Family',
       icon: Users,
       titleKey: 'pillars.family.detail_title',
-      defaultTitle: 'Kinship is not an Opinion.',
+      defaultTitle: 'A Foundation of Harmony',
       descriptionKey: 'pillars.family.detail_description',
-      defaultDesc: 'Mirathi separates "Family" from "Finance". We create a digital twin of your family tree that strictly adheres to the Children Act and Marriage Act, ensuring no rightful beneficiary is excluded.',
+      defaultDesc: 'Prevent disagreements before they start. Our platform helps you map every beneficiary, spouse, and dependent according to Kenyan law, creating a single version of the truth the whole family can agree on.',
       features: [
-        'Tracks S.40 Polygamous Houses logic',
-        'Verifies Guardianship for minors',
-        'Biometric-ready Identity Resolution',
-        'Separates Biological ties from Asset claims'
+        'Handles Complex Family Structures (Polygamy)',
+        'Safeguards Minor Children\'s Inheritance',
+        'Secure Digital Identity Verification',
+        'Maps Legal Heirs, Not Just Relatives'
       ]
     },
     {
       image: EstateInventory,
-      color: 'emerald',
-      label: 'Pillar Two: Inventory',
-      icon: Activity,
+      color: 'gold',
+      label: 'A Transparent Inventory',
+      icon: Landmark,
       titleKey: 'pillars.estate.detail_title',
-      defaultTitle: 'Mathematical Economic Truth.',
+      defaultTitle: 'A Real-Time View of Your Estate',
       descriptionKey: 'pillars.estate.detail_description',
-      defaultDesc: 'An estate cannot be distributed if it is insolvent. Our "Active Intelligence" calculates Net Estate Value in real-time, enforcing S.45 priority (Funeral > Secured Debts > Unsecured Debts).',
+      defaultDesc: 'Know exactly where you stand. Mirathi’s Digital Vault allows you to securely upload and verify all asset documents, giving you a live, accurate calculation of your estate’s total value.',
       features: [
-        'Real-time Solvency Radar',
-        'Tracks Inter Vivos Gifts (Hotchpot)',
-        'Automated Asset Valuation Strategy',
-        'Blocks distribution if debts exceed assets'
+        'Automatic Net Worth Calculation',
+        'Accounts for Past Gifts for Fair Shares',
+        'Secure Digital Document Vault (AES-256)',
+        'Protects Creditors & Prevents Illegal Payouts'
       ]
     },
     {
       image: SuccessionRoadmap,
-      color: 'purple',
-      label: 'Pillar Three: Process',
+      color: 'navy',
+      label: 'A Guided Legal Path',
       icon: Scale,
       titleKey: 'pillars.succession.detail_title',
-      defaultTitle: 'Automated Compliance.',
+      defaultTitle: 'Your Guided Path Through Court',
       descriptionKey: 'pillars.succession.detail_description',
-      defaultDesc: 'The system acts as a "Digital Copilot," preventing you from generating forms until the Readiness Score reaches 80%. It handles the complexity of Intestate vs. Testate workflows automatically.',
+      defaultDesc: 'Never feel lost or wonder what to do next. The Mirathi Copilot analyzes your situation and creates a personalized roadmap, unlocking each step only when the previous one is correctly completed.',
       features: [
-        'Context Detection (Islamic vs Civil)',
-        'Auto-generates Form P&A 80 & 5',
-        'Digital Consents (Form 38) Workflow',
-        'Executor Roadmap & Task unlocking'
+        'Tailored for All Scenarios (With or Without a Will)',
+        'Court-Ready Document Generation (P&A Forms)',
+        'Secure Online Beneficiary Consents',
+        'Step-by-Step Task Management for Executors'
       ]
     }
   ], []);
 
-  // 4. THE EVENT-DRIVEN FLOW
-  const howItWorksSteps = React.useMemo(() => [
-    { 
-      icon: Activity, 
-      color: 'amber',
-      title: 'The "Death Event"',
-      description: 'You upload a Death Certificate. The system freezes the Estate Service to protect assets and triggers the Succession Service.'
-    },
-    { 
-      icon: FileText, 
-      color: 'blue',
-      title: 'Document Verification',
-      description: 'Upload assets (Title Deeds). Our OCR extracts data, and Verifiers approve the "Claim Check" to validate the asset.'
-    },
-    { 
-      icon: Network, 
-      color: 'emerald',
-      title: 'Graph Consensus',
-      description: 'The Family Service prompts all beneficiaries to sign digital consents, ensuring the family graph is agreed upon.'
-    },
-    { 
-      icon: Brain, 
-      color: 'purple',
-      title: 'Readiness Audit',
-      description: 'The Intelligence Engine runs a compliance check. If the score is >80%, it unlocks the filing generation.'
-    },
-    { 
-      icon: FileCheck, 
-      color: 'green',
-      title: 'Court Filing',
-      description: 'Download the complete, legally compliant PDF bundle ready for the High Court registry.'
-    }
-  ], []);
-
   return (
-    <div className="flex flex-col bg-slate-950 font-sans text-slate-100">
+    <div className="flex flex-col bg-neutral-50 font-sans text-neutral-800">
       
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* HERO SECTION - Intelligence Engine */}
+      {/* HERO SECTION - Clarity and Confidence */}
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      <section 
-        className="relative flex min-h-screen items-center justify-center overflow-hidden"
-        style={{ 
-          backgroundImage: `linear-gradient(to bottom, rgba(2, 6, 23, 0.8), rgba(2, 6, 23, 0.95)), url(${HeroImage})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundAttachment: 'fixed'
-        }}
-      >
-        {/* Cinematic Vignette */}
-        <div className="absolute inset-0 shadow-[inset_0_0_200px_rgba(0,0,0,0.8)]"></div>
-
-        <div className="relative z-10 px-4 text-center max-w-6xl mx-auto mt-12">
-          {/* Status Badge */}
-          <div className="mb-8 inline-flex items-center gap-3 rounded-full border border-amber-500/30 bg-amber-500/10 px-6 py-3 backdrop-blur-md animate-fade-in-up">
-            <Sparkles className="h-5 w-5 text-amber-400 animate-pulse" />
-            <span className="text-sm font-semibold text-amber-100 tracking-wide">
-              Active Intelligence Engine • System Version 1.0.0
-            </span>
-          </div>
-
-          {/* Main Headline */}
-          <h1 className="font-serif text-5xl font-bold leading-tight text-white md:text-6xl lg:text-7xl tracking-tight">
-            {t('hero.title', 'The Digital')}
-            <span className="mt-2 block bg-gradient-to-r from-amber-200 via-amber-400 to-amber-600 bg-clip-text text-transparent">
-              {t('hero.subtitle', 'Succession Copilot')}
-            </span>
-          </h1>
-
-          {/* Subheadline - The Philosophy */}
-          <p className="mx-auto mt-8 max-w-3xl text-lg font-light leading-relaxed text-slate-300 md:text-xl lg:text-2xl">
-            {t('hero.description', 'Mirathi replaces the manual, error-prone role of a legal clerk with a deterministic system. We separate Identity from Inventory to automate your path to the High Court.')}
-          </p>
-
-          {/* Service Map Visual Indicator */}
-          <div className="mt-12 flex flex-wrap justify-center gap-4 text-sm font-medium">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300">
-              <Users className="h-4 w-4" /> Family Service
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
-              <Shield className="h-4 w-4" /> Estate Service
-            </div>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-300">
-              <Brain className="h-4 w-4" /> Succession Service
-            </div>
-          </div>
-
-          {/* CTA Buttons */}
-          <div className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Button 
-              size="lg" 
-              onClick={() => navigate('/register')} 
-              className="group w-full sm:w-auto bg-gradient-to-r from-amber-500 to-amber-600 text-lg font-bold text-slate-950 shadow-[0_0_30px_rgba(245,158,11,0.3)] transition-all duration-300 hover:shadow-[0_0_50px_rgba(245,158,11,0.5)] hover:-translate-y-1 border-0"
-            >
-              <div className="flex w-full items-center justify-center gap-3 px-4">
-                <span>{t('hero.cta_main', 'Start Readiness Audit')}</span>
-                <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
+      <section className="relative overflow-hidden bg-white pt-24 lg:pt-32">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="grid lg:grid-cols-2 lg:gap-x-12 lg:items-center">
+            {/* Text Content */}
+            <div className="relative z-10 text-center lg:text-left">
+              <span className="inline-flex items-center gap-2 rounded-full bg-[#0F3D3E]/10 px-4 py-1.5 text-sm font-semibold text-[#0F3D3E]">
+                <ShieldCheck className="h-4 w-4 text-[#C8A165]" />
+                Kenya's #1 Succession Platform
+              </span>
+              <h1 className="mt-8 font-serif text-4xl font-bold tracking-tight text-[#0F3D3E] sm:text-5xl lg:text-6xl">
+                Navigate Inheritance with Clarity & Confidence.
+              </h1>
+              <p className="mt-6 text-lg leading-8 text-neutral-600">
+                Mirathi transforms the complex, paper-based succession process into a simple, secure, and transparent digital journey. We are the Digital Copilot for your family's legacy.
+              </p>
+              <div className="mt-10 flex items-center justify-center gap-x-6 lg:justify-start">
+                <Button 
+                  size="lg"
+                  onClick={() => navigate('/register')}
+                  className="group bg-[#0F3D3E] hover:bg-[#0F3D3E]/90 text-white shadow-lg shadow-[#0F3D3E]/20"
+                >
+                  Start Your Plan for Free
+                  <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                </Button>
+                <Button 
+                  size="lg" 
+                  variant="ghost" 
+                  onClick={() => navigate('/how-it-works')}
+                  className="group text-[#0F3D3E] hover:bg-neutral-100"
+                >
+                  See How It Works <span aria-hidden="true" className="ml-1 transition-transform group-hover:translate-x-1">→</span>
+                </Button>
               </div>
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline" 
-              onClick={() => navigate('/features')} 
-              className="w-full border border-slate-600 bg-slate-800/50 text-lg font-medium text-slate-100 backdrop-blur-md transition-all duration-300 hover:bg-slate-700/80 hover:border-slate-500 sm:w-auto"
-            >
-              {t('hero.cta_secondary', 'View Service Map')}
-            </Button>
-          </div>
-
-          {/* Compliance & Security */}
-          <div className="mt-16 flex flex-wrap items-center justify-center gap-8 text-slate-400">
-            <div className="flex items-center gap-2">
-              <Lock className="h-5 w-5 text-amber-500" />
-              <span className="text-sm font-medium">{t('hero.trust.kdpa', 'Data Protection Act 2019')}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Scale className="h-5 w-5 text-amber-500" />
-              <span className="text-sm font-medium">{t('hero.trust.law', 'Law of Succession Act (Cap 160)')}</span>
+            {/* Image Content */}
+            <div className="relative mt-12 lg:mt-0">
+               <div className="absolute -top-16 -right-16 w-96 h-96 bg-[#C8A165]/10 rounded-full blur-3xl" />
+               <img src={HeroImage} alt="Mirathi Dashboard showing a clear succession plan" className="relative rounded-2xl shadow-2xl" />
             </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-amber-500" />
-              <span className="text-sm font-medium">{t('hero.trust.encryption', 'AES-256 Vault')}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
-          <div className="h-14 w-8 rounded-full border border-slate-600 flex justify-center pt-2">
-            <div className="h-2 w-2 rounded-full bg-amber-500 animate-bounce"></div>
           </div>
         </div>
       </section>
 
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* STATS SECTION - The Urgency */}
+      {/* PROBLEM / STATS SECTION - The Urgency */}
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      <section className="border-y border-slate-800 bg-slate-900/50 py-20 lg:py-28 backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12"> 
+      <section className="bg-white py-20 lg:py-28">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8"> 
           <div className="mx-auto max-w-4xl text-center">
-            <span className="text-sm font-bold uppercase tracking-widest text-red-400">
-              The Cost of Manual Process
-            </span>
-            <h2 className="mt-4 font-serif text-3xl font-bold text-white md:text-4xl">
-              Why "Frozen Estates" Destroy Wealth
-            </h2>
-            <p className="mt-6 text-lg text-slate-400">
-              Without a deterministic system, families rely on memory and manual paperwork, leading to disputes that block asset transfer.
+            <h2 className="text-base font-semibold leading-7 text-[#C8A165]">The Cost of Delay</h2>
+            <p className="mt-2 font-serif text-3xl font-bold tracking-tight text-[#0F3D3E] sm:text-4xl">
+              Disorganization and disputes can freeze a family's future.
             </p>
           </div>
           <div className="mx-auto mt-16 grid max-w-5xl gap-8 md:grid-cols-3">
-            {stats.map((stat, index) => (
-              <div 
-                key={index} 
-                className="group rounded-2xl border border-slate-800 bg-slate-950 p-8 text-center transition-all duration-300 hover:border-red-900/50 hover:bg-slate-900"
-              >
-                <stat.icon className="mx-auto mb-6 h-10 w-10 text-red-500/70 transition-transform group-hover:scale-110 group-hover:text-red-500" />
-                <div className="font-serif text-5xl font-bold text-slate-100">{stat.value}</div>
-                <p className="mt-4 text-sm font-medium text-slate-400 uppercase tracking-wide">
+            {problems.map((stat, index) => (
+              <div key={index} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-8 text-center">
+                <stat.icon className="mx-auto mb-4 h-8 w-8 text-[#C8A165]" />
+                <div className="font-serif text-4xl font-bold text-[#0F3D3E]">{stat.value}</div>
+                <p className="mt-2 text-sm font-medium text-neutral-600">
                   {stat.label}
                 </p>
               </div>
             ))}
           </div>
-          <p className="mt-12 text-center text-xs text-slate-600">
-            Source: Kenya National Bureau of Statistics • Judiciary of Kenya (Probate Division)
+          <p className="mt-12 text-center text-xs text-neutral-500">
+            Source: FSD Kenya, Judiciary of Kenya Reports
           </p>
         </div>
       </section>
 
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* SERVICE MAP - High Level */}
+      {/* CORE FEATURES (Was Service Map) */}
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      <section className="py-20 lg:py-28 bg-slate-950">
-        <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">
+      <section className="py-20 lg:py-28 bg-neutral-50">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
-            <span className="text-sm font-bold uppercase tracking-widest text-amber-500">
-              System Architecture
-            </span>
-            <h2 className="mt-4 font-serif text-4xl font-bold tracking-tight text-white md:text-5xl">
-              Three Pillars. One Truth.
-            </h2>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-400">
-              We avoid the "God Object" trap of legacy systems. Mirathi strictly separates facts (Family) from money (Estate) and procedure (Succession).
+            <h2 className="text-base font-semibold leading-7 text-[#C8A165]">Our Foundation</h2>
+            <p className="mt-2 font-serif text-3xl font-bold tracking-tight text-[#0F3D3E] sm:text-4xl">
+              Clarity at Every Step of the Journey
+            </p>
+            <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-neutral-600">
+              Mirathi is built on three core pillars that work together to create a single, undisputed path from planning to inheritance.
             </p>
           </div>
           <div className="mx-auto mt-16 grid max-w-6xl gap-8 md:grid-cols-3">
@@ -323,19 +217,18 @@ export function HomePage() {
                 title={t(feature.titleKey, feature.defaultTitle)}
                 description={t(feature.descriptionKey, feature.defaultDesc)}
                 color={feature.color}
-                label={feature.label}
               />
             ))}
           </div>
         </div>
       </section>
-
+      
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* DEEP DIVE - The 3 Services Visualized */}
+      {/* DETAILED PILLARS */}
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      <section className="border-y border-slate-800 bg-slate-900 py-20 lg:py-28">
-        <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">
-          <div className="space-y-32">
+      <section className="bg-white py-20 lg:py-28 overflow-hidden">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="space-y-24">
             {pillarsDetailed.map((pillar, index) => (
               <PillarDetailCard
                 key={pillar.titleKey}
@@ -354,184 +247,103 @@ export function HomePage() {
       </section>
 
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* EVENT DRIVEN WORKFLOW - "How It Works" */}
+      {/* FINAL CTA SECTION */}
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      <section className="py-20 lg:py-28 bg-slate-950">
-        <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">
-          <div className="grid lg:grid-cols-2 gap-16 items-start">
-            
-            {/* Left: Text Context */}
-            <div className="lg:sticky lg:top-24">
-              <span className="text-sm font-bold uppercase tracking-widest text-amber-500">
-                Event-Driven Architecture
-              </span>
-              <h2 className="mt-4 font-serif text-4xl font-bold text-white md:text-5xl">
-                See the System Respond
-              </h2>
-              <p className="mt-6 text-lg text-slate-400 leading-relaxed">
-                Mirathi is an <strong>Event-Driven</strong> system. Microservices communicate asynchronously. 
-                <br /><br />
-                When you trigger a "Death Event" in the Family Service, the Estate Service automatically locks assets to prevent fraud, and the Succession Service generates a tailored Roadmap.
-              </p>
-              <div className="mt-8 p-6 rounded-xl bg-slate-900 border border-slate-800">
-                <h4 className="font-semibold text-white flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-amber-400" />
-                  Why this matters?
-                </h4>
-                <p className="mt-2 text-sm text-slate-400">
-                  This guarantees that the legal process (filing forms) cannot proceed until the economic facts (assets) and identity facts (family) are 100% verified.
-                </p>
-              </div>
-            </div>
-
-            {/* Right: The Timeline */}
-            <div className="relative space-y-0">
-              {/* Vertical Connector */}
-              <div className="absolute left-8 top-8 bottom-8 w-px bg-gradient-to-b from-blue-500 via-emerald-500 to-purple-500 opacity-30"></div>
-
-              {howItWorksSteps.map((step, idx) => (
-                <HowItWorksStep
-                  key={idx}
-                  icon={step.icon}
-                  color={step.color}
-                  title={step.title}
-                  description={step.description}
-                />
-              ))}
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* CTA SECTION */}
-      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      <section className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 py-24 lg:py-32 border-t border-slate-800">
-        <div className="mx-auto max-w-7xl px-6 sm:px-8 lg:px-12">
-          <div className="mx-auto max-w-3xl text-center">
-            
-            <h2 className="font-serif text-4xl font-bold tracking-tight text-white md:text-5xl lg:text-6xl">
+      <section className="bg-neutral-50">
+        <div className="mx-auto max-w-7xl px-6 py-24 sm:px-8 lg:py-32">
+          <div className="relative isolate overflow-hidden bg-[#0F3D3E] px-6 py-24 text-center shadow-2xl rounded-3xl sm:px-16">
+            <h2 className="mx-auto max-w-2xl font-serif text-3xl font-bold tracking-tight text-white sm:text-4xl">
               Don't leave your legacy to chance.
-              <span className="mt-2 block text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-amber-500">
+              <span className="mt-2 block text-[#C8A165]">
                 Leave it to Logic.
               </span>
             </h2>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-300 md:text-xl">
-              Create your account today. Secure your Family Tree, Inventory your Assets, and be ready for whatever happens.
+            <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-neutral-300">
+              Create your account today. Secure your Family Tree, Inventory your Assets, and be ready for whatever the future holds.
             </p>
-
-            <div className="mt-12 flex flex-col sm:flex-row justify-center gap-4">
+            <div className="mt-10 flex items-center justify-center gap-x-6">
               <Button 
                 size="lg" 
                 onClick={() => navigate('/register')} 
-                className="group bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold text-lg px-8 py-6 h-auto"
+                className="group bg-[#C8A165] hover:bg-[#C8A165]/90 text-[#0F3D3E] font-bold"
               >
-                <div className="flex items-center gap-3">
-                  <span>Create Free Account</span>
-                  <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
-                </div>
+                Create Free Account
+                <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
               </Button>
             </div>
-
-            <p className="mt-6 text-sm text-slate-500">
+            <p className="mt-6 text-sm text-neutral-400">
               No credit card required • Free Readiness Assessment • Bank-grade Security
             </p>
-
+             {/* Decorative elements */}
+            <svg viewBox="0 0 1024 1024" className="absolute left-1/2 top-1/2 -z-10 h-[64rem] w-[64rem] -translate-x-1/2 [mask-image:radial-gradient(closest-side,white,transparent)]" aria-hidden="true">
+              <circle cx="512" cy="512" r="512" fill="url(#8d958450-c69f-4251-94bc-4e091a323369)" fillOpacity="0.7"></circle>
+              <defs>
+                <radialGradient id="8d958450-c69f-4251-94bc-4e091a323369">
+                  <stop stopColor="#C8A165"></stop>
+                  <stop offset="1" stopColor="#0F3D3E"></stop>
+                </radialGradient>
+              </defs>
+            </svg>
           </div>
         </div>
       </section>
+
     </div>
   );
 }
 
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-// SUB-COMPONENTS
+// SUB-COMPONENTS (Styled for Light Theme)
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-function FeatureCard({ 
-  icon: Icon, 
-  title, 
-  description, 
-  color,
-  label
-}: { 
-  icon: React.ElementType; 
-  title: string; 
-  description: string;
-  color: string;
-  label: string;
+function FeatureCard({ icon: Icon, title, description, color }: { 
+  icon: React.ElementType; title: string; description: string; color: string;
 }) {
   const styles: Record<string, string> = {
-    blue: 'text-blue-400 bg-blue-500/5 border-blue-500/20 hover:border-blue-500/40 hover:bg-blue-500/10',
-    emerald: 'text-emerald-400 bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/10',
-    purple: 'text-purple-400 bg-purple-500/5 border-purple-500/20 hover:border-purple-500/40 hover:bg-purple-500/10',
+    navy: 'text-[#0F3D3E] bg-[#0F3D3E]/5 border-[#0F3D3E]/10',
+    gold: 'text-[#C8A165] bg-[#C8A165]/5 border-[#C8A165]/10',
   };
-
-  const currentStyle = styles[color] || styles.blue;
+  const currentStyle = styles[color] || styles.navy;
 
   return (
-    <div className={`group flex flex-col rounded-2xl border p-8 text-left backdrop-blur-sm transition-all duration-300 ${currentStyle}`}>
-      <div className="mb-6 flex items-center justify-between">
-         <div className={`flex h-14 w-14 items-center justify-center rounded-xl bg-slate-950/50 border border-current opacity-80`}>
-            <Icon className="h-7 w-7" />
-         </div>
-         <span className="text-xs font-bold uppercase tracking-widest opacity-60 border border-current px-2 py-1 rounded-full">
-            {label}
-         </span>
+    <div className={`group rounded-2xl border p-8 text-left transition-all duration-300 hover:shadow-xl hover:border-transparent ${currentStyle}`}>
+      <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-white shadow-sm border ${currentStyle}`}>
+        <Icon className="h-6 w-6" />
       </div>
-      
-      <h3 className="mb-3 font-serif text-xl font-bold text-white">{title}</h3>
-      <p className="flex-grow leading-relaxed text-slate-400 text-sm">{description}</p>
+      <h3 className="mb-2 font-serif text-lg font-bold text-[#0F3D3E]">{title}</h3>
+      <p className="text-sm leading-6 text-neutral-600">{description}</p>
     </div>
   );
 }
 
-function PillarDetailCard({ 
-  image,
-  color,
-  label,
-  icon: Icon,
-  title,
-  description,
-  features,
-  reversed
-}: { 
-  image: string;
-  color: string;
-  label: string;
-  icon: React.ElementType;
-  title: string;
-  description: string;
-  features: string[];
-  reversed: boolean;
+function PillarDetailCard({ image, color, label, icon: Icon, title, description, features, reversed }: { 
+  image: string; color: string; label: string; icon: React.ElementType; title: string; description: string; features: string[]; reversed: boolean;
 }) {
   const styles: Record<string, string> = {
-    blue: 'text-blue-400 border-blue-500/20 bg-blue-500/10',
-    emerald: 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10',
-    purple: 'text-purple-400 border-purple-500/20 bg-purple-500/10',
+    navy: 'text-[#0F3D3E] bg-[#0F3D3E]/10 border-[#0F3D3E]/20',
+    gold: 'text-[#C8A165] bg-[#C8A165]/10 border-[#C8A165]/20',
   };
   const theme = styles[color];
 
   return (
-    <div className={`grid gap-12 lg:grid-cols-2 items-center ${reversed ? 'lg:flex-row-reverse' : ''}`}>
+    <div className={`grid gap-12 lg:grid-cols-2 lg:items-center ${reversed ? 'lg:[&>*:last-child]:-order-1' : ''}`}>
       {/* Content Side */}
       <div>
-        <div className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider border ${theme}`}>
-          <Icon className="h-3 w-3" />
+        <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider border ${theme}`}>
+          <Icon className="h-3.5 w-3.5" />
           {label}
         </div>
-        <h3 className="mt-6 font-serif text-3xl font-bold text-white leading-tight">
+        <h3 className="mt-6 font-serif text-3xl font-bold text-[#0F3D3E] leading-tight">
           {title}
         </h3>
-        <p className="mt-4 text-lg leading-relaxed text-slate-400">
+        <p className="mt-4 text-lg leading-relaxed text-neutral-600">
           {description}
         </p>
         <ul className="mt-8 space-y-4">
           {features.map((feature, i) => (
-            <li key={i} className="flex items-start gap-3 group">
-              <CheckCircle className={`h-5 w-5 mt-0.5 flex-shrink-0 ${theme.split(' ')[0]} opacity-70 group-hover:opacity-100 transition-opacity`} />
-              <span className="text-slate-300 font-medium">{feature}</span>
+            <li key={i} className="flex items-start gap-3">
+              <CheckCircle className={`h-5 w-5 mt-0.5 flex-shrink-0 ${color === 'gold' ? 'text-[#C8A165]' : 'text-[#0F3D3E]'}`} />
+              <span className="text-neutral-700 font-medium">{feature}</span>
             </li>
           ))}
         </ul>
@@ -539,50 +351,8 @@ function PillarDetailCard({
 
       {/* Image Side */}
       <div className="relative group">
-        <div className={`absolute -inset-1 rounded-2xl opacity-20 blur-lg transition-opacity group-hover:opacity-40 bg-current ${theme.split(' ')[0]}`}></div>
-        <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-slate-800 shadow-2xl">
-          <img 
-            src={image} 
-            alt={title} 
-            className="w-full h-auto object-cover transform transition-transform duration-700 group-hover:scale-105"
-          />
-          {/* Overlay gradient for text readability if needed, or just aesthetic */}
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent"></div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function HowItWorksStep({
-  icon: Icon,
-  color,
-  title,
-  description
-}: {
-  icon: React.ElementType;
-  color: string;
-  title: string;
-  description: string;
-}) {
-  const colors: Record<string, string> = {
-    amber: 'text-amber-400 border-amber-500/40 bg-amber-500/10',
-    blue: 'text-blue-400 border-blue-500/40 bg-blue-500/10',
-    emerald: 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10',
-    purple: 'text-purple-400 border-purple-500/40 bg-purple-500/10',
-    green: 'text-green-400 border-green-500/40 bg-green-500/10',
-  };
-  
-  const style = colors[color] || colors.blue;
-
-  return (
-    <div className="relative flex gap-6 pb-12 last:pb-0">
-      <div className={`relative z-10 flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-2xl border-2 shadow-[0_0_15px_rgba(0,0,0,0.3)] ${style}`}>
-        <Icon className="h-8 w-8" />
-      </div>
-      <div className="pt-2">
-        <h4 className="font-bold text-xl text-white">{title}</h4>
-        <p className="mt-2 text-slate-400 leading-relaxed max-w-md">{description}</p>
+        <div className={`absolute -inset-4 rounded-2xl opacity-10 blur-xl transition-opacity group-hover:opacity-20 ${color === 'gold' ? 'bg-[#C8A165]' : 'bg-[#0F3D3E]'}`}></div>
+        <img src={image} alt={title} className="relative w-full h-auto rounded-xl shadow-2xl border border-neutral-200" />
       </div>
     </div>
   );

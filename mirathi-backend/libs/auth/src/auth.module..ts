@@ -5,16 +5,10 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule } from '@shamba/config';
 import { DatabaseModule } from '@shamba/database';
 
-// Import Guards (this is correct)
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
-// 1. --- IMPORT THE NEW SERVICES ---
 import { HashingService } from './services/hashing.service';
 import { TokenService } from './services/token.service';
-// --- REMOVE THE OLD AuthService IMPORT ---
-// import { AuthService } from '../services/auth.service';
-
-// Import Strategies (this is correct)
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
@@ -30,8 +24,6 @@ import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
     RefreshTokenStrategy,
     JwtAuthGuard,
     RolesGuard,
-
-    // Bind interfaces to concrete classes
     { provide: 'IHashingService', useClass: HashingService },
     { provide: 'ITokenService', useClass: TokenService },
   ],
@@ -40,8 +32,6 @@ import { RefreshTokenStrategy } from './strategies/refresh-token.strategy';
     TokenService,
     JwtAuthGuard,
     RolesGuard,
-
-    // Export the tokens too
     'IHashingService',
     'ITokenService',
   ],

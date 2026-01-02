@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
+import type { StringValue } from 'ms';
 
 import { ConfigService } from '@shamba/config';
 
@@ -18,7 +19,7 @@ export class TokenService {
 
     return {
       secret: String(secret),
-      expiresIn: expiresIn as JwtSignOptions['expiresIn'],
+      expiresIn: String(expiresIn) as StringValue,
     };
   }
 
@@ -28,7 +29,7 @@ export class TokenService {
 
     return {
       secret: String(secret),
-      expiresIn: expiresIn as JwtSignOptions['expiresIn'],
+      expiresIn: String(expiresIn) as StringValue,
     };
   }
 

@@ -1,5 +1,5 @@
-export * from './ComplianceReportPage';
-export * from './WillDashboardPage';
-export * from './ExecuteWillPage';
-export * from './ExecutorDashboardPage';
-export * from './WillEditorPage';
+export {ComplianceReportPage } from './ComplianceReportPage';
+export { WillDashboardPage } from './WillDashboardPage';
+export { ExecuteWillPage } from './ExecuteWillPage';
+export { ExecutorDashboardPage } from './ExecutorDashboardPage';
+export { WillEditorPage } from './WillEditorPage';

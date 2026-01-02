@@ -1,3 +1,7 @@
+// FILE: src/features/auth/components/LoginForm.tsx
+// CONTEXT: Secure Entry Point for Estate Executors
+// DESIGN: Light Mode (Trust/Legal), Mirathi Brand Colors
+
 import { useState, useRef, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,7 +17,7 @@ import { Label } from '../../../components/ui/Label';
 import { Checkbox } from '../../../components/ui/Checkbox';
 
 // ============================================================================
-// PASSWORD INPUT SUB-COMPONENT
+// PASSWORD INPUT SUB-COMPONENT (Mirathi Styled)
 // ============================================================================
 interface PasswordInputProps {
   id: string;
@@ -30,7 +34,7 @@ function PasswordInput({ id, placeholder, disabled, error, errorId, register }: 
   
   return (
     <div className="relative">
-      <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+      <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
       <Input
         id={id}
         type={showPassword ? 'text' : 'password'}
@@ -39,16 +43,18 @@ function PasswordInput({ id, placeholder, disabled, error, errorId, register }: 
         disabled={disabled}
         aria-invalid={error}
         aria-describedby={errorId}
-        className={`pl-10 pr-10 bg-slate-900/50 text-white placeholder:text-slate-600 border ${
-          error ? 'border-red-500/50 focus:border-red-500' : 'border-slate-700/50 focus:border-amber-500'
-        } focus:ring-2 focus:ring-amber-500/20 transition-all`}
+        className={`pl-10 pr-10 bg-white text-neutral-900 placeholder:text-neutral-400 border ${
+          error 
+            ? 'border-red-500 focus:border-red-500 focus:ring-red-100' 
+            : 'border-neutral-200 focus:border-[#0F3D3E] focus:ring-[#0F3D3E]/10'
+        } transition-all`}
         {...register}
       />
       <button
         type="button"
         onClick={() => setShowPassword(!showPassword)}
         disabled={disabled}
-        className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded text-slate-500 transition-colors hover:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500/50 disabled:cursor-not-allowed disabled:opacity-50"
+        className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded text-neutral-400 transition-colors hover:text-[#0F3D3E] focus:outline-none focus:ring-2 focus:ring-[#0F3D3E]/20 disabled:cursor-not-allowed disabled:opacity-50"
         aria-label={showPassword ? t('auth:hide_password', 'Hide password') : t('auth:show_password', 'Show password')}
       >
         {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -67,6 +73,7 @@ export function LoginForm() {
   const { mutate: login, isPending } = useLogin();
   const [rememberMe, setRememberMe] = useState(true);
 
+  // 1. DEVICE FINGERPRINTING (Security Audit Trail)
   const deviceIdRef = useRef<string | null>(null);
   useEffect(() => {
     const getDeviceId = () => {
@@ -109,7 +116,7 @@ export function LoginForm() {
           navigate(from, { replace: true });
         },
         onError: (error) => {
-          console.error("Login error:", error);
+          console.error("Login failed:", error);
         },
       },
     );
@@ -122,54 +129,58 @@ export function LoginForm() {
       {/* HEADER */}
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/20 shadow-xl shadow-amber-500/10">
-          <LogIn className="h-10 w-10 text-amber-400" />
+        {/* Icon Anchor */}
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#0F3D3E]/5 border border-[#0F3D3E]/10">
+          <LogIn className="h-8 w-8 text-[#0F3D3E]" />
         </div>
         
-        <h1 className="font-serif text-3xl font-bold tracking-tight text-white mb-3">
+        <h1 className="font-serif text-3xl font-bold tracking-tight text-[#0F3D3E] mb-3">
           {t('auth:welcome_back', 'Welcome Back')}
         </h1>
         
-        <p className="text-base text-slate-400 leading-relaxed mb-6">
-          {t('auth:sign_in_prompt', 'Sign in to access your succession planning dashboard.')}
+        <p className="text-base text-neutral-600 leading-relaxed mb-6">
+          {t('auth:sign_in_prompt', 'Sign in to access your secure Succession Dashboard.')}
         </p>
 
-        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-400">
-          <ShieldCheck className="h-4 w-4" />
-          <span>{t('auth:secure_login', 'Secure Login')}</span>
+        {/* Security Badge */}
+        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-semibold text-emerald-700">
+          <ShieldCheck className="h-3.5 w-3.5" />
+          <span>{t('auth:secure_login', 'Encrypted Connection')}</span>
         </div>
       </div>
 
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* FORM */}
+      {/* FORM INPUTS */}
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
       <div className="space-y-5">
         
         {/* Email Field */}
-        <div className="space-y-2">
-          <Label htmlFor="email" className="text-sm font-medium text-slate-300">
+        <div className="space-y-1.5">
+          <Label htmlFor="email" className="text-sm font-semibold text-[#0F3D3E]">
             {t('auth:email', 'Email Address')}
-            <span className="ml-1 text-amber-400">*</span>
+            <span className="ml-1 text-red-500">*</span>
           </Label>
           <div className="relative">
-            <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
             <Input
               id="email"
               type="email"
-              placeholder={t('auth:email_placeholder', 'you@example.com')}
+              placeholder={t('auth:email_placeholder', 'name@example.com')}
               autoComplete="email"
               autoFocus
               disabled={isPending}
               aria-invalid={!!errors.email}
               aria-describedby={errors.email ? 'email-error' : undefined}
-              className={`pl-10 bg-slate-900/50 text-white placeholder:text-slate-600 border ${
-                errors.email ? 'border-red-500/50 focus:border-red-500' : 'border-slate-700/50 focus:border-amber-500'
-              } focus:ring-2 focus:ring-amber-500/20 transition-all`}
+              className={`pl-10 bg-white text-neutral-900 border ${
+                errors.email 
+                  ? 'border-red-500 focus:border-red-500 focus:ring-red-100' 
+                  : 'border-neutral-200 focus:border-[#0F3D3E] focus:ring-[#0F3D3E]/10'
+              } transition-all`}
               {...register('email')}
             />
           </div>
           {errors.email && (
-            <p id="email-error" className="flex items-center gap-1.5 text-xs text-red-400" role="alert">
+            <p id="email-error" className="flex items-center gap-1.5 text-xs text-red-600 font-medium" role="alert">
               <AlertCircle size={12} />
               <span>{errors.email.message}</span>
             </p>
@@ -177,17 +188,17 @@ export function LoginForm() {
         </div>
 
         {/* Password Field */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password" className="text-sm font-medium text-slate-300">
+            <Label htmlFor="password" className="text-sm font-semibold text-[#0F3D3E]">
               {t('auth:password', 'Password')}
-              <span className="ml-1 text-amber-400">*</span>
+              <span className="ml-1 text-red-500">*</span>
             </Label>
             <Link 
               to="/forgot-password" 
-              className="text-sm font-medium text-amber-400 hover:text-amber-300 transition-colors"
+              className="text-sm font-medium text-[#C8A165] hover:text-[#b08d55] hover:underline transition-colors"
             >
-              {t('auth:forgot_password', 'Forgot?')}
+              {t('auth:forgot_password', 'Forgot Password?')}
             </Link>
           </div>
           <PasswordInput
@@ -199,7 +210,7 @@ export function LoginForm() {
             register={register('password')}
           />
           {errors.password && (
-            <p id="password-error" className="flex items-center gap-1.5 text-xs text-red-400" role="alert">
+            <p id="password-error" className="flex items-center gap-1.5 text-xs text-red-600 font-medium" role="alert">
               <AlertCircle size={12} />
               <span>{errors.password.message}</span>
             </p>
@@ -213,9 +224,9 @@ export function LoginForm() {
             checked={rememberMe}
             onCheckedChange={(checked) => setRememberMe(checked as boolean)}
             disabled={isPending}
-            className="border-slate-600 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+            className="border-neutral-400 data-[state=checked]:bg-[#0F3D3E] data-[state=checked]:border-[#0F3D3E]"
           />
-          <Label htmlFor="remember" className="cursor-pointer text-sm text-slate-400 leading-none">
+          <Label htmlFor="remember" className="cursor-pointer text-sm text-neutral-600 leading-none">
             {t('auth:remember_me', 'Keep me signed in for 30 days')}
           </Label>
         </div>
@@ -224,7 +235,7 @@ export function LoginForm() {
         <Button
           type="submit"
           onClick={handleSubmit(onSubmit)}
-          className="group w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold py-3.5 rounded-xl shadow-lg shadow-amber-500/20 hover:shadow-xl hover:shadow-amber-500/30 transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="group w-full bg-[#0F3D3E] hover:bg-[#0F3D3E]/90 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-[#0F3D3E]/20 transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
           size="lg"
           isLoading={isPending}
           disabled={isPending}
@@ -232,8 +243,8 @@ export function LoginForm() {
           <div className="flex items-center justify-center gap-2">
             <span>
               {isPending 
-                ? t('auth:signing_in', 'Signing In...') 
-                : t('auth:sign_in', 'Sign In')}
+                ? t('auth:signing_in', 'Verifying Credentials...') 
+                : t('auth:sign_in', 'Access Dashboard')}
             </span>
             {!isPending && <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />}
           </div>
@@ -245,10 +256,10 @@ export function LoginForm() {
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
       <div className="relative my-8">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-slate-800" />
+          <div className="w-full border-t border-neutral-200" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-slate-950 px-3 font-medium text-slate-600">
+          <span className="bg-white px-3 font-semibold text-neutral-400 tracking-wider">
             {t('common:or', 'New to Mirathi?')}
           </span>
         </div>
@@ -260,7 +271,7 @@ export function LoginForm() {
       <div className="text-center">
         <Link 
           to="/register" 
-          className="inline-flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-amber-400 transition-colors"
+          className="inline-flex items-center gap-2 text-sm font-bold text-[#0F3D3E] hover:text-[#C8A165] transition-colors"
         >
           {t('auth:sign_up_now', 'Create an account')}
           <ArrowRight className="h-4 w-4" />
@@ -270,13 +281,13 @@ export function LoginForm() {
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
       {/* SECURITY NOTICE */}
       {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      <div className="mt-8 rounded-xl border border-slate-800/50 bg-slate-900/30 p-4">
-        <p className="flex items-start gap-3 text-xs leading-relaxed text-slate-500">
-          <ShieldCheck size={16} className="mt-0.5 flex-shrink-0 text-emerald-500" />
+      <div className="mt-8 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+        <div className="flex items-start gap-3 text-xs leading-relaxed text-neutral-500">
+          <ShieldCheck size={16} className="mt-0.5 flex-shrink-0 text-[#0F3D3E]" />
           <span>
-            {t('auth:security_notice', 'All login attempts are logged for your security. We use device fingerprinting to detect unauthorized access.')}
+            {t('auth:security_notice', 'For your protection, we log all access attempts. Your session is protected by 256-bit SSL encryption.')}
           </span>
-        </p>
+        </div>
       </div>
     </div>
   );
