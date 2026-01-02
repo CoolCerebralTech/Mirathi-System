@@ -14,10 +14,10 @@ interface GoogleUserInfo {
   verified_email: boolean;
   name: string;
   given_name: string;
-  family_name: string;
+  family_name?: string; // ✅ Make optional
   picture: string;
   locale: string;
-  hd?: string; // Hosted domain for G Suite users
+  hd?: string;
 }
 
 interface GoogleTokenInfo {
@@ -62,7 +62,7 @@ export class GoogleOAuthAdapter implements OAuthProviderPort {
       scope: this.scopes,
       state,
       redirect_uri: targetRedirectUri,
-      prompt: 'consent', // Force consent to get refresh token
+      prompt: 'consent',
       include_granted_scopes: true,
     });
   }
@@ -82,13 +82,11 @@ export class GoogleOAuthAdapter implements OAuthProviderPort {
 
       return {
         access_token: tokens.access_token,
-        // FIX: Handle null | undefined explicitly
         refresh_token: tokens.refresh_token || undefined,
         token_type: tokens.token_type || 'Bearer',
         expires_in: tokens.expiry_date
           ? Math.floor((tokens.expiry_date - Date.now()) / 1000)
           : 3600,
-        // FIX: Handle null | undefined explicitly
         id_token: tokens.id_token || undefined,
       };
     } catch (error) {
@@ -99,7 +97,6 @@ export class GoogleOAuthAdapter implements OAuthProviderPort {
 
   async getUserProfile(accessToken: string): Promise<OAuthUserProfile> {
     try {
-      // Use Google's People API for better user info
       const userInfoResponse = await fetch(
         'https://people.googleapis.com/v1/people/me?personFields=names,emailAddresses,photos,locales',
         {
@@ -113,20 +110,23 @@ export class GoogleOAuthAdapter implements OAuthProviderPort {
       if (userInfoResponse.ok) {
         const userInfo = await userInfoResponse.json();
 
-        // Safely extract data from Google's complex nested structure
         const resourceName = userInfo.resourceName as string | undefined;
         const emailObj = userInfo.emailAddresses?.[0];
         const nameObj = userInfo.names?.[0];
         const photoObj = userInfo.photos?.[0];
         const localeObj = userInfo.locales?.[0];
 
+        // ✅ FIX: Handle missing last name gracefully
+        const firstName = nameObj?.givenName;
+        const lastName = nameObj?.familyName || firstName || undefined;
+
         return {
           provider: 'GOOGLE',
           providerUserId: resourceName?.replace('people/', '') || '',
           email: emailObj?.value,
           emailVerified: emailObj?.metadata?.verified || false,
-          firstName: nameObj?.givenName,
-          lastName: nameObj?.familyName,
+          firstName,
+          lastName,
           displayName: nameObj?.displayName,
           picture: photoObj?.url,
           locale: localeObj?.value,
@@ -153,13 +153,17 @@ export class GoogleOAuthAdapter implements OAuthProviderPort {
 
       const userInfo: GoogleUserInfo = await response.json();
 
+      // ✅ FIX: Provide fallback for missing last name
+      const firstName = userInfo.given_name;
+      const lastName = userInfo.family_name || firstName || undefined;
+
       return {
         provider: 'GOOGLE',
         providerUserId: userInfo.id,
         email: userInfo.email,
         emailVerified: userInfo.verified_email,
-        firstName: userInfo.given_name,
-        lastName: userInfo.family_name,
+        firstName,
+        lastName,
         displayName: userInfo.name,
         picture: userInfo.picture,
         locale: userInfo.locale,
@@ -187,13 +191,17 @@ export class GoogleOAuthAdapter implements OAuthProviderPort {
         throw new Error('Invalid ID token - no subject');
       }
 
+      // ✅ FIX: Handle missing last name in ID token
+      const firstName = payload.given_name;
+      const lastName = payload.family_name || firstName || undefined;
+
       return {
         provider: 'GOOGLE',
         providerUserId: payload.sub,
         email: payload.email,
         emailVerified: payload.email_verified || false,
-        firstName: payload.given_name,
-        lastName: payload.family_name,
+        firstName,
+        lastName,
         displayName: payload.name,
         picture: payload.picture,
         locale: payload.locale,
@@ -216,13 +224,11 @@ export class GoogleOAuthAdapter implements OAuthProviderPort {
 
       return {
         access_token: credentials.access_token,
-        // FIX: Handle null | undefined
         refresh_token: credentials.refresh_token || refreshToken,
         token_type: credentials.token_type || 'Bearer',
         expires_in: credentials.expiry_date
           ? Math.floor((credentials.expiry_date - Date.now()) / 1000)
           : 3600,
-        // FIX: Handle null | undefined
         id_token: credentials.id_token || undefined,
       };
     } catch (error) {
@@ -236,14 +242,10 @@ export class GoogleOAuthAdapter implements OAuthProviderPort {
       await this.client.revokeToken(token);
       this.logger.debug(`Successfully revoked Google token`);
     } catch (error: any) {
-      // Don't throw on revoke failure - token might already be revoked or expired
       this.logger.warn(`Failed to revoke Google token: ${error.message}`);
     }
   }
 
-  /**
-   * Verify access token validity
-   */
   async verifyAccessToken(accessToken: string): Promise<boolean> {
     try {
       const response = await fetch(
@@ -256,12 +258,10 @@ export class GoogleOAuthAdapter implements OAuthProviderPort {
 
       const tokenInfo: GoogleTokenInfo = await response.json();
 
-      // Check if token is for our client
       if (tokenInfo.aud !== process.env.GOOGLE_CLIENT_ID) {
         return false;
       }
 
-      // Check if token has expired
       if (tokenInfo.exp && tokenInfo.exp < Math.floor(Date.now() / 1000)) {
         return false;
       }
@@ -273,9 +273,6 @@ export class GoogleOAuthAdapter implements OAuthProviderPort {
     }
   }
 
-  /**
-   * Get user profile with offline access (for background processing)
-   */
   async getUserProfileWithRefreshToken(refreshToken: string): Promise<OAuthUserProfile> {
     const tokens = await this.refreshToken(refreshToken);
     return this.getUserProfile(tokens.access_token);

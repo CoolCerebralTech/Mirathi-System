@@ -1,9 +1,9 @@
+// src/presentation/controllers/auth.controller.ts
 import {
   BadRequestException,
   Controller,
   Get,
   InternalServerErrorException,
-  // <--- Add this
   Logger,
   Param,
   Query,
@@ -49,7 +49,6 @@ export class AuthController {
 
     const redirectUri = process.env.GOOGLE_REDIRECT_URI;
 
-    // 👇 FIX: Strict check ensures 'redirectUri' is a string, not undefined
     if (!redirectUri) {
       this.logger.error('GOOGLE_REDIRECT_URI is not set in environment variables');
       throw new InternalServerErrorException('Server misconfiguration: Redirect URI missing');
@@ -58,19 +57,47 @@ export class AuthController {
     try {
       const { user, isNewUser } = await this.oauthService.handleOAuthCallback({
         code,
-        redirectUri, // Now guaranteed to be a string
+        redirectUri,
         provider: provider.toUpperCase(),
       });
 
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-      const targetPath = isNewUser ? '/onboarding' : '/dashboard';
 
-      // Pass the userId (or token) to the frontend
-      res.redirect(`${frontendUrl}${targetPath}?status=success&userId=${user.id}`);
-    } catch (error) {
-      this.logger.error(`OAuth callback failed: ${error.message}`);
+      // ✅ FIX: Better redirect logic with user info
+      if (isNewUser) {
+        // ✅ New user - send to onboarding with success
+        this.logger.log(`New user ${user.id} created, redirecting to onboarding`);
+        res.redirect(`${frontendUrl}/onboarding?status=success&userId=${user.id}`);
+      } else {
+        // ✅ Existing user - send to dashboard with success + generate token on frontend
+        this.logger.log(`Existing user ${user.id} logged in, redirecting to dashboard`);
+        res.redirect(`${frontendUrl}/dashboard?status=success&userId=${user.id}`);
+      }
+    } catch (error: any) {
+      // ✅ FIX: Better error logging with context
+      this.logger.error(`OAuth callback failed for ${provider}: ${error.message}`, error.stack);
+
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-      res.redirect(`${frontendUrl}/login?error=oauth_failed`);
+
+      // ✅ FIX: Pass specific error message to frontend
+      const errorType = this.getErrorType(error);
+      res.redirect(
+        `${frontendUrl}/login?error=${errorType}&message=${encodeURIComponent(error.message)}`,
+      );
     }
+  }
+
+  // ✅ NEW: Helper to categorize errors for frontend
+  private getErrorType(error: any): string {
+    if (error.message?.includes('already exists')) {
+      return 'account_exists';
+    }
+    if (error.message?.includes('required')) {
+      return 'missing_info';
+    }
+    if (error.message?.includes('Invalid')) {
+      return 'invalid_token';
+    }
+    return 'oauth_failed';
   }
 }

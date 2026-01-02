@@ -2,7 +2,6 @@
 import { Module } from '@nestjs/common';
 
 import { AuthModule as SharedAuthModule } from '@shamba/auth';
-// FIX: Removed 'Queue' import as it's no longer needed here
 import { MessagingModule } from '@shamba/messaging';
 import { NotificationModule } from '@shamba/notification';
 import { ObservabilityModule } from '@shamba/observability';

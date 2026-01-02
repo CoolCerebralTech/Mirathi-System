@@ -1,8 +1,6 @@
-// src/features/auth/components/GoogleButton.tsx
 import { useState } from 'react';
 import { Button } from '../../../components/ui/Button';
 
-// SVG Logo for Google
 const GoogleIcon = () => (
   <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24">
     <path
@@ -35,13 +33,14 @@ export function GoogleButton({ text = "Continue with Google", className, onClick
 
   const handleClick = () => {
     setIsLoading(true);
-    // If an onClick handler is provided, use it (e.g. for analytics)
     if (onClick) onClick();
     
-    // REDIRECT TO BACKEND OAUTH START URL
-    // This URL must match your Gateway -> Accounts Service route
-    const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
-    window.location.href = `${backendUrl}/accounts/auth/google`;
+    // 1. Get Base URL from env or default to localhost
+    const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+    
+    // 2. Redirect to Backend REST endpoint
+    // Matches logs: [15:50:57.125] GET /auth/google
+    window.location.href = `${apiBase}/accounts/auth/google`;
   };
 
   return (

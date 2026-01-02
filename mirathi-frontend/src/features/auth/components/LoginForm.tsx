@@ -1,12 +1,16 @@
-// src/features/auth/components/LoginForm.tsx
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
-import { ShieldCheck, LogIn, ArrowRight } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ShieldCheck, LogIn, ArrowRight, AlertCircle } from 'lucide-react';
 
 import { GoogleButton } from './GoogleButton';
 
 export function LoginForm() {
   const { t } = useTranslation(['auth', 'common']);
+  const [searchParams] = useSearchParams();
+  
+  // 1. Capture Error from URL (sent by Backend)
+  const error = searchParams.get('error');
+  const errorDescription = searchParams.get('message') || 'Authentication failed. Please try again.';
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -24,6 +28,23 @@ export function LoginForm() {
         <p className="text-base text-slate-400 leading-relaxed mb-8">
           {t('auth:sign_in_prompt', 'Sign in to access your succession planning dashboard.')}
         </p>
+
+        {/* 2. ERROR DISPLAY */}
+        {error && (
+          <div className="mb-6 p-4 rounded-lg bg-red-950/30 border border-red-900/50 flex items-start gap-3 text-left">
+            <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h4 className="text-sm font-medium text-red-400">
+                {error === 'oauth_failed' ? 'Login Failed' : 'Access Denied'}
+              </h4>
+              <p className="text-xs text-red-300/80">
+                {error === 'oauth_failed' 
+                  ? 'We could not sign you in with Google. If you have an existing account, please contact support.' 
+                  : errorDescription}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* GOOGLE LOGIN */}
         <div className="space-y-4">

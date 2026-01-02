@@ -17,14 +17,10 @@ export class OAuthAuthService {
     private readonly userService: UserService,
   ) {}
 
-  /**
-   * Get OAuth authorization URL for frontend to redirect to
-   */
   getAuthorizationUrl(provider: string, redirectUri: string): string {
     const state = this.generateState();
 
     try {
-      // FIX: Resolve adapter dynamically
       const adapter = this.oauthFactory.getAdapter(provider);
       return adapter.getAuthorizationUrl(state, redirectUri);
     } catch (error) {
@@ -34,7 +30,7 @@ export class OAuthAuthService {
   }
 
   /**
-   * Handle OAuth callback
+   * 🔥 FIXED: Handle both LOGIN and REGISTRATION
    */
   async handleOAuthCallback(data: {
     code: string;
@@ -55,52 +51,69 @@ export class OAuthAuthService {
     // 2. Get user profile
     let profile: OAuthUserProfile;
     try {
-      // UPDATE: Removed Apple-specific ID Token check.
-      // Google standard flow uses the access token to fetch the profile.
       profile = await adapter.getUserProfile(tokens.access_token);
     } catch (error) {
       this.logger.error(`Failed to get user profile from ${data.provider}`, error);
       throw new OAuthProviderException(data.provider, 'Failed to fetch user profile');
     }
 
-    // 3. Orchestrate User Registration/Linking via UserService
-    let user: User;
-    let isNewUser = false;
+    // 3. ✅ FIX: Handle missing last name gracefully
+    if (!profile.email) {
+      throw new OAuthProviderException(data.provider, 'Email is required from OAuth provider');
+    }
+
+    // ✅ FIX: Provide fallback for missing last name
+    const lastName = profile.lastName || profile.firstName || 'User';
+
+    // 4. ✅ FIX: Check if user EXISTS first (LOGIN scenario)
+    let existingUser: User | null = null;
 
     try {
-      if (!profile.email) throw new Error('Email required');
+      existingUser = await this.userService.getUserByEmail(profile.email);
+    } catch {
+      // User doesn't exist - will register below
+      this.logger.debug(`User not found by email: ${profile.email}`);
+    }
 
-      user = await this.userService.getUserByEmail(profile.email);
+    // 5. ✅ FIX: If user exists, LOG THEM IN
+    if (existingUser) {
+      this.logger.log(`Existing user logging in via ${data.provider}: ${existingUser.id}`);
 
-      // User exists - link identity
-      user = await this.userService.linkIdentity({
-        userId: user.id,
+      // ✅ Update last used timestamp for this identity
+      try {
+        await this.userService.linkIdentity({
+          userId: existingUser.id,
+          provider: profile.provider,
+          providerUserId: profile.providerUserId,
+          email: profile.email,
+        });
+      } catch (error) {
+        // Identity might already be linked - that's okay
+        this.logger.debug(`Identity already linked or update failed: ${error.message}`);
+      }
+
+      return { user: existingUser, isNewUser: false };
+    }
+
+    // 6. ✅ FIX: User doesn't exist - REGISTER them
+    let newUser: User;
+    try {
+      newUser = await this.userService.registerViaOAuth({
         provider: profile.provider,
         providerUserId: profile.providerUserId,
         email: profile.email,
-      });
-    } catch {
-      // Register new user
-      user = await this.userService.registerViaOAuth({
-        provider: profile.provider,
-        providerUserId: profile.providerUserId,
-        email: profile.email!,
         firstName: profile.firstName,
-        lastName: profile.lastName,
+        lastName: lastName, // ✅ With fallback
       });
-      isNewUser = true;
+
+      this.logger.log(`New user registered via ${data.provider}: ${newUser.id}`);
+      return { user: newUser, isNewUser: true };
+    } catch (error) {
+      this.logger.error(`Failed to register user via ${data.provider}`, error);
+      throw error;
     }
-
-    this.logger.log(
-      `OAuth callback processed for ${data.provider}: ${user.id} (new: ${isNewUser})`,
-    );
-
-    return { user, isNewUser };
   }
 
-  /**
-   * Validate ID token (Mobile Apps)
-   */
   async validateIdToken(idToken: string, provider: string): Promise<OAuthUserProfile> {
     try {
       const adapter = this.oauthFactory.getAdapter(provider);
@@ -111,9 +124,6 @@ export class OAuthAuthService {
     }
   }
 
-  /**
-   * Refresh access token
-   */
   async refreshAccessToken(refreshToken: string, provider: string) {
     try {
       const adapter = this.oauthFactory.getAdapter(provider);
@@ -124,16 +134,12 @@ export class OAuthAuthService {
     }
   }
 
-  /**
-   * Revoke OAuth token
-   */
   async revokeToken(token: string, provider: string): Promise<void> {
     try {
       const adapter = this.oauthFactory.getAdapter(provider);
       await adapter.revokeToken(token);
       this.logger.log(`Token revoked for ${provider}`);
     } catch (error) {
-      // Log only, don't throw
       this.logger.warn(`Failed to revoke token for ${provider}: ${error.message}`);
     }
   }

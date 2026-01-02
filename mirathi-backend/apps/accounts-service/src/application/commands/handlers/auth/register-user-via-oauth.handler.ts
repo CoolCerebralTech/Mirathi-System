@@ -2,7 +2,6 @@
 import { Inject, Logger } from '@nestjs/common';
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 
-// Domain
 import { User } from '../../../../domain/aggregates/user.aggregate';
 import { DomainError } from '../../../../domain/errors/domain.errors';
 import {
@@ -13,7 +12,6 @@ import {
   USER_REPOSITORY_PORT,
   UserRepositoryPort,
 } from '../../../../domain/ports/user.repository.port';
-// Application
 import {
   DomainErrorException,
   DuplicateEmailException,
@@ -44,23 +42,34 @@ export class RegisterUserViaOAuthHandler implements ICommandHandler<RegisterUser
     this.inputValidator.validateProvider(provider);
 
     if (firstName) this.inputValidator.validateName(firstName, 'firstName');
-    if (lastName) this.inputValidator.validateName(lastName, 'lastName');
 
-    // 2. Check if user already exists by email
-    // (This prevents account hijacking or duplicate accounts via different providers)
-    const existingUserByEmail = await this.userRepository.findByEmail(email);
-    if (existingUserByEmail) {
-      throw new DuplicateEmailException(email);
+    // ✅ FIX: Make lastName optional with fallback
+    const validatedLastName = lastName || firstName || 'User';
+    if (validatedLastName !== 'User') {
+      this.inputValidator.validateName(validatedLastName, 'lastName');
     }
 
-    // 3. Check if identity already exists
-    // (Sanity check, though email check usually catches this first)
+    // 2. ✅ FIX: Check PROVIDER IDENTITY first (more specific)
     const existingUserByIdentity = await this.userRepository.findByProviderIdentity(
       provider,
       providerUserId,
     );
     if (existingUserByIdentity) {
+      // ✅ This is actually a LOGIN, not registration - should not throw
+      this.logger.warn(
+        `Provider identity already exists: ${provider}/${providerUserId}. Should use login flow.`,
+      );
       throw new DuplicateIdentityException(provider, providerUserId);
+    }
+
+    // 3. Check if user already exists by email
+    const existingUserByEmail = await this.userRepository.findByEmail(email);
+    if (existingUserByEmail) {
+      // ✅ This means user exists with different provider - should LINK, not throw
+      this.logger.warn(
+        `Email already exists: ${email}. Should link identity instead of creating new user.`,
+      );
+      throw new DuplicateEmailException(email);
     }
 
     // 4. Create user aggregate via factory method
@@ -71,7 +80,7 @@ export class RegisterUserViaOAuthHandler implements ICommandHandler<RegisterUser
         providerUserId,
         email,
         firstName,
-        lastName,
+        lastName: validatedLastName, // ✅ Use validated lastName with fallback
       });
     } catch (error) {
       if (error instanceof DomainError) {
@@ -84,7 +93,6 @@ export class RegisterUserViaOAuthHandler implements ICommandHandler<RegisterUser
     await this.userRepository.save(user);
 
     // 6. Publish domain events (Post-commit)
-    // The MessagingEventPublisherAdapter handles the mapping to ShambaEvents
     await this.eventPublisher.publishAll(user.domainEvents);
 
     // 7. Clear domain events from aggregate
