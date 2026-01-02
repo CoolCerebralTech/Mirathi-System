@@ -1,6 +1,16 @@
-// src/presentation/dtos/outputs/user-settings.output.ts
-import { Field, ID, ObjectType } from '@nestjs/graphql';
+import { Field, ID, ObjectType, registerEnumType } from '@nestjs/graphql';
 import { Language, Theme } from '@prisma/client';
+
+// ✅ REGISTER ENUMS HERE
+registerEnumType(Language, {
+  name: 'Language',
+  description: 'Preferred language',
+});
+
+registerEnumType(Theme, {
+  name: 'Theme',
+  description: 'UI Theme preference',
+});
 
 /**
  * GraphQL output for UserSettings entity

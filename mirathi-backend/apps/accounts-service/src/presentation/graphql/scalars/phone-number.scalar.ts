@@ -1,46 +1,25 @@
-// src/presentation/graphql/scalars/phone-number.scalar.ts
 import { CustomScalar, Scalar } from '@nestjs/graphql';
 import { Kind, ValueNode } from 'graphql';
 
-import { PhoneNumber } from '../../../domain/value-objects';
-
-/**
- * Custom PhoneNumber scalar for GraphQL
- * Validates Kenyan phone numbers
- */
 @Scalar('PhoneNumber', () => String)
 export class PhoneNumberScalar implements CustomScalar<string, string> {
-  description = 'Kenyan phone number in E.164 format (+254...)';
+  description = 'A valid E.164 phone number';
 
-  /**
-   * Convert PhoneNumber value object to string for client
-   */
-  serialize(value: PhoneNumber | string): string {
-    if (value instanceof PhoneNumber) {
-      return value.value;
-    }
+  parseValue(value: string): string {
+    // Value coming from the client input
     return value;
   }
 
-  /**
-   * Validate and convert string from client to normalized format
-   */
-  parseValue(value: string): string {
-    try {
-      const phoneNumber = PhoneNumber.create(value);
-      return phoneNumber.value;
-    } catch (error) {
-      throw new Error(`Invalid Kenyan phone number: ${error.message}`);
-    }
+  serialize(value: string): string {
+    // Value sent to the client
+    return value;
   }
 
-  /**
-   * Parse phone number from query/mutation literal
-   */
   parseLiteral(ast: ValueNode): string {
+    // Value from the client query literal (e.g. mutation { ... phoneNumber: "+254..." })
     if (ast.kind === Kind.STRING) {
-      return this.parseValue(ast.value);
+      return ast.value;
     }
-    throw new Error('PhoneNumber scalar can only parse string values');
+    throw new Error('PhoneNumber must be a string');
   }
 }

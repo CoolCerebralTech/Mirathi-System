@@ -1,6 +1,11 @@
-// src/presentation/dtos/outputs/user-identity.output.ts
-import { Field, ID, ObjectType } from '@nestjs/graphql';
+import { Field, ID, ObjectType, registerEnumType } from '@nestjs/graphql';
 import { AuthProvider } from '@prisma/client';
+
+// ✅ REGISTER THE ENUM HERE
+registerEnumType(AuthProvider, {
+  name: 'AuthProvider',
+  description: 'Authentication provider (Google, etc.)',
+});
 
 /**
  * GraphQL output for UserIdentity entity

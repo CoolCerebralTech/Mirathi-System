@@ -1,10 +1,20 @@
-// src/presentation/dtos/outputs/user.output.ts
-import { Field, ID, ObjectType } from '@nestjs/graphql';
+import { Field, ID, ObjectType, registerEnumType } from '@nestjs/graphql';
 import { AccountStatus, UserRole } from '@prisma/client';
 
 import { UserIdentityOutput } from './user-identity.output';
 import { UserProfileOutput } from './user-profile.output';
 import { UserSettingsOutput } from './user-settings.output';
+
+// ✅ REGISTER ENUMS HERE
+registerEnumType(UserRole, {
+  name: 'UserRole',
+  description: 'The role of the user in the system',
+});
+
+registerEnumType(AccountStatus, {
+  name: 'AccountStatus',
+  description: 'The current status of the user account',
+});
 
 /**
  * Main GraphQL output for User aggregate

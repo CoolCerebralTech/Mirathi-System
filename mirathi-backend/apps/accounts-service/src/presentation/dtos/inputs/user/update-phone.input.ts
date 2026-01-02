@@ -1,16 +1,14 @@
 // src/presentation/dtos/inputs/user/update-phone.input.ts
 import { Field, InputType } from '@nestjs/graphql';
-import { IsOptional, IsString } from 'class-validator';
-
-import { PhoneNumberScalar } from '../../../graphql/scalars';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 /**
  * Input for updating phone number
  */
 @InputType()
 export class UpdatePhoneInput {
-  @Field(() => PhoneNumberScalar, { nullable: true })
-  @IsOptional()
+  @Field(() => String)
+  @IsNotEmpty()
   @IsString()
-  phoneNumber?: string;
+  phoneNumber: string;
 }

@@ -5,5 +5,3 @@
 export * from './user.repository.port';
 export * from './oauth-provider.port';
 export * from './event-publisher.port';
-export * from './notification.port';
-export * from './audit-logger.port';

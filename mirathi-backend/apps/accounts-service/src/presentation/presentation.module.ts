@@ -6,7 +6,8 @@ import { join } from 'path';
 
 import { ApplicationModule } from '../application/application.module';
 import { HealthController } from './controllers/health.controller';
-import { DateTimeScalar, PhoneNumberScalar } from './graphql/scalars';
+import { DateTimeScalar } from './graphql/scalars/date-time.scalar';
+import { PhoneNumberScalar } from './graphql/scalars/phone-number.scalar';
 import {
   StatisticsPresenterMapper,
   UserIdentityPresenterMapper,

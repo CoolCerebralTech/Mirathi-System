@@ -1,0 +1,347 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+"""The current status of the user account"""
+enum AccountStatus {
+  ACTIVE
+  ARCHIVED
+  PENDING_ONBOARDING
+  SUSPENDED
+}
+
+"""Authentication provider (Google, etc.)"""
+enum AuthProvider {
+  GOOGLE
+}
+
+type AuthResponse {
+  isNewUser: Boolean!
+  message: PhoneNumber
+  user: User!
+}
+
+input BulkDeleteUsersInput {
+  userIds: [ID!]!
+}
+
+type BulkOperationResult {
+  failed: [ID!]!
+  succeeded: [ID!]!
+  totalFailed: Int!
+  totalSucceeded: Int!
+}
+
+input BulkSuspendUsersInput {
+  reason: PhoneNumber
+  userIds: [ID!]!
+}
+
+input ChangeRoleInput {
+  newRole: UserRole!
+  reason: PhoneNumber
+  userId: ID!
+}
+
+"""Date custom scalar type (ISO 8601 format)"""
+scalar DateTime
+
+"""List of counties in Kenya"""
+enum KenyanCounty {
+  BARINGO
+  BOMET
+  BUNGOMA
+  BUSIA
+  ELGEYO_MARAKWET
+  EMBU
+  GARISSA
+  HOMA_BAY
+  ISIOLO
+  KAJIADO
+  KAKAMEGA
+  KERICHO
+  KIAMBU
+  KILIFI
+  KIRINYAGA
+  KISII
+  KISUMU
+  KITUI
+  KWALE
+  LAIKIPIA
+  LAMU
+  MACHAKOS
+  MAKUENI
+  MANDERA
+  MARSABIT
+  MERU
+  MIGORI
+  MOMBASA
+  MURANGA
+  NAIROBI
+  NAKURU
+  NANDI
+  NAROK
+  NYAMIRA
+  NYANDARUA
+  NYERI
+  SAMBURU
+  SIAYA
+  TAITA_TAVETA
+  TANA_RIVER
+  THARAKA_NITHI
+  TRANS_NZOIA
+  TURKANA
+  UASIN_GISHU
+  VIHIGA
+  WAJIR
+  WEST_POKOT
+}
+
+"""Preferred language"""
+enum Language {
+  ENGLISH
+  SWAHILI
+}
+
+input ListUsersInput {
+  limit: Int = 20
+  page: Int = 1
+  role: PhoneNumber
+  search: PhoneNumber
+  sortBy: PhoneNumber = "createdAt"
+  sortOrder: PhoneNumber = "desc"
+  status: PhoneNumber
+}
+
+type Mutation {
+  """Manually activate a user (Admin only)"""
+  activateUser(userId: ID!): User!
+
+  """Delete multiple users at once (Admin only)"""
+  bulkDeleteUsers(input: BulkDeleteUsersInput!): BulkOperationResult!
+
+  """Suspend multiple users at once (Admin only)"""
+  bulkSuspendUsers(input: BulkSuspendUsersInput!): BulkOperationResult!
+
+  """Change user role (Admin only)"""
+  changeUserRole(input: ChangeRoleInput!): User!
+
+  """Complete user onboarding process"""
+  completeOnboarding: User!
+
+  """Delete a user (soft delete) (Admin only)"""
+  deleteUser(userId: ID!): User!
+
+  """Demote user to USER role (Admin only)"""
+  demoteToUser(reason: PhoneNumber, userId: ID!): User!
+
+  """Handle OAuth callback from provider (Google, Apple)"""
+  handleOAuthCallback(input: OAuthCallbackInput!): AuthResponse!
+
+  """Promote user to ADMIN role (Admin only)"""
+  promoteToAdmin(reason: PhoneNumber, userId: ID!): User!
+
+  """Promote user to VERIFIER role (Admin only)"""
+  promoteToVerifier(reason: PhoneNumber, userId: ID!): User!
+
+  """Restore a soft-deleted user (Admin only)"""
+  restoreUser(userId: ID!): User!
+
+  """Suspend a user (Admin only)"""
+  suspendUser(input: SuspendUserInput!): User!
+
+  """Unsuspend a user (Admin only)"""
+  unsuspendUser(userId: ID!): User!
+
+  """Update user phone number"""
+  updatePhoneNumber(input: UpdatePhoneInput!): User!
+
+  """Update user profile"""
+  updateProfile(input: UpdateProfileInput!): User!
+
+  """Update user settings"""
+  updateSettings(input: UpdateSettingsInput!): User!
+}
+
+type NotificationCapabilities {
+  email: Boolean!
+  sms: Boolean!
+}
+
+input OAuthCallbackInput {
+  code: PhoneNumber!
+  provider: AuthProvider!
+  redirectUri: PhoneNumber!
+}
+
+type OnboardingStatus {
+  hasProfile: Boolean!
+  hasSettings: Boolean!
+  isComplete: Boolean!
+  needsOnboarding: Boolean!
+}
+
+type PaginatedUsers {
+  page: Int!
+  total: Int!
+  totalPages: Int!
+  users: [User!]!
+}
+
+"""A valid E.164 phone number"""
+scalar PhoneNumber
+
+type Query {
+  """List users with pagination and sorting (Admin only)"""
+  listUsers(input: ListUsersInput!): PaginatedUsers!
+
+  """Get current authenticated user"""
+  me: User!
+
+  """Check what notification channels are available for current user"""
+  notificationCapabilities: NotificationCapabilities!
+
+  """Check onboarding status for current user"""
+  onboardingStatus: OnboardingStatus!
+
+  """Search users with filters (Admin only)"""
+  searchUsers(input: SearchUsersInput!): SearchUsersResult!
+
+  """Get user by ID"""
+  user(id: ID!): User!
+
+  """Get user by email"""
+  userByEmail(email: PhoneNumber!): User!
+
+  """Get user by phone number"""
+  userByPhone(phoneNumber: PhoneNumber!): User!
+
+  """Get user statistics for dashboard (Admin only)"""
+  userStatistics: UserStatistics!
+}
+
+type RoleCount {
+  count: Int!
+  role: PhoneNumber!
+}
+
+input SearchUsersInput {
+  county: PhoneNumber
+  limit: Int = 50
+  offset: Int = 0
+  role: PhoneNumber
+  status: PhoneNumber
+}
+
+type SearchUsersResult {
+  total: Int!
+  users: [User!]!
+}
+
+type StatusCount {
+  count: Int!
+  status: PhoneNumber!
+}
+
+input SuspendUserInput {
+  reason: PhoneNumber
+  userId: ID!
+}
+
+"""UI Theme preference"""
+enum Theme {
+  DARK
+  LIGHT
+  SYSTEM
+}
+
+input UpdatePhoneInput {
+  phoneNumber: PhoneNumber!
+}
+
+input UpdateProfileInput {
+  avatarUrl: PhoneNumber
+  county: KenyanCounty
+  firstName: PhoneNumber
+  lastName: PhoneNumber
+  phoneNumber: PhoneNumber
+  physicalAddress: PhoneNumber
+  postalAddress: PhoneNumber
+}
+
+input UpdateSettingsInput {
+  emailNotifications: Boolean
+  language: Language
+  marketingOptIn: Boolean
+  pushNotifications: Boolean
+  smsNotifications: Boolean
+  theme: Theme
+}
+
+type User {
+  createdAt: DateTime!
+  deletedAt: DateTime
+  displayName: PhoneNumber!
+  hasCompletedOnboarding: Boolean!
+  id: ID!
+  identities: [UserIdentity!]!
+  isActive: Boolean!
+  isDeleted: Boolean!
+  isPendingOnboarding: Boolean!
+  isSuspended: Boolean!
+  needsOnboarding: Boolean!
+  profile: UserProfile
+  role: UserRole!
+  settings: UserSettings
+  status: AccountStatus!
+  updatedAt: DateTime!
+}
+
+type UserIdentity {
+  email: PhoneNumber!
+  id: ID!
+  isPrimary: Boolean!
+  lastUsedAt: DateTime!
+  linkedAt: DateTime!
+  provider: AuthProvider!
+}
+
+type UserProfile {
+  avatarUrl: PhoneNumber
+  county: KenyanCounty
+  firstName: PhoneNumber!
+  fullName: PhoneNumber!
+  id: ID!
+  lastName: PhoneNumber!
+
+  """Kenyan phone number in E.164 format"""
+  phoneNumber: PhoneNumber
+  phoneVerified: Boolean!
+  physicalAddress: PhoneNumber
+  postalAddress: PhoneNumber
+  updatedAt: DateTime!
+}
+
+"""The role of the user in the system"""
+enum UserRole {
+  ADMIN
+  USER
+  VERIFIER
+}
+
+type UserSettings {
+  emailNotifications: Boolean!
+  id: ID!
+  language: Language!
+  marketingOptIn: Boolean!
+  pushNotifications: Boolean!
+  smsNotifications: Boolean!
+  theme: Theme!
+  updatedAt: DateTime!
+}
+
+type UserStatistics {
+  byRole: [RoleCount!]!
+  byStatus: [StatusCount!]!
+  totalUsers: Int!
+}

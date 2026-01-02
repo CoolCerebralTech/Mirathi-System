@@ -3,8 +3,6 @@ import { Field, InputType } from '@nestjs/graphql';
 import { KenyanCounty } from '@prisma/client';
 import { IsOptional, IsString, IsUrl, MaxLength, MinLength } from 'class-validator';
 
-import { PhoneNumberScalar } from '../../../graphql/scalars';
-
 /**
  * Input for updating user profile
  */
@@ -29,7 +27,7 @@ export class UpdateProfileInput {
   @IsUrl()
   avatarUrl?: string;
 
-  @Field(() => PhoneNumberScalar, { nullable: true })
+  @Field(() => String, { nullable: true })
   @IsOptional()
   @IsString()
   phoneNumber?: string;

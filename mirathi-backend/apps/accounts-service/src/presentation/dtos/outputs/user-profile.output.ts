@@ -1,8 +1,11 @@
-// src/presentation/dtos/outputs/user-profile.output.ts
-import { Field, ID, ObjectType } from '@nestjs/graphql';
+import { Field, ID, ObjectType, registerEnumType } from '@nestjs/graphql';
 import { KenyanCounty } from '@prisma/client';
 
-import { PhoneNumberScalar } from '../../graphql/scalars';
+// ✅ REGISTER THE ENUM HERE
+registerEnumType(KenyanCounty, {
+  name: 'KenyanCounty',
+  description: 'List of counties in Kenya',
+});
 
 /**
  * GraphQL output for UserProfile entity
@@ -24,7 +27,7 @@ export class UserProfileOutput {
   @Field({ nullable: true })
   avatarUrl?: string;
 
-  @Field(() => PhoneNumberScalar, { nullable: true })
+  @Field(() => String, { nullable: true, description: 'Kenyan phone number in E.164 format' })
   phoneNumber?: string;
 
   @Field()

@@ -21,7 +21,8 @@
     "test:watch": "jest --watch"
   },
   "dependencies": {
-    "@apollo/server": "^5.2.0",
+    "@apollo/server": "^4.12.2",
+    "@as-integrations/express5": "^1.1.2",
     "@nestjs/apollo": "^13.2.3",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.1.9",
