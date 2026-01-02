@@ -17,7 +17,7 @@ enum AuthProvider {
 
 type AuthResponse {
   isNewUser: Boolean!
-  message: PhoneNumber
+  message: String
   user: User!
 }
 
@@ -33,20 +33,20 @@ type BulkOperationResult {
 }
 
 input BulkSuspendUsersInput {
-  reason: PhoneNumber
+  reason: String
   userIds: [ID!]!
 }
 
 input ChangeRoleInput {
   newRole: UserRole!
-  reason: PhoneNumber
+  reason: String
   userId: ID!
 }
 
 """Date custom scalar type (ISO 8601 format)"""
 scalar DateTime
 
-"""List of counties in Kenya"""
+"""Counties"""
 enum KenyanCounty {
   BARINGO
   BOMET
@@ -106,11 +106,11 @@ enum Language {
 input ListUsersInput {
   limit: Int = 20
   page: Int = 1
-  role: PhoneNumber
-  search: PhoneNumber
-  sortBy: PhoneNumber = "createdAt"
-  sortOrder: PhoneNumber = "desc"
-  status: PhoneNumber
+  role: String
+  search: String
+  sortBy: String = "createdAt"
+  sortOrder: String = "desc"
+  status: String
 }
 
 type Mutation {
@@ -133,16 +133,16 @@ type Mutation {
   deleteUser(userId: ID!): User!
 
   """Demote user to USER role (Admin only)"""
-  demoteToUser(reason: PhoneNumber, userId: ID!): User!
+  demoteToUser(reason: String, userId: ID!): User!
 
   """Handle OAuth callback from provider (Google, Apple)"""
   handleOAuthCallback(input: OAuthCallbackInput!): AuthResponse!
 
   """Promote user to ADMIN role (Admin only)"""
-  promoteToAdmin(reason: PhoneNumber, userId: ID!): User!
+  promoteToAdmin(reason: String, userId: ID!): User!
 
   """Promote user to VERIFIER role (Admin only)"""
-  promoteToVerifier(reason: PhoneNumber, userId: ID!): User!
+  promoteToVerifier(reason: String, userId: ID!): User!
 
   """Restore a soft-deleted user (Admin only)"""
   restoreUser(userId: ID!): User!
@@ -169,9 +169,9 @@ type NotificationCapabilities {
 }
 
 input OAuthCallbackInput {
-  code: PhoneNumber!
+  code: String!
   provider: AuthProvider!
-  redirectUri: PhoneNumber!
+  redirectUri: String!
 }
 
 type OnboardingStatus {
@@ -211,10 +211,10 @@ type Query {
   user(id: ID!): User!
 
   """Get user by email"""
-  userByEmail(email: PhoneNumber!): User!
+  userByEmail(email: String!): User!
 
   """Get user by phone number"""
-  userByPhone(phoneNumber: PhoneNumber!): User!
+  userByPhone(phoneNumber: String!): User!
 
   """Get user statistics for dashboard (Admin only)"""
   userStatistics: UserStatistics!
@@ -222,15 +222,15 @@ type Query {
 
 type RoleCount {
   count: Int!
-  role: PhoneNumber!
+  role: String!
 }
 
 input SearchUsersInput {
-  county: PhoneNumber
+  county: String
   limit: Int = 50
   offset: Int = 0
-  role: PhoneNumber
-  status: PhoneNumber
+  role: String
+  status: String
 }
 
 type SearchUsersResult {
@@ -240,11 +240,11 @@ type SearchUsersResult {
 
 type StatusCount {
   count: Int!
-  status: PhoneNumber!
+  status: String!
 }
 
 input SuspendUserInput {
-  reason: PhoneNumber
+  reason: String
   userId: ID!
 }
 
@@ -256,17 +256,17 @@ enum Theme {
 }
 
 input UpdatePhoneInput {
-  phoneNumber: PhoneNumber!
+  phoneNumber: String!
 }
 
 input UpdateProfileInput {
-  avatarUrl: PhoneNumber
+  avatarUrl: String
   county: KenyanCounty
-  firstName: PhoneNumber
-  lastName: PhoneNumber
-  phoneNumber: PhoneNumber
-  physicalAddress: PhoneNumber
-  postalAddress: PhoneNumber
+  firstName: String
+  lastName: String
+  phoneNumber: String
+  physicalAddress: String
+  postalAddress: String
 }
 
 input UpdateSettingsInput {
@@ -281,7 +281,7 @@ input UpdateSettingsInput {
 type User {
   createdAt: DateTime!
   deletedAt: DateTime
-  displayName: PhoneNumber!
+  displayName: String!
   hasCompletedOnboarding: Boolean!
   id: ID!
   identities: [UserIdentity!]!
@@ -298,7 +298,7 @@ type User {
 }
 
 type UserIdentity {
-  email: PhoneNumber!
+  email: String!
   id: ID!
   isPrimary: Boolean!
   lastUsedAt: DateTime!
@@ -307,18 +307,18 @@ type UserIdentity {
 }
 
 type UserProfile {
-  avatarUrl: PhoneNumber
+  avatarUrl: String
   county: KenyanCounty
-  firstName: PhoneNumber!
-  fullName: PhoneNumber!
+  firstName: String!
+  fullName: String!
   id: ID!
-  lastName: PhoneNumber!
+  lastName: String!
 
-  """Kenyan phone number in E.164 format"""
-  phoneNumber: PhoneNumber
+  """E.164 format"""
+  phoneNumber: String
   phoneVerified: Boolean!
-  physicalAddress: PhoneNumber
-  postalAddress: PhoneNumber
+  physicalAddress: String
+  postalAddress: String
   updatedAt: DateTime!
 }
 

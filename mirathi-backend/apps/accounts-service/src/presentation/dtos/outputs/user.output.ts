@@ -48,8 +48,7 @@ export class UserOutput {
   @Field(() => Date, { nullable: true })
   deletedAt?: Date;
 
-  // Computed fields (from domain aggregate)
-  @Field()
+  @Field(() => String) // ✅ Make sure this is String, NOT PhoneNumber
   displayName: string;
 
   @Field()

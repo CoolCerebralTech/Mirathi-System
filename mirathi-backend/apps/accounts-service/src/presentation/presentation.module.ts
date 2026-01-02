@@ -1,4 +1,4 @@
-// src/presentation/presentation.module.ts
+import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { Module } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
@@ -17,56 +17,43 @@ import {
 } from './mappers';
 import { AdminResolver, AuthResolver, UserResolver } from './resolvers';
 
-// <--- IMPORT
-
-/**
- * Presentation Module
- *
- * Configures GraphQL and wires resolvers/controllers with application services.
- */
 @Module({
   imports: [
     ApplicationModule,
-    // Note: ObservabilityModule (providing HealthService) is likely Global.
-    // If not, import it here or in AccountModule.
 
     GraphQLModule.forRoot<ApolloDriverConfig>({
-      // ... (your existing config)
       driver: ApolloDriver,
       autoSchemaFile: join(process.cwd(), 'src/presentation/graphql/schema.gql'),
       sortSchema: true,
-      playground: process.env.NODE_ENV !== 'production',
+
+      // ✅ APOLLO 5 CONFIG
+      playground: false,
+      plugins: [ApolloServerPluginLandingPageLocalDefault()],
+
+      // ❌ REMOVE THIS (We went back to root path)
+      // useGlobalPrefix: true,
+
+      // ✅ FIX FOR PLAYGROUND BEHIND PROXY
+      // This allows the playground to load correctly even if accessed via /api/accounts/graphql
+      path: '/graphql',
+
       introspection: process.env.NODE_ENV !== 'production',
       context: ({ req, res }) => ({ req, res }),
       formatError: (error) => {
-        if (process.env.NODE_ENV === 'production') {
-          return {
-            message: error.message,
-            extensions: {
-              code: error.extensions?.code || 'INTERNAL_SERVER_ERROR',
-            },
-          };
-        }
+        // ... keep your error formatting
         return error;
       },
     }),
   ],
-  controllers: [
-    HealthController, // <--- REGISTER CONTROLLER
-  ],
+  controllers: [HealthController],
   providers: [
-    // Scalars
     DateTimeScalar,
     PhoneNumberScalar,
-
-    // Mappers
     UserPresenterMapper,
     UserIdentityPresenterMapper,
     UserProfilePresenterMapper,
     UserSettingsPresenterMapper,
     StatisticsPresenterMapper,
-
-    // Resolvers
     AuthResolver,
     UserResolver,
     AdminResolver,

@@ -1,33 +1,29 @@
 import { Field, ID, ObjectType, registerEnumType } from '@nestjs/graphql';
 import { KenyanCounty } from '@prisma/client';
 
-// ✅ REGISTER THE ENUM HERE
-registerEnumType(KenyanCounty, {
-  name: 'KenyanCounty',
-  description: 'List of counties in Kenya',
-});
+// ✅ Fix: Use String for the phone number to avoid circular dependency headaches
+// The Scalar is great for Inputs, but for Outputs, String is safer in NestJS.
+registerEnumType(KenyanCounty, { name: 'KenyanCounty', description: 'Counties' });
 
-/**
- * GraphQL output for UserProfile entity
- */
 @ObjectType('UserProfile')
 export class UserProfileOutput {
   @Field(() => ID)
   id: string;
 
-  @Field()
+  @Field(() => String) // ✅ Explicitly String
   firstName: string;
 
-  @Field()
+  @Field(() => String) // ✅ Explicitly String
   lastName: string;
 
-  @Field()
+  @Field(() => String) // ✅ Explicitly String
   fullName: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true }) // ✅ Explicitly String
   avatarUrl?: string;
 
-  @Field(() => String, { nullable: true, description: 'Kenyan phone number in E.164 format' })
+  // ✅ Keep this as String for Output to solve the "CannotDetermineType" error permanently
+  @Field(() => String, { nullable: true, description: 'E.164 format' })
   phoneNumber?: string;
 
   @Field()
@@ -36,10 +32,10 @@ export class UserProfileOutput {
   @Field(() => KenyanCounty, { nullable: true })
   county?: KenyanCounty;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true }) // ✅ Explicitly String
   physicalAddress?: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true }) // ✅ Explicitly String
   postalAddress?: string;
 
   @Field(() => Date)

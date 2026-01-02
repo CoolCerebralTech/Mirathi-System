@@ -65,25 +65,6 @@ async function bootstrap() {
   });
 
   // ============================================================================
-  // API CONFIGURATION (CRITICAL FIXES)
-  // ============================================================================
-
-  // 1. DISABLE GLOBAL PREFIX
-  // The Gateway already strips "/api/accounts". If we add "api" here again,
-  // the path becomes "/api/auth/register", causing a 404.
-  // app.setGlobalPrefix('api');  <--- COMMENTED OUT FOR GATEWAY COMPATIBILITY
-
-  // 2. DISABLE FORCED VERSIONING (Optional)
-  // If you want to use versioning, your URL must be /api/accounts/v1/auth/register.
-  // For now, let's disable it to make your test URL work.
-  /*
-  app.enableVersioning({
-    type: VersioningType.URI,
-    defaultVersion: '1',
-  });
-  */
-
-  // ============================================================================
   // SWAGGER DOCUMENTATION
   // ============================================================================
   const swaggerConfig = new DocumentBuilder()

@@ -1,7 +1,7 @@
 import { CustomScalar, Scalar } from '@nestjs/graphql';
 import { Kind, ValueNode } from 'graphql';
 
-@Scalar('PhoneNumber', () => String)
+@Scalar('PhoneNumber')
 export class PhoneNumberScalar implements CustomScalar<string, string> {
   description = 'A valid E.164 phone number';
 

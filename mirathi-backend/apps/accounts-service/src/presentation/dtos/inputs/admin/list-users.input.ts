@@ -39,10 +39,10 @@ export class ListUsersInput {
   @IsOptional()
   @IsString()
   @IsIn(['createdAt', 'updatedAt', 'email', 'role', 'status'])
-  sortBy?: string;
+  sortBy: string = 'createdAt';
 
   @Field({ nullable: true, defaultValue: 'desc' })
   @IsOptional()
   @IsIn(['asc', 'desc'])
-  sortOrder?: 'asc' | 'desc';
+  sortOrder: 'asc' | 'desc' = 'desc';
 }
