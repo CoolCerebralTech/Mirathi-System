@@ -1,36 +1,36 @@
-// src/domain/events/role-changed.event.ts
 import { UserRole } from '@prisma/client';
 
-import { DomainEvent } from './domain-event';
+import { DomainEvent } from './domain-event.base';
 
-export interface RoleChangedEventData {
-  userId: string;
-  oldRole: UserRole;
-  newRole: UserRole;
-  changedBy: string;
-  reason?: string;
-  changedAt: string;
+/**
+ * Defines the specific data payload for the RoleChangedEvent.
+ */
+export interface RoleChangedEventData extends Record<string, unknown> {
+  readonly email: string;
+  readonly oldRole: UserRole;
+  readonly newRole: UserRole;
+  /** The ID of the user (typically an admin) who initiated the change. */
+  readonly changedBy: string;
+  readonly reason?: string;
 }
 
-export class RoleChangedEvent extends DomainEvent {
-  constructor(private readonly data: RoleChangedEventData) {
-    super({
-      aggregateId: data.userId,
-      eventName: 'RoleChanged',
-      metadata: {
-        changedBy: data.changedBy,
-      },
-    });
-  }
+/**
+ * RoleChangedEvent
+ *
+ * Published when a user's role is changed.
+ * This is a critical security event for the audit trail.
+ */
+export class RoleChangedEvent extends DomainEvent<RoleChangedEventData> {
+  public readonly eventName = 'user.role_changed';
 
-  protected serialize(): Record<string, any> {
-    return {
-      userId: this.data.userId,
-      oldRole: this.data.oldRole,
-      newRole: this.data.newRole,
-      changedBy: this.data.changedBy,
-      reason: this.data.reason,
-      changedAt: this.data.changedAt,
-    };
+  constructor(props: { aggregateId: string } & RoleChangedEventData) {
+    // Call the base class constructor with the ID of the user whose role changed and payload
+    super(props.aggregateId, {
+      email: props.email,
+      oldRole: props.oldRole,
+      newRole: props.newRole,
+      changedBy: props.changedBy,
+      reason: props.reason,
+    });
   }
 }

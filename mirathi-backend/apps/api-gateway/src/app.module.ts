@@ -61,6 +61,16 @@ export class AppModule implements NestModule {
         url: this.configService.get('SUCCESSION_AUTOMATION_SERVICE_URL'),
         configKey: 'SUCCESSION_AUTOMATION_SERVICE_URL',
       },
+      {
+        path: 'notifications',
+        url: this.configService.get('NOTIFICATIONS_SERVICE_URL'),
+        configKey: 'NOTIFICATIONS_SERVICE_URL',
+      },
+      {
+        path: 'auditing',
+        url: this.configService.get('AUDITING_SERVICE_URL'),
+        configKey: 'AUDITING_SERVICE_URL',
+      },
     ];
 
     // ✅ Loop through services and register proxy middleware

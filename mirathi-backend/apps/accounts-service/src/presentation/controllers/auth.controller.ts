@@ -1,103 +1,387 @@
-// src/presentation/controllers/auth.controller.ts
 import {
-  BadRequestException,
+  Body,
   Controller,
   Get,
-  InternalServerErrorException,
-  Logger,
-  Param,
+  HttpCode,
+  HttpStatus,
+  Post,
   Query,
-  Res,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import { ApiBearerAuth, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
 
-import { Public } from '@shamba/auth';
+import { CurrentUser, JwtAuthGuard, type JwtPayload, Public } from '@shamba/auth';
 
-import { OAuthAuthService } from '../../application/services/oauth-auth.service';
+import {
+  AccountLockedResponseDto,
+  AuthResponseDto,
+  ChangePasswordRequestDto,
+  ChangePasswordResponseDto,
+  ConfirmEmailChangeRequestDto,
+  ConfirmEmailChangeResponseDto,
+  ForgotPasswordRequestDto,
+  ForgotPasswordResponseDto,
+  LoginRequestDto,
+  LogoutRequestDto,
+  LogoutResponseDto,
+  RateLimitResponseDto,
+  RefreshTokenRequestDto,
+  RefreshTokenResponseDto,
+  RegisterRequestDto,
+  RequestEmailChangeRequestDto,
+  RequestEmailChangeResponseDto,
+  ResendVerificationRequestDto,
+  ResendVerificationResponseDto,
+  ResetPasswordRequestDto,
+  ResetPasswordResponseDto,
+  ValidateResetTokenRequestDto,
+  ValidateResetTokenResponseDto,
+  VerifyEmailRequestDto,
+  VerifyEmailResponseDto,
+} from '../../application/dtos/auth.dto';
+import { AuthService } from '../../application/services/auth.service';
 
+/**
+ * AuthController
+ *
+ * Handles all authentication and authorization HTTP endpoints:
+ * - Registration & Login
+ * - Email verification
+ * - Password management
+ * - Token refresh
+ * - Email change
+ */
+@ApiTags('Authentication')
 @Controller('auth')
-@Public()
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
+  constructor(private readonly authService: AuthService) {}
 
-  constructor(private readonly oauthService: OAuthAuthService) {}
-
-  @Get(':provider')
-  login(@Param('provider') provider: string, @Res() res: Response) {
-    if (!provider) throw new BadRequestException('Provider is required');
-
-    const redirectUri = process.env.GOOGLE_REDIRECT_URI;
-
-    if (!redirectUri) {
-      this.logger.error('GOOGLE_REDIRECT_URI is not set in environment variables');
-      throw new InternalServerErrorException('Server misconfiguration: Redirect URI missing');
-    }
-
-    this.logger.log(`Initiating ${provider} login. Redirecting to: ${redirectUri}`);
-
-    const url = this.oauthService.getAuthorizationUrl(provider.toUpperCase(), redirectUri);
-    res.redirect(url);
+  // ==========================================================================
+  // REGISTRATION & LOGIN
+  // ==========================================================================
+  @Public()
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Register a new user account',
+    description: 'Creates a new user account and sends email verification link.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'User registered successfully. Email verification required.',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Email already exists.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input data or password requirements not met.',
+  })
+  async register(@Body() dto: RegisterRequestDto): Promise<AuthResponseDto> {
+    return this.authService.register(dto);
   }
 
-  @Get(':provider/callback')
-  async callback(
-    @Param('provider') provider: string,
-    @Query('code') code: string,
-    @Res() res: Response,
-  ) {
-    if (!code) throw new BadRequestException('Authorization code is missing');
+  @Public()
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Login to user account',
+    description: 'Authenticate user and return access tokens.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Login successful.',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid credentials.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Account is locked.',
+    type: AccountLockedResponseDto,
+  })
+  @ApiHeader({
+    name: 'X-Forwarded-For',
+    description: 'Client IP address (for security logging)',
+    required: false,
+  })
+  @ApiHeader({
+    name: 'User-Agent',
+    description: 'Client user agent (for device tracking)',
+    required: false,
+  })
+  async login(@Body() dto: LoginRequestDto, @Req() req: Request): Promise<AuthResponseDto> {
+    const ipAddress = this.extractIpAddress(req);
+    const userAgent = req.headers['user-agent'];
 
-    const redirectUri = process.env.GOOGLE_REDIRECT_URI;
-
-    if (!redirectUri) {
-      this.logger.error('GOOGLE_REDIRECT_URI is not set in environment variables');
-      throw new InternalServerErrorException('Server misconfiguration: Redirect URI missing');
-    }
-
-    try {
-      const { user, isNewUser } = await this.oauthService.handleOAuthCallback({
-        code,
-        redirectUri,
-        provider: provider.toUpperCase(),
-      });
-
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-
-      // ✅ FIX: Better redirect logic with user info
-      if (isNewUser) {
-        // ✅ New user - send to onboarding with success
-        this.logger.log(`New user ${user.id} created, redirecting to onboarding`);
-        res.redirect(`${frontendUrl}/onboarding?status=success&userId=${user.id}`);
-      } else {
-        // ✅ Existing user - send to dashboard with success + generate token on frontend
-        this.logger.log(`Existing user ${user.id} logged in, redirecting to dashboard`);
-        res.redirect(`${frontendUrl}/dashboard?status=success&userId=${user.id}`);
-      }
-    } catch (error: any) {
-      // ✅ FIX: Better error logging with context
-      this.logger.error(`OAuth callback failed for ${provider}: ${error.message}`, error.stack);
-
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-
-      // ✅ FIX: Pass specific error message to frontend
-      const errorType = this.getErrorType(error);
-      res.redirect(
-        `${frontendUrl}/login?error=${errorType}&message=${encodeURIComponent(error.message)}`,
-      );
-    }
+    return this.authService.login(dto, ipAddress, userAgent);
   }
 
-  // ✅ NEW: Helper to categorize errors for frontend
-  private getErrorType(error: any): string {
-    if (error.message?.includes('already exists')) {
-      return 'account_exists';
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Logout from current or all sessions',
+    description: 'Revokes refresh token(s) and terminates session(s).',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Logout successful.',
+    type: LogoutResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid or missing access token.',
+  })
+  async logout(
+    @Body() dto: LogoutRequestDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<LogoutResponseDto> {
+    return this.authService.logout(dto, user.sub);
+  }
+
+  @Public()
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Refresh access token',
+    description: 'Exchange refresh token for new access and refresh tokens (token rotation).',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Tokens refreshed successfully.',
+    type: RefreshTokenResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid or expired refresh token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Rate limit exceeded.',
+    type: RateLimitResponseDto,
+  })
+  async refreshToken(@Body() dto: RefreshTokenRequestDto): Promise<RefreshTokenResponseDto> {
+    return this.authService.refreshToken(dto);
+  }
+
+  // ==========================================================================
+  // EMAIL VERIFICATION
+  // ==========================================================================
+
+  @Public()
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Verify email address',
+    description: 'Confirms email ownership and activates account.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Email verified successfully.',
+    type: VerifyEmailResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid or expired verification token.',
+  })
+  async verifyEmail(@Body() dto: VerifyEmailRequestDto): Promise<VerifyEmailResponseDto> {
+    return this.authService.verifyEmail(dto);
+  }
+
+  @Public()
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Resend email verification link',
+    description: 'Sends a new verification email to the user.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Verification email sent.',
+    type: ResendVerificationResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Email is already verified.',
+  })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Too many requests. Please wait before trying again.',
+    type: RateLimitResponseDto,
+  })
+  async resendVerification(
+    @Body() dto: ResendVerificationRequestDto,
+  ): Promise<ResendVerificationResponseDto> {
+    return this.authService.resendEmailVerification(dto);
+  }
+
+  // ==========================================================================
+  // PASSWORD RESET
+  // ==========================================================================
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Request password reset',
+    description: 'Sends password reset link to user email (if account exists).',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Password reset email sent (if account exists).',
+    type: ForgotPasswordResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.TOO_MANY_REQUESTS,
+    description: 'Rate limit exceeded.',
+    type: RateLimitResponseDto,
+  })
+  async forgotPassword(@Body() dto: ForgotPasswordRequestDto): Promise<ForgotPasswordResponseDto> {
+    return this.authService.forgotPassword(dto);
+  }
+  @Public()
+  @Get('validate-reset-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Validate password reset token',
+    description: 'Checks if a password reset token is valid and not expired.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Token validation result.',
+    type: ValidateResetTokenResponseDto,
+  })
+  async validateResetToken(
+    @Query() dto: ValidateResetTokenRequestDto,
+  ): Promise<ValidateResetTokenResponseDto> {
+    return this.authService.validateResetToken(dto);
+  }
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reset password with token',
+    description: 'Completes password reset using token from email.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Password reset successfully.',
+    type: ResetPasswordResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid or expired reset token, or password validation failed.',
+  })
+  async resetPassword(@Body() dto: ResetPasswordRequestDto): Promise<ResetPasswordResponseDto> {
+    return this.authService.resetPassword(dto);
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Change password (authenticated)',
+    description: 'Changes user password while logged in. Requires current password.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Password changed successfully.',
+    type: ChangePasswordResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid access token or incorrect current password.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'New password does not meet requirements or was used recently.',
+  })
+  async changePassword(
+    @Body() dto: ChangePasswordRequestDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<ChangePasswordResponseDto> {
+    return this.authService.changePassword(dto, user.sub);
+  }
+
+  // ==========================================================================
+  // EMAIL CHANGE
+  // ==========================================================================
+
+  @Post('request-email-change')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Request email address change',
+    description: 'Initiates email change process. Sends verification to new email.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Email change verification sent.',
+    type: RequestEmailChangeResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid access token or incorrect password.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'New email address is already in use.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Pending email change request already exists.',
+  })
+  async requestEmailChange(
+    @Body() dto: RequestEmailChangeRequestDto,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<RequestEmailChangeResponseDto> {
+    return this.authService.requestEmailChange(dto, user.sub);
+  }
+  @Public()
+  @Post('confirm-email-change')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Confirm email address change',
+    description: 'Completes email change using verification token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Email address changed successfully.',
+    type: ConfirmEmailChangeResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid or expired email change token.',
+  })
+  async confirmEmailChange(
+    @Body() dto: ConfirmEmailChangeRequestDto,
+  ): Promise<ConfirmEmailChangeResponseDto> {
+    return this.authService.confirmEmailChange(dto);
+  }
+
+  // ==========================================================================
+  // HELPER METHODS
+  // ==========================================================================
+
+  /**
+   * Extract client IP address from request
+   * Handles X-Forwarded-For header for proxied requests
+   */
+  private extractIpAddress(req: Request): string | undefined {
+    const forwardedFor = req.headers['x-forwarded-for'];
+    if (forwardedFor) {
+      const ips = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+      return ips.split(',')[0].trim();
     }
-    if (error.message?.includes('required')) {
-      return 'missing_info';
-    }
-    if (error.message?.includes('Invalid')) {
-      return 'invalid_token';
-    }
-    return 'oauth_failed';
+    return req.ip || req.socket.remoteAddress;
   }
 }

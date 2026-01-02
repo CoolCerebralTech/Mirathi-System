@@ -2,4 +2,6 @@
 
 export { LoginForm } from './LoginForm';
 export { RegisterForm } from './RegisterForm';
-export { GoogleButton} from './GoogleButton';
+export { ForgotPasswordForm } from './ForgotPasswordForm';
+export { ResetPasswordForm } from './ResetPasswordForm';
+

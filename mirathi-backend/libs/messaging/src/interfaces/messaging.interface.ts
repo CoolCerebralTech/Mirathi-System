@@ -17,6 +17,9 @@ export enum Exchange {
 export enum Queue {
   ACCOUNTS_EVENTS = 'accounts.events',
   DOCUMENTS_EVENTS = 'documents.events',
+  SUCCESSION_EVENTS = 'succession.events',
+  NOTIFICATIONS_EVENTS = 'notifications.events',
+  AUDITING_EVENTS = 'auditing.events',
 }
 
 /**
@@ -26,6 +29,9 @@ export enum Queue {
 export enum DeadLetterQueue {
   ACCOUNTS_DLQ = 'accounts.events.dlq',
   DOCUMENTS_DLQ = 'documents.events.dlq',
+  SUCCESSION_DLQ = 'succession.events.dlq',
+  NOTIFICATIONS_DLQ = 'notifications.events.dlq',
+  AUDITING_DLQ = 'auditing.events.dlq',
 }
 
 /**
@@ -46,6 +52,12 @@ export enum RoutingPattern {
 
   // Document service events
   DOCUMENT_ALL = 'documents.#',
+
+  // Succession service events
+  SUCCESSION_ALL = 'succession.#',
+
+  // Notifications service events
+  NOTIFICATIONS_ALL = 'notifications.#',
 
   // Catch-all pattern, typically used only by the auditing service
   ALL_EVENTS = '#',

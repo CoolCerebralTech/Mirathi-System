@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { UserOutput } from '../types/user.types';
+import type { UserResponse as User } from '../types/user.types';
 
 // Define the shape of the data we want to store
 export interface AuthData {
-  user: UserOutput | null;
-  isAuthenticated: boolean;
+  user: User | null;
+  accessToken: string | null;
+  refreshToken: string | null;
 }
 
 // Define the actions available on this specific store
@@ -19,18 +20,20 @@ export const usePersistentAuthStore = create<AuthData & PersistentActions>()(
     (set) => ({
       // INITIAL STATE
       user: null,
-      isAuthenticated: false,
+      accessToken: null,
+      refreshToken: null,
 
-      // ACTIONS
+      // ACTIONS (Internal use mostly)
       setAuth: (data) => set((state) => ({ ...state, ...data })),
-      resetAuth: () => set({ user: null, isAuthenticated: false }),
+      resetAuth: () => set({ user: null, accessToken: null, refreshToken: null }),
     }),
     {
       name: 'shamba-sure-auth', // Key in localStorage
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         user: state.user,
-        isAuthenticated: state.isAuthenticated,
+        accessToken: state.accessToken,
+        refreshToken: state.refreshToken,
       }),
     },
   ),

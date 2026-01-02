@@ -1,25 +1,26 @@
-// src/domain/events/profile-updated.event.ts
-import { DomainEvent } from './domain-event';
+import { DomainEvent } from './domain-event.base';
 
-export interface ProfileUpdatedEventData {
-  userId: string;
-  updatedFields: string[];
-  updatedAt: string;
+/**
+ * Defines the specific data payload for ProfileUpdatedEvent.
+ */
+export interface ProfileUpdatedEventData extends Record<string, unknown> {
+  readonly email: string;
+  readonly updatedFields: Record<string, { old: any; new: any }>;
 }
 
-export class ProfileUpdatedEvent extends DomainEvent {
-  constructor(private readonly data: ProfileUpdatedEventData) {
-    super({
-      aggregateId: data.userId,
-      eventName: 'ProfileUpdated',
-    });
-  }
+/**
+ * ProfileUpdatedEvent
+ *
+ * Published when a user's profile information is updated.
+ * Separate from UserUpdatedEvent to distinguish between account vs profile changes.
+ */
+export class ProfileUpdatedEvent extends DomainEvent<ProfileUpdatedEventData> {
+  public readonly eventName = 'user.profile_updated';
 
-  protected serialize(): Record<string, any> {
-    return {
-      userId: this.data.userId,
-      updatedFields: this.data.updatedFields,
-      updatedAt: this.data.updatedAt,
-    };
+  constructor(props: { aggregateId: string } & ProfileUpdatedEventData) {
+    super(props.aggregateId, {
+      email: props.email,
+      updatedFields: props.updatedFields,
+    });
   }
 }

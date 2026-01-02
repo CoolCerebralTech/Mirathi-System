@@ -1,4 +1,3 @@
-// libs/auth/src/guards/jwt-auth.guard.ts
 import { ExecutionContext, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
@@ -6,12 +5,6 @@ import { Observable } from 'rxjs';
 
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
-/**
- * JWT Authentication Guard
- *
- * Protects routes by requiring a valid JWT token.
- * Can be bypassed with @Public() decorator.
- */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
   private readonly logger = new Logger(JwtAuthGuard.name);
@@ -28,11 +21,10 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     '/auth/forgot-password',
     '/auth/validate-reset-token',
     '/auth/reset-password',
-    '/auth/refresh',
-    '/health',
-    '/docs',
-    '/api-json',
-    '/graphql', // GraphQL endpoint (handles auth via resolvers)
+    '/auth/refresh', // Refresh token endpoint handles its own validation
+    '/health', // Health checks
+    '/docs', // Swagger
+    '/api-json', // Swagger JSON
   ];
 
   // Patterns for matching public path prefixes
@@ -106,6 +98,8 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   ): TUser {
     if (err || !user) {
       const errorMessage = info?.message ?? 'Invalid or missing token';
+      // Only log as warning to reduce noise, unless it's a critical env
+      // this.logger.warn(`Authentication failed: ${errorMessage}`);
       throw err ?? new UnauthorizedException(`Authentication failed: ${errorMessage}`);
     }
 

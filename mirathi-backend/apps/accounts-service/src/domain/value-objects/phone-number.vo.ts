@@ -1,8 +1,5 @@
-// src/domain/value-objects/phone-number.vo.ts
-import { SingleValueObject } from './base.vo';
-
 /**
- * Domain-specific error for phone number validation
+ * A custom error for phone number validation failures.
  */
 export class InvalidPhoneNumberError extends Error {
   constructor(message: string) {
@@ -11,299 +8,198 @@ export class InvalidPhoneNumberError extends Error {
   }
 }
 
+// REFINEMENT: Use Sets for efficient prefix lookups. Easy to update.
+const SAFARICOM_PREFIXES = new Set([
+  '100',
+  '101',
+  '102',
+  '110',
+  '111',
+  '112',
+  '113',
+  '114',
+  '115',
+  '700',
+  '701',
+  '702',
+  '703',
+  '704',
+  '705',
+  '706',
+  '707',
+  '708',
+  '709',
+  '710',
+  '711',
+  '712',
+  '713',
+  '714',
+  '715',
+  '716',
+  '717',
+  '718',
+  '719',
+  '720',
+  '721',
+  '722',
+  '723',
+  '724',
+  '725',
+  '726',
+  '727',
+  '728',
+  '729',
+  '740',
+  '741',
+  '742',
+  '743',
+  '745',
+  '746',
+  '748',
+  '757',
+  '758',
+  '759',
+  '768',
+  '769',
+  '790',
+  '791',
+  '792',
+  '793',
+  '794',
+  '795',
+  '796',
+  '797',
+  '798',
+  '799',
+]);
+const AIRTEL_PREFIXES = new Set([
+  '103',
+  '104',
+  '105',
+  '730',
+  '731',
+  '732',
+  '733',
+  '734',
+  '735',
+  '736',
+  '737',
+  '738',
+  '739',
+  '750',
+  '751',
+  '752',
+  '753',
+  '754',
+  '755',
+  '756',
+  '786',
+  '787',
+  '788',
+  '789',
+]);
+const TELKOM_PREFIXES = new Set([
+  '770',
+  '771',
+  '772',
+  '773',
+  '774',
+  '775',
+  '776',
+  '777',
+  '778',
+  '779',
+]);
+
 /**
- * Kenyan Phone Number Value Object
- *
- * Business Rules:
- * 1. Must be a valid Kenyan phone number
- * 2. Must be in E.164 format (+254...)
- * 3. Must be from a valid Kenyan carrier (Safaricom, Airtel, Telkom)
- * 4. Must not be a toll-free or premium rate number
- *
- * Formats accepted:
- * - 0712 345 678
- * - +254712345678
- * - 254712345678
- *
- * All normalized to: +254712345678
+ * PhoneNumber Value Object
+ * Encapsulates phone number validation and formatting for Kenyan phone numbers.
  */
-export class PhoneNumber extends SingleValueObject<string> {
-  // Kenyan mobile prefixes (updated as of 2024)
-  private static readonly VALID_PREFIXES = new Set([
-    '70',
-    '71',
-    '72',
-    '74',
-    '75',
-    '76',
-    '77',
-    '78',
-    '79', // Safaricom
-    '10',
-    '11',
-    '12',
-    '13',
-    '14',
-    '15',
-    '16',
-    '17',
-    '18',
-    '19', // Safaricom (new)
-    '73', // Airtel
-    '56',
-    '57',
-    '58',
-    '59', // Airtel (new)
-    '60',
-    '61',
-    '62',
-    '63',
-    '64',
-    '65',
-    '66',
-    '67',
-    '68',
-    '69', // Telkom
-    '30',
-    '31',
-    '32',
-    '33',
-    '34',
-    '35',
-    '36',
-    '37',
-    '38',
-    '39', // Equitel
-    '50',
-    '51',
-    '52',
-    '53',
-    '54',
-    '55', // Faiba
-  ]);
+export class PhoneNumber {
+  private readonly value: string; // Stored in E.164 format
 
-  // Known invalid prefixes (toll-free, emergency, premium)
-  private static readonly INVALID_PREFIXES = new Set([
-    '0800', // Toll-free
-    '0900', // Premium rate
-    '999', // Emergency
-    '112', // Emergency
-    '911', // Emergency
-    '100', // Operator
-  ]);
+  private constructor(phoneNumber: string) {
+    this.value = phoneNumber;
+  }
 
-  protected validate(): void {
-    if (!this._value) {
-      throw new InvalidPhoneNumberError('Phone number is required');
-    }
+  /**
+   * Creates a new PhoneNumber value object. This is the only safe factory.
+   * @throws InvalidPhoneNumberError if phone number is invalid.
+   */
+  static create(phoneNumber: string): PhoneNumber {
+    const normalized = this.normalize(phoneNumber);
 
-    // Remove all non-digit characters except leading +
-    const cleaned = this._value.trim();
-
-    // Check if it's a valid Kenyan number
-    if (!this.isValidKenyanNumber(cleaned)) {
+    if (!this.isValid(normalized)) {
       throw new InvalidPhoneNumberError(
-        `Invalid Kenyan phone number: ${this._value}. Must be a valid Kenyan mobile number`,
+        'Invalid Kenyan phone number format. Must be convertible to +254[17]XXXXXXXXX.',
       );
     }
+
+    return new PhoneNumber(normalized);
   }
 
-  /**
-   * Check if a phone number is a valid Kenyan mobile number
-   */
-  private isValidKenyanNumber(phone: string): boolean {
-    // Step 1: Check for invalid prefixes
-    for (const invalidPrefix of PhoneNumber.INVALID_PREFIXES) {
-      if (phone.startsWith(invalidPrefix) || phone.startsWith(`+${invalidPrefix}`)) {
-        return false;
-      }
+  private static normalize(phoneNumber: string): string {
+    if (!phoneNumber || typeof phoneNumber !== 'string') {
+      throw new InvalidPhoneNumberError('Phone number must be a non-empty string.');
     }
-
-    // Step 2: Remove country code for prefix checking
-    let numberWithoutCountryCode = phone;
-
-    if (phone.startsWith('+254')) {
-      numberWithoutCountryCode = phone.substring(4); // Remove +254
-    } else if (phone.startsWith('254')) {
-      numberWithoutCountryCode = phone.substring(3); // Remove 254
-    } else if (phone.startsWith('0')) {
-      numberWithoutCountryCode = phone.substring(1); // Remove leading 0
-    } else {
-      // Doesn't match any known Kenyan format
-      return false;
-    }
-
-    // Step 3: Check length (should be 9 digits after removing country code)
-    if (numberWithoutCountryCode.length !== 9) {
-      return false;
-    }
-
-    // Step 4: Check if first 2-3 digits are a valid mobile prefix
-    const twoDigitPrefix = numberWithoutCountryCode.substring(0, 2);
-    const threeDigitPrefix = numberWithoutCountryCode.substring(0, 3);
-
-    if (
-      !PhoneNumber.VALID_PREFIXES.has(twoDigitPrefix) &&
-      !PhoneNumber.VALID_PREFIXES.has(threeDigitPrefix)
-    ) {
-      return false;
-    }
-
-    // Step 5: Ensure all remaining characters are digits
-    return /^\d+$/.test(numberWithoutCountryCode);
-  }
-
-  /**
-   * Factory method to create PhoneNumber from various formats
-   */
-  static create(value: string): PhoneNumber {
-    return new PhoneNumber(this.normalize(value));
-  }
-
-  /**
-   * Normalize phone number to E.164 format (+254XXXXXXXXX)
-   */
-  private static normalize(phone: string): string {
-    // Remove all non-digits (turns +254... into 254..., 07... into 07...)
-    const cleaned = phone.replace(/\D/g, '');
-
-    // Case 1: Handles "2547..." or inputs that were "+2547..."
-    if (cleaned.startsWith('254') && cleaned.length === 12) {
-      return `+${cleaned}`;
-    }
-    // Case 2: Handles "07..." or "01..."
-    else if (cleaned.startsWith('0') && cleaned.length === 10) {
-      return `+254${cleaned.substring(1)}`;
-    }
-    // Case 3: Handles "7..." (9 digits without prefix)
-    else if (cleaned.length === 9) {
+    const cleaned = phoneNumber.replace(/[\s\-\\(\\)]/g, '');
+    if (cleaned.startsWith('+254')) return cleaned;
+    if (cleaned.startsWith('254')) return `+${cleaned}`;
+    if (cleaned.startsWith('0')) return `+254${cleaned.substring(1)}`;
+    // Caters for both 7... (9 digits) and 1... (9 digits) formats
+    if (cleaned.length === 9 && (cleaned.startsWith('7') || cleaned.startsWith('1'))) {
       return `+254${cleaned}`;
     }
-    // Fallback
-    else {
-      // Try to parse as is, validation will catch if invalid
-      return phone;
-    }
+    return cleaned; // Return as-is for validation to fail
   }
 
   /**
-   * Check if this is a Safaricom number (for M-Pesa integration)
+   * Validates if a number matches the Kenyan E.164 structure.
+   * This is intentionally not checking for specific network prefixes to avoid brittleness.
    */
-  isSafaricom(): boolean {
-    const number = this.value;
-    const prefixes = [
-      '70',
-      '71',
-      '72',
-      '74',
-      '75',
-      '76',
-      '77',
-      '78',
-      '79',
-      '10',
-      '11',
-      '12',
-      '13',
-      '14',
-      '15',
-      '16',
-      '17',
-      '18',
-      '19',
-    ];
-
-    for (const prefix of prefixes) {
-      if (number.includes(prefix)) {
-        return true;
-      }
-    }
-    return false;
+  private static isValid(phoneNumber: string): boolean {
+    // Valid Kenyan numbers in E.164 start with +254, followed by 1 (new) or 7 (older), and are 13 chars total.
+    const kenyanE164Regex = /^\+254[17]\d{8}$/;
+    return kenyanE164Regex.test(phoneNumber);
   }
 
   /**
-   * Check if this is an Airtel number
+   * REASONING: The `fromString` method was removed as it was an unsafe factory
+   * that bypassed the crucial validation and normalization logic in `create()`.
+   * All instantiations must go through `PhoneNumber.create()` to guarantee validity.
    */
-  isAirtel(): boolean {
-    const number = this.value;
-    const prefixes = ['73', '56', '57', '58', '59'];
 
-    for (const prefix of prefixes) {
-      if (number.includes(prefix)) {
-        return true;
-      }
-    }
-    return false;
+  getValue(): string {
+    return this.value;
+  }
+
+  getLocalFormat(): string {
+    return `0${this.value.substring(4)}`;
+  }
+
+  getMasked(): string {
+    const lastFour = this.value.slice(-4);
+    return `+254****${lastFour}`;
   }
 
   /**
-   * Get the carrier name
+   * Returns the network provider based on the number's prefix.
    */
-  get carrier(): string {
-    if (this.isSafaricom()) return 'Safaricom';
-    if (this.isAirtel()) return 'Airtel';
+  getProvider(): 'Safaricom' | 'Airtel' | 'Telkom' | 'Unknown' {
+    const prefix = this.value.substring(4, 7); // e.g., "712" from "+254712..." or "110" from "+254110..."
 
-    // Check other carriers
-    const number = this.value;
-    if (
-      number.includes('60') ||
-      number.includes('61') ||
-      number.includes('62') ||
-      number.includes('63') ||
-      number.includes('64') ||
-      number.includes('65') ||
-      number.includes('66') ||
-      number.includes('67') ||
-      number.includes('68') ||
-      number.includes('69')
-    ) {
-      return 'Telkom';
-    }
-
-    if (
-      number.includes('30') ||
-      number.includes('31') ||
-      number.includes('32') ||
-      number.includes('33') ||
-      number.includes('34') ||
-      number.includes('35') ||
-      number.includes('36') ||
-      number.includes('37') ||
-      number.includes('38') ||
-      number.includes('39')
-    ) {
-      return 'Equitel';
-    }
-
-    if (
-      number.includes('50') ||
-      number.includes('51') ||
-      number.includes('52') ||
-      number.includes('53') ||
-      number.includes('54') ||
-      number.includes('55')
-    ) {
-      return 'Faiba';
-    }
+    if (SAFARICOM_PREFIXES.has(prefix)) return 'Safaricom';
+    if (AIRTEL_PREFIXES.has(prefix)) return 'Airtel';
+    if (TELKOM_PREFIXES.has(prefix)) return 'Telkom';
 
     return 'Unknown';
   }
 
-  /**
-   * Get the last 4 digits (for display purposes)
-   */
-  get lastFourDigits(): string {
-    return this.value.slice(-4);
+  equals(other: PhoneNumber): boolean {
+    return this.value === other.value;
   }
 
-  /**
-   * Get masked version for display (e.g., +2547*****5678)
-   */
-  get masked(): string {
-    const digits = this.value.replace(/\D/g, '');
-    if (digits.length >= 7) {
-      return `+${digits.slice(0, -6)}*****${digits.slice(-4)}`;
-    }
+  toString(): string {
     return this.value;
   }
 }

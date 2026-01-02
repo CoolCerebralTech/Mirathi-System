@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { UserOutput } from '../types/user.types';
+import type { UserResponse as User } from '../types/user.types';
 import { usePersistentAuthStore } from './auth-persistent';
 import { useSessionAuthStore } from './auth-session';
 
@@ -11,12 +11,13 @@ interface AuthState {
 
   // Actions
   login: (
-    data: { user: UserOutput; isAuthenticated?: boolean },
-    _rememberMe?: boolean 
+    data: { user: User; accessToken: string; refreshToken: string },
+    _rememberMe?: boolean // Underscore to ignore unused warning if logic dictates
   ) => void;
   
   logout: () => void;
-  setUser: (user: UserOutput) => void;
+  setUser: (user: User) => void;
+  setTokens: (tokens: { accessToken: string; refreshToken: string }) => void;
   setLoading: (v: boolean) => void;
   
   // Initialization
@@ -30,21 +31,19 @@ export const useAuthStore = create<AuthState>((set) => ({
   // =================================================================
   // LOGIN ACTION
   // =================================================================
-  login: ({ user }, rememberMe = true) => {
+  login: ({ user, accessToken, refreshToken }, rememberMe = true) => {
     // 1. Update UI Status
     set({ status: 'authenticated', isLoading: false });
 
     // 2. Route data to the correct store
-    // Note: We only store the User Profile for UI display.
-    // The actual "Session" is held by the HttpOnly cookie in the browser.
     if (rememberMe) {
       // Save to LocalStorage
-      usePersistentAuthStore.getState().setAuth({ user, isAuthenticated: true });
+      usePersistentAuthStore.getState().setAuth({ user, accessToken, refreshToken });
       // Clear Session (to avoid duplicates)
       useSessionAuthStore.getState().resetAuth();
     } else {
       // Save to Memory Only
-      useSessionAuthStore.getState().setAuth({ user, isAuthenticated: true });
+      useSessionAuthStore.getState().setAuth({ user, accessToken, refreshToken });
       // Clear Persistent
       usePersistentAuthStore.getState().resetAuth();
     }
@@ -55,11 +54,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   // =================================================================
   logout: () => {
     set({ status: 'unauthenticated' });
-    // Clear BOTH stores
+    // Clear BOTH stores to be safe
     usePersistentAuthStore.getState().resetAuth();
     useSessionAuthStore.getState().resetAuth();
     
-    // Clear localStorage key entirely to be safe
     try {
       localStorage.removeItem('shamba-sure-auth');
     } catch (e) { console.error(e) }
@@ -69,14 +67,28 @@ export const useAuthStore = create<AuthState>((set) => ({
   // UPDATE USER (Profile Updates)
   // =================================================================
   setUser: (user) => {
-    // Check which store is currently active and update it
+    // We need to check which store is currently active and update that one
     const pStore = usePersistentAuthStore.getState();
     const sStore = useSessionAuthStore.getState();
 
-    if (pStore.isAuthenticated) {
+    if (pStore.accessToken) {
       pStore.setAuth({ user });
-    } else if (sStore.isAuthenticated) {
+    } else if (sStore.accessToken) {
       sStore.setAuth({ user });
+    }
+  },
+
+  // =================================================================
+  // UPDATE TOKENS (Refreshes)
+  // =================================================================
+  setTokens: ({ accessToken, refreshToken }) => {
+    const pStore = usePersistentAuthStore.getState();
+    const sStore = useSessionAuthStore.getState();
+
+    if (pStore.accessToken) {
+      pStore.setAuth({ accessToken, refreshToken });
+    } else if (sStore.accessToken) {
+      sStore.setAuth({ accessToken, refreshToken });
     }
   },
 
@@ -86,10 +98,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   // HYDRATION (Startup Check)
   // =================================================================
   hydrate: () => {
-    const pAuth = usePersistentAuthStore.getState().isAuthenticated;
-    const sAuth = useSessionAuthStore.getState().isAuthenticated;
+    const pUser = usePersistentAuthStore.getState().user;
+    const sUser = useSessionAuthStore.getState().user;
 
-    if (pAuth || sAuth) {
+    if (pUser || sUser) {
       set({ status: 'authenticated', isLoading: false });
     } else {
       set({ status: 'unauthenticated', isLoading: false });
@@ -98,8 +110,22 @@ export const useAuthStore = create<AuthState>((set) => ({
 }));
 
 // ============================================================================
-// UNIFIED SELECTORS
+// UNIFIED SELECTORS (The "Magic" Part)
 // ============================================================================
+// These hooks automatically look in BOTH stores.
+// This allows your components to just say "give me the token" without caring about storage.
+
+export const useAccessToken = () => {
+  const pToken = usePersistentAuthStore((s) => s.accessToken);
+  const sToken = useSessionAuthStore((s) => s.accessToken);
+  return pToken || sToken;
+};
+
+export const useRefreshToken = () => {
+  const pToken = usePersistentAuthStore((s) => s.refreshToken);
+  const sToken = useSessionAuthStore((s) => s.refreshToken);
+  return pToken || sToken;
+};
 
 export const useCurrentUser = () => {
   const pUser = usePersistentAuthStore((s) => s.user);
@@ -109,19 +135,21 @@ export const useCurrentUser = () => {
 
 export const useAuthStatus = () => useAuthStore((s) => s.status);
 export const useIsAuthLoading = () => useAuthStore((s) => s.isLoading);
-export const useIsAuthenticated = () => {
-    const status = useAuthStatus();
-    return status === 'authenticated';
-}
 
 // Action exports
 export const useAuthActions = () => useAuthStore((state) => ({
   login: state.login,
   logout: state.logout,
   setUser: state.setUser,
+  setTokens: state.setTokens,
   setLoading: state.setLoading,
   hydrate: state.hydrate
 }));
 
-// Note: getAccessToken/getRefreshToken removed as they are no longer accessible
-// via JavaScript (HttpOnly cookies).
+export const getAccessToken = () => {
+  return usePersistentAuthStore.getState().accessToken || useSessionAuthStore.getState().accessToken;
+};
+
+export const getRefreshToken = () => {
+  return usePersistentAuthStore.getState().refreshToken || useSessionAuthStore.getState().refreshToken;
+};

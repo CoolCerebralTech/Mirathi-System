@@ -10,27 +10,10 @@ generator client {
 // ENUMS
 // -----------------------------------------------------------------------------
 enum UserRole {
-  USER      // The Public: Executors, Testators, Beneficiaries
-  VERIFIER  // The Staff: Back-office operations (Document checking)
-  ADMIN     // The Owner: System config, resolving blocks, legal overrides
-}
-enum AuthProvider {
-  GOOGLE
-}
-enum AccountStatus {
-  ACTIVE
-  SUSPENDED
-  ARCHIVED
-  PENDING_ONBOARDING // Signed up, but hasn't chosen "Plan" or "Manage"
-}
-enum Language {
-  ENGLISH
-  SWAHILI
-}
-enum Theme {
-  SYSTEM
-  LIGHT
-  DARK
+  USER
+  ADMIN
+  VERIFIER
+  AUDITOR
 }
 enum Gender {
   MALE
@@ -1069,34 +1052,43 @@ enum NotificationStatus {
   FAILED
 }
 // ============================================================================
-// ACCOUNT SERVICE (Identity & Access Management)
-// Architecture: OAuth 2.0 / OIDC Federation
+// ACCOUNTS SERVICE MODELS
 // Owner: accounts-service
 // ============================================================================
 
 model User {
-  id              String        @id @default(uuid()) @db.Uuid()
-  
-  // --- Core Identity ---
-  role            UserRole      @default(USER)
-  status          AccountStatus @default(PENDING_ONBOARDING)
-  
-  // --- Relations (Account Internals) ---
-  identities      UserIdentity[]
-  profile         UserProfile?
-  settings        UserSettings?
-  authSessions AuthSession[]
-  phoneCodes      PhoneVerificationCode[]
+  id              String   @id @default(uuid()) @db.Uuid()
+  email           String   @unique(map: "users_email_unique") @db.VarChar(255)
+  password        String   @db.VarChar(255) // Argon2id hashed password
+  firstName       String   @db.VarChar(100)
+  lastName        String   @db.VarChar(100)
+  role            UserRole @default(USER)
+  isActive        Boolean  @default(true)
+  lastLoginAt     DateTime?
+  loginAttempts   Int      @default(0)
+  lockedUntil     DateTime?
 
-  // --- Audit ---
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  deletedAt       DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  // --- Relationships Owned by this Service ---
+  profile                UserProfile?
+  passwordResetTokens    PasswordResetToken[]
+  refreshTokens          RefreshToken[]
+  roleChanges            RoleChange[]
+  emailVerificationToken EmailVerificationToken?
+  phoneVerificationTokens PhoneVerificationToken[]
+  emailChangeTokens      EmailChangeToken[]
+  loginSessions          LoginSession[]
+  passwordHistory        PasswordHistory[]
 
   // --- Back-relations from other services ---
   documentsUploaded         Document[]              @relation("DocumentUploader")
-  identityDocuments          Document[] @relation("UserIdentityDocuments")
+  Document Document[] @relation("UserIdentityDocuments")
   DocumentVerificationAttempt DocumentVerificationAttempt[]
+  notifications       Notification[]
+  auditLogsAsActor          AuditLog[]              @relation("AuditActor")  
   // Back-relations from Family-Service
   createdFamilies     Family[]       @relation("FamilyCreator")
   familyMemberships   FamilyMember[] @relation("FamilyMemberUser")
@@ -1108,120 +1100,148 @@ model User {
   willExecutorRoles   WillExecutor[] @relation("ExecutorUser")
   witnessRoles        WillWitness[]  @relation("WitnessUser")
   beneficiaryOfAssignments       WillBequest[] @relation("AssignmentBeneficiaryUser")
-  @@index([status, createdAt]) // For onboarding queries
-  @@index([role, status]) // For admin queries
-  @@index([deletedAt]) // For soft delete queries
+  @@index([email, isActive], map: "users_email_isActive_idx")
+  @@index([createdAt], map: "users_createdAt_idx")
+  @@index([deletedAt], map: "users_deletedAt_idx")
   @@map("users")
 }
-model UserIdentity {
-  id              String       @id @default(uuid()) @db.Uuid()
-  userId          String       @db.Uuid()
-  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  // --- Provider Data ---
-  provider        AuthProvider
-  providerUserId  String       @db.VarChar(255) // Google 'sub'
-  email           String       // Email from provider
-  
-  // --- Metadata ---
-  isPrimary       Boolean      @default(false)
-  linkedAt        DateTime     @default(now())
-  lastUsedAt      DateTime     @default(now())
-
-  @@unique([provider, providerUserId])
-  @@index([userId])
-  @@map("user_identities")
-}
 model UserProfile {
-  id              String       @id @default(uuid()) @db.Uuid()
-  userId          String       @unique @db.Uuid()
-  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String   @id @default(uuid()) @db.Uuid()
+  userId        String   @unique(map: "user_profiles_userId_unique") @db.Uuid()
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   
-  // --- Display Info ---
-  firstName       String       @db.VarChar(100)
-  lastName        String       @db.VarChar(100)
-  avatarUrl       String?      @db.Text
-  
-  // --- Contact ---
-  phoneNumber  String? @unique @db.VarChar(20) @map("phone_number") // E.164 format (+254...)
-  phoneVerified Boolean      @default(false)
-  
-  // --- Location (Critical for Court Jurisdiction logic) ---
-  county          KenyanCounty?
-  physicalAddress String?      @db.Text // "House 4, Kileleshwa"
-  postalAddress   String?      @db.VarChar(100)
-  
-  updatedAt       DateTime     @updatedAt
-  @@index([phoneNumber, phoneVerified])
+  bio            String?   @db.Text
+  phoneNumber    String?   @db.VarChar(20)
+  phoneVerified  Boolean   @default(false)
+  emailVerified  Boolean   @default(false)
+  marketingOptIn Boolean   @default(false)
+  address        Json?     // {street, city, county, postalCode}
+  nextOfKin      Json?     // {name, relationship, phone, email}
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phoneNumber], map: "user_profiles_phoneNumber_idx")
   @@map("user_profiles")
 }
-model UserSettings {
-  id                  String   @id @default(uuid()) @db.Uuid()
-  userId              String   @unique @db.Uuid()
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model PasswordResetToken {
+  id        String   @id @default(uuid()) @db.Uuid()
+  tokenHash String   @unique(map: "password_reset_tokens_tokenHash_unique") @db.VarChar(255)
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  userId    String   @db.Uuid()
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   
-  // --- UX Preferences ---
-  language            Language @default(ENGLISH)
-  theme               Theme    @default(SYSTEM)
-  
-  // --- Notification Channels ---
-  emailNotifications  Boolean  @default(true)
-  smsNotifications    Boolean  @default(true) // Costly, user may disable
-  pushNotifications   Boolean  @default(true)
-  marketingOptIn      Boolean  @default(false)
-  
-  updatedAt           DateTime @updatedAt
+  createdAt DateTime @default(now())
 
-  @@map("user_settings")
+  @@index([userId, used], map: "password_reset_tokens_userId_used_idx")
+  @@index([expiresAt], map: "password_reset_tokens_expiresAt_idx")
+  @@map("password_reset_tokens")
 }
-model AuthSession {
-  id          String   @id @default(uuid()) @db.Uuid()
-  userId      String   @db.Uuid()
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid()
+  tokenHash String   @unique(map: "refresh_tokens_tokenHash_unique") @db.VarChar(255)
+  expiresAt DateTime
+  userId    String   @db.Uuid()
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  
+  deviceId  String?  @db.VarChar(255)
+  ipAddress String?  @db.VarChar(45) // IPv6 support
+  userAgent String?  @db.Text
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+  lastUsedAt DateTime?
 
-  refreshHash String   @unique @db.VarChar(255)
-  expiresAt   DateTime
-
-  ipAddress   String?  @db.VarChar(45)
-  userAgent   String?  @db.Text
-  deviceId    String?  @db.VarChar(255)
-
-  revokedAt   DateTime?
-  createdAt   DateTime @default(now())
-  lastUsedAt  DateTime?
-
-  @@index([userId, revokedAt, expiresAt])
-  @@map("auth_sessions")
+  @@index([userId], map: "refresh_tokens_userId_idx")
+  @@index([expiresAt], map: "refresh_tokens_expiresAt_idx")
+  @@map("refresh_tokens")
 }
-model LoginAudit {
+model RoleChange {
   id        String   @id @default(uuid()) @db.Uuid()
   userId    String   @db.Uuid()
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  
+  oldRole   UserRole
+  newRole   UserRole
+  changedBy String?  @db.Uuid()
+  reason    String?  @db.Text
+  
+  createdAt DateTime @default(now())
 
-  ipAddress String?  @db.VarChar(45)
-  userAgent String?  @db.Text
-  success   Boolean
-  reason    String?
-
-  loggedAt  DateTime @default(now())
-
-  @@index([userId, loggedAt])
-  @@map("login_audit")
+  @@index([userId], map: "role_changes_userId_idx")
+  @@index([createdAt], map: "role_changes_createdAt_idx")
+  @@map("role_changes")
 }
-model PhoneVerificationCode {
-  id              String   @id @default(uuid()) @db.Uuid()
-  userId          String   @db.Uuid()
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model EmailVerificationToken {
+  id        String   @id @default(uuid()) @db.Uuid()
+  tokenHash String   @unique(map: "email_verification_tokens_tokenHash_unique") @db.VarChar(255)
+  expiresAt DateTime
+  userId    String   @unique(map: "email_verification_tokens_userId_unique") @db.Uuid()
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   
-  phoneNumber     String   @db.VarChar(20)
-  code            String   @db.VarChar(6)
-  expiresAt       DateTime
-  
-  used            Boolean  @default(false)
-  attempts        Int      @default(0)
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
-  @@index([userId, phoneNumber])
-  @@map("phone_verification_codes")
+  @@index([expiresAt], map: "email_verification_tokens_expiresAt_idx")
+  @@map("email_verification_tokens")
+}
+model PhoneVerificationToken {
+  id        String   @id @default(uuid()) @db.Uuid()
+  tokenHash String   @unique(map: "phone_verification_tokens_tokenHash_unique") @db.VarChar(255)
+  expiresAt DateTime
+  userId    String   @db.Uuid()
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  
+  used      Boolean  @default(false)
+  attempts  Int      @default(0) // Track verification attempts
+  createdAt DateTime @default(now())
+
+  @@index([userId, used], map: "phone_verification_tokens_userId_used_idx")
+  @@index([expiresAt], map: "phone_verification_tokens_expiresAt_idx")
+  @@map("phone_verification_tokens")
+}
+model EmailChangeToken {
+  id        String   @id @default(uuid()) @db.Uuid()
+  userId    String   @db.Uuid()
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  
+  newEmail     String   @db.VarChar(255)
+  tokenHash    String   @unique(map: "email_change_tokens_tokenHash_unique") @db.VarChar(255)
+  expiresAt    DateTime
+  used         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([userId, used], map: "email_change_tokens_userId_used_idx")
+  @@index([expiresAt], map: "email_change_tokens_expiresAt_idx")
+  @@map("email_change_tokens")
+}
+model LoginSession {
+  id           String    @id @default(uuid()) @db.Uuid()
+  userId       String    @db.Uuid()
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  
+  tokenHash    String    @unique(map: "login_sessions_tokenHash_unique") @db.VarChar(255)
+  ipAddress    String?   @db.VarChar(45) // IPv6 support
+  userAgent    String?   @db.Text
+  deviceId     String?   @db.VarChar(255)
+  lastActivity DateTime  @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime? // For manual session termination
+  createdAt    DateTime  @default(now())
+
+  @@index([userId, expiresAt], map: "login_sessions_userId_expiresAt_idx")
+  @@index([deviceId], map: "login_sessions_deviceId_idx")
+  @@map("login_sessions")
+}
+model PasswordHistory {
+  id           String   @id @default(uuid()) @db.Uuid()
+  userId       String   @db.Uuid()
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  
+  passwordHash String   @db.VarChar(255) // Store Argon2id hash of old password
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt], map: "password_history_userId_createdAt_idx")
+  @@map("password_history")
 }
 // ============================================================================
 // DOCUMENTS SERVICE MODELS
@@ -3131,4 +3151,55 @@ model RoadmapTask {
   @@index([category])
   @@index([priority, isOverdue])
   @@map("roadmap_tasks")
+}
+// =============================================================================
+// NOTIFICATIONS SERVICE MODELS
+// Owner: notifications-service
+// =============================================================================
+
+model NotificationTemplate {
+  id      String              @id @default(uuid()) @db.Uuid()
+  name    String              @unique(map: "notification_templates_name_unique") @db.VarChar(100)
+  channel NotificationChannel
+  subject String?             @db.VarChar(255)
+  body    String              @db.Text
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  notifications Notification[]
+
+  @@map("notification_templates")
+}
+
+model Notification {
+  id          String             @id @default(uuid()) @db.Uuid()
+  channel     NotificationChannel
+  status      NotificationStatus @default(PENDING)
+  sentAt      DateTime?
+  failReason  String?            @db.Text
+  templateId  String             @db.Uuid()
+  template    NotificationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  recipientId String?            @db.Uuid()
+  recipient   User?              @relation(fields: [recipientId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt   DateTime           @default(now())
+
+  @@index([recipientId, status], map: "notifications_recipient_status_idx")
+  @@map("notifications")
+}
+// =============================================================================
+// AUDITING SERVICE MODEL
+// Owner: auditing-service
+// =============================================================================
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid()
+  timestamp DateTime @default(now())
+  actorId   String?  @db.Uuid()
+  actor     User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  action    String   @db.VarChar(100)
+  payload   Json
+
+  @@index([actorId], map: "audit_logs_actorId_idx")
+  @@index([action, timestamp], map: "audit_logs_action_timestamp_idx")
+  @@map("audit_logs")
 }

@@ -1,16 +1,35 @@
-import { ProfileForm } from '@/features/user/components/ProfileForm';
+import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+import { Shield } from 'lucide-react';
+import { PageHeader } from '../../components/common/PageHeader';
+import { ProfileForm } from '../../features/user/components/ProfileForm';
+import { Alert, AlertDescription, AlertTitle } from '../../components/ui/Alert';
 
+/**
+ * The main user profile page, dedicated to managing a user's personal and contact information.
+ */
 export function ProfilePage() {
-  return (
-    <div className="max-w-3xl mx-auto py-8 px-4">
-      <div className="mb-8">
-        <h1 className="text-2xl font-serif font-bold text-white">My Profile</h1>
-        <p className="text-slate-400">Manage your personal information and contact details.</p>
-      </div>
+  const { t } = useTranslation(['user']);
 
-      <div className="bg-slate-950 rounded-xl border border-slate-800 p-6 shadow-sm">
-        <ProfileForm />
-      </div>
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title={t('profile_page_title', 'My Profile')}
+        description={t('profile_page_description', 'View and manage your personal details.')}
+      />
+
+      <Alert>
+        <Shield className="h-4 w-4" />
+        <AlertTitle>{t('settings_link_title', 'Looking for account settings?')}</AlertTitle>
+        <AlertDescription>
+          {t('settings_link_description', 'To change your name, password, or manage marketing preferences, please visit the')}{' '}
+          <Link to="/settings" className="font-semibold text-primary hover:underline">
+            {t('settings_page_title', 'Account Settings')}
+          </Link>.
+        </AlertDescription>
+      </Alert>
+
+      <ProfileForm />
     </div>
   );
 }
