@@ -1,5 +1,6 @@
 // src/application/queries/handlers/get-user-statistics.handler.ts
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
+import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 
 import {
   USER_REPOSITORY_PORT,
@@ -12,8 +13,8 @@ export interface UserStatistics {
   byRole: { [role: string]: number };
 }
 
-@Injectable()
-export class GetUserStatisticsHandler {
+@QueryHandler(GetUserStatisticsQuery)
+export class GetUserStatisticsHandler implements IQueryHandler<GetUserStatisticsQuery> {
   constructor(
     @Inject(USER_REPOSITORY_PORT)
     private readonly userRepository: UserRepositoryPort,

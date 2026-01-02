@@ -2,27 +2,19 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { User } from '../../domain/aggregates/user.aggregate';
-import {
-  OAUTH_PROVIDER_PORT,
-  OAuthProviderPort,
-  OAuthUserProfile,
-} from '../../domain/ports/oauth-provider.port';
+import { OAUTH_FACTORY_PORT, OAuthFactoryPort } from '../../domain/ports/oauth-factory.port';
+import { OAuthUserProfile } from '../../domain/ports/oauth-provider.port';
 import { OAuthProviderException } from '../exceptions/user.exception';
 import { UserService } from './user.service';
 
-/**
- * OAuth Authentication Service
- *
- * Orchestrates OAuth flows with external providers (Google, Apple).
- * Handles token exchange, profile fetching, and user registration/login.
- */
 @Injectable()
 export class OAuthAuthService {
   private readonly logger = new Logger(OAuthAuthService.name);
 
   constructor(
-    @Inject(OAUTH_PROVIDER_PORT)
-    private readonly oauthProvider: OAuthProviderPort,
+    // FIX: Inject the Factory Port, not a specific Provider
+    @Inject(OAUTH_FACTORY_PORT)
+    private readonly oauthFactory: OAuthFactoryPort,
     private readonly userService: UserService,
   ) {}
 
@@ -33,7 +25,9 @@ export class OAuthAuthService {
     const state = this.generateState();
 
     try {
-      return this.oauthProvider.getAuthorizationUrl(state, redirectUri);
+      // FIX: Resolve adapter dynamically
+      const adapter = this.oauthFactory.getAdapter(provider);
+      return adapter.getAuthorizationUrl(state, redirectUri);
     } catch (error) {
       this.logger.error(`Failed to get authorization URL for ${provider}`, error);
       throw new OAuthProviderException(provider, 'Failed to generate authorization URL');
@@ -41,54 +35,60 @@ export class OAuthAuthService {
   }
 
   /**
-   * Handle OAuth callback - exchange code for tokens and get user profile
-   *
-   * This is the main entry point after user returns from OAuth provider.
-   * Flow:
-   * 1. Exchange authorization code for access token
-   * 2. Fetch user profile from provider
-   * 3. Check if user exists
-   * 4. Register new user OR link identity to existing user
+   * Handle OAuth callback
    */
   async handleOAuthCallback(data: {
     code: string;
     redirectUri: string;
     provider: string;
   }): Promise<{ user: User; isNewUser: boolean }> {
+    const adapter = this.oauthFactory.getAdapter(data.provider);
+
     // 1. Exchange code for tokens
     let tokens;
     try {
-      tokens = await this.oauthProvider.exchangeCodeForToken(data.code, data.redirectUri);
+      tokens = await adapter.exchangeCodeForToken(data.code, data.redirectUri);
     } catch (error) {
       this.logger.error(`Failed to exchange OAuth code for ${data.provider}`, error);
       throw new OAuthProviderException(data.provider, 'Failed to exchange authorization code');
     }
 
-    // 2. Get user profile from provider
+    // 2. Get user profile
     let profile: OAuthUserProfile;
     try {
-      profile = await this.oauthProvider.getUserProfile(tokens.access_token);
+      // Some providers (Apple) might need the ID token specifically
+      if (data.provider.toUpperCase() === 'APPLE' && tokens.id_token) {
+        profile = await adapter.validateIdToken(tokens.id_token);
+      } else {
+        profile = await adapter.getUserProfile(tokens.access_token);
+      }
     } catch (error) {
       this.logger.error(`Failed to get user profile from ${data.provider}`, error);
       throw new OAuthProviderException(data.provider, 'Failed to fetch user profile');
     }
 
-    // 3. Check if user exists by email
+    // 3. Orchestrate User Registration/Linking via UserService
     let user: User;
     let isNewUser = false;
 
     try {
-      user = await this.userService.getUserByEmail(profile.email!);
+      // Check if user exists by email (Account Linking)
+      // Note: In strict security, we might only auto-link if emailVerified is true
+      if (!profile.email) throw new Error('Email required');
 
-      // User exists - link this identity if not already linked
+      user = await this.userService.getUserByEmail(profile.email);
+
+      // User exists - ensure identity is linked
+      // This implicitly handles the "Login" case too
       user = await this.userService.linkIdentity({
         userId: user.id,
         provider: profile.provider,
         providerUserId: profile.providerUserId,
-        email: profile.email!,
+        email: profile.email,
       });
     } catch {
-      // User doesn't exist - register new user
+      // If user not found (UserNotFoundException), we register
+      // Check e instance if needed, assuming generic flow here
       user = await this.userService.registerViaOAuth({
         provider: profile.provider,
         providerUserId: profile.providerUserId,
@@ -107,12 +107,12 @@ export class OAuthAuthService {
   }
 
   /**
-   * Validate ID token from OAuth provider
-   * Used for mobile apps that get ID tokens directly
+   * Validate ID token (Mobile Apps)
    */
   async validateIdToken(idToken: string, provider: string): Promise<OAuthUserProfile> {
     try {
-      return await this.oauthProvider.validateIdToken(idToken);
+      const adapter = this.oauthFactory.getAdapter(provider);
+      return await adapter.validateIdToken(idToken);
     } catch (error) {
       this.logger.error(`Failed to validate ID token for ${provider}`, error);
       throw new OAuthProviderException(provider, 'Invalid ID token');
@@ -124,7 +124,8 @@ export class OAuthAuthService {
    */
   async refreshAccessToken(refreshToken: string, provider: string) {
     try {
-      return await this.oauthProvider.refreshToken(refreshToken);
+      const adapter = this.oauthFactory.getAdapter(provider);
+      return await adapter.refreshToken(refreshToken);
     } catch (error) {
       this.logger.error(`Failed to refresh token for ${provider}`, error);
       throw new OAuthProviderException(provider, 'Failed to refresh access token');
@@ -132,21 +133,19 @@ export class OAuthAuthService {
   }
 
   /**
-   * Revoke OAuth token (logout)
+   * Revoke OAuth token
    */
   async revokeToken(token: string, provider: string): Promise<void> {
     try {
-      await this.oauthProvider.revokeToken(token);
+      const adapter = this.oauthFactory.getAdapter(provider);
+      await adapter.revokeToken(token);
       this.logger.log(`Token revoked for ${provider}`);
     } catch (error) {
-      this.logger.error(`Failed to revoke token for ${provider}`, error);
-      // Don't throw - revocation failure shouldn't break logout
+      // Log only, don't throw
+      this.logger.warn(`Failed to revoke token for ${provider}: ${error.message}`);
     }
   }
 
-  /**
-   * Generate random state for CSRF protection
-   */
   private generateState(): string {
     return (
       Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)

@@ -1,16 +1,10 @@
 // src/application/services/user-admin.service.ts
 import { Injectable, Logger } from '@nestjs/common';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { UserRole } from '@prisma/client';
 
 import { User } from '../../domain/aggregates/user.aggregate';
-import {
-  ActivateUserHandler,
-  ChangeUserRoleHandler,
-  DeleteUserHandler,
-  RestoreUserHandler,
-  SuspendUserHandler,
-  UnsuspendUserHandler,
-} from '../commands/handlers/admin';
+// Admin Commands
 import {
   ActivateUserCommand,
   ChangeUserRoleCommand,
@@ -19,39 +13,23 @@ import {
   SuspendUserCommand,
   UnsuspendUserCommand,
 } from '../commands/impl/admin';
-import {
-  GetUserStatisticsHandler,
-  ListUsersPaginatedHandler,
-  PaginatedUsersResult,
-  SearchUsersHandler,
-  SearchUsersResult,
-  UserStatistics,
-} from '../queries/handlers';
+// Query Results Interfaces
+import { PaginatedUsersResult, SearchUsersResult, UserStatistics } from '../queries/handlers';
+// Queries
 import { GetUserStatisticsQuery, ListUsersPaginatedQuery, SearchUsersQuery } from '../queries/impl';
 
 /**
  * User Admin Service - Orchestrates admin operations
  *
- * This service provides administrative operations for user management.
- * All operations require ADMIN role (enforced at controller level via guards).
+ * UPGRADE NOTE: Uses CommandBus and QueryBus for CQRS compliance.
  */
 @Injectable()
 export class UserAdminService {
   private readonly logger = new Logger(UserAdminService.name);
 
   constructor(
-    // Command Handlers
-    private readonly activateUserHandler: ActivateUserHandler,
-    private readonly suspendUserHandler: SuspendUserHandler,
-    private readonly unsuspendUserHandler: UnsuspendUserHandler,
-    private readonly changeUserRoleHandler: ChangeUserRoleHandler,
-    private readonly deleteUserHandler: DeleteUserHandler,
-    private readonly restoreUserHandler: RestoreUserHandler,
-
-    // Query Handlers
-    private readonly searchUsersHandler: SearchUsersHandler,
-    private readonly listUsersPaginatedHandler: ListUsersPaginatedHandler,
-    private readonly getUserStatisticsHandler: GetUserStatisticsHandler,
+    private readonly commandBus: CommandBus,
+    private readonly queryBus: QueryBus,
   ) {}
 
   // ============================================================================
@@ -59,28 +37,23 @@ export class UserAdminService {
   // ============================================================================
 
   async activateUser(userId: string, activatedBy: string): Promise<User> {
-    const command = new ActivateUserCommand(userId, activatedBy);
-    return await this.activateUserHandler.execute(command);
+    return this.commandBus.execute(new ActivateUserCommand(userId, activatedBy));
   }
 
   async suspendUser(userId: string, suspendedBy: string, reason?: string): Promise<User> {
-    const command = new SuspendUserCommand(userId, suspendedBy, reason);
-    return await this.suspendUserHandler.execute(command);
+    return this.commandBus.execute(new SuspendUserCommand(userId, suspendedBy, reason));
   }
 
   async unsuspendUser(userId: string, unsuspendedBy: string): Promise<User> {
-    const command = new UnsuspendUserCommand(userId, unsuspendedBy);
-    return await this.unsuspendUserHandler.execute(command);
+    return this.commandBus.execute(new UnsuspendUserCommand(userId, unsuspendedBy));
   }
 
   async deleteUser(userId: string, deletedBy: string): Promise<User> {
-    const command = new DeleteUserCommand(userId, deletedBy);
-    return await this.deleteUserHandler.execute(command);
+    return this.commandBus.execute(new DeleteUserCommand(userId, deletedBy));
   }
 
   async restoreUser(userId: string): Promise<User> {
-    const command = new RestoreUserCommand(userId);
-    return await this.restoreUserHandler.execute(command);
+    return this.commandBus.execute(new RestoreUserCommand(userId));
   }
 
   // ============================================================================
@@ -93,20 +66,19 @@ export class UserAdminService {
     changedBy: string,
     reason?: string,
   ): Promise<User> {
-    const command = new ChangeUserRoleCommand(userId, newRole, changedBy, reason);
-    return await this.changeUserRoleHandler.execute(command);
+    return this.commandBus.execute(new ChangeUserRoleCommand(userId, newRole, changedBy, reason));
   }
 
   async promoteToVerifier(userId: string, promotedBy: string, reason?: string): Promise<User> {
-    return await this.changeUserRole(userId, UserRole.VERIFIER, promotedBy, reason);
+    return this.changeUserRole(userId, UserRole.VERIFIER, promotedBy, reason);
   }
 
   async promoteToAdmin(userId: string, promotedBy: string, reason?: string): Promise<User> {
-    return await this.changeUserRole(userId, UserRole.ADMIN, promotedBy, reason);
+    return this.changeUserRole(userId, UserRole.ADMIN, promotedBy, reason);
   }
 
   async demoteToUser(userId: string, demotedBy: string, reason?: string): Promise<User> {
-    return await this.changeUserRole(userId, UserRole.USER, demotedBy, reason);
+    return this.changeUserRole(userId, UserRole.USER, demotedBy, reason);
   }
 
   // ============================================================================
@@ -122,16 +94,17 @@ export class UserAdminService {
     limit?: number;
     offset?: number;
   }): Promise<SearchUsersResult> {
-    const query = new SearchUsersQuery(
-      criteria.status,
-      criteria.role,
-      criteria.county,
-      criteria.createdAtFrom,
-      criteria.createdAtTo,
-      criteria.limit,
-      criteria.offset,
+    return this.queryBus.execute(
+      new SearchUsersQuery(
+        criteria.status,
+        criteria.role,
+        criteria.county,
+        criteria.createdAtFrom,
+        criteria.createdAtTo,
+        criteria.limit,
+        criteria.offset,
+      ),
     );
-    return await this.searchUsersHandler.execute(query);
   }
 
   async listUsersPaginated(options: {
@@ -143,16 +116,17 @@ export class UserAdminService {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }): Promise<PaginatedUsersResult> {
-    const query = new ListUsersPaginatedQuery(
-      options.page,
-      options.limit,
-      options.search,
-      options.status,
-      options.role,
-      options.sortBy,
-      options.sortOrder,
+    return this.queryBus.execute(
+      new ListUsersPaginatedQuery(
+        options.page,
+        options.limit,
+        options.search,
+        options.status,
+        options.role,
+        options.sortBy,
+        options.sortOrder,
+      ),
     );
-    return await this.listUsersPaginatedHandler.execute(query);
   }
 
   // ============================================================================
@@ -160,8 +134,7 @@ export class UserAdminService {
   // ============================================================================
 
   async getUserStatistics(): Promise<UserStatistics> {
-    const query = new GetUserStatisticsQuery();
-    return await this.getUserStatisticsHandler.execute(query);
+    return this.queryBus.execute(new GetUserStatisticsQuery());
   }
 
   /**
@@ -176,7 +149,7 @@ export class UserAdminService {
     const statistics = await this.getUserStatistics();
 
     // Get recent users (last 10)
-    const recentUsersResult = await this.listUsersPaginated({
+    const recentUsersResult: PaginatedUsersResult = await this.listUsersPaginated({
       page: 1,
       limit: 10,
       sortBy: 'createdAt',
@@ -184,13 +157,13 @@ export class UserAdminService {
     });
 
     // Get pending onboarding count
-    const pendingOnboardingResult = await this.searchUsers({
+    const pendingOnboardingResult: SearchUsersResult = await this.searchUsers({
       status: 'PENDING_ONBOARDING',
       limit: 1,
     });
 
     // Get suspended users count
-    const suspendedResult = await this.searchUsers({
+    const suspendedResult: SearchUsersResult = await this.searchUsers({
       status: 'SUSPENDED',
       limit: 1,
     });
@@ -218,15 +191,19 @@ export class UserAdminService {
     const succeeded: string[] = [];
     const failed: string[] = [];
 
-    for (const userId of userIds) {
-      try {
-        await this.suspendUser(userId, suspendedBy, reason);
-        succeeded.push(userId);
-      } catch (error) {
-        this.logger.error(`Failed to suspend user ${userId}`, error);
-        failed.push(userId);
-      }
-    }
+    // Parallel execution for better performance on bulk operations
+    await Promise.all(
+      userIds.map(async (userId) => {
+        try {
+          // Use CommandBus for consistency
+          await this.commandBus.execute(new SuspendUserCommand(userId, suspendedBy, reason));
+          succeeded.push(userId);
+        } catch (error) {
+          this.logger.error(`Failed to suspend user ${userId}`, error);
+          failed.push(userId);
+        }
+      }),
+    );
 
     this.logger.log(
       `Batch suspend completed: ${succeeded.length} succeeded, ${failed.length} failed`,
@@ -245,15 +222,17 @@ export class UserAdminService {
     const succeeded: string[] = [];
     const failed: string[] = [];
 
-    for (const userId of userIds) {
-      try {
-        await this.deleteUser(userId, deletedBy);
-        succeeded.push(userId);
-      } catch (error) {
-        this.logger.error(`Failed to delete user ${userId}`, error);
-        failed.push(userId);
-      }
-    }
+    await Promise.all(
+      userIds.map(async (userId) => {
+        try {
+          await this.commandBus.execute(new DeleteUserCommand(userId, deletedBy));
+          succeeded.push(userId);
+        } catch (error) {
+          this.logger.error(`Failed to delete user ${userId}`, error);
+          failed.push(userId);
+        }
+      }),
+    );
 
     this.logger.log(
       `Batch delete completed: ${succeeded.length} succeeded, ${failed.length} failed`,

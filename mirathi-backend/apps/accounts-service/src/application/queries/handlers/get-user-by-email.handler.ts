@@ -1,5 +1,6 @@
 // src/application/queries/handlers/get-user-by-email.handler.ts
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
+import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 
 import { User } from '../../../domain/aggregates/user.aggregate';
 import {
@@ -9,8 +10,8 @@ import {
 import { UserNotFoundException } from '../../exceptions/user.exception';
 import { GetUserByEmailQuery } from '../impl/get-user-by-email.query';
 
-@Injectable()
-export class GetUserByEmailHandler {
+@QueryHandler(GetUserByEmailQuery)
+export class GetUserByEmailHandler implements IQueryHandler<GetUserByEmailQuery> {
   constructor(
     @Inject(USER_REPOSITORY_PORT)
     private readonly userRepository: UserRepositoryPort,

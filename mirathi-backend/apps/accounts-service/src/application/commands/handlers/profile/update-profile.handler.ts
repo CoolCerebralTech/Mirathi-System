@@ -1,8 +1,13 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+// src/application/commands/handlers/profile/update-profile.handler.ts
+import { Inject, Logger } from '@nestjs/common';
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 
 import { User } from '../../../../domain/aggregates/user.aggregate';
 import { DomainError } from '../../../../domain/errors/domain.errors';
-import { EventPublisherPort } from '../../../../domain/ports/event-publisher.port';
+import {
+  EVENT_PUBLISHER_PORT,
+  EventPublisherPort,
+} from '../../../../domain/ports/event-publisher.port';
 import {
   USER_REPOSITORY_PORT,
   UserRepositoryPort,
@@ -13,61 +18,62 @@ import {
   DuplicatePhoneException,
   UserNotFoundException,
 } from '../../../exceptions/user.exception';
-import {
-  CountyInputValidator,
-  PhoneNumberInputValidator,
-  UserInputValidator,
-} from '../../../validators';
+import { PhoneNumberInputValidator, UserInputValidator } from '../../../validators';
 import { UpdateProfileCommand } from '../../impl/profile/update-profile.command';
 
-@Injectable()
-export class UpdateProfileHandler {
+@CommandHandler(UpdateProfileCommand)
+export class UpdateProfileHandler implements ICommandHandler<UpdateProfileCommand> {
   private readonly logger = new Logger(UpdateProfileHandler.name);
 
   constructor(
     @Inject(USER_REPOSITORY_PORT)
     private readonly userRepository: UserRepositoryPort,
+
+    @Inject(EVENT_PUBLISHER_PORT)
     private readonly eventPublisher: EventPublisherPort,
+
     private readonly userInputValidator: UserInputValidator,
     private readonly phoneValidator: PhoneNumberInputValidator,
-    private readonly countyValidator: CountyInputValidator,
   ) {}
 
   async execute(command: UpdateProfileCommand): Promise<User> {
+    const {
+      userId,
+      firstName,
+      lastName,
+      avatarUrl,
+      physicalAddress,
+      postalAddress,
+      phoneNumber: newPhone,
+      county,
+    } = command;
+
     // 1. Find user
-    const user = await this.userRepository.findById(command.userId);
+    const user = await this.userRepository.findById(userId);
     if (!user) {
-      throw new UserNotFoundException(command.userId);
+      throw new UserNotFoundException(userId);
     }
 
     // 2. Validate inputs
-    if (command.firstName) {
-      this.userInputValidator.validateName(command.firstName, 'firstName');
-    }
-    if (command.lastName) {
-      this.userInputValidator.validateName(command.lastName, 'lastName');
-    }
-    if (command.avatarUrl) {
-      this.userInputValidator.validateAvatarUrl(command.avatarUrl);
-    }
-    if (command.physicalAddress) {
-      this.userInputValidator.validateAddress(command.physicalAddress, 'physicalAddress');
-    }
-    if (command.postalAddress) {
-      this.userInputValidator.validateAddress(command.postalAddress, 'postalAddress');
-    }
+    if (firstName) this.userInputValidator.validateName(firstName, 'firstName');
+    if (lastName) this.userInputValidator.validateName(lastName, 'lastName');
+    if (avatarUrl) this.userInputValidator.validateAvatarUrl(avatarUrl);
+    if (physicalAddress)
+      this.userInputValidator.validateAddress(physicalAddress, 'physicalAddress');
+    if (postalAddress) this.userInputValidator.validateAddress(postalAddress, 'postalAddress');
 
     // 3. Validate and create value objects
-    let phoneNumber: PhoneNumber | undefined;
-    if (command.phoneNumber !== undefined) {
-      if (command.phoneNumber) {
-        phoneNumber = this.phoneValidator.validateAndCreate(command.phoneNumber);
+    let phoneNumberVO: PhoneNumber | undefined;
 
-        // Check if phone number is already taken by another user
-        if (user.phoneNumber?.value !== command.phoneNumber) {
-          const existingPhone = await this.userRepository.existsByPhoneNumber(command.phoneNumber);
+    if (newPhone !== undefined) {
+      if (newPhone) {
+        phoneNumberVO = this.phoneValidator.validateAndCreate(newPhone);
+
+        // Check uniqueness only if it's different from current
+        if (user.phoneNumber?.value !== newPhone) {
+          const existingPhone = await this.userRepository.existsByPhoneNumber(newPhone);
           if (existingPhone) {
-            throw new DuplicatePhoneException(command.phoneNumber);
+            throw new DuplicatePhoneException(newPhone);
           }
         }
       }
@@ -76,13 +82,13 @@ export class UpdateProfileHandler {
     // 4. Update profile via aggregate method
     try {
       user.updateProfile({
-        firstName: command.firstName,
-        lastName: command.lastName,
-        avatarUrl: command.avatarUrl,
-        phoneNumber,
-        county: command.county,
-        physicalAddress: command.physicalAddress,
-        postalAddress: command.postalAddress,
+        firstName,
+        lastName,
+        avatarUrl,
+        phoneNumber: phoneNumberVO,
+        county,
+        physicalAddress,
+        postalAddress,
       });
     } catch (error) {
       if (error instanceof DomainError) {

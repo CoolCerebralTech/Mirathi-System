@@ -1,10 +1,14 @@
 // src/application/commands/handlers/admin/change-user-role.handler.ts
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { UserRole } from '@prisma/client';
 
 import { User } from '../../../../domain/aggregates/user.aggregate';
 import { DomainError } from '../../../../domain/errors/domain.errors';
-import { EventPublisherPort } from '../../../../domain/ports/event-publisher.port';
+import {
+  EVENT_PUBLISHER_PORT,
+  EventPublisherPort,
+} from '../../../../domain/ports/event-publisher.port';
 import {
   USER_REPOSITORY_PORT,
   UserRepositoryPort,
@@ -17,40 +21,41 @@ import {
 } from '../../../exceptions/user.exception';
 import { ChangeUserRoleCommand } from '../../impl/admin/change-user-role.command';
 
-@Injectable()
-export class ChangeUserRoleHandler {
+@CommandHandler(ChangeUserRoleCommand)
+export class ChangeUserRoleHandler implements ICommandHandler<ChangeUserRoleCommand> {
   private readonly logger = new Logger(ChangeUserRoleHandler.name);
 
   constructor(
     @Inject(USER_REPOSITORY_PORT)
     private readonly userRepository: UserRepositoryPort,
+    @Inject(EVENT_PUBLISHER_PORT)
     private readonly eventPublisher: EventPublisherPort,
   ) {}
 
   async execute(command: ChangeUserRoleCommand): Promise<User> {
-    // 1. Find user
-    const user = await this.userRepository.findById(command.userId);
+    const { userId, newRole, changedBy, reason } = command;
+
+    const user = await this.userRepository.findById(userId);
     if (!user) {
-      throw new UserNotFoundException(command.userId);
+      throw new UserNotFoundException(userId);
     }
 
-    // 2. Validate role
+    // Validate role
     const validRoles = Object.values(UserRole);
-    if (!validRoles.includes(command.newRole)) {
+    if (!validRoles.includes(newRole)) {
       throw new InvalidInputException(
         'newRole',
         `Invalid role. Must be one of: ${validRoles.join(', ')}`,
       );
     }
 
-    // 3. Business rule: Can't change your own role
-    if (command.userId === command.changedBy) {
+    // Business rule: Can't change your own role
+    if (userId === changedBy) {
       throw new UnauthorizedOperationException('change own role', 'Cannot change your own role');
     }
 
-    // 4. Change role via aggregate method
     try {
-      user.changeRole(command.newRole, command.changedBy, command.reason);
+      user.changeRole(newRole, changedBy, reason);
     } catch (error) {
       if (error instanceof DomainError) {
         throw new DomainErrorException(error);
@@ -58,16 +63,11 @@ export class ChangeUserRoleHandler {
       throw error;
     }
 
-    // 5. Persist changes
     await this.userRepository.save(user);
-
-    // 6. Publish domain events
     await this.eventPublisher.publishAll(user.domainEvents);
-
-    // 7. Clear domain events
     user.clearDomainEvents();
 
-    this.logger.log(`User role changed: ${user.id} to ${command.newRole} by ${command.changedBy}`);
+    this.logger.log(`User role changed: ${user.id} to ${newRole} by ${changedBy}`);
 
     return user;
   }

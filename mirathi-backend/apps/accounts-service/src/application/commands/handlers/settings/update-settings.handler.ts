@@ -1,9 +1,13 @@
 // src/application/commands/handlers/settings/update-settings.handler.ts
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Logger } from '@nestjs/common';
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 
 import { User } from '../../../../domain/aggregates/user.aggregate';
 import { DomainError } from '../../../../domain/errors/domain.errors';
-import { EventPublisherPort } from '../../../../domain/ports/event-publisher.port';
+import {
+  EVENT_PUBLISHER_PORT,
+  EventPublisherPort,
+} from '../../../../domain/ports/event-publisher.port';
 import {
   USER_REPOSITORY_PORT,
   UserRepositoryPort,
@@ -12,41 +16,50 @@ import { DomainErrorException, UserNotFoundException } from '../../../exceptions
 import { UserInputValidator } from '../../../validators';
 import { UpdateSettingsCommand } from '../../impl/settings/update-settings.command';
 
-@Injectable()
-export class UpdateSettingsHandler {
+@CommandHandler(UpdateSettingsCommand)
+export class UpdateSettingsHandler implements ICommandHandler<UpdateSettingsCommand> {
   private readonly logger = new Logger(UpdateSettingsHandler.name);
 
   constructor(
     @Inject(USER_REPOSITORY_PORT)
     private readonly userRepository: UserRepositoryPort,
+
+    @Inject(EVENT_PUBLISHER_PORT)
     private readonly eventPublisher: EventPublisherPort,
+
     private readonly inputValidator: UserInputValidator,
   ) {}
 
   async execute(command: UpdateSettingsCommand): Promise<User> {
+    const {
+      userId,
+      language,
+      theme,
+      emailNotifications,
+      smsNotifications,
+      pushNotifications,
+      marketingOptIn,
+    } = command;
+
     // 1. Find user
-    const user = await this.userRepository.findById(command.userId);
+    const user = await this.userRepository.findById(userId);
     if (!user) {
-      throw new UserNotFoundException(command.userId);
+      throw new UserNotFoundException(userId);
     }
 
     // 2. Validate inputs
-    if (command.language) {
-      this.inputValidator.validateLanguage(command.language);
-    }
-    if (command.theme) {
-      this.inputValidator.validateTheme(command.theme);
-    }
+    if (language) this.inputValidator.validateLanguage(language);
+    if (theme) this.inputValidator.validateTheme(theme);
 
     // 3. Update settings via aggregate method
     try {
       user.updateSettings({
-        language: command.language,
-        theme: command.theme,
-        emailNotifications: command.emailNotifications,
-        smsNotifications: command.smsNotifications,
-        pushNotifications: command.pushNotifications,
-        marketingOptIn: command.marketingOptIn,
+        language,
+        theme,
+        emailNotifications,
+        smsNotifications,
+        pushNotifications,
+        marketingOptIn,
       });
     } catch (error) {
       if (error instanceof DomainError) {

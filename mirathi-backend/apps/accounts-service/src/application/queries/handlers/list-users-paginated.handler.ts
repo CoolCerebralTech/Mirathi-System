@@ -1,5 +1,6 @@
 // src/application/queries/handlers/list-users-paginated.handler.ts
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
+import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 
 import { User } from '../../../domain/aggregates/user.aggregate';
 import {
@@ -15,8 +16,8 @@ export interface PaginatedUsersResult {
   totalPages: number;
 }
 
-@Injectable()
-export class ListUsersPaginatedHandler {
+@QueryHandler(ListUsersPaginatedQuery)
+export class ListUsersPaginatedHandler implements IQueryHandler<ListUsersPaginatedQuery> {
   constructor(
     @Inject(USER_REPOSITORY_PORT)
     private readonly userRepository: UserRepositoryPort,

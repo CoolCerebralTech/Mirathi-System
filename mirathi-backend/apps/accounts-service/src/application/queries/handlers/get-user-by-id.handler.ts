@@ -1,5 +1,6 @@
 // src/application/queries/handlers/get-user-by-id.handler.ts
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
+import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 
 import { User } from '../../../domain/aggregates/user.aggregate';
 import {
@@ -9,8 +10,8 @@ import {
 import { UserNotFoundException } from '../../exceptions/user.exception';
 import { GetUserByIdQuery } from '../impl/get-user-by-id.query';
 
-@Injectable()
-export class GetUserByIdHandler {
+@QueryHandler(GetUserByIdQuery)
+export class GetUserByIdHandler implements IQueryHandler<GetUserByIdQuery> {
   constructor(
     @Inject(USER_REPOSITORY_PORT)
     private readonly userRepository: UserRepositoryPort,

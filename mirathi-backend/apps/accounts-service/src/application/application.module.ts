@@ -1,14 +1,10 @@
 // src/application/application.module.ts
 import { Module } from '@nestjs/common';
+import { CqrsModule } from '@nestjs/cqrs';
 
-import { AuthModule } from '@shamba/auth';
-import { ConfigModule } from '@shamba/config';
-import { DatabaseModule } from '@shamba/database';
-import { MessagingModule } from '@shamba/messaging';
-
+// Modules
 import { DomainModule } from '../domain/domain.module';
 import { InfrastructureModule } from '../infrastructure/infrastructure.module';
-// Command Handlers - Admin
 import {
   ActivateUserHandler,
   ChangeUserRoleHandler,
@@ -17,18 +13,14 @@ import {
   SuspendUserHandler,
   UnsuspendUserHandler,
 } from './commands/handlers/admin';
-// Command Handlers - Auth
+// Command Handlers
 import {
   CompleteOnboardingHandler,
   LinkIdentityHandler,
   RegisterUserViaOAuthHandler,
 } from './commands/handlers/auth';
-// Command Handlers - Profile
 import { UpdatePhoneNumberHandler, UpdateProfileHandler } from './commands/handlers/profile';
-// Command Handlers - Settings
 import { UpdateSettingsHandler } from './commands/handlers/settings';
-// Services
-import { EventPublisherService } from './events/event-publisher.service';
 // Query Handlers
 import {
   GetCurrentUserHandler,
@@ -41,61 +33,35 @@ import {
 } from './queries/handlers';
 import { OAuthAuthService } from './services/oauth-auth.service';
 import { UserAdminService } from './services/user-admin.service';
+// Services
 import { UserService } from './services/user.service';
 // Validators
 import { CountyInputValidator, PhoneNumberInputValidator, UserInputValidator } from './validators';
 
-/**
- * Application Module
- *
- * This module wires together all application layer components:
- * - Command handlers (write operations)
- * - Query handlers (read operations)
- * - Application services (orchestration)
- * - Validators
- * - Event publishing
- */
 @Module({
   imports: [
-    // Shared libraries
-    ConfigModule,
-    DatabaseModule,
-    AuthModule,
-    MessagingModule.register(), // No queue for this service (it only publishes)
-
-    // Local modules
+    CqrsModule, // <--- CRITICAL for @CommandHandler/@QueryHandler
     DomainModule,
-    InfrastructureModule,
+    InfrastructureModule, // Provides the Repository & Publisher implementations
   ],
   providers: [
-    // ========================================================================
-    // VALIDATORS
-    // ========================================================================
+    // --- Services ---
+    UserService,
+    OAuthAuthService,
+    UserAdminService,
+
+    // --- Validators ---
     UserInputValidator,
     PhoneNumberInputValidator,
     CountyInputValidator,
 
-    // ========================================================================
-    // COMMAND HANDLERS - AUTH
-    // ========================================================================
+    // --- Command Handlers ---
     RegisterUserViaOAuthHandler,
     LinkIdentityHandler,
     CompleteOnboardingHandler,
-
-    // ========================================================================
-    // COMMAND HANDLERS - PROFILE
-    // ========================================================================
     UpdateProfileHandler,
     UpdatePhoneNumberHandler,
-
-    // ========================================================================
-    // COMMAND HANDLERS - SETTINGS
-    // ========================================================================
     UpdateSettingsHandler,
-
-    // ========================================================================
-    // COMMAND HANDLERS - ADMIN
-    // ========================================================================
     ActivateUserHandler,
     SuspendUserHandler,
     UnsuspendUserHandler,
@@ -103,9 +69,7 @@ import { CountyInputValidator, PhoneNumberInputValidator, UserInputValidator } f
     DeleteUserHandler,
     RestoreUserHandler,
 
-    // ========================================================================
-    // QUERY HANDLERS
-    // ========================================================================
+    // --- Query Handlers ---
     GetUserByIdHandler,
     GetUserByEmailHandler,
     GetUserByPhoneHandler,
@@ -113,29 +77,12 @@ import { CountyInputValidator, PhoneNumberInputValidator, UserInputValidator } f
     SearchUsersHandler,
     ListUsersPaginatedHandler,
     GetUserStatisticsHandler,
-
-    // ========================================================================
-    // EVENT PUBLISHING
-    // ========================================================================
-    EventPublisherService,
-
-    // ========================================================================
-    // APPLICATION SERVICES
-    // ========================================================================
-    UserService,
-    OAuthAuthService,
-    UserAdminService,
   ],
   exports: [
-    // Export services for use in presentation layer (controllers)
+    // Export Services for Controllers
     UserService,
     OAuthAuthService,
     UserAdminService,
-
-    // Export validators if needed by controllers
-    UserInputValidator,
-    PhoneNumberInputValidator,
-    CountyInputValidator,
   ],
 })
 export class ApplicationModule {}

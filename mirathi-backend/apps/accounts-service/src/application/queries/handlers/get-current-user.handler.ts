@@ -1,5 +1,6 @@
 // src/application/queries/handlers/get-current-user.handler.ts
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
+import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 
 import { User } from '../../../domain/aggregates/user.aggregate';
 import {
@@ -9,8 +10,8 @@ import {
 import { UserNotFoundException } from '../../exceptions/user.exception';
 import { GetCurrentUserQuery } from '../impl/get-current-user.query';
 
-@Injectable()
-export class GetCurrentUserHandler {
+@QueryHandler(GetCurrentUserQuery)
+export class GetCurrentUserHandler implements IQueryHandler<GetCurrentUserQuery> {
   constructor(
     @Inject(USER_REPOSITORY_PORT)
     private readonly userRepository: UserRepositoryPort,

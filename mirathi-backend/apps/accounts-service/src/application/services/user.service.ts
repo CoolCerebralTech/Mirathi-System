@@ -1,14 +1,10 @@
 // src/application/services/user.service.ts
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import { AuthProvider, Language, Theme } from '@prisma/client';
 
 import { User } from '../../domain/aggregates/user.aggregate';
-import {
-  CompleteOnboardingHandler,
-  LinkIdentityHandler,
-  RegisterUserViaOAuthHandler,
-} from '../commands/handlers/auth';
-import { UpdatePhoneNumberHandler, UpdateProfileHandler } from '../commands/handlers/profile';
-import { UpdateSettingsHandler } from '../commands/handlers/settings';
+// Commands
 import {
   CompleteOnboardingCommand,
   LinkIdentityCommand,
@@ -16,12 +12,7 @@ import {
 } from '../commands/impl/auth';
 import { UpdatePhoneNumberCommand, UpdateProfileCommand } from '../commands/impl/profile';
 import { UpdateSettingsCommand } from '../commands/impl/settings';
-import {
-  GetCurrentUserHandler,
-  GetUserByEmailHandler,
-  GetUserByIdHandler,
-  GetUserByPhoneHandler,
-} from '../queries/handlers';
+// Queries
 import {
   GetCurrentUserQuery,
   GetUserByEmailQuery,
@@ -32,27 +23,13 @@ import {
 /**
  * User Service - Orchestrates user-related operations
  *
- * This service provides a clean API for the presentation layer,
- * delegating to command and query handlers.
+ * UPGRADE NOTE: Now uses CommandBus and QueryBus for true CQRS decoupling.
  */
 @Injectable()
 export class UserService {
-  private readonly logger = new Logger(UserService.name);
-
   constructor(
-    // Command Handlers
-    private readonly registerUserHandler: RegisterUserViaOAuthHandler,
-    private readonly linkIdentityHandler: LinkIdentityHandler,
-    private readonly completeOnboardingHandler: CompleteOnboardingHandler,
-    private readonly updateProfileHandler: UpdateProfileHandler,
-    private readonly updatePhoneNumberHandler: UpdatePhoneNumberHandler,
-    private readonly updateSettingsHandler: UpdateSettingsHandler,
-
-    // Query Handlers
-    private readonly getUserByIdHandler: GetUserByIdHandler,
-    private readonly getUserByEmailHandler: GetUserByEmailHandler,
-    private readonly getUserByPhoneHandler: GetUserByPhoneHandler,
-    private readonly getCurrentUserHandler: GetCurrentUserHandler,
+    private readonly commandBus: CommandBus,
+    private readonly queryBus: QueryBus,
   ) {}
 
   // ============================================================================
@@ -66,14 +43,15 @@ export class UserService {
     firstName?: string;
     lastName?: string;
   }): Promise<User> {
-    const command = new RegisterUserViaOAuthCommand(
-      data.provider as any,
-      data.providerUserId,
-      data.email,
-      data.firstName,
-      data.lastName,
+    return this.commandBus.execute(
+      new RegisterUserViaOAuthCommand(
+        data.provider as AuthProvider, // Strict cast
+        data.providerUserId,
+        data.email,
+        data.firstName,
+        data.lastName,
+      ),
     );
-    return await this.registerUserHandler.execute(command);
   }
 
   async linkIdentity(data: {
@@ -82,18 +60,18 @@ export class UserService {
     providerUserId: string;
     email: string;
   }): Promise<User> {
-    const command = new LinkIdentityCommand(
-      data.userId,
-      data.provider as any,
-      data.providerUserId,
-      data.email,
+    return this.commandBus.execute(
+      new LinkIdentityCommand(
+        data.userId,
+        data.provider as AuthProvider,
+        data.providerUserId,
+        data.email,
+      ),
     );
-    return await this.linkIdentityHandler.execute(command);
   }
 
   async completeOnboarding(userId: string): Promise<User> {
-    const command = new CompleteOnboardingCommand(userId);
-    return await this.completeOnboardingHandler.execute(command);
+    return this.commandBus.execute(new CompleteOnboardingCommand(userId));
   }
 
   // ============================================================================
@@ -110,22 +88,22 @@ export class UserService {
     physicalAddress?: string;
     postalAddress?: string;
   }): Promise<User> {
-    const command = new UpdateProfileCommand(
-      data.userId,
-      data.firstName,
-      data.lastName,
-      data.avatarUrl,
-      data.phoneNumber,
-      data.county,
-      data.physicalAddress,
-      data.postalAddress,
+    return this.commandBus.execute(
+      new UpdateProfileCommand(
+        data.userId,
+        data.firstName,
+        data.lastName,
+        data.avatarUrl,
+        data.phoneNumber,
+        data.county,
+        data.physicalAddress,
+        data.postalAddress,
+      ),
     );
-    return await this.updateProfileHandler.execute(command);
   }
 
   async updatePhoneNumber(userId: string, phoneNumber?: string): Promise<User> {
-    const command = new UpdatePhoneNumberCommand(userId, phoneNumber);
-    return await this.updatePhoneNumberHandler.execute(command);
+    return this.commandBus.execute(new UpdatePhoneNumberCommand(userId, phoneNumber));
   }
 
   // ============================================================================
@@ -141,16 +119,17 @@ export class UserService {
     pushNotifications?: boolean;
     marketingOptIn?: boolean;
   }): Promise<User> {
-    const command = new UpdateSettingsCommand(
-      data.userId,
-      data.language as any,
-      data.theme as any,
-      data.emailNotifications,
-      data.smsNotifications,
-      data.pushNotifications,
-      data.marketingOptIn,
+    return this.commandBus.execute(
+      new UpdateSettingsCommand(
+        data.userId,
+        data.language as Language,
+        data.theme as Theme,
+        data.emailNotifications,
+        data.smsNotifications,
+        data.pushNotifications,
+        data.marketingOptIn,
+      ),
     );
-    return await this.updateSettingsHandler.execute(command);
   }
 
   // ============================================================================
@@ -158,23 +137,19 @@ export class UserService {
   // ============================================================================
 
   async getUserById(userId: string): Promise<User> {
-    const query = new GetUserByIdQuery(userId);
-    return await this.getUserByIdHandler.execute(query);
+    return this.queryBus.execute(new GetUserByIdQuery(userId));
   }
 
   async getUserByEmail(email: string): Promise<User> {
-    const query = new GetUserByEmailQuery(email);
-    return await this.getUserByEmailHandler.execute(query);
+    return this.queryBus.execute(new GetUserByEmailQuery(email));
   }
 
   async getUserByPhone(phoneNumber: string): Promise<User> {
-    const query = new GetUserByPhoneQuery(phoneNumber);
-    return await this.getUserByPhoneHandler.execute(query);
+    return this.queryBus.execute(new GetUserByPhoneQuery(phoneNumber));
   }
 
   async getCurrentUser(userId: string): Promise<User> {
-    const query = new GetCurrentUserQuery(userId);
-    return await this.getCurrentUserHandler.execute(query);
+    return this.queryBus.execute(new GetCurrentUserQuery(userId));
   }
 
   // ============================================================================
@@ -187,7 +162,8 @@ export class UserService {
     hasProfile: boolean;
     hasSettings: boolean;
   }> {
-    const user = await this.getUserById(userId);
+    // Reuse the Query Bus
+    const user = await this.queryBus.execute(new GetUserByIdQuery(userId));
 
     return {
       isComplete: user.hasCompletedOnboarding,
@@ -201,7 +177,7 @@ export class UserService {
     email: boolean;
     sms: boolean;
   }> {
-    const user = await this.getUserById(userId);
+    const user = await this.queryBus.execute(new GetUserByIdQuery(userId));
 
     return {
       email: user.canReceiveEmail(),

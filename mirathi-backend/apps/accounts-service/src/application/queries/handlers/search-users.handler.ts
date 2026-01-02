@@ -1,5 +1,6 @@
 // src/application/queries/handlers/search-users.handler.ts
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject } from '@nestjs/common';
+import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 
 import { User } from '../../../domain/aggregates/user.aggregate';
 import {
@@ -13,8 +14,8 @@ export interface SearchUsersResult {
   total: number;
 }
 
-@Injectable()
-export class SearchUsersHandler {
+@QueryHandler(SearchUsersQuery)
+export class SearchUsersHandler implements IQueryHandler<SearchUsersQuery> {
   constructor(
     @Inject(USER_REPOSITORY_PORT)
     private readonly userRepository: UserRepositoryPort,
