@@ -10,6 +10,8 @@ import {
 import { randomUUID } from 'crypto';
 import * as crypto from 'crypto';
 
+import { JwtPayload } from '@shamba/auth';
+
 import type {
   IEmailChangeTokenRepository,
   IEmailVerificationTokenRepository,
@@ -21,7 +23,6 @@ import type {
   IRefreshTokenRepository,
   ITokenService,
   IUserRepository,
-  JWTPayload,
 } from '../../domain/interfaces';
 import { TokenFactory } from '../../domain/models';
 import { User } from '../../domain/models/user.model';
@@ -399,7 +400,7 @@ export class AuthService {
       await this.refreshTokenRepo.save(newToken);
 
       const newAccessToken = await this.tokenService.generateAccessToken({
-        userId: user.id,
+        sub: user.id,
         email: user.email.getValue(),
         role: user.role,
       });
@@ -923,13 +924,13 @@ export class AuthService {
       userAgent?: string;
     },
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const payload: JWTPayload = {
-      userId: user.id,
+    // ✅ Use JwtPayload from @shamba/auth (with 'sub')
+    const payload: JwtPayload = {
+      sub: user.id, // This matches your JWT Strategy
       email: user.email.getValue(),
       role: user.role,
     };
 
-    // --- FIXED: Use crypto for random token generation ---
     const [accessToken, refreshTokenString] = await Promise.all([
       this.tokenService.generateAccessToken(payload),
       Promise.resolve(crypto.randomBytes(64).toString('hex')),
@@ -940,7 +941,7 @@ export class AuthService {
     const refreshToken = TokenFactory.createRefreshToken(
       user.id,
       refreshTokenHash,
-      this.REFRESH_TOKEN_EXPIRY / (24 * 60 * 60), // Convert to days
+      this.REFRESH_TOKEN_EXPIRY / (24 * 60 * 60),
       sessionInfo,
     );
     await this.refreshTokenRepo.save(refreshToken);

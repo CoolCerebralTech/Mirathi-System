@@ -1,4 +1,4 @@
-import { UserRole } from '@prisma/client';
+import { JwtPayload } from '@shamba/auth';
 
 import { DomainEvent } from '../events';
 
@@ -89,16 +89,6 @@ export interface IHashingService {
 // ============================================================================
 
 /**
- * JWT payload structure.
- */
-export interface JWTPayload {
-  userId: string;
-  email: string;
-  role: UserRole;
-  sessionId?: string;
-}
-
-/**
  * ITokenService (Port)
  * Defines the contract for JWT operations.
  */
@@ -106,27 +96,27 @@ export interface ITokenService {
   /**
    * Generates an access token (short-lived JWT).
    */
-  generateAccessToken(payload: JWTPayload): Promise<string>;
+  generateAccessToken(payload: JwtPayload): Promise<string>;
 
   /**
    * Generates a refresh token (long-lived JWT).
    */
-  generateRefreshToken(payload: JWTPayload): Promise<string>;
+  generateRefreshToken(payload: JwtPayload): Promise<string>;
 
   /**
    * Verifies and decodes an access token.
    */
-  verifyAccessToken(token: string): Promise<JWTPayload>;
+  verifyAccessToken(token: string): Promise<JwtPayload>;
 
   /**
    * Verifies and decodes a refresh token.
    */
-  verifyRefreshToken(token: string): Promise<JWTPayload>;
+  verifyRefreshToken(token: string): Promise<JwtPayload>;
 
   /**
    * Decodes a token without verification (for expired token inspection).
    */
-  decodeToken(token: string): JWTPayload | null;
+  decodeToken(token: string): JwtPayload | null;
 }
 
 // ============================================================================
