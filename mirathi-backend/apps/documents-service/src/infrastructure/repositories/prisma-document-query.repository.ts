@@ -176,12 +176,18 @@ export class PrismaDocumentQueryRepository implements IDocumentQueryRepository {
       const limit = Math.min(Math.max(1, pagination.limit), 100);
       const skip = (page - 1) * limit;
 
-      const where = {
+      // ✅ Fixed: Use array_contains for JSON field
+      const where: Prisma.DocumentWhereInput = {
         deletedAt: null,
         OR: [
           { uploaderId: userId.value },
           { isPublic: true },
-          { allowedViewers: { has: userId.value } },
+          {
+            allowedViewers: {
+              path: ['$'], // ✅ Must be an array, not a string
+              array_contains: userId.value,
+            },
+          },
         ],
       };
 
@@ -376,7 +382,12 @@ export class PrismaDocumentQueryRepository implements IDocumentQueryRepository {
           OR: [
             { uploaderId: userId.value },
             { isPublic: true },
-            { allowedViewers: { has: userId.value } },
+            {
+              allowedViewers: {
+                path: ['$'],
+                array_contains: userId.value,
+              },
+            },
           ],
         },
       });
@@ -447,13 +458,13 @@ export class PrismaDocumentQueryRepository implements IDocumentQueryRepository {
           by: ['status'],
           where,
           _count: { _all: true },
-          orderBy: { status: 'asc' },
+          orderBy: { status: 'asc' }, // OK - 'status' is in 'by' clause
         }),
         this.prisma.document.groupBy({
           by: ['category'],
           where,
           _count: { _all: true },
-          orderBy: { status: 'asc' },
+          orderBy: { category: 'asc' }, // FIXED - changed from 'status' to 'category'
         }),
         this.prisma.document.aggregate({
           where,

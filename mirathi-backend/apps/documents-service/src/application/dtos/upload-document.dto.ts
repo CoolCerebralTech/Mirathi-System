@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -59,6 +60,17 @@ export class UploadDocumentDto {
   })
   @IsObject()
   @IsOptional()
+  @Transform(({ value }) => {
+    // ✅ Parse JSON string to object if it's a string
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value; // Return as-is if parsing fails (will fail validation)
+      }
+    }
+    return value;
+  })
   metadata?: Record<string, any>;
 
   @ApiPropertyOptional({

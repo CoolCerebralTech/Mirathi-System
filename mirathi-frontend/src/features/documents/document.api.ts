@@ -200,9 +200,19 @@ const uploadDocument = async ({ file, data: uploadData, onProgress }: UploadPara
     
     Object.entries(uploadData).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
-        formData.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value));
+        // ✅ FIX: Special handling for object types
+        if (typeof value === 'object') {
+          formData.append(key, JSON.stringify(value));
+        } else {
+          formData.append(key, String(value));
+        }
       }
     });
+
+    // ✅ FIX: Always include metadata as an empty object if not provided
+    if (!uploadData.metadata) {
+      formData.append('metadata', JSON.stringify({}));
+    }
 
     const { data } = await apiClient.post<UploadDocumentResponse>(
       `${ENDPOINTS.DOCUMENTS}/upload`,

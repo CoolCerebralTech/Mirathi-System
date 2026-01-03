@@ -65,7 +65,7 @@ import { Actor, DocumentId, UserId } from '../../domain/value-objects';
 
 interface AuthenticatedRequest extends Request {
   user: {
-    id: string;
+    sub: string;
     roles: string[];
   };
 }
@@ -81,7 +81,7 @@ export class DocumentController {
   ) {}
 
   private createActor(req: AuthenticatedRequest): Actor {
-    return new Actor(new UserId(req.user.id), req.user.roles || []);
+    return new Actor(new UserId(req.user.sub), req.user.roles || []);
   }
 
   // ============================================================================

@@ -44,7 +44,7 @@ import {
 // Define proper types for the authenticated request
 interface AuthenticatedRequest extends Request {
   user: {
-    id: string;
+    sub: string;
     roles: string[];
   };
 }
@@ -60,7 +60,7 @@ export class DocumentVerificationController {
   ) {}
 
   private createActor(req: AuthenticatedRequest): Actor {
-    return new Actor(new UserId(req.user.id), req.user.roles || []);
+    return new Actor(new UserId(req.user.sub), req.user.roles || []);
   }
 
   @Put()

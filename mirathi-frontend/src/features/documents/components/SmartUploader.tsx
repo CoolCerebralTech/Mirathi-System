@@ -113,32 +113,35 @@ export const SmartUploader: React.FC<SmartUploaderProps> = ({
   // --------------------------------------------------------------------------
 
   const handleUpload = useCallback((fileToUpload: File) => {
-    setUploadStatus('uploading');
-    setProgress(0);
+  setUploadStatus('uploading');
+  setProgress(0);
 
-    // Prepare metadata with estate context
-    const documentMetadata = {
-      ...metadata,
-      estateId,
-      uploadedAt: new Date().toISOString(),
-      isCriticalForSuccession: isCritical,
-    };
+  // ✅ FIX: Ensure metadata is a plain object with only serializable values
+  const documentMetadata: Record<string, unknown> = {
+    ...metadata, // Spread existing metadata (but ensure it's serializable)
+    uploadedAt: new Date().toISOString(),
+    isCriticalForSuccession: isCritical,
+  };
 
-    upload(
-      {
-        file: fileToUpload,
-        data: {
-          fileName: fileToUpload.name,
-          category,
-          assetId,
-          willId,
-          identityForUserId,
-          metadata: documentMetadata,
-          // Add document number if available from filename
-          documentNumber: extractDocumentNumber(fileToUpload.name),
-        },
-        onProgress: (prog) => setProgress(prog),
+  // ✅ FIX: Add estateId only if it exists
+  if (estateId) {
+    documentMetadata.estateId = estateId;
+  }
+
+  upload(
+    {
+      file: fileToUpload,
+      data: {
+        fileName: fileToUpload.name,
+        category,
+        ...(assetId && { assetId }), // Only include if defined
+        ...(willId && { willId }),   // Only include if defined
+        ...(identityForUserId && { identityForUserId }), // Only include if defined
+        metadata: documentMetadata, // This is now guaranteed to be a plain object
+        documentNumber: extractDocumentNumber(fileToUpload.name),
       },
+      onProgress: (prog) => setProgress(prog),
+    },
       {
         onSuccess: (data) => {
           setUploadStatus('success');
