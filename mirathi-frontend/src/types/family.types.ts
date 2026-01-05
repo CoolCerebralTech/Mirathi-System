@@ -1,9 +1,8 @@
 import { z } from 'zod';
 
 // ============================================================================
-// 1. SHARED ENUMS (Converted to CONST OBJECTS)
+// 1. SHARED CONSTANTS & ENUMS
 // ============================================================================
-
 export const Gender = {
   MALE: 'MALE',
   FEMALE: 'FEMALE',
@@ -11,60 +10,13 @@ export const Gender = {
 } as const;
 export type Gender = (typeof Gender)[keyof typeof Gender];
 
-export const KenyanCounty = {
-  NAIROBI: 'NAIROBI',
-  MOMBASA: 'MOMBASA',
-  KISUMU: 'KISUMU',
-  NAKURU: 'NAKURU',
-  UASIN_GISHU: 'UASIN_GISHU',
-  KIAMBU: 'KIAMBU',
-  MACHAKOS: 'MACHAKOS',
-  KAKAMEGA: 'KAKAMEGA',
-  BUNGOMA: 'BUNGOMA',
-  BUSIA: 'BUSIA',
-  SIAYA: 'SIAYA',
-  KISII: 'KISII',
-  NYAMIRA: 'NYAMIRA',
-  MIGORI: 'MIGORI',
-  HOMA_BAY: 'HOMA_BAY',
-  TURKANA: 'TURKANA',
-  WEST_POKOT: 'WEST_POKOT',
-  SAMBURU: 'SAMBURU',
-  TRANS_NZOIA: 'TRANS_NZOIA',
-  ELGEYO_MARAKWET: 'ELGEYO_MARAKWET',
-  NANDI: 'NANDI',
-  BARINGO: 'BARINGO',
-  LAIKIPIA: 'LAIKIPIA',
-  NAROK: 'NAROK',
-  KAJIADO: 'KAJIADO',
-  KERICHO: 'KERICHO',
-  BOMET: 'BOMET',
-  KILIFI: 'KILIFI',
-  TANA_RIVER: 'TANA_RIVER',
-  LAMU: 'LAMU',
-  TAITA_TAVETA: 'TAITA_TAVETA',
-  GARISSA: 'GARISSA',
-  WAJIR: 'WAJIR',
-  MANDERA: 'MANDERA',
-  MARSABIT: 'MARSABIT',
-  ISIOLO: 'ISIOLO',
-  MERU: 'MERU',
-  THARAKA_NITHI: 'THARAKA_NITHI',
-  EMBU: 'EMBU',
-  KITUI: 'KITUI',
-  MAKUENI: 'MAKUENI',
-  NYANDARUA: 'NYANDARUA',
-  NYERI: 'NYERI',
-  KIRINYAGA: 'KIRINYAGA',
-  MURANGA: 'MURANGA',
-  OTHER: 'OTHER',
-} as const;
-export type KenyanCounty = (typeof KenyanCounty)[keyof typeof KenyanCounty];
-
 export const RelationshipType = {
+  SELF: 'SELF', // Added as it's the root of the tree
   SPOUSE: 'SPOUSE',
   CHILD: 'CHILD',
-  PARENT: 'PARENT',
+  ADOPTED_CHILD: 'ADOPTED_CHILD', // Added
+  FATHER: 'FATHER', // Backend specific
+  MOTHER: 'MOTHER', // Backend specific
   SIBLING: 'SIBLING',
   GRANDCHILD: 'GRANDCHILD',
   GRANDPARENT: 'GRANDPARENT',
@@ -72,427 +24,273 @@ export const RelationshipType = {
 } as const;
 export type RelationshipType = (typeof RelationshipType)[keyof typeof RelationshipType];
 
-export const MarriageType = {
-  CIVIL: 'CIVIL',
-  CHRISTIAN: 'CHRISTIAN',
-  ISLAMIC: 'ISLAMIC',
-  HINDU: 'HINDU',
-  CUSTOMARY: 'CUSTOMARY',
-  OTHER : 'OTHER',
+export const GuardianshipStatus = {
+  DRAFT: 'DRAFT',
+  PENDING: 'PENDING', // Backend uses PENDING/ELIGIBLE logic
+  ELIGIBLE: 'ELIGIBLE',
+  CONDITIONAL: 'CONDITIONAL',
+  INELIGIBLE: 'INELIGIBLE',
+  ACTIVE: 'ACTIVE',
+  SUSPENDED: 'SUSPENDED',
+  TERMINATED: 'TERMINATED',
 } as const;
-export type MarriageType = (typeof MarriageType)[keyof typeof MarriageType];
+export type GuardianshipStatus = (typeof GuardianshipStatus)[keyof typeof GuardianshipStatus];
 
 // ============================================================================
-// 2. REQUEST SCHEMAS (Zod - For Forms & Input Validation)
+// 2. FORM SCHEMAS (Zod) - Aligned with Backend DTOs
 // ============================================================================
 
-// --- CreateFamilyDto ---
-const CreatorProfileSchema = z.object({
-  firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
-  middleName: z.string().optional(),
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
-  dateOfBirth: z.string().optional(),
-  nationalId: z.string().optional(),
+// --- Family Creation ---
+export const CreateFamilySchema = z.object({
+  name: z.string().min(3, 'Family name must be at least 3 characters').max(200),
+  description: z.string().max(500).optional(),
 });
 
-export const CreateFamilyRequestSchema = z.object({
-  familyName: z.string().min(2, 'Family name must be at least 2 characters'),
-  description: z.string().optional(),
-  homeCounty: z.string().optional(),
-  clanName: z.string().optional(),
-  subClan: z.string().optional(),
-  totem: z.string().optional(),
-  creatorProfile: CreatorProfileSchema,
-});
-
-// --- AddFamilyMemberDto ---
-export const AddFamilyMemberRequestSchema = z.object({
-  firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
-  middleName: z.string().optional(),
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
-  dateOfBirth: z.string().optional(),
-  dateOfBirthEstimated: z.boolean().optional(),
-  nationalId: z.string().optional(),
-  placeOfBirth: z.string().optional(),
-  tribe: z.string().optional(),
-  relativeId: z.string().uuid().optional(),
-  relationshipToRelative: z.enum(['SPOUSE', 'CHILD', 'PARENT', 'SIBLING', 'GRANDCHILD', 'GRANDPARENT', 'OTHER']).optional(),
-});
-
-// --- EstablishPolygamousHouseDto ---
-export const EstablishPolygamousHouseRequestSchema = z.object({
-  originalWifeId: z.string().uuid({ message: 'Valid Wife ID required' }),
-  houseHeadId: z.string().uuid().optional(),
-  houseOrder: z.number().int().min(1, 'House order must be 1 or greater'),
-  houseName: z.string().min(1).optional(),
-  distributionWeight: z.number().default(1.0).optional(),
-  establishmentType: z.enum(['CUSTOMARY', 'ISLAMIC', 'TRADITIONAL', 'COURT_RECOGNIZED']).optional(),
-  residentialCounty: z.string().optional(),
-});
-
-// --- RegisterMarriageDto ---
-const DowryPaymentSchema = z.object({
-  amount: z.number().min(0),
-  currency: z.string().default('KES'),
-  isPaidInFull: z.boolean(),
-  livestockCount: z.number().optional(),
-});
-
-export const RegisterMarriageRequestSchema = z.object({
-  spouse1Id: z.string().uuid(),
-  spouse2Id: z.string().uuid(),
-  marriageType: z.enum(['CIVIL', 'CHRISTIAN', 'ISLAMIC', 'HINDU', 'CUSTOMARY', 'COME_WE_STAY']),
-  startDate: z.string(),
-  location: z.string().optional(),
-  county: z.string().optional(),
-  witnesses: z.array(z.string()).optional(),
-  registrationNumber: z.string().optional(),
-  dowryPayment: DowryPaymentSchema.optional(),
-  isPolygamous: z.boolean().optional(),
+// --- Add Member ---
+export const AddFamilyMemberSchema = z.object({
+  firstName: z.string().min(2, 'First name is required').max(100),
+  middleName: z.string().max(100).optional(),
+  lastName: z.string().min(2, 'Last name is required').max(100),
+  maidenName: z.string().max(100).optional(),
+  relationship: z.nativeEnum(RelationshipType),
+  gender: z.nativeEnum(Gender).optional(),
+  
+  // Dates
+  dateOfBirth: z.string().optional(), // ISO Date String
+  
+  // Identity
+  nationalId: z.string().max(20).optional(),
+  phoneNumber: z.string().max(20).optional(),
+  email: z.string().email().optional(),
+  
+  // Context
+  isAdopted: z.boolean().optional(),
+  adoptionDate: z.string().optional(),
   polygamousHouseId: z.string().uuid().optional(),
-  marriageOrder: z.number().optional(),
-}).superRefine((data, ctx) => {
-  if (data.isPolygamous && !data.polygamousHouseId) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Polygamous House ID is required if marriage is polygamous',
-      path: ['polygamousHouseId'],
-    });
-  }
 });
 
-// --- DefineRelationshipDto ---
-export const DefineRelationshipRequestSchema = z.object({
-  fromMemberId: z.string().uuid(),
-  toMemberId: z.string().uuid(),
-  relationshipType: z.enum(['SPOUSE', 'CHILD', 'PARENT', 'SIBLING', 'GRANDCHILD', 'GRANDPARENT', 'OTHER']),
-  isBiological: z.boolean().default(true).optional(),
-  isLegal: z.boolean().default(true).optional(),
-  evidenceDocumentId: z.string().uuid().optional(),
+// --- Update Member ---
+export const UpdateFamilyMemberSchema = z.object({
+  firstName: z.string().min(2).max(100).optional(),
+  middleName: z.string().max(100).optional(),
+  lastName: z.string().min(2).max(100).optional(),
+  maidenName: z.string().max(100).optional(),
+  gender: z.nativeEnum(Gender).optional(),
+  
+  dateOfBirth: z.string().optional(),
+  nationalId: z.string().max(20).optional(),
+  phoneNumber: z.string().max(20).optional(),
+  email: z.string().email().optional(),
+  
+  // Vital Status
+  isAlive: z.boolean().optional(),
+  dateOfDeath: z.string().optional(),
+  deathCertNo: z.string().max(50).optional(),
+  causeOfDeath: z.string().max(500).optional(),
 });
 
-// --- RecordAdoptionDto ---
-export const RecordAdoptionRequestSchema = z.object({
-  adopteeId: z.string().uuid(),
-  adoptiveParentId: z.string().uuid(),
-  adoptionType: z.enum(['FORMAL', 'CUSTOMARY']),
-  adoptionDate: z.string(),
-  courtOrderNumber: z.string().optional(),
-  courtName: z.string().optional(),
-  clanElders: z.array(z.string()).optional(),
-  ceremonyLocation: z.string().optional(),
-  agreementDocumentId: z.string().uuid().optional(),
+// --- Guardianship Eligibility Checklist ---
+export const GuardianEligibilityChecklistSchema = z.object({
+  // Basic Requirements
+  isOver18: z.boolean(),
+  hasNoCriminalRecord: z.boolean(),
+  isMentallyCapable: z.boolean(),
+
+  // Financial & Stability
+  hasFinancialStability: z.boolean(),
+  hasStableResidence: z.boolean(),
+
+  // Character
+  hasGoodMoralCharacter: z.boolean(),
+  isNotBeneficiary: z.boolean(),
+  hasNoSubstanceAbuse: z.boolean(),
+
+  // Practical
+  isPhysicallyCapable: z.boolean(),
+  hasTimeAvailability: z.boolean(),
+
+  // Relationship & Legal
+  hasCloseRelationship: z.boolean(),
+  hasWardConsent: z.boolean(),
+  understandsLegalDuties: z.boolean(),
+  willingToPostBond: z.boolean(),
 });
 
-// --- RecordCohabitationDto ---
-export const RecordCohabitationRequestSchema = z.object({
-  partner1Id: z.string().uuid(),
-  partner2Id: z.string().uuid(),
-  startDate: z.string(),
-  sharedResidenceAddress: z.string().min(1, 'Address is required'),
-  county: z.string(),
-  isExclusive: z.boolean().default(true).optional(),
-  jointAssets: z.boolean().optional(),
-  hasChildrenTogether: z.boolean().optional(),
-  affidavitId: z.string().uuid().optional(),
-});
-
-// --- VerifyMemberIdentityDto ---
-export const VerifyMemberIdentityRequestSchema = z.object({
-  isValid: z.boolean(),
-  verificationMethod: z.enum(['IPRS_CHECK', 'MANUAL_DOCUMENT_REVIEW', 'TRUSTED_AGENT']),
-  documentId: z.string().uuid().optional(),
-  notes: z.string().optional(),
-  correctedNationalId: z.string().optional(),
-});
-
-// --- ArchiveFamilyDto ---
-export const ArchiveFamilyRequestSchema = z.object({
-  reason: z.string().min(5, 'Reason must be at least 5 characters'),
+// --- Assign Guardian ---
+export const AssignGuardianSchema = z.object({
+  wardId: z.string().uuid(),
+  guardianId: z.string().uuid(),
+  isPrimary: z.boolean(),
+  checklist: GuardianEligibilityChecklistSchema,
 });
 
 // ============================================================================
-// 3. RESPONSE INTERFACES (TypeScript - For API Data Consumption)
+// 3. API RESPONSE TYPES
 // ============================================================================
-
-// --- FamilyDetailsDto Response ---
-export interface FamilyStats {
-  totalMembers: number;
-  livingMembers: number;
-  deceasedMembers: number;
-  verifiedMembers: number;
-  generationsCount: number;
-  potentialDependents: number;
+export interface SmartSuggestion {
+  code: string;
+  message: string;
+  action: string;
+  contextId?: string;
 }
-
-export interface FamilyStructure {
-  type: 'NUCLEAR' | 'EXTENDED' | 'POLYGAMOUS' | 'SINGLE_PARENT' | 'BLENDED' | 'COMPLEX' | 'UNKNOWN';
-  houseCount: number;
-  isS40Compliant: boolean;
-  polygamyStatus: 'MONOGAMOUS' | 'POLYGAMOUS' | 'POTENTIALLY_POLYGAMOUS';
+export interface FamilyMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+  relationship: RelationshipType;
+  gender?: Gender;
+  isMinor: boolean;
+  age?: number | null;
+  isAlive: boolean;
 }
-
-export interface RecentEvent {
-  eventId: string;
-  date: string;
-  description: string;
-  actorName: string;
-  type: string;
+export interface AddMemberResponse {
+  member: FamilyMember;
+  suggestions: SmartSuggestion[];
 }
-
-export interface Completeness {
-  score: number;
-  missingFieldsCount: number;
-  nextRecommendedAction?: {
-    title: string;
-    route: string;
-    reason: string;
+export interface ChecklistTemplateResponse {
+  title: string;
+  subtitle: string;
+  sections: {
+    category: string;
+    checks: {
+      key: string;
+      label: string;
+      required: boolean;
+      legalRef?: string;
+    }[];
+  }[];
+  scoringInfo: {
+    eligibilityWeight: number;
+    proximityWeight: number;
+    relationshipWeight: number;
+    passingScore: number;
+    excellentScore: number;
   };
 }
-
-export interface FamilyDetailsResponse {
-  familyId: string;
+export interface CreateFamilyResponse {
+  id: string;
   name: string;
   description?: string;
-  county: string;
-  clanName?: string;
-  totem?: string;
-  stats: FamilyStats;
-  structure: FamilyStructure;
-  recentEvents: RecentEvent[];
-  completeness: Completeness;
 }
-
-// --- FamilyMemberDto Response ---
-export interface ParentLink {
+export interface TreeSpouse {
   id: string;
   name: string;
-  relationshipType: 'BIOLOGICAL' | 'ADOPTIVE' | 'FOSTER' | 'STEP';
-  isAlive: boolean;
+  houseName?: string | null;
+  role?: string;
+  isAlive?: boolean;
 }
-
-export interface SpouseLink {
+export interface TreeChild {
   id: string;
   name: string;
-  marriageType: string;
-  status: string;
-  dateOfMarriage?: string;
-}
-
-export interface ChildLink {
-  id: string;
-  name: string;
-  gender: Gender;
-  age?: number;
-}
-
-export interface SiblingLink {
-  id: string;
-  name: string;
-  type: 'FULL' | 'HALF' | 'STEP';
-}
-
-export interface PolygamyContext {
-  isPolygamousFamily: boolean;
-  belongsToHouseId?: string;
-  belongsToHouseName?: string;
-  isHouseHead: boolean;
-}
-
-export interface LegalStatus {
   isMinor: boolean;
-  isAdult: boolean;
-  hasGuardian: boolean;
-  qualifiesForS29: boolean;
-  inheritanceEligibility: 'FULL' | 'LIMITED' | 'NONE' | 'PENDING_VERIFICATION';
+  houseId?: string | null;
+  role?: string;
+  isAlive?: boolean;
 }
 
-export interface FamilyMemberResponse {
+export interface TreeParent {
   id: string;
-  familyId: string;
-  identity: {
-    fullName: string;
-    officialName: string;
-    first: string;
-    last: string;
-    gender: Gender;
-    dateOfBirth?: string;
-    age?: number;
-    nationalId?: string;
-  };
-  vitalStatus: {
-    isAlive: boolean;
-    dateOfDeath?: string;
-    isMissing: boolean;
-  };
-  context: {
-    tribe?: string;
-    clan?: string;
-    homeCounty?: string;
-    placeOfBirth?: string;
-  };
-  verification: {
-    isVerified: boolean;
-    status: string;
-    method?: string;
-    confidenceScore?: number;
-  };
-  kinship: {
-    parents: ParentLink[];
-    spouses: SpouseLink[];
-    children: ChildLink[];
-    siblings: SiblingLink[];
-  };
-  polygamyContext: PolygamyContext;
-  legalStatus: LegalStatus;
-}
-
-// --- FamilyTreeDto Response (Graph) ---
-export interface GraphNodeData {
-  fullName: string;
-  gender: Gender;
-  dateOfBirth?: string;
-  isAlive: boolean;
-  isHeadOfFamily: boolean;
-  isVerified: boolean;
-  hasMissingData: boolean;
-  photoUrl?: string;
-  houseId?: string;
-  houseColor?: string;
-}
-
-export interface GraphNode {
-  id: string;
-  type: 'MEMBER' | 'GHOST';
-  data: GraphNodeData;
-  generationLevel?: number;
-}
-
-export interface GraphEdgeData {
-  isBiological: boolean;
-  isLegal: boolean;
-  isVerified: boolean;
-  label?: string;
-}
-
-export interface GraphEdgeStyle {
-  stroke?: string;
-  strokeWidth?: number;
-  strokeDasharray?: string;
-  animated?: boolean;
-}
-
-export interface GraphEdge {
-  id: string;
-  source: string;
-  target: string;
-  type: 'PARENT_CHILD' | 'SPOUSE' | 'SIBLING' | 'COHABITATION';
-  data: GraphEdgeData;
-  style?: GraphEdgeStyle;
-}
-
-export interface FamilyGraphStats {
-  nodesCount: number;
-  edgesCount: number;
-  generations: number;
-}
-
-export interface FamilyTreeResponse {
-  familyId: string;
-  stats: FamilyGraphStats;
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-}
-
-// --- PolygamyStatusDto Response ---
-export interface HouseHead {
-  memberId: string;
   name: string;
-  isAlive: boolean;
-  marriageStatus: string;
+  role: string;
+  isAlive?: boolean;
 }
 
-export interface HouseMember {
-  memberId: string;
+export interface FamilyTreeNode {
+  id: string;
   name: string;
-  relationshipToHead: 'CHILD' | 'SPOUSE' | 'GRANDCHILD' | 'OTHER';
-  age?: number;
-  isMinor: boolean;
-  isStudent: boolean;
-  hasDisability: boolean;
-  isEligibleBeneficiary: boolean;
+  role: string; // 'Me'
+  gender?: Gender;
+  isAlive: boolean;
+  
+  spouses?: TreeSpouse[];
+  children?: TreeChild[];
+  parents?: TreeParent[];
+  
+  stats?: {
+    totalMembers: number;
+    isPolygamous: boolean;
+  };
 }
-
-export interface HouseGroup {
-  houseId: string;
-  houseName: string;
-  order: number;
-  theoreticalSharePercentage: number;
-  headOfHouse: HouseHead;
-  members: HouseMember[];
-  memberCount: number;
-  minorCount: number;
-}
-
-export interface PolygamyStatusResponse {
-  familyId: string;
-  isPolygamous: boolean;
-  distributionMethod: 'PER_STIRPES' | 'PER_CAPITA';
-  totalHouses: number;
-  houses: HouseGroup[];
-  unassignedMembers: HouseMember[];
-  hasUnassignedRisks: boolean;
-}
-
-// --- SuccessionAnalysisDto Response ---
-export interface Recommendation {
-  priority: 'HIGH' | 'MEDIUM' | 'LOW';
-  title: string;
+// --- Heir Analysis ---
+export interface PotentialHeir {
+  id: string;
+  name: string;
+  category: 'SPOUSE' | 'CHILD' | 'PARENT' | 'WARNING';
+  priority?: number;
+  legalBasis: string;
   description: string;
-  actionLink?: string;
+  house?: string | null; // For polygamous context
 }
 
-export interface DependencyAnalysis {
-  status: 'PASS' | 'WARNING' | 'FAIL';
-  potentialClaimantsCount: number;
-  claimantNames: string[];
-  issues: string[];
+export interface HeirsResponse {
+  heirs: PotentialHeir[];
+  disclaimer: string;
+  legalNote: string;
 }
 
-export interface PolygamyAnalysis {
-  isPolygamous: boolean;
-  status: 'NOT_APPLICABLE' | 'PASS' | 'FAIL';
-  definedHouses: number;
-  issues: string[];
+// --- Guardianship Status ---
+export interface GuardianAssignmentSummary {
+  id: string;
+  guardianId: string;
+  guardianName: string; // Flattened for display
+  isPrimary: boolean;
+  priorityOrder: number;
+  isActive: boolean;
+  eligibilityScore: number;
 }
 
-export interface DataIntegrity {
-  verifiedMembersPercentage: number;
-  missingCriticalDocuments: string[];
+export interface GuardianshipStatusResponse {
+  hasGuardian: boolean;
+  message?: string;
+  guardianship?: {
+    id: string;
+    wardId: string;
+    wardName: string;
+    status: GuardianshipStatus;
+    overallScore: number;
+    blockingIssues: string[];
+    warnings: string[];
+  };
+  primaryGuardian?: GuardianAssignmentSummary;
+  alternateGuardians?: GuardianAssignmentSummary[];
+  compliance?: {
+    isCompliant: boolean;
+    issues: string[];
+  };
 }
 
-export interface SuccessionAnalysisResponse {
-  familyId: string;
-  generatedAt: string;
+export interface EligibilityCheckResponse {
+  guardianId: string;
+  guardianName: string;
+  wardId: string;
+  wardName: string;
+  
+  // Scores
+  eligibilityScore: number;
+  proximityScore: number;
+  relationshipScore: number;
   overallScore: number;
-  readinessLevel: 'NOT_READY' | 'PARTIAL' | 'READY_TO_FILE';
-  dependencyAnalysis: DependencyAnalysis;
-  polygamyAnalysis: PolygamyAnalysis;
-  dataIntegrity: DataIntegrity;
-  recommendations: Recommendation[];
+  
+  status: GuardianshipStatus;
+  isEligible: boolean;
+  
+  // Details
+  passedChecks: string[];
+  failedChecks: string[];
+  warnings: string[];
+  blockingIssues: string[];
+  
+  // UX
+  legalReference: string;
+  nextSteps: string[];
 }
 
 // ============================================================================
-// 4. INFERRED INPUT TYPES (For API Calls)
+// 4. INFERRED TYPES (Use these in your React Components)
 // ============================================================================
-export type CreateFamilyInput = z.infer<typeof CreateFamilyRequestSchema>;
-export type AddFamilyMemberInput = z.infer<typeof AddFamilyMemberRequestSchema>;
-export type EstablishPolygamousHouseInput = z.infer<typeof EstablishPolygamousHouseRequestSchema>;
-export type RegisterMarriageInput = z.infer<typeof RegisterMarriageRequestSchema>;
-export type DefineRelationshipInput = z.infer<typeof DefineRelationshipRequestSchema>;
-export type RecordAdoptionInput = z.infer<typeof RecordAdoptionRequestSchema>;
-export type RecordCohabitationInput = z.infer<typeof RecordCohabitationRequestSchema>;
-export type VerifyMemberIdentityInput = z.infer<typeof VerifyMemberIdentityRequestSchema>;
-export type ArchiveFamilyInput = z.infer<typeof ArchiveFamilyRequestSchema>;
+
+export type CreateFamilyInput = z.infer<typeof CreateFamilySchema>;
+export type AddFamilyMemberInput = z.infer<typeof AddFamilyMemberSchema>;
+export type UpdateFamilyMemberInput = z.infer<typeof UpdateFamilyMemberSchema>;
+export type GuardianEligibilityChecklist = z.infer<typeof GuardianEligibilityChecklistSchema>;
+export type AssignGuardianInput = z.infer<typeof AssignGuardianSchema>;

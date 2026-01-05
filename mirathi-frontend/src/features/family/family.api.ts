@@ -1,5 +1,5 @@
 // ============================================================================
-// family.api.ts - Family Service API Layer
+// family.api.ts - Unified Family & Guardianship API Layer
 // ============================================================================
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,162 +10,120 @@ import {
   // Input Types
   type CreateFamilyInput,
   type AddFamilyMemberInput,
-  type RegisterMarriageInput,
-  type EstablishPolygamousHouseInput,
-  type DefineRelationshipInput,
-  type RecordCohabitationInput,
-  type RecordAdoptionInput,
-  type VerifyMemberIdentityInput,
-  type ArchiveFamilyInput,
+  type UpdateFamilyMemberInput,
+  type AssignGuardianInput,
+  type GuardianEligibilityChecklist,
   // Response Types
-  type FamilyDetailsResponse,
-  type FamilyTreeResponse,
-  type FamilyMemberResponse,
-  type SuccessionAnalysisResponse,
-  type PolygamyStatusResponse,
-  type KenyanCounty,
+  type FamilyTreeNode,
+  type HeirsResponse,
+  type GuardianshipStatusResponse,
+  type EligibilityCheckResponse,
+  type AddMemberResponse,
+  type ChecklistTemplateResponse,
+  type CreateFamilyResponse,
 } from '../../types/family.types';
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
 
-const BASE_URL = '/family/families';
+const FAMILY_BASE_URL = '/family';
+const GUARDIANSHIP_BASE_URL = '/guardianship';
 
 export const familyKeys = {
-  all: ['families'] as const,
-  lists: () => [...familyKeys.all, 'list'] as const,
-  details: () => [...familyKeys.all, 'detail'] as const,
-  detail: (id: string) => [...familyKeys.details(), id] as const,
-  graph: (id: string) => [...familyKeys.detail(id), 'graph'] as const,
-  members: (familyId: string) => [...familyKeys.detail(familyId), 'members'] as const,
-  member: (familyId: string, memberId: string) => [...familyKeys.members(familyId), memberId] as const,
-  analysis: (familyId: string) => [...familyKeys.detail(familyId), 'analysis'] as const,
-  succession: (familyId: string) => [...familyKeys.analysis(familyId), 'succession'] as const,
-  polygamy: (familyId: string) => [...familyKeys.analysis(familyId), 'polygamy'] as const,
+  all: ['family'] as const,
+  mine: () => [...familyKeys.all, 'mine'] as const, // The logged-in user's family
+  tree: (familyId: string) => [...familyKeys.all, familyId, 'tree'] as const,
+  heirs: (familyId: string) => [...familyKeys.all, familyId, 'heirs'] as const,
 };
 
-// ============================================================================
-// TYPES
-// ============================================================================
-
-interface PaginatedResult<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
-
-interface SearchFamiliesParams {
-  page?: number;
-  pageSize?: number;
-  search?: string;
-  county?: KenyanCounty;
-}
-
-interface FamilySearchItem {
-  id: string;
-  name: string;
-  county?: string;
-  memberCount: number;
-  createdAt: string;
-}
+export const guardianshipKeys = {
+  all: ['guardianship'] as const,
+  status: (wardId: string) => [...guardianshipKeys.all, 'ward', wardId] as const,
+  checklist: () => [...guardianshipKeys.all, 'checklist'] as const,
+};
 
 // ============================================================================
 // API FUNCTIONS (COMMANDS - WRITE)
 // ============================================================================
 
+// --- Family Operations ---
+
 const createFamily = async (data: CreateFamilyInput) => {
-  const res = await apiClient.post<{ id: string }>(BASE_URL, data);
+  // Idempotent call to /family
+  const res = await apiClient.post<{ id: string; name: string }>(FAMILY_BASE_URL, data);
   return res.data;
 };
 
 const addMember = async ({ familyId, data }: { familyId: string; data: AddFamilyMemberInput }) => {
-  const res = await apiClient.post<{ id: string }>(`${BASE_URL}/${familyId}/members`, data);
-  return res.data;
-};
-
-const registerMarriage = async ({ familyId, data }: { familyId: string; data: RegisterMarriageInput }) => {
-  const res = await apiClient.post<{ id: string }>(`${BASE_URL}/${familyId}/marriages`, data);
-  return res.data;
-};
-
-const establishHouse = async ({ familyId, data }: { familyId: string; data: EstablishPolygamousHouseInput }) => {
-  const res = await apiClient.post<{ id: string }>(`${BASE_URL}/${familyId}/houses`, data);
-  return res.data;
-};
-
-const defineRelationship = async ({ familyId, data }: { familyId: string; data: DefineRelationshipInput }) => {
-  const res = await apiClient.post<{ id: string }>(`${BASE_URL}/${familyId}/relationships`, data);
-  return res.data;
-};
-
-const recordCohabitation = async ({ familyId, data }: { familyId: string; data: RecordCohabitationInput }) => {
-  const res = await apiClient.post<{ id: string }>(`${BASE_URL}/${familyId}/cohabitations`, data);
-  return res.data;
-};
-
-const recordAdoption = async ({ familyId, data }: { familyId: string; data: RecordAdoptionInput }) => {
-  const res = await apiClient.post<{ id: string }>(`${BASE_URL}/${familyId}/adoptions`, data);
-  return res.data;
-};
-
-const verifyIdentity = async ({
-  familyId,
-  memberId,
-  data,
-}: {
-  familyId: string;
-  memberId: string;
-  data: VerifyMemberIdentityInput;
-}) => {
-  const res = await apiClient.post<{ id: string }>(
-    `${BASE_URL}/${familyId}/members/${memberId}/verify`,
+  const res = await apiClient.post<AddMemberResponse>(
+    `${FAMILY_BASE_URL}/${familyId}/members`,
     data
   );
   return res.data;
 };
 
-const archiveFamily = async ({ familyId, data }: { familyId: string; data: ArchiveFamilyInput }) => {
-  await apiClient.delete(`${BASE_URL}/${familyId}`, { data });
+const updateMember = async ({ memberId, data }: { memberId: string; data: UpdateFamilyMemberInput }) => {
+  const res = await apiClient.put(`${FAMILY_BASE_URL}/members/${memberId}`, data);
+  return res.data;
+};
+
+const removeMember = async (memberId: string) => {
+  await apiClient.delete(`${FAMILY_BASE_URL}/members/${memberId}`);
+};
+
+// --- Guardianship Operations ---
+
+const checkEligibility = async (data: { guardianId: string; wardId: string; checklist: GuardianEligibilityChecklist }) => {
+  const res = await apiClient.post<EligibilityCheckResponse>(
+    `${GUARDIANSHIP_BASE_URL}/check-eligibility`,
+    data
+  );
+  return res.data;
+};
+
+const assignGuardian = async ({ familyId, data }: { familyId: string; data: AssignGuardianInput }) => {
+  const res = await apiClient.post(`${GUARDIANSHIP_BASE_URL}/${familyId}/assign`, data);
+  return res.data;
 };
 
 // ============================================================================
 // API FUNCTIONS (QUERIES - READ)
 // ============================================================================
 
-const searchFamilies = async (params: SearchFamiliesParams): Promise<PaginatedResult<FamilySearchItem>> => {
-  const res = await apiClient.get<PaginatedResult<FamilySearchItem>>(BASE_URL, { params });
+// --- Family Queries ---
+
+const getMyFamily = async () => {
+  const res = await apiClient.get<{ id: string; name: string }>(`${FAMILY_BASE_URL}/mine`);
   return res.data;
 };
 
-const getFamilyDashboard = async (familyId: string): Promise<FamilyDetailsResponse> => {
-  const res = await apiClient.get<FamilyDetailsResponse>(`${BASE_URL}/${familyId}`);
+const getMyFamilyTree = async () => {
+  const res = await apiClient.get<FamilyTreeNode>(`${FAMILY_BASE_URL}/mine/tree`);
   return res.data;
 };
 
-const getFamilyGraph = async (familyId: string, depth?: number): Promise<FamilyTreeResponse> => {
-  const res = await apiClient.get<FamilyTreeResponse>(`${BASE_URL}/${familyId}/graph`, {
-    params: { depth },
-  });
+const getFamilyTree = async (familyId: string) => {
+  const res = await apiClient.get<FamilyTreeNode>(`${FAMILY_BASE_URL}/${familyId}/tree`);
   return res.data;
 };
 
-const getFamilyMember = async (familyId: string, memberId: string): Promise<FamilyMemberResponse> => {
-  const res = await apiClient.get<FamilyMemberResponse>(`${BASE_URL}/${familyId}/members/${memberId}`);
+const getPotentialHeirs = async (familyId: string) => {
+  const res = await apiClient.get<HeirsResponse>(`${FAMILY_BASE_URL}/${familyId}/potential-heirs`);
   return res.data;
 };
 
-const getSuccessionReadiness = async (familyId: string): Promise<SuccessionAnalysisResponse> => {
-  const res = await apiClient.get<SuccessionAnalysisResponse>(
-    `${BASE_URL}/${familyId}/analysis/succession`
+// --- Guardianship Queries ---
+
+const getGuardianshipStatus = async (wardId: string) => {
+  const res = await apiClient.get<GuardianshipStatusResponse>(
+    `${GUARDIANSHIP_BASE_URL}/ward/${wardId}/status`
   );
   return res.data;
 };
 
-const getPolygamyStatus = async (familyId: string): Promise<PolygamyStatusResponse> => {
-  const res = await apiClient.get<PolygamyStatusResponse>(`${BASE_URL}/${familyId}/analysis/polygamy`);
+const getChecklistTemplate = async () => {
+  const res = await apiClient.get<ChecklistTemplateResponse>(`${GUARDIANSHIP_BASE_URL}/checklist-template`);
   return res.data;
 };
 
@@ -173,132 +131,78 @@ const getPolygamyStatus = async (familyId: string): Promise<PolygamyStatusRespon
 // REACT QUERY HOOKS (MUTATIONS)
 // ============================================================================
 
-export const useCreateFamily = (options?: { onSuccess?: (data: { id: string }) => void }) => {
+export const useCreateFamily = (options?: { onSuccess?: (data: CreateFamilyResponse) => void }) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createFamily,
     onSuccess: (data) => {
-      toast.success('Family Tree Created', { description: 'You can now add members.' });
-      queryClient.invalidateQueries({ queryKey: familyKeys.lists() });
+      toast.success('Family Tree Created');
+      queryClient.invalidateQueries({ queryKey: familyKeys.mine() });
       options?.onSuccess?.(data);
     },
     onError: (err) => toast.error('Creation Failed', { description: extractErrorMessage(err) }),
   });
 };
 
-export const useAddMember = (familyId: string, options?: { onSuccess?: () => void }) => {
+export const useAddMember = (familyId: string, options?: { onSuccess?: (data: AddMemberResponse) => void }) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: AddFamilyMemberInput) => addMember({ familyId, data }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success('Member Added');
-      queryClient.invalidateQueries({ queryKey: familyKeys.detail(familyId) });
-      options?.onSuccess?.();
+      queryClient.invalidateQueries({ queryKey: familyKeys.tree(familyId) });
+      queryClient.invalidateQueries({ queryKey: familyKeys.heirs(familyId) });
+      options?.onSuccess?.(data);
     },
     onError: (err) => toast.error('Failed to add member', { description: extractErrorMessage(err) }),
   });
 };
 
-export const useRegisterMarriage = (familyId: string, options?: { onSuccess?: () => void }) => {
+export const useUpdateMember = (familyId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: RegisterMarriageInput) => registerMarriage({ familyId, data }),
+    mutationFn: ({ memberId, data }: { memberId: string; data: UpdateFamilyMemberInput }) =>
+      updateMember({ memberId, data }),
     onSuccess: () => {
-      toast.success('Marriage Registered');
-      queryClient.invalidateQueries({ queryKey: familyKeys.detail(familyId) });
-      options?.onSuccess?.();
+      toast.success('Member Updated');
+      queryClient.invalidateQueries({ queryKey: familyKeys.tree(familyId) });
+      queryClient.invalidateQueries({ queryKey: familyKeys.heirs(familyId) });
     },
-    onError: (err) => toast.error('Marriage Registration Failed', { description: extractErrorMessage(err) }),
+    onError: (err) => toast.error('Update Failed', { description: extractErrorMessage(err) }),
   });
 };
 
-export const useEstablishHouse = (familyId: string, options?: { onSuccess?: () => void }) => {
+export const useRemoveMember = (familyId: string) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: EstablishPolygamousHouseInput) => establishHouse({ familyId, data }),
+    mutationFn: removeMember,
     onSuccess: () => {
-      toast.success('Polygamous House Established', { description: 'S.40 calculations updated.' });
-      queryClient.invalidateQueries({ queryKey: familyKeys.polygamy(familyId) });
-      queryClient.invalidateQueries({ queryKey: familyKeys.graph(familyId) });
-      queryClient.invalidateQueries({ queryKey: familyKeys.detail(familyId) });
-      options?.onSuccess?.();
+      toast.success('Member Removed');
+      queryClient.invalidateQueries({ queryKey: familyKeys.tree(familyId) });
     },
-    onError: (err) => toast.error('Failed to establish house', { description: extractErrorMessage(err) }),
+    onError: (err) => toast.error('Removal Failed', { description: extractErrorMessage(err) }),
   });
 };
 
-export const useDefineRelationship = (familyId: string, options?: { onSuccess?: () => void }) => {
-  const queryClient = useQueryClient();
+// --- Guardianship Mutations ---
+
+export const useCheckEligibility = () => {
   return useMutation({
-    mutationFn: (data: DefineRelationshipInput) => defineRelationship({ familyId, data }),
-    onSuccess: () => {
-      toast.success('Relationship Defined');
-      queryClient.invalidateQueries({ queryKey: familyKeys.detail(familyId) });
-      queryClient.invalidateQueries({ queryKey: familyKeys.graph(familyId) });
-      options?.onSuccess?.();
-    },
-    onError: (err) => toast.error('Failed to define relationship', { description: extractErrorMessage(err) }),
+    mutationFn: checkEligibility,
+    onError: (err) => toast.error('Check Failed', { description: extractErrorMessage(err) }),
   });
 };
 
-export const useRecordCohabitation = (familyId: string, options?: { onSuccess?: () => void }) => {
+export const useAssignGuardian = (familyId: string, wardId: string, options?: { onSuccess?: () => void }) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: RecordCohabitationInput) => recordCohabitation({ familyId, data }),
+    mutationFn: (data: AssignGuardianInput) => assignGuardian({ familyId, data }),
     onSuccess: () => {
-      toast.success('Cohabitation Recorded', { description: 'S.29 dependency claim registered.' });
-      queryClient.invalidateQueries({ queryKey: familyKeys.detail(familyId) });
-      queryClient.invalidateQueries({ queryKey: familyKeys.succession(familyId) });
+      toast.success('Guardian Assigned', { description: 'Succession plan updated.' });
+      queryClient.invalidateQueries({ queryKey: guardianshipKeys.status(wardId) });
       options?.onSuccess?.();
     },
-    onError: (err) => toast.error('Failed to record cohabitation', { description: extractErrorMessage(err) }),
-  });
-};
-
-export const useRecordAdoption = (familyId: string, options?: { onSuccess?: () => void }) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: RecordAdoptionInput) => recordAdoption({ familyId, data }),
-    onSuccess: () => {
-      toast.success('Adoption Recorded');
-      queryClient.invalidateQueries({ queryKey: familyKeys.detail(familyId) });
-      queryClient.invalidateQueries({ queryKey: familyKeys.graph(familyId) });
-      options?.onSuccess?.();
-    },
-    onError: (err) => toast.error('Failed to record adoption', { description: extractErrorMessage(err) }),
-  });
-};
-
-export const useVerifyIdentity = (
-  familyId: string,
-  memberId: string,
-  options?: { onSuccess?: () => void }
-) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: VerifyMemberIdentityInput) => verifyIdentity({ familyId, memberId, data }),
-    onSuccess: () => {
-      toast.success('Identity Verified', { description: 'Member verification updated.' });
-      queryClient.invalidateQueries({ queryKey: familyKeys.member(familyId, memberId) });
-      queryClient.invalidateQueries({ queryKey: familyKeys.detail(familyId) });
-      queryClient.invalidateQueries({ queryKey: familyKeys.succession(familyId) });
-      options?.onSuccess?.();
-    },
-    onError: (err) => toast.error('Verification Failed', { description: extractErrorMessage(err) }),
-  });
-};
-
-export const useArchiveFamily = (options?: { onSuccess?: () => void }) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ familyId, data }: { familyId: string; data: ArchiveFamilyInput }) =>
-      archiveFamily({ familyId, data }),
-    onSuccess: () => {
-      toast.success('Family Archived', { description: 'Family tree has been archived.' });
-      queryClient.invalidateQueries({ queryKey: familyKeys.lists() });
-      options?.onSuccess?.();
-    },
-    onError: (err) => toast.error('Archive Failed', { description: extractErrorMessage(err) }),
+    onError: (err) => toast.error('Assignment Failed', { description: extractErrorMessage(err) }),
   });
 };
 
@@ -306,63 +210,50 @@ export const useArchiveFamily = (options?: { onSuccess?: () => void }) => {
 // REACT QUERY HOOKS (QUERIES)
 // ============================================================================
 
-export const useSearchFamilies = (params: SearchFamiliesParams) => {
+export const useMyFamily = () => {
   return useQuery({
-    queryKey: [...familyKeys.lists(), params],
-    queryFn: () => searchFamilies(params),
-    staleTime: 1000 * 60 * 1, // 1 min
+    queryKey: familyKeys.mine(),
+    queryFn: getMyFamily,
+    retry: 1,
   });
 };
 
-export const useFamilyDashboard = (familyId: string) => {
+export const useMyFamilyTree = () => {
   return useQuery({
-    queryKey: familyKeys.detail(familyId),
-    queryFn: () => getFamilyDashboard(familyId),
-    enabled: !!familyId,
-    staleTime: 1000 * 60 * 2, // 2 mins
+    queryKey: ['family', 'mine', 'tree'],
+    queryFn: getMyFamilyTree,
+    retry: false, // Don't retry if 404 (means no family yet)
   });
 };
 
-export const useFamilyGraph = (familyId: string, depth?: number) => {
+export const useFamilyTree = (familyId: string) => {
   return useQuery({
-    queryKey: [...familyKeys.graph(familyId), depth],
-    queryFn: () => getFamilyGraph(familyId, depth),
-    enabled: !!familyId,
-    refetchOnWindowFocus: false, // Graphs can be heavy, don't auto-refetch
-  });
-};
-
-export const useFamilyMember = (familyId: string, memberId: string) => {
-  return useQuery({
-    queryKey: familyKeys.member(familyId, memberId),
-    queryFn: () => getFamilyMember(familyId, memberId),
-    enabled: !!familyId && !!memberId,
-  });
-};
-
-export const useSuccessionReadiness = (familyId: string) => {
-  return useQuery({
-    queryKey: familyKeys.succession(familyId),
-    queryFn: () => getSuccessionReadiness(familyId),
-    enabled: !!familyId,
-    staleTime: 0, // Always fresh - changes as users complete tasks
-  });
-};
-
-export const usePolygamyStatus = (familyId: string) => {
-  return useQuery({
-    queryKey: familyKeys.polygamy(familyId),
-    queryFn: () => getPolygamyStatus(familyId),
+    queryKey: familyKeys.tree(familyId),
+    queryFn: () => getFamilyTree(familyId),
     enabled: !!familyId,
   });
 };
 
-// ============================================================================
-// EXPORTS
-// ============================================================================
+export const usePotentialHeirs = (familyId: string) => {
+  return useQuery({
+    queryKey: familyKeys.heirs(familyId),
+    queryFn: () => getPotentialHeirs(familyId),
+    enabled: !!familyId,
+  });
+};
 
-export type {
-  SearchFamiliesParams,
-  FamilySearchItem,
-  PaginatedResult,
+export const useGuardianshipStatus = (wardId: string) => {
+  return useQuery({
+    queryKey: guardianshipKeys.status(wardId),
+    queryFn: () => getGuardianshipStatus(wardId),
+    enabled: !!wardId,
+  });
+};
+
+export const useGuardianshipChecklist = () => {
+  return useQuery({
+    queryKey: guardianshipKeys.checklist(),
+    queryFn: getChecklistTemplate,
+    staleTime: Infinity, // Static data
+  });
 };

@@ -48,16 +48,8 @@ import {
 
 // Family Service
 import {
-  FamilyListPage,
   FamilyDashboardPage,
-  MemberProfilePage
 } from './pages/family';
-
-// Guardianship Service
-import {
-  GuardianshipListPage,
-  GuardianshipDetailsPage
-} from './pages/guardianship';
 
 // Not Found
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -127,15 +119,7 @@ function App() {
 
           {/* --- FAMILY SERVICE --- */}
           <Route path="families">
-            <Route index element={<FamilyListPage />} />
             <Route path=":id" element={<FamilyDashboardPage />} />
-            <Route path=":familyId/member/:memberId" element={<MemberProfilePage />} />
-          </Route>
-
-          {/* --- GUARDIANSHIP SERVICE --- */}
-          <Route path="guardianship">
-            <Route index element={<GuardianshipListPage />} />
-            <Route path=":id" element={<GuardianshipDetailsPage />} />
           </Route>
 
         </Route>
