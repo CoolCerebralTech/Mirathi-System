@@ -19,7 +19,7 @@ import { JwtAuthGuard } from '@shamba/auth';
 import { DocumentService } from '../../application/services/document.service';
 import { UploadDocumentDto } from '../dto/upload-document.dto';
 
-@Controller('documents')
+@Controller()
 @UseGuards(JwtAuthGuard)
 export class DocumentController {
   constructor(private readonly documentService: DocumentService) {}
@@ -30,7 +30,7 @@ export class DocumentController {
    */
   @Post('initiate-upload')
   async initiateUpload(@Body() dto: UploadDocumentDto, @Request() req: any) {
-    const uploaderId = req.user.userId;
+    const uploaderId = req.user.sub;
     return this.documentService.initiateUpload(uploaderId, dto.documentName);
   }
 
@@ -49,7 +49,7 @@ export class DocumentController {
       throw new BadRequestException('No file uploaded');
     }
 
-    const uploaderId = req.user.userId;
+    const uploaderId = req.user.sub;
 
     return this.documentService.processUpload(documentId, file.buffer, file.mimetype, uploaderId);
   }
@@ -60,7 +60,7 @@ export class DocumentController {
    */
   @Get()
   async getDocuments(@Request() req: any) {
-    const uploaderId = req.user.userId;
+    const uploaderId = req.user.sub;
     return this.documentService.getUserDocuments(uploaderId);
   }
 
@@ -70,7 +70,7 @@ export class DocumentController {
    */
   @Get(':id')
   async getDocument(@Param('id') id: string, @Request() req: any) {
-    const userId = req.user.userId;
+    const userId = req.user.sub;
     return this.documentService.getDocumentById(id, userId);
   }
 
@@ -80,7 +80,7 @@ export class DocumentController {
    */
   @Get(':id/view')
   async getDocumentUrl(@Param('id') id: string, @Request() req: any) {
-    const userId = req.user.userId;
+    const userId = req.user.sub;
     return this.documentService.getDocumentUrl(id, userId);
   }
 
@@ -90,7 +90,7 @@ export class DocumentController {
    */
   @Delete(':id')
   async deleteDocument(@Param('id') id: string, @Request() req: any) {
-    const userId = req.user.userId;
+    const userId = req.user.sub;
     await this.documentService.deleteDocument(id, userId);
     return { message: 'Document deleted successfully' };
   }

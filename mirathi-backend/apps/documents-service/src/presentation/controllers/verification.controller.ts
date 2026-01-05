@@ -45,7 +45,7 @@ export class VerificationController {
    */
   @Post('verify')
   async verifyDocument(@Body() dto: VerifyDocumentDto, @Request() req: any) {
-    const verifierId = req.user.userId;
+    const verifierId = req.user.sub;
     const userRole = req.user.role;
 
     // Only VERIFIER and ADMIN can verify

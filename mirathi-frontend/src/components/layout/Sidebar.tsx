@@ -11,7 +11,6 @@ import {
   Users,         // Families/Heirs
   FileCheck,     // Documents/Vault
   Settings,
-  Shield,        // Guardianship
   ScrollText,    // Wills
   Gavel,         // Probate
   ClipboardCheck,// Readiness
@@ -68,12 +67,6 @@ export function Sidebar() {
           labelKey: 'nav.wills', 
           defaultLabel: 'My Wills',
           icon: ScrollText 
-        },
-        { 
-          to: '/dashboard/guardianship', 
-          labelKey: 'nav.guardianship', 
-          defaultLabel: 'Guardianship',
-          icon: Shield 
         },
       ]
     },
