@@ -5,6 +5,7 @@ import {
   IsDateString,
   IsEmail,
   IsEnum,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -18,6 +19,7 @@ import {
 
 export class CreateFamilyDto {
   @IsString()
+  @IsNotEmpty()
   @MinLength(3)
   @MaxLength(200)
   name: string;
@@ -30,6 +32,7 @@ export class CreateFamilyDto {
 
 export class AddFamilyMemberDto {
   @IsString()
+  @IsNotEmpty()
   @MinLength(2)
   @MaxLength(100)
   firstName: string;
@@ -40,9 +43,15 @@ export class AddFamilyMemberDto {
   middleName?: string;
 
   @IsString()
+  @IsNotEmpty()
   @MinLength(2)
   @MaxLength(100)
   lastName: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  maidenName?: string; // Added this (Used in Service)
 
   @IsEnum(RelationshipType)
   relationship: RelationshipType;
@@ -99,6 +108,11 @@ export class UpdateFamilyMemberDto {
   lastName?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  maidenName?: string;
+
+  @IsOptional()
   @IsEnum(Gender)
   gender?: Gender;
 
@@ -136,5 +150,5 @@ export class UpdateFamilyMemberDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  causeOfDeath?: string;
+  causeOfDeath?: string; // Fixed typo here
 }

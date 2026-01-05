@@ -20,24 +20,18 @@ import { AssignGuardianDto, CheckGuardianEligibilityDto } from '../dto/guardians
 export class GuardianshipController {
   constructor(private readonly guardianshipService: GuardianshipService) {}
 
+  // ==========================================================================
+  // ELIGIBILITY TOOLS
+  // ==========================================================================
+
   @Post('check-eligibility')
+  @HttpCode(HttpStatus.OK)
   async checkEligibility(@Body() dto: CheckGuardianEligibilityDto) {
     return this.guardianshipService.checkGuardianEligibility(
       dto.guardianId,
       dto.wardId,
       dto.checklist,
     );
-  }
-
-  @Post(':familyId/assign')
-  @HttpCode(HttpStatus.CREATED)
-  async assignGuardian(@Param('familyId') familyId: string, @Body() dto: AssignGuardianDto) {
-    return this.guardianshipService.assignGuardian(familyId, dto);
-  }
-
-  @Get('ward/:wardId/status')
-  async getGuardianshipStatus(@Param('wardId') wardId: string) {
-    return this.guardianshipService.getGuardianshipStatus(wardId);
   }
 
   @Get('checklist-template')
@@ -106,38 +100,13 @@ export class GuardianshipController {
           ],
         },
         {
-          category: 'Practical Considerations',
-          checks: [
-            {
-              key: 'isPhysicallyCapable',
-              label: 'Is the guardian physically capable of caring for the ward?',
-              required: false,
-            },
-            {
-              key: 'hasTimeAvailability',
-              label: 'Does the guardian have time to care for the ward?',
-              required: false,
-            },
-          ],
-        },
-        {
-          category: 'Relationship',
+          category: 'Relationship & Legal',
           checks: [
             {
               key: 'hasCloseRelationship',
               label: 'Does the guardian have a close relationship with the ward?',
               required: false,
             },
-            {
-              key: 'hasWardConsent',
-              label: 'Does the ward consent to this guardianship? (If ward is over 14)',
-              required: false,
-            },
-          ],
-        },
-        {
-          category: 'Legal Compliance',
-          checks: [
             {
               key: 'understandsLegalDuties',
               label: 'Does the guardian understand their legal duties?',
@@ -160,5 +129,20 @@ export class GuardianshipController {
         excellentScore: 80,
       },
     };
+  }
+
+  // ==========================================================================
+  // ASSIGNMENT OPERATIONS
+  // ==========================================================================
+
+  @Post(':familyId/assign')
+  @HttpCode(HttpStatus.CREATED)
+  async assignGuardian(@Param('familyId') familyId: string, @Body() dto: AssignGuardianDto) {
+    return this.guardianshipService.assignGuardian(familyId, dto);
+  }
+
+  @Get('ward/:wardId/status')
+  async getGuardianshipStatus(@Param('wardId') wardId: string) {
+    return this.guardianshipService.getGuardianshipStatus(wardId);
   }
 }

@@ -2,15 +2,25 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { RelationshipType } from '@prisma/client';
 
+// 1. Correct Import for the interface (using 'import type' is good practice for interfaces)
 import { IEventPublisher } from '@shamba/messaging';
 
 import {
   FamilyCreatedEvent,
   FamilyMemberAddedEvent,
   FamilyMemberDeceasedEvent,
+  PolygamyDetectedEvent,
 } from '../../domain/events/family.events';
 import { FamilyRepository } from '../../infrastructure/repositories/family.repository';
 import { EVENT_PUBLISHER, FAMILY_REPOSITORY } from '../../injection.tokens';
+
+// 2. Define the shape of a Suggestion Object to fix the 'never' array error
+export interface SmartSuggestion {
+  code: string;
+  message: string;
+  action: string;
+  contextId?: string; // Optional, used for guardianship linking
+}
 
 @Injectable()
 export class FamilyService {
@@ -26,6 +36,11 @@ export class FamilyService {
   // ==========================================================================
 
   async createFamily(userId: string, name: string, description?: string) {
+    const existing = await this.familyRepository.findFamilyByCreatorId(userId);
+    if (existing) {
+      return existing;
+    }
+
     const family = await this.familyRepository.createFamily({
       creator: { connect: { id: userId } },
       name,
@@ -34,18 +49,27 @@ export class FamilyService {
       members: {
         create: {
           user: { connect: { id: userId } },
-          firstName: 'You',
-          lastName: 'Creator',
+          firstName: 'Me',
+          lastName: '(Creator)',
           relationship: RelationshipType.SELF,
           isAlive: true,
+          verificationStatus: 'VERIFIED',
         },
       },
     });
 
-    // Publish event
+    // FIX 1: Pass only the event object
     const event = new FamilyCreatedEvent(family.id, userId, name, new Date());
-    await this.eventPublisher.publish(event.eventType, event);
+    await this.eventPublisher.publish(event);
 
+    return family;
+  }
+
+  async getMyFamily(userId: string) {
+    const family = await this.familyRepository.findFamilyByCreatorId(userId);
+    if (!family) {
+      return this.createFamily(userId, 'My Family Tree');
+    }
     return family;
   }
 
@@ -59,7 +83,6 @@ export class FamilyService {
       throw new NotFoundException('Family not found');
     }
 
-    // Duplicate detection
     const duplicate = await this.familyRepository.findFamilyMemberByName(
       familyId,
       dto.firstName,
@@ -69,26 +92,24 @@ export class FamilyService {
     if (duplicate) {
       throw new BadRequestException({
         message: 'Potential duplicate detected',
-        suggestion: `A person named "${duplicate.firstName} ${duplicate.lastName}" already exists. Is this the same person?`,
+        suggestion: `A person named "${duplicate.firstName} ${duplicate.lastName}" already exists.`,
         existingMemberId: duplicate.id,
       });
     }
 
-    // Calculate age
     const age = dto.dateOfBirth ? this.calculateAge(new Date(dto.dateOfBirth)) : null;
     const isMinor = age !== null && age < 18;
 
-    // Validate parent-child age
     if (dto.relationship === RelationshipType.CHILD && dto.dateOfBirth) {
       await this.validateParentChildAge(familyId, new Date(dto.dateOfBirth));
     }
 
-    // Create member
     const member = await this.familyRepository.createFamilyMember({
       family: { connect: { id: familyId } },
       firstName: dto.firstName,
       middleName: dto.middleName,
       lastName: dto.lastName,
+      maidenName: dto.maidenName,
       relationship: dto.relationship,
       gender: dto.gender,
       dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
@@ -104,15 +125,14 @@ export class FamilyService {
         : undefined,
     });
 
-    // Update family stats
     await this.updateFamilyStats(familyId);
+    await this.checkForPolygamy(familyId);
 
-    // Update house count if applicable
     if (dto.polygamousHouseId) {
       await this.familyRepository.updateHouseChildCount(dto.polygamousHouseId, 1);
     }
 
-    // Publish event
+    // FIX 1: Pass only the event object
     const event = new FamilyMemberAddedEvent(
       familyId,
       member.id,
@@ -121,12 +141,12 @@ export class FamilyService {
       isMinor,
       new Date(),
     );
-    await this.eventPublisher.publish(event.eventType, event);
+    await this.eventPublisher.publish(event);
 
-    // Generate smart suggestions
-    const suggestions = await this.generateSmartSuggestions(familyId, member);
-
-    return { member, suggestions };
+    return {
+      member,
+      suggestions: await this.generateSmartSuggestions(familyId, member),
+    };
   }
 
   // ==========================================================================
@@ -139,7 +159,6 @@ export class FamilyService {
       throw new NotFoundException('Family member not found');
     }
 
-    // Handle death
     const wasAlive = member.isAlive;
     const isNowDeceased = dto.isAlive === false;
 
@@ -154,8 +173,8 @@ export class FamilyService {
       isMinor,
     });
 
-    // Publish death event (CRITICAL for Estate Service)
     if (wasAlive && isNowDeceased) {
+      // FIX 1: Pass only the event object
       const event = new FamilyMemberDeceasedEvent(
         member.familyId,
         member.id,
@@ -165,92 +184,162 @@ export class FamilyService {
         updated.deathCertNo || undefined,
         updated.causeOfDeath || undefined,
       );
-      await this.eventPublisher.publish(event.eventType, event);
+      await this.eventPublisher.publish(event);
 
-      // Update family stats
       await this.updateFamilyStats(member.familyId);
     }
 
     return updated;
   }
 
+  async removeFamilyMember(memberId: string) {
+    const member = await this.familyRepository.findFamilyMemberById(memberId);
+    if (!member) throw new NotFoundException('Member not found');
+
+    if (member.relationship === RelationshipType.SELF) {
+      throw new BadRequestException(
+        'Cannot delete the root user (Self). Delete the family instead.',
+      );
+    }
+
+    await this.familyRepository.deleteFamilyMember(memberId);
+    await this.updateFamilyStats(member.familyId);
+
+    return { message: 'Member removed successfully' };
+  }
+
   // ==========================================================================
-  // GET FAMILY TREE
+  // TREE VISUALIZATION
   // ==========================================================================
 
   async getFamilyTree(familyId: string) {
     const family = await this.familyRepository.findFamilyById(familyId);
-    if (!family) {
-      throw new NotFoundException('Family not found');
+    if (!family) throw new NotFoundException('Family not found');
+
+    const rootMember = family.members.find((m) => m.relationship === RelationshipType.SELF);
+    if (!rootMember) {
+      return { warning: 'Root member missing', members: family.members };
     }
 
-    // Find root (SELF)
-    const root = family.members.find((m) => m.relationship === RelationshipType.SELF);
-    if (!root) {
-      throw new BadRequestException('Family tree has no root member');
-    }
+    const spouses = family.members.filter((m) => m.relationship === RelationshipType.SPOUSE);
 
-    return this.buildTreeNode(root, family.members);
+    const children = family.members.filter(
+      (m) =>
+        m.relationship === RelationshipType.CHILD ||
+        m.relationship === RelationshipType.ADOPTED_CHILD,
+    );
+
+    const parents = family.members.filter(
+      (m) =>
+        m.relationship === RelationshipType.FATHER || m.relationship === RelationshipType.MOTHER,
+    );
+
+    return {
+      id: rootMember.id,
+      name: `${rootMember.firstName} ${rootMember.lastName}`,
+      role: 'Me',
+      gender: rootMember.gender,
+      isAlive: rootMember.isAlive,
+      spouses: spouses.map((s) => ({
+        id: s.id,
+        name: `${s.firstName} ${s.lastName}`,
+        houseName: s.polygamousHouseId
+          ? family.houses.find((h) => h.id === s.polygamousHouseId)?.houseName
+          : null,
+      })),
+      children: children.map((c) => ({
+        id: c.id,
+        name: `${c.firstName} ${c.lastName}`,
+        isMinor: c.isMinor,
+        houseId: c.polygamousHouseId,
+      })),
+      parents: parents.map((p) => ({
+        id: p.id,
+        name: `${p.firstName} ${p.lastName}`,
+        role: p.relationship,
+      })),
+      stats: {
+        totalMembers: family.totalMembers,
+        isPolygamous: family.isPolygamous,
+      },
+    };
   }
 
   // ==========================================================================
-  // GET POTENTIAL HEIRS (Kenyan Law)
+  // HEIR CALCULATION
   // ==========================================================================
 
   async getPotentialHeirs(familyId: string) {
     const family = await this.familyRepository.findFamilyById(familyId);
-    if (!family) {
-      throw new NotFoundException('Family not found');
-    }
+    if (!family) throw new NotFoundException('Family not found');
 
     const heirs: any[] = [];
+    const members = family.members;
 
-    // Surviving spouses (Section 35)
-    const spouses = family.members.filter(
-      (m) => m.relationship === RelationshipType.SPOUSE && m.isAlive,
-    );
+    const spouses = members.filter((m) => m.relationship === RelationshipType.SPOUSE && m.isAlive);
 
-    for (const spouse of spouses) {
+    spouses.forEach((spouse) => {
       heirs.push({
         id: spouse.id,
         name: `${spouse.firstName} ${spouse.lastName}`,
-        relationship: 'Surviving Spouse',
-        eligibilityReason: 'Married to deceased at time of death',
-        legalReference: 'Section 35, Law of Succession Act (Cap 160)',
+        category: 'SPOUSE',
+        priority: 1,
+        legalBasis: 'Section 29(a) & Section 35(1) - Life Interest',
+        description: 'Entitled to personal effects and life interest in remaining estate.',
       });
-    }
+    });
 
-    // Children (Section 38)
-    const children = family.members.filter(
+    const children = members.filter(
       (m) =>
         (m.relationship === RelationshipType.CHILD ||
           m.relationship === RelationshipType.ADOPTED_CHILD) &&
         m.isAlive,
     );
 
-    for (const child of children) {
+    children.forEach((child) => {
+      const houseName = child.polygamousHouseId
+        ? family.houses.find((h) => h.id === child.polygamousHouseId)?.houseName
+        : null;
+
       heirs.push({
         id: child.id,
         name: `${child.firstName} ${child.lastName}`,
-        relationship: child.isAdopted ? 'Adopted Child' : 'Biological Child',
-        eligibilityReason: child.isAdopted
-          ? 'Legally adopted child with full inheritance rights'
-          : 'Biological child of the deceased',
-        legalReference: 'Section 38, Law of Succession Act (Cap 160)',
-        house: child.polygamousHouseId
-          ? family.houses.find((h) => h.id === child.polygamousHouseId)?.houseName
-          : undefined,
+        category: 'CHILD',
+        priority: 1,
+        isMinor: child.isMinor,
+        legalBasis: child.isAdopted ? 'Section 29(a) (Adopted)' : 'Section 29(a)',
+        house: houseName,
+        description: 'Entitled to equal share of the estate (subject to spousal life interest).',
+      });
+    });
+
+    if (spouses.length === 0 && children.length === 0) {
+      const parents = members.filter(
+        (m) =>
+          (m.relationship === RelationshipType.FATHER ||
+            m.relationship === RelationshipType.MOTHER) &&
+          m.isAlive,
+      );
+
+      parents.forEach((parent) => {
+        heirs.push({
+          id: parent.id,
+          name: `${parent.firstName} ${parent.lastName}`,
+          category: 'PARENT',
+          priority: 2,
+          legalBasis: 'Section 39(1)(a) & (b)',
+          description: 'Entitled to equal share if no surviving spouse or children.',
+        });
       });
     }
 
-    // Polygamous note
-    if (family.isPolygamous && family.houses.length > 0) {
-      heirs.push({
-        id: 'info',
-        name: 'IMPORTANT NOTE',
-        relationship: 'Polygamous Family',
-        eligibilityReason: `Estate will be distributed BY HOUSE. ${family.houses.length} houses detected.`,
-        legalReference: 'Section 40, Law of Succession Act (Cap 160)',
+    if (family.isPolygamous || spouses.length > 1) {
+      heirs.unshift({
+        id: 'INFO_POLYGAMY',
+        category: 'WARNING',
+        name: 'Polygamous Estate Detected',
+        legalBasis: 'Section 40 - Distribution by Houses',
+        description: `This estate will likely be distributed according to the number of children in each house. Detected ${family.houses.length} houses.`,
       });
     }
 
@@ -258,19 +347,13 @@ export class FamilyService {
   }
 
   // ==========================================================================
-  // PRIVATE HELPERS
+  // HELPERS
   // ==========================================================================
 
-  private calculateAge(dateOfBirth: Date): number {
-    const today = new Date();
-    let age = today.getFullYear() - dateOfBirth.getFullYear();
-    const monthDiff = today.getMonth() - dateOfBirth.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dateOfBirth.getDate())) {
-      age--;
-    }
-
-    return age;
+  private calculateAge(dob: Date): number {
+    const diff = Date.now() - dob.getTime();
+    const ageDt = new Date(diff);
+    return Math.abs(ageDt.getUTCFullYear() - 1970);
   }
 
   private async validateParentChildAge(familyId: string, childDob: Date) {
@@ -284,14 +367,11 @@ export class FamilyService {
 
     for (const parent of parents) {
       if (parent.dateOfBirth) {
-        const parentAge = this.calculateAge(parent.dateOfBirth);
-        const childAge = this.calculateAge(childDob);
-
-        if (childAge >= parentAge - 12) {
-          throw new BadRequestException({
-            message: 'Invalid parent-child age relationship',
-            detail: 'Child cannot be born when parent was younger than 12 years old',
-          });
+        const parentAgeAtChildBirth = childDob.getFullYear() - parent.dateOfBirth.getFullYear();
+        if (parentAgeAtChildBirth < 12) {
+          throw new BadRequestException(
+            `Biologically unlikely: Parent ${parent.firstName} would have been ${parentAgeAtChildBirth} when child was born.`,
+          );
         }
       }
     }
@@ -299,7 +379,6 @@ export class FamilyService {
 
   private async updateFamilyStats(familyId: string) {
     const members = await this.familyRepository.findFamilyMembers(familyId);
-
     const totalMembers = members.length;
     const totalMinors = members.filter((m) => m.isMinor && m.isAlive).length;
     const totalSpouses = members.filter(
@@ -314,69 +393,54 @@ export class FamilyService {
     });
   }
 
-  private async generateSmartSuggestions(familyId: string, newMember: any) {
-    const suggestions = [];
+  private async checkForPolygamy(familyId: string) {
+    const members = await this.familyRepository.findFamilyMembers(familyId);
+    const spouses = members.filter((m) => m.relationship === RelationshipType.SPOUSE && m.isAlive);
 
-    // Suggest adding mother if child added
+    if (spouses.length > 1) {
+      const family = await this.familyRepository.findFamilyById(familyId);
+      if (!family?.isPolygamous) {
+        await this.familyRepository.updateFamilyStats(familyId, { isPolygamous: true });
+
+        // FIX 1: Pass only the event object
+        const event = new PolygamyDetectedEvent(
+          familyId,
+          spouses.length,
+          family?.houses?.length || 0,
+          new Date(),
+        );
+        await this.eventPublisher.publish(event);
+      }
+    }
+  }
+
+  private async generateSmartSuggestions(familyId: string, newMember: any) {
+    // FIX 2: Explicitly type the array to avoid 'never' array type
+    const suggestions: SmartSuggestion[] = [];
+
     if (newMember.relationship === RelationshipType.CHILD) {
       const members = await this.familyRepository.findFamilyMembers(familyId);
       const mother = members.find((m) => m.relationship === RelationshipType.MOTHER);
 
       if (!mother) {
         suggestions.push({
-          type: 'MISSING_MOTHER',
-          message: 'You added a child but no mother. Would you like to add the mother?',
+          code: 'MISSING_MOTHER',
+          message:
+            'You added a child but no mother is listed. For accurate succession planning, linking a mother is recommended.',
           action: 'ADD_MOTHER',
         });
       }
     }
 
-    // Suggest guardianship for minor
     if (newMember.isMinor && newMember.isAlive) {
       suggestions.push({
-        type: 'MINOR_NEEDS_GUARDIAN',
-        message: `${newMember.firstName} is a minor. Would you like to assign a guardian?`,
-        action: 'ASSIGN_GUARDIAN',
-        memberId: newMember.id,
+        code: 'ASSIGN_GUARDIAN',
+        message: `${newMember.firstName} is a minor (${newMember.age} yrs). A guardian should be appointed in your Will.`,
+        action: 'OPEN_GUARDIANSHIP',
+        contextId: newMember.id, // This matches the SmartSuggestion interface
       });
     }
 
     return suggestions;
-  }
-
-  private buildTreeNode(member: any, allMembers: any[]): any {
-    const node: any = {
-      id: member.id,
-      name: `${member.firstName} ${member.lastName}`,
-      relationship: member.relationship,
-      isAlive: member.isAlive,
-      age: member.age,
-    };
-
-    // Find children
-    const children = allMembers.filter(
-      (m) =>
-        (m.relationship === RelationshipType.CHILD ||
-          m.relationship === RelationshipType.ADOPTED_CHILD) &&
-        m.deletedAt === null,
-    );
-
-    if (children.length > 0) {
-      node.children = children.map((child) => this.buildTreeNode(child, allMembers));
-    }
-
-    // Find spouse
-    const marriage = member.marriagesAsSpouse1?.[0];
-    if (marriage) {
-      node.spouse = {
-        id: marriage.spouse2.id,
-        name: `${marriage.spouse2.firstName} ${marriage.spouse2.lastName}`,
-        relationship: RelationshipType.SPOUSE,
-        isAlive: marriage.spouse2.isAlive,
-        age: marriage.spouse2.age,
-      };
-    }
-
-    return node;
   }
 }

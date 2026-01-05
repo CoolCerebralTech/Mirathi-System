@@ -1,6 +1,6 @@
 // apps/family-service/src/infrastructure/repositories/family.repository.ts
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Family, FamilyMember, Prisma } from '@prisma/client';
 
 import { PrismaService } from '@shamba/database';
 
@@ -9,27 +9,54 @@ export class FamilyRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   // ============================================================================
-  // FAMILY OPERATIONS
+  // FAMILY AGGREGATE OPERATIONS
   // ============================================================================
 
-  async createFamily(data: Prisma.FamilyCreateInput) {
-    return this.prisma.family.create({ data, include: { members: true } });
+  async createFamily(data: Prisma.FamilyCreateInput): Promise<Family> {
+    return this.prisma.family.create({
+      data,
+      include: { members: true },
+    });
+  }
+
+  /**
+   * Finds a family by the User ID (Creator).
+   * Critical for the "My Family" dashboard view.
+   */
+  async findFamilyByCreatorId(creatorId: string) {
+    return this.prisma.family.findFirst({
+      where: { creatorId, deletedAt: null },
+      include: {
+        // Only fetch active members
+        members: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
   }
 
   async findFamilyById(id: string) {
     return this.prisma.family.findUnique({
       where: { id },
       include: {
-        members: true,
+        // Filter out soft-deleted entities
+        members: {
+          where: { deletedAt: null },
+        },
         marriages: {
+          where: { status: 'ACTIVE' }, // Only active marriages usually matter for tree structure
           include: {
             spouse1: true,
             spouse2: true,
           },
         },
         houses: {
+          where: { isActive: true },
           include: {
-            children: true,
+            children: {
+              where: { deletedAt: null },
+            },
           },
         },
       },
@@ -47,7 +74,7 @@ export class FamilyRepository {
   // FAMILY MEMBER OPERATIONS
   // ============================================================================
 
-  async createFamilyMember(data: Prisma.FamilyMemberCreateInput) {
+  async createFamilyMember(data: Prisma.FamilyMemberCreateInput): Promise<FamilyMember> {
     return this.prisma.familyMember.create({ data });
   }
 
@@ -55,15 +82,21 @@ export class FamilyRepository {
     return this.prisma.familyMember.findUnique({
       where: { id },
       include: {
+        // Include marriages to help build the tree nodes
         marriagesAsSpouse1: {
-          include: {
-            spouse2: true,
-          },
+          where: { status: 'ACTIVE' },
+          include: { spouse2: true },
         },
         marriagesAsSpouse2: {
-          include: {
-            spouse1: true,
-          },
+          where: { status: 'ACTIVE' },
+          include: { spouse1: true },
+        },
+        // Include guardianship info
+        guardiansAssignedToMe: {
+          where: { isActive: true },
+        },
+        guardiansIProvide: {
+          where: { isActive: true },
         },
       },
     });
@@ -80,8 +113,8 @@ export class FamilyRepository {
     return this.prisma.familyMember.findFirst({
       where: {
         familyId,
-        firstName,
-        lastName,
+        firstName: { equals: firstName, mode: 'insensitive' }, // Case insensitive check
+        lastName: { equals: lastName, mode: 'insensitive' },
         deletedAt: null,
       },
     });
@@ -91,6 +124,19 @@ export class FamilyRepository {
     return this.prisma.familyMember.update({
       where: { id },
       data,
+    });
+  }
+
+  /**
+   * Soft delete a member.
+   * Important: We don't remove the row, we just mark deletedAt.
+   */
+  async deleteFamilyMember(id: string) {
+    return this.prisma.familyMember.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
     });
   }
 
@@ -115,7 +161,7 @@ export class FamilyRepository {
 
   async findMarriagesByFamily(familyId: string) {
     return this.prisma.marriage.findMany({
-      where: { familyId },
+      where: { familyId, status: 'ACTIVE' },
       include: {
         spouse1: true,
         spouse2: true,
@@ -124,7 +170,7 @@ export class FamilyRepository {
   }
 
   // ============================================================================
-  // POLYGAMOUS HOUSE OPERATIONS
+  // POLYGAMOUS HOUSE OPERATIONS (Section 40)
   // ============================================================================
 
   async createPolygamousHouse(data: Prisma.PolygamousHouseCreateInput) {
@@ -135,8 +181,15 @@ export class FamilyRepository {
     return this.prisma.polygamousHouse.findMany({
       where: { familyId, isActive: true },
       include: {
-        children: true,
+        // In African Customary Law, the House is defined by the Mother
+        children: {
+          where: { deletedAt: null },
+        },
+        // We might need to know which marriage created this house
         marriages: true,
+      },
+      orderBy: {
+        houseOrder: 'asc', // House 1 (First Wife), House 2, etc.
       },
     });
   }
@@ -163,8 +216,12 @@ export class FamilyRepository {
       where: { wardId },
       include: {
         assignments: {
+          where: { isActive: true },
           include: {
-            guardian: true,
+            guardian: true, // Need the person's details
+          },
+          orderBy: {
+            priorityOrder: 'asc',
           },
         },
       },
@@ -190,10 +247,13 @@ export class FamilyRepository {
 
   async findGuardianAssignments(guardianshipId: string) {
     return this.prisma.guardianAssignment.findMany({
-      where: { guardianshipId },
+      where: { guardianshipId, isActive: true },
       include: {
         guardian: true,
         ward: true,
+      },
+      orderBy: {
+        priorityOrder: 'asc',
       },
     });
   }
