@@ -66,7 +66,7 @@ export const configValidationSchema = Joi.object({
   // Enhanced Storage Configuration
   // ============================================================================
   STORAGE_PROVIDER: Joi.string()
-    .valid('local', 's3', 'google-cloud', 'azure')
+    .valid('local', 's3', 'google-cloud', 'azure', 'minio') // Added 'minio'
     .default('local')
     .required(),
   STORAGE_LOCAL_PATH: Joi.string().when('STORAGE_PROVIDER', {
@@ -110,6 +110,14 @@ export const configValidationSchema = Joi.object({
   STORAGE_S3_REGION: Joi.string().optional(),
   STORAGE_S3_ACCESS_KEY_ID: Joi.string().optional(),
   STORAGE_S3_SECRET_ACCESS_KEY: Joi.string().optional(),
+
+  // MinIO Configuration (Added)
+  MINIO_BUCKET: Joi.string().optional(),
+  MINIO_ENDPOINT: Joi.string().optional(),
+  MINIO_PORT: Joi.number().optional(),
+  MINIO_USE_SSL: Joi.boolean().optional(),
+  MINIO_ACCESS_KEY: Joi.string().optional(),
+  MINIO_SECRET_KEY: Joi.string().optional(),
 
   // --- Email Configuration ---
   EMAIL_PROVIDER: Joi.string().valid('smtp', 'sendgrid', 'ses').default('smtp'),

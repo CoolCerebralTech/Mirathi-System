@@ -20,6 +20,22 @@ enum Gender {
   FEMALE
   OTHERS
 }
+enum DocumentStatus {
+  PENDING_UPLOAD
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+enum ReferenceType {
+  TITLE_DEED
+  NATIONAL_ID
+  DEATH_CERTIFICATE
+  BIRTH_CERTIFICATE
+  MARRIAGE_CERTIFICATE
+  KRA_PIN
+  OTHER
+}
 enum RoadmapPhase {
   PRE_FILING
   FILING
@@ -381,24 +397,6 @@ enum ReadinessStatus {
   IN_PROGRESS
   READY_TO_FILE
   BLOCKED
-}
-enum DocumentStatus {
-  PENDING_VERIFICATION
-  VERIFIED
-  REJECTED
-}
-enum DocumentCategory {
-  LAND_OWNERSHIP       // Title deeds, purchase agreements, land registry extracts
-  IDENTITY_PROOF       // National ID, birth certificate, death certificate
-  SUCCESSION_DOCUMENT  // Wills, grant of probate, letters of administration
-  FINANCIAL_PROOF      // Bank statements, lease documents
-  OTHER                // Affidavits, court orders, witness statements
-}
-enum RetentionPolicy {
-  SHORT_TERM  // 1 year
-  MEDIUM_TERM // 7 years  
-  LONG_TERM   // Permanent
-  COMPLIANCE  // Based on regulation
 }
 enum RelationshipType {
   SPOUSE
@@ -1085,10 +1083,7 @@ model User {
 
   // --- Back-relations from other services ---
   documentsUploaded         Document[]              @relation("DocumentUploader")
-  Document Document[] @relation("UserIdentityDocuments")
-  DocumentVerificationAttempt DocumentVerificationAttempt[]
-  notifications       Notification[]
-  auditLogsAsActor          AuditLog[]              @relation("AuditActor")  
+  Document Document[] @relation("UserIdentityDocuments")  
   // Back-relations from Family-Service
   createdFamilies     Family[]       @relation("FamilyCreator")
   familyMemberships   FamilyMember[] @relation("FamilyMemberUser")
@@ -1248,117 +1243,66 @@ model PasswordHistory {
 // Owner: documents-service
 // ============================================================================
 model Document {
-  id          String           @id @default(uuid()) @db.Uuid()
-  version     Int
-  filename    String           @db.VarChar(500)
-  storagePath String           @db.Text
-  mimeType    String           @db.VarChar(100)
-  sizeBytes   Int
-  category    DocumentCategory
-  status      DocumentStatus   @default(PENDING_VERIFICATION)
-
- // --- Ownership & Upload Info ---
-  uploaderId        String   @db.Uuid()
-  uploader          User     @relation("DocumentUploader", fields: [uploaderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  identityForUserId String?  @db.Uuid()
-  identityForUser   User?    @relation("UserIdentityDocuments", fields: [identityForUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
-  // --- Verification Tracking ---
-  verifiedBy        String?   @db.Uuid()
-  verifiedAt        DateTime?
-  rejectionReason   String?   @db.Text    
-
-  // Retention & Expiry
-  expiresAt   DateTime? // Auto-delete after this date
-  retentionPolicy String? @db.VarChar(50)// COMPLIANCE, LEGAL, etc.
-
-  // Access Control List
-  allowedViewers Json? // User IDs who can view this document
-
-  // Security & Access
-  isPublic    Boolean   @default(false)
-  encrypted   Boolean   @default(false)
-  // --- Cross-Service Links ---
-  assetId String? @db.Uuid()
-  asset   Asset?  @relation(fields: [assetId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  willId  String? @db.Uuid()
-  will    Will?   @relation(fields: [willId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // --- Metadata ---
-  metadata    Json?
-  documentNumber    String? @db.VarChar(100)
-  issueDate         DateTime?
-  expiryDate        DateTime?
-  issuingAuthority  String? @db.VarChar(200)
-
-  // --- Timestamps ---
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  deletedAt   DateTime?        // Soft delete support
-
-
-  // Storage optimization
-  storageProvider String @default("local") @db.VarChar(50)
-  checksum        String? @db.VarChar(64)
+  id                  String          @id @default(uuid()) @db.Uuid
   
-  // Performance fields
-  isIndexed      Boolean @default(false) // For search indexing
-  indexedAt      DateTime?
-
-  // --- Relations ---
-  versions    DocumentVersion[]
-  verificationAttempts        DocumentVerificationAttempt[]
-  willWitnesses WillWitness[] @relation("WitnessIdentityDocuments") 
-
-  @@index([uploaderId, status, createdAt], map: "documents_uploader_status_createdAt_idx")
-  @@index([category, status, createdAt], map: "documents_category_status_createdAt_idx")
-  @@index([assetId, willId, identityForUserId], map: "documents_cross_service_idx")
-  @@index([createdAt, deletedAt], map: "documents_createdAt_deletedAt_idx")
-  @@index([uploaderId], map: "documents_uploaderId_idx")
-  @@index([createdAt], map: "documents_createdAt_idx")
-  @@index([deletedAt], map: "documents_deletedAt_idx")
-  @@index([isPublic], map: "documents_isPublic_idx")
-  @@index([encrypted], map: "documents_encrypted_idx")
-  @@index([documentNumber], map: "documents_documentNumber_idx")
-  @@index([expiryDate], map: "documents_expiryDate_idx")
+  // User info
+  uploaderId          String          @db.Uuid
+  uploader            User            @relation("DocumentUploader", fields: [uploaderId], references: [id])
+  documentName        String          @db.VarChar(200)
+  
+  // Extracted reference
+  referenceNumber     String?         @db.VarChar(100)
+  referenceType       ReferenceType?
+  
+  // Status
+  status              DocumentStatus  @default(PENDING_UPLOAD)
+  
+  // Temporary storage (deleted after verification)
+  storageKey          String?         @db.Text
+  mimeType            String?         @db.VarChar(100)
+  fileSizeBytes       Int?
+  
+  // Permanent encrypted reference
+  encryptedReference  String?         @db.Text
+  
+  // Verification
+  verifiedBy          String?         @db.Uuid
+  verifiedAt          DateTime?
+  rejectionReason     String?         @db.Text
+  
+  // OCR
+  ocrConfidence       Float?
+  ocrExtractedText    String?         @db.Text
+  
+  // Lifecycle
+  uploadedAt          DateTime        @default(now())
+  expiresAt           DateTime?
+  deletedAt           DateTime?
+  
+  // Relations
+  verificationAttempts VerificationAttempt[]
+  users User[] @relation("UserIdentityDocuments")
+  assets Asset[]
+  wills Will[]
+  willWitnesses WillWitness[] @relation("WitnessIdentityDocuments")
+  
+  @@unique([referenceNumber, referenceType])
+  @@index([uploaderId, status])
+  @@index([status, expiresAt])
   @@map("documents")
 }
-model DocumentVersion {
-  id            String   @id @default(uuid()) @db.Uuid()
-  versionNumber Int
-  storagePath   String   @db.Text
-  changeNote    String?  @db.Text
-  sizeBytes     Int
-  mimeType      String   @db.VarChar(100)
-  checksum      String?  @db.VarChar(64)
+model VerificationAttempt {
+  id          String    @id @default(uuid()) @db.Uuid
+  documentId  String    @db.Uuid
+  document    Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
   
-  documentId    String   @db.Uuid()
-  document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  verifierId  String    @db.Uuid
+  action      String    @db.VarChar(20) // "APPROVED" or "REJECTED"
+  notes       String?   @db.Text
   
-  uploadedBy    String   @db.Uuid()
-  createdAt     DateTime @default(now())
-
-  @@unique([documentId, versionNumber], map: "document_versions_document_version_unique")
-  @@index([documentId], map: "document_versions_documentId_idx")
-  @@index([createdAt], map: "document_versions_createdAt_idx")
-  @@map("document_versions")
-}
-model DocumentVerificationAttempt {
-  id         String           @id @default(uuid()) @db.Uuid()
-  documentId String           @db.Uuid()
-  document   Document         @relation(fields: [documentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt   DateTime  @default(now())
   
-  verifierId String          @db.Uuid()
-  verifier   User            @relation(fields: [verifierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  
-  status     DocumentStatus
-  reason     String?         @db.Text
-  metadata   Json?
-  createdAt  DateTime        @default(now())
-
-  @@index([documentId], map: "document_verification_attempts_documentId_idx")
-  @@index([verifierId], map: "document_verification_attempts_verifierId_idx")
-  @@index([createdAt], map: "document_verification_attempts_createdAt_idx")
-  @@map("document_verification_attempts")
+  @@map("verification_attempts")
 }
 // ============================================================================
 // FAMILY-SERVICE SCHEMA
@@ -3151,55 +3095,4 @@ model RoadmapTask {
   @@index([category])
   @@index([priority, isOverdue])
   @@map("roadmap_tasks")
-}
-// =============================================================================
-// NOTIFICATIONS SERVICE MODELS
-// Owner: notifications-service
-// =============================================================================
-
-model NotificationTemplate {
-  id      String              @id @default(uuid()) @db.Uuid()
-  name    String              @unique(map: "notification_templates_name_unique") @db.VarChar(100)
-  channel NotificationChannel
-  subject String?             @db.VarChar(255)
-  body    String              @db.Text
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  notifications Notification[]
-
-  @@map("notification_templates")
-}
-
-model Notification {
-  id          String             @id @default(uuid()) @db.Uuid()
-  channel     NotificationChannel
-  status      NotificationStatus @default(PENDING)
-  sentAt      DateTime?
-  failReason  String?            @db.Text
-  templateId  String             @db.Uuid()
-  template    NotificationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  recipientId String?            @db.Uuid()
-  recipient   User?              @relation(fields: [recipientId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  createdAt   DateTime           @default(now())
-
-  @@index([recipientId, status], map: "notifications_recipient_status_idx")
-  @@map("notifications")
-}
-// =============================================================================
-// AUDITING SERVICE MODEL
-// Owner: auditing-service
-// =============================================================================
-
-model AuditLog {
-  id        String   @id @default(uuid()) @db.Uuid()
-  timestamp DateTime @default(now())
-  actorId   String?  @db.Uuid()
-  actor     User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  action    String   @db.VarChar(100)
-  payload   Json
-
-  @@index([actorId], map: "audit_logs_actorId_idx")
-  @@index([action, timestamp], map: "audit_logs_action_timestamp_idx")
-  @@map("audit_logs")
 }

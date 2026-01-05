@@ -41,7 +41,7 @@ export interface MessagingConfig {
 
 export interface StorageConfig {
   // Provider Configuration
-  STORAGE_PROVIDER: 'local' | 's3' | 'google-cloud' | 'azure';
+  STORAGE_PROVIDER: 'local' | 's3' | 'google-cloud' | 'azure' | 'minio'; // Added minio
   STORAGE_LOCAL_PATH: string;
 
   // File Size Limits
@@ -79,6 +79,14 @@ export interface StorageConfig {
   STORAGE_GOOGLE_CLOUD_PROJECT_ID?: string;
   STORAGE_AZURE_CONTAINER_NAME?: string;
   STORAGE_AZURE_CONNECTION_STRING?: string;
+
+  // MinIO Configuration (Added)
+  MINIO_BUCKET?: string;
+  MINIO_ENDPOINT?: string;
+  MINIO_PORT?: number;
+  MINIO_USE_SSL?: boolean;
+  MINIO_ACCESS_KEY?: string;
+  MINIO_SECRET_KEY?: string;
 }
 
 export interface EmailConfig {

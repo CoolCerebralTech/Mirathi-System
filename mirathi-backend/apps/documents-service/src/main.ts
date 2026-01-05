@@ -8,10 +8,10 @@ import { Logger } from 'nestjs-pino';
 
 import { ConfigService } from '@shamba/config';
 
-import { DocumentModule } from './document.module';
+import { DocumentsModule } from './documents.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(DocumentModule, {
+  const app = await NestFactory.create(DocumentsModule, {
     bufferLogs: true,
   });
 
