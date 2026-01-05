@@ -399,21 +399,14 @@ enum ReadinessStatus {
   BLOCKED
 }
 enum RelationshipType {
+  SELF              // The user themselves
+  FATHER
+  MOTHER
   SPOUSE
-  EX_SPOUSE          // For divorced/separated spouses
   CHILD
-  ADOPTED_CHILD      // Legal distinction for inheritance
-  STEPCHILD          // From current/previous marriage
-  PARENT
+  ADOPTED_CHILD
   SIBLING
-  HALF_SIBLING       // Same parent
-  GRANDCHILD
-  GRANDPARENT
-  NIECE_NEPHEW
-  AUNT_UNCLE
-  COUSIN
-  GUARDIAN           // Legal guardian (non-parent)
-  OTHER
+  HALF_SIBLING      // Same father or mother, different other parent
 }
 enum RelationshipGuardianshipType {
   TEMPORARY
@@ -429,19 +422,11 @@ enum MarriageType {
   HINDU
   OTHER
 }
-enum MarriageEndReason {
-  DEATH_OF_SPOUSE
-  DIVORCE
-  ANNULMENT
-  CUSTOMARY_DISSOLUTION
-  STILL_ACTIVE
-}
 enum MarriageStatus {
-  SINGLE
-  MARRIED
+  ACTIVE
   DIVORCED
+  ANNULLED
   WIDOWED
-  SEPARATED
 }
 enum KenyanRelationshipCategory {
   SPOUSE
@@ -477,13 +462,21 @@ enum GuardianReportStatus {
   REJECTED
 }
 enum GuardianshipStatus {
-  PENDING_ACTIVATION
-  ACTIVE
-  SUSPENDED
-  TERMINATED
-  REVOKED
-  EXPIRED
-  EMERGENCY
+  DRAFT             // Form started
+  PENDING_REVIEW    // Checklist submitted
+  ELIGIBLE          // Passed all checks
+  CONDITIONAL       // Passed with warnings
+  INELIGIBLE        // Failed critical checks
+  ACTIVE            // Approved and active
+  SUSPENDED         // Temporarily paused
+  TERMINATED        // Ended
+}
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  DISPUTED
+  REJECTED
 }
 enum BondStatus {
   NOT_REQUIRED
@@ -594,13 +587,6 @@ enum CohabitationType {
   LONG_TERM_PARTNERSHIP
   DATING
   ENGAGED
-}
-enum VerificationStatus {
-  UNVERIFIED
-  PENDING_VERIFICATION
-  VERIFIED
-  REJECTED
-  DISPUTED
 }
 enum ParentalConsentStatus {
   CONSENTED
@@ -1314,594 +1300,345 @@ model VerificationAttempt {
 // Manages: Kinship, S.40 Structure, Identity
 // ============================================================================
 model Family {
-  id                  String   @id @default(uuid()) @db.Uuid()
+  id          String   @id @default(uuid()) @db.Uuid
   
-  // --- Core Identity ---
-  name                String   @db.VarChar(200) // e.g., "The Otieno Family"
-  description         String?  @db.Text
-  creatorId           String   @db.Uuid() // Reference to Auth User
-  // --- Kenyan Cultural Identity ---
-  clanName            String?  @db.VarChar(100)
-  subClan             String?  @db.VarChar(100)
-  ancestralHome       String?  @db.VarChar(200)
-  familyTotem         String?  @db.VarChar(100)
-  homeCounty          KenyanCounty?
-  // --- Aggregate Stats (Denormalized) ---
-  memberCount         Int      @default(0)
-  isPolygamous        Boolean  @default(false)
-  // --- Relations (Entities) ---
+  // Owner (The user who created this family tree)
+  creatorId   String   @db.Uuid
+  creator     User     @relation("FamilyCreator", fields: [creatorId], references: [id])
   
-  users                   User[] @relation("FamilyCreator")
-  members                 FamilyMember[]
-  marriages               Marriage[]
-  relationships           FamilyRelationship[]
-  polygamousHouses        PolygamousHouse[]
-  cohabitationRecords     CohabitationRecord[]
-  adoptionRecords          AdoptionRecord[]
-  events                  FamilyLegalEvent[]
-  // --- Metadata ---
-  version             Int      @default(1)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
-
+  // Basic Info
+  name        String   @db.VarChar(200) // "The Kamau Family"
+  description String?  @db.Text
+  
+  // Cultural Context (Optional but nice for users)
+  homeCounty  KenyanCounty?
+  tribe       String?  @db.VarChar(50)
+  clanName    String?  @db.VarChar(100)
+  
+  // Structure Detection (Auto-computed)
+  isPolygamous Boolean @default(false)
+  totalMembers Int     @default(0) // Denormalized for performance
+  totalMinors  Int     @default(0)
+  totalSpouses Int     @default(0)
+  
+  // Smart Features
+  hasMissingLinks Boolean @default(false) // "You added children but no mother"
+  completenessScore Int   @default(0)     // 0-100, based on required fields filled
+  
+  // Members
+  members     FamilyMember[]
+  marriages   Marriage[]
+  houses      PolygamousHouse[]
+  guardianships Guardianship[]
+  
+  // Analytics (for dashboard)
+  lastActivityAt DateTime @default(now())
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime? // Soft delete
+  
+  @@index([creatorId])
   @@map("families")
 }
-model FamilyMember {
-  id             String   @id @default(uuid()) @db.Uuid()
-  
-  // --- Links ---
-  familyId       String   @db.Uuid()
-  family         Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  userId         String?  @unique @db.Uuid() // Link to Auth User if they exist
 
-  // --- Personal Identity (Entities/family-member.entity.ts) ---
+// ============================================================================
+// ENTITY: FAMILY MEMBER
+// ============================================================================
+model FamilyMember {
+  id             String   @id @default(uuid()) @db.Uuid
+  
+  // Family Link
+  familyId       String   @db.Uuid
+  family         Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  
+  // Optional User Link (if they register on the platform)
+  userId         String?  @unique @db.Uuid
+  user           User?    @relation("FamilyMemberUser", fields: [userId], references: [id])
+  
+  // === CORE IDENTITY ===
   firstName      String   @db.VarChar(100)
   middleName     String?  @db.VarChar(100)
   lastName       String   @db.VarChar(100)
-  maidenName     String?  @db.VarChar(100)
-  // --- Kenyan Official IDs ---
-  nationalId     String?  @unique @db.VarChar(20)
-  nationalIdVerified Boolean @default(false)
-  kraPin         String?  @unique @db.VarChar(20)
-  passportNumber String?  @db.VarChar(50)
-  birthCertNumber String? @db.VarChar(50)
-  hudumaNumber   String?  @db.VarChar(50)
-  // --- Demographics & Culture ---
-  dateOfBirth    DateTime?
-  dateOfBirthEstimated Boolean @default(false)
+  maidenName     String?  @db.VarChar(100) // For married women
+  
+  // Relationship to Family Creator
+  relationship   RelationshipType
+  
+  // === DEMOGRAPHICS ===
   gender         Gender?
-  placeOfBirth   String?   @db.VarChar(100) // Storing KenyanCounty as string or enum
-  religion       String?   @db.VarChar(50)
-  tribe          String?   @db.VarChar(50)
-  languages      String[]  // Postgres array
-  // --- Life Status ---
-  isAlive        Boolean   @default(true)
+  dateOfBirth    DateTime?
+  placeOfBirth   String?  @db.VarChar(200)
+  
+  // Kenyan Identity Documents
+  nationalId     String?  @unique @db.VarChar(20)
+  birthCertNo    String?  @db.VarChar(50)
+  kraPin         String?  @db.VarChar(20)
+  passportNumber String?  @db.VarChar(50)
+  
+  // === LIFE STATUS ===
+  isAlive        Boolean  @default(true)
   dateOfDeath    DateTime?
-  deathCertNo    String?   @db.VarChar(50)
-  causeOfDeath   String?   @db.VarChar(255)
-  burialLocation String?   @db.VarChar(255)
-  isMissing      Boolean   @default(false)
-  missingSince   DateTime?
-  // --- Health & Capacity (For Guardianship/Dependency) ---
-  hasDisability        Boolean @default(false)
-  disabilityType       String?
-  disabilityPercentage Int?
-  isMentallyIncapacitated Boolean @default(false)
-  medicalConditions    String[] // Postgres array
-  lastMedicalCheck     DateTime?
-  // --- Professional & Contact ---
-  educationLevel   String?
-  occupation       String?
-  employer         String?
-  phoneNumber      String?
-  email            String?
-  currentResidence String?
-  // --- Cultural Context ---
-  initiationRitesCompleted Boolean @default(false)
-  clanRole                 String?
-  traditionalTitles        String[] // Postgres array
-  // --- Digital Identity ---
-  profilePictureUrl String?
-  biometricData     Json?   // Stores fingerprintHash, facialRecognitionId
-  // --- Verification ---
+  deathCertNo    String?  @db.VarChar(50)
+  causeOfDeath   String?  @db.Text
+  placeOfDeath   String?  @db.VarChar(200)
+  
+  // === SPECIAL STATUSES ===
+  isMinor        Boolean  @default(false) // Auto-computed: age < 18
+  age            Int?                     // Auto-computed from dateOfBirth
+  
+  // Disability (for dependency assessment)
+  hasDisability  Boolean  @default(false)
+  disabilityType String?  @db.Text
+  
+  // Mental Capacity (for guardianship)
+  isMentallyCapable Boolean @default(true)
+  
+  // === ADOPTION ===
+  isAdopted      Boolean  @default(false)
+  adoptionType   String?  // "LEGAL", "CUSTOMARY"
+  adoptionDate   DateTime?
+  biologicalParentIds String[] // Array of UUIDs (weak reference)
+  
+  // === POLYGAMY (Section 40 Logic) ===
+  polygamousHouseId String? @db.Uuid
+  polygamousHouse   PolygamousHouse? @relation(fields: [polygamousHouseId], references: [id])
+  
+  // === CONTACT INFO ===
+  phoneNumber    String?  @db.VarChar(20)
+  email          String?  @db.VarChar(255)
+  currentAddress String?  @db.Text
+  
+  // === VERIFICATION ===
   verificationStatus VerificationStatus @default(UNVERIFIED)
-  verificationNotes  String? @db.Text
-  lastVerifiedAt     DateTime?
-  // --- S.40 Polygamy Link ---
-  polygamousHouseId String? @db.Uuid()
-  polygamousHouse   PolygamousHouse? @relation("HouseChildren", fields: [polygamousHouseId], references: [id])
-
-  // --- Relations ---
+  verifiedAt         DateTime?
+  verifiedBy         String?  @db.Uuid // Admin/Verifier ID
   
-  users                 User[] @relation("FamilyMemberUser")
-  relationshipsFrom     FamilyRelationship[] @relation("RelFrom")
-  relationshipsTo       FamilyRelationship[] @relation("RelTo")
-  marriages1            Marriage[]           @relation("Spouse1")
-  marriages2            Marriage[]           @relation("Spouse2")
+  // === RELATIONS ===
+  // Marriages
+  marriagesAsSpouse1 Marriage[] @relation("Spouse1")
+  marriagesAsSpouse2 Marriage[] @relation("Spouse2")
   
-  // Guardianship Roles
-  adoptionRecordsAsAdoptee  AdoptionRecord[] @relation("AdopteeRecords")
-  adoptionRecordsAsParent   AdoptionRecord[] @relation("AdoptiveParentRecords")
-  guardianshipsAsWard   Guardianship[]       @relation("Ward")
-  assignmentsAsGuardian GuardianAssignment[] @relation("AppointedGuardian")
-  assets                Asset[] @relation("FamilyMemberLifeInterest")
-  beneficiaryAssignments WillBequest[] @relation("BeneficiaryFamilyMember")
+  // Guardianship
+  guardiansAssignedToMe GuardianAssignment[] @relation("Ward")
+  guardiansIProvide     GuardianAssignment[] @relation("Guardian")
+  
+  assets Asset[] @relation("FamilyMemberLifeInterest")
+  legalDependants LegalDependant[] @relation("DependantOf")
+  legalDependant LegalDependant[] @relation("DeceasedDependant")
+  legalDependparent LegalDependant[] @relation("CustodialParent")
+  willBequests WillBequest[] @relation("BeneficiaryFamilyMember")
   disinheritanceRecords DisinheritanceRecord[] @relation("DisinheritedMember")
-  dependencyClaimsAgainstMe LegalDependant[] @relation("DeceasedDependant")
-  myDependencyClaims  LegalDependant[] @relation("DependantOf")
-  CustodialParent  LegalDependant[] @relation("CustodialParent")
-  // Customary Roles
-  houseHeadOf           PolygamousHouse?     @relation("HouseHead")
-  cohabitationsAsPartner1 CohabitationRecord[] @relation("CohabPartner1")
-  cohabitationsAsPartner2 CohabitationRecord[] @relation("CohabPartner2")
-  // Child born in cohabitation (Many-to-Many)
-  bornInCohabitations     CohabitationRecord[] @relation("CohabitationChildren")
-  // Audit
-  createdBy      String?  @db.Uuid()
-  lastUpdatedBy  String?  @db.Uuid()
-  isArchived     Boolean  @default(false)
-  archivedReason String?
+  // === AUDIT ===
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-
+  deletedAt      DateTime? // Soft delete
+  
+  @@index([familyId, relationship])
+  @@index([nationalId])
+  @@index([isAlive])
   @@map("family_members")
 }
-model PolygamousHouse {
-  id                  String   @id @default(uuid()) @db.Uuid()
-  familyId            String   @db.Uuid()
-  family              Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  // --- Identity ---
-  houseName           String   @db.VarChar(100)
-  houseCode           String   @unique @db.VarChar(50) // [NEW] e.g. "HOUSE_A"
-  houseOrder          Int      
-  // --- Leadership ---
-  houseHeadId         String?  @db.Uuid() @unique
-  houseHead           FamilyMember? @relation("HouseHead", fields: [houseHeadId], references: [id])
-  originalWifeId      String   @db.Uuid() // [NEW] Critical for lineage even if she dies
-  // Note: We don't need a strict relation here if we rely on "HouseChildren" and history
-  currentWifeId       String?  @db.Uuid()
-  // --- Establishment ---
-  establishedDate     DateTime
-  establishmentType   HouseEstablishmentType
-  courtRecognized     Boolean  @default(false)
-  recognitionDocumentId String? 
-  // --- Members (Denormalized Counts) ---
-  memberCount         Int      @default(0)
-  // Relations:
-  marriages           Marriage[] 
-  children            FamilyMember[] @relation("HouseChildren") // Used for looking up members
-  // --- Assets (S.40 Distribution) ---
-  // Stored as JSON because it references Estate Service assets weakly
-  houseAssets         Json?    // [{ assetId, allocationPercentage }]
-  distributionWeight  Float    @default(1.0)
-  specialAllocation   Json?    // { reason: "Disability", percentage: 10 }
-  // --- Status ---
-  isActive            Boolean  @default(true)
-  dissolutionDate     DateTime?
-  dissolutionReason   HouseDissolutionReason?
-  // --- Cultural ---
-  houseColor          String?
-  houseSymbol         String?
-  primaryResidence    String?
-  // --- Metadata ---
-  verificationStatus  VerificationStatus @default(UNVERIFIED)
-  verificationNotes   String?
+
+// ============================================================================
+// ENTITY: MARRIAGE
+// ============================================================================
+model Marriage {
+  id            String   @id @default(uuid()) @db.Uuid
   
-  createdBy           String   @db.Uuid()
-  lastUpdatedBy       String   @db.Uuid()
-  isArchived          Boolean  @default(false)
+  familyId      String   @db.Uuid
+  family        Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  
+  // === SPOUSES ===
+  spouse1Id     String   @db.Uuid
+  spouse1       FamilyMember @relation("Spouse1", fields: [spouse1Id], references: [id])
+  
+  spouse2Id     String   @db.Uuid
+  spouse2       FamilyMember @relation("Spouse2", fields: [spouse2Id], references: [id])
+  
+  // === TYPE & STATUS ===
+  type          MarriageType
+  status        MarriageStatus @default(ACTIVE)
+  
+  // === DATES ===
+  marriageDate  DateTime
+  divorceDate   DateTime?
+  
+  // === POLYGAMY ===
+  isPolygamous  Boolean  @default(false)
+  marriageOrder Int?     // 1st wife, 2nd wife (only for polygamous)
+  
+  polygamousHouseId String? @db.Uuid
+  polygamousHouse   PolygamousHouse? @relation(fields: [polygamousHouseId], references: [id])
+  
+  // === REGISTRATION ===
+  certNumber    String?  @unique @db.VarChar(100)
+  registeredAt  DateTime?
+  registryOffice String? @db.VarChar(200)
+  
+  // === CHILDREN (Denormalized count) ===
+  numberOfChildren Int @default(0)
+  
+  // === VERIFICATION ===
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([familyId])
+  @@map("marriages")
+}
 
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
+// ============================================================================
+// ENTITY: POLYGAMOUS HOUSE (Section 40 - Succession Act)
+// ============================================================================
+model PolygamousHouse {
+  id            String   @id @default(uuid()) @db.Uuid
+  
+  familyId      String   @db.Uuid
+  family        Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  
+  // === IDENTITY ===
+  houseName     String   @db.VarChar(100) // "House of Wanjiku"
+  houseOrder    Int      // 1st house, 2nd house, etc.
+  houseCode     String   @db.VarChar(20)  // "H1", "H2", etc.
+  
+  // === MOTHER (The Wife) ===
+  motherId      String   @db.Uuid // References FamilyMember
+  motherName    String   @db.VarChar(200) // Denormalized for display
+  
+  // === CHILDREN ===
+  // Automatically assigned based on biological mother
+  children      FamilyMember[]
+  childCount    Int      @default(0) // Denormalized
+  
+  // === MARRIAGES ===
+  marriages     Marriage[]
+  
+  // === STATUS ===
+  isActive      Boolean  @default(true)
+  dissolutionDate DateTime?
+  dissolutionReason String? @db.Text
+  
+  // === LEGAL CONTEXT ===
+  // For succession: "House of Wanjiku gets X% of estate"
+  legalNotes    String?  @db.Text
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
   @@unique([familyId, houseOrder])
   @@map("polygamous_houses")
 }
-model Marriage {
-  id                  String   @id @default(uuid()) @db.Uuid()
-  familyId            String   @db.Uuid()
-  family              Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
-  spouse1Id           String   @db.Uuid()
-  spouse1             FamilyMember @relation("Spouse1", fields: [spouse1Id], references: [id])
-  spouse2Id           String   @db.Uuid()
-  spouse2             FamilyMember @relation("Spouse2", fields: [spouse2Id], references: [id])
-  // --- Type & Status ---
-  marriageType        MarriageType
-  marriageStatus      MarriageStatus
-  // --- Dates ---
-  startDate           DateTime
-  endDate             DateTime?
-  endReason           MarriageEndReason @default(STILL_ACTIVE)
-  // --- Legal Registration ---
-  registrationNumber  String?  @unique @db.VarChar(100)
-  registrationDistrict String?
-  registeredBy        String?  // Name of Registrar/Pastor
-  // --- Ceremony ---
-  ceremonyLocation    String?
-  ceremonyCounty      KenyanCounty?
-  witnesses           String[] // Array of names
-  // --- Customary (Bride Price) ---
-  bridePricePaid      Boolean  @default(false)
-  bridePriceAmount    Float?
-  bridePaidInFull     Boolean  @default(false)
-  customaryDetails    Json?    // { eldersPresent: [], rites: [] }
-  // --- Polygamy ---
-  isPolygamous        Boolean  @default(false)
-  polygamousHouseId   String?  @db.Uuid()
-  polygamousHouse     PolygamousHouse? @relation(fields: [polygamousHouseId], references: [id])
-  marriageOrder       Int?     // 1st, 2nd wife...
-  // --- Children (Denormalized) ---
-  numberOfChildren    Int      @default(0)
-  // Note: childrenIds are stored in FamilyMember relations, but count is here for speed
-  // --- Documents ---
-  marriageCertificateId   String?
-  cohabitationAffidavitId String?
-  divorceDecreeId         String?
-  // --- Financial ---
-  prenuptialAgreement Boolean  @default(false)
-  jointProperty       Boolean  @default(false)
-  // --- Dissolution ---
-  isMarriageDissolved    Boolean @default(false)
-  dissolutionDate        DateTime?
-  dissolutionReason      String?
-  waitingPeriodCompleted Boolean @default(false)
-  // --- Metadata ---
-  verificationStatus  VerificationStatus @default(UNVERIFIED)
-  verifiedBy          String? @db.Uuid()
-  verificationNotes   String?
-  
-  createdBy           String  @db.Uuid()
-  lastUpdatedBy       String  @db.Uuid()
-  isArchived          Boolean @default(false)
-
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  @@map("marriages")
-}
-model FamilyRelationship {
-  id                  String   @id @default(uuid()) @db.Uuid()
-  familyId            String   @db.Uuid()
-  family              Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
-
-  fromMemberId        String   @db.Uuid()
-  fromMember          FamilyMember @relation("RelFrom", fields: [fromMemberId], references: [id])
-  toMemberId          String   @db.Uuid()
-  toMember            FamilyMember @relation("RelTo", fields: [toMemberId], references: [id])
-
-  // --- Core Type ---
-  type                RelationshipType
-  // For bi-directional domain logic (e.g., Parent <-> Child)
-  inverseType         RelationshipType 
-
-  // --- Verification & Quality (Domain Parity) ---
-  isBiological        Boolean  @default(true)
-  isLegal             Boolean  @default(false) // e.g., Adopted
-  isCustomary         Boolean  @default(false) // e.g., Woman-to-woman marriage recognition
-  isSpiritual         Boolean  @default(false)
-  // --- Temporal ---
-  startDate           DateTime?
-  endDate             DateTime?
-  isActive            Boolean  @default(true)
-  // --- Verification ---
-  verificationLevel   RelationshipVerificationLevel @default(UNVERIFIED)
-  verificationMethod  RelationshipVerificationMethod?
-  verificationScore   Int      @default(0)
-  verifiedBy          String?  @db.Uuid()
-  lastVerifiedAt      DateTime?
-  // --- Evidence ---
-  legalDocuments      String[] // Array of document IDs
-  dnaTestId           String?
-  dnaMatchPercentage  Float?
-  courtOrderId        String?
-  adoptionOrderId     String?
-  guardianshipOrderId String?
-  // --- Customary ---
-  customaryRecognition Boolean @default(false)
-  clanRecognized       Boolean @default(false)
-  elderWitnesses       String[] // Array of names
-  traditionalRite      String?
-  // --- Strength & Quality ---
-  relationshipStrength Int     @default(50)
-  closenessIndex       Int     @default(50)
-  contactFrequency     String? // ENUM in Domain, String in DB is fine for now
-  // --- Dependency (S.29) ---
-  isFinancialDependent Boolean @default(false)
-  isCareDependent      Boolean @default(false)
-  dependencyLevel      String? // FULL, PARTIAL, TEMPORARY
-  supportProvided      Json?   // { financial: true, housing: false }
-  // --- Inheritance ---
-  inheritanceRights    String? // FULL, PARTIAL, NONE
-  inheritancePercentage Float?
-  disinherited         Boolean @default(false)
-  disinheritanceReason String?
-  // --- Conflict ---
-  hasConflict          Boolean @default(false)
-  conflictResolutionStatus ConflictResolutionStatus?
-  // --- Metadata ---
-  createdBy           String   @db.Uuid()
-  lastUpdatedBy       String   @db.Uuid()
-  notes               String?
-  isArchived          Boolean  @default(false)
-
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  @@unique([fromMemberId, toMemberId, type])
-  @@map("family_relationships")
-}
-model CohabitationRecord {
-  id              String   @id @default(uuid()) @db.Uuid()
-  familyId        String   @db.Uuid()
-  family          Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  // --- Partners ---
-  partner1Id      String   @db.Uuid()
-  partner1        FamilyMember @relation("CohabPartner1", fields: [partner1Id], references: [id])
-  partner2Id      String   @db.Uuid()
-  partner2        FamilyMember @relation("CohabPartner2", fields: [partner2Id], references: [id])
-  // --- Status & Type ---
-  relationshipType CohabitationType
-  isActive        Boolean  @default(true)
-  startDate       DateTime
-  endDate         DateTime?
-  relationshipStability CohabitationStability @default(UNKNOWN)
-  // --- S.29(5) Qualification Logic ---
-  durationDays    Int      @default(0)
-  qualifiesForS29 Boolean  @default(false)
-  minimumPeriodMet Boolean @default(false)
-  // --- Residence ---
-  sharedResidence String?
-  residenceCounty KenyanCounty?
-  isSeparateHousehold Boolean @default(false)
-  // --- Evidence (Crucial for Court) ---
-  affidavitId     String?  @db.Uuid() // Document ID
-  witnesses       String[] // Array of names
-  communityAcknowledged Boolean @default(false)
-  familyAcknowledged    Boolean @default(false)
-  supportEvidence Json?    // Array of strings/IDs (Receipts, transfers)
-  // --- Financial Interdependence ---
-  jointFinancialAccounts Boolean @default(false)
-  jointPropertyOwnership Boolean @default(false)
-  financialSupportProvided Boolean @default(false)
-  // --- Children (Many-to-Many) ---
-  children        FamilyMember[] @relation("CohabitationChildren")
-  hasChildren     Boolean @default(false)
-  childrenBornDuring Boolean @default(false)
-  // --- Legal & Claims ---
-  hasCourtRecognition Boolean @default(false)
-  courtCaseNumber     String?
-  dependencyClaimFiled Boolean @default(false)
-  dependencyClaimId    String? @db.Uuid() // Link to Estate Service
-  dependencyClaimStatus String? // PENDING, APPROVED, REJECTED
-  // --- Customary Context ---
-  customaryElements Boolean @default(false)
-  clanInvolved      Boolean @default(false)
-  // --- Metadata ---
-  verificationStatus VerificationStatus @default(UNVERIFIED)
-  verificationNotes  String?
-  lastVerifiedAt     DateTime?
-  
-  createdBy       String   @db.Uuid()
-  lastUpdatedBy   String   @db.Uuid()
-  isArchived      Boolean  @default(false)
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@map("cohabitation_records")
-}
-model AdoptionRecord {
-  id                  String       @id @default(uuid()) @db.Uuid()
-  
-  // --- Links ---
-  familyId            String       @db.Uuid()
-  family              Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
-
-  // --- Parties ---
-  adopteeId           String       @db.Uuid()
-  // NOTE: You need to add this relation to FamilyMember ("AdopteeRecords")
-  adoptee             FamilyMember @relation("AdopteeRecords", fields: [adopteeId], references: [id]) 
-
-  adoptiveParentId    String       @db.Uuid()
-  adoptiveParent      FamilyMember @relation("AdoptiveParentRecords", fields: [adoptiveParentId], references: [id])
-  
-  // --- Core Details ---
-  adoptionType        AdoptionType
-  adoptionStatus      AdoptionStatus
-  // --- Dates ---
-  applicationDate     DateTime
-  hearingDate         DateTime?
-  finalizationDate    DateTime?
-  effectiveDate       DateTime?
-  // --- Legal Framework ---
-  legalBasis          Json?          // Stores KenyanLawSection[]
-  courtOrderNumber    String?        @unique @db.VarChar(100)
-  courtStation        String?
-  presidingJudge      String?
-  // --- Consents & Documents ---
-  // Stores: { mother: 'CONSENTED', father: 'UNKNOWN' }
-  parentalConsentStatus Json 
-  consentDocuments      String[]       // Array of Doc IDs
-  /// --- Customary Specifics ---
-  clanInvolved        Boolean        @default(false)
-  clanElders          Json?          // Stores string[] of names
-  customaryRites      String[]       // Array of rites performed
-  bridePriceConsideration Boolean    @default(false)
-  // --- International / Social / Financial ---
-  socialWorkerInfo    Json?          // ID, ReportID
-  adoptionAgencyInfo  Json?
-  adoptionExpenses    Float?
-  // --- Post Adoption ---
-  postAdoptionMonitoring Boolean     @default(false)
-  monitoringPeriodMonths Int? 
-  // --- Verification ---
-  verificationStatus  VerificationStatus @default(PENDING_VERIFICATION)
-  verificationNotes   String?        @db.Text
-  verifiedBy          String?        @db.Uuid()
-  lastVerifiedAt      DateTime?
-  // --- Metadata ---
-  createdBy           String         @db.Uuid()
-  lastUpdatedBy       String         @db.Uuid()
-  isArchived          Boolean        @default(false)
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
-  @@index([familyId])
-  @@map("adoption_records")
-}
 // ============================================================================
-// AGGREGATE ROOT 2: GUARDIANSHIP
-// Manages: Legal Authority, Care Responsibility (Children Act)
+// AGGREGATE ROOT: GUARDIANSHIP
 // ============================================================================
 model Guardianship {
-  id                  String   @id @default(uuid()) @db.Uuid()
+  id          String   @id @default(uuid()) @db.Uuid
   
-  // --- The Ward (Identity Reference) ---
-  wardId              String   @db.Uuid()
-  ward                FamilyMember @relation("Ward", fields: [wardId], references: [id])
-  // Denormalized for performance (as per Domain Props)
-  wardFullName        String   @db.VarChar(200)
-  wardDateOfBirth     DateTime
-  // --- Core Status ---
-  status              GuardianshipStatus @default(PENDING_ACTIVATION)
-  type                String   // Mapped from GuardianshipTypeVO (e.g. "TESTAMENTARY")
-  // --- Legal Context ---
-  jurisdiction        GuardianshipJurisdiction @default(STATUTORY)
-  governingLaw        String   @default("Children Act Cap 141")
-  caseNumber          String?  @db.VarChar(100)
-  courtOrder          Json?    // { courtStation, orderDate, judge }
-  // --- Financial ---
-  requiresPropertyManagement Boolean @default(false)
-  bondStatus          BondStatus @default(NOT_REQUIRED)
-  // --- Lifecycle ---
-  establishedDate     DateTime
-  terminatedDate      DateTime?
-  terminationReason   String?  @db.Text
-  // --- Schedule ---
-  complianceSchedule  Json     // Stores ComplianceScheduleVO
-  // --- Audit ---
-  history             Json[]   // Stores GuardianshipHistoryEntry[]
-  legalNotes          String?  @db.Text
-  // --- Relations ---
-  assignments         GuardianAssignment[]
-  complianceChecks    ComplianceCheck[]
-
-  // --- Audit ---
-  version             Int      @default(1)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
+  // === FAMILY LINK ===
+  familyId    String   @db.Uuid
+  family      Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  
+  // === THE MINOR (Ward) ===
+  wardId      String   @db.Uuid // References FamilyMember
+  wardName    String   @db.VarChar(200) // Denormalized
+  wardAge     Int                       // Denormalized
+  
+  // === STATUS ===
+  status      GuardianshipStatus @default(DRAFT)
+  
+  // === ELIGIBILITY CHECKLIST ===
+  // Structure: { isOver18: bool, hasNoCriminalRecord: bool, ... }
+  eligibilityChecklist Json?
+  
+  // === SCORING ===
+  eligibilityScore     Int @default(0)  // 0-100
+  proximityScore       Int @default(0)  // How close is guardian to ward?
+  relationshipScore    Int @default(0)  // How close is relationship?
+  overallScore         Int @default(0)  // Weighted average
+  
+  // === LEGAL COMPLIANCE (Children Act) ===
+  legalReference String? @db.Text // "Section 70, Children Act (Cap 141)"
+  warnings       String[]         // Array of warning messages
+  blockingIssues String[]         // Critical issues preventing approval
+  
+  // === COURT INFO (Future) ===
+  courtOrderNumber String? @db.VarChar(100)
+  courtOrderDate   DateTime?
+  courtStation     String?  @db.VarChar(200)
+  
+  // === ASSIGNMENTS ===
+  // Can have multiple: primary guardian, alternate guardian
+  assignments GuardianAssignment[]
+  
+  // === COMPLIANCE REPORTS (Future) ===
+  // Annual reports required by law
+  lastReportDate DateTime?
+  nextReportDue  DateTime?
+  isCompliant    Boolean @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([familyId])
+  @@index([wardId])
   @@map("guardianships")
 }
 
+// ============================================================================
+// ENTITY: GUARDIAN ASSIGNMENT
+// ============================================================================
 model GuardianAssignment {
-  id                  String   @id @default(uuid()) @db.Uuid()
+  id              String   @id @default(uuid()) @db.Uuid
   
-  // --- Links ---
-  guardianshipId      String   @db.Uuid()
-  guardianship        Guardianship @relation(fields: [guardianshipId], references: [id], onDelete: Cascade)
-
-  guardianId          String   @db.Uuid()
-  guardian            FamilyMember @relation("AppointedGuardian", fields: [guardianId], references: [id])
-  guardianUserId      String?  @db.Uuid() // Optional link to User account
-  // --- Role ---
-  role                GuardianRole
-  isPrimary           Boolean  @default(false)
-  isAlternate         Boolean  @default(false)
-  appointmentSource   GuardianAppointmentSource
-  // --- Status ---
-  status              GuardianAssignmentStatus @default(PENDING)
-  appointmentDate     DateTime
-  activationDate      DateTime?
-  deactivationDate    DateTime?
-  deactivationReason  String?
-  // --- Powers & Bond (Value Objects stored as JSON) ---
-  powers              Json     // GuardianshipPowersVO
-  bond                Json?    // GuardianshipBondVO
-  // --- Performance ---
-  tasksCompleted      Int      @default(0)
-  complianceScore     Int      @default(100)
-  lastActivityDate    DateTime?
-  // --- Risk Management ---
-  conflicts           Json[]   // Stores ConflictOfInterest[] objects
-  // --- Contact (Value Object) ---
-  contactInfo         Json     // GuardianContactVO
-  // --- Verification ---
-  digitalSignatureUrl String?
-  verificationMethod  String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  // Constraint: Ensure only one active primary guardian per guardianship
-  // Note: This is a partial index (Prisma support varies by DB, raw SQL might be needed)
-  // @@unique([guardianshipId], name: "unique_active_primary_guardian", where: { isPrimary: true, status: "ACTIVE" })
-
+  // === GUARDIANSHIP ===
+  guardianshipId  String   @db.Uuid
+  guardianship    Guardianship @relation(fields: [guardianshipId], references: [id], onDelete: Cascade)
+  
+  // === GUARDIAN (The Adult) ===
+  guardianId      String   @db.Uuid
+  guardian        FamilyMember @relation("Guardian", fields: [guardianId], references: [id])
+  guardianName    String   @db.VarChar(200) // Denormalized
+  
+  // === WARD (The Minor) ===
+  wardId          String   @db.Uuid
+  ward            FamilyMember @relation("Ward", fields: [wardId], references: [id])
+  
+  // === PRIORITY ===
+  isPrimary       Boolean  @default(false)
+  isAlternate     Boolean  @default(false)
+  priorityOrder   Int      @default(1) // 1st choice, 2nd choice, etc.
+  
+  // === STATUS ===
+  isActive        Boolean  @default(true)
+  
+  // === ELIGIBILITY (Snapshot) ===
+  // Stored at time of assignment
+  eligibilitySnapshot Json?
+  eligibilityScore    Int @default(0)
+  
+  // === DATES ===
+  appointedDate   DateTime @default(now())
+  activatedDate   DateTime?
+  suspendedDate   DateTime?
+  terminatedDate  DateTime?
+  
+  // === TERMINATION ===
+  terminationReason String? @db.Text
+  
+  // === LEGAL ===
+  courtApproved   Boolean @default(false)
+  courtOrderRef   String? @db.VarChar(100)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([guardianshipId, guardianId]) // One assignment per guardian per guardianship
+  @@index([guardianId])
+  @@index([wardId])
   @@map("guardian_assignments")
-}
-model ComplianceCheck {
-  id                  String   @id @default(uuid()) @db.Uuid()
-  // --- Links ---
-  guardianshipId      String   @db.Uuid()
-  guardianship        Guardianship @relation(fields: [guardianshipId], references: [id], onDelete: Cascade)
-  // --- Core Details ---
-  year                Int
-  reportingPeriod     CompliancePeriod
-  reportType          ReportType
-  reportTitle         String
-  // --- Timeline ---
-  dueDate             DateTime
-  submissionDeadline  DateTime
-  submissionDate      DateTime?
-  reviewedDate        DateTime?
-  acceptedDate        DateTime?
-  // --- Status & Quality ---
-  status              ComplianceCheckStatus @default(DRAFT)
-  validationStatus    ValidationStatus      @default(PENDING)
-  qualityScore        Int                   @default(0) // 0-100
-  validationErrors    Json?                 // ValidationError[]
-  // --- Content (JSON for flexible structure) ---
-  sections            Json     // ComplianceSection[]
-  attachments         Json?    // ComplianceAttachment[]
-  generatedSections   Json?    // Track AI/Auto-generated confidence
-  // --- Submission Tracking ---
-  submissionMethods   Json?    // SubmissionMethod[]
-  submissionReferences Json?   // References for e-filing
-  // --- Specific Data Blocks ---
-  financialStatement  Json?    // FinancialStatement interface
-  wardStatus          Json?    // WardStatusReport interface
-  bankReconciliation  Json?    // BankReconciliation[]
-  // --- Feedback ---
-  courtFeedback       Json?    // CourtFeedback[]
-  recommendations     Json?    // Recommendation[]
-  // --- Workflow ---
-  reminderHistory     Json?    // ReminderEvent[]
-  followUpActions     Json?    // FollowUpAction[]
-  // --- Audit ---
-  submittedBy         String?  @db.Uuid()
-  reviewedBy          String?  @db.Uuid()
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  @@unique([guardianshipId, year, reportingPeriod])
-  @@map("compliance_checks")
-}
-// ============================================================================
-// SHARED / UTILS
-// ============================================================================
-model FamilyLegalEvent {
-  id             String   @id @default(uuid()) @db.Uuid()
-  familyId       String   @db.Uuid()
-  family         Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
-
-  eventType      String   @db.VarChar(100)
-  description    String   @db.Text
-  metadata       Json?
-  
-  recordedAt     DateTime @default(now())
-  recordedBy     String?  @db.Uuid()
-
-  @@map("family_legal_events")
 }
 // ============================================================================
 // ESTATE-SERVICE MODELS
