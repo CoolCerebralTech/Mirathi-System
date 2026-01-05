@@ -12,9 +12,10 @@ export interface AppConfig {
   GLOBAL_PREFIX: string;
   /** Comma-separated list of allowed origins (parsed into array) */
   CORS_ORIGINS: string[];
+
+  // Rate Limiting
   RATE_LIMIT_TTL: number;
   RATE_LIMIT_LIMIT: number;
-  HEALTH_MEMORY_HEAP_THRESHOLD_MB: number;
 }
 
 export interface DatabaseConfig {
@@ -24,69 +25,28 @@ export interface DatabaseConfig {
 export interface AuthConfig {
   JWT_SECRET: string;
   JWT_EXPIRATION: string;
-  REFRESH_TOKEN_SECRET: string | number;
-  REFRESH_TOKEN_EXPIRATION: string | number;
+  REFRESH_TOKEN_SECRET: string;
+  REFRESH_TOKEN_EXPIRATION: string;
   BCRYPT_ROUNDS: number;
 }
 
 export interface MessagingConfig {
   RABBITMQ_URI: string;
-  RABBITMQ_URL: string;
+  RABBITMQ_URL: string; // Included for consistency per your .env
   RABBITMQ_EXCHANGE: string;
 }
 
-// ============================================================================
-// Enhanced Storage Configuration
-// ============================================================================
-
 export interface StorageConfig {
-  // Provider Configuration
-  STORAGE_PROVIDER: 'local' | 's3' | 'google-cloud' | 'azure' | 'minio'; // Added minio
-  STORAGE_LOCAL_PATH: string;
+  MINIO_ENDPOINT: string;
+  MINIO_PORT: number;
+  MINIO_ACCESS_KEY: string;
+  MINIO_SECRET_KEY: string;
+  MINIO_USE_SSL: boolean;
+  MINIO_BUCKET: string;
 
-  // File Size Limits
-  STORAGE_MAX_FILE_SIZE_MB: number;
-  STORAGE_MAX_IMAGE_SIZE_MB: number;
-
-  // File Validation
-  /** Comma-separated list of allowed MIME types (parsed into array) */
-  STORAGE_ALLOWED_MIME_TYPES: string[];
-  /** Comma-separated list of dangerous extensions (parsed into array) */
-  STORAGE_DANGEROUS_EXTENSIONS: string[];
-  STORAGE_STRICT_MIME_VALIDATION: boolean;
-  STORAGE_ENABLE_SIZE_VALIDATION: boolean;
-
-  // Security Features
-  STORAGE_ENABLE_VIRUS_SCAN: boolean;
-  STORAGE_ENABLE_CHECKSUM: boolean;
-  STORAGE_ENABLE_ATOMIC_WRITES: boolean;
-
-  // Storage Management
-  STORAGE_QUOTA_MB: number;
-  STORAGE_TEMP_CLEANUP_HOURS: number;
-  STORAGE_ENABLE_AUTO_CLEANUP: boolean;
-
-  // Performance Settings
-  STORAGE_STREAM_BUFFER_SIZE: number;
-  STORAGE_MAX_CONCURRENT_OPS: number;
-
-  // Cloud Storage (Optional)
-  STORAGE_S3_BUCKET?: string;
-  STORAGE_S3_REGION?: string;
-  STORAGE_S3_ACCESS_KEY_ID?: string;
-  STORAGE_S3_SECRET_ACCESS_KEY?: string;
-  STORAGE_GOOGLE_CLOUD_BUCKET?: string;
-  STORAGE_GOOGLE_CLOUD_PROJECT_ID?: string;
-  STORAGE_AZURE_CONTAINER_NAME?: string;
-  STORAGE_AZURE_CONNECTION_STRING?: string;
-
-  // MinIO Configuration (Added)
-  MINIO_BUCKET?: string;
-  MINIO_ENDPOINT?: string;
-  MINIO_PORT?: number;
-  MINIO_USE_SSL?: boolean;
-  MINIO_ACCESS_KEY?: string;
-  MINIO_SECRET_KEY?: string;
+  // Document Specific Settings (Matches your .env)
+  MAX_FILE_SIZE_MB: number;
+  DOCUMENT_EXPIRY_DAYS: number;
 }
 
 export interface EmailConfig {
@@ -97,17 +57,20 @@ export interface EmailConfig {
   EMAIL_SMTP_SECURE?: boolean;
   EMAIL_SMTP_USER?: string;
   EMAIL_SMTP_PASS?: string;
-  EMAIL_SENDGRID_API_KEY?: string;
 }
 
 export interface SmsConfig {
   SMS_PROVIDER: 'africas-talking' | 'twilio';
+
+  // Africa's Talking (Long form from .env)
+  AFRICAS_TALKING_API_KEY?: string;
+  AFRICAS_TALKING_USERNAME?: string;
+  AFRICAS_TALKING_SHORT_CODE?: string;
+
+  // Africa's Talking (Short form from .env)
   SMS_AT_API_KEY?: string;
   SMS_AT_USERNAME?: string;
   SMS_AT_SHORTCODE?: string;
-  SMS_TWILIO_ACCOUNT_SID?: string;
-  SMS_TWILIO_AUTH_TOKEN?: string;
-  SMS_TWILIO_FROM_NUMBER?: string;
 }
 
 export interface ExternalServicesConfig {
@@ -137,10 +100,6 @@ export interface LoggingConfig {
   TRACING_EXPORTER: 'console' | 'jaeger' | 'zipkin';
 }
 
-export interface ServiceConfig {
-  SERVICE_TIMEOUT: number;
-}
-
 export interface ServicePortsConfig {
   GATEWAY_PORT: number;
   ACCOUNTS_SERVICE_PORT: number;
@@ -163,14 +122,12 @@ export interface ServiceUrlsConfig {
 }
 
 /**
- * The complete, flattened configuration interface for the entire application.
- * This is the final shape of the object provided by the ConfigService.
+ * The complete, flattened configuration interface.
  */
 export interface Config
   extends
     AppConfig,
     DatabaseConfig,
-    ServiceConfig,
     ServicePortsConfig,
     ServiceUrlsConfig,
     AuthConfig,

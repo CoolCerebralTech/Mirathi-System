@@ -5,7 +5,8 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from '@shamba/auth';
 import { ConfigModule } from '@shamba/config';
 import { DatabaseModule } from '@shamba/database';
-import { MessagingModule } from '@shamba/messaging';
+// FIX 1: Import MessagingService (the actual class you have)
+import { MessagingModule, MessagingService } from '@shamba/messaging';
 import { ObservabilityModule } from '@shamba/observability';
 
 // Application Layer
@@ -20,39 +21,41 @@ import { MinioStorageService } from './infrastructure/storage/minio-storage.serv
 import {
   DOCUMENT_REPOSITORY,
   ENCRYPTION_SERVICE,
+  EVENT_PUBLISHER,
+  // The token DocumentService asks for
   OCR_SERVICE,
   STORAGE_SERVICE,
 } from './injection.tokens';
 // Presentation Layer
 import { DocumentController } from './presentation/controllers/document.controller';
 import { VerificationController } from './presentation/controllers/verification.controller';
+import { HealthController } from './presentation/health/health.controller';
 
 @Module({
   imports: [
-    // Shared Modules
     ConfigModule,
     AuthModule,
     DatabaseModule,
+    // Registers the module so MessagingService is available
     MessagingModule.register({}),
     ObservabilityModule.register({
       serviceName: 'documents-service',
       version: '1.0.0',
     }),
-    ScheduleModule.forRoot(), // For cron jobs
+    ScheduleModule.forRoot(),
   ],
-  controllers: [DocumentController, VerificationController],
+  controllers: [DocumentController, VerificationController, HealthController],
   providers: [
-    // Application Services
     DocumentService,
     VerificationService,
 
-    // Infrastructure - Repositories
+    // Repositories
     {
       provide: DOCUMENT_REPOSITORY,
       useClass: DocumentRepository,
     },
 
-    // Infrastructure - External Services
+    // Infrastructure
     {
       provide: STORAGE_SERVICE,
       useClass: MinioStorageService,
@@ -64,6 +67,14 @@ import { VerificationController } from './presentation/controllers/verification.
     {
       provide: ENCRYPTION_SERVICE,
       useClass: EncryptionService,
+    },
+
+    // FIX 2: THE CRITICAL PART
+    // When DocumentService requests @Inject(EVENT_PUBLISHER),
+    // we give it the MessagingService instance.
+    {
+      provide: EVENT_PUBLISHER,
+      useExisting: MessagingService,
     },
   ],
   exports: [DocumentService, VerificationService],

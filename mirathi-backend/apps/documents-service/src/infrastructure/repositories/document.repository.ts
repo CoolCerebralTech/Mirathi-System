@@ -1,5 +1,5 @@
 // apps/documents-service/src/infrastructure/repositories/document.repository.ts
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Document, DocumentStatus, ReferenceType } from '@prisma/client';
 
 import { PrismaService } from '@shamba/database';
@@ -36,8 +36,6 @@ export interface CreateDocumentData {
 
 @Injectable()
 export class DocumentRepository implements IDocumentRepository {
-  private readonly logger = new Logger(DocumentRepository.name);
-
   constructor(private readonly prisma: PrismaService) {}
 
   async create(data: CreateDocumentData): Promise<Document> {

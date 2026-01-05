@@ -4,10 +4,15 @@ import { DocumentStatus } from '@prisma/client';
 
 import { IEventPublisher } from '@shamba/messaging';
 
-import { IEncryptionService } from '../../infrastructure/encryption/encryption.service';
-import { IDocumentRepository } from '../../infrastructure/repositories/document.repository';
-import { IStorageService } from '../../infrastructure/storage/minio-storage.service';
-import { DOCUMENT_REPOSITORY, ENCRYPTION_SERVICE, STORAGE_SERVICE } from '../../injection.tokens';
+import type { IEncryptionService } from '../../infrastructure/encryption/encryption.service';
+import type { IDocumentRepository } from '../../infrastructure/repositories/document.repository';
+import type { IStorageService } from '../../infrastructure/storage/minio-storage.service';
+import {
+  DOCUMENT_REPOSITORY,
+  ENCRYPTION_SERVICE,
+  EVENT_PUBLISHER,
+  STORAGE_SERVICE,
+} from '../../injection.tokens';
 import { VerificationAction } from '../../presentation/dto/verify-document.dto';
 import { DocumentRejectedEvent, DocumentVerifiedEvent } from '../events/document.events';
 
@@ -19,7 +24,7 @@ export class VerificationService {
     @Inject(DOCUMENT_REPOSITORY) private readonly repository: IDocumentRepository,
     @Inject(STORAGE_SERVICE) private readonly storage: IStorageService,
     @Inject(ENCRYPTION_SERVICE) private readonly encryption: IEncryptionService,
-    private readonly eventPublisher: IEventPublisher,
+    @Inject(EVENT_PUBLISHER) private readonly eventPublisher: IEventPublisher,
   ) {}
 
   /**

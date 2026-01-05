@@ -11,3 +11,4 @@ export const DOCUMENT_REPOSITORY = Symbol('DOCUMENT_REPOSITORY');
 export const STORAGE_SERVICE = Symbol('STORAGE_SERVICE');
 export const OCR_SERVICE = Symbol('OCR_SERVICE');
 export const ENCRYPTION_SERVICE = Symbol('ENCRYPTION_SERVICE');
+export const EVENT_PUBLISHER = Symbol('EVENT_PUBLISHER');

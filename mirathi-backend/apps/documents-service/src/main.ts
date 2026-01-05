@@ -32,9 +32,16 @@ async function bootstrap() {
       options: {
         urls: [rmqUrl],
         queue: 'documents_queue',
-        queueOptions: { durable: true },
+        queueOptions: {
+          durable: true,
+          deadLetterExchange: 'shamba.events.dead',
+          deadLetterRoutingKey: 'documents_queue',
+        },
+        noAck: false,
+        prefetchCount: 10,
       },
     });
+    logger.log('✅ RabbitMQ microservice configured');
   } else {
     logger.warn('⚠️ RABBITMQ_URL not found. Microservice listeners will not start.');
   }
@@ -59,7 +66,7 @@ async function bootstrap() {
   // ============================================================================
   // CORS CONFIGURATION
   // ============================================================================
-  const corsOriginsRaw = configService.get('CORS_ORIGINS');
+  const corsOriginsRaw = configService.get('CORS_ORIGINS') || ['http://localhost:3000'];
   const corsOrigins =
     corsOriginsRaw.length === 1 && corsOriginsRaw[0] === '*' ? '*' : corsOriginsRaw;
 
@@ -74,28 +81,40 @@ async function bootstrap() {
   // SWAGGER DOCUMENTATION
   // ============================================================================
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Shamba Sure - Documents Service')
-    .setDescription('Manages document lifecycle, uploads, and verification.')
+    .setTitle('Mirathi - Documents Service')
+    .setDescription(
+      'Smart document verification service for Kenyan succession process.\n\n' +
+        'Features:\n' +
+        '- OCR extraction of document references (Title Deeds, IDs, KRA PINs)\n' +
+        '- Temporary storage with auto-cleanup\n' +
+        '- Encrypted permanent reference storage\n' +
+        '- Duplicate reference detection\n' +
+        '- Verifier workflow for document approval/rejection',
+    )
     .setVersion('1.0.0')
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
-    .addTag('Documents')
-    .addTag('Health')
+    .addTag('Documents', 'User document upload and management')
+    .addTag('Verification', 'Verifier operations (VERIFIER/ADMIN only)')
+    .addTag('Health', 'Service health and readiness checks')
     .addServer(
-      `http://localhost:${configService.get('DOCUMENTS_SERVICE_PORT', 3002)}`,
+      `http://localhost:${configService.get('DOCUMENTS_SERVICE_PORT', 3003)}`,
       'Local Development',
     )
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  // Setup at root /docs
   SwaggerModule.setup('docs', app, document, {
-    swaggerOptions: { persistAuthorization: true },
+    swaggerOptions: {
+      persistAuthorization: true,
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
+    },
   });
 
   // ============================================================================
   // START SERVER
   // ============================================================================
-  const port = configService.get('DOCUMENTS_SERVICE_PORT', 3002);
+  const port = configService.get('DOCUMENTS_SERVICE_PORT', 3003);
   const host = configService.get('HOST', '0.0.0.0');
 
   await app.startAllMicroservices();
@@ -105,13 +124,17 @@ async function bootstrap() {
   // LOGS
   // ============================================================================
   logger.log('='.repeat(70));
-  logger.log('🚀 Shamba Sure - Documents Service (Ready for Gateway)');
+  logger.log('📄 Mirathi - Documents Service (Smart Verification Engine)');
   logger.log('='.repeat(70));
   logger.log(`📍 Service URL:     http://localhost:${port}`);
   logger.log(`📚 API Docs:        http://localhost:${port}/docs`);
   logger.log(`💚 Health Check:    http://localhost:${port}/health`);
   logger.log('─'.repeat(70));
   logger.log(`🔗 Gateway Path:    /api/documents/*  -->  /*`);
+  logger.log(`🔐 Auth Required:   Yes (JWT Bearer Token)`);
+  logger.log(`📦 Storage:         MinIO (Temporary)`);
+  logger.log(`🔍 OCR Engine:      Tesseract.js`);
+  logger.log(`🔒 Encryption:      AES-256-GCM`);
   logger.log('='.repeat(70));
 }
 

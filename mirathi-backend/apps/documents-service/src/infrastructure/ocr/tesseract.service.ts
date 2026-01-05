@@ -1,11 +1,10 @@
 // apps/documents-service/src/infrastructure/ocr/tesseract.service.ts
 import { Injectable, Logger } from '@nestjs/common';
-import * as sharp from 'sharp';
+import sharp from 'sharp';
 import Tesseract from 'tesseract.js';
 
 export interface IOCRService {
   extractText(imageBuffer: Buffer): Promise<OCRResult>;
-  detectReferenceNumber(text: string, type?: string): string | null;
 }
 
 export interface OCRResult {
@@ -60,11 +59,11 @@ export class TesseractService implements IOCRService {
    * Preprocess image for better OCR accuracy
    */
   private async preprocessImage(buffer: Buffer): Promise<Buffer> {
-    return sharp(buffer)
-      .resize({ width: 2000, withoutEnlargement: true }) // Scale up small images
-      .grayscale() // Convert to grayscale
-      .normalize() // Normalize contrast
-      .sharpen() // Sharpen text
+    return await sharp(buffer)
+      .resize({ width: 2000, withoutEnlargement: true })
+      .grayscale()
+      .normalize()
+      .sharpen()
       .toBuffer();
   }
 
@@ -72,7 +71,7 @@ export class TesseractService implements IOCRService {
    * Detect and extract reference numbers from OCR text
    * Supports Kenyan document formats
    */
-  detectReferenceNumber(text: string, type?: string): { number: string; type: string } | null {
+  private detectReferenceNumber(text: string): { number: string; type: string } | null {
     const cleanText = text.replace(/\s+/g, ' ').toUpperCase();
 
     // Title Deed Pattern: NAIROBI/BLOCK123/456 or similar
