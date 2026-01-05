@@ -33,7 +33,7 @@ import { OnboardingPage } from './pages/onboarding';
 import { DashboardHome } from './pages/DashboardHome';
 import { ProfilePage } from './pages/users/ProfilePage';
 import { SettingsPage } from './pages/users/SettingsPage';
-import { DocumentsPage } from './pages/documents/DocumentsPage';
+import { UserDocumentsPage } from './pages/documents/UserDocumentsPage';
 
 // Estate Service
 import { 
@@ -104,7 +104,7 @@ function App() {
           {/* User Management */}
           <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
-          <Route path="documents" element={<DocumentsPage />} />
+          <Route path="documents" element={<UserDocumentsPage />} />
 
           {/* 4.2. Will Module (Estate Planning) */}
           <Route path="wills" element={<WillDashboardPage />} />

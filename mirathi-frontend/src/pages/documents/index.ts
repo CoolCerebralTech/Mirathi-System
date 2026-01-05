@@ -1,1 +1,2 @@
-export { DocumentsPage } from './DocumentsPage';
+export { UserDocumentsPage } from './UserDocumentsPage';
+export { VerifierDashboardPage} from './VerifierDashboardPage';

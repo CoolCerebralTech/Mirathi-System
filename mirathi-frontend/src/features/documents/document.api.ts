@@ -1,64 +1,49 @@
+// frontend/src/api/document.api.ts
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient, extractErrorMessage } from '../../api/client';
 import { toast } from 'sonner';
-import { z } from 'zod';
+import { apiClient, extractErrorMessage } from '@/api/client';
 
 import {
-  DocumentResponseSchema,
-  PaginatedDocumentsResponseSchema,
-  UploadDocumentResponseSchema,
-  UpdateDocumentResponseSchema,
-  AccessControlResponseSchema,
-  CreateDocumentVersionResponseSchema,
-  DocumentVersionResponseSchema,
+  DocumentSchema,
+  InitiateUploadResponseSchema,
+  ProcessUploadResponseSchema,
+  VerifyDocumentResponseSchema,
+  DocumentForVerificationSchema,
+  DownloadUrlResponseSchema,
   
   type Document,
-  type PaginatedDocumentsResponse,
-  type QueryDocumentsInput,
-  type SearchDocumentsInput,
-  type UploadDocumentInput,
-  type UpdateDocumentInput,
-  type UpdateAccessInput,
-  type DocumentVersion,
-  type CreateDocumentVersionInput,
-  type DocumentVersionQuery,
-  type UploadDocumentResponse,
-  type UpdateDocumentResponse,
-  type AccessControlResponse,
-  type CreateDocumentVersionResponse,
+  type DocumentStatus,
+  type InitiateUploadRequest,
+  type InitiateUploadResponse,
+  type ProcessUploadResponse,
+  type VerifyDocumentRequest,
+  type VerifyDocumentResponse,
+  type DocumentForVerification,
+  type DownloadUrlResponse,
 } from '../../types/document.types';
+import { z } from 'zod';
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
 
-// Prefix: /documents (Gateway) + /documents (Controller)
-const API_BASE = '/documents/documents';
+const API_BASE = '/documents';
+const VERIFICATION_BASE = '/verification';
 
 const ENDPOINTS = {
-  DOCUMENTS: API_BASE,
+  // User endpoints
+  INITIATE_UPLOAD: `${API_BASE}/initiate-upload`,
+  UPLOAD: (documentId: string) => `${API_BASE}/upload/${documentId}`,
+  USER_DOCUMENTS: API_BASE,
   DOCUMENT: (id: string) => `${API_BASE}/${id}`,
-  SEARCH: `${API_BASE}/search`,
-  ACCESSIBLE: `${API_BASE}/accessible`,
-  EXPIRING_SOON: `${API_BASE}/expiring-soon`,
-  DOWNLOAD: (id: string) => `${API_BASE}/${id}/download`,
-  DOWNLOAD_URL: (id: string) => `${API_BASE}/${id}/download-url`,
-  ACCESS: (id: string) => `${API_BASE}/${id}/access`,
-  RESTORE: (id: string) => `${API_BASE}/${id}/restore`,
+  DOCUMENT_VIEW: (id: string) => `${API_BASE}/${id}/view`,
   
-  VERSIONS: (docId: string) => `${API_BASE}/${docId}/versions`,
-  VERSION_LATEST: (docId: string) => `${API_BASE}/${docId}/versions/latest`,
-  VERSION_BY_NUMBER: (docId: string, versionNum: number) => `${API_BASE}/${docId}/versions/${versionNum}`,
-  VERSION_DOWNLOAD: (docId: string, versionNum: number) => `${API_BASE}/${docId}/versions/${versionNum}/download`,
-  VERSION_DOWNLOAD_URL: (docId: string, versionNum: number) => `${API_BASE}/${docId}/versions/${versionNum}/download-url`,
-  VERSION_STATS: (docId: string) => `${API_BASE}/${docId}/versions/stats/summary`,
-  VERSION_STORAGE: (docId: string) => `${API_BASE}/${docId}/versions/stats/storage`,
+  // Verifier endpoints
+  PENDING_VERIFICATION: `${VERIFICATION_BASE}/pending`,
+  DOCUMENT_FOR_VERIFICATION: (id: string) => `${VERIFICATION_BASE}/documents/${id}`,
+  VERIFY: `${VERIFICATION_BASE}/verify`,
 } as const;
-
-const MUTATION_CONFIG = {
-  retry: 2,
-  retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
-};
 
 // ============================================================================
 // QUERY KEYS
@@ -67,510 +52,347 @@ const MUTATION_CONFIG = {
 export const documentKeys = {
   all: ['documents'] as const,
   lists: () => [...documentKeys.all, 'list'] as const,
-  list: (filters: Partial<QueryDocumentsInput> | Partial<SearchDocumentsInput>) => 
-    [...documentKeys.lists(), filters] as const,
-  accessible: (page: number, limit: number) => [...documentKeys.all, 'accessible', page, limit] as const,
-  expiring: (days: number) => [...documentKeys.all, 'expiring', days] as const,
+  userDocuments: (status?: DocumentStatus) => 
+    [...documentKeys.lists(), 'user', status] as const,
+  pendingVerification: () => 
+    [...documentKeys.lists(), 'pending-verification'] as const,
   details: () => [...documentKeys.all, 'detail'] as const,
   detail: (id: string) => [...documentKeys.details(), id] as const,
-
-  versions: (id: string) => [...documentKeys.detail(id), 'versions'] as const,
-  versionList: (id: string, filters: Partial<DocumentVersionQuery>) => 
-  [...documentKeys.versions(id), filters] as const,
-  versionLatest: (id: string) => [...documentKeys.versions(id), 'latest'] as const,
-  versionByNumber: (id: string, versionNum: number) => [...documentKeys.versions(id), versionNum] as const,
-  versionStats: (id: string) => [...documentKeys.versions(id), 'stats'] as const,
+  verificationDetail: (id: string) => 
+    [...documentKeys.details(), 'verification', id] as const,
+  viewUrl: (id: string) => [...documentKeys.detail(id), 'view-url'] as const,
 };
 
 // ============================================================================
-// TYPE DEFINITIONS
+// API FUNCTIONS - USER OPERATIONS
 // ============================================================================
 
-interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrevious: boolean;
-}
-
-interface VersionStatsResponse {
-  totalVersions: number;
-  latestVersion: number;
-  firstCreated: string;
-  lastModified: string;
-  totalStorageBytes: number;
-}
-
-interface VersionStorageResponse {
-  storageUsageBytes: number;
-}
-
-interface DownloadUrlResponse {
-  url: string;
-}
-
-type UploadParams = {
-  file: File;
-  data: UploadDocumentInput;
-  onProgress?: (progress: number) => void;
-};
-
-type CreateVersionParams = {
-  docId: string;
-  file: File;
-  data: CreateDocumentVersionInput;
-  onProgress?: (progress: number) => void;
-};
-
-// ============================================================================
-// API FUNCTIONS - DOCUMENTS
-// ============================================================================
-
-const queryDocuments = async (params: Partial<QueryDocumentsInput>): Promise<PaginatedDocumentsResponse> => {
+/**
+ * Step 1: Initiate document upload
+ */
+const initiateUpload = async (
+  data: InitiateUploadRequest
+): Promise<InitiateUploadResponse> => {
   try {
-    const { data } = await apiClient.get<PaginatedDocumentsResponse>(ENDPOINTS.DOCUMENTS, { params });
-    return PaginatedDocumentsResponseSchema.parse(data);
+    const response = await apiClient.post<InitiateUploadResponse>(
+      ENDPOINTS.INITIATE_UPLOAD,
+      data
+    );
+    return InitiateUploadResponseSchema.parse(response.data);
   } catch (error) {
-    console.error('[Document API] Query failed:', { params, error: extractErrorMessage(error) });
+    console.error('[Document API] Initiate upload failed:', error);
     throw error;
   }
 };
 
-const searchDocuments = async (params: Partial<SearchDocumentsInput>): Promise<PaginatedDocumentsResponse> => {
-  try {
-    const { data } = await apiClient.get<PaginatedDocumentsResponse>(ENDPOINTS.SEARCH, { params });
-    return PaginatedDocumentsResponseSchema.parse(data);
-  } catch (error) {
-    console.error('[Document API] Search failed:', { params, error: extractErrorMessage(error) });
-    throw error;
-  }
-};
-
-const getAccessibleDocuments = async (page: number = 1, limit: number = 20): Promise<PaginatedDocumentsResponse> => {
-  try {
-    const { data } = await apiClient.get<PaginatedDocumentsResponse>(ENDPOINTS.ACCESSIBLE, {
-      params: { page, limit },
-    });
-    return PaginatedDocumentsResponseSchema.parse(data);
-  } catch (error) {
-    console.error('[Document API] Get accessible failed:', { error: extractErrorMessage(error) });
-    throw error;
-  }
-};
-
-const getExpiringDocuments = async (withinDays: number = 30): Promise<Document[]> => {
-  try {
-    const { data } = await apiClient.get<Document[]>(ENDPOINTS.EXPIRING_SOON, {
-      params: { withinDays },
-    });
-    return z.array(DocumentResponseSchema).parse(data);
-  } catch (error) {
-    console.error('[Document API] Get expiring failed:', { error: extractErrorMessage(error) });
-    throw error;
-  }
-};
-
-const getDocumentById = async (id: string): Promise<Document> => {
-  try {
-    const { data } = await apiClient.get<Document>(ENDPOINTS.DOCUMENT(id));
-    return DocumentResponseSchema.parse(data);
-  } catch (error) {
-    console.error('[Document API] Get by ID failed:', { id, error: extractErrorMessage(error) });
-    throw error;
-  }
-};
-
-const getDownloadUrl = async (id: string): Promise<string> => {
-  try {
-    const { data } = await apiClient.get<DownloadUrlResponse>(ENDPOINTS.DOWNLOAD_URL(id));
-    return data.url;
-  } catch (error) {
-    console.error('[Document API] Get download URL failed:', { id, error: extractErrorMessage(error) });
-    throw error;
-  }
-};
-
-const uploadDocument = async ({ file, data: uploadData, onProgress }: UploadParams): Promise<UploadDocumentResponse> => {
+/**
+ * Step 2: Upload file and process with OCR
+ */
+const uploadDocument = async (
+  documentId: string,
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<ProcessUploadResponse> => {
   try {
     const formData = new FormData();
     formData.append('file', file);
-    
-    Object.entries(uploadData).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        // ✅ FIX: Special handling for object types
-        if (typeof value === 'object') {
-          formData.append(key, JSON.stringify(value));
-        } else {
-          formData.append(key, String(value));
-        }
-      }
-    });
 
-    // ✅ FIX: Always include metadata as an empty object if not provided
-    if (!uploadData.metadata) {
-      formData.append('metadata', JSON.stringify({}));
-    }
-
-    const { data } = await apiClient.post<UploadDocumentResponse>(
-      `${ENDPOINTS.DOCUMENTS}/upload`,
+    const response = await apiClient.post<ProcessUploadResponse>(
+      ENDPOINTS.UPLOAD(documentId),
       formData,
       {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (event) => {
           if (event.total) {
-            onProgress?.(Math.round((event.loaded * 100) / event.total));
+            const progress = Math.round((event.loaded * 100) / event.total);
+            onProgress?.(progress);
           }
         },
       }
     );
-    return UploadDocumentResponseSchema.parse(data);
+
+    return ProcessUploadResponseSchema.parse(response.data);
   } catch (error) {
-    console.error('[Document API] Upload failed:', { fileName: file.name, error: extractErrorMessage(error) });
+    console.error('[Document API] Upload failed:', error);
     throw error;
   }
 };
 
-const updateDocument = async ({ id, data: updateData }: { id: string; data: UpdateDocumentInput }): Promise<UpdateDocumentResponse> => {
+/**
+ * Get user's documents (optionally filter by status)
+ */
+const getUserDocuments = async (status?: DocumentStatus): Promise<Document[]> => {
   try {
-    const { data } = await apiClient.put<UpdateDocumentResponse>(ENDPOINTS.DOCUMENT(id), updateData);
-    return UpdateDocumentResponseSchema.parse(data);
+    const params = status ? { status } : undefined;
+    const response = await apiClient.get<Document[]>(
+      ENDPOINTS.USER_DOCUMENTS,
+      { params }
+    );
+    return z.array(DocumentSchema).parse(response.data);
   } catch (error) {
-    console.error('[Document API] Update failed:', { id, error: extractErrorMessage(error) });
+    console.error('[Document API] Get user documents failed:', error);
     throw error;
   }
 };
 
-const updateAccess = async ({ id, data: accessData }: { id: string; data: UpdateAccessInput }): Promise<AccessControlResponse> => {
+/**
+ * Get document by ID
+ */
+const getDocumentById = async (id: string): Promise<Document> => {
   try {
-    const { data } = await apiClient.put<AccessControlResponse>(ENDPOINTS.ACCESS(id), accessData);
-    return AccessControlResponseSchema.parse(data);
+    const response = await apiClient.get<Document>(ENDPOINTS.DOCUMENT(id));
+    return DocumentSchema.parse(response.data);
   } catch (error) {
-    console.error('[Document API] Access update failed:', { id, error: extractErrorMessage(error) });
+    console.error('[Document API] Get document failed:', error);
     throw error;
   }
 };
 
-const softDeleteDocument = async (id: string): Promise<void> => {
+/**
+ * Get presigned URL to view document
+ */
+const getDocumentViewUrl = async (id: string): Promise<DownloadUrlResponse> => {
+  try {
+    const response = await apiClient.get<DownloadUrlResponse>(
+      ENDPOINTS.DOCUMENT_VIEW(id)
+    );
+    return DownloadUrlResponseSchema.parse(response.data);
+  } catch (error) {
+    console.error('[Document API] Get view URL failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete document (soft delete)
+ */
+const deleteDocument = async (id: string): Promise<void> => {
   try {
     await apiClient.delete(ENDPOINTS.DOCUMENT(id));
   } catch (error) {
-    console.error('[Document API] Soft delete failed:', { id, error: extractErrorMessage(error) });
-    throw error;
-  }
-};
-
-const restoreDocument = async (id: string): Promise<void> => {
-  try {
-    await apiClient.post(ENDPOINTS.RESTORE(id));
-  } catch (error) {
-    console.error('[Document API] Restore failed:', { id, error: extractErrorMessage(error) });
+    console.error('[Document API] Delete failed:', error);
     throw error;
   }
 };
 
 // ============================================================================
-// API FUNCTIONS - VERSIONS
+// API FUNCTIONS - VERIFIER OPERATIONS
 // ============================================================================
 
-const PaginatedVersionsSchema = z.object({
-  data: z.array(DocumentVersionResponseSchema),
-  total: z.number(),
-  page: z.number(),
-  limit: z.number(),
-  totalPages: z.number(),
-  hasNext: z.boolean(),
-  hasPrevious: z.boolean(),
-});
-
-const getDocumentVersions = async (
-  docId: string,
-  params: Partial<DocumentVersionQuery>
-): Promise<PaginatedResponse<DocumentVersion>> => {
+/**
+ * Get all pending verification documents
+ */
+const getPendingDocuments = async (): Promise<Document[]> => {
   try {
-    const { data } = await apiClient.get(ENDPOINTS.VERSIONS(docId), { params });
-    return PaginatedVersionsSchema.parse(data);
-  } catch (error) {
-    console.error('[Document API] Get versions failed:', { docId, error: extractErrorMessage(error) });
-    throw error;
-  }
-};
-
-const getLatestVersion = async (docId: string): Promise<DocumentVersion> => {
-  try {
-    const { data } = await apiClient.get<DocumentVersion>(ENDPOINTS.VERSION_LATEST(docId));
-    return DocumentVersionResponseSchema.parse(data);
-  } catch (error) {
-    console.error('[Document API] Get latest version failed:', { docId, error: extractErrorMessage(error) });
-    throw error;
-  }
-};
-
-const getVersionByNumber = async (docId: string, versionNum: number): Promise<DocumentVersion> => {
-  try {
-    const { data } = await apiClient.get<DocumentVersion>(ENDPOINTS.VERSION_BY_NUMBER(docId, versionNum));
-    return DocumentVersionResponseSchema.parse(data);
-  } catch (error) {
-    console.error('[Document API] Get version by number failed:', { docId, versionNum, error: extractErrorMessage(error) });
-    throw error;
-  }
-};
-
-const getVersionDownloadUrl = async (docId: string, versionNum: number): Promise<string> => {
-  try {
-    const { data } = await apiClient.get<DownloadUrlResponse>(ENDPOINTS.VERSION_DOWNLOAD_URL(docId, versionNum));
-    return data.url;
-  } catch (error) {
-    console.error('[Document API] Get version download URL failed:', { docId, versionNum, error: extractErrorMessage(error) });
-    throw error;
-  }
-};
-
-const createNewVersion = async ({ docId, file, data: versionData, onProgress }: CreateVersionParams): Promise<CreateDocumentVersionResponse> => {
-  try {
-    const formData = new FormData();
-    formData.append('file', file);
-    if (versionData.changeNote) {
-      formData.append('changeNote', versionData.changeNote);
-    }
-
-    const { data } = await apiClient.post<CreateDocumentVersionResponse>(
-      ENDPOINTS.VERSIONS(docId),
-      formData,
-      {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (e) => {
-          if (e.total) {
-            onProgress?.(Math.round((e.loaded * 100) / e.total));
-          }
-        },
-      }
+    const response = await apiClient.get<Document[]>(
+      ENDPOINTS.PENDING_VERIFICATION
     );
-    return CreateDocumentVersionResponseSchema.parse(data);
+    return z.array(DocumentSchema).parse(response.data);
   } catch (error) {
-    console.error('[Document API] Create version failed:', { docId, error: extractErrorMessage(error) });
+    console.error('[Document API] Get pending documents failed:', error);
     throw error;
   }
 };
 
-const deleteVersion = async (docId: string, versionNum: number): Promise<void> => {
+/**
+ * Get document for verification with view URL
+ */
+const getDocumentForVerification = async (
+  id: string
+): Promise<DocumentForVerification> => {
   try {
-    await apiClient.delete(ENDPOINTS.VERSION_BY_NUMBER(docId, versionNum));
+    const response = await apiClient.get<DocumentForVerification>(
+      ENDPOINTS.DOCUMENT_FOR_VERIFICATION(id)
+    );
+    return DocumentForVerificationSchema.parse(response.data);
   } catch (error) {
-    console.error('[Document API] Delete version failed:', { docId, versionNum, error: extractErrorMessage(error) });
+    console.error('[Document API] Get document for verification failed:', error);
     throw error;
   }
 };
 
-const getVersionStats = async (docId: string): Promise<VersionStatsResponse> => {
+/**
+ * Verify document (approve or reject)
+ */
+const verifyDocument = async (
+  data: VerifyDocumentRequest
+): Promise<VerifyDocumentResponse> => {
   try {
-    const { data } = await apiClient.get<VersionStatsResponse>(ENDPOINTS.VERSION_STATS(docId));
-    return data;
+    const response = await apiClient.post<VerifyDocumentResponse>(
+      ENDPOINTS.VERIFY,
+      data
+    );
+    return VerifyDocumentResponseSchema.parse(response.data);
   } catch (error) {
-    console.error('[Document API] Get version stats failed:', { docId, error: extractErrorMessage(error) });
-    throw error;
-  }
-};
-
-const getVersionStorageUsage = async (docId: string): Promise<number> => {
-  try {
-    const { data } = await apiClient.get<VersionStorageResponse>(ENDPOINTS.VERSION_STORAGE(docId));
-    return data.storageUsageBytes;
-  } catch (error) {
-    console.error('[Document API] Get version storage failed:', { docId, error: extractErrorMessage(error) });
+    console.error('[Document API] Verification failed:', error);
     throw error;
   }
 };
 
 // ============================================================================
-// REACT QUERY HOOKS - DOCUMENTS
+// REACT QUERY HOOKS - USER OPERATIONS
 // ============================================================================
 
-export const useDocuments = (params: Partial<QueryDocumentsInput> = {}) =>
-  useQuery({
-    queryKey: documentKeys.list(params),
-    queryFn: () => queryDocuments(params),
+/**
+ * Hook to get user's documents
+ */
+export const useUserDocuments = (status?: DocumentStatus) => {
+  return useQuery({
+    queryKey: documentKeys.userDocuments(status),
+    queryFn: () => getUserDocuments(status),
   });
+};
 
-export const useSearchDocuments = (params: Partial<SearchDocumentsInput> = {}) =>
-  useQuery({
-    queryKey: documentKeys.list(params),
-    queryFn: () => searchDocuments(params),
-    enabled: !!params.query,
-  });
-
-export const useAccessibleDocuments = (page: number = 1, limit: number = 20) =>
-  useQuery({
-    queryKey: documentKeys.accessible(page, limit),
-    queryFn: () => getAccessibleDocuments(page, limit),
-  });
-
-export const useExpiringDocuments = (withinDays: number = 30) =>
-  useQuery({
-    queryKey: documentKeys.expiring(withinDays),
-    queryFn: () => getExpiringDocuments(withinDays),
-  });
-
-export const useDocument = (id?: string) =>
-  useQuery({
+/**
+ * Hook to get single document
+ */
+export const useDocument = (id?: string) => {
+  return useQuery({
     queryKey: documentKeys.detail(id!),
     queryFn: () => getDocumentById(id!),
     enabled: !!id,
   });
+};
 
-export const useDocumentDownloadUrl = (id?: string) =>
-  useQuery({
-    queryKey: [...documentKeys.detail(id!), 'download-url'],
-    queryFn: () => getDownloadUrl(id!),
+/**
+ * Hook to get document view URL
+ */
+export const useDocumentViewUrl = (id?: string) => {
+  return useQuery({
+    queryKey: documentKeys.viewUrl(id!),
+    queryFn: () => getDocumentViewUrl(id!),
     enabled: !!id,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
+};
 
+/**
+ * Hook to upload document (2-step process)
+ */
 export const useUploadDocument = () => {
   const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: uploadDocument,
-    ...MUTATION_CONFIG,
+    mutationFn: async ({
+      documentName,
+      file,
+      onProgress,
+    }: {
+      documentName: string;
+      file: File;
+      onProgress?: (progress: number) => void;
+    }) => {
+      // Step 1: Initiate upload
+      const { documentId } = await initiateUpload({ documentName });
+
+      // Step 2: Upload file
+      const result = await uploadDocument(documentId, file, onProgress);
+
+      return result;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
       toast.success('Document uploaded successfully');
     },
-    onError: (error) => toast.error('Upload failed', { description: extractErrorMessage(error) }),
-  });
-};
-
-export const useUpdateDocument = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: updateDocument,
-    ...MUTATION_CONFIG,
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: documentKeys.detail(data.id) });
-      toast.success('Document updated successfully');
+    onError: (error) => {
+      toast.error('Upload failed', {
+        description: extractErrorMessage(error),
+      });
     },
-    onError: (error) => toast.error('Update failed', { description: extractErrorMessage(error) }),
   });
 };
 
-export const useUpdateDocumentAccess = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: updateAccess,
-    ...MUTATION_CONFIG,
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: documentKeys.detail(data.documentId) });
-      toast.success('Access permissions updated');
-    },
-    onError: (error) => toast.error('Access update failed', { description: extractErrorMessage(error) }),
-  });
-};
-
+/**
+ * Hook to delete document
+ */
 export const useDeleteDocument = () => {
   const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: softDeleteDocument,
-    ...MUTATION_CONFIG,
+    mutationFn: deleteDocument,
     onSuccess: (_, deletedId) => {
       queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
       queryClient.removeQueries({ queryKey: documentKeys.detail(deletedId) });
-      toast.success('Document moved to trash');
+      toast.success('Document deleted successfully');
     },
-    onError: (error) => toast.error('Delete failed', { description: extractErrorMessage(error) }),
-  });
-};
-
-export const useRestoreDocument = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: restoreDocument,
-    ...MUTATION_CONFIG,
-    onSuccess: (_, restoredId) => {
-      queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: documentKeys.detail(restoredId) });
-      toast.success('Document restored successfully');
+    onError: (error) => {
+      toast.error('Delete failed', {
+        description: extractErrorMessage(error),
+      });
     },
-    onError: (error) => toast.error('Restore failed', { description: extractErrorMessage(error) }),
   });
 };
 
 // ============================================================================
-// REACT QUERY HOOKS - VERSIONS
+// REACT QUERY HOOKS - VERIFIER OPERATIONS
 // ============================================================================
 
-export const useDocumentVersions = (
-  docId: string, 
-  params: Partial<DocumentVersionQuery> = { page: 1, limit: 10 }
-) =>
-  useQuery({
-    queryKey: documentKeys.versionList(docId, params),
-    queryFn: () => getDocumentVersions(docId, params),
-    enabled: !!docId,
+/**
+ * Hook to get pending verification documents
+ */
+export const usePendingDocuments = () => {
+  return useQuery({
+    queryKey: documentKeys.pendingVerification(),
+    queryFn: getPendingDocuments,
   });
+};
 
-export const useLatestVersion = (docId?: string) =>
-  useQuery({
-    queryKey: documentKeys.versionLatest(docId!),
-    queryFn: () => getLatestVersion(docId!),
-    enabled: !!docId,
+/**
+ * Hook to get document for verification
+ */
+export const useDocumentForVerification = (id?: string) => {
+  return useQuery({
+    queryKey: documentKeys.verificationDetail(id!),
+    queryFn: () => getDocumentForVerification(id!),
+    enabled: !!id,
   });
+};
 
-export const useVersionByNumber = (docId?: string, versionNum?: number) =>
-  useQuery({
-    queryKey: documentKeys.versionByNumber(docId!, versionNum!),
-    queryFn: () => getVersionByNumber(docId!, versionNum!),
-    enabled: !!docId && !!versionNum,
-  });
-
-export const useVersionDownloadUrl = (docId?: string, versionNum?: number) =>
-  useQuery({
-    queryKey: [...documentKeys.versionByNumber(docId!, versionNum!), 'download-url'],
-    queryFn: () => getVersionDownloadUrl(docId!, versionNum!),
-    enabled: !!docId && !!versionNum,
-    staleTime: 1000 * 60 * 5,
-  });
-
-export const useVersionStats = (docId?: string) =>
-  useQuery({
-    queryKey: documentKeys.versionStats(docId!),
-    queryFn: () => getVersionStats(docId!),
-    enabled: !!docId,
-  });
-
-export const useVersionStorageUsage = (docId?: string) =>
-  useQuery({
-    queryKey: [...documentKeys.versionStats(docId!), 'storage'],
-    queryFn: () => getVersionStorageUsage(docId!),
-    enabled: !!docId,
-  });
-
-export const useCreateNewVersion = () => {
+/**
+ * Hook to verify document
+ */
+export const useVerifyDocument = () => {
   const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: createNewVersion,
-    ...MUTATION_CONFIG,
+    mutationFn: verifyDocument,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: documentKeys.detail(data.documentId) });
-      queryClient.invalidateQueries({ queryKey: documentKeys.versions(data.documentId) });
-      toast.success(`Version ${data.versionNumber} created successfully`);
+      queryClient.invalidateQueries({ 
+        queryKey: documentKeys.pendingVerification() 
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: documentKeys.detail(data.documentId) 
+      });
+      
+      const message = data.status === 'VERIFIED'
+        ? 'Document verified successfully'
+        : 'Document rejected';
+      
+      toast.success(message);
     },
-    onError: (error) => toast.error('Failed to create version', { description: extractErrorMessage(error) }),
+    onError: (error) => {
+      toast.error('Verification failed', {
+        description: extractErrorMessage(error),
+      });
+    },
   });
 };
 
-export const useDeleteVersion = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ docId, versionNum }: { docId: string; versionNum: number }) =>
-      deleteVersion(docId, versionNum),
-    ...MUTATION_CONFIG,
-    onSuccess: (_, { docId }) => {
-      queryClient.invalidateQueries({ queryKey: documentKeys.detail(docId) });
-      queryClient.invalidateQueries({ queryKey: documentKeys.versions(docId) });
-      toast.success('Version deleted successfully');
-    },
-    onError: (error) => toast.error('Failed to delete version', { description: extractErrorMessage(error) }),
-  });
+// ============================================================================
+// UTILITY EXPORTS
+// ============================================================================
+
+export const documentApi = {
+  // User operations
+  initiateUpload,
+  uploadDocument,
+  getUserDocuments,
+  getDocumentById,
+  getDocumentViewUrl,
+  deleteDocument,
+  
+  // Verifier operations
+  getPendingDocuments,
+  getDocumentForVerification,
+  verifyDocument,
 };
