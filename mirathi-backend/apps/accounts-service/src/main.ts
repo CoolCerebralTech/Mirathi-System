@@ -68,7 +68,7 @@ async function bootstrap() {
   // SWAGGER DOCUMENTATION
   // ============================================================================
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Shamba Sure - Accounts Service')
+    .setTitle('Mirathi - Accounts Service')
     .setDescription('Handles user identity, authentication, and profile management.')
     .setVersion('1.0.0') // Changed to match package.json usually
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
@@ -80,7 +80,7 @@ async function bootstrap() {
 
   // Setup Swagger at root '/docs' since we removed the prefix
   SwaggerModule.setup('docs', app, document, {
-    customSiteTitle: 'Shamba Sure Accounts API',
+    customSiteTitle: 'Mirathi Accounts API',
     swaggerOptions: {
       persistAuthorization: true,
       filter: true,
@@ -101,7 +101,7 @@ async function bootstrap() {
   // STARTUP LOGS
   // ============================================================================
   logger.log('='.repeat(70));
-  logger.log('🚀 Shamba Sure - Accounts Service (Ready for Gateway)');
+  logger.log('🚀 Mirathi - Accounts Service (Ready for Gateway)');
   logger.log('='.repeat(70));
   logger.log(`📍 Service URL:     http://localhost:${port}`);
   logger.log(`📚 API Docs:        http://localhost:${port}/docs`);

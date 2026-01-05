@@ -105,8 +105,8 @@ async function bootstrap() {
 
   // 9. Swagger Docs
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Shamba Sure - API Gateway')
-    .setDescription('Unified API entry point for the Shamba Sure platform.')
+    .setTitle('Mirathi - API Gateway')
+    .setDescription('Unified API entry point for the Mirathi platform.')
     .setVersion('1.0')
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
     .addTag('Health', 'Health checks')

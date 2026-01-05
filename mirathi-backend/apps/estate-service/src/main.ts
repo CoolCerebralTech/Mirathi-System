@@ -72,16 +72,14 @@ async function bootstrap() {
   // SWAGGER DOCUMENTATION
   // ============================================================================
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Shamba Sure - Estate & Will Service')
-    .setDescription(
-      'Manages Testamentary Instruments (Wills), Estate Inventory, Debt Solvency (S.45), and Distribution Logic.',
-    )
-    .setVersion('1.0.0')
-    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
-    .addTag('Wills (Commands)', 'Drafting, Execution & Revocation')
-    .addTag('Wills (Queries)', 'Audit, Compliance Radar & Search')
-    .addTag('Estate Assets', 'Inventory Management')
-    .addTag('Estate Debts', 'S.45 Priority Management')
+    .setTitle('Mirathi Estate Service API')
+    .setDescription('Estate management and will creation service for Kenyan succession')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .addTag('Estate', 'Estate management endpoints')
+    .addTag('Assets', 'Asset management endpoints')
+    .addTag('Debts', 'Debt tracking endpoints')
+    .addTag('Will', 'Will creation and management endpoints')
     .addServer(
       `http://localhost:${configService.get('ESTATE_SERVICE_PORT', 3004)}`,
       'Local Development',
@@ -91,7 +89,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
 
   SwaggerModule.setup('docs', app, document, {
-    customSiteTitle: 'Shamba Sure Estate API',
+    customSiteTitle: 'Mirathi Estate API',
     swaggerOptions: {
       persistAuthorization: true,
       filter: true,
@@ -112,7 +110,7 @@ async function bootstrap() {
   // LOGS
   // ============================================================================
   logger.log('='.repeat(70));
-  logger.log('🚀 Shamba Sure - Estate & Will Service');
+  logger.log('🚀 Mirathi - Estate & Will Service');
   logger.log('='.repeat(70));
   logger.log(`📍 Service URL:     http://localhost:${port}`);
   logger.log(`📚 API Docs:        http://localhost:${port}/docs`);
