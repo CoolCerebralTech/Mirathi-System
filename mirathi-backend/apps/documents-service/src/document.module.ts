@@ -5,7 +5,6 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from '@shamba/auth';
 import { ConfigModule } from '@shamba/config';
 import { DatabaseModule } from '@shamba/database';
-// FIX 1: Import MessagingService (the actual class you have)
 import { MessagingModule, MessagingService } from '@shamba/messaging';
 import { ObservabilityModule } from '@shamba/observability';
 
