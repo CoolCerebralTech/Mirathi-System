@@ -44,127 +44,43 @@ CREATE TYPE "BequestType" AS ENUM ('SPECIFIC_ASSET', 'PERCENTAGE', 'CASH_AMOUNT'
 CREATE TYPE "WitnessStatus" AS ENUM ('PENDING', 'SIGNED', 'DECLINED');
 
 -- CreateEnum
-CREATE TYPE "RoadmapPhase" AS ENUM ('PRE_FILING', 'FILING', 'CONFIRMATION', 'DISTRIBUTION', 'CLOSURE');
+CREATE TYPE "SuccessionRegime" AS ENUM ('TESTATE', 'INTESTATE', 'PARTIALLY_INTESTATE');
 
 -- CreateEnum
-CREATE TYPE "TaskStatus" AS ENUM ('LOCKED', 'PENDING', 'IN_PROGRESS', 'COMPLETED', 'SKIPPED', 'WAIVED', 'BLOCKED', 'FAILED');
+CREATE TYPE "SuccessionReligion" AS ENUM ('STATUTORY', 'ISLAMIC', 'HINDU', 'CUSTOMARY');
 
 -- CreateEnum
-CREATE TYPE "ProbateApplicationType" AS ENUM ('GRANT_OF_PROBATE', 'LETTERS_OF_ADMINISTRATION', 'LETTERS_OF_ADMIN_WILL_ANNEXED', 'SUMMARY_ADMINISTRATION', 'LIMITED_GRANT_AD_LITEM', 'LIMITED_GRANT_COLLECTION', 'ISLAMIC_GRANT', 'CUSTOMARY_GRANT');
+CREATE TYPE "MarriageType" AS ENUM ('MONOGAMOUS', 'POLYGAMOUS', 'COHABITATION', 'SINGLE');
 
 -- CreateEnum
-CREATE TYPE "CourtJurisdiction" AS ENUM ('HIGH_COURT', 'MAGISTRATE_COURT', 'KADHIS_COURT', 'CUSTOMARY_COURT', 'FAMILY_DIVISION', 'COMMERCIAL_COURT');
+CREATE TYPE "CourtJurisdiction" AS ENUM ('HIGH_COURT', 'MAGISTRATE_COURT', 'KADHIS_COURT', 'CUSTOMARY_COURT');
 
 -- CreateEnum
-CREATE TYPE "CasePriority" AS ENUM ('URGENT', 'HIGH', 'NORMAL', 'LOW');
+CREATE TYPE "ReadinessStatus" AS ENUM ('NOT_STARTED', 'IN_PROGRESS', 'READY', 'COMPLETE');
 
 -- CreateEnum
-CREATE TYPE "FilingConfidence" AS ENUM ('HIGH', 'MEDIUM', 'LOW', 'VERY_LOW', 'BLOCKED');
+CREATE TYPE "RiskSeverity" AS ENUM ('INFO', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL');
 
 -- CreateEnum
-CREATE TYPE "RoadmapStatus" AS ENUM ('DRAFT', 'ACTIVE', 'PAUSED', 'BLOCKED', 'COMPLETED', 'ABANDONED', 'ESCALATED');
+CREATE TYPE "RiskCategory" AS ENUM ('MISSING_DOCUMENT', 'INVALID_DOCUMENT', 'MINOR_WITHOUT_GUARDIAN', 'MISSING_VALUATION', 'JURISDICTION_ISSUE', 'TAX_CLEARANCE', 'FAMILY_DISPUTE', 'WITNESS_ISSUE', 'EXECUTOR_ISSUE', 'OTHER');
 
 -- CreateEnum
-CREATE TYPE "TaskPriority" AS ENUM ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW');
+CREATE TYPE "RoadmapPhase" AS ENUM ('PRE_FILING', 'FILING', 'COURT_PROCESS', 'GRANT_ISSUANCE', 'DISTRIBUTION');
 
 -- CreateEnum
-CREATE TYPE "TaskTrigger" AS ENUM ('MANUAL', 'AUTOMATIC', 'EVENT_DRIVEN', 'SCHEDULED', 'READINESS_BASED');
+CREATE TYPE "TaskStatus" AS ENUM ('LOCKED', 'AVAILABLE', 'IN_PROGRESS', 'COMPLETED', 'SKIPPED');
 
 -- CreateEnum
-CREATE TYPE "ProofType" AS ENUM ('DOCUMENT_UPLOAD', 'DIGITAL_SIGNATURE', 'SMS_VERIFICATION', 'EMAIL_VERIFICATION', 'COURT_RECEIPT', 'BANK_SLIP', 'WITNESS_SIGNATURE', 'AFFIDAVIT');
+CREATE TYPE "TaskCategory" AS ENUM ('IDENTITY_VERIFICATION', 'ASSET_DISCOVERY', 'DEBT_SETTLEMENT', 'DOCUMENT_COLLECTION', 'VALUATION', 'LEGAL_REQUIREMENT', 'COURT_FILING', 'FAMILY_CONSENT', 'GUARDIANSHIP', 'TAX_COMPLIANCE');
 
 -- CreateEnum
-CREATE TYPE "TaskCategory" AS ENUM ('IDENTITY_VERIFICATION', 'FAMILY_STRUCTURE', 'GUARDIANSHIP', 'ASSET_DISCOVERY', 'DEBT_SETTLEMENT', 'DOCUMENT_COLLECTION', 'DOCUMENT_VALIDATION', 'CUSTOMARY_DOCUMENTS', 'FORM_GENERATION', 'FORM_REVIEW', 'SIGNATURE_COLLECTION', 'COURT_SELECTION', 'FEE_PAYMENT', 'LODGEMENT', 'GAZETTE_PUBLICATION', 'COURT_ATTENDANCE', 'GRANT_ISSUANCE', 'GRANT_CONFIRMATION', 'ASSET_TRANSFER', 'DEBT_PAYMENT', 'TAX_CLEARANCE', 'FINAL_ACCOUNTS', 'ESTATE_CLOSURE', 'BENEFICIARY_NOTIFICATION', 'WILL_SPECIFIC', 'ISLAMIC_SPECIFIC', 'POLYGAMOUS_SPECIFIC', 'MINOR_SPECIFIC', 'DISPUTE_RESOLUTION');
-
--- CreateEnum
-CREATE TYPE "RiskSourceType" AS ENUM ('FAMILY_SERVICE', 'GUARDIANSHIP_SERVICE', 'MARRIAGE_SERVICE', 'ESTATE_SERVICE', 'WILL_SERVICE', 'ASSET_SERVICE', 'DEBT_SERVICE', 'COMPLIANCE_ENGINE', 'READINESS_ASSESSMENT', 'FORM_STRATEGY', 'DOCUMENT_SERVICE', 'KRA_SERVICE', 'LANDS_REGISTRY', 'NTSA_SERVICE', 'USER_INPUT', 'SYSTEM_VALIDATION', 'THIRD_PARTY_API');
-
--- CreateEnum
-CREATE TYPE "DetectionMethod" AS ENUM ('RULE_ENGINE', 'API_VALIDATION', 'MANUAL_REVIEW', 'SYSTEM_SCAN', 'EVENT_DRIVEN', 'CROSS_CONTEXT_CHECK', 'LEGAL_ANALYSIS', 'DATA_INTEGRITY_CHECK');
-
--- CreateEnum
-CREATE TYPE "ResolutionTrigger" AS ENUM ('EVENT_BASED', 'MANUAL_ACTION', 'SYSTEM_AUTO', 'COURT_ORDER', 'TIME_BASED');
-
--- CreateEnum
-CREATE TYPE "KenyanFormType" AS ENUM ('PA1_PETITION', 'PA5_PETITION_SUMMARY', 'PA80_PETITION_INTESTATE', 'PA81_PETITION_ADMINISTRATION', 'ISLAMIC_PETITION', 'PA12_AFFIDAVIT_MEANS', 'AFFIDAVIT_DUE_EXECUTION', 'AFFIDAVIT_OF_SEARCH', 'AFFIDAVIT_OF_IDENTIFICATION', 'AFFIDAVIT_SUPPORTING_POLYGAMY', 'ISLAMIC_AFFIDAVIT', 'PA38_CONSENT', 'PA57_GUARANTEE', 'ISLAMIC_CONSENT', 'CONSENT_MINOR', 'CONSENT_CREDITOR', 'CHIEFS_LETTER_TEMPLATE', 'ELDERS_AFFIDAVIT', 'GRANT_OF_PROBATE', 'GRANT_LETTERS_ADMINISTRATION', 'CONFIRMATION_GRANT');
-
--- CreateEnum
-CREATE TYPE "ApplicationStatus" AS ENUM ('DRAFT', 'PENDING_FORMS', 'UNDER_REVIEW', 'PENDING_SIGNATURES', 'PENDING_CONSENTS', 'PENDING_FEE', 'READY_TO_FILE', 'FILED', 'COURT_REVIEW', 'GAZETTE_PUBLISHED', 'GRANTED', 'REJECTED', 'AMENDMENT_REQUIRED', 'WITHDRAWN', 'ABANDONED');
-
--- CreateEnum
-CREATE TYPE "FilingPriority" AS ENUM ('URGENT', 'HIGH', 'NORMAL', 'LOW');
-
--- CreateEnum
-CREATE TYPE "FormStatus" AS ENUM ('PENDING_GENERATION', 'GENERATED', 'UNDER_REVIEW', 'APPROVED', 'SIGNATURE_PENDING', 'SIGNED', 'FILED', 'COURT_ACCEPTED', 'COURT_REJECTED', 'AMENDED', 'SUPERSEDED', 'ARCHIVED');
-
--- CreateEnum
-CREATE TYPE "FormCategory" AS ENUM ('PRIMARY_PETITION', 'SUPPORTING_AFFIDAVIT', 'CONSENT', 'GUARANTEE', 'NOTICE', 'SCHEDULE', 'COURT_ORDER', 'CUSTOMARY', 'ISLAMIC', 'DISTRIBUTION');
-
--- CreateEnum
-CREATE TYPE "StorageProvider" AS ENUM ('AWS_S3', 'AZURE_BLOB', 'GOOGLE_CLOUD_STORAGE', 'LOCAL_FILE_SYSTEM', 'COURT_E_FILING');
-
--- CreateEnum
-CREATE TYPE "FileFormat" AS ENUM ('PDF', 'DOCX', 'XML', 'HTML', 'JSON');
-
--- CreateEnum
-CREATE TYPE "ConsentStatus" AS ENUM ('PENDING', 'GRANTED', 'DECLINED', 'NOT_REQUIRED', 'EXPIRED', 'WITHDRAWN');
-
--- CreateEnum
-CREATE TYPE "RiskCategory" AS ENUM ('MISSING_DOCUMENT', 'INVALID_DOCUMENT', 'EXPIRED_DOCUMENT', 'FORGED_DOCUMENT', 'MINOR_WITHOUT_GUARDIAN', 'UNDEFINED_POLYGAMOUS_STRUCTURE', 'DISPUTED_RELATIONSHIP', 'COHABITATION_CLAIM', 'ILLEGITIMATE_CHILD_CLAIM', 'ASSET_VERIFICATION_FAILED', 'INSOLVENT_ESTATE', 'MISSING_ASSET_VALUATION', 'ENCUMBERED_ASSET', 'FRAUDULENT_ASSET_TRANSFER', 'INVALID_WILL_SIGNATURE', 'MINOR_EXECUTOR', 'BENEFICIARY_AS_WITNESS', 'CONTESTED_WILL', 'UNDUE_INFLUENCE', 'WRONG_COURT', 'NON_RESIDENT_APPLICANT', 'FORUM_NON_CONVENIENS', 'TAX_CLEARANCE_MISSING', 'KRA_PIN_MISSING', 'CAPITAL_GAINS_TAX_UNPAID', 'STATUTE_BARRED_DEBT', 'DELAYED_FILING', 'FAMILY_DISPUTE', 'CRIMINAL_INVESTIGATION', 'BANKRUPTCY_PENDING', 'DATA_INCONSISTENCY', 'EXTERNAL_API_FAILURE');
-
--- CreateEnum
-CREATE TYPE "RiskStatus" AS ENUM ('ACTIVE', 'RESOLVED', 'SUPERSEDED', 'EXPIRED', 'DISPUTED');
-
--- CreateEnum
-CREATE TYPE "ConsentMethod" AS ENUM ('SMS_OTP', 'EMAIL_LINK', 'DIGITAL_SIGNATURE', 'WET_SIGNATURE', 'BIOMETRIC', 'WITNESS_MARK', 'IN_PERSON');
-
--- CreateEnum
-CREATE TYPE "FamilyRole" AS ENUM ('SURVIVING_SPOUSE', 'ADULT_CHILD', 'MINOR_CHILD', 'GUARDIAN_OF_MINOR', 'BENEFICIARY', 'EXECUTOR', 'ADMINISTRATOR', 'PARENT', 'SIBLING', 'OTHER_RELATIVE');
-
--- CreateEnum
-CREATE TYPE "ResolutionMethod" AS ENUM ('EVENT_DRIVEN', 'MANUAL_RESOLUTION', 'SYSTEM_AUTO_RESOLVE', 'COURT_ORDER', 'TIME_BASED', 'ADMIN_OVERRIDE');
-
--- CreateEnum
-CREATE TYPE "SuccessionRegime" AS ENUM ('TESTATE', 'INTESTATE', 'PARTIALLY_INTESTATE', 'CUSTOMARY');
-
--- CreateEnum
-CREATE TYPE "SuccessionMarriageType" AS ENUM ('MONOGAMOUS', 'POLYGAMOUS', 'COHABITATION', 'SINGLE');
-
--- CreateEnum
-CREATE TYPE "SuccessionReligion" AS ENUM ('STATUTORY', 'ISLAMIC', 'HINDU', 'AFRICAN_CUSTOMARY', 'CHRISTIAN');
-
--- CreateEnum
-CREATE TYPE "RiskSeverity" AS ENUM ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW');
-
--- CreateEnum
-CREATE TYPE "RiskSource" AS ENUM ('FAMILY_SERVICE', 'ESTATE_SERVICE', 'WILL_SERVICE', 'DOCUMENT_SERVICE', 'EXTERNAL_REGISTRY');
-
--- CreateEnum
-CREATE TYPE "ReadinessStatus" AS ENUM ('IN_PROGRESS', 'READY_TO_FILE', 'BLOCKED');
+CREATE TYPE "KenyanFormType" AS ENUM ('PA1_PROBATE', 'PA80_INTESTATE', 'PA5_SUMMARY', 'PA12_AFFIDAVIT_MEANS', 'PA38_FAMILY_CONSENT', 'CHIEFS_LETTER', 'ISLAMIC_PETITION');
 
 -- CreateEnum
 CREATE TYPE "RelationshipType" AS ENUM ('SELF', 'FATHER', 'MOTHER', 'SPOUSE', 'CHILD', 'ADOPTED_CHILD', 'SIBLING', 'HALF_SIBLING');
 
 -- CreateEnum
-CREATE TYPE "RelationshipGuardianshipType" AS ENUM ('TEMPORARY', 'PERMANENT', 'TESTAMENTARY', 'CUSTOMARY');
-
--- CreateEnum
-CREATE TYPE "MarriageType" AS ENUM ('CIVIL', 'CHRISTIAN', 'CUSTOMARY', 'ISLAMIC', 'HINDU', 'OTHER');
-
--- CreateEnum
 CREATE TYPE "MarriageStatus" AS ENUM ('ACTIVE', 'DIVORCED', 'ANNULLED', 'WIDOWED');
-
--- CreateEnum
-CREATE TYPE "KenyanRelationshipCategory" AS ENUM ('SPOUSE', 'CHILDREN', 'PARENTS', 'SIBLINGS', 'EXTENDED_FAMILY', 'NON_FAMILY');
-
--- CreateEnum
-CREATE TYPE "DependencyLevel" AS ENUM ('NONE', 'PARTIAL', 'FULL');
-
--- CreateEnum
-CREATE TYPE "KenyanLawSection" AS ENUM ('S26_DEPENDANT_PROVISION', 'S29_DEPENDANTS', 'S35_SPOUSAL_CHILDS_SHARE', 'S40_POLY_GAMY', 'S45_DEBT_PRIORITY', 'S70_TESTAMENTARY_GUARDIAN', 'S71_COURT_GUARDIAN', 'S72_GUARDIAN_BOND', 'S73_GUARDIAN_ACCOUNTS', 'S83_EXECUTOR_DUTIES');
-
--- CreateEnum
-CREATE TYPE "GuardianReportStatus" AS ENUM ('PENDING', 'DUE', 'SUBMITTED', 'APPROVED', 'OVERDUE', 'REJECTED');
 
 -- CreateEnum
 CREATE TYPE "GuardianshipStatus" AS ENUM ('DRAFT', 'PENDING_REVIEW', 'ELIGIBLE', 'CONDITIONAL', 'INELIGIBLE', 'ACTIVE', 'SUSPENDED', 'TERMINATED');
@@ -173,184 +89,7 @@ CREATE TYPE "GuardianshipStatus" AS ENUM ('DRAFT', 'PENDING_REVIEW', 'ELIGIBLE',
 CREATE TYPE "VerificationStatus" AS ENUM ('UNVERIFIED', 'PENDING', 'VERIFIED', 'DISPUTED', 'REJECTED');
 
 -- CreateEnum
-CREATE TYPE "BondStatus" AS ENUM ('NOT_REQUIRED', 'REQUIRED_PENDING', 'POSTED', 'FORFEITED');
-
--- CreateEnum
-CREATE TYPE "GuardianRole" AS ENUM ('CARETAKER', 'PROPERTY_MANAGER', 'EDUCATIONAL_GUARDIAN', 'MEDICAL_CONSENT', 'LEGAL_REPRESENTATIVE', 'EMERGENCY', 'CUSTOMARY');
-
--- CreateEnum
-CREATE TYPE "GuardianAssignmentStatus" AS ENUM ('PENDING', 'ACTIVE', 'SUSPENDED', 'TERMINATED', 'REVOKED', 'DECEASED', 'RESIGNED');
-
--- CreateEnum
-CREATE TYPE "GuardianshipJurisdiction" AS ENUM ('STATUTORY', 'ISLAMIC', 'CUSTOMARY', 'INTERNATIONAL');
-
--- CreateEnum
-CREATE TYPE "CompliancePeriod" AS ENUM ('QUARTER_1', 'QUARTER_2', 'QUARTER_3', 'QUARTER_4', 'ANNUAL', 'BIANNUAL', 'SPECIAL');
-
--- CreateEnum
-CREATE TYPE "ComplianceCheckStatus" AS ENUM ('DRAFT', 'PENDING_SUBMISSION', 'SUBMITTED', 'UNDER_REVIEW', 'ACCEPTED', 'REJECTED', 'AMENDMENT_REQUESTED', 'OVERDUE', 'EXTENSION_GRANTED', 'WAIVED');
-
--- CreateEnum
-CREATE TYPE "ValidationStatus" AS ENUM ('PENDING', 'IN_PROGRESS', 'PASSED', 'FAILED', 'EXCEPTION');
-
--- CreateEnum
-CREATE TYPE "ReportType" AS ENUM ('ANNUAL_WELFARE', 'QUARTERLY_FINANCIAL', 'MEDICAL_UPDATE', 'EDUCATIONAL_PROGRESS', 'PROPERTY_MANAGEMENT', 'COURT_MANDATED', 'EMERGENCY_REPORT', 'CLOSING_REPORT');
-
--- CreateEnum
-CREATE TYPE "GuardianAppointmentSource" AS ENUM ('WILL', 'COURT', 'FAMILY_AGREEMENT', 'CUSTOMARY_COUNCIL', 'EMERGENCY', 'MUTUAL');
-
--- CreateEnum
-CREATE TYPE "GuardianshipTerminationReason" AS ENUM ('WARD_REACHED_MAJORITY', 'WARD_DECEASED', 'GUARDIAN_DECEASED', 'GUARDIAN_INCAPACITATED', 'COURT_REMOVAL', 'VOLUNTARY_RESIGNATION', 'WARD_REGAINED_CAPACITY', 'ADOPTION_FINALIZED', 'CUSTOMARY_TRANSFER');
-
--- CreateEnum
-CREATE TYPE "AdoptionType" AS ENUM ('STATUTORY', 'CUSTOMARY', 'INTERNATIONAL', 'KINSHIP', 'FOSTER_TO_ADOPT', 'STEP_PARENT', 'RELATIVE');
-
--- CreateEnum
-CREATE TYPE "AdoptionStatus" AS ENUM ('PENDING', 'IN_PROGRESS', 'FINALIZED', 'REVOKED', 'ANNULED', 'APPEALED');
-
--- CreateEnum
-CREATE TYPE "CohabitationType" AS ENUM ('COME_WE_STAY', 'LONG_TERM_PARTNERSHIP', 'DATING', 'ENGAGED');
-
--- CreateEnum
-CREATE TYPE "ParentalConsentStatus" AS ENUM ('CONSENTED', 'WITHHELD', 'UNKNOWN', 'DECEASED', 'TERMINATED');
-
--- CreateEnum
-CREATE TYPE "CohabitationStability" AS ENUM ('STABLE', 'VOLATILE', 'ON_OFF', 'UNKNOWN');
-
--- CreateEnum
-CREATE TYPE "RelationshipVerificationLevel" AS ENUM ('UNVERIFIED', 'PARTIALLY_VERIFIED', 'FULLY_VERIFIED', 'DISPUTED');
-
--- CreateEnum
-CREATE TYPE "ConflictResolutionStatus" AS ENUM ('RESOLVED', 'PENDING', 'MEDIATION', 'COURT');
-
--- CreateEnum
-CREATE TYPE "HouseEstablishmentType" AS ENUM ('CUSTOMARY', 'ISLAMIC', 'TRADITIONAL', 'COURT_RECOGNIZED');
-
--- CreateEnum
-CREATE TYPE "HouseDissolutionReason" AS ENUM ('WIFE_DECEASED', 'WIFE_DIVORCED', 'HOUSE_MERGED', 'COURT_ORDER');
-
--- CreateEnum
-CREATE TYPE "RelationshipVerificationMethod" AS ENUM ('DNA', 'DOCUMENT', 'FAMILY_CONSENSUS', 'COURT_ORDER', 'TRADITIONAL');
-
--- CreateEnum
-CREATE TYPE "InheritanceRightLevel" AS ENUM ('FULL', 'LIMITED', 'NONE', 'DISPUTED');
-
--- CreateEnum
-CREATE TYPE "RelationshipSupportType" AS ENUM ('FINANCIAL', 'HOUSING', 'MEDICAL', 'EDUCATIONAL', 'FULL_CARE');
-
--- CreateEnum
-CREATE TYPE "GuardianType" AS ENUM ('TESTAMENTARY', 'COURT_APPOINTED', 'CUSTOMARY', 'NATURAL_PARENT');
-
--- CreateEnum
-CREATE TYPE "InheritanceRights" AS ENUM ('FULL', 'PARTIAL', 'CUSTOMARY', 'NONE', 'PENDING');
-
--- CreateEnum
-CREATE TYPE "ComplianceStatus" AS ENUM ('PENDING', 'FILED', 'OVERDUE', 'REJECTED');
-
--- CreateEnum
-CREATE TYPE "EstateStatus" AS ENUM ('SETUP', 'ACTIVE', 'FROZEN', 'LIQUIDATING', 'READY_FOR_DISTRIBUTION', 'DISTRIBUTING', 'CLOSED');
-
--- CreateEnum
-CREATE TYPE "LiquidationType" AS ENUM ('PRIVATE_TREATY', 'PUBLIC_AUCTION', 'SALE_TO_BENEFICIARY', 'BUYBACK', 'MARKET_SALE');
-
--- CreateEnum
-CREATE TYPE "LiquidationStatus" AS ENUM ('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'LISTED_FOR_SALE', 'AUCTION_SCHEDULED', 'AUCTION_IN_PROGRESS', 'SALE_PENDING', 'SALE_COMPLETED', 'PROCEEDS_RECEIVED', 'DISTRIBUTED', 'CLOSED', 'CANCELLED', 'FAILED', 'EXPIRED');
-
--- CreateEnum
-CREATE TYPE "TaxStatus" AS ENUM ('PENDING', 'ASSESSED', 'PARTIALLY_PAID', 'CLEARED', 'EXEMPT', 'DISPUTED');
-
--- CreateEnum
-CREATE TYPE "CoOwnershipType" AS ENUM ('JOINT_TENANCY', 'TENANCY_IN_COMMON');
-
--- CreateEnum
-CREATE TYPE "ValuationSource" AS ENUM ('MARKET_ESTIMATE', 'REGISTERED_VALUER', 'GOVERNMENT_VALUER', 'CHARTERED_SURVEYOR', 'INSURANCE_VALUATION', 'AGREEMENT_BY_HEIRS', 'COURT_DETERMINATION');
-
--- CreateEnum
-CREATE TYPE "WillType" AS ENUM ('STANDARD', 'JOINT_WILL', 'MUTUAL_WILL', 'HOLOGRAPHIC', 'INTERNATIONAL', 'TESTAMENTARY_TRUST_WILL');
-
--- CreateEnum
-CREATE TYPE "RevocationMethod" AS ENUM ('NEW_WILL', 'CODICIL', 'DESTRUCTION', 'COURT_ORDER', 'MARRIAGE', 'DIVORCE', 'OTHER');
-
--- CreateEnum
-CREATE TYPE "ExecutorType" AS ENUM ('USER', 'FAMILY_MEMBER', 'EXTERNAL');
-
--- CreateEnum
-CREATE TYPE "AppointmentType" AS ENUM ('TESTAMENTARY', 'SPECIAL_EXECUTOR');
-
--- CreateEnum
-CREATE TYPE "VerificationMethod" AS ENUM ('NATIONAL_ID', 'PASSPORT', 'DRIVERS_LICENSE', 'BIRTH_CERTIFICATE', 'ALIEN_CARD', 'MILITARY_ID', 'OTHER');
-
--- CreateEnum
-CREATE TYPE "CodicilAmendmentType" AS ENUM ('ADDITION', 'MODIFICATION', 'REVOCATION');
-
--- CreateEnum
-CREATE TYPE "DisinheritanceReasonCategory" AS ENUM ('ESTRANGEMENT', 'PROVIDED_FOR_DURING_LIFE', 'MORAL_UNWORTHINESS', 'CONFLICT_OF_INTEREST', 'FINANCIAL_INDEPENDENCE', 'OTHER_DISPOSITION', 'TESTATOR_DISCRETION');
-
--- CreateEnum
-CREATE TYPE "DisinheritanceEvidenceType" AS ENUM ('AFFIDAVIT', 'WILL_CLARIFICATION', 'PRIOR_GIFT_DOCUMENTATION', 'FAMILY_AGREEMENT', 'COURT_ORDER', 'MEDICAL_REPORT', 'OTHER');
-
--- CreateEnum
-CREATE TYPE "WillStorageLocation" AS ENUM ('SAFE_DEPOSIT_BOX', 'LAWYER_OFFICE', 'HOME_SAFE', 'DIGITAL_VAULT', 'COURT_REGISTRY', 'WITH_EXECUTOR', 'OTHER');
-
--- CreateEnum
-CREATE TYPE "LegalCapacityStatus" AS ENUM ('ASSESSED_COMPETENT', 'ASSESSED_INCOMPETENT', 'PENDING_ASSESSMENT', 'MEDICAL_CERTIFICATION', 'COURT_DETERMINATION', 'SELF_DECLARATION');
-
--- CreateEnum
-CREATE TYPE "WitnessType" AS ENUM ('REGISTERED_USER', 'EXTERNAL_INDIVIDUAL', 'PROFESSIONAL_WITNESS', 'COURT_OFFICER', 'NOTARY_PUBLIC');
-
--- CreateEnum
-CREATE TYPE "WitnessEligibilityStatus" AS ENUM ('ELIGIBLE', 'INELIGIBLE_MINOR', 'INELIGIBLE_BENEFICIARY', 'INELIGIBLE_SPOUSE', 'INELIGIBLE_EXECUTOR', 'INELIGIBLE_RELATIONSHIP', 'INELIGIBLE_MENTAL_CAPACITY', 'INELIGIBLE_CRIMINAL_RECORD', 'PENDING_ELIGIBILITY_CHECK');
-
--- CreateEnum
-CREATE TYPE "SignatureType" AS ENUM ('DIGITAL_SIGNATURE', 'WET_SIGNATURE', 'E_SIGNATURE', 'BIOMETRIC_SIGNATURE', 'WITNESS_MARK');
-
--- CreateEnum
-CREATE TYPE "AssetType" AS ENUM ('LAND_PARCEL', 'PROPERTY', 'FINANCIAL_ASSET', 'DIGITAL_ASSET', 'BUSINESS_INTEREST', 'VEHICLE', 'INTELLECTUAL_PROPERTY', 'LIVESTOCK', 'PERSONAL_EFFECTS', 'OTHER');
-
--- CreateEnum
-CREATE TYPE "AssetOwnershipType" AS ENUM ('SOLE', 'JOINT_TENANCY', 'TENANCY_IN_COMMON', 'COMMUNITY_PROPERTY');
-
--- CreateEnum
-CREATE TYPE "AssetVerificationStatus" AS ENUM ('UNVERIFIED', 'PENDING_VERIFICATION', 'VERIFIED', 'REJECTED', 'DISPUTED');
-
--- CreateEnum
-CREATE TYPE "AssetEncumbranceType" AS ENUM ('MORTGAGE', 'CHARGE', 'LIEN', 'COURT_ORDER', 'FAMILY_CLAIM', 'OTHER');
-
--- CreateEnum
-CREATE TYPE "BequestConditionType" AS ENUM ('AGE_REQUIREMENT', 'SURVIVAL', 'EDUCATION', 'MARRIAGE', 'ALTERNATE', 'NONE');
-
--- CreateEnum
-CREATE TYPE "BequestPriority" AS ENUM ('PRIMARY', 'ALTERNATE', 'CONTINGENT');
-
--- CreateEnum
-CREATE TYPE "DebtType" AS ENUM ('MORTGAGE', 'PERSONAL_LOAN', 'CREDIT_CARD', 'BUSINESS_DEBT', 'TAX_OBLIGATION', 'FUNERAL_EXPENSE', 'MEDICAL_BILL', 'OTHER');
-
--- CreateEnum
-CREATE TYPE "ExecutorAppointmentType" AS ENUM ('TESTAMENTARY', 'COURT_APPOINTED', 'ADMINISTRATOR', 'SPECIAL_EXECUTOR');
-
--- CreateEnum
-CREATE TYPE "GiftStatus" AS ENUM ('CONFIRMED', 'CONTESTED', 'EXCLUDED', 'RECLASSIFIED_AS_LOAN', 'VOID');
-
--- CreateEnum
-CREATE TYPE "DependantRelationship" AS ENUM ('SPOUSE', 'CHILD', 'ADOPTED_CHILD', 'STEP_CHILD', 'PARENT', 'SIBLING', 'GRANDCHILD', 'NIECE_NEPHEW', 'OTHER');
-
--- CreateEnum
-CREATE TYPE "DependantStatus" AS ENUM ('DRAFT', 'PENDING_VERIFICATION', 'VERIFIED', 'REJECTED', 'APPEALED', 'SETTLED', 'DISPUTED');
-
--- CreateEnum
-CREATE TYPE "EvidenceType" AS ENUM ('MARRIAGE_CERTIFICATE', 'BIRTH_CERTIFICATE', 'AFFIDAVIT', 'COURT_ORDER', 'MEDICAL_REPORT', 'OTHER');
-
--- CreateEnum
-CREATE TYPE "RiskLevel" AS ENUM ('LOW', 'MEDIUM', 'HIGH');
-
--- CreateEnum
 CREATE TYPE "KenyanCounty" AS ENUM ('BARINGO', 'BOMET', 'BUNGOMA', 'BUSIA', 'ELGEYO_MARAKWET', 'EMBU', 'GARISSA', 'HOMA_BAY', 'ISIOLO', 'KAJIADO', 'KAKAMEGA', 'KERICHO', 'KIAMBU', 'KILIFI', 'KIRINYAGA', 'KISII', 'KISUMU', 'KITUI', 'KWALE', 'LAIKIPIA', 'LAMU', 'MACHAKOS', 'MAKUENI', 'MANDERA', 'MARSABIT', 'MERU', 'MIGORI', 'MOMBASA', 'MURANGA', 'NAIROBI', 'NAKURU', 'NANDI', 'NAROK', 'NYAMIRA', 'NYANDARUA', 'NYERI', 'SAMBURU', 'SIAYA', 'TAITA_TAVETA', 'TANA_RIVER', 'THARAKA_NITHI', 'TRANS_NZOIA', 'TURKANA', 'UASIN_GISHU', 'VIHIGA', 'WAJIR', 'WEST_POKOT');
-
--- CreateEnum
-CREATE TYPE "NotificationChannel" AS ENUM ('EMAIL', 'SMS');
-
--- CreateEnum
-CREATE TYPE "NotificationStatus" AS ENUM ('PENDING', 'SENT', 'FAILED');
 
 -- CreateTable
 CREATE TABLE "users" (
@@ -851,34 +590,32 @@ CREATE TABLE "witnesses" (
 -- CreateTable
 CREATE TABLE "readiness_assessments" (
     "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
     "estateId" UUID NOT NULL,
     "familyId" UUID,
-    "contextRegime" "SuccessionRegime" NOT NULL,
-    "contextMarriage" "SuccessionMarriageType" NOT NULL,
-    "contextReligion" "SuccessionReligion" NOT NULL,
-    "isMinorInvolved" BOOLEAN NOT NULL DEFAULT false,
-    "hasDisputedAssets" BOOLEAN NOT NULL DEFAULT false,
-    "isBusinessAssetsInvolved" BOOLEAN NOT NULL DEFAULT false,
-    "isForeignAssetsInvolved" BOOLEAN NOT NULL DEFAULT false,
-    "isEstateInsolvent" BOOLEAN NOT NULL DEFAULT false,
-    "hasDependantsWithDisabilities" BOOLEAN NOT NULL DEFAULT false,
-    "targetCourtJurisdiction" "CourtJurisdiction" NOT NULL,
-    "estimatedComplexityScore" INTEGER NOT NULL DEFAULT 1,
-    "readinessScore" INTEGER NOT NULL DEFAULT 0,
-    "status" "ReadinessStatus" NOT NULL DEFAULT 'IN_PROGRESS',
-    "filingConfidence" "FilingConfidence" NOT NULL DEFAULT 'LOW',
-    "riskBreakdown" JSONB NOT NULL,
-    "nextMilestone" TEXT,
+    "regime" "SuccessionRegime" NOT NULL,
+    "religion" "SuccessionReligion" NOT NULL,
+    "marriageType" "MarriageType" NOT NULL,
+    "targetCourt" "CourtJurisdiction" NOT NULL,
+    "hasWill" BOOLEAN NOT NULL DEFAULT false,
+    "hasMinors" BOOLEAN NOT NULL DEFAULT false,
+    "isPolygamous" BOOLEAN NOT NULL DEFAULT false,
+    "isInsolvent" BOOLEAN NOT NULL DEFAULT false,
+    "requiresGuardian" BOOLEAN NOT NULL DEFAULT false,
+    "overallScore" INTEGER NOT NULL DEFAULT 0,
+    "status" "ReadinessStatus" NOT NULL DEFAULT 'NOT_STARTED',
+    "documentScore" INTEGER NOT NULL DEFAULT 0,
+    "legalScore" INTEGER NOT NULL DEFAULT 0,
+    "familyScore" INTEGER NOT NULL DEFAULT 0,
+    "financialScore" INTEGER NOT NULL DEFAULT 0,
+    "totalRisks" INTEGER NOT NULL DEFAULT 0,
+    "criticalRisks" INTEGER NOT NULL DEFAULT 0,
+    "highRisks" INTEGER NOT NULL DEFAULT 0,
+    "mediumRisks" INTEGER NOT NULL DEFAULT 0,
+    "nextSteps" TEXT[],
     "estimatedDaysToReady" INTEGER,
-    "missingDocuments" JSONB,
-    "blockingIssues" TEXT[],
-    "recommendedStrategy" TEXT,
-    "lastAssessedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "lastRecalculationTrigger" VARCHAR(100),
-    "totalRecalculations" INTEGER NOT NULL DEFAULT 0,
-    "isComplete" BOOLEAN NOT NULL DEFAULT false,
-    "completedAt" TIMESTAMP(3),
-    "version" INTEGER NOT NULL DEFAULT 1,
+    "lastCheckedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "checkCount" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -891,32 +628,13 @@ CREATE TABLE "risk_flags" (
     "assessmentId" UUID NOT NULL,
     "severity" "RiskSeverity" NOT NULL,
     "category" "RiskCategory" NOT NULL,
-    "riskStatus" "RiskStatus" NOT NULL DEFAULT 'ACTIVE',
+    "title" VARCHAR(200) NOT NULL,
     "description" TEXT NOT NULL,
-    "legalBasis" TEXT NOT NULL,
-    "mitigationSteps" TEXT[],
-    "sourceType" "RiskSourceType" NOT NULL,
-    "serviceName" TEXT NOT NULL,
-    "detectionMethod" "DetectionMethod" NOT NULL,
-    "detectionRuleId" TEXT NOT NULL,
-    "sourceEntityId" TEXT,
-    "sourceEntityType" TEXT,
-    "sourceAggregateId" TEXT,
-    "sourceDetails" JSONB,
-    "isBlocking" BOOLEAN NOT NULL DEFAULT false,
-    "impactScore" INTEGER NOT NULL DEFAULT 0,
-    "affectedEntityIds" TEXT[],
-    "affectedAggregateIds" TEXT[],
-    "documentGap" JSONB,
-    "expectedResolutionEvents" TEXT[],
-    "autoResolveTimeout" TIMESTAMP(3),
+    "legalBasis" TEXT,
     "isResolved" BOOLEAN NOT NULL DEFAULT false,
-    "resolvedAt" TIMESTAMP(3),
-    "resolutionMethod" "ResolutionMethod",
-    "resolvedBy" TEXT,
-    "resolutionNotes" TEXT,
-    "lastReviewedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "reviewCount" INTEGER NOT NULL DEFAULT 0,
+    "resolutionSteps" TEXT[],
+    "isBlocking" BOOLEAN NOT NULL DEFAULT false,
+    "affectsScore" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -924,182 +642,23 @@ CREATE TABLE "risk_flags" (
 );
 
 -- CreateTable
-CREATE TABLE "probate_applications" (
-    "id" UUID NOT NULL,
-    "estateId" UUID NOT NULL,
-    "readinessAssessmentId" UUID NOT NULL,
-    "successionContext" JSONB NOT NULL,
-    "readinessScore" JSONB,
-    "applicationType" "ProbateApplicationType" NOT NULL,
-    "status" "ApplicationStatus" NOT NULL DEFAULT 'DRAFT',
-    "priority" "FilingPriority" NOT NULL DEFAULT 'NORMAL',
-    "applicantUserId" UUID NOT NULL,
-    "applicantFullName" TEXT NOT NULL,
-    "applicantRelationship" TEXT NOT NULL,
-    "applicantContact" JSONB NOT NULL,
-    "targetCourtJurisdiction" "CourtJurisdiction" NOT NULL,
-    "targetCourtName" VARCHAR(150) NOT NULL,
-    "courtStation" VARCHAR(100) NOT NULL,
-    "courtRegistry" TEXT,
-    "estimatedProcessingDays" INTEGER,
-    "filingFeeAmount" DECIMAL(19,4) NOT NULL DEFAULT 0,
-    "filingFeePaid" BOOLEAN NOT NULL DEFAULT false,
-    "filingFeePaidAt" TIMESTAMP(3),
-    "estimatedFilingDate" TIMESTAMP(3),
-    "estimatedGrantDate" TIMESTAMP(3),
-    "filedAt" TIMESTAMP(3),
-    "filingMethod" TEXT,
-    "courtCaseNumber" VARCHAR(100),
-    "courtFileNumber" TEXT,
-    "courtReceiptNumber" TEXT,
-    "courtReviewDate" TIMESTAMP(3),
-    "gazettePublishedDate" TIMESTAMP(3),
-    "gazetteNoticeId" TEXT,
-    "objectionDeadline" TIMESTAMP(3),
-    "grantedDate" TIMESTAMP(3),
-    "grantNumber" TEXT,
-    "grantType" TEXT,
-    "grantIssuedBy" TEXT,
-    "rejectionReason" TEXT,
-    "rejectionDate" TIMESTAMP(3),
-    "amendmentsRequired" TEXT[],
-    "amendmentDeadline" TIMESTAMP(3),
-    "withdrawnAt" TIMESTAMP(3),
-    "withdrawalReason" TEXT,
-    "totalFormsGenerated" INTEGER NOT NULL DEFAULT 0,
-    "totalConsentsRequired" INTEGER NOT NULL DEFAULT 0,
-    "lastStatusChangeAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "notes" TEXT,
-    "internalNotes" TEXT,
-    "version" INTEGER NOT NULL DEFAULT 1,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "probate_applications_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "generated_forms" (
-    "id" UUID NOT NULL,
-    "applicationId" UUID NOT NULL,
-    "formType" "KenyanFormType" NOT NULL,
-    "formCode" VARCHAR(50) NOT NULL,
-    "displayName" TEXT NOT NULL,
-    "status" "FormStatus" NOT NULL DEFAULT 'PENDING_GENERATION',
-    "currentVersion" INTEGER NOT NULL DEFAULT 0,
-    "storageProvider" "StorageProvider" NOT NULL DEFAULT 'AWS_S3',
-    "storageUrl" TEXT NOT NULL,
-    "fileFormat" "FileFormat" NOT NULL DEFAULT 'PDF',
-    "fileSizeBytes" INTEGER NOT NULL DEFAULT 0,
-    "checksum" TEXT,
-    "templateVersion" TEXT,
-    "dataSource" TEXT,
-    "dataHash" TEXT,
-    "signatures" JSONB,
-    "requiredSignatories" INTEGER NOT NULL DEFAULT 0,
-    "isFullySigned" BOOLEAN NOT NULL DEFAULT false,
-    "courtCaseNumber" TEXT,
-    "filingDate" TIMESTAMP(3),
-    "filingReference" TEXT,
-    "courtStampNumber" TEXT,
-    "rejectionReason" TEXT,
-    "courtQueries" TEXT[],
-    "amendmentsRequired" TEXT[],
-    "versions" JSONB,
-    "generatedBy" TEXT,
-    "generatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "reviewedBy" UUID,
-    "reviewedAt" TIMESTAMP(3),
-    "reviewNotes" TEXT,
-    "pageCount" INTEGER NOT NULL DEFAULT 0,
-    "isNotarizationRequired" BOOLEAN NOT NULL DEFAULT false,
-    "isCommissionerOathsRequired" BOOLEAN NOT NULL DEFAULT false,
-    "isCourtStampRequired" BOOLEAN NOT NULL DEFAULT false,
-    "relatedFormIds" TEXT[],
-    "dependsOnFormIds" TEXT[],
-    "lastAccessedAt" TIMESTAMP(3),
-    "accessCount" INTEGER NOT NULL DEFAULT 0,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "generated_forms_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "family_consents" (
-    "id" UUID NOT NULL,
-    "applicationId" UUID NOT NULL,
-    "familyMemberId" UUID NOT NULL,
-    "fullName" TEXT NOT NULL,
-    "nationalId" TEXT,
-    "phoneNumber" TEXT,
-    "email" TEXT,
-    "role" "FamilyRole" NOT NULL,
-    "relationshipToDeceased" TEXT NOT NULL,
-    "status" "ConsentStatus" NOT NULL DEFAULT 'PENDING',
-    "method" "ConsentMethod",
-    "requestSentAt" TIMESTAMP(3),
-    "requestSentVia" TEXT,
-    "requestExpiresAt" TIMESTAMP(3),
-    "respondedAt" TIMESTAMP(3),
-    "consentGivenAt" TIMESTAMP(3),
-    "declinedAt" TIMESTAMP(3),
-    "withdrawnAt" TIMESTAMP(3),
-    "digitalSignatureId" TEXT,
-    "signatureMethod" "ConsentMethod",
-    "verificationCode" TEXT,
-    "ipAddress" TEXT,
-    "deviceInfo" TEXT,
-    "declineReason" TEXT,
-    "declineCategory" TEXT,
-    "withdrawalReason" TEXT,
-    "hasLegalRepresentative" BOOLEAN NOT NULL DEFAULT false,
-    "legalRepresentativeName" TEXT,
-    "legalRepresentativeContact" TEXT,
-    "notes" TEXT,
-    "internalNotes" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "family_consents_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "executor_roadmaps" (
     "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
     "estateId" UUID NOT NULL,
-    "readinessAssessmentId" UUID NOT NULL,
-    "successionContext" JSONB NOT NULL,
-    "readinessScore" JSONB,
+    "assessmentId" UUID,
+    "regime" "SuccessionRegime" NOT NULL,
+    "religion" "SuccessionReligion" NOT NULL,
+    "targetCourt" "CourtJurisdiction" NOT NULL,
     "currentPhase" "RoadmapPhase" NOT NULL DEFAULT 'PRE_FILING',
-    "status" "RoadmapStatus" NOT NULL DEFAULT 'DRAFT',
-    "percentComplete" INTEGER NOT NULL DEFAULT 0,
-    "phases" JSONB NOT NULL,
-    "phaseHistory" JSONB NOT NULL,
+    "overallProgress" INTEGER NOT NULL DEFAULT 0,
     "totalTasks" INTEGER NOT NULL DEFAULT 0,
     "completedTasks" INTEGER NOT NULL DEFAULT 0,
-    "skippedTasks" INTEGER NOT NULL DEFAULT 0,
-    "overdueTasks" INTEGER NOT NULL DEFAULT 0,
-    "blockedTasks" INTEGER NOT NULL DEFAULT 0,
+    "availableTasks" INTEGER NOT NULL DEFAULT 0,
+    "lockedTasks" INTEGER NOT NULL DEFAULT 0,
+    "estimatedDays" INTEGER,
     "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "estimatedCompletionDate" TIMESTAMP(3),
-    "actualCompletionDate" TIMESTAMP(3),
-    "totalTimeSpentHours" DOUBLE PRECISION NOT NULL DEFAULT 0,
-    "blockedByRiskIds" TEXT[],
-    "resolvesRiskIds" TEXT[],
-    "linkedDocumentGaps" TEXT[],
-    "analytics" JSONB NOT NULL,
-    "userId" UUID NOT NULL,
-    "executorName" TEXT NOT NULL,
-    "lastActiveAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "daysInactive" INTEGER NOT NULL DEFAULT 0,
-    "autoTransitionEnabled" BOOLEAN NOT NULL DEFAULT true,
-    "autoTaskGenerationEnabled" BOOLEAN NOT NULL DEFAULT true,
-    "escalationThresholdDays" INTEGER NOT NULL DEFAULT 14,
-    "version" INTEGER NOT NULL DEFAULT 1,
-    "lastOptimizedAt" TIMESTAMP(3),
-    "optimizationCount" INTEGER NOT NULL DEFAULT 0,
-    "notes" TEXT,
-    "internalNotes" TEXT,
+    "estimatedCompletion" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -1110,61 +669,84 @@ CREATE TABLE "executor_roadmaps" (
 CREATE TABLE "roadmap_tasks" (
     "id" UUID NOT NULL,
     "roadmapId" UUID NOT NULL,
-    "title" TEXT NOT NULL,
-    "description" TEXT NOT NULL,
-    "shortCode" VARCHAR(50) NOT NULL,
-    "category" "TaskCategory" NOT NULL,
-    "priority" "TaskPriority" NOT NULL,
-    "status" "TaskStatus" NOT NULL DEFAULT 'PENDING',
     "phase" "RoadmapPhase" NOT NULL,
+    "category" "TaskCategory" NOT NULL,
     "orderIndex" INTEGER NOT NULL,
+    "title" VARCHAR(200) NOT NULL,
+    "description" TEXT NOT NULL,
+    "status" "TaskStatus" NOT NULL DEFAULT 'LOCKED',
     "dependsOnTaskIds" TEXT[],
-    "blocksTaskIds" TEXT[],
-    "applicableContexts" TEXT[],
-    "triggers" "TaskTrigger"[],
-    "legalReferences" JSONB NOT NULL,
-    "detailedInstructions" TEXT[],
-    "quickTips" TEXT[],
-    "commonMistakes" TEXT[],
-    "externalLinks" JSONB NOT NULL,
-    "courtSpecificInstructions" JSONB,
-    "requiresProof" BOOLEAN NOT NULL DEFAULT false,
-    "proofTypes" "ProofType"[],
-    "proofDocumentType" TEXT,
-    "dueDate" TIMESTAMP(3),
-    "startDate" TIMESTAMP(3),
-    "endDate" TIMESTAMP(3),
-    "startedAt" TIMESTAMP(3),
+    "unlocksTaskIds" TEXT[],
+    "whatIsIt" TEXT,
+    "whyNeeded" TEXT,
+    "howToGet" TEXT,
+    "estimatedDays" INTEGER,
+    "legalBasis" TEXT,
     "completedAt" TIMESTAMP(3),
-    "skippedAt" TIMESTAMP(3),
-    "lastRemindedAt" TIMESTAMP(3),
-    "estimatedTimeMinutes" INTEGER NOT NULL DEFAULT 0,
-    "timeSpentMinutes" INTEGER NOT NULL DEFAULT 0,
-    "completedBy" TEXT,
-    "completionNotes" TEXT,
-    "skipReason" TEXT,
-    "waiverReason" TEXT,
-    "failureReason" TEXT,
-    "isOverdue" BOOLEAN NOT NULL DEFAULT false,
-    "retryCount" INTEGER NOT NULL DEFAULT 0,
-    "lastAttemptedAt" TIMESTAMP(3),
-    "reminderIntervalDays" INTEGER NOT NULL DEFAULT 7,
-    "escalationLevel" INTEGER NOT NULL DEFAULT 0,
-    "autoEscalateAfterDays" INTEGER NOT NULL DEFAULT 14,
-    "relatedRiskFlagIds" TEXT[],
-    "relatedDocumentGapIds" TEXT[],
-    "externalServiceId" TEXT,
-    "externalTaskId" TEXT,
-    "history" JSONB NOT NULL,
-    "templateVersion" TEXT,
-    "tags" TEXT[],
-    "createdBy" TEXT,
-    "lastModifiedBy" TEXT,
-    "lastModifiedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "completedBy" UUID,
+    "notes" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "roadmap_tasks_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "probate_previews" (
+    "id" UUID NOT NULL,
+    "userId" UUID NOT NULL,
+    "estateId" UUID NOT NULL,
+    "assessmentId" UUID,
+    "regime" "SuccessionRegime" NOT NULL,
+    "targetCourt" "CourtJurisdiction" NOT NULL,
+    "requiredForms" "KenyanFormType"[],
+    "isReady" BOOLEAN NOT NULL DEFAULT false,
+    "readinessScore" INTEGER NOT NULL DEFAULT 0,
+    "disclaimer" TEXT NOT NULL DEFAULT 'This is an educational preview only. Not for official court submission.',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "probate_previews_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "form_previews" (
+    "id" UUID NOT NULL,
+    "probatePreviewId" UUID NOT NULL,
+    "formType" "KenyanFormType" NOT NULL,
+    "formTitle" VARCHAR(200) NOT NULL,
+    "formCode" VARCHAR(20) NOT NULL,
+    "htmlPreview" TEXT NOT NULL,
+    "dataSnapshot" JSONB NOT NULL,
+    "purpose" TEXT NOT NULL,
+    "legalBasis" TEXT,
+    "instructions" TEXT[],
+    "missingFields" TEXT[],
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "form_previews_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "legal_guides" (
+    "id" UUID NOT NULL,
+    "category" VARCHAR(100) NOT NULL,
+    "title" VARCHAR(200) NOT NULL,
+    "slug" TEXT NOT NULL,
+    "summary" TEXT NOT NULL,
+    "fullContent" TEXT NOT NULL,
+    "appliesToRegime" "SuccessionRegime"[],
+    "appliesToReligion" "SuccessionReligion"[],
+    "legalSections" TEXT[],
+    "relatedFormTypes" "KenyanFormType"[],
+    "relatedTasks" TEXT[],
+    "keywords" TEXT[],
+    "viewCount" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "legal_guides_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1181,6 +763,14 @@ CREATE TABLE "_DocumentToWill" (
     "B" UUID NOT NULL,
 
     CONSTRAINT "_DocumentToWill_AB_pkey" PRIMARY KEY ("A","B")
+);
+
+-- CreateTable
+CREATE TABLE "_EstateToReadinessAssessment" (
+    "A" UUID NOT NULL,
+    "B" UUID NOT NULL,
+
+    CONSTRAINT "_EstateToReadinessAssessment_AB_pkey" PRIMARY KEY ("A","B")
 );
 
 -- CreateTable
@@ -1364,40 +954,70 @@ CREATE INDEX "bequests_willId_idx" ON "bequests"("willId");
 CREATE INDEX "witnesses_willId_idx" ON "witnesses"("willId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "readiness_assessments_estateId_key" ON "readiness_assessments"("estateId");
+CREATE INDEX "readiness_assessments_userId_idx" ON "readiness_assessments"("userId");
 
 -- CreateIndex
-CREATE INDEX "risk_flags_sourceEntityId_sourceType_idx" ON "risk_flags"("sourceEntityId", "sourceType");
+CREATE INDEX "readiness_assessments_estateId_idx" ON "readiness_assessments"("estateId");
 
 -- CreateIndex
-CREATE INDEX "risk_flags_category_riskStatus_idx" ON "risk_flags"("category", "riskStatus");
+CREATE INDEX "readiness_assessments_status_idx" ON "readiness_assessments"("status");
 
 -- CreateIndex
-CREATE INDEX "probate_applications_estateId_status_idx" ON "probate_applications"("estateId", "status");
+CREATE UNIQUE INDEX "readiness_assessments_userId_estateId_key" ON "readiness_assessments"("userId", "estateId");
 
 -- CreateIndex
-CREATE INDEX "probate_applications_courtCaseNumber_idx" ON "probate_applications"("courtCaseNumber");
+CREATE INDEX "risk_flags_assessmentId_severity_idx" ON "risk_flags"("assessmentId", "severity");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "family_consents_applicationId_familyMemberId_key" ON "family_consents"("applicationId", "familyMemberId");
+CREATE INDEX "risk_flags_isBlocking_idx" ON "risk_flags"("isBlocking");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "executor_roadmaps_estateId_key" ON "executor_roadmaps"("estateId");
 
 -- CreateIndex
-CREATE INDEX "roadmap_tasks_roadmapId_status_idx" ON "roadmap_tasks"("roadmapId", "status");
+CREATE INDEX "executor_roadmaps_userId_idx" ON "executor_roadmaps"("userId");
 
 -- CreateIndex
-CREATE INDEX "roadmap_tasks_category_idx" ON "roadmap_tasks"("category");
+CREATE INDEX "executor_roadmaps_estateId_idx" ON "executor_roadmaps"("estateId");
 
 -- CreateIndex
-CREATE INDEX "roadmap_tasks_priority_isOverdue_idx" ON "roadmap_tasks"("priority", "isOverdue");
+CREATE INDEX "executor_roadmaps_currentPhase_idx" ON "executor_roadmaps"("currentPhase");
+
+-- CreateIndex
+CREATE INDEX "roadmap_tasks_roadmapId_phase_idx" ON "roadmap_tasks"("roadmapId", "phase");
+
+-- CreateIndex
+CREATE INDEX "roadmap_tasks_status_idx" ON "roadmap_tasks"("status");
+
+-- CreateIndex
+CREATE INDEX "probate_previews_userId_idx" ON "probate_previews"("userId");
+
+-- CreateIndex
+CREATE INDEX "probate_previews_estateId_idx" ON "probate_previews"("estateId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "probate_previews_userId_estateId_key" ON "probate_previews"("userId", "estateId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "form_previews_probatePreviewId_formType_key" ON "form_previews"("probatePreviewId", "formType");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "legal_guides_slug_key" ON "legal_guides"("slug");
+
+-- CreateIndex
+CREATE INDEX "legal_guides_category_idx" ON "legal_guides"("category");
+
+-- CreateIndex
+CREATE INDEX "legal_guides_slug_idx" ON "legal_guides"("slug");
 
 -- CreateIndex
 CREATE INDEX "_TestatorWills_B_index" ON "_TestatorWills"("B");
 
 -- CreateIndex
 CREATE INDEX "_DocumentToWill_B_index" ON "_DocumentToWill"("B");
+
+-- CreateIndex
+CREATE INDEX "_EstateToReadinessAssessment_B_index" ON "_EstateToReadinessAssessment"("B");
 
 -- CreateIndex
 CREATE INDEX "_AssetOwner_B_index" ON "_AssetOwner"("B");
@@ -1502,19 +1122,13 @@ ALTER TABLE "bequests" ADD CONSTRAINT "bequests_assetId_fkey" FOREIGN KEY ("asse
 ALTER TABLE "witnesses" ADD CONSTRAINT "witnesses_willId_fkey" FOREIGN KEY ("willId") REFERENCES "wills"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "readiness_assessments" ADD CONSTRAINT "readiness_assessments_estateId_fkey" FOREIGN KEY ("estateId") REFERENCES "estates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "risk_flags" ADD CONSTRAINT "risk_flags_assessmentId_fkey" FOREIGN KEY ("assessmentId") REFERENCES "readiness_assessments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "generated_forms" ADD CONSTRAINT "generated_forms_applicationId_fkey" FOREIGN KEY ("applicationId") REFERENCES "probate_applications"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "family_consents" ADD CONSTRAINT "family_consents_applicationId_fkey" FOREIGN KEY ("applicationId") REFERENCES "probate_applications"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "roadmap_tasks" ADD CONSTRAINT "roadmap_tasks_roadmapId_fkey" FOREIGN KEY ("roadmapId") REFERENCES "executor_roadmaps"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "form_previews" ADD CONSTRAINT "form_previews_probatePreviewId_fkey" FOREIGN KEY ("probatePreviewId") REFERENCES "probate_previews"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_TestatorWills" ADD CONSTRAINT "_TestatorWills_A_fkey" FOREIGN KEY ("A") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1527,6 +1141,12 @@ ALTER TABLE "_DocumentToWill" ADD CONSTRAINT "_DocumentToWill_A_fkey" FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE "_DocumentToWill" ADD CONSTRAINT "_DocumentToWill_B_fkey" FOREIGN KEY ("B") REFERENCES "wills"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_EstateToReadinessAssessment" ADD CONSTRAINT "_EstateToReadinessAssessment_A_fkey" FOREIGN KEY ("A") REFERENCES "estates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "_EstateToReadinessAssessment" ADD CONSTRAINT "_EstateToReadinessAssessment_B_fkey" FOREIGN KEY ("B") REFERENCES "readiness_assessments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_AssetOwner" ADD CONSTRAINT "_AssetOwner_A_fkey" FOREIGN KEY ("A") REFERENCES "assets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
