@@ -31,19 +31,19 @@ export class FamilyController {
   @HttpCode(HttpStatus.CREATED)
   async createOrGetFamily(@Request() req, @Body() dto: CreateFamilyDto) {
     // Idempotent: Creates if not exists, returns existing if found
-    return this.familyService.createFamily(req.user.id, dto.name, dto.description);
+    return this.familyService.createFamily(req.user.sub, dto.name, dto.description);
   }
 
   @Get('mine')
   async getMyFamily(@Request() req) {
     // Convenience endpoint: Get the family aggregate for the logged-in user
-    return this.familyService.getMyFamily(req.user.id);
+    return this.familyService.getMyFamily(req.user.sub);
   }
 
   @Get('mine/tree')
   async getMyFamilyTree(@Request() req) {
     // Convenience endpoint: Get the visual tree for the logged-in user
-    const family = await this.familyService.getMyFamily(req.user.id);
+    const family = await this.familyService.getMyFamily(req.user.sub);
     return this.familyService.getFamilyTree(family.id);
   }
 

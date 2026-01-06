@@ -1,25 +1,30 @@
-import { ReadinessScore, SuccessionContext } from '../value-objects';
+import {
+  CourtJurisdiction,
+  MarriageType,
+  ReadinessStatus,
+  RiskSeverity,
+  SuccessionRegime,
+  SuccessionReligion,
+} from '@prisma/client';
 
-// =============================================================================
-// 1. READINESS ASSESSMENT ENTITY (Aggregate Root)
-// =============================================================================
+import { ReadinessScore, SuccessionContext } from '../value-objects';
+import { RiskFlag } from './risk-flag.entity';
 
 export interface ReadinessAssessmentProps {
   id: string;
   userId: string;
   estateId: string;
-  familyId?: string;
-  regime: string;
-  religion: string;
-  marriageType: string;
-  targetCourt: string;
+  regime: SuccessionRegime;
+  religion: SuccessionReligion;
+  marriageType: MarriageType;
+  targetCourt: CourtJurisdiction;
   hasWill: boolean;
   hasMinors: boolean;
   isPolygamous: boolean;
   isInsolvent: boolean;
   requiresGuardian: boolean;
   overallScore: number;
-  status: string;
+  status: ReadinessStatus;
   documentScore: number;
   legalScore: number;
   familyScore: number;
@@ -29,7 +34,6 @@ export interface ReadinessAssessmentProps {
   highRisks: number;
   mediumRisks: number;
   nextSteps: string[];
-  estimatedDaysToReady?: number;
   lastCheckedAt: Date;
   checkCount: number;
   createdAt: Date;
@@ -48,13 +52,13 @@ export class ReadinessAssessment {
       religion: context.religion,
       marriageType: context.marriageType,
       targetCourt: context.targetCourt,
-      hasWill: context.regime === 'TESTATE',
+      hasWill: context.regime === SuccessionRegime.TESTATE,
       hasMinors: context.hasMinors,
       isPolygamous: context.isPolygamous,
-      isInsolvent: false,
+      isInsolvent: false, // Calculated later
       requiresGuardian: context.hasMinors,
       overallScore: 0,
-      status: 'NOT_STARTED',
+      status: ReadinessStatus.NOT_STARTED,
       documentScore: 0,
       legalScore: 0,
       familyScore: 0,
@@ -79,23 +83,8 @@ export class ReadinessAssessment {
   get id(): string {
     return this.props.id;
   }
-  get userId(): string {
-    return this.props.userId;
-  }
-  get estateId(): string {
-    return this.props.estateId;
-  }
-  get overallScore(): number {
-    return this.props.overallScore;
-  }
-  get status(): string {
+  get status(): ReadinessStatus {
     return this.props.status;
-  }
-  get criticalRisks(): number {
-    return this.props.criticalRisks;
-  }
-  get canGenerateForms(): boolean {
-    return this.props.overallScore >= 80;
   }
 
   // Business Logic
@@ -109,22 +98,19 @@ export class ReadinessAssessment {
     this.props.updatedAt = new Date();
   }
 
-  updateRiskCounts(critical: number, high: number, medium: number): void {
-    this.props.criticalRisks = critical;
-    this.props.highRisks = high;
-    this.props.mediumRisks = medium;
-    this.props.totalRisks = critical + high + medium;
-    this.props.updatedAt = new Date();
-  }
+  /**
+   * Recalculates risk counts based on a list of RiskFlag entities
+   */
+  updateRiskProfile(risks: RiskFlag[]): void {
+    const activeRisks = risks.filter((r) => !r.isResolved);
 
-  recordCheck(): void {
-    this.props.checkCount += 1;
-    this.props.lastCheckedAt = new Date();
-    this.props.updatedAt = new Date();
-  }
+    this.props.criticalRisks = activeRisks.filter(
+      (r) => r.severity === RiskSeverity.CRITICAL,
+    ).length;
+    this.props.highRisks = activeRisks.filter((r) => r.severity === RiskSeverity.HIGH).length;
+    this.props.mediumRisks = activeRisks.filter((r) => r.severity === RiskSeverity.MEDIUM).length;
+    this.props.totalRisks = activeRisks.length;
 
-  setNextSteps(steps: string[]): void {
-    this.props.nextSteps = steps;
     this.props.updatedAt = new Date();
   }
 

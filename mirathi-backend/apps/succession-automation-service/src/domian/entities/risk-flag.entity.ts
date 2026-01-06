@@ -1,8 +1,10 @@
+import { RiskCategory, RiskSeverity } from '@prisma/client';
+
 export interface RiskFlagProps {
   id: string;
   assessmentId: string;
-  severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  category: string;
+  severity: RiskSeverity;
+  category: RiskCategory;
   title: string;
   description: string;
   legalBasis?: string;
@@ -19,10 +21,11 @@ export class RiskFlag {
 
   static create(
     assessmentId: string,
-    severity: RiskFlagProps['severity'],
-    category: string,
+    severity: RiskSeverity,
+    category: RiskCategory,
     title: string,
     description: string,
+    legalBasis: string | undefined,
     isBlocking: boolean,
     resolutionSteps: string[],
   ): RiskFlag {
@@ -33,10 +36,11 @@ export class RiskFlag {
       category,
       title,
       description,
+      legalBasis,
       isResolved: false,
       resolutionSteps,
       isBlocking,
-      affectsScore: this.calculateScoreImpact(severity),
+      affectsScore: RiskFlag.calculateScoreImpact(severity),
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -46,29 +50,39 @@ export class RiskFlag {
     return new RiskFlag(props);
   }
 
-  private static calculateScoreImpact(severity: string): number {
-    const impact = {
-      CRITICAL: 20,
-      HIGH: 15,
-      MEDIUM: 10,
-      LOW: 5,
-      INFO: 0,
-    };
-    return impact[severity as keyof typeof impact] || 0;
+  private static calculateScoreImpact(severity: RiskSeverity): number {
+    switch (severity) {
+      case RiskSeverity.CRITICAL:
+        return 20;
+      case RiskSeverity.HIGH:
+        return 15;
+      case RiskSeverity.MEDIUM:
+        return 10;
+      case RiskSeverity.LOW:
+        return 5;
+      default:
+        return 0;
+    }
   }
 
   // Getters
   get id(): string {
     return this.props.id;
   }
-  get severity(): string {
+  get severity(): RiskSeverity {
     return this.props.severity;
+  }
+  get category(): RiskCategory {
+    return this.props.category;
   }
   get isBlocking(): boolean {
     return this.props.isBlocking;
   }
   get isResolved(): boolean {
     return this.props.isResolved;
+  }
+  get affectsScore(): number {
+    return this.props.affectsScore;
   }
 
   // Business Logic
