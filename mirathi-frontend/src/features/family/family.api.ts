@@ -1,7 +1,6 @@
-// libs/api-client/src/family/family.api.ts
+// mirathi-frontend/src/family/family.api.ts
 // ============================================================================
 // Unified Family & Guardianship API Layer
-// Aligned with family-service controllers
 // ============================================================================
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';

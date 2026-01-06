@@ -1,6 +1,6 @@
 
 // ============================================================================
-// FILE 7: CreateFamilyDialog.tsx - NEW COMPONENT
+// FILE 7: CreateFamilyDialog.tsx
 // ============================================================================
 
 import React from 'react';

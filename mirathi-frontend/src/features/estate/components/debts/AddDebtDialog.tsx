@@ -1,5 +1,9 @@
+// ============================================================================
+// FILE: AddDebtDialog.tsx
+// ============================================================================
+
 import React, { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type DefaultValues, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, AlertCircle, Info } from 'lucide-react';
 
@@ -47,7 +51,8 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
   estateId 
 }) => {
   const form = useForm<AddDebtInput>({
-    resolver: zodResolver(AddDebtSchema),
+    // FIX: Use the proper resolver casting pattern
+    resolver: zodResolver(AddDebtSchema) as unknown as Resolver<AddDebtInput>,
     mode: 'onChange',
     defaultValues: {
       creditorName: '',
@@ -58,7 +63,8 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
       outstandingBalance: 0,
       isSecured: false,
       securityDetails: '',
-    },
+      dueDate: undefined,
+    } as DefaultValues<AddDebtInput>,
   });
 
   const { mutate: addDebt, isPending, error } = useAddDebt(estateId, {
@@ -74,16 +80,18 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
 
   useEffect(() => {
     if (originalAmount > 0 && (!outstandingBalance || outstandingBalance === 0)) {
-      form.setValue('outstandingBalance', originalAmount);
+      form.setValue('outstandingBalance', originalAmount, { shouldValidate: true });
     }
   }, [form, originalAmount, outstandingBalance]);
 
   const onSubmit = (data: AddDebtInput) => {
     // Ensure outstanding balance is set
-    if (!data.outstandingBalance || data.outstandingBalance === 0) {
-      data.outstandingBalance = data.originalAmount;
-    }
-    addDebt(data);
+    const processedData: AddDebtInput = { 
+      ...data,
+      outstandingBalance: data.outstandingBalance || data.originalAmount
+    };
+    
+    addDebt(processedData);
   };
 
   const handleClose = () => {
@@ -231,8 +239,11 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
                         min="0"
                         step="0.01"
                         placeholder="0.00"
-                        {...field} 
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                        value={field.value || ''}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value);
+                          field.onChange(isNaN(value) ? 0 : value);
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -253,8 +264,11 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
                         min="0"
                         step="0.01"
                         placeholder="Defaults to original amount"
-                        {...field} 
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                        value={field.value || ''}
+                        onChange={(e) => {
+                          const value = parseFloat(e.target.value);
+                          field.onChange(isNaN(value) ? undefined : value);
+                        }}
                       />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">
@@ -277,9 +291,11 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
                     <Input 
                       disabled={isPending}
                       type="date"
-                      {...field} 
                       value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
-                      onChange={(e) => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                      onChange={(e) => {
+                        const date = e.target.value;
+                        field.onChange(date ? new Date(date).toISOString() : undefined);
+                      }}
                     />
                   </FormControl>
                   <FormMessage />

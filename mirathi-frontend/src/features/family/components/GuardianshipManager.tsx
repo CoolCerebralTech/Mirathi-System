@@ -1,10 +1,10 @@
 // ============================================================================
-// FILE 5: GuardianshipManager.tsx - UPDATED (Fixed Types)
+// FILE 5: GuardianshipManager.tsx 
 // ============================================================================
 
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { ShieldCheck, AlertTriangle, CheckCircle, Scale, Loader2 } from 'lucide-react';
+import { useForm, type DefaultValues } from 'react-hook-form';
+import { ShieldCheck, AlertTriangle, CheckCircle, Scale, Loader2, Info } from 'lucide-react';
 import {
   Card,
   CardHeader,
@@ -37,7 +37,11 @@ import {
 } from '../family.api';
 import type {
   GuardianEligibilityChecklist,
-  EligibilityCheckResponse} from '@/types/family.types';
+  EligibilityCheckResponse,
+  AssignGuardianInput,
+  TreeSpouse,
+  TreeChild,
+  TreeParent} from '@/types/family.types';
 
 interface GuardianshipManagerProps {
   familyId: string;
@@ -75,38 +79,69 @@ export const GuardianshipManager: React.FC<GuardianshipManagerProps> = ({
     }
   });
 
-  // Form Setup
-  const form = useForm<{ checklist: GuardianEligibilityChecklist }>({
-    defaultValues: {
-      checklist: {
-        isOver18: true,
-        hasNoCriminalRecord: true,
-        isMentallyCapable: true,
-        hasFinancialStability: false,
-        hasStableResidence: false,
-        hasGoodMoralCharacter: true,
-        isNotBeneficiary: false,
-        hasNoSubstanceAbuse: true,
-        isPhysicallyCapable: true,
-        hasTimeAvailability: true,
-        hasCloseRelationship: true,
-        hasWardConsent: false,
-        understandsLegalDuties: false,
-        willingToPostBond: false,
-      }
+  // Form Setup with proper default values
+  const defaultChecklist: DefaultValues<{ checklist: GuardianEligibilityChecklist }> = {
+    checklist: {
+      isOver18: true,
+      hasNoCriminalRecord: true,
+      isMentallyCapable: true,
+      hasFinancialStability: false,
+      hasStableResidence: false,
+      hasGoodMoralCharacter: true,
+      isNotBeneficiary: false,
+      hasNoSubstanceAbuse: true,
+      isPhysicallyCapable: true,
+      hasTimeAvailability: true,
+      hasCloseRelationship: true,
+      hasWardConsent: false,
+      understandsLegalDuties: false,
+      willingToPostBond: false,
     }
+  };
+
+  const form = useForm<{ checklist: GuardianEligibilityChecklist }>({
+    defaultValues: defaultChecklist
   });
 
-  // Filter potential guardians
+  // Filter potential guardians - fix the isMinor issue
   const potentialGuardians: PotentialGuardianNode[] = tree
     ? [
-        { id: tree.id, name: tree.name, role: tree.role, isAlive: tree.isAlive, isMinor: tree.isMinor },
-        ...(tree.spouses || []).map(s => ({ id: s.id, name: s.name, role: s.role || 'Spouse', isAlive: s.isAlive })),
-        ...(tree.parents || []).map(p => ({ id: p.id, name: p.name, role: p.role, isAlive: p.isAlive })),
-        ...(tree.children || []).map(c => ({ id: c.id, name: c.name, role: c.role || 'Child', isAlive: c.isAlive, isMinor: c.isMinor }))
+        // Self
+        { 
+          id: tree.id, 
+          name: tree.name, 
+          role: tree.role, 
+          isAlive: tree.isAlive, 
+          isMinor: tree.isMinor 
+        },
+        // Spouses - use type assertion to ensure proper typing
+        ...((tree.spouses || []) as TreeSpouse[]).map(s => ({ 
+          id: s.id, 
+          name: s.name, 
+          role: s.role || 'Spouse', 
+          isAlive: s.isAlive,
+          isMinor: false // Spouses are not minors
+        })),
+        // Parents - use type assertion
+        ...((tree.parents || []) as TreeParent[]).map(p => ({ 
+          id: p.id, 
+          name: p.name, 
+          role: p.role, 
+          isAlive: p.isAlive,
+          isMinor: false // Parents are not minors
+        })),
+        // Children - use type assertion
+        ...((tree.children || []) as TreeChild[]).map(c => ({ 
+          id: c.id, 
+          name: c.name, 
+          role: c.role || 'Child', 
+          isAlive: c.isAlive, 
+          isMinor: c.isMinor 
+        }))
       ].filter((m) => {
         if (m.id === wardId) return false;
         if (m.isAlive === false) return false;
+        // Safe to check isMinor since we set it explicitly for all nodes
         if (m.isMinor === true) return false;
         return true;
       })
@@ -123,16 +158,21 @@ export const GuardianshipManager: React.FC<GuardianshipManagerProps> = ({
   };
 
   const handleAssign = () => {
-    if (!eligibilityResult) return;
+    if (!eligibilityResult || !selectedGuardianId) return;
     
-    assignGuardian({
+    // Create complete assignment data with all required fields
+    const assignmentData: AssignGuardianInput = {
       wardId,
       guardianId: selectedGuardianId,
       isPrimary: true,
       isAlternate: false,
       priorityOrder: 1,
-      checklist: form.getValues().checklist
-    });
+      checklist: form.getValues().checklist,
+      courtApproved: false, // Required by type
+      courtOrderRef: undefined, // Optional
+    };
+    
+    assignGuardian(assignmentData);
   };
 
   if (loadingStatus) {
@@ -267,7 +307,7 @@ export const GuardianshipManager: React.FC<GuardianshipManagerProps> = ({
                             <FormField
                               key={check.key}
                               control={form.control}
-                              name={`checklist.${check.key}` as any}
+                              name={`checklist.${check.key}`}
                               render={({ field }) => (
                                 <FormItem className="flex items-center justify-between rounded-md border bg-white p-3 shadow-sm">
                                   <div className="space-y-0.5 flex-1 pr-4">

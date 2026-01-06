@@ -44,13 +44,6 @@ export const DebtList: React.FC<DebtListProps> = ({ estateId }) => {
     }).format(amount);
   };
 
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('en-KE', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
 
   const getStatusBadge = (debt: DebtResponse) => {
     switch (debt.status) {

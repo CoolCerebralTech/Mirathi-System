@@ -1,4 +1,4 @@
-// packages/shared-types/src/family-service/types.ts
+// mirathi-frontend/src/family-types.ts
 
 import { z } from 'zod';
 
@@ -145,7 +145,7 @@ export const AddFamilyMemberSchema = z.object({
   gender: z.nativeEnum(Gender).optional(),
   
   // Dates (ISO 8601 format)
-  dateOfBirth: z.string().datetime().optional(),
+  dateOfBirth: z.string().optional(),
   
   // Identity Documents
   nationalId: z.string().max(20).optional(),
@@ -155,12 +155,16 @@ export const AddFamilyMemberSchema = z.object({
   
   // Contact
   phoneNumber: z.string().max(20).optional(),
-  email: z.string().email('Invalid email address').max(255).optional(),
+  email: z
+  .string()
+  .email('Invalid email address')
+  .optional()
+  .or(z.literal('')),
   currentAddress: z.string().max(500).optional(),
   
   // Life Status
   isAlive: z.boolean().default(true),
-  dateOfDeath: z.string().datetime().optional(),
+  dateOfDeath: z.string().optional(),
   deathCertNo: z.string().max(50).optional(),
   causeOfDeath: z.string().max(500).optional(),
   placeOfDeath: z.string().max(200).optional(),
@@ -173,7 +177,7 @@ export const AddFamilyMemberSchema = z.object({
   // Adoption
   isAdopted: z.boolean().default(false),
   adoptionType: z.enum(['LEGAL', 'CUSTOMARY']).optional(),
-  adoptionDate: z.string().datetime().optional(),
+  adoptionDate: z.string().optional(),
   biologicalParentIds: z.array(z.string().uuid()).optional(),
   
   // Polygamy Context

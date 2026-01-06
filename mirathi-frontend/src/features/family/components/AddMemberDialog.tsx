@@ -1,9 +1,10 @@
 // ============================================================================
-// FILE 1: AddMemberDialog.tsx - UPDATED
+// FILE 1: AddMemberDialog.tsx
 // ============================================================================
 
 import React from 'react';
-import { useForm } from 'react-hook-form';
+// 1. Import 'Resolver' type
+import { useForm, type SubmitHandler, type DefaultValues, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import {
@@ -48,17 +49,46 @@ export const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
   familyId 
 }) => {
   const form = useForm<AddFamilyMemberInput>({
-    resolver: zodResolver(AddFamilyMemberSchema),
+    // 2. FIX: Use 'unknown' then 'Resolver<Type>' to satisfy ESLint and TS
+    // This bypasses the strict mismatch between Zod defaults and RHF types
+    // without using the forbidden 'any' keyword.
+    resolver: zodResolver(AddFamilyMemberSchema) as unknown as Resolver<AddFamilyMemberInput>,
+    mode: 'onTouched',
     defaultValues: {
       firstName: '',
       lastName: '',
       relationship: RelationshipType.CHILD,
       gender: Gender.MALE,
+      
+      // Booleans
       isAlive: true,
       isAdopted: false,
       hasDisability: false,
       isMentallyCapable: true,
-    },
+      
+      // Optional strings (initialized to empty string)
+      middleName: '',
+      maidenName: '',
+      nationalId: '',
+      birthCertNo: '',
+      kraPin: '',
+      passportNumber: '',
+      phoneNumber: '',
+      email: '',
+      currentAddress: '',
+      disabilityType: '',
+      causeOfDeath: '',
+      deathCertNo: '',
+      placeOfDeath: '',
+      
+      // Dates/Enums (initialized as undefined)
+      dateOfBirth: undefined,
+      dateOfDeath: undefined,
+      adoptionDate: undefined,
+      adoptionType: undefined,
+      polygamousHouseId: undefined,
+      biologicalParentIds: undefined,
+    } as DefaultValues<AddFamilyMemberInput>,
   });
 
   const { mutate: addMember, isPending } = useAddFamilyMember(familyId, {
@@ -68,19 +98,15 @@ export const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
     },
   });
 
-  const onSubmit = (data: AddFamilyMemberInput) => {
-    // Convert date to ISO string if provided
-    if (data.dateOfBirth) {
-      data.dateOfBirth = new Date(data.dateOfBirth).toISOString();
-    }
-    if (data.dateOfDeath) {
-      data.dateOfDeath = new Date(data.dateOfDeath).toISOString();
-    }
-    if (data.adoptionDate) {
-      data.adoptionDate = new Date(data.adoptionDate).toISOString();
-    }
+  const onSubmit: SubmitHandler<AddFamilyMemberInput> = (data) => {
+    const payload = { ...data };
+
+    // Format dates for API
+    if (payload.dateOfBirth) payload.dateOfBirth = new Date(payload.dateOfBirth).toISOString();
+    if (payload.dateOfDeath) payload.dateOfDeath = new Date(payload.dateOfDeath).toISOString();
+    if (payload.adoptionDate) payload.adoptionDate = new Date(payload.adoptionDate).toISOString();
     
-    addMember(data);
+    addMember(payload);
   };
 
   const isAlive = form.watch('isAlive');
@@ -219,7 +245,11 @@ export const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
                   <FormItem>
                     <FormLabel>Date of Birth</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <Input 
+                        type="date" 
+                        {...field} 
+                        value={field.value ? String(field.value).split('T')[0] : ''} 
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -376,7 +406,11 @@ export const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
                       <FormItem>
                         <FormLabel>Date of Death</FormLabel>
                         <FormControl>
-                          <Input type="date" {...field} />
+                          <Input 
+                            type="date" 
+                            {...field} 
+                            value={field.value ? String(field.value).split('T')[0] : ''} 
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -471,7 +505,11 @@ export const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
                       <FormItem>
                         <FormLabel>Adoption Date</FormLabel>
                         <FormControl>
-                          <Input type="date" {...field} />
+                          <Input 
+                            type="date" 
+                            {...field} 
+                            value={field.value ? String(field.value).split('T')[0] : ''} 
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

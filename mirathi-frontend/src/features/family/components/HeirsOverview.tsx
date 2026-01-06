@@ -1,5 +1,5 @@
 // ============================================================================
-// FILE 3: HeirsOverview.tsx - UPDATED
+// FILE 3: HeirsOverview.tsx
 // ============================================================================
 
 import React from 'react';
@@ -20,6 +20,7 @@ import {
 } from '@/components/ui';
 import { usePotentialHeirs } from '../family.api';
 import type { PotentialHeir } from '@/types/family.types';
+import { cn } from '@/lib/utils';
 
 export const HeirsOverview: React.FC<{ familyId: string }> = ({ familyId }) => {
   const { data, isLoading, isError, error } = usePotentialHeirs(familyId);

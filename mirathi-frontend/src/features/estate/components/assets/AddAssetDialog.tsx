@@ -1,5 +1,9 @@
+// ============================================================================
+// FILE: AddAssetDialog.tsx
+// ============================================================================
+
 import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type DefaultValues, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, AlertCircle } from 'lucide-react';
 
@@ -24,7 +28,7 @@ import {
   Button,
   Textarea,
   Alert,
-  AlertDescription
+  AlertDescription,
 } from '@/components/ui';
 
 import { 
@@ -48,7 +52,20 @@ interface AddAssetDialogProps {
   estateId: string;
 }
 
+// Create a union type for form data
 type AssetFormData = AddGenericAssetInput | AddLandAssetInput | AddVehicleAssetInput;
+
+// Helper function to get the appropriate schema based on category
+const getAssetSchema = (category: AssetCategory) => {
+  switch (category) {
+    case AssetCategory.LAND:
+      return AddLandAssetSchema;
+    case AssetCategory.VEHICLE:
+      return AddVehicleAssetSchema;
+    default:
+      return AddGenericAssetSchema;
+  }
+};
 
 export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({ 
   isOpen, 
@@ -59,59 +76,63 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
     AssetCategory.BANK_ACCOUNT
   );
 
-  // Dynamic schema selection based on category
-  const getSchema = () => {
-    if (selectedCategory === AssetCategory.LAND) return AddLandAssetSchema;
-    if (selectedCategory === AssetCategory.VEHICLE) return AddVehicleAssetSchema;
-    return AddGenericAssetSchema;
+  // Create base default values
+  const baseDefaultValues: DefaultValues<AssetFormData> = {
+    category: AssetCategory.BANK_ACCOUNT,
+    name: '',
+    description: '',
+    estimatedValue: 0,
+    isEncumbered: false,
+    encumbranceDetails: '',
   };
 
   const form = useForm<AssetFormData>({
-    resolver: zodResolver(getSchema()),
+    // FIX: Use the proper resolver casting pattern
+    resolver: zodResolver(getAssetSchema(selectedCategory)) as unknown as Resolver<AssetFormData>,
     mode: 'onChange',
-    defaultValues: {
-      category: AssetCategory.BANK_ACCOUNT,
-      name: '',
-      description: '',
-      estimatedValue: 0,
-      isEncumbered: false,
-      encumbranceDetails: '',
-    },
+    defaultValues: baseDefaultValues,
   });
 
   // Reset form when category changes to clear category-specific fields
   useEffect(() => {
     const currentValues = form.getValues();
-    form.reset({
+    
+    // Create new values based on selected category
+    const newValues: Partial<AssetFormData> = {
       category: selectedCategory,
-      name: currentValues.name,
-      description: currentValues.description,
-      estimatedValue: currentValues.estimatedValue,
-      isEncumbered: currentValues.isEncumbered,
-      encumbranceDetails: currentValues.encumbranceDetails,
-      // Land defaults
-      ...(selectedCategory === AssetCategory.LAND && {
+      name: currentValues.name || '',
+      description: currentValues.description || '',
+      estimatedValue: currentValues.estimatedValue || 0,
+      isEncumbered: currentValues.isEncumbered || false,
+      encumbranceDetails: currentValues.encumbranceDetails || '',
+    };
+
+    // Add category-specific defaults
+    if (selectedCategory === AssetCategory.LAND) {
+      Object.assign(newValues, {
         landCategory: LandCategory.RESIDENTIAL,
         county: KenyanCounty.NAIROBI,
         titleDeedNumber: '',
         parcelNumber: '',
         subCounty: '',
         sizeInAcres: 0,
-      }),
-      // Vehicle defaults
-      ...(selectedCategory === AssetCategory.VEHICLE && {
+      });
+    } else if (selectedCategory === AssetCategory.VEHICLE) {
+      Object.assign(newValues, {
         vehicleCategory: VehicleCategory.PERSONAL_CAR,
         registrationNumber: '',
         make: '',
         model: '',
         year: new Date().getFullYear(),
-      }),
-    });
-  }, [form, selectedCategory]);
+      });
+    }
+
+    form.reset(newValues as AssetFormData);
+  }, [selectedCategory, form]);
 
   const { mutate: addAsset, isPending, error } = useAddAsset({
     onSuccess: () => {
-      form.reset();
+      form.reset(baseDefaultValues);
       setSelectedCategory(AssetCategory.BANK_ACCOUNT);
       onClose();
     },
@@ -141,11 +162,276 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
 
   const handleClose = () => {
     if (!isPending) {
-      form.reset();
+      form.reset(baseDefaultValues);
       setSelectedCategory(AssetCategory.BANK_ACCOUNT);
       onClose();
     }
   };
+
+  const renderLandFields = () => (
+    <div className="space-y-4 p-4 border-2 border-blue-200 rounded-lg bg-blue-50/30">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="h-1 w-1 rounded-full bg-blue-600" />
+        <h4 className="font-semibold text-sm text-blue-900">
+          Land Registration Details
+        </h4>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FormField
+          control={form.control}
+          name="titleDeedNumber"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Title Deed Number *</FormLabel>
+              <FormControl>
+                <Input 
+                  disabled={isPending}
+                  placeholder="e.g. IR 12345/67"
+                  {...field} 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="parcelNumber"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Parcel Number</FormLabel>
+              <FormControl>
+                <Input 
+                  disabled={isPending}
+                  placeholder="e.g. NAIROBI/BLOCK123/456"
+                  {...field} 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="county"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>County *</FormLabel>
+              <Select 
+                disabled={isPending}
+                onValueChange={field.onChange} 
+                value={field.value}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select county" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent className="max-h-[200px]">
+                  {Object.values(KenyanCounty).map((county) => (
+                    <SelectItem key={county} value={county}>
+                      {county.replace(/_/g, ' ')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="subCounty"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Sub-County</FormLabel>
+              <FormControl>
+                <Input 
+                  disabled={isPending}
+                  placeholder="e.g. Westlands"
+                  {...field} 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="landCategory"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Land Use Category *</FormLabel>
+              <Select 
+                disabled={isPending}
+                onValueChange={field.onChange} 
+                value={field.value}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select land use" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {Object.values(LandCategory).map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="sizeInAcres"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Size (Acres)</FormLabel>
+              <FormControl>
+                <Input 
+                  disabled={isPending}
+                  type="number" 
+                  min="0"
+                  step="0.01" 
+                  placeholder="0.00"
+                  {...field} 
+                  onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+    </div>
+  );
+
+  const renderVehicleFields = () => (
+    <div className="space-y-4 p-4 border-2 border-orange-200 rounded-lg bg-orange-50/30">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="h-1 w-1 rounded-full bg-orange-600" />
+        <h4 className="font-semibold text-sm text-orange-900">
+          Vehicle Registration Details
+        </h4>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FormField
+          control={form.control}
+          name="registrationNumber"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Registration Number *</FormLabel>
+              <FormControl>
+                <Input 
+                  disabled={isPending}
+                  placeholder="e.g. KCA 123B"
+                  {...field} 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="vehicleCategory"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Vehicle Type *</FormLabel>
+              <Select 
+                disabled={isPending}
+                onValueChange={field.onChange} 
+                value={field.value}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select vehicle type" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {Object.values(VehicleCategory).map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat.replace(/_/g, ' ')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="make"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Make *</FormLabel>
+              <FormControl>
+                <Input 
+                  disabled={isPending}
+                  placeholder="e.g. Toyota"
+                  {...field} 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="model"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Model *</FormLabel>
+              <FormControl>
+                <Input 
+                  disabled={isPending}
+                  placeholder="e.g. Fielder"
+                  {...field} 
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="year"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Year</FormLabel>
+              <FormControl>
+                <Input 
+                  disabled={isPending}
+                  type="number" 
+                  min="1900"
+                  max={new Date().getFullYear() + 1}
+                  placeholder={new Date().getFullYear().toString()}
+                  {...field} 
+                  onChange={(e) => field.onChange(parseInt(e.target.value) || undefined)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+    </div>
+  );
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -247,271 +533,10 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
             </div>
 
             {/* LAND-SPECIFIC FIELDS */}
-            {selectedCategory === AssetCategory.LAND && (
-              <div className="space-y-4 p-4 border-2 border-blue-200 rounded-lg bg-blue-50/30">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="h-1 w-1 rounded-full bg-blue-600" />
-                  <h4 className="font-semibold text-sm text-blue-900">
-                    Land Registration Details
-                  </h4>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="titleDeedNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Title Deed Number *</FormLabel>
-                        <FormControl>
-                          <Input 
-                            disabled={isPending}
-                            placeholder="e.g. IR 12345/67"
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="parcelNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Parcel Number</FormLabel>
-                        <FormControl>
-                          <Input 
-                            disabled={isPending}
-                            placeholder="e.g. NAIROBI/BLOCK123/456"
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="county"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>County *</FormLabel>
-                        <Select 
-                          disabled={isPending}
-                          onValueChange={field.onChange} 
-                          value={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select county" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent className="max-h-[200px]">
-                            {Object.values(KenyanCounty).map((county) => (
-                              <SelectItem key={county} value={county}>
-                                {county.replace(/_/g, ' ')}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="subCounty"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Sub-County</FormLabel>
-                        <FormControl>
-                          <Input 
-                            disabled={isPending}
-                            placeholder="e.g. Westlands"
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="landCategory"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Land Use Category *</FormLabel>
-                        <Select 
-                          disabled={isPending}
-                          onValueChange={field.onChange} 
-                          value={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select land use" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {Object.values(LandCategory).map((cat) => (
-                              <SelectItem key={cat} value={cat}>
-                                {cat}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="sizeInAcres"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Size (Acres)</FormLabel>
-                        <FormControl>
-                          <Input 
-                            disabled={isPending}
-                            type="number" 
-                            min="0"
-                            step="0.01" 
-                            placeholder="0.00"
-                            {...field} 
-                            onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-            )}
+            {selectedCategory === AssetCategory.LAND && renderLandFields()}
 
             {/* VEHICLE-SPECIFIC FIELDS */}
-            {selectedCategory === AssetCategory.VEHICLE && (
-              <div className="space-y-4 p-4 border-2 border-orange-200 rounded-lg bg-orange-50/30">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="h-1 w-1 rounded-full bg-orange-600" />
-                  <h4 className="font-semibold text-sm text-orange-900">
-                    Vehicle Registration Details
-                  </h4>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="registrationNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Registration Number *</FormLabel>
-                        <FormControl>
-                          <Input 
-                            disabled={isPending}
-                            placeholder="e.g. KCA 123B"
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="vehicleCategory"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Vehicle Type *</FormLabel>
-                        <Select 
-                          disabled={isPending}
-                          onValueChange={field.onChange} 
-                          value={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select vehicle type" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {Object.values(VehicleCategory).map((cat) => (
-                              <SelectItem key={cat} value={cat}>
-                                {cat.replace(/_/g, ' ')}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="make"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Make *</FormLabel>
-                        <FormControl>
-                          <Input 
-                            disabled={isPending}
-                            placeholder="e.g. Toyota"
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="model"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Model *</FormLabel>
-                        <FormControl>
-                          <Input 
-                            disabled={isPending}
-                            placeholder="e.g. Fielder"
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="year"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Year</FormLabel>
-                        <FormControl>
-                          <Input 
-                            disabled={isPending}
-                            type="number" 
-                            min="1900"
-                            max={new Date().getFullYear() + 1}
-                            placeholder={new Date().getFullYear().toString()}
-                            {...field} 
-                            onChange={(e) => field.onChange(parseInt(e.target.value) || undefined)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-            )}
+            {selectedCategory === AssetCategory.VEHICLE && renderVehicleFields()}
 
             {/* DESCRIPTION */}
             <FormField
