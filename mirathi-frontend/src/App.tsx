@@ -53,7 +53,6 @@ import {
 
 // Not Found
 import { NotFoundPage } from './pages/NotFoundPage';
-import { ComplianceReportPage, ExecuteWillPage, ExecutorDashboardPage, WillDashboardPage, WillEditorPage } from './pages/will';
 
 function App() {
   return (
@@ -98,13 +97,6 @@ function App() {
           <Route path="settings" element={<SettingsPage />} />
           <Route path="documents" element={<UserDocumentsPage />} />
 
-          {/* 4.2. Will Module (Estate Planning) */}
-          <Route path="wills" element={<WillDashboardPage />} />
-          <Route path="will/:id/edit" element={<WillEditorPage />} />
-          <Route path="will/:id/compliance" element={<ComplianceReportPage />} />
-          <Route path="will/:id/execute" element={<ExecuteWillPage />} />
-          <Route path="will/:id/executor" element={<ExecutorDashboardPage />} />
-          
           {/* --- ESTATE SERVICE --- */}
           <Route path="estates">
             <Route index element={<EstateListPage />} />
