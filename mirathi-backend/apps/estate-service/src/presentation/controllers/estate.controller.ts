@@ -1,18 +1,7 @@
-// =============================================================================
-// CONTROLLERS - HTTP Layer
-// =============================================================================
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Post,
-  Put,
-  UseGuards,
-} from '@nestjs/common';
+// src/application/controllers/estate.controller.ts
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { AssetCategory } from '@prisma/client';
 
 import { JwtAuthGuard } from '@shamba/auth';
 
@@ -49,12 +38,11 @@ import {
   UpdateAssetValueDto,
   VerifyAssetDto,
   WillPreviewDto,
-} from '../dtos/estate.dto';
+} from '../dtos';
 
 // =============================================================================
 // ESTATE CONTROLLER
 // =============================================================================
-
 @ApiTags('Estate')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -68,7 +56,6 @@ export class EstateController {
   @Post()
   @ApiOperation({ summary: 'Create a new estate' })
   @ApiResponse({ status: 201, description: 'Estate created successfully' })
-  @ApiResponse({ status: 400, description: 'Estate already exists' })
   async create(@Body() dto: CreateEstateDto) {
     const estate = await this.createEstate.execute(dto.userId, dto.userName, dto.kraPin);
     return {
@@ -80,8 +67,7 @@ export class EstateController {
   @Get(':userId')
   @ApiOperation({ summary: 'Get estate summary' })
   @ApiResponse({ status: 200, type: EstateSummaryDto })
-  @ApiResponse({ status: 404, description: 'Estate not found' })
-  async getSummary(@Param('userId') userId: string) {
+  async getSummary(@Param('userId', ParseUUIDPipe) userId: string) {
     const summary = await this.getEstateSummary.execute(userId);
     return {
       message: 'Estate summary retrieved successfully',
@@ -93,7 +79,6 @@ export class EstateController {
 // =============================================================================
 // ASSETS CONTROLLER
 // =============================================================================
-
 @ApiTags('Assets')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -106,46 +91,33 @@ export class AssetsController {
     private readonly verifyAsset: VerifyAssetService,
   ) {}
 
-  @Post()
-  @ApiOperation({ summary: 'Add a new asset' })
+  @Post('generic')
+  @ApiOperation({ summary: 'Add a generic asset' })
   @ApiResponse({ status: 201, description: 'Asset added successfully' })
-  async add(@Param('estateId') estateId: string, @Body() dto: AddAssetDto) {
+  async addGeneric(@Param('estateId', ParseUUIDPipe) estateId: string, @Body() dto: AddAssetDto) {
     const asset = await this.addAsset.execute(
       estateId,
-      dto.name,
       dto.category,
       dto.estimatedValue,
+      { type: 'GENERIC' },
       dto.description,
-      {
-        purchaseDate: dto.purchaseDate,
-        location: dto.location,
-        isEncumbered: dto.isEncumbered,
-        encumbranceDetails: dto.encumbranceDetails,
-      },
+      dto.name,
     );
-
-    return {
-      message: 'Asset added successfully',
-      data: asset.toJSON(),
-    };
+    return { message: 'Asset added successfully', data: asset.toJSON() };
   }
 
   @Post('land')
-  @ApiOperation({ summary: 'Add land asset with title deed details' })
-  @ApiResponse({ status: 201, description: 'Land asset added successfully' })
-  async addLand(@Param('estateId') estateId: string, @Body() dto: AddLandAssetDto) {
+  @ApiOperation({ summary: 'Add land with Title Deed details' })
+  @ApiResponse({ status: 201, description: 'Land added successfully' })
+  async addLand(@Param('estateId', ParseUUIDPipe) estateId: string, @Body() dto: AddLandAssetDto) {
+    // Map flattened DTO to Nested Service Object
     const asset = await this.addAsset.execute(
       estateId,
-      dto.name,
-      dto.category,
+      AssetCategory.LAND,
       dto.estimatedValue,
-      dto.description,
       {
-        purchaseDate: dto.purchaseDate,
-        location: dto.location,
-        isEncumbered: dto.isEncumbered,
-        encumbranceDetails: dto.encumbranceDetails,
-        landDetails: {
+        type: 'LAND',
+        details: {
           titleDeedNumber: dto.titleDeedNumber,
           parcelNumber: dto.parcelNumber,
           county: dto.county,
@@ -154,30 +126,25 @@ export class AssetsController {
           sizeInAcres: dto.sizeInAcres,
         },
       },
+      dto.description,
     );
-
-    return {
-      message: 'Land asset added successfully',
-      data: asset.toJSON(),
-    };
+    return { message: 'Land asset added successfully', data: asset.toJSON() };
   }
 
   @Post('vehicle')
-  @ApiOperation({ summary: 'Add vehicle asset with logbook details' })
-  @ApiResponse({ status: 201, description: 'Vehicle asset added successfully' })
-  async addVehicle(@Param('estateId') estateId: string, @Body() dto: AddVehicleAssetDto) {
+  @ApiOperation({ summary: 'Add vehicle with Registration details' })
+  @ApiResponse({ status: 201, description: 'Vehicle added successfully' })
+  async addVehicle(
+    @Param('estateId', ParseUUIDPipe) estateId: string,
+    @Body() dto: AddVehicleAssetDto,
+  ) {
     const asset = await this.addAsset.execute(
       estateId,
-      dto.name,
-      dto.category,
+      AssetCategory.VEHICLE,
       dto.estimatedValue,
-      dto.description,
       {
-        purchaseDate: dto.purchaseDate,
-        location: dto.location,
-        isEncumbered: dto.isEncumbered,
-        encumbranceDetails: dto.encumbranceDetails,
-        vehicleDetails: {
+        type: 'VEHICLE',
+        details: {
           registrationNumber: dto.registrationNumber,
           make: dto.make,
           model: dto.model,
@@ -185,18 +152,15 @@ export class AssetsController {
           vehicleCategory: dto.vehicleCategory,
         },
       },
+      dto.description,
     );
-
-    return {
-      message: 'Vehicle asset added successfully',
-      data: asset.toJSON(),
-    };
+    return { message: 'Vehicle asset added successfully', data: asset.toJSON() };
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all assets in estate' })
+  @ApiOperation({ summary: 'List all assets' })
   @ApiResponse({ status: 200, type: [AssetResponseDto] })
-  async list(@Param('estateId') estateId: string) {
+  async list(@Param('estateId', ParseUUIDPipe) estateId: string) {
     const assets = await this.listAssets.execute(estateId);
     return {
       message: 'Assets retrieved successfully',
@@ -207,31 +171,24 @@ export class AssetsController {
 
   @Put(':assetId/value')
   @ApiOperation({ summary: 'Update asset value' })
-  @ApiResponse({ status: 200, description: 'Asset value updated successfully' })
-  @HttpCode(HttpStatus.OK)
-  async updateValue(@Param('assetId') assetId: string, @Body() dto: UpdateAssetValueDto) {
-    await this.updateAssetValue.execute(assetId, dto.estimatedValue, dto.reason);
-    return {
-      message: 'Asset value updated successfully',
-    };
+  async updateValue(
+    @Param('assetId', ParseUUIDPipe) assetId: string,
+    @Body() dto: UpdateAssetValueDto,
+  ) {
+    await this.updateAssetValue.execute(assetId, dto.estimatedValue);
+    return { message: 'Asset value updated successfully' };
   }
 
   @Post(':assetId/verify')
-  @ApiOperation({ summary: 'Verify asset with proof document' })
-  @ApiResponse({ status: 200, description: 'Asset verified successfully' })
-  @HttpCode(HttpStatus.OK)
-  async verify(@Param('assetId') assetId: string, @Body() dto: VerifyAssetDto) {
+  async verify(@Param('assetId', ParseUUIDPipe) assetId: string, @Body() dto: VerifyAssetDto) {
     await this.verifyAsset.execute(assetId, dto.proofDocumentUrl);
-    return {
-      message: 'Asset verified successfully',
-    };
+    return { message: 'Asset verified successfully' };
   }
 }
 
 // =============================================================================
 // DEBTS CONTROLLER
 // =============================================================================
-
 @ApiTags('Debts')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -244,29 +201,25 @@ export class DebtsController {
   ) {}
 
   @Post()
-  @ApiOperation({ summary: 'Add a new debt' })
+  @ApiOperation({ summary: 'Add debt (Auto-priority calculation)' })
   @ApiResponse({ status: 201, description: 'Debt added successfully' })
-  async add(@Param('estateId') estateId: string, @Body() dto: AddDebtDto) {
+  async add(@Param('estateId', ParseUUIDPipe) estateId: string, @Body() dto: AddDebtDto) {
     const debt = await this.addDebt.execute(
       estateId,
       dto.creditorName,
       dto.description,
       dto.category,
       dto.originalAmount,
-      dto.outstandingBalance,
+      dto.outstandingBalance ?? dto.originalAmount,
       dto.isSecured,
     );
-
-    return {
-      message: 'Debt added successfully',
-      data: debt.toJSON(),
-    };
+    return { message: 'Debt added successfully', data: debt.toJSON() };
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all debts in estate' })
+  @ApiOperation({ summary: 'List debts ordered by Priority' })
   @ApiResponse({ status: 200, type: [DebtResponseDto] })
-  async list(@Param('estateId') estateId: string) {
+  async list(@Param('estateId', ParseUUIDPipe) estateId: string) {
     const debts = await this.listDebts.execute(estateId);
     return {
       message: 'Debts retrieved successfully',
@@ -276,97 +229,70 @@ export class DebtsController {
   }
 
   @Post(':debtId/pay')
-  @ApiOperation({ summary: 'Make a payment on debt' })
-  @ApiResponse({ status: 200, description: 'Payment recorded successfully' })
-  @HttpCode(HttpStatus.OK)
-  async pay(@Param('debtId') debtId: string, @Body() dto: PayDebtDto) {
-    await this.payDebt.execute(debtId, dto.paymentAmount);
-    return {
-      message: 'Payment recorded successfully',
-    };
+  @ApiOperation({ summary: 'Record debt payment' })
+  async pay(@Param('debtId', ParseUUIDPipe) debtId: string, @Body() dto: PayDebtDto) {
+    await this.payDebt.execute(debtId, dto.amount);
+    return { message: 'Payment recorded successfully' };
   }
 }
 
 // =============================================================================
 // WILL CONTROLLER
 // =============================================================================
-
 @ApiTags('Will')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('will')
 export class WillController {
+  // FIX: Rename properties to avoid collision with method names
   constructor(
     private readonly createWill: CreateWillService,
-    private readonly addBeneficiary: AddBeneficiaryService,
-    private readonly addWitness: AddWitnessService,
+    private readonly addBeneficiaryService: AddBeneficiaryService, // Renamed
+    private readonly addWitnessService: AddWitnessService, // Renamed
     private readonly generatePreview: GenerateWillPreviewService,
   ) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a new will' })
-  @ApiResponse({ status: 201, description: 'Will created successfully' })
+  @ApiOperation({ summary: 'Start a new Will' })
+  @ApiResponse({ status: 201, description: 'Will created' })
   async create(@Body() dto: CreateWillDto) {
     const will = await this.createWill.execute(dto.userId, dto.testatorName);
-
-    // If executor details provided, update them
-    if (dto.executorName) {
-      // This would be a separate service, but for simplicity:
-      // You'd call updateExecutor service here
-    }
-
-    return {
-      message: 'Will created successfully',
-      data: will.toJSON(),
-    };
+    return { message: 'Will created successfully', data: will.toJSON() };
   }
 
   @Post(':willId/beneficiaries')
-  @ApiOperation({ summary: 'Add beneficiary to will' })
-  @ApiResponse({ status: 201, description: 'Beneficiary added successfully' })
-  async addBeneficiary(@Param('willId') willId: string, @Body() dto: AddBeneficiaryDto) {
-    await this.addBeneficiary.execute(willId, {
-      beneficiaryName: dto.beneficiaryName,
-      beneficiaryType: dto.beneficiaryType,
-      relationship: dto.relationship,
-      bequestType: dto.bequestType,
-      assetId: dto.assetId,
-      percentage: dto.percentage,
-      cashAmount: dto.cashAmount ? dto.cashAmount.toString() : null,
-      description: dto.description,
-      hasConditions: dto.hasConditions,
-      conditions: dto.conditions,
+  @ApiOperation({ summary: 'Add Beneficiary' })
+  @ApiResponse({ status: 201, description: 'Beneficiary added' })
+  async addBeneficiary(
+    @Param('willId', ParseUUIDPipe) willId: string,
+    @Body() dto: AddBeneficiaryDto,
+  ) {
+    // FIX: Use the renamed property
+    await this.addBeneficiaryService.execute(willId, {
+      name: dto.name,
+      type: dto.type,
+      description: dto.description || '', // Ensure default if missing
+      // Pass other fields if service supports them, or map appropriately
     });
-
-    return {
-      message: 'Beneficiary added successfully',
-    };
+    return { message: 'Beneficiary added successfully' };
   }
 
   @Post(':willId/witnesses')
-  @ApiOperation({ summary: 'Add witness to will' })
-  @ApiResponse({ status: 201, description: 'Witness added successfully' })
-  async addWitness(@Param('willId') willId: string, @Body() dto: AddWitnessDto) {
-    await this.addWitness.execute(willId, {
+  @ApiOperation({ summary: 'Add Witness' })
+  @ApiResponse({ status: 201, description: 'Witness added' })
+  async addWitness(@Param('willId', ParseUUIDPipe) willId: string, @Body() dto: AddWitnessDto) {
+    // FIX: Use the renamed property
+    await this.addWitnessService.execute(willId, {
       fullName: dto.fullName,
-      nationalId: dto.nationalId,
-      phoneNumber: dto.phoneNumber,
       email: dto.email,
-      address: dto.address,
-      isOver18: true,
-      isNotBeneficiary: true,
-      isMentallyCapable: true,
     });
-
-    return {
-      message: 'Witness added successfully',
-    };
+    return { message: 'Witness added successfully' };
   }
 
   @Get(':willId/preview')
-  @ApiOperation({ summary: 'Generate will preview' })
+  @ApiOperation({ summary: 'Generate HTML Preview' })
   @ApiResponse({ status: 200, type: WillPreviewDto })
-  async preview(@Param('willId') willId: string) {
+  async preview(@Param('willId', ParseUUIDPipe) willId: string) {
     const preview = await this.generatePreview.execute(willId);
     return {
       message: 'Will preview generated successfully',

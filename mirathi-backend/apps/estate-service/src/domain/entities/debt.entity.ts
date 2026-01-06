@@ -1,29 +1,5 @@
-export enum DebtCategory {
-  MORTGAGE = 'MORTGAGE',
-  BANK_LOAN = 'BANK_LOAN',
-  SACCO_LOAN = 'SACCO_LOAN',
-  PERSONAL_LOAN = 'PERSONAL_LOAN',
-  MOBILE_LOAN = 'MOBILE_LOAN',
-  FUNERAL_EXPENSES = 'FUNERAL_EXPENSES',
-  MEDICAL_BILLS = 'MEDICAL_BILLS',
-  TAXES_OWED = 'TAXES_OWED',
-  OTHER = 'OTHER',
-}
-
-export enum DebtPriority {
-  CRITICAL = 'CRITICAL', // Funeral, taxes (S.45 LSA)
-  HIGH = 'HIGH', // Secured debts
-  MEDIUM = 'MEDIUM', // Priority unsecured
-  LOW = 'LOW', // General unsecured
-}
-
-export enum DebtStatus {
-  OUTSTANDING = 'OUTSTANDING',
-  PARTIALLY_PAID = 'PARTIALLY_PAID',
-  PAID_IN_FULL = 'PAID_IN_FULL',
-  DISPUTED = 'DISPUTED',
-  WRITTEN_OFF = 'WRITTEN_OFF',
-}
+// src/domain/entities/debt.entity.ts
+import { DebtCategory, DebtPriority, DebtStatus } from '@prisma/client';
 
 export interface DebtProps {
   id: string;
@@ -34,12 +10,19 @@ export interface DebtProps {
   category: DebtCategory;
   priority: DebtPriority;
   status: DebtStatus;
+
+  // Money handling (stored as numbers in domain, decimals in DB)
   originalAmount: number;
   outstandingBalance: number;
   currency: string;
+
+  // Dates
   dueDate?: Date;
+
+  // Security
   isSecured: boolean;
-  securityDetails?: string;
+  securityDetails?: string; // e.g., "Secured against Title No. 123"
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -47,35 +30,35 @@ export interface DebtProps {
 export class Debt {
   private constructor(private props: DebtProps) {}
 
+  /**
+   * Factory method that strictly enforces Kenyan Law of Succession (S.45)
+   * regarding debt priority.
+   */
   static create(
     estateId: string,
     creditorName: string,
-    description: string,
     category: DebtCategory,
-    priority: DebtPriority,
-    originalAmount: number,
-    outstandingBalance: number,
+    amount: number,
+    isSecured: boolean,
+    description?: string,
   ): Debt {
-    if (originalAmount < 0 || outstandingBalance < 0) {
-      throw new Error('Debt amounts cannot be negative');
-    }
+    if (amount < 0) throw new Error('Debt amount cannot be negative');
 
-    if (outstandingBalance > originalAmount) {
-      throw new Error('Outstanding balance cannot exceed original amount');
-    }
+    // INNOVATION: Auto-calculate Priority based on Law
+    const priority = Debt.determineLegalPriority(category, isSecured);
 
     return new Debt({
       id: crypto.randomUUID(),
       estateId,
       creditorName,
-      description,
+      description: description || category.replace(/_/g, ' '), // Default desc
       category,
-      priority,
+      priority, // <--- Auto-assigned
       status: DebtStatus.OUTSTANDING,
-      originalAmount,
-      outstandingBalance,
+      originalAmount: amount,
+      outstandingBalance: amount, // Starts equal to original
       currency: 'KES',
-      isSecured: false,
+      isSecured,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -85,44 +68,32 @@ export class Debt {
     return new Debt(props);
   }
 
-  // Getters
-  get id(): string {
-    return this.props.id;
-  }
-  get estateId(): string {
-    return this.props.estateId;
-  }
-  get creditorName(): string {
-    return this.props.creditorName;
-  }
-  get category(): DebtCategory {
-    return this.props.category;
-  }
-  get priority(): DebtPriority {
-    return this.props.priority;
-  }
-  get originalAmount(): number {
-    return this.props.originalAmount;
-  }
-  get outstandingBalance(): number {
-    return this.props.outstandingBalance;
-  }
-  get status(): DebtStatus {
-    return this.props.status;
-  }
-  get isSecured(): boolean {
-    return this.props.isSecured;
+  // --- BUSINESS LOGIC ---
+
+  /**
+   * Internal Logic for S.45 Law of Succession Act
+   */
+  private static determineLegalPriority(category: DebtCategory, isSecured: boolean): DebtPriority {
+    // S.45(a): Funeral expenses and death-bed expenses are first
+    if (category === DebtCategory.FUNERAL_EXPENSES) return DebtPriority.CRITICAL;
+
+    // S.45(a): Reasonable expenses of administration (Taxes, Legal fees)
+    if (category === DebtCategory.TAXES_OWED) return DebtPriority.CRITICAL;
+
+    // S.45(b): Creditors holding security (Mortgages, secured loans)
+    if (isSecured || category === DebtCategory.MORTGAGE) return DebtPriority.HIGH;
+
+    // S.45(c): Deferred debts (Medical usually falls here or Critical depending on timing)
+    if (category === DebtCategory.MEDICAL_BILLS) return DebtPriority.MEDIUM;
+
+    // S.45(d): General unsecured creditors
+    return DebtPriority.LOW;
   }
 
-  // Business Logic
   makePayment(amount: number): void {
-    if (amount <= 0) {
-      throw new Error('Payment amount must be positive');
-    }
-
-    if (amount > this.props.outstandingBalance) {
+    if (amount <= 0) throw new Error('Payment amount must be positive');
+    if (amount > this.props.outstandingBalance)
       throw new Error('Payment exceeds outstanding balance');
-    }
 
     this.props.outstandingBalance -= amount;
 
@@ -131,25 +102,47 @@ export class Debt {
     } else {
       this.props.status = DebtStatus.PARTIALLY_PAID;
     }
-
-    this.props.updatedAt = new Date();
-  }
-
-  dispute(): void {
-    this.props.status = DebtStatus.DISPUTED;
-    this.props.updatedAt = new Date();
-  }
-
-  writeOff(): void {
-    this.props.status = DebtStatus.WRITTEN_OFF;
-    this.props.outstandingBalance = 0;
     this.props.updatedAt = new Date();
   }
 
   secure(details: string): void {
     this.props.isSecured = true;
     this.props.securityDetails = details;
+    // Securing a debt upgrades its priority (S.45b)
+    if (this.props.priority !== DebtPriority.CRITICAL) {
+      this.props.priority = DebtPriority.HIGH;
+    }
     this.props.updatedAt = new Date();
+  }
+
+  writeOff(reason?: string): void {
+    this.props.outstandingBalance = 0;
+    this.props.status = DebtStatus.WRITTEN_OFF;
+    if (reason) this.props.description += ` [WRITTEN OFF: ${reason}]`;
+    this.props.updatedAt = new Date();
+  }
+
+  // --- GETTERS ---
+  get id() {
+    return this.props.id;
+  }
+  get estateId() {
+    return this.props.estateId;
+  }
+  get category() {
+    return this.props.category;
+  }
+  get priority() {
+    return this.props.priority;
+  }
+  get status() {
+    return this.props.status;
+  }
+  get outstandingBalance() {
+    return this.props.outstandingBalance;
+  }
+  get isSecured() {
+    return this.props.isSecured;
   }
 
   toJSON(): DebtProps {

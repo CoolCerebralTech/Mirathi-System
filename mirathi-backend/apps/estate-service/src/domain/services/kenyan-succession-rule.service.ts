@@ -1,93 +1,69 @@
-// =============================================================================
-// KENYAN SUCCESSION RULES SERVICE
-// Implements S.45 Law of Succession Act (Debt Priority)
-// =============================================================================
+// src/domain/services/kenyan-succession-rules.service.ts
 import { Injectable } from '@nestjs/common';
+import { CourtJurisdiction, KenyanFormType } from '@prisma/client';
 
-import { DebtCategory, DebtPriority } from '../entities/debt.entity';
+import { Money } from '../value-objects/money.vo';
 
 @Injectable()
 export class KenyanSuccessionRulesService {
-  /**
-   * Determines debt priority based on S.45 LSA
-   * Order: Funeral → Taxes → Secured → Unsecured
-   */
-  determineDebtPriority(category: DebtCategory, isSecured: boolean): DebtPriority {
-    // S.45(a) - Funeral expenses and testamentary expenses
-    if (category === DebtCategory.FUNERAL_EXPENSES) {
-      return DebtPriority.CRITICAL;
+  // 1. DETERMINE CORRECT FORM (The "Digital Lawyer" Logic)
+  recommendProbateForm(
+    hasWill: boolean,
+    netWorth: number,
+  ): { form: KenyanFormType; explanation: string } {
+    // Scenario A: Small Estate (< 500k KES) - Summary Administration
+    if (netWorth <= 500_000) {
+      return {
+        form: KenyanFormType.PA5_SUMMARY,
+        explanation:
+          'Estate value is under KES 500,000. You qualify for Summary Administration (Section 49 LSA). This is faster and cheaper.',
+      };
     }
 
-    // S.45(a) - Taxes, rates, and wages
-    if (category === DebtCategory.TAXES_OWED) {
-      return DebtPriority.CRITICAL;
+    // Scenario B: With Will
+    if (hasWill) {
+      return {
+        form: KenyanFormType.PA1_PROBATE,
+        explanation: 'A valid will exists. You must file a Petition for Probate (PA1).',
+      };
     }
 
-    // S.45(b) - Secured debts
-    if (isSecured || category === DebtCategory.MORTGAGE) {
-      return DebtPriority.HIGH;
-    }
-
-    // S.45(c) - Priority unsecured debts
-    if (category === DebtCategory.MEDICAL_BILLS) {
-      return DebtPriority.MEDIUM;
-    }
-
-    // S.45(d) - General unsecured debts
-    return DebtPriority.LOW;
-  }
-
-  /**
-   * Validates if a will meets Kenyan legal requirements
-   */
-  validateWillRequirements(
-    hasExecutor: boolean,
-    witnessCount: number,
-    beneficiaryCount: number,
-  ): { isValid: boolean; violations: string[] } {
-    const violations: string[] = [];
-
-    // Kenyan Law Requirement: Must have at least 2 witnesses
-    if (witnessCount < 2) {
-      violations.push('Will must be witnessed by at least 2 people (S.11 LSA)');
-    }
-
-    // Recommended: Should have an executor
-    if (!hasExecutor) {
-      violations.push('Will should appoint an executor');
-    }
-
-    // Recommended: Should have beneficiaries
-    if (beneficiaryCount === 0) {
-      violations.push('Will should specify at least one beneficiary');
-    }
-
+    // Scenario C: Intestate (No Will)
     return {
-      isValid: violations.length === 0,
-      violations,
+      form: KenyanFormType.PA80_INTESTATE,
+      explanation: 'No will found. You must file for Letters of Administration Intestate (PA80).',
     };
   }
 
-  /**
-   * Checks if estate is solvent (can pay all debts)
-   */
-  checkSolvency(
-    totalAssets: number,
-    totalDebts: number,
-  ): {
-    isSolvent: boolean;
-    netPosition: number;
-    message: string;
-  } {
-    const netPosition = totalAssets - totalDebts;
-    const isSolvent = netPosition >= 0;
+  // 2. DETERMINE COURT JURISDICTION
+  determineJurisdiction(netWorth: number): CourtJurisdiction {
+    // Current practice: Estates > 1M usually go to High Court, but Magistrates have expanded jurisdiction.
+    // For safety in this system:
+    if (netWorth > 1_000_000) {
+      return CourtJurisdiction.HIGH_COURT;
+    }
+    return CourtJurisdiction.MAGISTRATE_COURT;
+  }
 
-    return {
-      isSolvent,
-      netPosition,
-      message: isSolvent
-        ? `Estate is solvent with net value of KES ${netPosition.toLocaleString()}`
-        : `Estate is insolvent. Debts exceed assets by KES ${Math.abs(netPosition).toLocaleString()}`,
-    };
+  // 3. CALCULATE ESTIMATED COURT FEES (Innovative Feature)
+  // Note: These are estimates based on the Judiciary filing schedule
+  estimateCourtFees(netWorth: number, formType: KenyanFormType): Money {
+    let baseFee = 0;
+
+    // Gazettement Fee (Approx 3,000 - 5,000)
+    const gazetteFee = 4000;
+
+    switch (formType) {
+      case KenyanFormType.PA5_SUMMARY:
+        baseFee = 1000; // Cheaper
+        break;
+      case KenyanFormType.PA1_PROBATE:
+      case KenyanFormType.PA80_INTESTATE:
+        baseFee = 2000; // Petition fee
+        break;
+    }
+
+    // Ad Valorem Assessment could go here for very large estates
+    return new Money(baseFee + gazetteFee);
   }
 }

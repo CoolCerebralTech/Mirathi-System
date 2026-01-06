@@ -1,21 +1,31 @@
-export enum AssetCategory {
-  LAND = 'LAND',
-  PROPERTY = 'PROPERTY',
-  VEHICLE = 'VEHICLE',
-  BANK_ACCOUNT = 'BANK_ACCOUNT',
-  INVESTMENT = 'INVESTMENT',
-  BUSINESS = 'BUSINESS',
-  LIVESTOCK = 'LIVESTOCK',
-  PERSONAL_EFFECTS = 'PERSONAL_EFFECTS',
-  OTHER = 'OTHER',
+// =============================================================================
+// DOMAIN ENTITY: ASSET
+// =============================================================================
+import {
+  AssetCategory,
+  AssetStatus,
+  KenyanCounty,
+  LandCategory,
+  VehicleCategory,
+} from '@prisma/client';
+
+// --- Value Objects / Interfaces ---
+
+export interface LandDetailsProps {
+  titleDeedNumber: string;
+  parcelNumber?: string;
+  county: KenyanCounty;
+  subCounty?: string;
+  landCategory: LandCategory;
+  sizeInAcres?: number;
 }
 
-export enum AssetStatus {
-  ACTIVE = 'ACTIVE',
-  VERIFIED = 'VERIFIED',
-  ENCUMBERED = 'ENCUMBERED',
-  DISPUTED = 'DISPUTED',
-  LIQUIDATED = 'LIQUIDATED',
+export interface VehicleDetailsProps {
+  registrationNumber: string;
+  make: string;
+  model: string;
+  year?: number;
+  vehicleCategory: VehicleCategory;
 }
 
 export interface AssetProps {
@@ -25,12 +35,20 @@ export interface AssetProps {
   description?: string;
   category: AssetCategory;
   status: AssetStatus;
-  estimatedValue: number;
+  estimatedValue: number; // Domain uses number, Persistence uses Decimal
   currency: string;
+
+  // Verification & Encumbrance
   isVerified: boolean;
   proofDocumentUrl?: string;
   isEncumbered: boolean;
   encumbranceDetails?: string;
+
+  // Polymorphic Details
+  landDetails?: LandDetailsProps;
+  vehicleDetails?: VehicleDetailsProps;
+
+  // Metadata
   purchaseDate?: Date;
   location?: string;
   createdAt: Date;
@@ -40,6 +58,11 @@ export interface AssetProps {
 export class Asset {
   private constructor(private props: AssetProps) {}
 
+  // --- FACTORY METHODS (The "Smart Constructor" Pattern) ---
+
+  /**
+   * Generic Asset Factory (Bank accounts, Furniture, etc.)
+   */
   static create(
     estateId: string,
     name: string,
@@ -47,9 +70,7 @@ export class Asset {
     estimatedValue: number,
     description?: string,
   ): Asset {
-    if (estimatedValue < 0) {
-      throw new Error('Asset value cannot be negative');
-    }
+    this.validateValue(estimatedValue);
 
     return new Asset({
       id: crypto.randomUUID(),
@@ -67,46 +88,113 @@ export class Asset {
     });
   }
 
+  /**
+   * Specialized Land Factory - Enforces Title Deed & County
+   */
+  static createLand(
+    estateId: string,
+    estimatedValue: number,
+    details: LandDetailsProps,
+    description?: string,
+  ): Asset {
+    this.validateValue(estimatedValue);
+
+    // Auto-generate name based on legal description
+    const name = `Land: ${details.titleDeedNumber} (${details.county})`;
+
+    return new Asset({
+      id: crypto.randomUUID(),
+      estateId,
+      name, // Standardized naming
+      description: description || `Parcel ${details.parcelNumber ?? 'N/A'}`,
+      category: AssetCategory.LAND,
+      status: AssetStatus.ACTIVE,
+      estimatedValue,
+      currency: 'KES',
+      isVerified: false,
+      isEncumbered: false,
+      landDetails: details, // Store details
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  }
+
+  /**
+   * Specialized Vehicle Factory - Enforces Registration Number
+   */
+  static createVehicle(
+    estateId: string,
+    estimatedValue: number,
+    details: VehicleDetailsProps,
+    description?: string,
+  ): Asset {
+    this.validateValue(estimatedValue);
+
+    // Auto-generate name: "Toyota Corolla (KCA 123B)"
+    const name = `${details.make} ${details.model} (${details.registrationNumber})`;
+
+    return new Asset({
+      id: crypto.randomUUID(),
+      estateId,
+      name,
+      description: description || `Year: ${details.year ?? 'Unknown'}`,
+      category: AssetCategory.VEHICLE,
+      status: AssetStatus.ACTIVE,
+      estimatedValue,
+      currency: 'KES',
+      isVerified: false,
+      isEncumbered: false,
+      vehicleDetails: details,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  }
+
   static fromPersistence(props: AssetProps): Asset {
     return new Asset(props);
   }
 
-  // Getters
+  // --- GETTERS ---
   get id(): string {
     return this.props.id;
   }
   get estateId(): string {
     return this.props.estateId;
   }
-  get name(): string {
-    return this.props.name;
-  }
   get category(): AssetCategory {
     return this.props.category;
-  }
-  get estimatedValue(): number {
-    return this.props.estimatedValue;
-  }
-  get isVerified(): boolean {
-    return this.props.isVerified;
-  }
-  get isEncumbered(): boolean {
-    return this.props.isEncumbered;
   }
   get status(): AssetStatus {
     return this.props.status;
   }
+  get estimatedValue(): number {
+    return this.props.estimatedValue;
+  }
+  get landDetails(): LandDetailsProps | undefined {
+    return this.props.landDetails;
+  }
+  get vehicleDetails(): VehicleDetailsProps | undefined {
+    return this.props.vehicleDetails;
+  }
 
-  // Business Logic
+  // --- BUSINESS LOGIC ---
+
+  private static validateValue(val: number) {
+    if (val < 0) throw new Error('Asset value cannot be negative');
+  }
+
+  /**
+   * Updates value and timestamps.
+   * Logic: If value changes significantly (>20%), verification might need reset.
+   */
   updateValue(newValue: number): void {
-    if (newValue < 0) {
-      throw new Error('Asset value cannot be negative');
-    }
+    Asset.validateValue(newValue);
     this.props.estimatedValue = newValue;
     this.props.updatedAt = new Date();
   }
 
   verify(proofDocumentUrl: string): void {
+    if (!proofDocumentUrl) throw new Error('Proof document required for verification');
     this.props.isVerified = true;
     this.props.proofDocumentUrl = proofDocumentUrl;
     this.props.status = AssetStatus.VERIFIED;
@@ -116,12 +204,7 @@ export class Asset {
   encumber(details: string): void {
     this.props.isEncumbered = true;
     this.props.encumbranceDetails = details;
-    this.props.status = AssetStatus.ENCUMBERED;
-    this.props.updatedAt = new Date();
-  }
-
-  dispute(): void {
-    this.props.status = AssetStatus.DISPUTED;
+    this.props.status = AssetStatus.ENCUMBERED; // e.g., Has a mortgage
     this.props.updatedAt = new Date();
   }
 

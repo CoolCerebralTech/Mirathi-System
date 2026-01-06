@@ -112,6 +112,9 @@ export class WillPreviewGeneratorService {
       color: #dc3545;
       font-weight: bold;
     }
+    .legal-header { text-align: center; border-bottom: 3px double black; padding-bottom: 20px; margin-bottom: 30px; }
+    .republic { font-size: 1.2em; letter-spacing: 4px; font-weight: bold; }
+    .act-ref { font-size: 0.9em; font-style: italic; }
   </style>
 </head>
 <body>

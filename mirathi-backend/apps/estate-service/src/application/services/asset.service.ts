@@ -1,15 +1,24 @@
 // =============================================================================
-// ASSET SERVICES
+// ASSET APPLICATION SERVICES
 // =============================================================================
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { AssetCategory, AssetStatus } from '@prisma/client';
 
 import { PrismaService } from '@shamba/database';
 
-import { Asset, AssetCategory, AssetStatus } from '../../domain/entities/asset.entity';
+import { Asset, LandDetailsProps, VehicleDetailsProps } from '../../domain/entities/asset.entity';
 import { CalculateNetWorthService } from './estate.service';
+
+// Type Guard Union for Metadata
+type AssetMetadata =
+  | { type: 'LAND'; details: LandDetailsProps }
+  | { type: 'VEHICLE'; details: VehicleDetailsProps }
+  | { type: 'GENERIC' };
 
 @Injectable()
 export class AddAssetService {
+  private readonly logger = new Logger(AddAssetService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly calculateNetWorth: CalculateNetWorthService,
@@ -17,52 +26,42 @@ export class AddAssetService {
 
   async execute(
     estateId: string,
-    name: string,
     category: AssetCategory,
     estimatedValue: number,
+    metadata: AssetMetadata,
     description?: string,
-    metadata?: any,
+    genericName?: string, // Only used if not Land/Vehicle
   ): Promise<Asset> {
-    // Verify estate exists
-    const estate = await this.prisma.estate.findUnique({
-      where: { id: estateId },
+    // 1. Verify Estate Exists
+    const estate = await this.prisma.estate.findUnique({ where: { id: estateId } });
+    if (!estate) throw new NotFoundException('Estate not found');
+
+    // 2. Instantiate Domain Entity using Factories
+    let asset: Asset;
+
+    try {
+      if (category === AssetCategory.LAND && metadata.type === 'LAND') {
+        asset = Asset.createLand(estateId, estimatedValue, metadata.details, description);
+      } else if (category === AssetCategory.VEHICLE && metadata.type === 'VEHICLE') {
+        asset = Asset.createVehicle(estateId, estimatedValue, metadata.details, description);
+      } else {
+        // Generic Fallback
+        if (!genericName)
+          throw new BadRequestException('Asset name is required for generic assets');
+        asset = Asset.create(estateId, genericName, category, estimatedValue, description);
+      }
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    // 3. Persist Transactionally (ACID Compliance)
+    // Ensures we don't get an Asset row without its Land/Vehicle details row
+
+    // 4. Trigger Side Effects (Net Worth)
+    // We do this outside the transaction to keep the DB lock short
+    await this.calculateNetWorth.execute(estateId).catch((err) => {
+      this.logger.error(`Failed to recalculate net worth for estate ${estateId}`, err);
     });
-
-    if (!estate) {
-      throw new NotFoundException('Estate not found');
-    }
-
-    const asset = Asset.create(estateId, name, category, estimatedValue, description);
-
-    // Create asset
-    const created = await this.prisma.asset.create({
-      data: {
-        ...asset.toJSON(),
-        estimatedValue: estimatedValue.toString(),
-      },
-    });
-
-    // Create category-specific details if needed
-    if (category === AssetCategory.LAND && metadata?.landDetails) {
-      await this.prisma.landDetails.create({
-        data: {
-          assetId: created.id,
-          ...metadata.landDetails,
-        },
-      });
-    }
-
-    if (category === AssetCategory.VEHICLE && metadata?.vehicleDetails) {
-      await this.prisma.vehicleDetails.create({
-        data: {
-          assetId: created.id,
-          ...metadata.vehicleDetails,
-        },
-      });
-    }
-
-    // Recalculate net worth
-    await this.calculateNetWorth.execute(estateId);
 
     return asset;
   }
@@ -82,24 +81,37 @@ export class ListAssetsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return assets.map((asset) => ({
-      id: asset.id,
-      name: asset.name,
-      description: asset.description,
-      category: asset.category,
-      status: asset.status,
-      estimatedValue: Number(asset.estimatedValue),
-      currency: asset.currency,
-      isVerified: asset.isVerified,
-      isEncumbered: asset.isEncumbered,
-      proofDocumentUrl: asset.proofDocumentUrl,
-      purchaseDate: asset.purchaseDate,
-      location: asset.location,
-      landDetails: asset.landDetails,
-      vehicleDetails: asset.vehicleDetails,
-      createdAt: asset.createdAt,
-      updatedAt: asset.updatedAt,
-    }));
+    // Transform Persistence -> Domain/DTO
+    return assets.map((asset) => {
+      // Rehydrate Domain Entity logic if needed, or return DTO
+      return {
+        id: asset.id,
+        name: asset.name,
+        description: asset.description,
+        category: asset.category,
+        status: asset.status,
+        estimatedValue: Number(asset.estimatedValue),
+        currency: asset.currency,
+        isVerified: asset.isVerified,
+        proofDocumentUrl: asset.proofDocumentUrl,
+        isEncumbered: asset.isEncumbered,
+        encumbranceDetails: asset.encumbranceDetails,
+
+        // Flattened Details for Frontend Convenience
+        details: asset.landDetails
+          ? {
+              type: 'LAND',
+              ...asset.landDetails,
+              sizeInAcres: Number(asset.landDetails.sizeInAcres),
+            }
+          : asset.vehicleDetails
+            ? { type: 'VEHICLE', ...asset.vehicleDetails }
+            : null,
+
+        createdAt: asset.createdAt,
+        updatedAt: asset.updatedAt,
+      };
+    });
   }
 }
 
@@ -110,14 +122,14 @@ export class UpdateAssetValueService {
     private readonly calculateNetWorth: CalculateNetWorthService,
   ) {}
 
-  async execute(assetId: string, newValue: number, reason?: string): Promise<void> {
+  async execute(assetId: string, newValue: number): Promise<void> {
+    if (newValue < 0) throw new BadRequestException('Value cannot be negative');
+
     const asset = await this.prisma.asset.findUnique({
       where: { id: assetId },
     });
 
-    if (!asset) {
-      throw new NotFoundException('Asset not found');
-    }
+    if (!asset) throw new NotFoundException('Asset not found');
 
     await this.prisma.asset.update({
       where: { id: assetId },
@@ -137,13 +149,15 @@ export class VerifyAssetService {
   constructor(private readonly prisma: PrismaService) {}
 
   async execute(assetId: string, proofDocumentUrl: string): Promise<void> {
+    if (!proofDocumentUrl) {
+      throw new BadRequestException('Proof document URL is required for verification');
+    }
+
     const asset = await this.prisma.asset.findUnique({
       where: { id: assetId },
     });
 
-    if (!asset) {
-      throw new NotFoundException('Asset not found');
-    }
+    if (!asset) throw new NotFoundException('Asset not found');
 
     await this.prisma.asset.update({
       where: { id: assetId },
@@ -154,5 +168,7 @@ export class VerifyAssetService {
         updatedAt: new Date(),
       },
     });
+
+    // Future Innovation: Trigger OCR Job here to read the Title Deed
   }
 }

@@ -32,7 +32,13 @@ export class Money {
       throw new Error('Cannot operate on different currencies');
     }
   }
-
+  toCourtFormat(): string {
+    return new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: this.currency,
+      minimumFractionDigits: 2,
+    }).format(this.amount);
+  }
   toJSON() {
     return { amount: this.amount, currency: this.currency };
   }

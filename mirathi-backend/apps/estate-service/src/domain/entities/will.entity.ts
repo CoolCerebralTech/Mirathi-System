@@ -1,12 +1,6 @@
-import { WillCompleteness } from '../value-objects/will-completeness.vo';
+import { WillStatus } from '@prisma/client';
 
-export enum WillStatus {
-  DRAFT = 'DRAFT',
-  ACTIVE = 'ACTIVE',
-  SUPERSEDED = 'SUPERSEDED',
-  REVOKED = 'REVOKED',
-  EXECUTED = 'EXECUTED',
-}
+import { WillCompleteness } from '../value-objects/will-completeness.vo';
 
 export interface WillProps {
   id: string;
