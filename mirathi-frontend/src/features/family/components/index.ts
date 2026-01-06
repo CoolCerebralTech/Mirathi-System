@@ -1,6 +1,7 @@
-export * from './AddMemberDialog';
-export * from './FamilyTreeViz';
-export * from './GuardianshipManager';
-export * from './HeirsOverview';
-export * from './MemberDetailSheet';
-export * from './SmartSuggestions';
+export { AddMemberDialog } from './AddMemberDialog';
+export { CreateFamilyDialog } from './CreateFamilyDialog';
+export { FamilyTreeViz } from './FamilyTreeViz';
+export { HeirsOverview } from './HeirsOverview';
+export { SmartSuggestions } from './SmartSuggestions';
+export { GuardianshipManager } from './GuardianshipManager';
+export { MemberDetailSheet } from './MemberDetailSheet';
