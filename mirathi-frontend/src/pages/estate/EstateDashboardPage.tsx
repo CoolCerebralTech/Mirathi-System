@@ -1,201 +1,168 @@
-// pages/estate/EstateDashboardPage.tsx
+import React, { useState } from 'react';
+import { 
+  Tabs, 
+  TabsContent, 
+  TabsList, 
+  TabsTrigger,
+  Skeleton
+} from '@/components/ui';
+import { useEstateSummary, useWillPreview } from '@/features/estate/estate.api';
 
-import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui';
-import {
-  useEstateDashboard,
-  useSolvencyRadar,
-  useAssetInventory,
-  useDebtWaterfall,
-  useDependantList,
-  useGiftList,
-} from '@/features/estate/estate.api';
-import {
-  EstateHeader,
-  EstateSummaryCards,
-  SolvencyWidget,
-  CashFlowWidget,
-  QuickActions,
-  RecentActivity,
-  AssetTable,
-  DebtWaterfallView,
-  DependantTable,
-  GiftTable,
-} from '@/features/estate/components';
+// Components
+import { CreateEstateDialog } from '@/features/estate/components/dashboard/CreateEstateDialog';
+import { LegalInsightsCard } from '@/features/estate/components/dashboard/LegalInsightsCard';
+import { NetWorthCard } from '@/features/estate/components/dashboard/NetWorthCard';
+import { AssetList } from '@/features/estate/components/assets/AssetList';
+import { DebtList } from '@/features/estate/components/debts/DebtList';
+import { WillStatusCard } from '@/features/estate/components/will/WillStatusCard';
+import { BeneficiaryList } from '@/features/estate/components/will/BeneficiaryList';
+import { WitnessList } from '@/features/estate/components/will/WitnessList';
+import { WillPreviewDialog } from '@/features/estate/components/will/WillPreviewDialog';
 
 export const EstateDashboardPage: React.FC = () => {
-  const { estateId } = useParams<{ estateId: string }>();
-  const navigate = useNavigate();
+  const { user } = useAuth(); // Helper to get current user ID
+  const { data: summary, isLoading, isError } = useEstateSummary(user?.id || '');
+  
+  // Will Data Fetching (Dependent on summary existing)
+  // In a real app, estateId is usually derived or same as userId in 1:1 map
+  // Here we assume a Will ID is fetchable or we pass user ID to a wrapper
+  // For this demo, let's assume we fetch will preview via a separate hook or derived ID
+  // Note: simplified for this example.
+  const estateId = summary?.id;
+  // We need to fetch the Will ID associated with this user. 
+  // Let's assume the Summary response included a `willId` or we query by user.
+  // For now, I'll mock the hook call pattern:
+  const { data: willData } = useWillPreview(user?.id || '', { enabled: !!estateId }); 
 
-  const { data: dashboard, isLoading: dashboardLoading } = useEstateDashboard(estateId!);
-  const { data: radar } = useSolvencyRadar(estateId!);
-  const { data: assets } = useAssetInventory(estateId!);
-  const { data: debts } = useDebtWaterfall(estateId!);
-  const { data: dependants } = useDependantList(estateId!);
-  const { data: gifts } = useGiftList(estateId!);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  if (!estateId) {
-    navigate('/estates');
-    return null;
-  }
-
-  if (dashboardLoading) {
+  // 1. Loading State
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-slate-600 mb-4" />
-          <p className="text-slate-600">Loading estate data...</p>
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex justify-between">
+          <Skeleton className="h-10 w-48" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-40 w-full col-span-2" />
         </div>
       </div>
     );
   }
 
-  if (!dashboard) {
+  // 2. Empty State / Onboarding (No Estate Found)
+  if (!summary || isError) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-slate-600 mb-4">Estate not found</p>
-          <Button onClick={() => navigate('/estates')}>
-            Back to Estates
-          </Button>
-        </div>
-      </div>
+      <CreateEstateDialog 
+        isOpen={true} 
+        userId={user?.id || ''} 
+        userName={user?.firstName ? `${user.firstName} ${user.lastName}` : 'User'} 
+      />
     );
   }
 
-  // --- Handlers for Quick Actions ---
-  const handleQuickAction = (actionType: 'ADD_ASSET' | 'ADD_DEBT' | 'FILE_CLAIM' | 'RECORD_GIFT') => {
-      // In a real app, these would open dialogs. 
-      // Assuming dialogs are handled by triggers elsewhere or we navigate to specific pages/modals.
-      // For now, we'll just log. In production, connect this to state that opens the relevant Dialog component.
-      console.log('Action triggered:', actionType);
-      
-      // Example navigation logic if we wanted to redirect instead of opening modals
-      // if (actionType === 'ADD_ASSET') navigate(`/estates/${estateId}/assets/new`);
-  };
-
-  // --- Handlers for Estate Header Actions ---
-  const handleFreeze = () => console.log("Freeze triggered");
-  const handleUnfreeze = () => console.log("Unfreeze triggered");
-  const handleClose = () => console.log("Close triggered");
-
+  // 3. Dashboard Content
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/estates')}
-            className="mb-4"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Estates
-          </Button>
-          <EstateHeader
-            estate={dashboard}
-            onFreeze={handleFreeze}
-            onUnfreeze={handleUnfreeze}
-            onClose={handleClose}
-          />
+    <div className="container mx-auto p-6 space-y-8">
+      
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Estate Dashboard</h1>
+          <p className="text-muted-foreground">
+            Overview of your assets, liabilities, and succession plan.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 bg-slate-100 px-3 py-1 rounded-md text-sm text-slate-700">
+          <span className="font-medium">Estate ID:</span>
+          <code className="font-mono text-xs">{summary.id.slice(0, 8)}...</code>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Summary Cards */}
-        <div className="mb-8">
-          <EstateSummaryCards data={dashboard} />
+      {/* KPI SECTION */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Net Worth */}
+        <div className="md:col-span-1">
+          <NetWorthCard summary={summary} />
         </div>
-
-        {/* Two Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Left Column - Solvency & Cash */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Pass radar data directly */}
-            {radar && <SolvencyWidget radar={radar} />}
-            <CashFlowWidget data={dashboard} />
-          </div>
-
-          {/* Right Column - Quick Actions */}
-          <div>
-            <QuickActions estateId={estateId} onAction={handleQuickAction} />
-          </div>
+        
+        {/* Digital Lawyer Insights */}
+        <div className="md:col-span-2">
+          <LegalInsightsCard insights={summary.legalInsights} />
         </div>
-
-        {/* Tabbed Content */}
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="assets">
-              Assets ({assets?.totalCount || 0})
-            </TabsTrigger>
-            <TabsTrigger value="debts">
-              Debts ({debts?.totalLiabilities.formatted || '0'})
-            </TabsTrigger>
-            <TabsTrigger value="dependants">
-              Dependants ({dependants?.items.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="gifts">
-              Gifts ({gifts?.items.length || 0})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="space-y-6">
-            <RecentActivity activities={[]} /* Passing empty array as placeholder until activity API is ready */ />
-          </TabsContent>
-
-          <TabsContent value="assets">
-            {assets && (
-              <AssetTable
-                data={assets.items}
-                onViewDetails={(assetId) => navigate(`/estates/${estateId}/assets/${assetId}`)}
-                // Provide placeholder handlers for required props if AssetTable requires them
-                onUpdateValuation={() => {}}
-                onLiquidate={() => {}}
-              />
-            )}
-          </TabsContent>
-
-          <TabsContent value="debts">
-            {debts && (
-              <DebtWaterfallView
-                data={debts}
-                estateId={estateId}
-              />
-            )}
-          </TabsContent>
-
-          <TabsContent value="dependants">
-            {dependants && (
-              <DependantTable
-                data={dependants.items}
-                // Provide placeholders for required handlers
-                onVerify={() => {}}
-                onReject={() => {}}
-                onSettle={() => {}}
-                onAddEvidence={() => {}}
-              />
-            )}
-          </TabsContent>
-
-          <TabsContent value="gifts">
-            {gifts && (
-              <GiftTable
-                data={gifts.items}
-                totalHotchpotAddBack={gifts.totalHotchpotAddBack}
-                // Provide placeholders for required handlers
-                onContest={() => {}}
-                onResolve={() => {}}
-              />
-            )}
-          </TabsContent>
-        </Tabs>
       </div>
+
+      {/* TABS SECTION */}
+      <Tabs defaultValue="assets" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="assets">Assets Inventory</TabsTrigger>
+          <TabsTrigger value="debts">Debts & Liabilities</TabsTrigger>
+          <TabsTrigger value="will">Will & Succession</TabsTrigger>
+        </TabsList>
+
+        {/* 1. ASSETS TAB */}
+        <TabsContent value="assets" className="space-y-4">
+          <AssetList estateId={summary.id} />
+        </TabsContent>
+
+        {/* 2. DEBTS TAB */}
+        <TabsContent value="debts" className="space-y-4">
+          <DebtList estateId={summary.id} />
+        </TabsContent>
+
+        {/* 3. WILL TAB */}
+        <TabsContent value="will" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column: Status & Preview */}
+            <div className="lg:col-span-1 space-y-6">
+              {willData ? (
+                <WillStatusCard 
+                  data={willData} 
+                  onPreview={() => setIsPreviewOpen(true)} 
+                />
+              ) : (
+                // Simple placeholder if no will exists yet
+                <div className="p-6 border border-dashed rounded-lg text-center">
+                  <p className="text-muted-foreground mb-4">No Will Drafted</p>
+                  <button className="text-primary hover:underline">Start Drafting</button>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Beneficiaries & Witnesses */}
+            <div className="lg:col-span-2 space-y-8">
+              {willData && (
+                <>
+                  <BeneficiaryList 
+                    willId={willData.metadata.willId} 
+                    // Mapping preview data to list format
+                    beneficiaries={
+                      // In a real app, parse this from the HTML or have a separate DTO
+                      // Mocking structural extraction for now based on preview API
+                      [] 
+                    } 
+                  />
+                  <WitnessList 
+                    willId={willData.metadata.willId} 
+                    witnesses={[]} 
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* GLOBAL MODALS */}
+      {willData && (
+        <WillPreviewDialog 
+          isOpen={isPreviewOpen} 
+          onClose={() => setIsPreviewOpen(false)} 
+          htmlContent={willData.htmlPreview} 
+        />
+      )}
     </div>
   );
 };
