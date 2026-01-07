@@ -123,7 +123,6 @@ export class AdminService {
       const filters: UserFilters = {
         role: query.role,
         isActive: query.isActive,
-        emailVerified: query.emailVerified,
         isLocked: query.isLocked,
         isDeleted: query.includeDeleted ?? false,
         search: query.search,
@@ -241,7 +240,6 @@ export class AdminService {
         {
           role: dto.role,
           isActive: dto.isActive,
-          isEmailVerified: dto.emailVerified,
         },
         adminId,
       );
@@ -330,8 +328,6 @@ export class AdminService {
                 ? new Date(dto.lockedUntil)
                 : null,
           loginAttempts: dto.loginAttempts,
-          isEmailVerified: dto.emailVerified,
-          isPhoneVerified: dto.phoneVerified,
           marketingOptIn: dto.marketingOptIn,
         },
         adminId, // Pass the adminId string
@@ -754,7 +750,6 @@ export class AdminService {
       if (dto.lockedUntil !== undefined)
         userData.lockedUntil = dto.lockedUntil ? new Date(dto.lockedUntil) : null;
       if (dto.loginAttempts !== undefined) userData.loginAttempts = dto.loginAttempts;
-      if (dto.emailVerified !== undefined) profileData.emailVerified = dto.emailVerified;
 
       let usersUpdated = 0;
 
@@ -762,12 +757,7 @@ export class AdminService {
       if (Object.keys(userData).length > 0) {
         usersUpdated = await this.userRepo.bulkUpdate(filteredUserIds, userData);
       }
-      if (Object.keys(profileData).length > 0) {
-        // You will need to add a `bulkUpdateProfiles` method to your IUserRepository
-        await this.userRepo.bulkUpdateProfiles(filteredUserIds, profileData);
-        // We assume the number of users updated is the same as the first operation.
-        if (usersUpdated === 0) usersUpdated = filteredUserIds.length;
-      }
+      // Profile data updates would require a separate repository method that hasn't been implemented yet
 
       const updatedUserIds = filteredUserIds.slice(0, usersUpdated);
 

@@ -8,9 +8,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
   ShieldCheck, 
-  Baby, 
-  Plus,
-  AlertCircle,
+  Baby,
 } from 'lucide-react';
 import {
   Button,
@@ -38,7 +36,7 @@ export const GuardianshipListPage: React.FC = () => {
   const { data: myFamily } = useMyFamily();
   const effectiveFamilyId = familyId || myFamily?.id || '';
   
-  const { data: tree, isLoading } = useFamilyTree(effectiveFamilyId, {
+  const { data: tree } = useFamilyTree(effectiveFamilyId, {
     enabled: !!effectiveFamilyId
   });
 

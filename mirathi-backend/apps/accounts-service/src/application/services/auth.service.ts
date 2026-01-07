@@ -14,7 +14,6 @@ import { JwtPayload } from '@shamba/auth';
 
 import type {
   IEmailChangeTokenRepository,
-  IEmailVerificationTokenRepository,
   IEventPublisher,
   IHashingService,
   INotificationService,
@@ -43,14 +42,10 @@ import {
   RegisterRequestDto,
   RequestEmailChangeRequestDto,
   RequestEmailChangeResponseDto,
-  ResendVerificationRequestDto,
-  ResendVerificationResponseDto,
   ResetPasswordRequestDto,
   ResetPasswordResponseDto,
   ValidateResetTokenRequestDto,
   ValidateResetTokenResponseDto,
-  VerifyEmailRequestDto,
-  VerifyEmailResponseDto,
 } from '../dtos/auth.dto';
 import { AuthMapper } from '../mappers';
 
@@ -105,7 +100,6 @@ export class AuthService {
   private readonly ACCESS_TOKEN_EXPIRY = 900; // 15 minutes
   private readonly REFRESH_TOKEN_EXPIRY = 604800; // 7 days
   private readonly PASSWORD_RESET_EXPIRY_HOURS = 1;
-  private readonly EMAIL_VERIFICATION_EXPIRY_HOURS = 24;
   private readonly EMAIL_CHANGE_EXPIRY_HOURS = 24;
   private readonly PASSWORD_HISTORY_COUNT = 5;
 
@@ -115,9 +109,6 @@ export class AuthService {
 
     @Inject('IPasswordResetTokenRepository')
     private readonly passwordResetTokenRepo: IPasswordResetTokenRepository,
-
-    @Inject('IEmailVerificationTokenRepository')
-    private readonly emailVerificationTokenRepo: IEmailVerificationTokenRepository,
 
     @Inject('IEmailChangeTokenRepository')
     private readonly emailChangeTokenRepo: IEmailChangeTokenRepository,
@@ -173,9 +164,8 @@ export class AuthService {
         marketingOptIn: dto.marketingOptIn ?? false,
       });
 
-      // 🚀 AUTO-VERIFY: Activate user immediately for production launch
-      // TODO: Remove this when email verification is re-enabled
-      user.activate();
+      // User is already active immediately (no email verification required)
+      // This matches the User.create() factory method which sets isActive: true
 
       // Save user and profile in transaction
       await this.userRepo.save(user);
@@ -185,22 +175,6 @@ export class AuthService {
 
       // Publish domain events
       await this.publishDomainEvents(user);
-
-      // ⚠️ SKIP EMAIL VERIFICATION FOR NOW
-      // Uncomment this section when ready to enable email verification:
-      /*
-    const verificationTokenString = crypto.randomBytes(32).toString('hex');
-    const verificationToken = TokenFactory.createEmailVerificationToken(
-      userId,
-      await this.hashingService.hash(verificationTokenString),
-      this.EMAIL_VERIFICATION_EXPIRY_HOURS,
-    );
-    await this.emailVerificationTokenRepo.save(verificationToken);
-
-    this.sendVerificationEmail(user, verificationTokenString).catch((error) => {
-      this.logger.error('Failed to send verification email', error);
-    });
-    */
 
       // Generate auth tokens
       const tokens = await this.generateTokens(user, {
@@ -222,11 +196,10 @@ export class AuthService {
         issuedAt,
       });
 
-      this.logger.log(`Successfully registered and auto-verified user: ${userId}`);
+      this.logger.log(`Successfully registered user: ${userId}`);
 
-      // Return with requiresEmailVerification: false since we auto-verified
       return this.authMapper.toAuthResponse(user, user.profile, tokens, tokenMetadata, {
-        requiresEmailVerification: false, // ✅ Changed from true
+        // No security recommendations needed for registration
       });
     } catch (error) {
       this.logger.error(`Registration failed for email: ${dto.email}`, error);
@@ -303,7 +276,7 @@ export class AuthService {
       this.logger.log(`Successful login for user: ${user.id}`);
 
       return this.authMapper.toAuthResponse(user, user.profile, tokens, tokenMetadata, {
-        requiresEmailVerification: !user.profile.isEmailVerified,
+        // No email verification required
       });
     } catch (error) {
       this.logger.error(`Login failed for email: ${dto.email}`, error);
@@ -426,142 +399,6 @@ export class AuthService {
       );
     } catch (error) {
       this.logger.error('Token refresh failed', error);
-      throw this.handleServiceError(error);
-    }
-  }
-
-  // ==========================================================================
-  // EMAIL VERIFICATION
-  // ==========================================================================
-
-  async verifyEmail(dto: VerifyEmailRequestDto): Promise<VerifyEmailResponseDto> {
-    try {
-      this.logger.log(`Email verification attempt with token: ${dto.token}`);
-
-      const tokenHash = await this.hashingService.hash(dto.token);
-      const token = await this.emailVerificationTokenRepo.findByTokenHash(tokenHash);
-
-      if (!token) {
-        throw new TokenValidationError('Invalid or expired verification token.');
-      }
-
-      this.validateToken(token, 'email verification');
-
-      const user = await this.userRepo.findByIdWithProfile(token.userId);
-      if (!user) {
-        throw new BadRequestException('User associated with this token no longer exists.');
-      }
-
-      user.activate();
-      await this.userRepo.save(user);
-
-      await this.emailVerificationTokenRepo.deleteByUserId(user.id);
-      await this.publishDomainEvents(user);
-
-      this.logger.log(`Email verified successfully for user: ${user.id}`);
-
-      let authData: AuthResponseDto | undefined;
-      if (dto.deviceId) {
-        const tokens = await this.generateTokens(user, { deviceId: dto.deviceId });
-
-        const issuedAt = new Date();
-        const accessTokenExpiresAt = new Date(issuedAt.getTime() + this.ACCESS_TOKEN_EXPIRY * 1000);
-        const refreshTokenExpiresAt = new Date(
-          issuedAt.getTime() + this.REFRESH_TOKEN_EXPIRY * 1000,
-        );
-
-        const tokenMetadata = this.authMapper.toTokenMetadataDto({
-          accessTokenExpiresIn: this.ACCESS_TOKEN_EXPIRY,
-          refreshTokenExpiresIn: this.REFRESH_TOKEN_EXPIRY,
-          accessTokenExpiresAt,
-          refreshTokenExpiresAt,
-          issuedAt,
-        });
-
-        authData = this.authMapper.toAuthResponse(user, user.profile, tokens, tokenMetadata, {
-          requiresEmailVerification: false,
-        });
-      }
-
-      return this.authMapper.toVerifyEmailResponse(
-        'Email verified successfully. Your account is now fully activated.',
-        { authData, nextSteps: ['Complete your profile'] },
-      );
-    } catch (error) {
-      this.logger.error('Email verification failed', error);
-      throw this.handleServiceError(error);
-    }
-  }
-
-  async resendEmailVerification(
-    dto: ResendVerificationRequestDto,
-  ): Promise<ResendVerificationResponseDto> {
-    try {
-      this.logger.log(`Resend email verification request for: ${dto.email}`);
-      const minRetrySeconds = 60;
-
-      const email = Email.create(dto.email);
-      const user = await this.userRepo.findByEmailWithProfile(email);
-
-      if (!user || !user.profile) {
-        this.logger.debug(`Resend verification for non-existent email or profile: ${dto.email}`);
-        const nextRetryAt = new Date(Date.now() + minRetrySeconds * 1000);
-        return this.authMapper.toResendVerificationResponse({
-          nextRetryAt,
-          retryAfterSeconds: minRetrySeconds,
-          attemptsMade: 1,
-          maxAttempts: 5,
-        });
-      }
-
-      if (user.profile.isEmailVerified) {
-        throw new BadRequestException('This email address has already been verified.');
-      }
-
-      const existingToken = await this.emailVerificationTokenRepo.findByUserId(user.id);
-      if (existingToken) {
-        const timeSinceLastAttempt = Date.now() - existingToken.createdAt.getTime();
-        const minRetryMs = minRetrySeconds * 1000;
-
-        if (timeSinceLastAttempt < minRetryMs) {
-          const nextRetryAt = new Date(existingToken.createdAt.getTime() + minRetryMs);
-          const retryAfterSeconds = Math.ceil((nextRetryAt.getTime() - Date.now()) / 1000);
-
-          this.logger.warn(`Resend verification rate limited for user: ${user.id}`);
-          return this.authMapper.toResendVerificationResponse({
-            nextRetryAt,
-            retryAfterSeconds,
-            attemptsMade: 1,
-            maxAttempts: 5,
-          });
-        }
-      }
-
-      await this.emailVerificationTokenRepo.deleteByUserId(user.id);
-
-      // --- FIXED: Use crypto for random token generation ---
-      const verificationTokenString = crypto.randomBytes(32).toString('hex');
-
-      const verificationToken = TokenFactory.createEmailVerificationToken(
-        user.id,
-        await this.hashingService.hash(verificationTokenString),
-        this.EMAIL_VERIFICATION_EXPIRY_HOURS,
-      );
-      await this.emailVerificationTokenRepo.save(verificationToken);
-
-      await this.sendVerificationEmail(user, verificationTokenString);
-
-      const nextRetryAt = new Date(Date.now() + minRetrySeconds * 1000);
-      this.logger.log(`Verification email resent for user: ${user.id}`);
-
-      return this.authMapper.toResendVerificationResponse({
-        nextRetryAt,
-        retryAfterSeconds: minRetrySeconds,
-        attemptsMade: 1,
-        maxAttempts: 5,
-      });
-    } catch (error) {
-      this.logger.error('Resend email verification failed', error);
       throw this.handleServiceError(error);
     }
   }
@@ -715,7 +552,7 @@ export class AuthService {
           issuedAt,
         });
         authData = this.authMapper.toAuthResponse(user, user.profile, tokens, tokenMetadata, {
-          requiresEmailVerification: !user.profile.isEmailVerified,
+          // No email verification required
         });
       }
 
@@ -896,7 +733,7 @@ export class AuthService {
         });
 
         authData = this.authMapper.toAuthResponse(user, user.profile, tokens, tokenMetadata, {
-          requiresEmailVerification: !user.profile.isEmailVerified,
+          // No email verification required for the new email
         });
       }
 
@@ -904,7 +741,6 @@ export class AuthService {
         previousEmail,
         newEmail: token.newEmail,
         authData,
-        requiresEmailVerification: !user.profile.isEmailVerified,
       });
     } catch (error) {
       this.logger.error('Email change confirmation failed', error);
@@ -950,23 +786,6 @@ export class AuthService {
       accessToken,
       refreshToken: refreshTokenString,
     };
-  }
-
-  private async sendVerificationEmail(user: User, tokenString: string): Promise<void> {
-    try {
-      await this.notificationService.sendEmail({
-        to: user.email.getValue(),
-        subject: 'Verify your email address',
-        template: 'email-verification',
-        data: {
-          firstName: user.firstName,
-          verificationLink: `${process.env.FRONTEND_URL}/verify-email?token=${tokenString}`,
-          expiresInHours: this.EMAIL_VERIFICATION_EXPIRY_HOURS,
-        },
-      });
-    } catch (error) {
-      this.logger.error(`Failed to send verification email to user: ${user.id}`, error);
-    }
   }
 
   private async sendPasswordResetEmail(user: User, tokenString: string): Promise<void> {
@@ -1035,7 +854,7 @@ export class AuthService {
     }
 
     if (!user.isActive) {
-      throw new AccountStatusError('Account is inactive. Please verify your email.');
+      throw new AccountStatusError('Account is inactive.');
     }
 
     if (user.isLocked()) {

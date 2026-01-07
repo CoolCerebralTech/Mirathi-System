@@ -18,7 +18,6 @@ import { AdminService } from './application/services/admin.service';
 import { AuthService } from './application/services/auth.service';
 import { UserService } from './application/services/user.service';
 import { PasswordResetTokenMapper } from './infrastructure/persistence/mappers/token.mapper';
-import { EmailVerificationTokenMapper } from './infrastructure/persistence/mappers/token.mapper';
 import { PhoneVerificationTokenMapper } from './infrastructure/persistence/mappers/token.mapper';
 import { EmailChangeTokenMapper } from './infrastructure/persistence/mappers/token.mapper';
 import { RefreshTokenMapper } from './infrastructure/persistence/mappers/token.mapper';
@@ -28,7 +27,6 @@ import { TokenMapperFactory } from './infrastructure/persistence/mappers/token.m
 // Infrastructure Mappers
 import { UserMapper } from './infrastructure/persistence/mappers/user.mapper';
 import { PrismaPasswordResetTokenRepository } from './infrastructure/persistence/repositories/token.repository';
-import { PrismaEmailVerificationTokenRepository } from './infrastructure/persistence/repositories/token.repository';
 import { PrismaPhoneVerificationTokenRepository } from './infrastructure/persistence/repositories/token.repository';
 import { PrismaEmailChangeTokenRepository } from './infrastructure/persistence/repositories/token.repository';
 import { PrismaRefreshTokenRepository } from './infrastructure/persistence/repositories/token.repository';
@@ -63,7 +61,6 @@ import { HealthController } from './presentation/health/health.controller';
     // Repositories
     PrismaUserRepository,
     PrismaPasswordResetTokenRepository,
-    PrismaEmailVerificationTokenRepository,
     PrismaPhoneVerificationTokenRepository,
     PrismaEmailChangeTokenRepository,
     PrismaRefreshTokenRepository,
@@ -73,7 +70,6 @@ import { HealthController } from './presentation/health/health.controller';
     // Infrastructure Mappers (Domain ↔ Persistence)
     UserMapper, // Infrastructure user mapper
     PasswordResetTokenMapper,
-    EmailVerificationTokenMapper,
     PhoneVerificationTokenMapper,
     EmailChangeTokenMapper,
     RefreshTokenMapper,
@@ -104,10 +100,6 @@ import { HealthController } from './presentation/health/health.controller';
     {
       provide: 'IPasswordResetTokenRepository',
       useExisting: PrismaPasswordResetTokenRepository,
-    },
-    {
-      provide: 'IEmailVerificationTokenRepository',
-      useExisting: PrismaEmailVerificationTokenRepository,
     },
     {
       provide: 'IPhoneVerificationTokenRepository',

@@ -16,8 +16,7 @@ export const UserResponseSchema = z.object({
   lastName: z.string(),
   role: UserRoleSchema,
   isActive: z.boolean(),
-  emailVerified: z.boolean(),
-  phoneVerified: z.boolean(),
+  // REMOVED: emailVerified: z.boolean(),
   lastLoginAt: z.string().datetime().transform((val) => new Date(val)).optional().nullable(),
   lockedUntil: z.string().datetime().transform((val) => new Date(val)).optional().nullable(),
   loginAttempts: z.number().int().default(0),
@@ -33,7 +32,7 @@ export const UserResponseSchema = z.object({
  */
 export const GetMyUserResponseSchema = UserResponseSchema.extend({
   profileCompletion: z.number().min(0).max(100).optional(),
-  activeSessions: z.number().int().positive().optional(),
+  activeSessions: z.number().int().min(0).optional(),
   securityRecommendations: z.array(z.string()).optional(),
 });
 
@@ -114,7 +113,7 @@ export const DeactivateMyAccountResponseSchema = z.object({
 export const UserSessionsResponseSchema = z.object({
   sessions: z.array(UserSessionInfoSchema),
   totalSessions: z.number().positive(),
-  activeSessions: z.number().positive(),
+  activeSessions: z.number().min(0),
 });
 
 

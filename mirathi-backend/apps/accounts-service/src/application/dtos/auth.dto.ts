@@ -218,42 +218,8 @@ export class RegisterRequestDto {
   userAgent?: string;
 }
 
-export class VerifyEmailRequestDto {
-  @ApiProperty({
-    description: 'Email verification token sent to user email.',
-    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-    minLength: 10,
-  })
-  @IsString({ message: 'Verification token is required.' })
-  @MinLength(10, { message: 'Token must be at least 10 characters long.' })
-  token!: string;
-
-  @ApiPropertyOptional({
-    description: 'Device identifier for automatic login after verification.',
-    example: 'device-abc123',
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100, { message: 'Device ID cannot exceed 100 characters.' })
-  deviceId?: string;
-}
-
-export class ResendVerificationRequestDto {
-  @ApiProperty({
-    description: 'Email address to resend verification to.',
-    example: 'john.mwangi@example.com',
-    maxLength: 255,
-  })
-  @IsEmail({}, { message: 'Please provide a valid email address.' })
-  @MaxLength(255, { message: 'Email cannot exceed 255 characters.' })
-  @Transform(({ value }: TransformFnParams): string | undefined => {
-    if (typeof value === 'string') {
-      return value.toLowerCase().trim();
-    }
-    return undefined;
-  })
-  email!: string;
-}
+// REMOVED: VerifyEmailRequestDto
+// REMOVED: ResendVerificationRequestDto
 
 export class ForgotPasswordRequestDto {
   @ApiProperty({
@@ -442,11 +408,7 @@ export class AuthUserResponseDto extends BaseResponseDto {
   @ApiProperty({ example: true })
   isActive!: boolean;
 
-  @ApiProperty({ example: false, description: 'Whether email is verified' })
-  emailVerified!: boolean;
-
-  @ApiProperty({ example: false, description: 'Whether phone is verified' })
-  phoneVerified!: boolean;
+  // REMOVED: emailVerified field (no longer needed)
 
   @ApiPropertyOptional({ example: '2024-10-25T10:30:00.000Z' })
   lastLoginAt?: Date;
@@ -541,21 +503,7 @@ export class AuthResponseDto {
   @Type(() => TokenMetadataDto)
   tokenMetadata!: TokenMetadataDto;
 
-  @ApiPropertyOptional({
-    description: 'Whether email verification is required before full access.',
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  requiresEmailVerification?: boolean;
-
-  @ApiPropertyOptional({
-    description: 'Whether phone verification is required for certain features.',
-    example: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  requiresPhoneVerification?: boolean;
+  // REMOVED: requiresEmailVerification field
 
   @ApiPropertyOptional({
     description: 'Security recommendations for the user.',
@@ -591,73 +539,8 @@ export class RefreshTokenResponseDto {
   previousRefreshToken?: string;
 }
 
-export class VerifyEmailResponseDto {
-  @ApiProperty({
-    example: 'Email verified successfully. Your account is now fully activated.',
-  })
-  @IsString()
-  message!: string;
-
-  @ApiProperty({ example: true })
-  @IsBoolean()
-  success!: boolean;
-
-  @ApiPropertyOptional({
-    description: 'Auto-login tokens after successful verification.',
-    type: () => AuthResponseDto,
-  })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => AuthResponseDto)
-  authData?: AuthResponseDto;
-
-  @ApiPropertyOptional({
-    description: 'Next recommended actions for the user.',
-    example: ['Complete your profile', 'Add a phone number for security'],
-  })
-  @IsOptional()
-  @IsString({ each: true })
-  nextSteps?: string[];
-}
-
-export class ResendVerificationResponseDto {
-  @ApiProperty({
-    example: 'Verification email sent. Please check your inbox.',
-  })
-  @IsString()
-  message!: string;
-
-  @ApiProperty({
-    description: 'When the next verification email can be sent.',
-    example: '2024-10-25T11:00:00.000Z',
-  })
-  @IsDateString()
-  nextRetryAt!: Date;
-
-  @ApiProperty({
-    description: 'Time to wait before next attempt in seconds.',
-    example: 60,
-  })
-  @IsNumber()
-  @IsPositive()
-  retryAfterSeconds!: number;
-
-  @ApiProperty({
-    description: 'Number of verification attempts made.',
-    example: 2,
-  })
-  @IsNumber()
-  @IsPositive()
-  attemptsMade!: number;
-
-  @ApiProperty({
-    description: 'Maximum number of verification attempts allowed.',
-    example: 5,
-  })
-  @IsNumber()
-  @IsPositive()
-  maxAttempts!: number;
-}
+// REMOVED: VerifyEmailResponseDto
+// REMOVED: ResendVerificationResponseDto
 
 export class ForgotPasswordResponseDto {
   @ApiProperty({
@@ -873,12 +756,7 @@ export class ConfirmEmailChangeResponseDto {
   @Type(() => AuthResponseDto)
   authData?: AuthResponseDto;
 
-  @ApiProperty({
-    description: 'Whether email verification is required for the new email.',
-    example: false,
-  })
-  @IsBoolean()
-  requiresEmailVerification!: boolean;
+  // REMOVED: requiresEmailVerification field
 }
 
 export class AccountLockedResponseDto {

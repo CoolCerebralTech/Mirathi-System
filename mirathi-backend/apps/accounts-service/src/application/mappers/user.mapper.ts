@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { RelationshipType, UserRole } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 
 import { PaginatedResult, UserStats } from '../../domain/interfaces';
 import { LoginSession, User } from '../../domain/models';
-import { Address, NextOfKin, UserProfile } from '../../domain/models';
+import { Address, UserProfile } from '../../domain/models';
 import { Email, Password, PhoneNumber } from '../../domain/value-objects';
 import {
   UserEntity,
@@ -38,14 +38,8 @@ export interface UserPersistenceData {
 }
 
 // ============================================================================
-// Standalone Helper Functions for Safe Data Parsing (UNCHANGED)
+// Standalone Helper Functions for Safe Data Parsing
 // ============================================================================
-
-function isRelationshipType(value: unknown): value is RelationshipType {
-  return (
-    typeof value === 'string' && Object.values(RelationshipType).includes(value as RelationshipType)
-  );
-}
 
 function parseAddress(json: Prisma.JsonValue | null): Address | null {
   if (!json || typeof json !== 'object' || Array.isArray(json)) return null;
@@ -64,39 +58,6 @@ function parseAddress(json: Prisma.JsonValue | null): Address | null {
     address.postalCode = obj.postalCode.trim();
 
   return address;
-}
-
-function parseNextOfKin(json: Prisma.JsonValue | null): NextOfKin | null {
-  if (!json || typeof json !== 'object' || Array.isArray(json)) return null;
-
-  const obj = json as Record<string, unknown>;
-
-  if (
-    typeof obj.fullName !== 'string' ||
-    !obj.fullName.trim() ||
-    typeof obj.phoneNumber !== 'string' ||
-    !obj.phoneNumber.trim() ||
-    !isRelationshipType(obj.relationship)
-  ) {
-    Logger.warn('Malformed NextOfKin JSON: missing required fields', { json });
-    return null;
-  }
-
-  const nextOfKin: NextOfKin = {
-    fullName: obj.fullName.trim(),
-    relationship: obj.relationship,
-    phoneNumber: obj.phoneNumber.trim(),
-  };
-
-  if (typeof obj.email === 'string' && obj.email.trim()) {
-    nextOfKin.email = obj.email.trim();
-  }
-
-  if (obj.address && typeof obj.address === 'object' && !Array.isArray(obj.address)) {
-    nextOfKin.address = parseAddress(obj.address as Prisma.JsonValue) ?? undefined;
-  }
-
-  return nextOfKin;
 }
 
 /**
@@ -143,13 +104,9 @@ export class UserMapper {
 
     // Fields belonging to the UserProfile model
     const profileData = {
-      bio: profilePrimitives.bio,
       phoneNumber: profilePrimitives.phoneNumber,
-      phoneVerified: profilePrimitives.phoneVerified,
-      emailVerified: profilePrimitives.emailVerified,
       marketingOptIn: profilePrimitives.marketingOptIn,
       address: (profilePrimitives.address as Prisma.JsonValue) ?? Prisma.JsonNull,
-      nextOfKin: (profilePrimitives.nextOfKin as Prisma.JsonValue) ?? Prisma.JsonNull,
       updatedAt: profilePrimitives.updatedAt,
     };
 
@@ -225,13 +182,9 @@ export class UserMapper {
     return UserProfile.fromPersistence({
       id: profileEntity.id,
       userId: profileEntity.userId,
-      bio: profileEntity.bio,
       phoneNumber,
-      phoneVerified: profileEntity.phoneVerified,
-      emailVerified: profileEntity.emailVerified,
       marketingOptIn: profileEntity.marketingOptIn,
       address: parseAddress(profileEntity.address),
-      nextOfKin: parseNextOfKin(profileEntity.nextOfKin),
       createdAt: profileEntity.createdAt,
       updatedAt: profileEntity.updatedAt,
     });
@@ -256,8 +209,6 @@ export class UserMapper {
       lastName: user.lastName,
       role: user.role,
       isActive: user.isActive,
-      emailVerified: user.profile.isEmailVerified,
-      phoneVerified: user.profile.isPhoneVerified,
       lastLoginAt: user.lastLoginAt ?? undefined,
       lockedUntil: user.lockedUntil ?? undefined,
       loginAttempts: user.loginAttempts,
@@ -276,8 +227,6 @@ export class UserMapper {
   toAdminDetailedUserResponse(user: User, activeSessions = 0): AdminDetailedUserResponseDto {
     return {
       ...this.toUserResponse(user),
-
-      // Add only the fields specific to the admin view
       marketingOptIn: user.profile.marketingOptIn,
       profileCompletion: user.profile.completionPercentage,
       activeSessions: activeSessions,
@@ -302,7 +251,6 @@ export class UserMapper {
       temporaryPassword: tempPassword,
       emailSent: emailSent,
       isActive: user.isActive,
-      emailVerified: user.profile.isEmailVerified,
     };
   }
 
@@ -319,6 +267,7 @@ export class UserMapper {
       updatedFields,
     };
   }
+
   /**
    * Maps the result of a bulk update operation to the AdminBulkUpdateUsersResponseDto.
    * @param context An object containing the results of the bulk update.
@@ -348,7 +297,6 @@ export class UserMapper {
   toUpdateMyUserResponse(user: User): UpdateMyUserResponseDto {
     return {
       message: 'User information updated successfully.',
-      // The `toUserResponse` method already knows how to get the profile from the user.
       user: this.toUserResponse(user),
     };
   }
@@ -363,11 +311,9 @@ export class UserMapper {
     user: User,
     context: { activeSessions?: number; securityRecommendations?: string[] },
   ): GetMyUserResponseDto {
-    // We get the profile directly from the user aggregate
     const profile = user.profile;
 
     return {
-      // Base properties from UserResponseDto
       id: user.id,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -376,21 +322,18 @@ export class UserMapper {
       lastName: user.lastName,
       role: user.role,
       isActive: user.isActive,
-      emailVerified: profile.isEmailVerified,
-      phoneVerified: profile.isPhoneVerified,
       lastLoginAt: user.lastLoginAt ?? undefined,
       lockedUntil: user.lockedUntil ?? undefined,
       loginAttempts: user.loginAttempts,
       deletedAt: user.deletedAt ?? undefined,
       isLocked: user.isLocked(),
       isDeleted: user.isDeleted,
-
-      // Properties specific to GetMyUserResponseDto
       profileCompletion: profile.completionPercentage,
       activeSessions: context.activeSessions ?? 0,
       securityRecommendations: context.securityRecommendations ?? [],
     };
   }
+
   toAdminGetUserByIdResponse(
     user: User,
     context: {
@@ -398,7 +341,6 @@ export class UserMapper {
       roleHistory: any[];
     },
   ): AdminGetUserResponseDto {
-    // Note it returns the DTO imported from admin.dto
     const detailedUser = this.toAdminDetailedUserResponse(user, context.sessions.length);
 
     return {
@@ -415,35 +357,29 @@ export class UserMapper {
       roleHistory: context.roleHistory,
     };
   }
+
   /**
    * Maps the UserStats data object from the repository to the UserStatsResponseDto.
    */
   toUserStatsResponse(stats: UserStats): UserStatsResponseDto {
-    // The DTO in admin.dto.ts has more fields than the UserStats interface.
-    // We will map what we have and calculate the rest.
     return {
       total: stats.total,
       active: stats.active,
-      inactive: stats.total - stats.active, // Calculated field
+      inactive: stats.total - stats.active,
       deleted: stats.deleted,
       locked: stats.locked,
       newLast30Days: stats.newLast30Days,
       byRole: stats.byRole,
-      emailVerified: stats.emailVerified ?? 0,
-      phoneVerified: stats.phoneVerified ?? 0,
-      // These fields are in the DTO but not the stats interface, so we provide defaults.
-      // The getStats() repo method could be enhanced to provide these.
-      averageProfileCompletion: 0, // Placeholder
+      averageProfileCompletion: 0,
       activeLast24Hours: stats.loginLast24Hours ?? 0,
-      growthRate: 0, // Placeholder
+      growthRate: 0,
     };
   }
+
   toDeactivateMyAccountResponse(context: {
     deactivatedAt: Date;
     sessionsTerminated: number;
   }): DeactivateMyAccountResponseDto {
-    // A reactivation policy could be defined in a config file.
-    // For now, let's assume a 1-year period before data is scheduled for deletion.
     const reactivationAvailableAt = new Date(context.deactivatedAt);
     reactivationAvailableAt.setFullYear(reactivationAvailableAt.getFullYear() + 1);
 
@@ -454,6 +390,7 @@ export class UserMapper {
       reactivationAvailableAt,
     };
   }
+
   /**
    * Maps a paginated list of User domain objects to the admin-facing paginated response DTO.
    * @param paginatedResult The paginated result from the service/repository.
@@ -488,7 +425,7 @@ export class UserMapper {
     user: User,
     context: {
       previousRole: UserRole;
-      changedBy: string; // The admin's email or ID
+      changedBy: string;
       reason?: string;
       userNotified: boolean;
     },
@@ -497,7 +434,7 @@ export class UserMapper {
       message: 'User role updated successfully.',
       user: this.toAdminDetailedUserResponse(user),
       previousRole: context.previousRole,
-      newRole: user.role, // The new role is on the updated user object
+      newRole: user.role,
       changedBy: context.changedBy,
       reason: context.reason,
       userNotified: context.userNotified,
@@ -511,16 +448,15 @@ export class UserMapper {
    * @returns A LockUserAccountResponseDto.
    */
   toLockUserAccountResponse(
-    user: User, // Pass the whole user object
+    user: User,
     context: {
       reason: string;
-      lockedBy: string; // Admin's email or ID
+      lockedBy: string;
       userNotified: boolean;
       sessionsTerminated: number;
     },
   ): LockUserAccountResponseDto {
     if (!user.lockedUntil) {
-      // This check is important. A user must have a lock date to generate this response.
       throw new Error('Cannot create lock response for a user who is not locked.');
     }
     return {
@@ -541,9 +477,9 @@ export class UserMapper {
    * @returns An UnlockUserAccountResponseDto.
    */
   toUnlockUserAccountResponse(
-    user: User, // Pass the whole user object
+    user: User,
     context: {
-      unlockedBy: string; // Admin's email or ID
+      unlockedBy: string;
       reason?: string;
       userNotified: boolean;
     },
@@ -551,7 +487,6 @@ export class UserMapper {
     return {
       message: 'User account unlocked successfully.',
       userId: user.id,
-      // The user's login attempts are reset by the unlock() domain method
       loginAttempts: user.loginAttempts,
       unlockedBy: context.unlockedBy,
       reason: context.reason,
@@ -566,10 +501,10 @@ export class UserMapper {
    * @returns A SoftDeleteUserResponseDto.
    */
   toSoftDeleteUserResponse(
-    user: User, // Pass the whole user object
+    user: User,
     context: {
       reason: string;
-      deletedBy: string; // Admin's email or ID
+      deletedBy: string;
       permanent: boolean;
       userNotified: boolean;
       sessionsTerminated: number;
@@ -599,9 +534,9 @@ export class UserMapper {
    * @returns A RestoreUserResponseDto.
    */
   toRestoreUserResponse(
-    user: User, // Pass the whole user object
+    user: User,
     context: {
-      restoredBy: string; // Admin's email or ID
+      restoredBy: string;
       reason?: string;
       reactivated: boolean;
     },

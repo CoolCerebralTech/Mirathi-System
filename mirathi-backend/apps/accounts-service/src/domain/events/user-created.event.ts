@@ -9,7 +9,6 @@ export interface UserCreatedEventData extends Record<string, unknown> {
   readonly lastName: string;
   readonly role: UserRole;
   readonly marketingOptIn: boolean;
-  readonly requiresEmailVerification: boolean;
 }
 
 /**
@@ -27,7 +26,6 @@ export class UserCreatedEvent extends DomainEvent<UserCreatedEventData> {
       lastName: props.lastName,
       role: props.role,
       marketingOptIn: props.marketingOptIn,
-      requiresEmailVerification: props.requiresEmailVerification,
     });
   }
 }

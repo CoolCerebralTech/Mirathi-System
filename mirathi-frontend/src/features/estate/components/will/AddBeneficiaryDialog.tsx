@@ -1,5 +1,9 @@
+// ============================================================================
+// FILE: AddBeneficiaryDialog.tsx
+// ============================================================================
+
 import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type DefaultValues, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Gift, AlertCircle } from 'lucide-react';
 import { 
@@ -47,7 +51,8 @@ export const AddBeneficiaryDialog: React.FC<AddBeneficiaryDialogProps> = ({
   const [selectedBequestType, setSelectedBequestType] = useState<BequestType>(BequestType.RESIDUAL);
   
   const form = useForm<AddBeneficiaryInput>({
-    resolver: zodResolver(AddBeneficiarySchema),
+    // FIX: Use the proper resolver casting pattern
+    resolver: zodResolver(AddBeneficiarySchema) as unknown as Resolver<AddBeneficiaryInput>,
     mode: 'onChange',
     defaultValues: {
       name: '',
@@ -56,7 +61,7 @@ export const AddBeneficiaryDialog: React.FC<AddBeneficiaryDialogProps> = ({
       description: '',
       percentage: undefined,
       cashAmount: undefined,
-    },
+    } as DefaultValues<AddBeneficiaryInput>,
   });
 
   const { mutate: addBeneficiary, isPending, error } = useAddBeneficiary(willId, {
@@ -70,10 +75,10 @@ export const AddBeneficiaryDialog: React.FC<AddBeneficiaryDialogProps> = ({
   // Reset conditional fields when bequest type changes
   useEffect(() => {
     if (selectedBequestType !== BequestType.PERCENTAGE) {
-      form.setValue('percentage', undefined);
+      form.setValue('percentage', undefined, { shouldValidate: true });
     }
     if (selectedBequestType !== BequestType.CASH_AMOUNT) {
-      form.setValue('cashAmount', undefined);
+      form.setValue('cashAmount', undefined, { shouldValidate: true });
     }
   }, [selectedBequestType, form]);
 
@@ -249,9 +254,11 @@ export const AddBeneficiaryDialog: React.FC<AddBeneficiaryDialogProps> = ({
                           max="100" 
                           step="0.01"
                           placeholder="e.g. 25.00"
-                          {...field} 
                           value={field.value || ''}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value) || undefined)} 
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            field.onChange(isNaN(value) ? undefined : value);
+                          }} 
                         />
                       </FormControl>
                       <p className="text-xs text-muted-foreground">
@@ -278,9 +285,11 @@ export const AddBeneficiaryDialog: React.FC<AddBeneficiaryDialogProps> = ({
                           min="0"
                           step="0.01"
                           placeholder="e.g. 500000"
-                          {...field} 
                           value={field.value || ''}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value) || undefined)} 
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            field.onChange(isNaN(value) ? undefined : value);
+                          }} 
                         />
                       </FormControl>
                       <p className="text-xs text-muted-foreground">

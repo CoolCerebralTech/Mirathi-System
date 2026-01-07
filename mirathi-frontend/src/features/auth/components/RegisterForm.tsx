@@ -136,20 +136,10 @@ export function RegisterForm() {
         rememberMe: true, // Auto-session persistence
       },
       {
-        onSuccess: (authData) => {
-          // ✅ STRATEGY: Immediate Access (Low Friction)
-          // We verify email in the background or restrict high-risk actions (Withdrawals) later.
-          
-          if (authData.requiresEmailVerification) {
-             // Edge case: Backend enforces strict OTP before login
-            navigate('/pending-verification', {
-              replace: true,
-              state: { email: formData.email },
-            });
-          } else {
-            // Happy Path: Go to Dashboard
-            navigate('/dashboard', { replace: true });
-          }
+        onSuccess: () => {
+          // ✅ UPDATED: Direct navigation to dashboard (no verification step)
+          // Users are immediately logged in and can access their account
+          navigate('/dashboard', { replace: true });
         },
         onError: (error) => {
           console.error("Registration failed:", error);

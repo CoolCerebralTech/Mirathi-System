@@ -216,36 +216,6 @@ export class RefreshToken extends Token<RefreshTokenProps> {
 }
 
 // ============================================================================
-// Email Verification Token
-// ============================================================================
-
-export type EmailVerificationTokenProps = ITokenProps;
-
-export class EmailVerificationToken extends Token<EmailVerificationTokenProps> {
-  private constructor(props: EmailVerificationTokenProps & { id: string; createdAt: Date }) {
-    super(props);
-  }
-
-  static create(props: EmailVerificationTokenProps): EmailVerificationToken {
-    return new EmailVerificationToken({ ...props, id: randomUUID(), createdAt: new Date() });
-  }
-
-  static fromPersistence(
-    props: EmailVerificationTokenProps & { id: string; createdAt: Date },
-  ): EmailVerificationToken {
-    return new EmailVerificationToken(props);
-  }
-
-  validate(): void {
-    if (this.isExpired()) throw new TokenExpiredError();
-  }
-
-  canBeUsed(): boolean {
-    return !this.isExpired();
-  }
-}
-
-// ============================================================================
 // Phone Verification Token (OTP)
 // ============================================================================
 
@@ -499,15 +469,6 @@ export class TokenFactory {
   ): PasswordResetToken {
     const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
     return PasswordResetToken.create({ tokenHash, userId, expiresAt });
-  }
-
-  static createEmailVerificationToken(
-    userId: string,
-    tokenHash: string,
-    expiryHours: number = 24,
-  ): EmailVerificationToken {
-    const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
-    return EmailVerificationToken.create({ tokenHash, userId, expiresAt });
   }
 
   static createPhoneVerificationToken(

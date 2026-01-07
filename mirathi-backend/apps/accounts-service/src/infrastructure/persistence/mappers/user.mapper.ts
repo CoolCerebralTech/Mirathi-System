@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { RelationshipType, UserRole } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 
-import { Address, NextOfKin, UserProfile } from '../../../domain/models/user-profile.model';
+import { Address, UserProfile } from '../../../domain/models/user-profile.model';
 import { User } from '../../../domain/models/user.model';
 import { Email, Password, PhoneNumber } from '../../../domain/value-objects';
 import { UserEntity } from '../entities/account.entity';
@@ -31,12 +31,6 @@ export class InvalidUserEntityError extends UserMappingError {
 // ============================================================================
 // SAFE PARSERS & TYPE GUARDS (Enhanced with better error handling)
 // ============================================================================
-
-function isRelationshipType(value: unknown): value is RelationshipType {
-  return (
-    typeof value === 'string' && Object.values(RelationshipType).includes(value as RelationshipType)
-  );
-}
 
 function isValidUserRole(value: unknown): value is UserRole {
   return typeof value === 'string' && Object.values(UserRole).includes(value as UserRole);
@@ -78,63 +72,6 @@ function parseAddress(json: Prisma.JsonValue | null): Address | null {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     Logger.error('Error parsing address JSON', { json, error: errorMessage });
-    return null;
-  }
-}
-
-function parseNextOfKin(json: Prisma.JsonValue | null): NextOfKin | null {
-  if (!json || typeof json !== 'object' || Array.isArray(json)) return null;
-
-  const obj = json as Record<string, unknown>;
-
-  // Required fields validation
-  if (typeof obj.fullName !== 'string' || !obj.fullName.trim()) {
-    Logger.warn('Malformed NextOfKin JSON: missing or invalid fullName', { json });
-    return null;
-  }
-
-  if (typeof obj.phoneNumber !== 'string' || !obj.phoneNumber.trim()) {
-    Logger.warn('Malformed NextOfKin JSON: missing or invalid phoneNumber', { json });
-    return null;
-  }
-
-  if (!isRelationshipType(obj.relationship)) {
-    Logger.warn('Malformed NextOfKin JSON: invalid relationship type', {
-      json,
-      relationship: obj.relationship,
-    });
-    return null;
-  }
-
-  try {
-    const nextOfKin: NextOfKin = {
-      fullName: obj.fullName.trim(),
-      relationship: obj.relationship,
-      phoneNumber: obj.phoneNumber.trim(),
-    };
-
-    // Optional fields
-    if (typeof obj.email === 'string' && obj.email.trim()) {
-      const email = obj.email.trim();
-      // Basic email validation
-      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        nextOfKin.email = email;
-      } else {
-        Logger.warn('Invalid email format in NextOfKin JSON', { email, json });
-      }
-    }
-
-    if (obj.address && typeof obj.address === 'object' && !Array.isArray(obj.address)) {
-      const address = parseAddress(obj.address as Prisma.JsonValue);
-      if (address) {
-        nextOfKin.address = address;
-      }
-    }
-
-    return nextOfKin;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    Logger.error('Error parsing nextOfKin JSON', { json, error: errorMessage });
     return null;
   }
 }
@@ -201,15 +138,11 @@ export class UserMapper {
       const profile = UserProfile.fromPersistence({
         id: entity.profile.id,
         userId: entity.id,
-        bio: entity.profile.bio,
         phoneNumber: entity.profile.phoneNumber
           ? PhoneNumber.create(entity.profile.phoneNumber)
           : null,
-        phoneVerified: entity.profile.phoneVerified,
-        emailVerified: entity.profile.emailVerified,
         marketingOptIn: entity.profile.marketingOptIn,
         address: parseAddress(entity.profile.address),
-        nextOfKin: parseNextOfKin(entity.profile.nextOfKin),
         createdAt: entity.profile.createdAt,
         updatedAt: entity.profile.updatedAt,
       });
@@ -270,13 +203,9 @@ export class UserMapper {
         profile: {
           create: {
             id: profilePrimitives.id,
-            bio: profilePrimitives.bio,
             phoneNumber: profilePrimitives.phoneNumber,
-            phoneVerified: profilePrimitives.phoneVerified,
-            emailVerified: profilePrimitives.emailVerified,
             marketingOptIn: profilePrimitives.marketingOptIn,
             address: (profilePrimitives.address as Prisma.JsonValue) ?? Prisma.JsonNull,
-            nextOfKin: (profilePrimitives.nextOfKin as Prisma.JsonValue) ?? Prisma.JsonNull,
             createdAt: profilePrimitives.createdAt,
             updatedAt: profilePrimitives.updatedAt,
           },
@@ -312,13 +241,9 @@ export class UserMapper {
         updatedAt: userPrimitives.updatedAt,
         profile: {
           update: {
-            bio: profilePrimitives.bio,
             phoneNumber: profilePrimitives.phoneNumber,
-            phoneVerified: profilePrimitives.phoneVerified,
-            emailVerified: profilePrimitives.emailVerified,
             marketingOptIn: profilePrimitives.marketingOptIn,
             address: (profilePrimitives.address as Prisma.JsonValue) ?? Prisma.JsonNull,
-            nextOfKin: (profilePrimitives.nextOfKin as Prisma.JsonValue) ?? Prisma.JsonNull,
             updatedAt: profilePrimitives.updatedAt,
           },
         },
@@ -376,25 +301,17 @@ export class UserMapper {
       const createData: Prisma.UserProfileUncheckedCreateInput = {
         id: primitives.id,
         userId: primitives.userId,
-        bio: primitives.bio,
         phoneNumber: primitives.phoneNumber,
-        phoneVerified: primitives.phoneVerified,
-        emailVerified: primitives.emailVerified,
         marketingOptIn: primitives.marketingOptIn,
         address: (primitives.address as Prisma.JsonValue) ?? Prisma.JsonNull,
-        nextOfKin: (primitives.nextOfKin as Prisma.JsonValue) ?? Prisma.JsonNull,
         createdAt: primitives.createdAt,
         updatedAt: primitives.updatedAt,
       };
 
       const updateData: Prisma.UserProfileUncheckedUpdateInput = {
-        bio: primitives.bio,
         phoneNumber: primitives.phoneNumber,
-        phoneVerified: primitives.phoneVerified,
-        emailVerified: primitives.emailVerified,
         marketingOptIn: primitives.marketingOptIn,
         address: (primitives.address as Prisma.JsonValue) ?? Prisma.JsonNull,
-        nextOfKin: (primitives.nextOfKin as Prisma.JsonValue) ?? Prisma.JsonNull,
         updatedAt: primitives.updatedAt,
       };
 
@@ -419,19 +336,11 @@ export class UserMapper {
       };
 
       // Only include fields that are in the updatedFields array
-      if (updatedFields.includes('bio')) updateData.bio = primitives.bio;
       if (updatedFields.includes('phoneNumber')) updateData.phoneNumber = primitives.phoneNumber;
-      if (updatedFields.includes('phoneVerified'))
-        updateData.phoneVerified = primitives.phoneVerified;
-      if (updatedFields.includes('emailVerified'))
-        updateData.emailVerified = primitives.emailVerified;
       if (updatedFields.includes('marketingOptIn'))
         updateData.marketingOptIn = primitives.marketingOptIn;
       if (updatedFields.includes('address')) {
         updateData.address = (primitives.address as Prisma.JsonValue) ?? Prisma.JsonNull;
-      }
-      if (updatedFields.includes('nextOfKin')) {
-        updateData.nextOfKin = (primitives.nextOfKin as Prisma.JsonValue) ?? Prisma.JsonNull;
       }
 
       return updateData;

@@ -3,7 +3,7 @@
 // Detailed heir analysis and succession planning
 // ============================================================================
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -39,7 +39,7 @@ export const HeirsAnalysisPage: React.FC = () => {
   const { data: myFamily } = useMyFamily();
   const effectiveFamilyId = familyId || myFamily?.id || '';
   
-  const { data: heirs, isLoading } = usePotentialHeirs(effectiveFamilyId, {
+  const { data: heirs } = usePotentialHeirs(effectiveFamilyId, {
     enabled: !!effectiveFamilyId
   });
 

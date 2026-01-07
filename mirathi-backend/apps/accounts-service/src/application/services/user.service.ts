@@ -12,40 +12,21 @@ import {
 import { DomainEvent } from '../../domain/events';
 import type {
   ILoginSessionRepository,
-  IPhoneVerificationTokenRepository,
   IRefreshTokenRepository,
   IUserRepository,
 } from '../../domain/interfaces';
-import type {
-  IEventPublisher,
-  IHashingService,
-  INotificationService,
-} from '../../domain/interfaces';
-import {
-  InvalidOTPError,
-  MaxOTPAttemptsExceededError,
-  TokenFactory,
-} from '../../domain/models/token.model';
-import { Address, NextOfKin } from '../../domain/models/user-profile.model';
+import type { IEventPublisher, INotificationService } from '../../domain/interfaces';
+import { Address } from '../../domain/models/user-profile.model';
 import { AccountLockedError, User, UserDomainError } from '../../domain/models/user.model';
 import { PhoneNumber } from '../../domain/value-objects';
 import {
   GetMyProfileResponseDto,
   ProfileCompletionResponseDto,
   RemoveAddressResponseDto,
-  RemoveNextOfKinResponseDto,
-  RemovePhoneNumberResponseDto,
-  ResendPhoneVerificationResponseDto,
-  SendPhoneVerificationRequestDto,
-  SendPhoneVerificationResponseDto,
   UpdateMarketingPreferencesRequestDto,
   UpdateMarketingPreferencesResponseDto,
   UpdateMyProfileRequestDto,
   UpdateMyProfileResponseDto,
-  ValidatePhoneNumberRequestDto,
-  ValidatePhoneNumberResponseDto,
-  VerifyPhoneRequestDto,
-  VerifyPhoneResponseDto,
 } from '../dtos/profile.dto';
 import {
   DeactivateMyAccountRequestDto,
@@ -75,13 +56,6 @@ export class ProfileValidationError extends UserServiceError {
   }
 }
 
-export class PhoneVerificationError extends UserServiceError {
-  constructor(message: string, context?: Record<string, unknown>) {
-    super(message, 'PHONE_VERIFICATION_ERROR', context);
-    this.name = 'PhoneVerificationError';
-  }
-}
-
 export class AccountOperationError extends UserServiceError {
   constructor(message: string, context?: Record<string, unknown>) {
     super(message, 'ACCOUNT_OPERATION_ERROR', context);
@@ -99,26 +73,15 @@ export class AccountOperationError extends UserServiceError {
 export class UserService {
   private readonly logger = new Logger(UserService.name);
 
-  // Configuration - should ideally come from config service
-  private readonly PHONE_OTP_LENGTH = 6;
-  private readonly PHONE_OTP_EXPIRY_MINUTES = 10;
-  private readonly OTP_RETRY_SECONDS = 60;
-
   constructor(
     @Inject('IUserRepository')
     private readonly userRepo: IUserRepository,
-
-    @Inject('IPhoneVerificationTokenRepository')
-    private readonly phoneVerificationTokenRepo: IPhoneVerificationTokenRepository,
 
     @Inject('IRefreshTokenRepository')
     private readonly refreshTokenRepo: IRefreshTokenRepository,
 
     @Inject('ILoginSessionRepository')
     private readonly loginSessionRepo: ILoginSessionRepository,
-
-    @Inject('IHashingService')
-    private readonly hashingService: IHashingService,
 
     @Inject('IEventPublisher')
     private readonly eventPublisher: IEventPublisher,
@@ -244,8 +207,6 @@ export class UserService {
       // Revoke all sessions to log the user out everywhere.
       // Focusing on RefreshTokens is the most critical part.
       const sessionsTerminated = await this.refreshTokenRepo.revokeAllByUserId(userId);
-      // You can also add this line if you manage sessions separately and want to be thorough:
-      // await this.loginSessionRepo.revokeAllByUserId(userId);
 
       // Publish the UserDeactivatedEvent
       await this.publishDomainEvents(user);
@@ -299,7 +260,7 @@ export class UserService {
 
       // The service is responsible for generating context, like recommendations.
       const context = {
-        securityRecommendations: ['Ensure your next of kin information is up-to-date.'],
+        securityRecommendations: ['Ensure your information is up-to-date.'],
         nextSteps: profile.isComplete
           ? []
           : ['Complete all missing fields to enhance your experience.'],
@@ -336,24 +297,22 @@ export class UserService {
       // --- 1. HANDLE PHONE NUMBER UPDATES VIA THE USER AGGREGATE ---
       if (dto.phoneNumber !== undefined) {
         if (dto.phoneNumber === null) {
-          user.removePhoneNumber(); // Call the new method on the User
+          // Remove phone number if null is provided
+          user.removePhoneNumber();
         } else {
           const newPhoneNumber = PhoneNumber.create(dto.phoneNumber);
           if (!profile.phoneNumber || !profile.phoneNumber.equals(newPhoneNumber)) {
             if (!(await this.userRepo.isPhoneNumberUnique(newPhoneNumber))) {
               throw new ConflictException('This phone number is already in use.');
             }
-            user.updatePhoneNumber(newPhoneNumber); // Call the existing method on the User
+            user.updatePhoneNumber(newPhoneNumber);
           }
         }
       }
 
       // --- 2. USE THE EXISTING `updateProfile` METHOD FOR OTHER FIELDS ---
       user.updateProfile({
-        bio: dto.bio,
         address: dto.address as Address | null,
-        nextOfKin: dto.nextOfKin as NextOfKin | null,
-        // The DTO doesn't have marketingOptIn, so we don't pass it. This is fine.
       });
 
       // --- 3. CHECK FOR CHANGES AND SAVE ---
@@ -372,8 +331,6 @@ export class UserService {
       const updatedFields = user.domainEvents
         .slice(initialEventCount)
         .flatMap((event: DomainEvent) => {
-          // <-- CHANGE `any` TO `DomainEvent`
-          // Now TypeScript knows that `eventName` and `payload` should exist
           if (event.eventName === 'user.profile_updated' && event.payload.updatedFields) {
             return Object.keys(event.payload.updatedFields);
           }
@@ -381,14 +338,13 @@ export class UserService {
             return ['phoneNumber'];
           }
           if (event.eventName === 'user.phone_number_removed') {
-            // Add a case for removal
             return ['phoneNumber'];
           }
           return [];
         });
 
       return this.profileMapper.toUpdateMyProfileResponse(profile, {
-        updatedFields: [...new Set(updatedFields)], // Get unique field names
+        updatedFields: [...new Set(updatedFields)],
         completionChanged: previousCompletion !== profile.completionPercentage,
         previousCompletion,
       });
@@ -424,14 +380,11 @@ export class UserService {
       if (profile.completionPercentage < 100) {
         recommendations.push('Complete all fields to maximize your account security.');
       }
-      if (!profile.isPhoneVerified) {
-        recommendations.push('Verify your phone number for account recovery options.');
-      }
 
       const context = {
         recommendations,
-        // Example business rule: profile is minimally viable if email and phone are verified.
-        meetsMinimumRequirements: profile.isEmailVerified && profile.isPhoneVerified,
+        // UPDATED: Users are active immediately, so minimum requirements are always met
+        meetsMinimumRequirements: true,
         benefits: [
           'Enhanced account security',
           'Faster support and verification',
@@ -444,288 +397,6 @@ export class UserService {
     } catch (error) {
       this.logger.error(`Failed to fetch profile completion for user: ${userId}`, error);
       throw this.handleServiceError(error);
-    }
-  }
-  // ==========================================================================
-  // PHONE VERIFICATION
-  // ==========================================================================
-
-  async sendPhoneVerification(
-    userId: string,
-    dto: SendPhoneVerificationRequestDto,
-  ): Promise<SendPhoneVerificationResponseDto> {
-    try {
-      this.logger.log(`Sending phone verification for user: ${userId}`);
-
-      // 1. --- ALWAYS START WITH THE AGGREGATE ROOT ---
-      const user = await this.userRepo.findByIdWithProfile(userId);
-      if (!user || !user.profile) {
-        throw new NotFoundException('User profile not found.');
-      }
-      this.validateUserAccountStatus(user);
-
-      let phoneToVerify: PhoneNumber;
-
-      // 2. --- HANDLE PHONE NUMBER UPDATE VIA THE AGGREGATE ---
-      if (dto.phoneNumber) {
-        const newPhoneNumber = PhoneNumber.create(dto.phoneNumber);
-        // Check if the number has actually changed before doing a DB check
-        if (!user.profile.phoneNumber || !user.profile.phoneNumber.equals(newPhoneNumber)) {
-          if (!(await this.userRepo.isPhoneNumberUnique(newPhoneNumber))) {
-            throw new ConflictException('This phone number is already in use by another account.');
-          }
-          // Use the method on the User aggregate to update the phone number
-          user.updatePhoneNumber(newPhoneNumber);
-        }
-        phoneToVerify = newPhoneNumber;
-      } else {
-        if (!user.profile.phoneNumber) {
-          throw new BadRequestException('No phone number is saved to your profile to verify.');
-        }
-        phoneToVerify = user.profile.phoneNumber;
-      }
-
-      // Check for existing active OTP and rate limiting
-      const activeOTP = await this.phoneVerificationTokenRepo.findActiveByUserId(userId);
-      if (activeOTP && activeOTP.canBeUsed()) {
-        const remainingTime = activeOTP.getRemainingTime() / 1000;
-        if (remainingTime > 0) {
-          throw new PhoneVerificationError(
-            `An OTP was recently sent. Please try again in a moment.`,
-            { retryAfterSeconds: remainingTime },
-          );
-        }
-      }
-
-      // Clean up any old, invalid tokens for this user
-      await this.phoneVerificationTokenRepo.deleteByUserId(userId);
-
-      // Generate OTP and create the token domain object
-      const otp = this.generateOTP();
-      const verificationToken = TokenFactory.createPhoneVerificationToken(
-        userId,
-        await this.hashingService.hash(otp),
-        this.PHONE_OTP_EXPIRY_MINUTES,
-      );
-
-      // The user aggregate is responsible for requesting the verification
-      user.requestPhoneVerification();
-
-      // 3. --- SAVE AGGREGATE AND NEW TOKEN ---
-      // This should ideally be a transaction, handled by the userRepo.save method if possible.
-      await this.userRepo.save(user); // Saves potential phone number change
-      await this.phoneVerificationTokenRepo.save(verificationToken); // Saves the new OTP token
-
-      // Publish events from the user object
-      await this.publishDomainEvents(user);
-
-      // Send OTP via SMS (fire and forget)
-      this.sendVerificationSMS(phoneToVerify, otp).catch((error) => {
-        this.logger.error('Failed to send verification SMS', error);
-      });
-
-      this.logger.log(`Phone verification OTP sent to user: ${userId}`);
-
-      // 4. --- USE REFACTORED MAPPER ---
-      return this.profileMapper.toSendPhoneVerificationResponse({
-        phoneNumber: phoneToVerify.getValue(),
-        provider: phoneToVerify.getProvider(),
-        method: dto.method || 'sms',
-        nextRetryAt: new Date(Date.now() + this.OTP_RETRY_SECONDS * 1000),
-        retryAfterSeconds: this.OTP_RETRY_SECONDS,
-        expiresInMinutes: this.PHONE_OTP_EXPIRY_MINUTES,
-        attemptsRemaining: verificationToken.getRemainingAttempts(),
-        attemptsMade: verificationToken.attempts,
-      });
-    } catch (error) {
-      this.logger.error(`Failed to send phone verification for user: ${userId}`, error);
-      throw this.handleServiceError(error);
-    }
-  }
-
-  async verifyPhone(userId: string, dto: VerifyPhoneRequestDto): Promise<VerifyPhoneResponseDto> {
-    try {
-      this.logger.log(`Phone verification attempt for user: ${userId}`);
-
-      // 1. --- ALWAYS START WITH THE AGGREGATE ROOT ---
-      const user = await this.userRepo.findByIdWithProfile(userId);
-      if (!user || !user.profile) {
-        throw new NotFoundException('User profile not found.');
-      }
-      this.validateUserAccountStatus(user);
-
-      if (!user.profile.phoneNumber) {
-        throw new BadRequestException('No phone number is set on your profile to verify.');
-      }
-
-      // Get the active verification token for the user
-      const activeToken = await this.phoneVerificationTokenRepo.findActiveByUserId(userId);
-      if (!activeToken) {
-        throw new PhoneVerificationError(
-          'No active verification code found or it has expired. Please request a new one.',
-        );
-      }
-
-      // 2. --- USE THE TOKEN'S DOMAIN LOGIC ---
-      // Hash the incoming code to compare it with the stored hash
-      const otpHash = await this.hashingService.hash(dto.code);
-
-      try {
-        // The verify method on the token model will throw an error if it fails,
-        // which we can catch and handle.
-        activeToken.verify(otpHash);
-      } catch (error) {
-        // Save the token to persist the incremented attempt count.
-        await this.phoneVerificationTokenRepo.save(activeToken);
-        this.logger.warn(`Invalid OTP for user ${userId}. Attempts: ${activeToken.attempts}`);
-        // Re-throw the original error from the domain model (e.g., MaxOTPAttemptsExceededError)
-        throw error;
-      }
-
-      // 3. --- USE THE AGGREGATE'S DOMAIN LOGIC ---
-      // If verify() was successful, we proceed to update the user.
-      user.verifyPhone();
-
-      // 4. --- SAVE AGGREGATE AND TOKEN IN ONE GO ---
-      // The user object (and its profile) and the token object have both been modified.
-      // We save them both. This should ideally be a transaction.
-      await this.userRepo.save(user);
-      await this.phoneVerificationTokenRepo.save(activeToken); // Saves the 'used: true' state
-
-      // Publish events (if any were added to the user model)
-      await this.publishDomainEvents(user);
-
-      this.logger.log(`Phone verified successfully for user: ${userId}`);
-
-      // 5. --- USE REFACTORED MAPPER ---
-      return this.profileMapper.toVerifyPhoneResponse({
-        phoneNumber: user.profile.phoneNumber.getValue(),
-        provider: user.profile.phoneNumber.getProvider(),
-        verifiedAt: new Date(),
-        updatedProfile: user.profile,
-      });
-    } catch (error) {
-      this.logger.error(`Phone verification failed for user: ${userId}`, error);
-      // Let the handleServiceError method translate domain errors (like MaxOTPAttemptsExceededError)
-      // into appropriate HTTP responses.
-      throw this.handleServiceError(error);
-    }
-  }
-
-  async resendPhoneVerification(userId: string): Promise<ResendPhoneVerificationResponseDto> {
-    try {
-      this.logger.log(`Resending phone verification for user: ${userId}`);
-
-      // 1. --- ALWAYS START WITH THE AGGREGATE ROOT ---
-      const user = await this.userRepo.findByIdWithProfile(userId);
-      if (!user || !user.profile) {
-        throw new NotFoundException('User profile not found.');
-      }
-      this.validateUserAccountStatus(user);
-
-      const profile = user.profile;
-
-      if (!profile.phoneNumber) {
-        throw new BadRequestException('No phone number found on your profile to verify.');
-      }
-
-      if (profile.isPhoneVerified) {
-        throw new BadRequestException('Your phone number is already verified.');
-      }
-
-      // 2. --- SIMPLIFIED RATE LIMITING ---
-      // Check if there's an active token that was created very recently.
-      const activeToken = await this.phoneVerificationTokenRepo.findActiveByUserId(userId);
-      if (activeToken) {
-        const timeSinceCreation = Date.now() - activeToken.createdAt.getTime();
-        if (timeSinceCreation < this.OTP_RETRY_SECONDS * 1000) {
-          const retryAfter = Math.ceil((this.OTP_RETRY_SECONDS * 1000 - timeSinceCreation) / 1000);
-          throw new PhoneVerificationError(
-            `You must wait ${retryAfter} seconds before requesting a new code.`,
-            { retryAfterSeconds: retryAfter },
-          );
-        }
-      }
-
-      // Delete all previous tokens for this user to ensure a clean slate.
-      await this.phoneVerificationTokenRepo.deleteByUserId(userId);
-
-      // Generate new OTP and token
-      const otp = this.generateOTP();
-      const verificationToken = TokenFactory.createPhoneVerificationToken(
-        userId,
-        await this.hashingService.hash(otp),
-        this.PHONE_OTP_EXPIRY_MINUTES,
-      );
-      await this.phoneVerificationTokenRepo.save(verificationToken);
-
-      // 3. --- USE AGGREGATE DOMAIN METHOD ---
-      user.requestPhoneVerification();
-      await this.publishDomainEvents(user);
-
-      // Send OTP via SMS
-      this.sendVerificationSMS(profile.phoneNumber, otp).catch((error) => {
-        this.logger.error('Failed to send verification SMS during resend', error);
-      });
-
-      this.logger.log(`Phone verification OTP resent for user: ${userId}`);
-
-      // 4. --- ALIGN MAPPER CALL ---
-      return this.profileMapper.toResendPhoneVerificationResponse({
-        phoneNumber: profile.phoneNumber.getValue(),
-        method: 'sms', // Assuming SMS is the only method for now
-        nextRetryAt: new Date(Date.now() + this.OTP_RETRY_SECONDS * 1000),
-        retryAfterSeconds: this.OTP_RETRY_SECONDS,
-        resendAttempts: await this.phoneVerificationTokenRepo.countByUserId(userId), // More accurate count
-      });
-    } catch (error) {
-      this.logger.error(`Failed to resend phone verification for user: ${userId}`, error);
-      throw this.handleServiceError(error);
-    }
-  }
-
-  async validatePhoneNumber(
-    dto: ValidatePhoneNumberRequestDto,
-  ): Promise<ValidatePhoneNumberResponseDto> {
-    try {
-      this.logger.debug(`Validating phone number: ${dto.phoneNumber}`);
-
-      // The PhoneNumber value object handles format validation.
-      // If the format is invalid, it will throw an error which is caught below.
-      const phoneNumber = PhoneNumber.create(dto.phoneNumber);
-
-      // 1. --- UPDATED ---
-      // Use the userRepo to check for uniqueness, as it is the gateway for the aggregate.
-      const isUnique = await this.userRepo.isPhoneNumberUnique(phoneNumber);
-
-      // This is a great use of the spread operator to conditionally add a property.
-      return {
-        valid: true,
-        normalizedNumber: phoneNumber.getValue(),
-        provider: phoneNumber.getProvider(),
-        type: 'mobile', // Assuming mobile for now, a library could provide more detail.
-        countryCode: 'KE',
-        ...(isUnique ? {} : { error: 'This phone number is already in use.' }),
-      };
-    } catch (error: unknown) {
-      // This catch block will trigger if PhoneNumber.create() fails due to invalid format.
-      if (error instanceof Error) {
-        this.logger.warn(
-          `Phone number validation failed for: ${dto.phoneNumber} — ${error.message}`,
-        );
-      } else {
-        this.logger.warn(
-          `Phone number validation failed for: ${dto.phoneNumber} — ${String(error)}`,
-        );
-      }
-
-      return {
-        valid: false,
-        normalizedNumber: dto.phoneNumber,
-        provider: 'Unknown',
-        type: 'unknown',
-        error: 'The phone number format is invalid.',
-      };
     }
   }
 
@@ -777,51 +448,6 @@ export class UserService {
   // PROFILE DATA REMOVAL
   // ==========================================================================
 
-  async removePhoneNumber(userId: string): Promise<RemovePhoneNumberResponseDto> {
-    try {
-      this.logger.log(`Removing phone number for user: ${userId}`);
-
-      // 1. --- ALWAYS START WITH THE AGGREGATE ROOT ---
-      const user = await this.userRepo.findByIdWithProfile(userId);
-      if (!user || !user.profile) {
-        throw new NotFoundException('User profile not found.');
-      }
-      this.validateUserAccountStatus(user);
-
-      const profile = user.profile;
-
-      if (!profile.phoneNumber) {
-        throw new BadRequestException('No phone number to remove.');
-      }
-
-      const previousPhone = profile.phoneNumber.getValue();
-
-      // 2. --- USE THE AGGREGATE'S DOMAIN METHOD ---
-      user.removePhoneNumber();
-
-      // 3. --- SAVE THE AGGREGATE ---
-      await this.userRepo.save(user);
-
-      // Clean up any related phone verification tokens
-      await this.phoneVerificationTokenRepo.deleteByUserId(userId);
-
-      // Publish events (if the domain model created any)
-      await this.publishDomainEvents(user);
-
-      this.logger.log(`Phone number removed for user: ${userId}`);
-
-      // 4. --- ALIGN MAPPER CALL ---
-      return this.profileMapper.toRemovePhoneNumberResponse({
-        previousPhoneNumber: previousPhone,
-        // The reason is not part of the domain logic, so it's not included here.
-        // It could be added to the event payload if needed for auditing.
-      });
-    } catch (error) {
-      this.logger.error(`Failed to remove phone number for user: ${userId}`, error);
-      throw this.handleServiceError(error);
-    }
-  }
-
   async removeAddress(userId: string): Promise<RemoveAddressResponseDto> {
     try {
       this.logger.log(`Removing address for user: ${userId}`);
@@ -853,49 +479,9 @@ export class UserService {
       // 4. --- ALIGN MAPPER CALL ---
       return this.profileMapper.toRemoveAddressResponse({
         newCompletionPercentage: profile.completionPercentage,
-        // The reason is not part of the domain logic, it's transient data.
-        // It could be passed to the domain event if needed for auditing.
       });
     } catch (error) {
       this.logger.error(`Failed to remove address for user: ${userId}`, error);
-      throw this.handleServiceError(error);
-    }
-  }
-
-  async removeNextOfKin(userId: string): Promise<RemoveNextOfKinResponseDto> {
-    try {
-      this.logger.log(`Removing next of kin for user: ${userId}`);
-
-      // 1. --- ALWAYS START WITH THE AGGREGATE ROOT ---
-      const user = await this.userRepo.findByIdWithProfile(userId);
-      if (!user || !user.profile) {
-        throw new NotFoundException('User profile not found.');
-      }
-      this.validateUserAccountStatus(user);
-
-      const profile = user.profile;
-
-      if (!profile.nextOfKin) {
-        throw new BadRequestException('No next of kin information to remove.');
-      }
-
-      // 2. --- USE THE AGGREGATE'S DOMAIN METHOD ---
-      user.removeNextOfKin();
-
-      // 3. --- SAVE THE AGGREGATE ---
-      await this.userRepo.save(user);
-
-      // Publish events created by the domain model
-      await this.publishDomainEvents(user);
-
-      this.logger.log(`Next of kin removed for user: ${userId}`);
-
-      // 4. --- ALIGN MAPPER CALL ---
-      return this.profileMapper.toRemoveNextOfKinResponse({
-        newCompletionPercentage: profile.completionPercentage,
-      });
-    } catch (error) {
-      this.logger.error(`Failed to remove next of kin for user: ${userId}`, error);
       throw this.handleServiceError(error);
     }
   }
@@ -914,21 +500,17 @@ export class UserService {
     }
 
     if (user.isLocked()) {
-      // FIX: Check for the existence of user.lockedUntil before calling .toISOString()
-      // The `isLocked()` method already confirms it's a future date.
       if (user.lockedUntil) {
         throw new AccountOperationError(
           `Account is temporarily locked. Please try again after ${user.lockedUntil.toISOString()}.`,
           { lockedUntil: user.lockedUntil },
         );
       }
-      // This case is unlikely but handles a locked user without an expiry.
       throw new AccountOperationError('Account is temporarily locked.');
     }
   }
 
   private async sendDeactivationConfirmation(user: User, reason?: string): Promise<void> {
-    // This method is well-written and requires no changes.
     try {
       await this.notificationService.sendEmail({
         to: user.email.getValue(),
@@ -946,31 +528,9 @@ export class UserService {
     }
   }
 
-  private async sendVerificationSMS(phoneNumber: PhoneNumber, otp: string): Promise<void> {
-    // This method is well-written and requires no changes.
-    try {
-      await this.notificationService.sendSMS({
-        to: phoneNumber.getValue(),
-        message: `Your Shamba Sure verification code is: ${otp}. Valid for ${this.PHONE_OTP_EXPIRY_MINUTES} minutes.`,
-      });
-    } catch (error) {
-      this.logger.error(`Failed to send verification SMS to: ${phoneNumber.getValue()}`, error);
-    }
-  }
-
-  private generateOTP(): string {
-    // This method is correct.
-    return this.hashingService.generateOTP(this.PHONE_OTP_LENGTH);
-  }
-
-  /**
-   * FIX: This method now only accepts the User aggregate root.
-   */
   private async publishDomainEvents(user: User): Promise<void> {
     if (user.domainEvents.length > 0) {
       try {
-        // We publish the events from the root. If the profile had events,
-        // they should have been bubbled up to the user.
         await this.eventPublisher.publishBatch(user.domainEvents);
         user.clearDomainEvents();
       } catch (error) {
@@ -980,8 +540,6 @@ export class UserService {
   }
 
   private handleServiceError(error: unknown): Error {
-    // This method is well-written and handles our custom errors correctly.
-    // We will add the domain model errors to it for even better handling.
     if (
       error instanceof UnauthorizedException ||
       error instanceof BadRequestException ||
@@ -994,11 +552,7 @@ export class UserService {
     // Handle domain model errors
     if (error instanceof UserDomainError) {
       // Translate domain errors into user-friendly HTTP exceptions
-      if (error instanceof MaxOTPAttemptsExceededError || error instanceof InvalidOTPError) {
-        return new BadRequestException(error.message);
-      }
       if (error instanceof AccountLockedError) {
-        // You could create a custom exception filter for this to return a 423 Locked status
         return new UnauthorizedException(error.message);
       }
       return new BadRequestException(error.message);

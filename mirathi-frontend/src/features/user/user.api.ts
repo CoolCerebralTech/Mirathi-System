@@ -20,25 +20,13 @@ import {
   type GetMyProfileResponse,
   type UpdateMyProfileInput,
   type UpdateMyProfileResponse,
-  type SendPhoneVerificationInput,
-  type SendPhoneVerificationResponse,
-  type VerifyPhoneInput,
-  type VerifyPhoneResponse,
-  type ResendPhoneVerificationResponse,
   type UpdateMarketingPreferencesInput,
   type UpdateMarketingPreferencesResponse,
-  type RemovePhoneNumberResponse,
   type RemoveAddressResponse,
-  type RemoveNextOfKinResponse,
   GetMyProfileResponseSchema,
   UpdateMyProfileResponseSchema,
-  SendPhoneVerificationResponseSchema,
-  VerifyPhoneResponseSchema,
-  ResendPhoneVerificationResponseSchema,
   UpdateMarketingPreferencesResponseSchema,
-  RemovePhoneNumberResponseSchema,
   RemoveAddressResponseSchema,
-  RemoveNextOfKinResponseSchema,
 } from '../../types';
 
 // ============================================================================
@@ -56,13 +44,8 @@ const API_ENDPOINTS = {
   
   // Profile endpoints
   PROFILE: '/accounts/me/profile',
-  PHONE_SEND_VERIFICATION: '/accounts/me/phone/send-verification',
-  PHONE_VERIFY: '/accounts/me/phone/verify',
-  PHONE_RESEND_VERIFICATION: '/accounts/me/phone/resend-verification',
-  PHONE_REMOVE: '/accounts/me/phone',
   MARKETING_PREFERENCES: '/accounts/me/marketing-preferences',
   ADDRESS_REMOVE: '/accounts/me/address',
-  NEXT_OF_KIN_REMOVE: '/accounts/me/next-of-kin',
 } as const;
 
 /**
@@ -208,85 +191,6 @@ const updateCurrentProfile = async (profileData: UpdateMyProfileInput): Promise<
 };
 
 /**
- * Send phone verification code
- */
-const sendPhoneVerification = async (verificationData: SendPhoneVerificationInput): Promise<SendPhoneVerificationResponse> => {
-  try {
-    const { data } = await apiClient.post<SendPhoneVerificationResponse>(
-      API_ENDPOINTS.PHONE_SEND_VERIFICATION,
-      verificationData,
-    );
-    const validatedData = SendPhoneVerificationResponseSchema.parse(data);
-    return validatedData;
-  } catch (error) {
-    console.error('[User API] Send phone verification failed:', {
-      error: extractErrorMessage(error),
-      timestamp: new Date().toISOString(),
-    });
-    throw error;
-  }
-};
-
-/**
- * Verify phone number with OTP
- */
-const verifyPhone = async (verificationData: VerifyPhoneInput): Promise<VerifyPhoneResponse> => {
-  try {
-    const { data } = await apiClient.post<VerifyPhoneResponse>(
-      API_ENDPOINTS.PHONE_VERIFY,
-      verificationData,
-    );
-    const validatedData = VerifyPhoneResponseSchema.parse(data);
-    return validatedData;
-  } catch (error) {
-    console.error('[User API] Verify phone failed:', {
-      error: extractErrorMessage(error),
-      timestamp: new Date().toISOString(),
-    });
-    throw error;
-  }
-};
-
-/**
- * Resend phone verification code
- * NOTE: This endpoint has NO request body
- */
-const resendPhoneVerification = async (): Promise<ResendPhoneVerificationResponse> => {
-  try {
-    const { data } = await apiClient.post<ResendPhoneVerificationResponse>(
-      API_ENDPOINTS.PHONE_RESEND_VERIFICATION,
-    );
-    const validatedData = ResendPhoneVerificationResponseSchema.parse(data);
-    return validatedData;
-  } catch (error) {
-    console.error('[User API] Resend phone verification failed:', {
-      error: extractErrorMessage(error),
-      timestamp: new Date().toISOString(),
-    });
-    throw error;
-  }
-};
-
-/**
- * Remove phone number from profile
- */
-const removePhoneNumber = async (): Promise<RemovePhoneNumberResponse> => {
-  try {
-    const { data } = await apiClient.delete<RemovePhoneNumberResponse>(
-      API_ENDPOINTS.PHONE_REMOVE,
-    );
-    const validatedData = RemovePhoneNumberResponseSchema.parse(data);
-    return validatedData;
-  } catch (error) {
-    console.error('[User API] Remove phone number failed:', {
-      error: extractErrorMessage(error),
-      timestamp: new Date().toISOString(),
-    });
-    throw error;
-  }
-};
-
-/**
  * Update marketing preferences
  */
 const updateMarketingPreferences = async (preferencesData: UpdateMarketingPreferencesInput): Promise<UpdateMarketingPreferencesResponse> => {
@@ -318,25 +222,6 @@ const removeAddress = async (): Promise<RemoveAddressResponse> => {
     return validatedData;
   } catch (error) {
     console.error('[User API] Remove address failed:', {
-      error: extractErrorMessage(error),
-      timestamp: new Date().toISOString(),
-    });
-    throw error;
-  }
-};
-
-/**
- * Remove next of kin from profile
- */
-const removeNextOfKin = async (): Promise<RemoveNextOfKinResponse> => {
-  try {
-    const { data } = await apiClient.delete<RemoveNextOfKinResponse>(
-      API_ENDPOINTS.NEXT_OF_KIN_REMOVE,
-    );
-    const validatedData = RemoveNextOfKinResponseSchema.parse(data);
-    return validatedData;
-  } catch (error) {
-    console.error('[User API] Remove next of kin failed:', {
       error: extractErrorMessage(error),
       timestamp: new Date().toISOString(),
     });
@@ -554,170 +439,6 @@ export const useUpdateCurrentProfile = (options?: MutationOptions<UpdateMyProfil
 };
 
 /**
- * Hook to send phone verification code
- */
-export const useSendPhoneVerification = (options?: MutationOptions<SendPhoneVerificationResponse>) => {
-  return useMutation({
-    mutationFn: sendPhoneVerification,
-    ...MUTATION_CONFIG,
-
-    onSuccess: (data) => {
-      toast.success('Verification code sent', {
-        description: data.message,
-        duration: 5000,
-      });
-
-      options?.onSuccess?.(data);
-
-      console.log('[User] Phone verification code sent:', {
-        phoneNumber: data.phoneNumber,
-        timestamp: new Date().toISOString(),
-      });
-    },
-
-    onError: (error) => {
-      const errorMessage = extractErrorMessage(error);
-      toast.error('Failed to send verification code', {
-        description: errorMessage,
-        duration: 5000,
-      });
-
-      options?.onError?.(error);
-
-      console.error('[User] Send phone verification error:', {
-        error: errorMessage,
-        timestamp: new Date().toISOString(),
-      });
-    },
-  });
-};
-
-/**
- * Hook to verify phone number with OTP
- */
-export const useVerifyPhone = (options?: MutationOptions<VerifyPhoneResponse>) => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: verifyPhone,
-    ...MUTATION_CONFIG,
-
-    onSuccess: (data) => {
-      if (data.profile) {
-        queryClient.setQueryData(userKeys.profile(), data.profile);
-      }
-
-      toast.success('Phone number verified', {
-        description: data.message,
-        duration: 5000,
-      });
-
-      options?.onSuccess?.(data);
-
-      console.log('[User] Phone number verified:', {
-        phoneNumber: data.phoneNumber,
-        timestamp: new Date().toISOString(),
-      });
-    },
-
-    onError: (error) => {
-      const errorMessage = extractErrorMessage(error);
-      toast.error('Phone verification failed', {
-        description: errorMessage,
-        duration: 5000,
-      });
-
-      options?.onError?.(error);
-
-      console.error('[User] Verify phone error:', {
-        error: errorMessage,
-        timestamp: new Date().toISOString(),
-      });
-    },
-  });
-};
-
-/**
- * Hook to resend phone verification code
- */
-export const useResendPhoneVerification = (options?: MutationOptions<ResendPhoneVerificationResponse>) => {
-  return useMutation({
-    mutationFn: resendPhoneVerification,
-    ...MUTATION_CONFIG,
-
-    onSuccess: (data) => {
-      toast.success('Verification code resent', {
-        description: data.message,
-        duration: 5000,
-      });
-
-      options?.onSuccess?.(data);
-
-      console.log('[User] Phone verification code resent:', {
-        timestamp: new Date().toISOString(),
-      });
-    },
-
-    onError: (error) => {
-      const errorMessage = extractErrorMessage(error);
-      toast.error('Failed to resend verification code', {
-        description: errorMessage,
-        duration: 5000,
-      });
-
-      options?.onError?.(error);
-
-      console.error('[User] Resend phone verification error:', {
-        error: errorMessage,
-        timestamp: new Date().toISOString(),
-      });
-    },
-  });
-};
-
-/**
- * Hook to remove phone number from profile
- */
-export const useRemovePhoneNumber = (options?: MutationOptions<RemovePhoneNumberResponse>) => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: removePhoneNumber,
-    retry: 1,
-
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: userKeys.profile() });
-
-      toast.success('Phone number removed', {
-        description: data.message,
-        duration: 3000,
-      });
-
-      options?.onSuccess?.(data);
-
-      console.log('[User] Phone number removed:', {
-        timestamp: new Date().toISOString(),
-      });
-    },
-
-    onError: (error) => {
-      const errorMessage = extractErrorMessage(error);
-      toast.error('Failed to remove phone number', {
-        description: errorMessage,
-        duration: 5000,
-      });
-
-      options?.onError?.(error);
-
-      console.error('[User] Remove phone error:', {
-        error: errorMessage,
-        timestamp: new Date().toISOString(),
-      });
-    },
-  });
-};
-
-/**
  * Hook to update marketing preferences
  */
 export const useUpdateMarketingPreferences = (options?: MutationOptions<UpdateMarketingPreferencesResponse>) => {
@@ -801,48 +522,6 @@ export const useRemoveAddress = (options?: MutationOptions<RemoveAddressResponse
   });
 };
 
-/**
- * Hook to remove next of kin from profile
- */
-export const useRemoveNextOfKin = (options?: MutationOptions<RemoveNextOfKinResponse>) => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: removeNextOfKin,
-    retry: 1,
-
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: userKeys.profile() });
-
-      toast.success('Next of kin removed', {
-        description: data.message,
-        duration: 3000,
-      });
-
-      options?.onSuccess?.(data);
-
-      console.log('[User] Next of kin removed:', {
-        timestamp: new Date().toISOString(),
-      });
-    },
-
-    onError: (error) => {
-      const errorMessage = extractErrorMessage(error);
-      toast.error('Failed to remove next of kin', {
-        description: errorMessage,
-        duration: 5000,
-      });
-
-      options?.onError?.(error);
-
-      console.error('[User] Remove next of kin error:', {
-        error: errorMessage,
-        timestamp: new Date().toISOString(),
-      });
-    },
-  });
-};
-
 // ============================================================================
 // EXPORTS
 // ============================================================================
@@ -855,11 +534,6 @@ export {
   deactivateAccount,
   getCurrentProfile,
   updateCurrentProfile,
-  sendPhoneVerification,
-  verifyPhone,
-  resendPhoneVerification,
-  removePhoneNumber,
   updateMarketingPreferences,
   removeAddress,
-  removeNextOfKin,
 };

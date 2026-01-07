@@ -16,15 +16,11 @@ export * from './session-revoked.event';
 export * from './user-locked.event';
 export * from './user-unlocked.event';
 
-// Email-related events
-export * from './email-verified.event';
-export * from './email-verification-requested.event';
+// Email-related events;
 export * from './email-change-requested.event';
 export * from './email-changed.event';
 
 // Phone-related events
-export * from './phone-verified.event';
-export * from './phone-verification-requested.event';
 export * from './phone-number-updated.event';
 
 // Password-related events

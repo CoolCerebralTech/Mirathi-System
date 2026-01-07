@@ -144,19 +144,7 @@ export class UserResponseDto extends BaseResponseDto {
   @IsBoolean()
   isActive!: boolean;
 
-  @ApiProperty({
-    example: false,
-    description: 'Whether the user has verified their email address.',
-  })
-  @IsBoolean()
-  emailVerified!: boolean;
-
-  @ApiProperty({
-    example: false,
-    description: 'Whether the user has verified their phone number.',
-  })
-  @IsBoolean()
-  phoneVerified!: boolean;
+  // REMOVED: emailVerified field
 
   @ApiPropertyOptional({ example: '2024-10-25T10:30:00.000Z' })
   @IsOptional()
@@ -240,7 +228,6 @@ export class GetMyUserResponseDto extends UserResponseDto {
     example: ['Enable two-factor authentication', 'Update your recovery email'],
   })
   @IsOptional()
-  @IsString({ each: true })
   securityRecommendations?: string[];
 }
 
@@ -385,7 +372,6 @@ export class BulkUpdateUsersResponseDto {
     ],
   })
   @IsOptional()
-  @IsArray()
   failures?: Array<{ userId: string; error: string }>;
 }
 

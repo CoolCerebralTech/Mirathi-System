@@ -3,7 +3,6 @@ import { Prisma } from '@prisma/client';
 
 import {
   EmailChangeToken,
-  EmailVerificationToken,
   LoginSession,
   PasswordResetToken,
   PhoneVerificationToken,
@@ -11,7 +10,6 @@ import {
 } from '../../domain/models';
 import {
   EmailChangeTokenEntity,
-  EmailVerificationTokenEntity,
   LoginSessionEntity,
   PasswordHistoryEntity,
   PasswordResetTokenEntity,
@@ -58,35 +56,6 @@ export class TokenMapper {
       tokenHash: entity.tokenHash,
       expiresAt: entity.expiresAt,
       isUsed: entity.used,
-      createdAt: entity.createdAt,
-    });
-  }
-
-  // ============================================================================
-  // EMAIL VERIFICATION TOKEN MAPPING
-  // ============================================================================
-
-  emailVerificationToPersistence(token: EmailVerificationToken): {
-    create: Prisma.EmailVerificationTokenCreateInput;
-  } {
-    // This token is single-use and should not be updated.
-    return {
-      create: {
-        id: token.id,
-        user: { connect: { id: token.userId } },
-        tokenHash: token.tokenHash,
-        expiresAt: token.expiresAt,
-        createdAt: token.createdAt,
-      },
-    };
-  }
-
-  emailVerificationToDomain(entity: EmailVerificationTokenEntity): EmailVerificationToken {
-    return EmailVerificationToken.fromPersistence({
-      id: entity.id,
-      userId: entity.userId,
-      tokenHash: entity.tokenHash,
-      expiresAt: entity.expiresAt,
       createdAt: entity.createdAt,
     });
   }
@@ -210,6 +179,7 @@ export class TokenMapper {
       createdAt: entity.createdAt,
     });
   }
+
   // ============================================================================
   // EMAIL CHANGE TOKEN MAPPING
   // ============================================================================

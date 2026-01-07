@@ -52,31 +52,7 @@ export class UserQueryDto extends PaginationQueryDto {
   })
   isActive?: boolean;
 
-  @ApiPropertyOptional({
-    description: 'Filter by email verification status.',
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  @Transform(({ value }) => {
-    if (value === 'true') return true;
-    if (value === 'false') return false;
-    return undefined;
-  })
-  emailVerified?: boolean;
-
-  @ApiPropertyOptional({
-    description: 'Filter by phone verification status.',
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  @Transform(({ value }) => {
-    if (value === 'true') return true;
-    if (value === 'false') return false;
-    return undefined;
-  })
-  phoneVerified?: boolean;
+  // REMOVED: emailVerified filter
 
   @ApiPropertyOptional({
     description: 'Filter by locked status.',
@@ -367,21 +343,7 @@ export class AdminUpdateUserRequestDto {
   @IsBoolean()
   isActive?: boolean;
 
-  @ApiPropertyOptional({
-    description: 'Email verification status',
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  emailVerified?: boolean;
-
-  @ApiPropertyOptional({
-    description: 'Phone verification status',
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  phoneVerified?: boolean;
+  // REMOVED: emailVerified field
 
   @ApiPropertyOptional({
     description: 'Lock account until date (ISO 8601 format)',
@@ -662,15 +624,7 @@ export class AdminCreateUserRequestDto {
   @Transform(({ value }) => value !== 'false' && value !== false && value !== 0)
   sendWelcomeEmail?: boolean = true;
 
-  @ApiPropertyOptional({
-    description: 'Mark email as verified upon creation.',
-    example: false,
-    default: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  @Transform(({ value }) => value === 'true' || value === true || value === 1)
-  emailVerified?: boolean = false;
+  // REMOVED: emailVerified field
 
   @ApiPropertyOptional({
     description: 'Account active status upon creation.',
@@ -719,13 +673,7 @@ export class AdminBulkUpdateUsersRequestDto {
   @IsBoolean()
   isActive?: boolean;
 
-  @ApiPropertyOptional({
-    description: 'Set email verified status for all selected users.',
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  emailVerified?: boolean;
+  // REMOVED: emailVerified field
 
   @ApiPropertyOptional({
     description: 'Lock until date for all selected users (ISO 8601).',
@@ -909,13 +857,7 @@ export class DetailedUserResponseDto extends BaseResponseDto {
   @IsBoolean()
   isActive!: boolean;
 
-  @ApiProperty({ example: false })
-  @IsBoolean()
-  emailVerified!: boolean;
-
-  @ApiProperty({ example: false })
-  @IsBoolean()
-  phoneVerified!: boolean;
+  // REMOVED: emailVerified field
 
   @ApiPropertyOptional({ example: '2024-10-25T10:30:00.000Z' })
   @IsOptional()
@@ -987,7 +929,7 @@ export class AdminUpdateUserResponseDto {
 
   @ApiProperty({
     description: 'Fields that were updated.',
-    example: ['firstName', 'emailVerified'],
+    example: ['firstName', 'emailVerified'], // Note: emailVerified would be removed in actual usage
   })
   @IsArray()
   @IsString({ each: true })
@@ -1275,12 +1217,7 @@ export class AdminCreateUserResponseDto {
   @IsBoolean()
   isActive!: boolean;
 
-  @ApiProperty({
-    description: 'Email verification status.',
-    example: false,
-  })
-  @IsBoolean()
-  emailVerified!: boolean;
+  // REMOVED: emailVerified field
 }
 
 export class AdminBulkUpdateUsersResponseDto {
@@ -1479,19 +1416,7 @@ export class UserStatsResponseDto {
   @IsObject()
   byRole!: Record<UserRole, number>;
 
-  @ApiProperty({
-    description: 'Number of email verified users.',
-    example: 1000,
-  })
-  @IsNumber()
-  emailVerified!: number;
-
-  @ApiProperty({
-    description: 'Number of phone verified users.',
-    example: 800,
-  })
-  @IsNumber()
-  phoneVerified!: number;
+  // REMOVED: emailVerified field
 
   @ApiProperty({
     description: 'Average profile completion percentage.',

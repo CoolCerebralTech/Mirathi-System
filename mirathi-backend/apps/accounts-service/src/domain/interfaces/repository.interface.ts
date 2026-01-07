@@ -2,7 +2,6 @@ import { UserRole } from '@prisma/client';
 
 import {
   EmailChangeToken,
-  EmailVerificationToken,
   LoginSession,
   PasswordResetToken,
   PhoneVerificationToken,
@@ -51,7 +50,7 @@ export interface UserFilters {
   search?: string;
   isDeleted?: boolean;
   isLocked?: boolean;
-  emailVerified?: boolean;
+  // REMOVED: emailVerified?: boolean; - No more email verification
 }
 
 export interface UserStats {
@@ -64,7 +63,7 @@ export interface UserStats {
   locked: number;
   newLast7Days?: number;
   loginLast24Hours?: number;
-  emailVerified?: number;
+  // REMOVED: emailVerified?: number; - No more email verification
   phoneVerified?: number;
 }
 
@@ -79,7 +78,7 @@ export interface IUserRepository {
   isPhoneNumberUnique(phoneNumber: PhoneNumber): Promise<boolean>;
   getStats(): Promise<UserStats>;
   bulkUpdate(userIds: string[], data: UserUpdateData): Promise<number>;
-  bulkUpdateProfiles(userIds: string[], data: { emailVerified?: boolean }): Promise<number>;
+  // REMOVED: bulkUpdateProfiles - No more email verification status to update
   findRoleChangesByUserId(userId: string): Promise<unknown[]>;
   findByRole(role: UserRole, limit?: number): Promise<User[]>;
 }
@@ -90,7 +89,7 @@ export interface IUserRepository {
 
 export interface ProfileFilters {
   isPhoneVerified?: boolean;
-  isEmailVerified?: boolean;
+  // REMOVED: isEmailVerified?: boolean; - No more email verification
   hasMarketingOptIn?: boolean;
   isComplete?: boolean;
 }
@@ -120,20 +119,6 @@ export interface IPasswordResetTokenRepository {
   deleteExpired(): Promise<number>;
   deleteUsed(): Promise<number>;
   countByUserId(userId: string): Promise<number>;
-}
-
-// ============================================================================
-// EMAIL VERIFICATION TOKEN REPOSITORY
-// ============================================================================
-
-export interface IEmailVerificationTokenRepository {
-  save(token: EmailVerificationToken): Promise<void>;
-  findById(id: string): Promise<EmailVerificationToken | null>;
-  findByTokenHash(tokenHash: string): Promise<EmailVerificationToken | null>;
-  findByUserId(userId: string): Promise<EmailVerificationToken | null>;
-  deleteByUserId(userId: string): Promise<void>;
-  deleteExpired(): Promise<number>;
-  existsByUserId(userId: string): Promise<boolean>;
 }
 
 // ============================================================================

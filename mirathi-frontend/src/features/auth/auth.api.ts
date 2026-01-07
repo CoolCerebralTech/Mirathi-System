@@ -9,8 +9,7 @@ import { userKeys } from '../user/user.api';
 import {
   type LoginInput,
   type RegisterInput,
-  type VerifyEmailInput,
-  type ResendVerificationInput,
+  // REMOVED: VerifyEmailInput, ResendVerificationInput
   type ForgotPasswordInput,
   type ResetPasswordInput,
   type ValidateResetTokenInput,
@@ -21,8 +20,7 @@ import {
   type ConfirmEmailChangeInput,
   type AuthResponse,
   type RefreshTokenResponse,
-  type VerifyEmailResponse,
-  type ResendVerificationResponse,
+  // REMOVED: VerifyEmailResponse, ResendVerificationResponse
   type ForgotPasswordResponse,
   type ValidateResetTokenResponse,
   type ResetPasswordResponse,
@@ -32,8 +30,7 @@ import {
   type ConfirmEmailChangeResponse,
   AuthResponseSchema,
   RefreshTokenResponseSchema,
-  VerifyEmailResponseSchema,
-  ResendVerificationResponseSchema,
+  // REMOVED: VerifyEmailResponseSchema, ResendVerificationResponseSchema
   ForgotPasswordResponseSchema,
   ValidateResetTokenResponseSchema,
   ResetPasswordResponseSchema,
@@ -57,8 +54,7 @@ const API_ENDPOINTS = {
   LOGIN: '/accounts/auth/login',
   LOGOUT: '/accounts/auth/logout',
   REFRESH: '/accounts/auth/refresh',
-  VERIFY_EMAIL: '/accounts/auth/verify-email',
-  RESEND_VERIFICATION: '/accounts/auth/resend-verification',
+  // REMOVED: VERIFY_EMAIL, RESEND_VERIFICATION
   FORGOT_PASSWORD: '/accounts/auth/forgot-password',
   VALIDATE_RESET_TOKEN: '/accounts/auth/validate-reset-token',
   RESET_PASSWORD: '/accounts/auth/reset-password',
@@ -236,49 +232,8 @@ const refreshToken = async (refreshData: RefreshTokenInput): Promise<RefreshToke
   }
 };
 
-/**
- * Verify email address
- */
-const verifyEmail = async (verificationData: VerifyEmailInput): Promise<VerifyEmailResponse> => {
-  try {
-    const enhancedData = enhanceWithDeviceInfo(verificationData);
-    const { data } = await apiClient.post<VerifyEmailResponse>(
-      API_ENDPOINTS.VERIFY_EMAIL,
-      enhancedData,
-    );
-
-    const validatedData = VerifyEmailResponseSchema.parse(data);
-    return validatedData;
-  } catch (error) {
-    console.error('[Auth API] Email verification failed:', {
-      error: extractErrorMessage(error),
-      timestamp: new Date().toISOString(),
-    });
-    throw error;
-  }
-};
-
-/**
- * Resend email verification
- */
-const resendVerification = async (resendData: ResendVerificationInput): Promise<ResendVerificationResponse> => {
-  try {
-    const { data } = await apiClient.post<ResendVerificationResponse>(
-      API_ENDPOINTS.RESEND_VERIFICATION,
-      resendData,
-    );
-
-    const validatedData = ResendVerificationResponseSchema.parse(data);
-    return validatedData;
-  } catch (error) {
-    console.error('[Auth API] Resend verification failed:', {
-      email: resendData.email,
-      error: extractErrorMessage(error),
-      timestamp: new Date().toISOString(),
-    });
-    throw error;
-  }
-};
+// REMOVED: verifyEmail function
+// REMOVED: resendVerification function
 
 /**
  * Request password reset
@@ -426,8 +381,8 @@ const convertAuthResponseForStore = (authData: AuthResponse) => {
       lastName: authData.user.lastName,
       role: authData.user.role,
       isActive: authData.user.isActive,
-      emailVerified: authData.user.emailVerified,
-      phoneVerified: authData.user.phoneVerified,
+      // REMOVED: emailVerified: authData.user.emailVerified,
+      // REMOVED: phoneVerified: authData.user.phoneVerified,
       lastLoginAt: authData.user.lastLoginAt || null,
       createdAt: authData.user.createdAt,
       updatedAt: authData.user.updatedAt,
@@ -523,7 +478,7 @@ export const useRegister = (options?: AuthMutationOptions) => {
       console.log('[Auth] Registration successful (auto-verified):', {
         userId: authData.user.id,
         email: authData.user.email,
-        emailVerified: authData.user.emailVerified, // Should be true
+        // REMOVED: emailVerified: authData.user.emailVerified, // Should be true
         timestamp: new Date().toISOString(),
       });
     },
@@ -545,6 +500,7 @@ export const useRegister = (options?: AuthMutationOptions) => {
     },
   });
 };
+
 /**
  * Hook for user logout
  */
@@ -633,96 +589,9 @@ export const useRefreshToken = () => {
     },
   });
 };
-/**
- * Hook for email verification
- */
-export const useVerifyEmail = (options?: { onSuccess?: (data: VerifyEmailResponse) => void }) => {
-  const queryClient = useQueryClient();
-  const { setUser } = useAuthStore();
 
-  return useMutation({
-    mutationFn: verifyEmail,
-    ...AUTH_MUTATION_CONFIG,
-
-    onSuccess: (data) => {
-      if (data.authData) {
-        const storeUser = {
-          ...data.authData.user,
-          loginAttempts: 0,
-          isLocked: false,
-          isDeleted: false,
-          lockedUntil: null,
-          deletedAt: null,
-        };
-
-        queryClient.setQueryData(userKeys.profile(), storeUser);
-        
-        // Now 'storeUser' matches the type expected by setUser
-        setUser(storeUser);
-      }
-
-      toast.success('Email verified successfully!', {
-        description: data.message,
-        duration: 5000,
-      });
-
-      options?.onSuccess?.(data);
-
-      console.log('[Auth] Email verification successful:', {
-        timestamp: new Date().toISOString(),
-      });
-    },
-
-    onError: (error) => {
-      const errorMessage = extractErrorMessage(error);
-      
-      toast.error('Email verification failed', {
-        description: errorMessage,
-        duration: 5000,
-      });
-
-      console.error('[Auth] Email verification error:', {
-        error: errorMessage,
-        timestamp: new Date().toISOString(),
-      });
-    },
-  });
-};
-
-/**
- * Hook for resending email verification
- */
-export const useResendVerification = () => {
-  return useMutation({
-    mutationFn: resendVerification,
-    ...AUTH_MUTATION_CONFIG,
-
-    onSuccess: (data) => {
-      toast.success('Verification email sent', {
-        description: data.message,
-        duration: 5000,
-      });
-
-      console.log('[Auth] Verification email resent:', {
-        timestamp: new Date().toISOString(),
-      });
-    },
-
-    onError: (error) => {
-      const errorMessage = extractErrorMessage(error);
-      
-      toast.error('Failed to send verification email', {
-        description: errorMessage,
-        duration: 5000,
-      });
-
-      console.error('[Auth] Resend verification error:', {
-        error: errorMessage,
-        timestamp: new Date().toISOString(),
-      });
-    },
-  });
-};
+// REMOVED: useVerifyEmail hook
+// REMOVED: useResendVerification hook
 
 /**
  * Hook for password reset request
@@ -972,8 +841,7 @@ export {
   loginUser,
   logoutUser,
   refreshToken,
-  verifyEmail,
-  resendVerification,
+  // REMOVED: verifyEmail, resendVerification
   forgotPassword,
   validateResetToken,
   resetPassword,

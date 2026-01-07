@@ -272,7 +272,6 @@ export class PrismaUserRepository implements IUserRepository, IUserProfileReposi
         active,
         deleted,
         locked,
-        emailVerified,
         phoneVerified,
         newLast30Days,
         newLast7Days,
@@ -288,15 +287,10 @@ export class PrismaUserRepository implements IUserRepository, IUserProfileReposi
             deletedAt: null,
           },
         }),
+        // REMOVED: emailVerified count - no more email verification
         this.prisma.userProfile.count({
           where: {
-            emailVerified: true,
-            user: { deletedAt: null },
-          },
-        }),
-        this.prisma.userProfile.count({
-          where: {
-            phoneVerified: true,
+            phoneNumber: { not: null }, // Assuming phoneVerified means having a phone number
             user: { deletedAt: null },
           },
         }),
@@ -349,7 +343,7 @@ export class PrismaUserRepository implements IUserRepository, IUserProfileReposi
         inactive: total - active,
         deleted,
         locked,
-        emailVerified,
+        // REMOVED: emailVerified
         phoneVerified,
         byRole,
         newLast30Days,
@@ -379,6 +373,7 @@ export class PrismaUserRepository implements IUserRepository, IUserProfileReposi
       throw new UserRepositoryError('Failed to bulk update users', error);
     }
   }
+
   async findRoleChangesByUserId(userId: string): Promise<unknown[]> {
     try {
       const roleChanges = await this.prisma.roleChange.findMany({
@@ -392,13 +387,8 @@ export class PrismaUserRepository implements IUserRepository, IUserProfileReposi
       throw new UserRepositoryError(`Failed to find role changes for user: ${userId}`, error);
     }
   }
-  async bulkUpdateProfiles(userIds: string[], data: { emailVerified?: boolean }): Promise<number> {
-    const result = await this.prisma.userProfile.updateMany({
-      where: { userId: { in: userIds } },
-      data,
-    });
-    return result.count;
-  }
+
+  // REMOVED: bulkUpdateProfiles method - no more email verification status to update
 
   async saveProfile(profile: UserProfile): Promise<void> {
     try {
@@ -639,7 +629,7 @@ export class PrismaUserRepository implements IUserRepository, IUserProfileReposi
   }
 
   // ============================================================================
-  // PRIVATE HELPERS (No changes needed - they are excellent)
+  // PRIVATE HELPERS
   // ============================================================================
 
   private buildUserWhereClause(filters: UserFilters): Prisma.UserWhereInput {
@@ -663,9 +653,7 @@ export class PrismaUserRepository implements IUserRepository, IUserProfileReposi
       where.lockedUntil = filters.isLocked ? { not: null, gte: new Date() } : null;
     }
 
-    if (typeof filters.emailVerified === 'boolean') {
-      where.profile = { emailVerified: filters.emailVerified };
-    }
+    // REMOVED: emailVerified filter - no more email verification
 
     if (filters.search) {
       const search = { contains: filters.search, mode: 'insensitive' as const };
@@ -684,12 +672,15 @@ export class PrismaUserRepository implements IUserRepository, IUserProfileReposi
     const where: Prisma.UserProfileWhereInput = { user: { deletedAt: null } };
 
     if (typeof filters.isPhoneVerified === 'boolean') {
-      where.phoneVerified = filters.isPhoneVerified;
+      // Note: Changed from phoneVerified to checking if phoneNumber exists
+      if (filters.isPhoneVerified) {
+        where.phoneNumber = { not: null };
+      } else {
+        where.phoneNumber = null;
+      }
     }
 
-    if (typeof filters.isEmailVerified === 'boolean') {
-      where.emailVerified = filters.isEmailVerified;
-    }
+    // REMOVED: isEmailVerified filter - no more email verification
 
     if (typeof filters.hasMarketingOptIn === 'boolean') {
       where.marketingOptIn = filters.hasMarketingOptIn;
@@ -697,23 +688,9 @@ export class PrismaUserRepository implements IUserRepository, IUserProfileReposi
 
     if (typeof filters.isComplete === 'boolean') {
       if (filters.isComplete) {
-        where.AND = [
-          { bio: { not: null } },
-          { phoneNumber: { not: null } },
-          { phoneVerified: true },
-          { emailVerified: true },
-          { address: { not: Prisma.JsonNull } },
-          { nextOfKin: { not: Prisma.JsonNull } },
-        ];
+        where.AND = [{ phoneNumber: { not: null } }, { address: { not: Prisma.JsonNull } }];
       } else {
-        where.OR = [
-          { bio: null },
-          { phoneNumber: null },
-          { phoneVerified: false },
-          { emailVerified: false },
-          { address: { equals: Prisma.JsonNull } },
-          { nextOfKin: { equals: Prisma.JsonNull } },
-        ];
+        where.OR = [{ phoneNumber: null }, { address: { equals: Prisma.JsonNull } }];
       }
     }
 

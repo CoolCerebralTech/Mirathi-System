@@ -1,5 +1,3 @@
-import { RelationshipType } from '@prisma/client';
-
 import { PhoneNumber } from '../value-objects';
 
 // ============================================================================
@@ -11,22 +9,6 @@ export class UserProfileDomainError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'UserProfileDomainError';
-  }
-}
-
-/** Thrown when phone verification is attempted without a phone number. */
-export class PhoneNumberNotSetError extends UserProfileDomainError {
-  constructor() {
-    super('Cannot verify phone because no phone number is set.');
-    this.name = 'PhoneNumberNotSetError';
-  }
-}
-
-/** Thrown when next of kin validation fails. */
-export class InvalidNextOfKinError extends UserProfileDomainError {
-  constructor(message: string) {
-    super(message);
-    this.name = 'InvalidNextOfKinError';
   }
 }
 
@@ -42,14 +24,6 @@ export interface Address {
   country: string;
 }
 
-export interface NextOfKin {
-  fullName: string;
-  relationship: RelationshipType;
-  phoneNumber: string; // E.164 format
-  email?: string;
-  address?: Address;
-}
-
 // ============================================================================
 // Profile Update Result (for aggregate root event publishing)
 // ============================================================================
@@ -62,13 +36,9 @@ export interface ProfileUpdateResult {
 export interface UserProfilePrimitives {
   id: string;
   userId: string;
-  bio: string | null;
   phoneNumber: string | null;
-  phoneVerified: boolean;
-  emailVerified: boolean;
   marketingOptIn: boolean;
   address: Address | null;
-  nextOfKin: NextOfKin | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -80,13 +50,9 @@ export interface UserProfilePrimitives {
 export interface UserProfileProps {
   id: string;
   userId: string;
-  bio: string | null;
   phoneNumber: PhoneNumber | null;
-  phoneVerified: boolean;
-  emailVerified: boolean;
   marketingOptIn: boolean;
   address: Address | null;
-  nextOfKin: NextOfKin | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -102,29 +68,18 @@ export interface UserProfileProps {
 export class UserProfile {
   private readonly _id: string;
   private readonly _userId: string;
-  private _bio: string | null;
   private _phoneNumber: PhoneNumber | null;
-  private _phoneVerified: boolean;
-  private _emailVerified: boolean;
   private _marketingOptIn: boolean;
   private _address: Address | null;
-  private _nextOfKin: NextOfKin | null;
   private readonly _createdAt: Date;
   private _updatedAt: Date;
-
-  private static readonly MAX_BIO_LENGTH = 500;
-  private static readonly MAX_NOK_NAME_LENGTH = 100;
 
   private constructor(props: UserProfileProps) {
     this._id = props.id;
     this._userId = props.userId;
-    this._bio = props.bio;
     this._phoneNumber = props.phoneNumber;
-    this._phoneVerified = props.phoneVerified;
-    this._emailVerified = props.emailVerified;
     this._marketingOptIn = props.marketingOptIn;
     this._address = props.address;
-    this._nextOfKin = props.nextOfKin;
     this._createdAt = props.createdAt;
     this._updatedAt = props.updatedAt;
   }
@@ -137,13 +92,9 @@ export class UserProfile {
     return new UserProfile({
       id: props.id,
       userId: props.userId,
-      bio: null,
       phoneNumber: null,
-      phoneVerified: false,
-      emailVerified: false,
       marketingOptIn: props.marketingOptIn ?? false,
       address: null,
-      nextOfKin: null,
       createdAt: now,
       updatedAt: now,
     });
@@ -166,20 +117,11 @@ export class UserProfile {
   get userId(): string {
     return this._userId;
   }
-  get bio(): string | null {
-    return this._bio;
-  }
   get phoneNumber(): PhoneNumber | null {
     return this._phoneNumber;
   }
   get phoneNumberValue(): string | null {
     return this._phoneNumber?.getValue() ?? null;
-  }
-  get isPhoneVerified(): boolean {
-    return this._phoneVerified;
-  }
-  get isEmailVerified(): boolean {
-    return this._emailVerified;
   }
   get hasPhoneNumber(): boolean {
     return this._phoneNumber !== null;
@@ -190,9 +132,6 @@ export class UserProfile {
   get address(): Address | null {
     return this._address ? { ...this._address } : null;
   }
-  get nextOfKin(): NextOfKin | null {
-    return this._nextOfKin ? { ...this._nextOfKin } : null;
-  }
   get createdAt(): Date {
     return this._createdAt;
   }
@@ -201,26 +140,15 @@ export class UserProfile {
   }
 
   get isComplete(): boolean {
-    return (
-      this._bio !== null &&
-      this._phoneNumber !== null &&
-      this._phoneVerified &&
-      this._emailVerified &&
-      this._address !== null &&
-      this._nextOfKin !== null
-    );
+    return this._phoneNumber !== null && this._address !== null;
   }
 
   get completionPercentage(): number {
     let completed = 0;
-    const total = 6;
+    const total = 2; // Changed from 3 to 2 (phone and address only)
 
-    if (this._bio) completed++;
     if (this._phoneNumber) completed++;
-    if (this._phoneVerified) completed++;
-    if (this._emailVerified) completed++;
     if (this._address) completed++;
-    if (this._nextOfKin) completed++;
 
     return Math.round((completed / total) * 100);
   }
@@ -229,73 +157,15 @@ export class UserProfile {
   // Validation Helpers
   // ============================================================================
 
-  private validateBio(bio: string): void {
-    if (bio.length > UserProfile.MAX_BIO_LENGTH) {
-      throw new UserProfileDomainError(
-        `Bio cannot exceed ${UserProfile.MAX_BIO_LENGTH} characters`,
-      );
-    }
-  }
-
-  private validateNextOfKin(nok: NextOfKin): void {
-    if (!nok.fullName || nok.fullName.trim().length === 0) {
-      throw new InvalidNextOfKinError('Next of kin full name is required');
-    }
-
-    if (nok.fullName.length > UserProfile.MAX_NOK_NAME_LENGTH) {
-      throw new InvalidNextOfKinError(
-        `Next of kin name cannot exceed ${UserProfile.MAX_NOK_NAME_LENGTH} characters`,
-      );
-    }
-
-    if (!nok.phoneNumber || nok.phoneNumber.trim().length === 0) {
-      throw new InvalidNextOfKinError('Next of kin phone number is required');
-    }
-
-    // Validate phone number format (basic E.164 check)
-    if (!nok.phoneNumber.startsWith('+')) {
-      throw new InvalidNextOfKinError('Next of kin phone number must be in E.164 format (+254...)');
-    }
-
-    if (nok.email && !this.isValidEmail(nok.email)) {
-      throw new InvalidNextOfKinError('Next of kin email format is invalid');
-    }
-  }
-
   private validateAddress(address: Address): void {
     if (!address.country || address.country.trim().length === 0) {
       throw new UserProfileDomainError('Address country is required');
     }
   }
 
-  private isValidEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  }
-
   // ============================================================================
   // Profile Update Methods (Return changes for aggregate root event publishing)
   // ============================================================================
-
-  updateBio(bio: string): ProfileUpdateResult {
-    const trimmedBio = bio.trim();
-    this.validateBio(trimmedBio);
-
-    if (this._bio === trimmedBio) {
-      return { updatedFields: [], changes: {} };
-    }
-
-    const oldBio = this._bio;
-    this._bio = trimmedBio || null;
-    this._updatedAt = new Date();
-
-    return {
-      updatedFields: ['bio'],
-      changes: {
-        bio: { old: oldBio, new: this._bio },
-      },
-    };
-  }
 
   updatePhoneNumber(phoneNumber: PhoneNumber): ProfileUpdateResult {
     const previousPhoneNumber = this._phoneNumber?.getValue();
@@ -305,17 +175,13 @@ export class UserProfile {
       return { updatedFields: [], changes: {} };
     }
 
-    // Reset verification status when phone changes
-    const oldPhoneVerified = this._phoneVerified;
     this._phoneNumber = phoneNumber;
-    this._phoneVerified = false;
     this._updatedAt = new Date();
 
     return {
-      updatedFields: ['phoneNumber', 'phoneVerified'],
+      updatedFields: ['phoneNumber'],
       changes: {
         phoneNumber: { old: previousPhoneNumber, new: newPhoneNumber },
-        phoneVerified: { old: oldPhoneVerified, new: false },
       },
     };
   }
@@ -326,17 +192,14 @@ export class UserProfile {
     }
 
     const previousPhoneNumber = this._phoneNumber.getValue();
-    const oldPhoneVerified = this._phoneVerified;
 
     this._phoneNumber = null;
-    this._phoneVerified = false;
     this._updatedAt = new Date();
 
     return {
-      updatedFields: ['phoneNumber', 'phoneVerified'],
+      updatedFields: ['phoneNumber'],
       changes: {
         phoneNumber: { old: previousPhoneNumber, new: null },
-        phoneVerified: { old: oldPhoneVerified, new: false },
       },
     };
   }
@@ -373,38 +236,6 @@ export class UserProfile {
     };
   }
 
-  updateNextOfKin(nextOfKin: NextOfKin): ProfileUpdateResult {
-    this.validateNextOfKin(nextOfKin);
-
-    const oldNextOfKin = this._nextOfKin;
-    this._nextOfKin = { ...nextOfKin };
-    this._updatedAt = new Date();
-
-    return {
-      updatedFields: ['nextOfKin'],
-      changes: {
-        nextOfKin: { old: oldNextOfKin, new: this._nextOfKin },
-      },
-    };
-  }
-
-  removeNextOfKin(): ProfileUpdateResult {
-    if (!this._nextOfKin) {
-      return { updatedFields: [], changes: {} };
-    }
-
-    const oldNextOfKin = this._nextOfKin;
-    this._nextOfKin = null;
-    this._updatedAt = new Date();
-
-    return {
-      updatedFields: ['nextOfKin'],
-      changes: {
-        nextOfKin: { old: oldNextOfKin, new: null },
-      },
-    };
-  }
-
   updateMarketingPreferences(optIn: boolean): ProfileUpdateResult {
     if (this._marketingOptIn === optIn) {
       return { updatedFields: [], changes: {} };
@@ -423,53 +254,6 @@ export class UserProfile {
   }
 
   // ============================================================================
-  // Phone Verification Methods
-  // ============================================================================
-
-  markPhoneAsVerified(): void {
-    if (!this._phoneNumber) {
-      throw new PhoneNumberNotSetError();
-    }
-
-    if (this._phoneVerified) return; // Already verified
-
-    this._phoneVerified = true;
-    this._updatedAt = new Date();
-  }
-
-  resetPhoneVerification(): void {
-    if (!this._phoneVerified) return; // Already not verified
-
-    this._phoneVerified = false;
-    this._updatedAt = new Date();
-  }
-
-  // ============================================================================
-  // Email Verification Methods
-  // ============================================================================
-
-  markEmailAsVerified(): void {
-    if (this._emailVerified) return; // Already verified
-
-    this._emailVerified = true;
-    this._updatedAt = new Date();
-  }
-
-  markEmailAsUnverified(): void {
-    if (!this._emailVerified) return; // Already not verified
-
-    this._emailVerified = false;
-    this._updatedAt = new Date();
-  }
-
-  resetEmailVerification(): void {
-    if (!this._emailVerified) return; // Already not verified
-
-    this._emailVerified = false;
-    this._updatedAt = new Date();
-  }
-
-  // ============================================================================
   // Bulk Update Method (Used by User aggregate root)
   // ============================================================================
 
@@ -478,25 +262,13 @@ export class UserProfile {
     return JSON.stringify(obj1) === JSON.stringify(obj2);
     // For production, a more robust library like lodash.isEqual or a custom recursive function is better
   }
+
   update(props: {
-    bio?: string;
     marketingOptIn?: boolean;
     address?: Address | null;
-    nextOfKin?: NextOfKin | null;
   }): Record<string, { old: unknown; new: unknown }> {
     const changes: Record<string, { old: unknown; new: unknown }> = {};
     const updatedFields: string[] = [];
-
-    // Update bio
-    if (props.bio !== undefined) {
-      const trimmedBio = props.bio.trim();
-      this.validateBio(trimmedBio);
-      if (this._bio !== trimmedBio) {
-        changes.bio = { old: this._bio, new: trimmedBio || null };
-        updatedFields.push('bio');
-        this._bio = trimmedBio || null;
-      }
-    }
 
     // Update marketing preferences
     if (props.marketingOptIn !== undefined) {
@@ -528,27 +300,6 @@ export class UserProfile {
       }
     }
 
-    // Update next of kin (handle null for removal)
-    if (props.nextOfKin !== undefined) {
-      if (props.nextOfKin === null) {
-        // Remove next of kin
-        if (this._nextOfKin !== null) {
-          changes.nextOfKin = { old: this._nextOfKin, new: null };
-          updatedFields.push('nextOfKin');
-          this._nextOfKin = null;
-        }
-      } else {
-        // Update next of kin
-        this.validateNextOfKin(props.nextOfKin);
-        const newNextOfKin = { ...props.nextOfKin };
-        if (!this.isDeepEqual(this._nextOfKin, newNextOfKin)) {
-          changes.nextOfKin = { old: this._nextOfKin, new: newNextOfKin };
-          updatedFields.push('nextOfKin');
-          this._nextOfKin = newNextOfKin;
-        }
-      }
-    }
-
     if (updatedFields.length > 0) {
       this._updatedAt = new Date();
     }
@@ -572,13 +323,9 @@ export class UserProfile {
     return {
       id: this._id,
       userId: this._userId,
-      bio: this._bio,
       phoneNumber: this._phoneNumber?.getValue() ?? null,
-      phoneVerified: this._phoneVerified,
-      emailVerified: this._emailVerified,
       marketingOptIn: this._marketingOptIn,
       address: this._address,
-      nextOfKin: this._nextOfKin,
       isComplete: this.isComplete,
       completionPercentage: this.completionPercentage,
       createdAt: this._createdAt,
@@ -590,13 +337,9 @@ export class UserProfile {
     return {
       id: this._id,
       userId: this._userId,
-      bio: this._bio,
       phoneNumber: this._phoneNumber?.getValue() ?? null,
-      phoneVerified: this._phoneVerified,
-      emailVerified: this._emailVerified,
       marketingOptIn: this._marketingOptIn,
       address: this._address,
-      nextOfKin: this._nextOfKin,
       createdAt: this._createdAt,
       updatedAt: this._updatedAt,
     };

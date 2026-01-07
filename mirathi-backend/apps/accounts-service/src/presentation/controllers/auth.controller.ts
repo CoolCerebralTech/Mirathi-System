@@ -32,14 +32,10 @@ import {
   RegisterRequestDto,
   RequestEmailChangeRequestDto,
   RequestEmailChangeResponseDto,
-  ResendVerificationRequestDto,
-  ResendVerificationResponseDto,
   ResetPasswordRequestDto,
   ResetPasswordResponseDto,
   ValidateResetTokenRequestDto,
   ValidateResetTokenResponseDto,
-  VerifyEmailRequestDto,
-  VerifyEmailResponseDto,
 } from '../../application/dtos/auth.dto';
 import { AuthService } from '../../application/services/auth.service';
 
@@ -48,7 +44,6 @@ import { AuthService } from '../../application/services/auth.service';
  *
  * Handles all authentication and authorization HTTP endpoints:
  * - Registration & Login
- * - Email verification
  * - Password management
  * - Token refresh
  * - Email change
@@ -66,11 +61,11 @@ export class AuthController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Register a new user account',
-    description: 'Creates a new user account and sends email verification link.',
+    description: 'Creates a new user account.',
   })
   @ApiResponse({
     status: HttpStatus.CREATED,
-    description: 'User registered successfully. Email verification required.',
+    description: 'User registered successfully.',
     type: AuthResponseDto,
   })
   @ApiResponse({
@@ -173,57 +168,6 @@ export class AuthController {
   }
 
   // ==========================================================================
-  // EMAIL VERIFICATION
-  // ==========================================================================
-
-  @Public()
-  @Post('verify-email')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Verify email address',
-    description: 'Confirms email ownership and activates account.',
-  })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Email verified successfully.',
-    type: VerifyEmailResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid or expired verification token.',
-  })
-  async verifyEmail(@Body() dto: VerifyEmailRequestDto): Promise<VerifyEmailResponseDto> {
-    return this.authService.verifyEmail(dto);
-  }
-
-  @Public()
-  @Post('resend-verification')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Resend email verification link',
-    description: 'Sends a new verification email to the user.',
-  })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Verification email sent.',
-    type: ResendVerificationResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Email is already verified.',
-  })
-  @ApiResponse({
-    status: HttpStatus.TOO_MANY_REQUESTS,
-    description: 'Too many requests. Please wait before trying again.',
-    type: RateLimitResponseDto,
-  })
-  async resendVerification(
-    @Body() dto: ResendVerificationRequestDto,
-  ): Promise<ResendVerificationResponseDto> {
-    return this.authService.resendEmailVerification(dto);
-  }
-
-  // ==========================================================================
   // PASSWORD RESET
   // ==========================================================================
   @Public()
@@ -246,6 +190,7 @@ export class AuthController {
   async forgotPassword(@Body() dto: ForgotPasswordRequestDto): Promise<ForgotPasswordResponseDto> {
     return this.authService.forgotPassword(dto);
   }
+
   @Public()
   @Get('validate-reset-token')
   @HttpCode(HttpStatus.OK)
@@ -263,6 +208,7 @@ export class AuthController {
   ): Promise<ValidateResetTokenResponseDto> {
     return this.authService.validateResetToken(dto);
   }
+
   @Public()
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
@@ -346,6 +292,7 @@ export class AuthController {
   ): Promise<RequestEmailChangeResponseDto> {
     return this.authService.requestEmailChange(dto, user.sub);
   }
+
   @Public()
   @Post('confirm-email-change')
   @HttpCode(HttpStatus.OK)

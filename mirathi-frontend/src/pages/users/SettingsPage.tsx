@@ -1,84 +1,124 @@
-import { useTranslation } from 'react-i18next';
-import { PageHeader } from '../../components/common/PageHeader';
-import { UpdateNameForm } from '../../features/user/components/UpdateNameForm';
-import { ChangePasswordForm } from '../../features/user/components/ChangePasswordForm';
-import { MarketingPreferencesForm } from '../../features/user/components/MarketingPreferencesForm';
-import { DeactivateAccountForm } from '../../features/user/components/DeactivateAccountForm';
-import { Separator } from '../../components/ui/Separator';
+import React from 'react';
+import { Shield, Bell, KeyRound, AlertTriangle } from 'lucide-react';
+import { 
+  Tabs, 
+  TabsContent, 
+  TabsList, 
+  TabsTrigger,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  Alert,
+  AlertTitle,
+  AlertDescription
+} from '@/components/ui';
 
-/**
- * A central page for users to manage all account-level settings, including
- * personal info, security, marketing, and account status.
- */
-export function SettingsPage() {
-  const { t } = useTranslation(['settings', 'user', 'common']);
+// Feature components
+import { ChangePasswordForm } from '@/features/user/components/ChangePasswordForm';
+import { MarketingPreferencesForm } from '@/features/user/components/MarketingPreferencesForm';
+import { DeactivateAccountForm } from '@/features/user/components/DeactivateAccountForm';
 
+export const SettingsPage: React.FC = () => {
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={t('settings:title', 'Account Settings')}
-        description={t('settings:description', 'Manage your account details, security, and preferences.')}
-      />
-
-      <div className="space-y-10">
-        {/* === SECTION: ACCOUNT DETAILS === */}
-        <section aria-labelledby="account-details-heading">
-          <h2 id="account-details-heading" className="text-xl font-semibold tracking-tight text-text">
-            {t('user:personal_details_title', 'Personal Details')}
-          </h2>
-          <p className="mt-1 text-sm text-text-muted">
-            {t('user:update_name_description', 'Update your first and last name.')}
-          </p>
-          <div className="mt-4 max-w-3xl">
-            <UpdateNameForm />
-          </div>
-        </section>
-
-        <Separator />
-
-        {/* === SECTION: SECURITY === */}
-        <section aria-labelledby="security-heading">
-          <h2 id="security-heading" className="text-xl font-semibold tracking-tight text-text">
-            {t('user:security_title', 'Security')}
-          </h2>
-          <p className="mt-1 text-sm text-text-muted">
-            {t('auth:change_password_prompt', 'Update your password for enhanced security.')}
-          </p>
-          <div className="mt-4 max-w-3xl">
-            <ChangePasswordForm />
-          </div>
-        </section>
-
-        <Separator />
-
-        {/* === SECTION: PREFERENCES === */}
-        <section aria-labelledby="preferences-heading">
-          <h2 id="preferences-heading" className="text-xl font-semibold tracking-tight text-text">
-            {t('user:preferences_title', 'Preferences')}
-          </h2>
-          <p className="mt-1 text-sm text-text-muted">
-            {t('user:marketing_description', 'Choose how you want to hear from us.')}
-          </p>
-          <div className="mt-4 max-w-3xl">
-            <MarketingPreferencesForm />
-          </div>
-        </section>
-        
-        <Separator />
-
-        {/* === SECTION: DANGER ZONE === */}
-        <section aria-labelledby="danger-zone-heading">
-          <h2 id="danger-zone-heading" className="text-xl font-semibold tracking-tight text-danger">
-            {t('settings:danger_zone.title', 'Danger Zone')}
-          </h2>
-          <p className="mt-1 text-sm text-text-muted">
-            {t('user:deactivate_description', 'Permanently deactivate your account.')}
-          </p>
-          <div className="mt-4 max-w-3xl">
-            <DeactivateAccountForm />
-          </div>
-        </section>
+    <div className="max-w-4xl space-y-6 animate-in fade-in duration-500">
+      
+      <div>
+        <h1 className="text-3xl font-bold text-[#0F3D3E]">System Settings</h1>
+        <p className="text-muted-foreground mt-2">
+          Manage your password, notifications, and account security.
+        </p>
       </div>
+
+      <Tabs defaultValue="security" className="w-full space-y-6">
+        <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
+          <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
+          <TabsTrigger value="danger">Advanced</TabsTrigger>
+        </TabsList>
+
+        {/* === TAB 1: SECURITY === */}
+        <TabsContent value="security" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <KeyRound className="h-5 w-5 text-[#C8A165]" />
+                Password Management
+              </CardTitle>
+              <CardDescription>
+                Ensure your account is using a long, random password to stay secure.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChangePasswordForm />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-emerald-600" />
+                Two-Factor Authentication
+              </CardTitle>
+              <CardDescription>
+                Add an extra layer of security to your estate data.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Placeholder for 2FA logic if you implement it later */}
+              <Alert className="bg-slate-50 border-slate-200">
+                <AlertDescription className="text-slate-600 text-sm">
+                  Two-factor authentication via Authenticator App is currently 
+                  <span className="font-semibold text-emerald-700 ml-1">Enabled by System Policy</span>.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* === TAB 2: NOTIFICATIONS === */}
+        <TabsContent value="notifications">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5 text-[#C8A165]" />
+                Communication Preferences
+              </CardTitle>
+              <CardDescription>
+                Choose how Mirathi communicates with you regarding legal updates and marketing.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MarketingPreferencesForm />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* === TAB 3: DANGER ZONE === */}
+        <TabsContent value="danger">
+          <Alert variant="destructive" className="mb-6">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Warning</AlertTitle>
+            <AlertDescription>
+              Proceed with caution. Actions in this section can result in permanent data loss.
+            </AlertDescription>
+          </Alert>
+
+          <Card className="border-red-100">
+            <CardHeader>
+              <CardTitle className="text-red-900">Account Termination</CardTitle>
+              <CardDescription className="text-red-700/80">
+                Permanently delete your account and all associated estate records.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DeactivateAccountForm />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+      </Tabs>
     </div>
   );
-}
+};

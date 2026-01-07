@@ -5,12 +5,10 @@ import {
   DomainEvent,
   EmailChangeRequestedEvent,
   EmailChangedEvent,
-  EmailVerifiedEvent,
   LoginFailedEvent,
   PasswordChangedEvent,
   PasswordResetEvent,
   PhoneNumberUpdatedEvent,
-  PhoneVerificationRequestedEvent,
   ProfileUpdatedEvent,
   RoleChangedEvent,
   SessionRevokedEvent,
@@ -26,7 +24,7 @@ import {
   UserUpdatedEvent,
 } from '../events';
 import { Email, Password, PhoneNumber } from '../value-objects';
-import { Address, NextOfKin, UserProfile } from './user-profile.model';
+import { Address, UserProfile } from './user-profile.model';
 
 // ============================================================================
 // Custom Domain Errors
@@ -197,7 +195,7 @@ export class User {
         firstName: props.firstName,
         lastName: props.lastName,
         role: UserRole.USER,
-        isActive: false, // User must verify email first
+        isActive: true, // Changed: Users are active immediately, no email verification
         lastLoginAt: null,
         loginAttempts: 0,
         lockedUntil: null,
@@ -216,7 +214,6 @@ export class User {
         lastName: user.lastName,
         role: user.role,
         marketingOptIn: props.marketingOptIn,
-        requiresEmailVerification: true,
       }),
     );
 
@@ -282,12 +279,6 @@ export class User {
   get profile(): UserProfile {
     return this._profile;
   }
-  get isEmailVerified(): boolean {
-    return this._profile.isEmailVerified;
-  }
-  get isPhoneVerified(): boolean {
-    return this._profile.isPhoneVerified;
-  }
 
   get domainEvents(): DomainEvent[] {
     return [...this._domainEvents];
@@ -312,6 +303,7 @@ export class User {
       // You could even add a domain event here if you want to log auto-unlocks
     }
   }
+
   private ensureNotDeleted(): void {
     if (this.isDeleted) {
       throw new UserDeletedError();
@@ -328,13 +320,7 @@ export class User {
 
   private ensureActive(): void {
     if (!this._isActive) {
-      throw new UserDomainError('Account is inactive. Please verify your email.');
-    }
-  }
-
-  private ensureEmailVerified(): void {
-    if (!this.isEmailVerified) {
-      throw new UserDomainError('Email verification required for this action.');
+      throw new UserDomainError('Account is inactive.');
     }
   }
 
@@ -345,7 +331,6 @@ export class User {
   async login(plainPassword: string, metadata?: LoginMetadata): Promise<boolean> {
     this.ensureNotDeleted();
     this.ensureNotLocked();
-    this.ensureActive();
 
     const isValid = await this._password.compare(plainPassword);
 
@@ -490,6 +475,7 @@ export class User {
     this._clearExpiredLock();
     return this._lockedUntil !== null;
   }
+
   public restore(restoredBy: string, reason?: string): void {
     if (!this.isDeleted) {
       // It's good practice for domain methods to protect their own state.
@@ -512,7 +498,6 @@ export class User {
   ): Promise<void> {
     this.ensureNotDeleted();
     this.ensureActive();
-    this.ensureEmailVerified();
 
     const isValid = await this._password.compare(currentPassword);
     if (!isValid) {
@@ -584,7 +569,6 @@ export class User {
   requestEmailChange(newEmail: Email, token: string): void {
     this.ensureNotDeleted();
     this.ensureActive();
-    this.ensureEmailVerified();
 
     if (this.email.equals(newEmail)) {
       throw new InvalidEmailChangeError('New email must be different from current email');
@@ -611,7 +595,6 @@ export class User {
 
     const previousEmail = this._email.getValue();
     this._email = newEmail;
-    this._profile.markEmailAsUnverified(); // New email needs verification
     this._updatedAt = new Date();
 
     this.addDomainEvent(
@@ -630,7 +613,6 @@ export class User {
   updatePhoneNumber(phoneNumber: PhoneNumber): void {
     this.ensureNotDeleted();
     this.ensureActive();
-    this.ensureEmailVerified(); // Require email verification before adding phone
 
     if (this._profile.phoneNumber && this._profile.phoneNumber.equals(phoneNumber)) {
       return; // No change
@@ -648,10 +630,8 @@ export class User {
         newPhone: phoneNumber.getValue(),
       }),
     );
-
-    // Automatically request phone verification when number is updated
-    this.requestPhoneVerification();
   }
+
   removePhoneNumber(): void {
     this.ensureNotDeleted();
 
@@ -665,57 +645,10 @@ export class User {
       // this.addDomainEvent(new PhoneNumberRemovedEvent({ ... }));
     }
   }
-  requestPhoneVerification(): void {
-    this.ensureNotDeleted();
-    this.ensureActive();
-
-    if (!this._profile.phoneNumber) {
-      throw new InvalidPhoneNumberError('Phone number must be set before verification');
-    }
-
-    this.addDomainEvent(
-      new PhoneVerificationRequestedEvent({
-        aggregateId: this.id,
-        email: this.email.getValue(),
-        phoneNumber: this._profile.phoneNumber.getValue(),
-      }),
-    );
-  }
-
-  verifyPhone(): void {
-    this.ensureNotDeleted();
-    this.ensureActive();
-
-    if (!this._profile.phoneNumber) {
-      throw new InvalidPhoneNumberError('Phone number must be set before verification');
-    }
-
-    this._profile.markPhoneAsVerified();
-    this._updatedAt = new Date();
-  }
 
   // ============================================================================
   // Account Activation & Status Management
   // ============================================================================
-
-  activate(): void {
-    this.ensureNotDeleted();
-
-    if (this._isActive) return;
-
-    this._isActive = true;
-    this.unlock();
-    this._updatedAt = new Date();
-
-    this.addDomainEvent(
-      new EmailVerifiedEvent({
-        aggregateId: this.id,
-        email: this.email.getValue(),
-        firstName: this.firstName,
-        lastName: this.lastName,
-      }),
-    );
-  }
 
   deactivate(deactivatedBy: string, reason?: string): void {
     this.ensureNotDeleted();
@@ -800,12 +733,7 @@ export class User {
     }
   }
 
-  updateProfile(props: {
-    bio?: string;
-    marketingOptIn?: boolean;
-    address?: Address | null;
-    nextOfKin?: NextOfKin | null;
-  }): void {
+  updateProfile(props: { marketingOptIn?: boolean; address?: Address | null }): void {
     this.ensureNotDeleted();
     this.ensureActive();
 
@@ -843,6 +771,7 @@ export class User {
       }),
     );
   }
+
   updateMarketingPreferences(optIn: boolean): void {
     this.ensureNotDeleted();
     this.ensureActive();
@@ -854,20 +783,16 @@ export class User {
       // You can add a specific MarketingPreferencesUpdatedEvent here if you want
     }
   }
-  public removeAddress(): void {
-    this.ensureNotDeleted(); // This method exists here, so this is CORRECT.
 
-    // Call the method on the internal profile object
+  public removeAddress(): void {
+    this.ensureNotDeleted();
+
     const result = this._profile.removeAddress();
 
-    // Check if the profile actually changed
     if (result.updatedFields.length > 0) {
-      this._updatedAt = new Date(); // Update the aggregate's timestamp
-
-      // The aggregate root is responsible for adding the event
+      this._updatedAt = new Date();
       this.addDomainEvent(
         new ProfileUpdatedEvent({
-          // This method exists here, so this is CORRECT.
           aggregateId: this.id,
           email: this.email.getValue(),
           updatedFields: result.changes,
@@ -875,28 +800,11 @@ export class User {
       );
     }
   }
-  public removeNextOfKin(): void {
-    this.ensureNotDeleted();
 
-    const result = this._profile.removeNextOfKin();
-
-    if (result.updatedFields.length > 0) {
-      this._updatedAt = new Date();
-
-      this.addDomainEvent(
-        new ProfileUpdatedEvent({
-          aggregateId: this.id,
-          email: this.email.getValue(), // Include the email to match the event's required data
-          updatedFields: result.changes,
-        }),
-      );
-    }
-  }
   public setInitialAdminState(
     props: {
       role?: UserRole;
       isActive?: boolean;
-      isEmailVerified?: boolean;
     },
     adminId: string,
   ): void {
@@ -909,13 +817,8 @@ export class User {
     if (props.isActive === false) {
       this.deactivate(adminId, 'Set as inactive during admin creation');
     }
-
-    // Mark email as verified if specified
-    if (props.isEmailVerified === true) {
-      // This is a profile action, but the aggregate root controls it
-      this._profile.markEmailAsVerified();
-    }
   }
+
   public updateByAdmin(
     props: {
       firstName?: string;
@@ -924,11 +827,9 @@ export class User {
       isActive?: boolean;
       lockedUntil?: Date | null;
       loginAttempts?: number;
-      isEmailVerified?: boolean;
-      isPhoneVerified?: boolean;
       marketingOptIn?: boolean;
     },
-    adminId: string, // The context is now just the adminId string
+    adminId: string,
   ): void {
     this.ensureNotDeleted();
 
@@ -966,28 +867,6 @@ export class User {
     }
 
     // --- Profile Updates (These are correct) ---
-    if (
-      props.isEmailVerified !== undefined &&
-      props.isEmailVerified !== this._profile.isEmailVerified
-    ) {
-      if (props.isEmailVerified) {
-        this._profile.markEmailAsVerified();
-      } else {
-        this._profile.markEmailAsUnverified();
-      }
-    }
-    if (
-      props.isPhoneVerified !== undefined &&
-      props.isPhoneVerified !== this._profile.isPhoneVerified
-    ) {
-      if (props.isPhoneVerified) {
-        this._profile.markPhoneAsVerified();
-      } else {
-        // Assuming you have a method for this, based on your original code.
-        // If not, you might need to add `this._profile._phoneVerified = false;`
-        this._profile.resetPhoneVerification();
-      }
-    }
     if (props.marketingOptIn !== undefined) {
       this._profile.updateMarketingPreferences(props.marketingOptIn);
     }
@@ -1034,8 +913,6 @@ export class User {
       updatedAt: this._updatedAt,
       deletedAt: this._deletedAt,
       isDeleted: this.isDeleted,
-      isEmailVerified: this.isEmailVerified,
-      isPhoneVerified: this.isPhoneVerified,
     };
   }
 

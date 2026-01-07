@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import {
   EmailChangeToken,
-  EmailVerificationToken,
   LoginSession,
   PasswordResetToken,
   PhoneVerificationToken,
@@ -12,8 +11,6 @@ import {
   EmailChangeTokenCreateData,
   EmailChangeTokenEntity,
   EmailChangeTokenUpdateData,
-  EmailVerificationTokenCreateData,
-  EmailVerificationTokenEntity,
   LoginSessionCreateData,
   LoginSessionEntity,
   LoginSessionUpdateData,
@@ -143,76 +140,6 @@ export class PasswordResetTokenMapper {
     } catch (error) {
       this.logger.error('Failed to create password reset token update data', error);
       throw new TokenMappingError('Failed to create password reset token update data', error);
-    }
-  }
-}
-
-// ============================================================================
-// EMAIL VERIFICATION TOKEN MAPPER
-// ============================================================================
-
-@Injectable()
-export class EmailVerificationTokenMapper {
-  private readonly logger = new Logger(EmailVerificationTokenMapper.name);
-
-  toDomain(entity: EmailVerificationTokenEntity): EmailVerificationToken {
-    try {
-      if (!validateTokenEntity(entity, [])) {
-        throw new InvalidTokenEntityError(
-          entity?.id || 'unknown',
-          'EmailVerificationToken',
-          'Entity validation failed',
-        );
-      }
-
-      const token = EmailVerificationToken.fromPersistence({
-        id: entity.id,
-        tokenHash: entity.tokenHash,
-        userId: entity.userId,
-        expiresAt: entity.expiresAt,
-        createdAt: entity.createdAt,
-      });
-
-      this.logger.debug(`Successfully mapped email verification token to domain: ${entity.id}`);
-      return token;
-    } catch (error) {
-      this.logger.error(`Failed to map email verification token to domain: ${entity?.id}`, error);
-      if (error instanceof TokenMappingError) {
-        throw error;
-      }
-      throw new TokenMappingError(
-        `Failed to map email verification token ${entity?.id} to domain model`,
-        error,
-      );
-    }
-  }
-
-  toCreatePersistence(token: EmailVerificationToken): EmailVerificationTokenCreateData {
-    try {
-      return {
-        id: token.id,
-        tokenHash: token.tokenHash,
-        user: { connect: { id: token.userId } },
-        expiresAt: token.expiresAt,
-        createdAt: token.createdAt,
-      };
-    } catch (error) {
-      this.logger.error('Failed to create email verification token persistence data', error);
-      throw new TokenMappingError(
-        'Failed to create email verification token persistence data',
-        error,
-      );
-    }
-  }
-
-  toUpdatePersistence(token: EmailVerificationToken): EmailVerificationTokenCreateData {
-    try {
-      // Email verification tokens are typically single-use, so we don't update them
-      // But we provide this method for consistency
-      return this.toCreatePersistence(token);
-    } catch (error) {
-      this.logger.error('Failed to create email verification token update data', error);
-      throw new TokenMappingError('Failed to create email verification token update data', error);
     }
   }
 }
@@ -620,7 +547,6 @@ export class PasswordHistoryMapper {
 export class TokenMapperFactory {
   constructor(
     private readonly passwordResetTokenMapper: PasswordResetTokenMapper,
-    private readonly emailVerificationTokenMapper: EmailVerificationTokenMapper,
     private readonly phoneVerificationTokenMapper: PhoneVerificationTokenMapper,
     private readonly emailChangeTokenMapper: EmailChangeTokenMapper,
     private readonly refreshTokenMapper: RefreshTokenMapper,
@@ -630,10 +556,6 @@ export class TokenMapperFactory {
 
   getPasswordResetTokenMapper(): PasswordResetTokenMapper {
     return this.passwordResetTokenMapper;
-  }
-
-  getEmailVerificationTokenMapper(): EmailVerificationTokenMapper {
-    return this.emailVerificationTokenMapper;
   }
 
   getPhoneVerificationTokenMapper(): PhoneVerificationTokenMapper {

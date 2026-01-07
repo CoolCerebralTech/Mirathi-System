@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 
-import { Address, NextOfKin } from '../../../domain/models';
+import type { Address } from '../../../domain/models';
 
 // ============================================================================
 // JSON FIELD TYPE DEFINITIONS
@@ -11,7 +11,7 @@ import { Address, NextOfKin } from '../../../domain/models';
  * These types match the domain value objects but are serialized for storage.
  */
 export type AddressData = Address | null;
-export type NextOfKinData = NextOfKin | null;
+export type NextOfKinData = null;
 
 // ============================================================================
 // USER ENTITY

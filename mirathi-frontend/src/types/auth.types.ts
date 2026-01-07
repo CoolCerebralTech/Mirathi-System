@@ -16,7 +16,6 @@ export const EnhancedPasswordSchema = z
     'Password must contain at least one special character (!@#$%^&*)',
   );
 
-
 // ============================================================================
 // REQUEST SCHEMAS (Input Validation)
 // ============================================================================
@@ -97,26 +96,8 @@ export const RegisterRequestSchema = z
     path: ['passwordConfirmation'],
   });
 
-export const VerifyEmailRequestSchema = z.object({
-  token: z
-    .string()
-    .min(10, 'Token must be at least 10 characters long')
-    .max(500, 'Invalid token format'),
-  deviceId: z
-    .string()
-    .max(100, 'Device ID cannot exceed 100 characters')
-    .optional(),
-});
-
-export const ResendVerificationRequestSchema = z.object({
-  email: z
-    .string()
-    .min(1, 'Email is required')
-    .email('Please enter a valid email address')
-    .trim()
-    .toLowerCase()
-    .max(255, 'Email must not exceed 255 characters'),
-});
+// REMOVED: VerifyEmailRequestSchema
+// REMOVED: ResendVerificationRequestSchema
 
 export const ForgotPasswordRequestSchema = z.object({
   email: z
@@ -245,8 +226,6 @@ export const AuthUserResponseSchema = z.object({
   lastName: z.string(),
   role: z.enum(['USER', 'ADMIN', 'VERIFIER', 'AUDITOR']),
   isActive: z.boolean(),
-  emailVerified: z.boolean(),
-  phoneVerified: z.boolean(),
   lastLoginAt: z.string().datetime().transform((val) => new Date(val)).optional(),
   createdAt: z.string().datetime().transform((val) => new Date(val)),
   updatedAt: z.string().datetime().transform((val) => new Date(val)),
@@ -258,8 +237,6 @@ export const AuthResponseSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
   user: AuthUserResponseSchema,
   tokenMetadata: TokenMetadataSchema,
-  requiresEmailVerification: z.boolean().optional(),
-  requiresPhoneVerification: z.boolean().optional(),
   securityRecommendations: z.array(z.string()).optional(),
 });
 
@@ -270,20 +247,8 @@ export const RefreshTokenResponseSchema = z.object({
   previousRefreshToken: z.string().optional(),
 });
 
-export const VerifyEmailResponseSchema = z.object({
-  message: z.string(),
-  success: z.boolean(),
-  authData: AuthResponseSchema.optional(),
-  nextSteps: z.array(z.string()).optional(),
-});
-
-export const ResendVerificationResponseSchema = z.object({
-  message: z.string(),
-  nextRetryAt: z.string().datetime().transform((val) => new Date(val)),
-  retryAfterSeconds: z.number().positive(),
-  attemptsMade: z.number().positive(),
-  maxAttempts: z.number().positive(),
-});
+// REMOVED: VerifyEmailResponseSchema
+// REMOVED: ResendVerificationResponseSchema
 
 export const ForgotPasswordResponseSchema = z.object({
   message: z.string(),
@@ -331,7 +296,6 @@ export const ConfirmEmailChangeResponseSchema = z.object({
   previousEmail: z.string().email(),
   newEmail: z.string().email(),
   authData: AuthResponseSchema.optional(),
-  requiresEmailVerification: z.boolean(),
 });
 
 export const AccountLockedResponseSchema = z.object({
@@ -375,8 +339,7 @@ export const SecurityEventResponseSchema = z.object({
 
 export type LoginInput = z.infer<typeof LoginRequestSchema>;
 export type RegisterInput = z.infer<typeof RegisterRequestSchema>;
-export type VerifyEmailInput = z.infer<typeof VerifyEmailRequestSchema>;
-export type ResendVerificationInput = z.infer<typeof ResendVerificationRequestSchema>;
+// REMOVED: VerifyEmailInput, ResendVerificationInput
 export type ForgotPasswordInput = z.infer<typeof ForgotPasswordRequestSchema>;
 export type ResetPasswordInput = z.infer<typeof ResetPasswordRequestSchema>;
 export type ValidateResetTokenInput = z.infer<typeof ValidateResetTokenRequestSchema>;
@@ -390,8 +353,7 @@ export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 export type AuthUserResponse = z.infer<typeof AuthUserResponseSchema>;
 export type TokenMetadata = z.infer<typeof TokenMetadataSchema>;
 export type RefreshTokenResponse = z.infer<typeof RefreshTokenResponseSchema>;
-export type VerifyEmailResponse = z.infer<typeof VerifyEmailResponseSchema>;
-export type ResendVerificationResponse = z.infer<typeof ResendVerificationResponseSchema>;
+// REMOVED: VerifyEmailResponse, ResendVerificationResponse
 export type ForgotPasswordResponse = z.infer<typeof ForgotPasswordResponseSchema>;
 export type ValidateResetTokenResponse = z.infer<typeof ValidateResetTokenResponseSchema>;
 export type ResetPasswordResponse = z.infer<typeof ResetPasswordResponseSchema>;

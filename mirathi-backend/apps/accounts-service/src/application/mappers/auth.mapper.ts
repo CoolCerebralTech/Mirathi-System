@@ -12,11 +12,9 @@ import {
   LogoutResponseDto,
   RefreshTokenResponseDto,
   RequestEmailChangeResponseDto,
-  ResendVerificationResponseDto,
   ResetPasswordResponseDto,
   TokenMetadataDto,
   ValidateResetTokenResponseDto,
-  VerifyEmailResponseDto,
 } from '../dtos';
 
 export interface TokenPair {
@@ -38,8 +36,6 @@ export class AuthMapper {
       lastName: user.lastName,
       role: user.role,
       isActive: user.isActive,
-      emailVerified: profile.isEmailVerified,
-      phoneVerified: profile.isPhoneVerified,
       lastLoginAt: user.lastLoginAt ?? undefined,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -54,7 +50,6 @@ export class AuthMapper {
     tokenMetadata: TokenMetadataDto,
     context: {
       // Context object passed from the service
-      requiresEmailVerification: boolean;
       securityRecommendations?: string[];
     },
   ): AuthResponseDto {
@@ -63,9 +58,6 @@ export class AuthMapper {
       refreshToken: tokens.refreshToken,
       user: this.toAuthUserResponse(user, profile),
       tokenMetadata,
-      requiresEmailVerification: context.requiresEmailVerification,
-      // This logic belongs in the service, but can be passed in via context.
-      requiresPhoneVerification: !profile.isPhoneVerified && !!profile.phoneNumber,
       securityRecommendations: context.securityRecommendations,
     };
   }
@@ -98,37 +90,6 @@ export class AuthMapper {
     return {
       ...data,
       tokenType: 'Bearer',
-    };
-  }
-
-  // ============================================================================
-  // EMAIL VERIFICATION MAPPING
-  // ============================================================================
-
-  toVerifyEmailResponse(
-    message: string,
-    context: {
-      authData?: AuthResponseDto;
-      nextSteps?: string[];
-    },
-  ): VerifyEmailResponseDto {
-    return {
-      message,
-      success: true,
-      authData: context.authData,
-      nextSteps: context.nextSteps,
-    };
-  }
-
-  toResendVerificationResponse(context: {
-    nextRetryAt: Date;
-    retryAfterSeconds: number;
-    attemptsMade: number;
-    maxAttempts: number;
-  }): ResendVerificationResponseDto {
-    return {
-      message: 'Verification email sent. Please check your inbox.',
-      ...context,
     };
   }
 
@@ -228,14 +189,12 @@ export class AuthMapper {
     previousEmail: string;
     newEmail: string;
     authData?: AuthResponseDto;
-    requiresEmailVerification: boolean;
   }): ConfirmEmailChangeResponseDto {
     return {
       message: 'Email address changed successfully.',
       previousEmail: this.maskEmail(context.previousEmail),
       newEmail: this.maskEmail(context.newEmail),
       authData: context.authData,
-      requiresEmailVerification: context.requiresEmailVerification,
     };
   }
 

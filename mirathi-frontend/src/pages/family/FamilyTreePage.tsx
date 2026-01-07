@@ -24,7 +24,7 @@ export const FamilyTreePage: React.FC = () => {
   
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [, setIsFullscreen] = useState(false);
 
   // Use specific family ID or fallback to user's family
   const { data: myFamily } = useMyFamily();

@@ -4,7 +4,6 @@ import { PrismaService } from '@shamba/database';
 
 import {
   IEmailChangeTokenRepository,
-  IEmailVerificationTokenRepository,
   ILoginSessionRepository,
   IPasswordHistoryRepository,
   IPasswordResetTokenRepository,
@@ -15,7 +14,6 @@ import {
 } from '../../../domain/interfaces';
 import {
   EmailChangeToken,
-  EmailVerificationToken,
   LoginSession,
   PasswordResetToken,
   PhoneVerificationToken,
@@ -23,7 +21,6 @@ import {
 } from '../../../domain/models/token.model';
 import {
   EmailChangeTokenMapper,
-  EmailVerificationTokenMapper,
   LoginSessionMapper,
   PasswordHistoryMapper,
   PasswordResetTokenMapper,
@@ -260,175 +257,6 @@ export class PrismaPasswordResetTokenRepository implements IPasswordResetTokenRe
       this.logger.error(`Failed to clean up password reset tokens for user: ${userId}`, error);
       throw new TokenRepositoryError(
         `Failed to clean up password reset tokens for user: ${userId}`,
-        error,
-      );
-    }
-  }
-}
-
-// ============================================================================
-// EMAIL VERIFICATION TOKEN REPOSITORY
-// ============================================================================
-
-@Injectable()
-export class PrismaEmailVerificationTokenRepository implements IEmailVerificationTokenRepository {
-  private readonly logger = new Logger(PrismaEmailVerificationTokenRepository.name);
-
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly mapper: EmailVerificationTokenMapper,
-  ) {}
-
-  async save(token: EmailVerificationToken): Promise<void> {
-    try {
-      const createData = this.mapper.toCreatePersistence(token);
-
-      await this.prisma.emailVerificationToken.upsert({
-        where: { id: token.id },
-        create: createData,
-        update: { expiresAt: token.expiresAt },
-      });
-
-      this.logger.debug(`Successfully saved email verification token: ${token.id}`);
-    } catch (error) {
-      this.logger.error(`Failed to save email verification token: ${token.id}`, error);
-      throw new TokenRepositoryError(`Failed to save email verification token: ${token.id}`, error);
-    }
-  }
-
-  async findById(id: string): Promise<EmailVerificationToken | null> {
-    try {
-      const entity = await this.prisma.emailVerificationToken.findUnique({ where: { id } });
-
-      if (!entity) {
-        this.logger.debug(`Email verification token not found by ID: ${id}`);
-        return null;
-      }
-
-      const token = this.mapper.toDomain(entity);
-      this.logger.debug(`Successfully found email verification token by ID: ${id}`);
-      return token;
-    } catch (error) {
-      this.logger.error(`Failed to find email verification token by ID: ${id}`, error);
-      throw new TokenRepositoryError(`Failed to find email verification token by ID: ${id}`, error);
-    }
-  }
-
-  async findByTokenHash(tokenHash: string): Promise<EmailVerificationToken | null> {
-    try {
-      const entity = await this.prisma.emailVerificationToken.findUnique({ where: { tokenHash } });
-
-      if (!entity) {
-        this.logger.debug(
-          `Email verification token not found by hash: ${tokenHash.substring(0, 8)}...`,
-        );
-        return null;
-      }
-
-      const token = this.mapper.toDomain(entity);
-      this.logger.debug(
-        `Successfully found email verification token by hash: ${tokenHash.substring(0, 8)}...`,
-      );
-      return token;
-    } catch (error) {
-      this.logger.error(
-        `Failed to find email verification token by hash: ${tokenHash.substring(0, 8)}...`,
-        error,
-      );
-      throw new TokenRepositoryError(`Failed to find email verification token by hash`, error);
-    }
-  }
-
-  async findByUserId(userId: string): Promise<EmailVerificationToken | null> {
-    try {
-      const entity = await this.prisma.emailVerificationToken.findUnique({ where: { userId } });
-
-      if (!entity) {
-        this.logger.debug(`Email verification token not found for user: ${userId}`);
-        return null;
-      }
-
-      const token = this.mapper.toDomain(entity);
-      this.logger.debug(`Successfully found email verification token for user: ${userId}`);
-      return token;
-    } catch (error) {
-      this.logger.error(`Failed to find email verification token for user: ${userId}`, error);
-      throw new TokenRepositoryError(
-        `Failed to find email verification token for user: ${userId}`,
-        error,
-      );
-    }
-  }
-
-  async deleteByUserId(userId: string): Promise<void> {
-    try {
-      const result = await this.prisma.emailVerificationToken.deleteMany({ where: { userId } });
-      this.logger.debug(`Deleted ${result.count} email verification tokens for user: ${userId}`);
-    } catch (error) {
-      this.logger.error(`Failed to delete email verification tokens for user: ${userId}`, error);
-      throw new TokenRepositoryError(
-        `Failed to delete email verification tokens for user: ${userId}`,
-        error,
-      );
-    }
-  }
-
-  async deleteExpired(): Promise<number> {
-    try {
-      const result = await this.prisma.emailVerificationToken.deleteMany({
-        where: { expiresAt: { lt: new Date() } },
-      });
-      this.logger.debug(`Deleted ${result.count} expired email verification tokens`);
-      return result.count;
-    } catch (error) {
-      this.logger.error('Failed to delete expired email verification tokens', error);
-      throw new TokenRepositoryError('Failed to delete expired email verification tokens', error);
-    }
-  }
-
-  async existsByUserId(userId: string): Promise<boolean> {
-    try {
-      const count = await this.prisma.emailVerificationToken.count({ where: { userId } });
-      const exists = count > 0;
-      this.logger.debug(`Email verification token exists for user ${userId}: ${exists}`);
-      return exists;
-    } catch (error) {
-      this.logger.error(
-        `Failed to check email verification token existence for user: ${userId}`,
-        error,
-      );
-      throw new TokenRepositoryError(
-        `Failed to check email verification token existence for user: ${userId}`,
-        error,
-      );
-    }
-  }
-
-  async findActiveByUserId(userId: string): Promise<EmailVerificationToken | null> {
-    try {
-      const now = new Date();
-      const entity = await this.prisma.emailVerificationToken.findFirst({
-        where: {
-          userId,
-          expiresAt: { gte: now },
-        },
-      });
-
-      if (!entity) {
-        this.logger.debug(`No active email verification token found for user: ${userId}`);
-        return null;
-      }
-
-      const token = this.mapper.toDomain(entity);
-      this.logger.debug(`Found active email verification token for user: ${userId}`);
-      return token;
-    } catch (error) {
-      this.logger.error(
-        `Failed to find active email verification token for user: ${userId}`,
-        error,
-      );
-      throw new TokenRepositoryError(
-        `Failed to find active email verification token for user: ${userId}`,
         error,
       );
     }

@@ -43,17 +43,17 @@ export const WillStatusCard: React.FC<WillStatusCardProps> = ({
 
   // Status badge variant
   const getStatusBadge = (status: WillStatus) => {
-    const variants: Record<WillStatus, { variant: string; color: string }> = {
-      DRAFT: { variant: 'outline', color: 'border-blue-400 text-blue-700' },
-      ACTIVE: { variant: 'default', color: 'bg-green-600' },
-      SUPERSEDED: { variant: 'outline', color: 'border-gray-400 text-gray-600' },
-      REVOKED: { variant: 'destructive', color: '' },
-      EXECUTED: { variant: 'secondary', color: 'bg-purple-600' },
+    const variants: Record<WillStatus, { className: string }> = {
+      DRAFT: { className: 'border-blue-400 text-blue-700 bg-blue-50' },
+      ACTIVE: { className: 'bg-green-600 text-white' },
+      SUPERSEDED: { className: 'border-gray-400 text-gray-600 bg-gray-50' },
+      REVOKED: { className: 'bg-red-600 text-white' },
+      EXECUTED: { className: 'bg-purple-600 text-white' },
     };
     
     const config = variants[status];
     return (
-      <Badge className={config.color}>
+      <Badge className={config.className}>
         {status}
       </Badge>
     );
@@ -102,8 +102,13 @@ export const WillStatusCard: React.FC<WillStatusCardProps> = ({
           <Progress 
             value={score} 
             className="h-3" 
-            indicatorClassName={getProgressColor(score)} 
           />
+          <div className="w-full bg-secondary rounded-full h-3 overflow-hidden">
+            <div 
+              className={`h-full transition-all duration-500 ${getProgressColor(score)}`}
+              style={{ width: `${score}%` }}
+            />
+          </div>
         </div>
 
         {/* Validation Warnings or Success */}
