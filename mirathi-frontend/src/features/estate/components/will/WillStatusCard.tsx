@@ -3,7 +3,8 @@ import {
   AlertTriangle, 
   CheckCircle2, 
   Eye, 
-  Printer 
+  Printer,
+  FileText
 } from 'lucide-react';
 import { 
   Card, 
@@ -25,48 +26,93 @@ interface WillStatusCardProps {
   onPreview: () => void;
 }
 
-export const WillStatusCard: React.FC<WillStatusCardProps> = ({ data, onPreview }) => {
+export const WillStatusCard: React.FC<WillStatusCardProps> = ({ 
+  data, 
+  onPreview 
+}) => {
   const { metadata } = data;
   const score = metadata.completenessScore;
   
-  // Color code the progress bar
-  const getProgressColor = (val: number) => {
-    if (val === 100) return 'bg-green-600';
-    if (val >= 50) return 'bg-yellow-500';
+  // Progress bar color based on score
+  const getProgressColor = (value: number): string => {
+    if (value === 100) return 'bg-green-600';
+    if (value >= 70) return 'bg-yellow-500';
+    if (value >= 40) return 'bg-orange-500';
     return 'bg-red-500';
   };
 
+  // Status badge variant
+  const getStatusBadge = (status: WillStatus) => {
+    const variants: Record<WillStatus, { variant: string; color: string }> = {
+      DRAFT: { variant: 'outline', color: 'border-blue-400 text-blue-700' },
+      ACTIVE: { variant: 'default', color: 'bg-green-600' },
+      SUPERSEDED: { variant: 'outline', color: 'border-gray-400 text-gray-600' },
+      REVOKED: { variant: 'destructive', color: '' },
+      EXECUTED: { variant: 'secondary', color: 'bg-purple-600' },
+    };
+    
+    const config = variants[status];
+    return (
+      <Badge className={config.color}>
+        {status}
+      </Badge>
+    );
+  };
+
+  const getScoreMessage = (value: number): string => {
+    if (value === 100) return 'Your will is ready for execution';
+    if (value >= 70) return 'Almost complete - a few items remaining';
+    if (value >= 40) return 'Good progress - continue adding details';
+    return 'Just getting started - more information needed';
+  };
+
   return (
-    <Card className="border-t-4 border-t-blue-600">
-      <CardHeader className="pb-3">
+    <Card className="border-t-4 border-t-primary shadow-lg">
+      <CardHeader className="pb-4">
         <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-xl">Last Will & Testament</CardTitle>
-            <CardDescription>Legal Readiness Tracker (S.11 Compliance)</CardDescription>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              <CardTitle className="text-xl">Last Will & Testament</CardTitle>
+            </div>
+            <CardDescription>
+              Legal Readiness Tracker • Section 11 Law of Succession Act Compliance
+            </CardDescription>
           </div>
-          <Badge variant={metadata.status === WillStatus.ACTIVE ? 'default' : 'secondary'}>
-            {metadata.status}
-          </Badge>
+          {getStatusBadge(metadata.status)}
         </div>
       </CardHeader>
 
       <CardContent className="space-y-6">
-        {/* Progress Section */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm font-medium">
-            <span>Completeness Score</span>
-            <span>{score}%</span>
+        {/* Completeness Progress */}
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Completeness Score
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {getScoreMessage(score)}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-primary">{score}%</p>
+            </div>
           </div>
-          <Progress value={score} className="h-2" indicatorClassName={getProgressColor(score)} />
+          <Progress 
+            value={score} 
+            className="h-3" 
+            indicatorClassName={getProgressColor(score)} 
+          />
         </div>
 
-        {/* Warnings Section */}
+        {/* Validation Warnings or Success */}
         {metadata.validationWarnings.length > 0 ? (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Action Required for Validity</AlertTitle>
+          <Alert variant="destructive" className="border-l-4 border-l-red-600">
+            <AlertTriangle className="h-5 w-5" />
+            <AlertTitle className="font-semibold">Action Required for Legal Validity</AlertTitle>
             <AlertDescription>
-              <ul className="list-disc pl-5 mt-1 space-y-1 text-xs">
+              <ul className="list-disc pl-5 mt-2 space-y-1.5 text-sm">
                 {metadata.validationWarnings.map((warning, idx) => (
                   <li key={idx}>{warning}</li>
                 ))}
@@ -74,25 +120,71 @@ export const WillStatusCard: React.FC<WillStatusCardProps> = ({ data, onPreview 
             </AlertDescription>
           </Alert>
         ) : (
-          <Alert className="bg-green-50 border-green-200 text-green-800">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <AlertTitle>Ready for Execution</AlertTitle>
-            <AlertDescription>
-              Your draft meets all digital requirements. You can now print and sign it.
+          <Alert className="bg-green-50 border-green-300 border-l-4 border-l-green-600">
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+            <AlertTitle className="font-semibold text-green-900">
+              Ready for Execution ✓
+            </AlertTitle>
+            <AlertDescription className="text-green-800 text-sm">
+              Your draft will meets all digital requirements. You may now print the document, 
+              sign it in the presence of your 2 witnesses, and store it securely.
             </AlertDescription>
           </Alert>
         )}
 
-        {/* Actions */}
+        {/* Quick Stats */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-muted/50 p-3 rounded-lg text-center border">
+            <p className="text-xs text-muted-foreground">Will ID</p>
+            <p className="text-sm font-mono font-semibold mt-1 truncate">
+              {metadata.willId.slice(0, 8)}...
+            </p>
+          </div>
+          <div className="bg-muted/50 p-3 rounded-lg text-center border">
+            <p className="text-xs text-muted-foreground">Status</p>
+            <p className="text-sm font-semibold mt-1">
+              {metadata.status}
+            </p>
+          </div>
+          <div className="bg-muted/50 p-3 rounded-lg text-center border">
+            <p className="text-xs text-muted-foreground">Warnings</p>
+            <p className="text-sm font-semibold mt-1">
+              {metadata.validationWarnings.length}
+            </p>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
         <div className="flex gap-3 pt-2">
-          <Button onClick={onPreview} className="flex-1" variant="outline">
+          <Button 
+            onClick={onPreview} 
+            className="flex-1" 
+            variant="outline"
+            size="lg"
+          >
             <Eye className="w-4 h-4 mr-2" />
             Preview Document
           </Button>
-          <Button onClick={onPreview} className="flex-1" disabled={score < 100}>
+          <Button 
+            onClick={onPreview} 
+            className="flex-1" 
+            disabled={score < 100}
+            size="lg"
+          >
             <Printer className="w-4 h-4 mr-2" />
-            Print for Signing
+            {score === 100 ? 'Print for Signing' : `Complete (${score}%)`}
           </Button>
+        </div>
+
+        {/* Legal Notice */}
+        <div className="text-xs text-muted-foreground bg-muted/30 p-3 rounded border">
+          <p className="font-semibold text-foreground mb-1">Legal Requirements:</p>
+          <ul className="space-y-0.5 pl-4 list-disc">
+            <li>Must be signed by testator in sound mind</li>
+            <li>Requires 2 competent witnesses present at signing</li>
+            <li>Witnesses cannot be beneficiaries (S.13 LSA)</li>
+            <li>Original must be stored securely</li>
+          </ul>
         </div>
       </CardContent>
     </Card>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, ShieldCheck } from 'lucide-react';
+import { Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,26 +17,28 @@ import {
   Input,
   Button,
   Alert,
-  AlertDescription
+  AlertDescription,
+  AlertTitle
 } from '@/components/ui';
 import { CreateEstateSchema, type CreateEstateInput } from '@/types/estate.types';
 import { useCreateEstate } from '../../estate.api';
 
-// In a real app, you get this from your Auth Context
-// For now, we accept it as a prop
 interface CreateEstateDialogProps {
   isOpen: boolean;
   userId: string; 
-  userName: string; // Pre-fill from Auth
+  userName: string;
+  onSuccess?: () => void;
 }
 
 export const CreateEstateDialog: React.FC<CreateEstateDialogProps> = ({ 
   isOpen, 
   userId, 
-  userName 
+  userName,
+  onSuccess 
 }) => {
   const form = useForm<CreateEstateInput>({
     resolver: zodResolver(CreateEstateSchema),
+    mode: 'onChange',
     defaultValues: {
       userId,
       userName,
@@ -44,8 +46,12 @@ export const CreateEstateDialog: React.FC<CreateEstateDialogProps> = ({
     },
   });
 
-  // We don't close this dialog manually; it closes when data exists (handled by parent page)
-  const { mutate: createEstate, isPending } = useCreateEstate();
+  const { mutate: createEstate, isPending, error } = useCreateEstate({
+    onSuccess: () => {
+      form.reset();
+      onSuccess?.();
+    }
+  });
 
   const onSubmit = (data: CreateEstateInput) => {
     createEstate(data);
@@ -53,67 +59,131 @@ export const CreateEstateDialog: React.FC<CreateEstateDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-[450px] [&>button]:hidden">
-        <DialogHeader>
-          <div className="mx-auto bg-blue-50 p-3 rounded-full mb-2">
-            <ShieldCheck className="w-8 h-8 text-blue-600" />
+      <DialogContent className="sm:max-w-[500px] [&>button]:hidden">
+        <DialogHeader className="text-center">
+          <div className="mx-auto bg-gradient-to-br from-blue-50 to-purple-50 p-4 rounded-full mb-3 border-2 border-blue-100">
+            <ShieldCheck className="w-10 h-10 text-blue-600" />
           </div>
-          <DialogTitle className="text-center text-xl">Initialize Your Estate</DialogTitle>
-          <DialogDescription className="text-center">
-            Welcome to the Digital Lawyer. To begin managing your assets and succession plan, 
-            we need to initialize your estate ledger.
+          <DialogTitle className="text-2xl">Initialize Your Estate</DialogTitle>
+          <DialogDescription className="text-base">
+            Welcome to Mirathi, your Digital Succession Lawyer. Create your estate ledger 
+            to begin managing your assets and planning for succession under Kenyan law.
           </DialogDescription>
         </DialogHeader>
 
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {error.message || 'Failed to create estate. Please try again.'}
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 mt-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5 mt-2">
             
+            {/* ESTATE OWNER NAME */}
             <FormField
               control={form.control}
               name="userName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Estate Owner Name</FormLabel>
+                  <FormLabel>Estate Owner / Testator Name *</FormLabel>
                   <FormControl>
-                    <Input {...field} disabled />
+                    <Input 
+                      {...field} 
+                      disabled={isPending}
+                      className="bg-muted"
+                    />
                   </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    This is your full legal name as it will appear in legal documents
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
+            {/* KRA PIN */}
             <FormField
               control={form.control}
               name="kraPin"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>KRA PIN (Optional)</FormLabel>
+                  <FormLabel>KRA PIN (Optional but Recommended)</FormLabel>
                   <FormControl>
                     <Input 
+                      disabled={isPending}
                       placeholder="A000000000Z" 
                       maxLength={11} 
-                      className="uppercase placeholder:normal-case"
-                      {...field} 
+                      className="uppercase font-mono placeholder:normal-case placeholder:font-sans"
+                      {...field}
+                      onChange={(e) => field.onChange(e.target.value.toUpperCase())}
                     />
                   </FormControl>
-                  <FormMessage />
                   <p className="text-xs text-muted-foreground">
-                    Required for generating accurate tax compliance reports.
+                    Format: Letter + 9 digits + Letter (e.g., A123456789B)
                   </p>
+                  <FormMessage />
                 </FormItem>
               )}
             />
 
-            <Alert className="bg-blue-50 border-blue-100 text-blue-800">
-              <AlertDescription className="text-xs">
-                By creating this estate, you are establishing a digital ledger for your 
-                assets (S.40) and liabilities (S.45) under the Law of Succession Act.
+            {/* LEGAL NOTICE */}
+            <Alert className="bg-blue-50 border-blue-200">
+              <ShieldCheck className="h-4 w-4 text-blue-600" />
+              <AlertTitle className="text-blue-900 text-sm font-semibold">
+                Legal Framework
+              </AlertTitle>
+              <AlertDescription className="text-xs text-blue-800 space-y-1">
+                <p>
+                  By creating this estate, you are establishing a digital ledger for:
+                </p>
+                <ul className="list-disc pl-5 space-y-0.5 mt-1">
+                  <li>Assets inventory (Section 40, Law of Succession Act)</li>
+                  <li>Liabilities tracking (Section 45, Law of Succession Act)</li>
+                  <li>Net worth calculation for succession planning</li>
+                  <li>Will creation and beneficiary designation</li>
+                </ul>
               </AlertDescription>
             </Alert>
 
-            <Button type="submit" className="w-full" size="lg" disabled={isPending}>
-              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Create Estate Ledger'}
+            {/* WHY KRA PIN */}
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                <strong>Why provide KRA PIN?</strong> Your KRA PIN helps generate accurate 
+                tax compliance reports and ensures proper filing with Kenya Revenue Authority 
+                during estate administration.
+              </AlertDescription>
+            </Alert>
+
+            {/* SUBMIT BUTTON */}
+            <Button 
+              type="submit" 
+              className="w-full" 
+              size="lg" 
+              disabled={isPending}
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating Estate Ledger...
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="mr-2 h-4 w-4" />
+                  Create Estate Ledger
+                </>
+              )}
             </Button>
+
+            {/* DISCLAIMER */}
+            <p className="text-xs text-center text-muted-foreground">
+              Your data is encrypted and stored securely. You can update or delete 
+              your estate information at any time.
+            </p>
           </form>
         </Form>
       </DialogContent>

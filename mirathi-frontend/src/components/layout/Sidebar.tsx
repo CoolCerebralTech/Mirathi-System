@@ -1,25 +1,28 @@
 // FILE: src/components/layout/Sidebar.tsx
-// CONTEXT: The Command Center Navigation (Mirathi Dark Theme)
+// Modern, production-ready sidebar with actual working pages
 
 import * as React from 'react';
-import { NavLink, Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { type TFunction } from 'i18next';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Building2,     // Estates/Inventory
-  Users,         // Families/Heirs
-  FileCheck,     // Documents/Vault
+  Building2,
+  Users,
+  FileText,
   Settings,
-  ScrollText,    // Wills
-  Gavel,         // Probate
-  ClipboardCheck,// Readiness
-  Map,           // Roadmap
-  Briefcase
+  User,
+  GitBranch,
+  Scale,
+  ShieldCheck,
+  Wallet,
+  TrendingUp,
+  ScrollText,
+  ChevronRight,
+  Sparkles,
 } from 'lucide-react';
 
 import { Logo } from '../common/Logo';
-import { cn } from '@/lib/utils'; // Shadcn utility
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui';
 
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // TYPE DEFINITIONS
@@ -27,15 +30,13 @@ import { cn } from '@/lib/utils'; // Shadcn utility
 
 type NavItem = {
   to: string;
-  labelKey: string;
-  defaultLabel: string;
+  label: string;
   icon: React.ElementType;
   end?: boolean;
-};
-
-type NavGroup = {
-  title: string;
-  items: NavItem[];
+  badge?: string;
+  badgeVariant?: 'default' | 'secondary' | 'destructive' | 'outline';
+  description?: string;
+  subItems?: NavItem[];
 };
 
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
@@ -43,185 +44,298 @@ type NavGroup = {
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 export function Sidebar() {
-  const { t } = useTranslation(['sidebar', 'common']);
+  const location = useLocation();
+  const [expandedSection, setExpandedSection] = React.useState<string | null>(null);
 
-  // Navigation Logic: Grouped by Microservice Domain
-  const navigationGroups = React.useMemo<NavGroup[]>(() => [
+  // Navigation structure - grouped by service
+  const navigation: NavItem[] = React.useMemo(() => [
     {
-      title: "Overview",
-      items: [
-        { 
-          to: '/dashboard', 
-          labelKey: 'nav.dashboard', 
-          defaultLabel: 'Command Center',
-          icon: LayoutDashboard, 
-          end: true 
+      to: '/dashboard',
+      label: 'Overview',
+      icon: LayoutDashboard,
+      end: true,
+      description: 'Your command center'
+    },
+    {
+      to: '/dashboard/estate',
+      label: 'Estate',
+      icon: Building2,
+      description: 'Assets & Net Worth',
+      subItems: [
+        {
+          to: '/dashboard/estate',
+          label: 'Dashboard',
+          icon: TrendingUp,
+          end: true,
+        },
+        {
+          to: '/dashboard/estate/assets',
+          label: 'Assets',
+          icon: Wallet,
+        },
+        {
+          to: '/dashboard/estate/debts',
+          label: 'Debts',
+          icon: FileText,
+        },
+        {
+          to: '/dashboard/estate/will',
+          label: 'Will',
+          icon: ScrollText,
+          badge: 'New',
+          badgeVariant: 'default',
         },
       ]
     },
     {
-      title: "Estate Planning (Living)",
-      items: [
-        { 
-          to: '/dashboard/wills', 
-          labelKey: 'nav.wills', 
-          defaultLabel: 'My Wills',
-          icon: ScrollText 
+      to: '/dashboard/family',
+      label: 'Family',
+      icon: Users,
+      description: 'Tree & Succession',
+      subItems: [
+        {
+          to: '/dashboard/family',
+          label: 'Dashboard',
+          icon: Users,
+          end: true,
+        },
+        {
+          to: '/dashboard/family/tree',
+          label: 'Family Tree',
+          icon: GitBranch,
+        },
+        {
+          to: '/dashboard/family/heirs',
+          label: 'Heir Analysis',
+          icon: Scale,
+        },
+        {
+          to: '/dashboard/family/guardianships',
+          label: 'Guardianships',
+          icon: ShieldCheck,
+          badge: '0',
+          badgeVariant: 'secondary',
         },
       ]
     },
     {
-      title: "Succession (Deceased)",
-      items: [
-        { 
-          to: '/dashboard/roadmap', 
-          labelKey: 'nav.roadmap', 
-          defaultLabel: 'Executor Roadmap',
-          icon: Map 
-        },
-        { 
-          to: '/dashboard/readiness', 
-          labelKey: 'nav.readiness', 
-          defaultLabel: 'Readiness Audit',
-          icon: ClipboardCheck 
-        },
-        { 
-          to: '/dashboard/probate', 
-          labelKey: 'nav.probate', 
-          defaultLabel: 'Probate Filing',
-          icon: Gavel 
-        },
-      ]
+      to: '/dashboard/documents',
+      label: 'Documents',
+      icon: FileText,
+      description: 'Digital vault'
     },
-    {
-      title: "Data Layers",
-      items: [
-        { 
-          to: '/dashboard/estates', 
-          labelKey: 'nav.estates', 
-          defaultLabel: 'Asset Inventory',
-          icon: Building2 
-        },
-        { 
-          to: '/dashboard/families', 
-          labelKey: 'nav.families', 
-          defaultLabel: 'Family & Heirs',
-          icon: Users 
-        },
-        { 
-          to: '/dashboard/documents', 
-          labelKey: 'nav.documents', 
-          defaultLabel: 'Digital Vault',
-          icon: FileCheck 
-        },
-      ]
-    }
   ], []);
 
+  const accountNavigation: NavItem[] = React.useMemo(() => [
+    {
+      to: '/dashboard/profile',
+      label: 'Profile',
+      icon: User,
+    },
+    {
+      to: '/dashboard/settings',
+      label: 'Settings',
+      icon: Settings,
+    },
+  ], []);
+
+  // Auto-expand section based on current route
+  React.useEffect(() => {
+    const currentPath = location.pathname;
+    if (currentPath.startsWith('/dashboard/estate')) {
+      setExpandedSection('/dashboard/estate');
+    } else if (currentPath.startsWith('/dashboard/family')) {
+      setExpandedSection('/dashboard/family');
+    }
+  }, [location.pathname]);
+
+  const toggleSection = (sectionTo: string) => {
+    setExpandedSection(prev => prev === sectionTo ? null : sectionTo);
+  };
+
   return (
-    <aside className="hidden h-screen w-72 flex-col border-r border-[#0F3D3E] bg-[#0F3D3E] text-white lg:flex shadow-2xl">
+    <aside className="hidden h-screen w-72 flex-col border-r border-slate-200 bg-white lg:flex shadow-sm">
       
-      {/* 1. Brand Header */}
-      <div className="flex h-20 items-center px-6 border-b border-white/10">
-        <Link to="/dashboard" className="flex items-center gap-2 transition-opacity hover:opacity-80">
+      {/* Brand Header */}
+      <div className="flex h-16 items-center px-6 border-b border-slate-200">
+        <Link 
+          to="/dashboard" 
+          className="flex items-center gap-3 transition-opacity hover:opacity-80 group"
+        >
           <Logo className="h-8 w-auto" />
+          <div className="flex flex-col">
+            <span className="text-lg font-bold text-slate-900 tracking-tight">Mirathi</span>
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider">Estate Planning</span>
+          </div>
         </Link>
       </div>
 
-      {/* 2. Context Switcher (Optional: If managing multiple estates) */}
-      <div className="px-4 pt-6">
-        <div className="flex items-center gap-3 rounded-xl bg-white/5 p-3 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#C8A165] text-[#0F3D3E] shadow-lg">
-            <Briefcase size={20} />
+      {/* Estate Context Badge */}
+      <div className="px-4 pt-4 pb-2">
+        <div className="flex items-center gap-3 rounded-xl bg-gradient-to-br from-[#C8A165]/10 to-[#C8A165]/5 p-3 border border-[#C8A165]/20 hover:border-[#C8A165]/40 transition-all cursor-pointer group">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#C8A165] to-[#B08E52] text-white shadow-lg group-hover:shadow-xl transition-shadow">
+            <Sparkles size={18} />
           </div>
-          <div className="overflow-hidden">
-            <p className="truncate text-xs font-medium text-[#C8A165] uppercase tracking-wider">Current Context</p>
-            <p className="truncate text-sm font-bold text-white">Kamau Estate</p>
+          <div className="overflow-hidden flex-1">
+            <p className="truncate text-[10px] font-semibold text-[#C8A165] uppercase tracking-wider">Active Estate</p>
+            <p className="truncate text-sm font-bold text-slate-900">My Estate</p>
           </div>
+          <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-[#C8A165] transition-colors" />
         </div>
       </div>
       
-      {/* 3. Navigation Links */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        <nav className="flex flex-col gap-8">
-          {navigationGroups.map((group, index) => (
-            <div key={index}>
-              <h3 className="mb-2 px-4 text-[10px] font-bold uppercase tracking-widest text-white/40">
-                {group.title}
-              </h3>
-              <SidebarNav items={group.items} t={t} />
-            </div>
+      {/* Main Navigation */}
+      <div className="flex-1 overflow-y-auto px-3 py-4">
+        <nav className="flex flex-col gap-1">
+          <div className="px-3 pb-2">
+            <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              Main
+            </h3>
+          </div>
+          
+          {navigation.map((item) => (
+            <NavItem
+              key={item.to}
+              item={item}
+              expanded={expandedSection === item.to}
+              onToggle={() => item.subItems && toggleSection(item.to)}
+            />
           ))}
+
+          {/* Account Section */}
+          <div className="mt-6 pt-4 border-t border-slate-200">
+            <div className="px-3 pb-2">
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                Account
+              </h3>
+            </div>
+            
+            {accountNavigation.map((item) => (
+              <NavItem key={item.to} item={item} />
+            ))}
+          </div>
         </nav>
       </div>
 
-      {/* 4. Footer / Settings */}
-      <div className="border-t border-white/10 p-4 bg-[#0A2A2B]">
-        <NavLink
-          to="/dashboard/settings"
-          className={({ isActive }) => cn(
-            "flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-all duration-200",
-            isActive 
-              ? "bg-[#C8A165] text-[#0F3D3E] font-bold" 
-              : "text-neutral-400 hover:bg-white/5 hover:text-white"
-          )}
-        >
-          <Settings className="h-5 w-5" />
-          {t('nav.settings', 'System Settings')}
-        </NavLink>
-        
-        {/* Logout (Optional placement here or in Header) */}
-        {/* <button className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-red-400 hover:bg-red-900/20 hover:text-red-300 transition-colors">
-          <LogOut className="h-5 w-5" />
-          Sign Out
-        </button> */}
+      {/* Footer - User Info */}
+      <div className="border-t border-slate-200 p-4 bg-slate-50">
+        <div className="flex items-center gap-3 rounded-lg p-2 hover:bg-white transition-colors cursor-pointer">
+          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#0F3D3E] to-[#0F3D3E]/80 flex items-center justify-center text-white font-semibold text-sm">
+            JD
+          </div>
+          <div className="overflow-hidden flex-1">
+            <p className="truncate text-sm font-medium text-slate-900">John Doe</p>
+            <p className="truncate text-xs text-slate-500">john@example.com</p>
+          </div>
+        </div>
       </div>
     </aside>
   );
 }
 
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-// CHILD COMPONENT
+// NAV ITEM COMPONENT
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-interface SidebarNavProps {
-  items: NavItem[];
-  t: TFunction<['sidebar', 'common']>;
+interface NavItemProps {
+  item: NavItem;
+  expanded?: boolean;
+  onToggle?: () => void;
+  isSubItem?: boolean;
 }
 
-function SidebarNav({ items, t }: SidebarNavProps) {
-  return (
-    <div className="flex flex-col gap-1">
-      {items.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.end}
-          className={({ isActive }) => cn(
-            "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200",
-            isActive
-              ? "bg-white/10 text-[#C8A165] font-bold shadow-sm border border-white/5"
-              : "text-neutral-300 font-medium hover:bg-white/5 hover:text-white hover:pl-4"
+function NavItem({ item, expanded, onToggle, isSubItem = false }: NavItemProps) {
+  const hasSubItems = item.subItems && item.subItems.length > 0;
+
+  if (hasSubItems) {
+    return (
+      <div>
+        <button
+          onClick={onToggle}
+          className={cn(
+            "group w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200",
+            "text-slate-700 font-medium hover:bg-slate-100 hover:text-slate-900"
           )}
         >
-          {({ isActive }) => (
-            <>
-              {/* FIX: We now calculate the class string HERE, then pass it to the icon */}
-              <item.icon className={cn(
-                "h-5 w-5 transition-colors",
-                isActive ? "text-[#C8A165]" : "text-neutral-500 group-hover:text-white"
-              )} />
-              
-              <span>{t(item.labelKey, item.defaultLabel)}</span>
-              
-              {/* Optional: Add the active dot indicator back if you want it */}
-              {isActive && (
-                <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#C8A165] shadow-[0_0_8px_rgba(200,161,101,0.6)]" />
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <item.icon className={cn(
+              "h-5 w-5 transition-colors shrink-0",
+              "text-slate-400 group-hover:text-[#C8A165]"
+            )} />
+            
+            <div className="flex flex-col items-start min-w-0 flex-1">
+              <span className="truncate">{item.label}</span>
+              {item.description && (
+                <span className="text-[10px] text-slate-500 truncate">
+                  {item.description}
+                </span>
               )}
-            </>
+            </div>
+          </div>
+
+          <ChevronRight 
+            className={cn(
+              "h-4 w-4 text-slate-400 transition-transform shrink-0",
+              expanded && "rotate-90"
+            )} 
+          />
+        </button>
+
+        {/* Sub Items */}
+        {expanded && (
+          <div className="ml-4 mt-1 space-y-1 border-l-2 border-slate-200 pl-2">
+            {item.subItems?.map((subItem) => (
+              <NavItem 
+                key={subItem.to} 
+                item={subItem} 
+                isSubItem 
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <NavLink
+      to={item.to}
+      end={item.end}
+      className={({ isActive }) => cn(
+        "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200",
+        isSubItem && "py-2",
+        isActive
+          ? "bg-gradient-to-r from-[#C8A165]/10 to-transparent text-[#C8A165] font-semibold border-l-2 border-[#C8A165] -ml-[2px] pl-[14px]"
+          : "text-slate-700 font-medium hover:bg-slate-100 hover:text-slate-900 hover:pl-4"
+      )}
+    >
+      {({ isActive }) => (
+        <>
+          <item.icon className={cn(
+            "h-5 w-5 transition-colors shrink-0",
+            isSubItem && "h-4 w-4",
+            isActive ? "text-[#C8A165]" : "text-slate-400 group-hover:text-[#C8A165]"
+          )} />
+          
+          <span className="flex-1 truncate">{item.label}</span>
+          
+          {item.badge && (
+            <Badge 
+              variant={item.badgeVariant || 'default'}
+              className={cn(
+                "text-[10px] px-1.5 py-0 h-5",
+                item.badgeVariant === 'default' && "bg-[#C8A165] hover:bg-[#C8A165]"
+              )}
+            >
+              {item.badge}
+            </Badge>
           )}
-        </NavLink>
-      ))}
-    </div>
+          
+          {isActive && !isSubItem && (
+            <span className="h-1.5 w-1.5 rounded-full bg-[#C8A165] shadow-[0_0_8px_rgba(200,161,101,0.6)]" />
+          )}
+        </>
+      )}
+    </NavLink>
   );
 }

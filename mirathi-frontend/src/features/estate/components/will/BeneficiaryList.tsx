@@ -1,221 +1,205 @@
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Gift, Loader2 } from 'lucide-react';
+import { Plus, Gift, Percent, Coins, Package } from 'lucide-react';
 import { 
   Button, 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  Form, 
-  FormControl, 
-  FormField, 
-  FormItem, 
-  FormLabel, 
-  FormMessage, 
-  Input, 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Textarea
+  Badge,
+  Card,
+  CardContent
 } from '@/components/ui';
-import { 
-  AddBeneficiarySchema, 
-  type AddBeneficiaryInput, 
-  BeneficiaryType, 
-  BequestType 
-} from '@/types/estate.types';
-import { useAddBeneficiary } from '../../estate.api';
+import { AddBeneficiaryDialog } from './AddBeneficiaryDialog';
+import { EmptyState } from '@/components/common/EmptyState';
+import type { BeneficiaryResponse, BequestType } from '@/types/estate.types';
 
-// --- DIALOG ---
-interface AddBeneficiaryDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  willId: string;
-}
-
-const AddBeneficiaryDialog: React.FC<AddBeneficiaryDialogProps> = ({ isOpen, onClose, willId }) => {
-  const [bequestType, setBequestType] = useState<BequestType>(BequestType.RESIDUAL);
-  
-  const form = useForm<AddBeneficiaryInput>({
-    resolver: zodResolver(AddBeneficiarySchema),
-    defaultValues: {
-      name: '',
-      type: BeneficiaryType.CHILD,
-      bequestType: BequestType.RESIDUAL,
-      description: '',
-      percentage: 0,
-    },
-  });
-
-  const { mutate: addBen, isPending } = useAddBeneficiary(willId, {
-    onSuccess: () => {
-      form.reset();
-      onClose();
-    },
-  });
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Add Beneficiary</DialogTitle>
-        </DialogHeader>
-
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit((data) => addBen(data))} className="space-y-4">
-            
-            {/* Identity */}
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl><Input {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Relationship</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        {Object.values(BeneficiaryType).map(t => (
-                          <SelectItem key={t} value={t}>{t}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Bequest Type */}
-            <FormField
-              control={form.control}
-              name="bequestType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Inheritance Type</FormLabel>
-                  <Select 
-                    onValueChange={(val) => {
-                      field.onChange(val);
-                      setBequestType(val as BequestType);
-                    }} 
-                    defaultValue={field.value}
-                  >
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      <SelectItem value={BequestType.RESIDUAL}>Residual (Everything remaining)</SelectItem>
-                      <SelectItem value={BequestType.PERCENTAGE}>Percentage of Estate</SelectItem>
-                      <SelectItem value={BequestType.SPECIFIC_ASSET}>Specific Asset</SelectItem>
-                      <SelectItem value={BequestType.CASH_AMOUNT}>Cash Amount</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-              )}
-            />
-
-            {/* Conditional Fields */}
-            {bequestType === BequestType.PERCENTAGE && (
-               <FormField
-               control={form.control}
-               name="percentage"
-               render={({ field }) => (
-                 <FormItem>
-                   <FormLabel>Percentage (%)</FormLabel>
-                   <FormControl>
-                     <Input 
-                       type="number" 
-                       {...field} 
-                       onChange={e => field.onChange(Number(e.target.value))} 
-                     />
-                   </FormControl>
-                   <FormMessage />
-                 </FormItem>
-               )}
-             />
-            )}
-
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description / Clause</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder='e.g., "To receive 50% of my residual estate"' 
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="flex justify-end gap-3 pt-2">
-              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-              <Button type="submit" disabled={isPending}>
-                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Add Beneficiary
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
-// --- LIST ---
 interface BeneficiaryListProps {
   willId: string;
-  beneficiaries: { name: string; type: string; description: string }[];
+  beneficiaries: BeneficiaryResponse[];
 }
 
-export const BeneficiaryList: React.FC<BeneficiaryListProps> = ({ willId, beneficiaries }) => {
-  const [isOpen, setIsOpen] = useState(false);
+export const BeneficiaryList: React.FC<BeneficiaryListProps> = ({ 
+  willId, 
+  beneficiaries 
+}) => {
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const getBequestIcon = (type: BequestType) => {
+    switch (type) {
+      case 'PERCENTAGE':
+        return <Percent className="w-4 h-4 text-blue-600" />;
+      case 'CASH_AMOUNT':
+        return <Coins className="w-4 h-4 text-green-600" />;
+      case 'SPECIFIC_ASSET':
+        return <Package className="w-4 h-4 text-orange-600" />;
+      default:
+        return <Gift className="w-4 h-4 text-purple-600" />;
+    }
+  };
+
+  const getBequestDisplay = (beneficiary: BeneficiaryResponse): string => {
+    switch (beneficiary.bequestType) {
+      case 'PERCENTAGE':
+        return beneficiary.percentage 
+          ? `${beneficiary.percentage}% of estate` 
+          : 'Percentage bequest';
+      case 'CASH_AMOUNT':
+        return beneficiary.cashAmount 
+          ? formatCurrency(beneficiary.cashAmount) 
+          : 'Cash bequest';
+      case 'SPECIFIC_ASSET':
+        return 'Specific asset';
+      case 'RESIDUAL':
+        return 'Residual estate';
+      default:
+        return 'Bequest';
+    }
+  };
+
+  const getBequestTypeBadge = (type: BequestType) => {
+    const variants: Record<BequestType, { color: string; label: string }> = {
+      PERCENTAGE: { color: 'bg-blue-100 text-blue-800', label: 'Percentage' },
+      CASH_AMOUNT: { color: 'bg-green-100 text-green-800', label: 'Cash' },
+      SPECIFIC_ASSET: { color: 'bg-orange-100 text-orange-800', label: 'Asset' },
+      RESIDUAL: { color: 'bg-purple-100 text-purple-800', label: 'Residual' },
+    };
+
+    const variant = variants[type];
+    return (
+      <Badge className={`${variant.color} hover:${variant.color}`}>
+        {variant.label}
+      </Badge>
+    );
+  };
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">Beneficiaries</h3>
-        <Button onClick={() => setIsOpen(true)} variant="outline" size="sm">
+        <div>
+          <h3 className="text-lg font-semibold">Beneficiaries</h3>
+          <p className="text-sm text-muted-foreground">
+            {beneficiaries.length} beneficiar{beneficiaries.length === 1 ? 'y' : 'ies'} designated
+          </p>
+        </div>
+        <Button onClick={() => setIsAddDialogOpen(true)} variant="outline" size="sm">
           <Plus className="w-4 h-4 mr-2" /> Add Beneficiary
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3">
-        {beneficiaries.map((b, idx) => (
-          <div key={idx} className="flex items-start gap-4 p-3 border rounded-lg bg-card text-card-foreground shadow-sm">
-            <div className="p-2 bg-purple-50 rounded-full">
-              <Gift className="w-4 h-4 text-purple-600" />
-            </div>
-            <div className="space-y-1">
-              <p className="font-medium leading-none">{b.name} <span className="text-xs text-muted-foreground ml-2">({b.type})</span></p>
-              <p className="text-sm text-muted-foreground">{b.description}</p>
-            </div>
-          </div>
-        ))}
-        {beneficiaries.length === 0 && (
-          <div className="text-center py-6 border border-dashed rounded-lg text-muted-foreground text-sm">
-            No beneficiaries added yet.
-          </div>
-        )}
-      </div>
+      {/* Beneficiary Cards or Empty State */}
+      {beneficiaries.length === 0 ? (
+        <EmptyState 
+          title="No Beneficiaries Yet"
+          description="Add beneficiaries to specify who will inherit your estate. You can designate specific assets, percentages, or cash amounts."
+          actionLabel="Add First Beneficiary"
+          onAction={() => setIsAddDialogOpen(true)}
+          icon={<Gift className="h-12 w-12 text-muted-foreground" />}
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-3">
+          {beneficiaries.map((beneficiary) => (
+            <Card 
+              key={beneficiary.id} 
+              className="hover:shadow-md transition-shadow border-l-4 border-l-purple-400"
+            >
+              <CardContent className="p-4">
+                <div className="flex items-start gap-4">
+                  {/* Icon */}
+                  <div className="p-2.5 bg-purple-50 rounded-lg flex-shrink-0">
+                    {getBequestIcon(beneficiary.bequestType)}
+                  </div>
 
-      <AddBeneficiaryDialog isOpen={isOpen} onClose={() => setIsOpen(false)} willId={willId} />
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-4 mb-2">
+                      <div>
+                        <h4 className="font-semibold text-base leading-tight">
+                          {beneficiary.beneficiaryName}
+                        </h4>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          {beneficiary.beneficiaryType}
+                          {beneficiary.relationship && ` • ${beneficiary.relationship}`}
+                        </p>
+                      </div>
+                      {getBequestTypeBadge(beneficiary.bequestType)}
+                    </div>
+
+                    {/* Bequest Details */}
+                    <div className="bg-muted/50 rounded-md p-3 mb-2">
+                      <p className="text-sm font-medium text-foreground">
+                        {getBequestDisplay(beneficiary)}
+                      </p>
+                      {beneficiary.description && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                          {beneficiary.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Conditions Badge */}
+                    {beneficiary.hasConditions && beneficiary.conditions && (
+                      <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded">
+                        <span className="font-medium">Conditions apply:</span>
+                        <span className="line-clamp-1">{beneficiary.conditions}</span>
+                      </div>
+                    )}
+
+                    {/* Asset Link */}
+                    {beneficiary.assetId && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Linked to asset: {beneficiary.assetId}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Summary Stats */}
+      {beneficiaries.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+          <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
+            <p className="text-xs text-purple-700 font-medium">Residual</p>
+            <p className="text-lg font-bold text-purple-900">
+              {beneficiaries.filter(b => b.bequestType === 'RESIDUAL').length}
+            </p>
+          </div>
+          <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+            <p className="text-xs text-blue-700 font-medium">Percentage</p>
+            <p className="text-lg font-bold text-blue-900">
+              {beneficiaries.filter(b => b.bequestType === 'PERCENTAGE').length}
+            </p>
+          </div>
+          <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+            <p className="text-xs text-green-700 font-medium">Cash</p>
+            <p className="text-lg font-bold text-green-900">
+              {beneficiaries.filter(b => b.bequestType === 'CASH_AMOUNT').length}
+            </p>
+          </div>
+          <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
+            <p className="text-xs text-orange-700 font-medium">Specific</p>
+            <p className="text-lg font-bold text-orange-900">
+              {beneficiaries.filter(b => b.bequestType === 'SPECIFIC_ASSET').length}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Add Dialog */}
+      <AddBeneficiaryDialog 
+        isOpen={isAddDialogOpen}
+        onClose={() => setIsAddDialogOpen(false)}
+        willId={willId}
+      />
     </div>
   );
 };
