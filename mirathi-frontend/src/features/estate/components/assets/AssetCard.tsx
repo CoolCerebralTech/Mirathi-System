@@ -1,3 +1,7 @@
+// ============================================================================
+// FILE: AssetCard.tsx
+// ============================================================================
+
 import React from 'react';
 import { 
   Car, 
@@ -27,6 +31,7 @@ import {
 import { 
   type AssetResponse, 
   AssetCategory,
+  AssetStatus, // Import the Enum
   type LandDetails,
   type VehicleDetails
 } from '@/types/estate.types';
@@ -64,7 +69,7 @@ export const AssetCard: React.FC<AssetCardProps> = ({
     });
   };
 
-  // Icon Selection based on Category
+  // Icon Selection
   const getIcon = () => {
     switch (asset.category) {
       case AssetCategory.LAND:
@@ -80,7 +85,7 @@ export const AssetCard: React.FC<AssetCardProps> = ({
     }
   };
 
-  // Category Background Color
+  // Color Selection
   const getCategoryColor = () => {
     switch (asset.category) {
       case AssetCategory.LAND:
@@ -96,34 +101,34 @@ export const AssetCard: React.FC<AssetCardProps> = ({
     }
   };
 
-  // Status Badge Variant
+  // Status Badge - Updated to use Enum for safety
   const getStatusBadge = () => {
     switch (asset.status) {
-      case 'VERIFIED':
+      case AssetStatus.VERIFIED:
         return (
           <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100">
             <FileCheck className="w-3 h-3 mr-1" /> Verified
           </Badge>
         );
-      case 'DISPUTED':
+      case AssetStatus.DISPUTED:
         return (
           <Badge variant="destructive">
             <AlertCircle className="w-3 h-3 mr-1" /> Disputed
           </Badge>
         );
-      case 'ENCUMBERED':
+      case AssetStatus.ENCUMBERED:
         return (
           <Badge variant="outline" className="border-yellow-500 text-yellow-700">
             <AlertCircle className="w-3 h-3 mr-1" /> Encumbered
           </Badge>
         );
-      case 'LIQUIDATED':
+      case AssetStatus.LIQUIDATED:
         return (
           <Badge variant="outline" className="border-gray-400 text-gray-600">
             Liquidated
           </Badge>
         );
-      default:
+      default: // ACTIVE
         return (
           <Badge variant="outline" className="text-amber-600 border-amber-200">
             Pending Verification
@@ -132,13 +137,13 @@ export const AssetCard: React.FC<AssetCardProps> = ({
     }
   };
 
-  // Type Guards for Details
+  // Simplified Type Guards using 'unknown' to avoid 'any' error
   const isLandDetails = (details: unknown): details is LandDetails => {
-    return (details as LandDetails)?.titleDeedNumber !== undefined;
+    return (details as { type?: string })?.type === 'LAND';
   };
 
   const isVehicleDetails = (details: unknown): details is VehicleDetails => {
-    return (details as VehicleDetails)?.registrationNumber !== undefined;
+    return (details as { type?: string })?.type === 'VEHICLE';
   };
 
   return (

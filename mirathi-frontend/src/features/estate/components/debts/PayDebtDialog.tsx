@@ -32,6 +32,7 @@ import { usePayDebt } from '../../estate.api';
 interface PayDebtDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  estateId: string;
   debtId: string;
   debt?: DebtResponse;
 }
@@ -39,6 +40,7 @@ interface PayDebtDialogProps {
 export const PayDebtDialog: React.FC<PayDebtDialogProps> = ({ 
   isOpen, 
   onClose, 
+  estateId,
   debtId,
   debt 
 }) => {
@@ -57,7 +59,7 @@ export const PayDebtDialog: React.FC<PayDebtDialogProps> = ({
   });
 
   const onSubmit = (data: PayDebtInput) => {
-    payDebt({ debtId, data });
+    payDebt({ estateId, debtId, data });
   };
 
   const formatCurrency = (amount: number): string => {

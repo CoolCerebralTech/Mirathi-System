@@ -3,7 +3,7 @@
 // ============================================================================
 
 import React, { useEffect } from 'react';
-import { useForm, type DefaultValues, type Resolver } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, AlertCircle, Info } from 'lucide-react';
 
@@ -27,6 +27,7 @@ import {
   SelectValue,
   Button,
   Textarea,
+  Checkbox, // Use UI component
   Alert,
   AlertDescription
 } from '@/components/ui';
@@ -51,7 +52,6 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
   estateId 
 }) => {
   const form = useForm<AddDebtInput>({
-    // FIX: Use the proper resolver casting pattern
     resolver: zodResolver(AddDebtSchema) as unknown as Resolver<AddDebtInput>,
     mode: 'onChange',
     defaultValues: {
@@ -60,11 +60,11 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
       description: '',
       category: DebtCategory.OTHER,
       originalAmount: 0,
-      outstandingBalance: 0,
+      outstandingBalance: 0, // Should be 0 initially
       isSecured: false,
       securityDetails: '',
       dueDate: undefined,
-    } as DefaultValues<AddDebtInput>,
+    },
   });
 
   const { mutate: addDebt, isPending, error } = useAddDebt(estateId, {
@@ -74,21 +74,24 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
     },
   });
 
-  // Auto-populate outstanding balance if not set
+  // Auto-populate outstanding balance if user hasn't typed anything yet
   const originalAmount = form.watch('originalAmount');
-  const outstandingBalance = form.watch('outstandingBalance');
+  const isDirtyBalance = form.getFieldState('outstandingBalance').isDirty;
 
   useEffect(() => {
-    if (originalAmount > 0 && (!outstandingBalance || outstandingBalance === 0)) {
-      form.setValue('outstandingBalance', originalAmount, { shouldValidate: true });
+    // Only auto-fill if the user hasn't manually touched the balance field
+    if (originalAmount > 0 && !isDirtyBalance) {
+      form.setValue('outstandingBalance', originalAmount);
     }
-  }, [form, originalAmount, outstandingBalance]);
+  }, [originalAmount, isDirtyBalance, form]);
 
   const onSubmit = (data: AddDebtInput) => {
-    // Ensure outstanding balance is set
+    // Final check: if balance is 0/undefined but original is > 0, assume full amount outstanding
     const processedData: AddDebtInput = { 
       ...data,
-      outstandingBalance: data.outstandingBalance || data.originalAmount
+      outstandingBalance: (data.outstandingBalance === undefined || data.outstandingBalance === 0) 
+        ? data.originalAmount 
+        : data.outstandingBalance
     };
     
     addDebt(processedData);
@@ -101,7 +104,7 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
     }
   };
 
-  // Get priority explanation based on category
+  // Helper for priority display
   const getPriorityExplanation = (category: DebtCategory): string => {
     switch (category) {
       case DebtCategory.FUNERAL_EXPENSES:
@@ -158,10 +161,10 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
               name="category"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Debt Category *</FormLabel>
+                  <FormLabel>Debt Category <span className="text-red-500">*</span></FormLabel>
                   <Select 
                     disabled={isPending}
-                    onValueChange={field.onChange} 
+                    onValueChange={(val) => field.onChange(val as DebtCategory)} 
                     value={field.value}
                   >
                     <FormControl>
@@ -192,11 +195,11 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
                 name="creditorName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Creditor Name *</FormLabel>
+                    <FormLabel>Creditor Name <span className="text-red-500">*</span></FormLabel>
                     <FormControl>
                       <Input 
                         disabled={isPending}
-                        placeholder="e.g. Equity Bank, KRA, Aga Khan Hospital" 
+                        placeholder="e.g. Equity Bank, KRA" 
                         {...field} 
                       />
                     </FormControl>
@@ -204,7 +207,6 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={form.control}
                 name="creditorContact"
@@ -231,7 +233,7 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
                 name="originalAmount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Original Amount (KES) *</FormLabel>
+                    <FormLabel>Original Amount (KES) <span className="text-red-500">*</span></FormLabel>
                     <FormControl>
                       <Input 
                         disabled={isPending}
@@ -239,10 +241,11 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
                         min="0"
                         step="0.01"
                         placeholder="0.00"
-                        value={field.value || ''}
+                        // Handle conversion safely
+                        {...field}
                         onChange={(e) => {
-                          const value = parseFloat(e.target.value);
-                          field.onChange(isNaN(value) ? 0 : value);
+                          const val = parseFloat(e.target.value);
+                          field.onChange(isNaN(val) ? 0 : val);
                         }}
                       />
                     </FormControl>
@@ -264,10 +267,11 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
                         min="0"
                         step="0.01"
                         placeholder="Defaults to original amount"
-                        value={field.value || ''}
+                        {...field}
                         onChange={(e) => {
-                          const value = parseFloat(e.target.value);
-                          field.onChange(isNaN(value) ? undefined : value);
+                          const val = parseFloat(e.target.value);
+                          // We allow undefined here if user clears it
+                          field.onChange(isNaN(val) ? undefined : val);
                         }}
                       />
                     </FormControl>
@@ -291,10 +295,12 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
                     <Input 
                       disabled={isPending}
                       type="date"
-                      value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
+                      // Safe handling of Date object for input value
+                      value={field.value instanceof Date ? field.value.toISOString().split('T')[0] : ''}
                       onChange={(e) => {
-                        const date = e.target.value;
-                        field.onChange(date ? new Date(date).toISOString() : undefined);
+                        const dateStr = e.target.value;
+                        // Convert string back to Date object for Zod
+                        field.onChange(dateStr ? new Date(dateStr) : undefined);
                       }}
                     />
                   </FormControl>
@@ -309,7 +315,7 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description *</FormLabel>
+                  <FormLabel>Description <span className="text-red-500">*</span></FormLabel>
                   <FormControl>
                     <Textarea 
                       disabled={isPending}
@@ -331,12 +337,10 @@ export const AddDebtDialog: React.FC<AddDebtDialogProps> = ({
               render={({ field }) => (
                 <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
                   <FormControl>
-                    <input
-                      type="checkbox"
-                      disabled={isPending}
+                    <Checkbox
                       checked={field.value}
-                      onChange={field.onChange}
-                      className="h-4 w-4 rounded border-gray-300 mt-0.5"
+                      onCheckedChange={field.onChange}
+                      disabled={isPending}
                     />
                   </FormControl>
                   <div className="space-y-1 leading-none">

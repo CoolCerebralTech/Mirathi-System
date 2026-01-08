@@ -1,7 +1,12 @@
+// ============================================================================
+// FILE: CreateEstateDialog.tsx
+// ============================================================================
+
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
+
 import {
   Dialog,
   DialogContent,
@@ -20,6 +25,7 @@ import {
   AlertDescription,
   AlertTitle
 } from '@/components/ui';
+
 import { CreateEstateSchema, type CreateEstateInput } from '@/types/estate.types';
 import { useCreateEstate } from '../../estate.api';
 
@@ -48,7 +54,7 @@ export const CreateEstateDialog: React.FC<CreateEstateDialogProps> = ({
 
   const { mutate: createEstate, isPending, error } = useCreateEstate({
     onSuccess: () => {
-      form.reset();
+      // We don't reset userId/userName here to prevent UI flicker before parent updates
       onSuccess?.();
     }
   });
@@ -58,6 +64,7 @@ export const CreateEstateDialog: React.FC<CreateEstateDialogProps> = ({
   };
 
   return (
+    // We lock the dialog (no onOpenChange) so the user MUST complete this to proceed
     <Dialog open={isOpen} onOpenChange={() => {}}>
       <DialogContent className="sm:max-w-[500px] [&>button]:hidden">
         <DialogHeader className="text-center">
@@ -93,7 +100,7 @@ export const CreateEstateDialog: React.FC<CreateEstateDialogProps> = ({
                   <FormControl>
                     <Input 
                       {...field} 
-                      disabled={isPending}
+                      disabled={isPending} // Or readOnly if you don't want them changing it
                       className="bg-muted"
                     />
                   </FormControl>
@@ -111,12 +118,13 @@ export const CreateEstateDialog: React.FC<CreateEstateDialogProps> = ({
               name="kraPin"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>KRA PIN (Optional but Recommended)</FormLabel>
+                  <FormLabel>KRA PIN *</FormLabel>
                   <FormControl>
                     <Input 
                       disabled={isPending}
                       placeholder="A000000000Z" 
                       maxLength={11} 
+                      autoComplete="off"
                       className="uppercase font-mono placeholder:normal-case placeholder:font-sans"
                       {...field}
                       onChange={(e) => field.onChange(e.target.value.toUpperCase())}
@@ -149,13 +157,12 @@ export const CreateEstateDialog: React.FC<CreateEstateDialogProps> = ({
               </AlertDescription>
             </Alert>
 
-            {/* WHY KRA PIN */}
+            {/* WHY KRA PIN INFO */}
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                <strong>Why provide KRA PIN?</strong> Your KRA PIN helps generate accurate 
-                tax compliance reports and ensures proper filing with Kenya Revenue Authority 
-                during estate administration.
+                <strong>Why KRA PIN?</strong> Used to generate accurate tax compliance reports 
+                required by the High Court during estate administration.
               </AlertDescription>
             </Alert>
 

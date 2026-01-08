@@ -1,3 +1,7 @@
+// ============================================================================
+// FILE: EstateHeader.tsx
+// ============================================================================
+
 import React from 'react';
 import { Shield, Calendar, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui';
@@ -8,6 +12,9 @@ interface EstateHeaderProps {
 }
 
 export const EstateHeader: React.FC<EstateHeaderProps> = ({ summary }) => {
+  // Destructure the nested objects for easier access
+  const { overview, timestamps } = summary;
+
   const formatDate = (dateString: string): string => {
     return new Date(dateString).toLocaleDateString('en-KE', {
       year: 'numeric',
@@ -27,7 +34,7 @@ export const EstateHeader: React.FC<EstateHeaderProps> = ({ summary }) => {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground">
-                {summary.userName}'s Estate
+                {overview.userName}'s Estate
               </h1>
               <p className="text-sm text-muted-foreground">
                 Digital Succession Planning • Mirathi System
@@ -36,11 +43,11 @@ export const EstateHeader: React.FC<EstateHeaderProps> = ({ summary }) => {
           </div>
 
           {/* KRA PIN if available */}
-          {summary.kraPin && (
+          {overview.kraPin && (
             <div className="flex items-center gap-2 text-sm">
               <FileText className="h-4 w-4 text-muted-foreground" />
               <span className="text-muted-foreground">KRA PIN:</span>
-              <span className="font-mono font-medium">{summary.kraPin}</span>
+              <span className="font-mono font-medium">{overview.kraPin}</span>
             </div>
           )}
         </div>
@@ -48,7 +55,7 @@ export const EstateHeader: React.FC<EstateHeaderProps> = ({ summary }) => {
         {/* Right Section: Badges and Date */}
         <div className="flex flex-col items-start md:items-end gap-2">
           {/* Solvency Badge */}
-          {summary.isInsolvent ? (
+          {overview.isInsolvent ? (
             <Badge variant="destructive" className="text-sm">
               ⚠️ Insolvent Estate
             </Badge>
@@ -61,13 +68,14 @@ export const EstateHeader: React.FC<EstateHeaderProps> = ({ summary }) => {
           {/* Created Date */}
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Calendar className="h-3 w-3" />
-            <span>Created {formatDate(summary.createdAt)}</span>
+            <span>Created {formatDate(timestamps.createdAt)}</span>
           </div>
 
           {/* Estate ID */}
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Estate ID:</span>
-            <span className="font-mono">{summary.id.slice(0, 8)}...</span>
+            {/* Safe check just in case, though overview.id should exist */}
+            <span className="font-mono">{overview.id?.slice(0, 8)}...</span>
           </div>
         </div>
       </div>

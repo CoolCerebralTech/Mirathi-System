@@ -194,8 +194,6 @@ export const CreateEstateSchema = z.object({
   kraPin: z
     .string()
     .regex(KRA_PIN_REGEX, 'Invalid KRA PIN format (e.g., A000000000Z)')
-    .optional()
-    .or(z.literal('')),
 });
 
 // --- BASE ASSET SCHEMA (Matching BaseAssetDto) ---
@@ -334,16 +332,25 @@ export interface LegalInsights {
 
 // --- ESTATE SUMMARY (Matching EstateSummaryDto) ---
 export interface EstateSummaryResponse {
-  id: string;
-  userName: string;
-  kraPin?: string;
-  netWorth: number;
-  currency: string;
-  isInsolvent: boolean;
-  assetCount: number;
-  debtCount: number;
+  overview: {
+    id: string;
+    userName: string;
+    kraPin?: string;
+    netWorth: number;
+    currency: string;
+    isInsolvent: boolean;
+  };
+  stats: {
+    totalAssets: number;
+    totalDebts: number;
+    assetCount: number;
+    debtCount: number;
+  };
   legalInsights: LegalInsights;
-  createdAt: string;
+  timestamps: {
+    createdAt: string;
+    updatedAt: string;
+  };
 }
 
 // --- LAND DETAILS (Matching Backend LandDetails Model) ---
@@ -366,30 +373,43 @@ export interface VehicleDetails {
 }
 
 // --- ASSET RESPONSE (Matching AssetResponseDto) ---
+// Helper type for the details union
+export type AssetDetails = 
+  | ({ type: 'LAND' } & LandDetails)
+  | ({ type: 'VEHICLE' } & VehicleDetails);
+
 export interface AssetResponse {
   id: string;
   name: string;
+  description?: string; // Backend sends this
   category: AssetCategory;
   estimatedValue: number;
+  currency: string;     // Backend sends this
   status: AssetStatus;
   isVerified: boolean;
   isEncumbered: boolean;
   encumbranceDetails?: string;
   proofDocumentUrl?: string;
-  details?: LandDetails | VehicleDetails; // Polymorphic details
+  // Use the discriminated union here
+  details?: AssetDetails | null; 
   createdAt: string;
+  updatedAt?: string;   // Backend sends this
 }
 
 // --- DEBT RESPONSE (Matching DebtResponseDto) ---
 export interface DebtResponse {
   id: string;
   creditorName: string;
+  description: string; // Backend sends this
   category: DebtCategory;
   priority: DebtPriority;
   originalAmount: number;
   outstandingBalance: number;
+  currency: string;    // Backend sends this
   status: DebtStatus;
   isSecured: boolean;
+  securityDetails?: string | null;
+  dueDate?: string | null;
   createdAt: string;
 }
 

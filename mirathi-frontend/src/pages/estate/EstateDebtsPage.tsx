@@ -1,3 +1,7 @@
+// ============================================================================
+// FILE: EstateDebtsPage.tsx
+// ============================================================================
+
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
@@ -56,6 +60,9 @@ export const EstateDebtsPage: React.FC = () => {
     );
   }
 
+  // DESTRUCTURE HERE
+  const { overview, stats, legalInsights } = summary;
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -80,12 +87,12 @@ export const EstateDebtsPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="p-4 border rounded-lg bg-red-50">
           <p className="text-sm text-muted-foreground">Total Debts</p>
-          <p className="text-2xl font-bold">{summary.debtCount}</p>
+          <p className="text-2xl font-bold">{stats.debtCount}</p> {/* Use stats.debtCount */}
         </div>
         <div className="p-4 border rounded-lg bg-amber-50">
           <p className="text-sm text-muted-foreground">Solvency Status</p>
           <p className="text-2xl font-bold">
-            {summary.isInsolvent ? 'Insolvent' : 'Solvent'}
+            {overview.isInsolvent ? 'Insolvent' : 'Solvent'} {/* Use overview.isInsolvent */}
           </p>
         </div>
         <div className="p-4 border rounded-lg bg-blue-50">
@@ -93,18 +100,18 @@ export const EstateDebtsPage: React.FC = () => {
           <p className="text-2xl font-bold">
             {new Intl.NumberFormat('en-KE', {
               style: 'currency',
-              currency: summary.currency,
+              currency: overview.currency, // Use overview.currency
               minimumFractionDigits: 0,
-            }).format(summary.netWorth)}
+            }).format(overview.netWorth)} {/* Use overview.netWorth */}
           </p>
         </div>
       </div>
 
       {/* Legal Priority Notice */}
-      <LegalInsightsCard insights={summary.legalInsights} />
+      <LegalInsightsCard insights={legalInsights} /> {/* Use destructured legalInsights */}
 
       {/* Debt List */}
-      <DebtList estateId={summary.id} />
+      <DebtList estateId={overview.id} /> {/* Use overview.id */}
     </div>
   );
 };

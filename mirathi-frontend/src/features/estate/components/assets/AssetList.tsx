@@ -161,6 +161,7 @@ export const AssetList: React.FC<AssetListProps> = ({ estateId }) => {
           isOpen={true}
           onClose={() => setUpdateValueAssetId(null)}
           assetId={updateValueAssetId}
+          estateId={estateId}
         />
       )}
 

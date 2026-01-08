@@ -30,12 +30,14 @@ interface UpdateAssetValueDialogProps {
   isOpen: boolean;
   onClose: () => void;
   assetId: string;
+  estateId: string;
 }
 
 export const UpdateAssetValueDialog: React.FC<UpdateAssetValueDialogProps> = ({ 
   isOpen, 
   onClose, 
-  assetId 
+  assetId,
+  estateId 
 }) => {
   const form = useForm<UpdateAssetValueInput>({
     resolver: zodResolver(UpdateAssetValueSchema),
@@ -52,7 +54,7 @@ export const UpdateAssetValueDialog: React.FC<UpdateAssetValueDialogProps> = ({
   });
 
   const onSubmit = (data: UpdateAssetValueInput) => {
-    updateValue({ assetId, data });
+    updateValue({ estateId,assetId, data });
   };
 
   return (

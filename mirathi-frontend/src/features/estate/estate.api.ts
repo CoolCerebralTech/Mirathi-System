@@ -183,11 +183,12 @@ const listAssets = async (estateId: string): Promise<AssetResponse[]> => {
  * Backend: AssetsController.updateValue()
  */
 const updateAssetValue = async (
+  estateId: string,
   assetId: string,
   data: UpdateAssetValueInput
 ): Promise<void> => {
   await apiClient.put<ApiResponse<void>>(
-    `${SERVICE_BASE}/estate/assets/${assetId}/value`,
+    `${SERVICE_BASE}/estate/${estateId}/assets/${assetId}/value`,
     data
   );
 };
@@ -243,9 +244,13 @@ const listDebts = async (estateId: string): Promise<DebtResponse[]> => {
  * 
  * Backend: DebtsController.pay()
  */
-const payDebt = async (debtId: string, data: PayDebtInput): Promise<void> => {
+const payDebt = async (
+  estateId: string,
+  debtId: string,
+  data: PayDebtInput
+): Promise<void> => {
   await apiClient.post<ApiResponse<void>>(
-    `${SERVICE_BASE}/estate/debts/${debtId}/pay`,
+    `${SERVICE_BASE}/estate/${estateId}/debts/${debtId}/pay`,
     data
   );
 };
@@ -404,12 +409,16 @@ export const useAddAsset = (options?: { onSuccess?: () => void }) => {
  */
 export const useUpdateAssetValue = (options?: { onSuccess?: () => void }) => {
   const queryClient = useQueryClient();
-  
-  return useMutation<void, Error, { assetId: string; data: UpdateAssetValueInput }>({
-    mutationFn: ({ assetId, data }) => updateAssetValue(assetId, data),
+
+  // Update the mutation function arguments to include estateId
+  return useMutation<void, Error, { estateId: string; assetId: string; data: UpdateAssetValueInput }>({
+    mutationFn: ({ estateId, assetId, data }) => updateAssetValue(estateId, assetId, data),
+    // ... rest of mutation
     onSuccess: () => {
       toast.success('Asset Value Updated');
-      queryClient.invalidateQueries({ queryKey: estateKeys.all });
+      // If you pass estateId here, you can invalidate specific assets too,
+      // but invalidating 'all' is safe and covers net worth.
+      queryClient.invalidateQueries({ queryKey: estateKeys.all }); 
       options?.onSuccess?.();
     },
     onError: (err) => {
@@ -477,11 +486,14 @@ export const useAddDebt = (
  */
 export const usePayDebt = (options?: { onSuccess?: () => void }) => {
   const queryClient = useQueryClient();
-  
-  return useMutation<void, Error, { debtId: string; data: PayDebtInput }>({
-    mutationFn: ({ debtId, data }) => payDebt(debtId, data),
+
+  // Update the mutation function arguments to include estateId
+  return useMutation<void, Error, { estateId: string; debtId: string; data: PayDebtInput }>({
+    mutationFn: ({ estateId, debtId, data }) => payDebt(estateId, debtId, data),
     onSuccess: () => {
       toast.success('Payment Recorded');
+      // Similar to asset updates, invalidating 'all' is safe.
+      // If you have a specific debits list query key, you could invalidate that too.
       queryClient.invalidateQueries({ queryKey: estateKeys.all });
       options?.onSuccess?.();
     },

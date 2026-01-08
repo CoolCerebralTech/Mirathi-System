@@ -154,13 +154,19 @@ export class Asset {
     return new Asset(props);
   }
 
-  // --- GETTERS ---
+  // --- GETTERS (Added these to fix your errors) ---
   get id(): string {
     return this.props.id;
   }
   get estateId(): string {
     return this.props.estateId;
   }
+  get name(): string {
+    return this.props.name;
+  } // Added
+  get description(): string | undefined {
+    return this.props.description;
+  } // Added
   get category(): AssetCategory {
     return this.props.category;
   }
@@ -170,11 +176,29 @@ export class Asset {
   get estimatedValue(): number {
     return this.props.estimatedValue;
   }
+  get currency(): string {
+    return this.props.currency;
+  } // Added
+  get isVerified(): boolean {
+    return this.props.isVerified;
+  } // Added
+  get proofDocumentUrl(): string | undefined {
+    return this.props.proofDocumentUrl;
+  } // Added
+  get isEncumbered(): boolean {
+    return this.props.isEncumbered;
+  } // Added
   get landDetails(): LandDetailsProps | undefined {
     return this.props.landDetails;
   }
   get vehicleDetails(): VehicleDetailsProps | undefined {
     return this.props.vehicleDetails;
+  }
+  get createdAt(): Date {
+    return this.props.createdAt;
+  }
+  get updatedAt(): Date {
+    return this.props.updatedAt;
   }
 
   // --- BUSINESS LOGIC ---

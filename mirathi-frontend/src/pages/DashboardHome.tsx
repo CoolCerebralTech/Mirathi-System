@@ -1,3 +1,7 @@
+// ============================================================================
+// FILE: DashboardHome.tsx
+// ============================================================================
+
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -13,7 +17,7 @@ import {
 
 import { Button, Card, CardHeader, CardTitle, CardContent } from '@/components/ui';
 // Using the unified API features
-import { useCurrentUser } from '@/features/user/user.api';
+import { useCurrentUser } from '@/features/user/user.api'; // Ensure this path is correct
 import { useEstateSummary } from '@/features/estate/estate.api';
 
 export const DashboardHome: React.FC = () => {
@@ -24,7 +28,6 @@ export const DashboardHome: React.FC = () => {
   const userId = currentUser?.id;
 
   // 2. Get Estate Data
-  // This matches the logic in EstateDashboardPage to ensure consistent data
   const { 
     data: summary, 
     isLoading: isSummaryLoading, 
@@ -42,6 +45,8 @@ export const DashboardHome: React.FC = () => {
       // it means they haven't set up the estate/will yet.
       // Redirect to Onboarding to choose path.
       if (!summary || isError) {
+        // You might want to be more specific with the error check (e.g. 404)
+        // For now, redirecting on error ensures they create an estate.
         navigate('/onboarding', { replace: true });
       }
     }
@@ -63,6 +68,9 @@ export const DashboardHome: React.FC = () => {
 
   // Prevent flash if redirecting
   if (!summary) return null;
+
+  // DESTRUCTURE NESTED DATA HERE
+  const { overview, stats } = summary;
 
   // 5. THE COMMAND CENTER UI
   return (
@@ -108,7 +116,7 @@ export const DashboardHome: React.FC = () => {
             </div>
             
             <div className="text-4xl font-serif font-bold text-white mb-1">
-              {summary.assetCount}
+              {stats.assetCount} {/* Use stats.assetCount */}
             </div>
             <p className="text-neutral-400 text-sm mb-6">
               Total Assets Recorded
@@ -116,8 +124,8 @@ export const DashboardHome: React.FC = () => {
 
             <div className="flex items-center justify-between border-t border-white/10 pt-4">
               <span className="text-xs font-medium text-[#C8A165]">
-                {new Intl.NumberFormat('en-KE', { style: 'currency', currency: summary.currency }).format(summary.netWorth)} Net Worth
-              </span>
+                {new Intl.NumberFormat('en-KE', { style: 'currency', currency: overview.currency }).format(overview.netWorth)} Net Worth
+              </span> {/* Use overview.currency and overview.netWorth */}
               <ArrowRight className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:translate-x-1" />
             </div>
           </div>
@@ -165,8 +173,8 @@ export const DashboardHome: React.FC = () => {
             <div className="space-y-4">
               {/* Solvency Alert */}
               <div className="flex gap-3 items-start">
-                <div className={`mt-0.5 rounded-full p-1 ${summary.isInsolvent ? 'bg-red-100' : 'bg-green-100'}`}>
-                  {summary.isInsolvent ? (
+                <div className={`mt-0.5 rounded-full p-1 ${overview.isInsolvent ? 'bg-red-100' : 'bg-green-100'}`}>
+                  {overview.isInsolvent ? (
                     <AlertTriangle className="h-3 w-3 text-red-600" />
                   ) : (
                     <ShieldCheck className="h-3 w-3 text-green-600" />
@@ -174,10 +182,10 @@ export const DashboardHome: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-[#0F3D3E]">
-                    {summary.isInsolvent ? 'Estate Insolvent' : 'Estate Solvent'}
+                    {overview.isInsolvent ? 'Estate Insolvent' : 'Estate Solvent'} {/* Use overview.isInsolvent */}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {summary.isInsolvent 
+                    {overview.isInsolvent 
                       ? 'Debts exceed assets. Section 45 rules apply.' 
                       : 'Assets cover all recorded liabilities.'}
                   </p>
@@ -192,7 +200,7 @@ export const DashboardHome: React.FC = () => {
                 <div>
                   <p className="text-sm font-semibold text-[#0F3D3E]">Debt Overview</p>
                   <p className="text-xs text-muted-foreground">
-                    {summary.debtCount} liabilities recorded against estate.
+                    {stats.debtCount} liabilities recorded against estate. {/* Use stats.debtCount */}
                   </p>
                 </div>
               </div>

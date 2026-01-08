@@ -54,11 +54,55 @@ export class AddAssetService {
       throw new BadRequestException(error.message);
     }
 
-    // 3. Persist Transactionally (ACID Compliance)
-    // Ensures we don't get an Asset row without its Land/Vehicle details row
+    // 3. Persist Transactionally
+    // The Getters in the Entity file now allow us to access asset.name, asset.currency, etc.
+    await this.prisma.asset.create({
+      data: {
+        id: asset.id,
+        estateId: asset.estateId,
+        name: asset.name,
+        description: asset.description,
+        category: asset.category,
+        estimatedValue: asset.estimatedValue.toString(),
+        currency: asset.currency,
+        status: asset.status,
+        isVerified: asset.isVerified,
+        isEncumbered: asset.isEncumbered,
+
+        // Conditional Nested Writes based on metadata type
+        landDetails:
+          category === AssetCategory.LAND && metadata.type === 'LAND'
+            ? {
+                create: {
+                  titleDeedNumber: metadata.details.titleDeedNumber,
+                  parcelNumber: metadata.details.parcelNumber,
+                  county: metadata.details.county,
+                  subCounty: metadata.details.subCounty,
+                  landCategory: metadata.details.landCategory,
+                  // FIX: Handle optional sizeInAcres safely
+                  sizeInAcres: metadata.details.sizeInAcres
+                    ? metadata.details.sizeInAcres.toString()
+                    : null,
+                },
+              }
+            : undefined,
+
+        vehicleDetails:
+          category === AssetCategory.VEHICLE && metadata.type === 'VEHICLE'
+            ? {
+                create: {
+                  registrationNumber: metadata.details.registrationNumber,
+                  make: metadata.details.make,
+                  model: metadata.details.model,
+                  year: metadata.details.year,
+                  vehicleCategory: metadata.details.vehicleCategory,
+                },
+              }
+            : undefined,
+      },
+    });
 
     // 4. Trigger Side Effects (Net Worth)
-    // We do this outside the transaction to keep the DB lock short
     await this.calculateNetWorth.execute(estateId).catch((err) => {
       this.logger.error(`Failed to recalculate net worth for estate ${estateId}`, err);
     });

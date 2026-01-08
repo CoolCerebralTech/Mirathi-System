@@ -37,7 +37,7 @@ interface VerifyAssetDialogProps {
 export const VerifyAssetDialog: React.FC<VerifyAssetDialogProps> = ({ 
   isOpen, 
   onClose, 
-  assetId 
+  assetId, 
 }) => {
   const form = useForm<VerifyAssetInput>({
     resolver: zodResolver(VerifyAssetSchema),

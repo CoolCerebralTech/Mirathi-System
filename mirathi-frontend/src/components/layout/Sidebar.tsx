@@ -139,9 +139,9 @@ export function Sidebar() {
               <p className="truncate text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                 Active Context
               </p>
-              <p className="truncate text-sm font-bold text-[#0F3D3E]">
+              <div className="truncate text-sm font-bold text-[#0F3D3E]">
                 {isUserLoading ? <Skeleton className="h-4 w-20" /> : `${user?.lastName || 'My'} Estate`}
-              </p>
+              </div>
             </div>
             <ChevronRight className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-0.5" />
           </div>

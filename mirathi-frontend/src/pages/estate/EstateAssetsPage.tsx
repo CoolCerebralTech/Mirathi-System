@@ -1,3 +1,7 @@
+// ============================================================================
+// FILE: EstateAssetsPage.tsx
+// ============================================================================
+
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
@@ -57,6 +61,9 @@ export const EstateAssetsPage: React.FC = () => {
     );
   }
 
+  // DESTRUCTURE HERE
+  const { overview, stats } = summary;
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -81,7 +88,7 @@ export const EstateAssetsPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-4 border rounded-lg bg-blue-50">
           <p className="text-sm text-muted-foreground">Total Assets</p>
-          <p className="text-2xl font-bold">{summary.assetCount}</p>
+          <p className="text-2xl font-bold">{stats.assetCount}</p> {/* Use stats.assetCount */}
         </div>
         <div className="md:col-span-3">
           <NetWorthCard summary={summary} />
@@ -89,7 +96,7 @@ export const EstateAssetsPage: React.FC = () => {
       </div>
 
       {/* Asset List */}
-      <AssetList estateId={summary.id} />
+      <AssetList estateId={overview.id} /> {/* Use overview.id */}
     </div>
   );
 };

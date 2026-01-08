@@ -281,8 +281,8 @@ export const DebtList: React.FC<DebtListProps> = ({ estateId }) => {
           isOpen={true}
           onClose={() => setPayingDebtId(null)}
           debtId={payingDebtId}
-          debt={debts?.find(d => d.id === payingDebtId)}
-        />
+          debt={debts?.find(d => d.id === payingDebtId)} 
+          estateId={estateId} />
       )}
     </div>
   );

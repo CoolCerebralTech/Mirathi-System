@@ -1,3 +1,7 @@
+// ============================================================================
+// FILE: NetWorthCard.tsx
+// ============================================================================
+
 import React from 'react';
 import { TrendingUp, TrendingDown, Wallet, DollarSign, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, Progress, Badge } from '@/components/ui';
@@ -8,24 +12,19 @@ interface NetWorthCardProps {
 }
 
 export const NetWorthCard: React.FC<NetWorthCardProps> = ({ summary }) => {
+  // 1. DESTRUCTURE HERE
+  const { overview, stats } = summary;
+
   const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('en-KE', {
       style: 'currency',
-      currency: summary.currency,
+      currency: overview.currency, // Use overview.currency
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
   };
 
-  // Calculate total assets value (netWorth + debts to get gross assets)
-  // Note: Backend calculates netWorth = assets - debts
-  // So we need to infer total assets if we had that data
-  // For now, we'll use netWorth as the display value
-
-  // Calculate health percentage
-  // If insolvent: 0%
-  // If solvent: Scale based on how much net worth vs potential total
-  const healthPercentage = summary.isInsolvent ? 0 : 100;
+  const healthPercentage = overview.isInsolvent ? 0 : 100;
 
   const getHealthColor = (isInsolvent: boolean): string => {
     return isInsolvent ? 'bg-red-600' : 'bg-green-600';
@@ -46,10 +45,10 @@ export const NetWorthCard: React.FC<NetWorthCardProps> = ({ summary }) => {
         {/* Main Net Worth Display */}
         <div>
           <div className="text-3xl font-bold text-foreground">
-            {formatCurrency(summary.netWorth)}
+            {formatCurrency(overview.netWorth)} {/* Use overview.netWorth */}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            {summary.currency} • Kenyan Shillings
+            {overview.currency} • Kenyan Shillings
           </p>
         </div>
 
@@ -58,9 +57,9 @@ export const NetWorthCard: React.FC<NetWorthCardProps> = ({ summary }) => {
           <div className="flex items-center gap-2 text-sm">
             <div className="flex items-center gap-1 text-green-600">
               <TrendingUp className="h-4 w-4" />
-              <span className="font-semibold">{summary.assetCount}</span>
+              <span className="font-semibold">{stats.assetCount}</span> {/* Use stats.assetCount */}
             </div>
-            <span className="text-muted-foreground">Asset{summary.assetCount !== 1 ? 's' : ''}</span>
+            <span className="text-muted-foreground">Asset{stats.assetCount !== 1 ? 's' : ''}</span>
           </div>
           
           <div className="h-4 w-px bg-border" />
@@ -68,14 +67,14 @@ export const NetWorthCard: React.FC<NetWorthCardProps> = ({ summary }) => {
           <div className="flex items-center gap-2 text-sm">
             <div className="flex items-center gap-1 text-red-600">
               <TrendingDown className="h-4 w-4" />
-              <span className="font-semibold">{summary.debtCount}</span>
+              <span className="font-semibold">{stats.debtCount}</span> {/* Use stats.debtCount */}
             </div>
-            <span className="text-muted-foreground">Debt{summary.debtCount !== 1 ? 's' : ''}</span>
+            <span className="text-muted-foreground">Debt{stats.debtCount !== 1 ? 's' : ''}</span>
           </div>
         </div>
 
         {/* Solvency Status */}
-        {summary.isInsolvent ? (
+        {overview.isInsolvent ? ( /* Use overview.isInsolvent */
           <div className="p-3 bg-red-50 border-2 border-red-200 rounded-lg">
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -102,7 +101,7 @@ export const NetWorthCard: React.FC<NetWorthCardProps> = ({ summary }) => {
             <Progress 
               value={healthPercentage} 
               className="h-2" 
-              indicatorClassName={getHealthColor(summary.isInsolvent)}
+              indicatorClassName={getHealthColor(overview.isInsolvent)}
             />
             <p className="text-xs text-muted-foreground">
               Estate has positive net worth and can distribute to beneficiaries
@@ -115,12 +114,12 @@ export const NetWorthCard: React.FC<NetWorthCardProps> = ({ summary }) => {
           <div>
             <p className="text-muted-foreground">Total Items</p>
             <p className="font-semibold text-foreground">
-              {summary.assetCount + summary.debtCount} Records
+              {stats.assetCount + stats.debtCount} Records
             </p>
           </div>
           <div className="text-right">
             <p className="text-muted-foreground">Currency</p>
-            <p className="font-semibold text-foreground">{summary.currency}</p>
+            <p className="font-semibold text-foreground">{overview.currency}</p>
           </div>
         </div>
       </CardContent>
