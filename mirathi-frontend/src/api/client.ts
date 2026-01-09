@@ -1,5 +1,4 @@
 // FILE: src/api/client.ts
-
 import axios, {
   AxiosError,
   type InternalAxiosRequestConfig,
@@ -10,21 +9,7 @@ import {
   getRefreshToken, 
   useAuthStore 
 } from '../store/auth.store'; 
-
-interface GenericAuthResponse {
-  // Shape A: Flat tokens (sometimes used in refresh endpoints)
-  accessToken?: string;
-  refreshToken?: string;
-  
-  // Shape B: Nested tokens (used in login/register endpoints)
-  tokens?: {
-    accessToken: string;
-    refreshToken: string;
-  };
-  
-  // Allow other properties (user, metadata, etc.)
-  [key: string]: unknown; 
-}
+import type { RefreshTokenResponse } from '../types/auth.types'; // Assuming your Zod file is here
 
 // ============================================================================
 // CONFIGURATION
@@ -37,14 +22,10 @@ export interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
 
 const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
 if (!VITE_API_BASE_URL) {
-  throw new Error('VITE_API_BASE_URL is not defined. Please check your .env file.');
+  throw new Error('VITE_API_BASE_URL is not defined in environment variables.');
 }
 
-// ✅ CRITICAL UPDATE: 
-// The Gateway Base URL is: http://localhost:3000/api
-// The Gateway maps: /accounts -> Accounts Service
-// The Accounts Service has: /auth/login
-// Therefore, the path here must be: /accounts/auth/login
+// Routes based on Gateway -> Service mapping provided
 const ApiEndpoints = {
   LOGIN: '/accounts/auth/login',
   REGISTER: '/accounts/auth/register',
@@ -52,23 +33,17 @@ const ApiEndpoints = {
 };
 
 // ============================================================================
-// TOKEN HELPERS
+// HELPER: Token Structure Validation
 // ============================================================================
 
 const validateTokenStructure = (token: string | null): boolean => {
-  if (!token) return false;
-  if (typeof token !== 'string' || token.trim().length === 0) return false;
-
+  if (!token || typeof token !== 'string' || token.trim().length === 0) return false;
   // Basic JWT structure check (header.payload.signature)
-  if (token.includes('.')) {
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
-  }
-  return true;
+  return token.split('.').length === 3;
 };
 
 // ============================================================================
-// MAIN AXIOS INSTANCE
+// AXIOS INSTANCE
 // ============================================================================
 
 export const apiClient: AxiosInstance = axios.create({
@@ -86,22 +61,22 @@ export const apiClient: AxiosInstance = axios.create({
 
 apiClient.interceptors.request.use(
   async (config) => {
-    // ✅ Use the helper function to get token from either LocalStorage OR Session
     const accessToken = getAccessToken();
 
-    // --- SKIP AUTH for public endpoints ---
+    // Skip Auth header for public authentication endpoints
     if (
       config.url?.includes(ApiEndpoints.LOGIN) ||
       config.url?.includes(ApiEndpoints.REGISTER) ||
       config.url?.includes(ApiEndpoints.REFRESH_TOKEN)
     ) {
+      // Ensure we don't accidentally send a stale token to auth endpoints
       if (config.headers) {
         delete config.headers.Authorization;
       }
       return config;
     }
 
-    // --- Attach token if available ---
+    // Attach Bearer token
     if (accessToken && config.headers) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
@@ -120,26 +95,25 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as CustomAxiosRequestConfig;
 
-    if (originalRequest?._skipAuth) return Promise.reject(error);
+    // 1. Skip if explicitly requested or request is missing
+    if (!originalRequest || originalRequest._skipAuth) {
+      return Promise.reject(error);
+    }
 
-    // Identify if the error came FROM an auth endpoint
+    // 2. Identify if error comes from an Auth Endpoint
     const isAuthEndpoint = 
-      originalRequest?.url?.includes(ApiEndpoints.LOGIN) ||
-      originalRequest?.url?.includes(ApiEndpoints.REGISTER) ||
-      originalRequest?.url?.includes(ApiEndpoints.REFRESH_TOKEN);
+      originalRequest.url?.includes(ApiEndpoints.LOGIN) ||
+      originalRequest.url?.includes(ApiEndpoints.REGISTER) ||
+      originalRequest.url?.includes(ApiEndpoints.REFRESH_TOKEN);
 
-    // If login/register/refresh failed, do not retry.
+    // 3. If Login/Refresh fails, do NOT retry. Fail immediately.
     if (error.response?.status === 401 && isAuthEndpoint) {
       return Promise.reject(error);
     }
 
-    // Handle 401 on PROTECTED endpoints -> Trigger Refresh Flow
-    if (
-      error.response?.status === 401 &&
-      originalRequest &&
-      !originalRequest._retry
-    ) {
-      return handle401Error(originalRequest);
+    // 4. Handle 401 on PROTECTED endpoints -> Trigger Token Refresh
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      return handleTokenRefresh(originalRequest);
     }
 
     return Promise.reject(error);
@@ -147,7 +121,7 @@ apiClient.interceptors.response.use(
 );
 
 // ============================================================================
-// TOKEN REFRESH LOGIC
+// REFRESH LOGIC (Queue-based)
 // ============================================================================
 
 let isRefreshing = false;
@@ -161,20 +135,19 @@ const processQueue = (error: Error | null, token: string | null = null) => {
   failedQueue = [];
 };
 
-async function handle401Error(originalRequest: CustomAxiosRequestConfig) {
+async function handleTokenRefresh(originalRequest: CustomAxiosRequestConfig) {
   originalRequest._retry = true;
   
   const refreshToken = getRefreshToken();
   const { logout, setTokens } = useAuthStore.getState();
 
-  // 1. Basic Validation
+  // A. Validation
   if (!refreshToken || !validateTokenStructure(refreshToken)) {
-    console.warn('[Auth] No valid refresh token available. Logging out.');
     logout();
-    return Promise.reject(new Error('Session expired'));
+    return Promise.reject(new Error('Session expired: Invalid refresh token'));
   }
 
-  // 2. Queueing logic
+  // B. If already refreshing, queue this request
   if (isRefreshing) {
     return new Promise<string>((resolve, reject) => {
       failedQueue.push({ resolve, reject });
@@ -188,27 +161,28 @@ async function handle401Error(originalRequest: CustomAxiosRequestConfig) {
       .catch((err) => Promise.reject(err));
   }
 
-  // 3. Start Refresh Process
+  // C. Perform Refresh
   isRefreshing = true;
 
   try {
+    // Create a dedicated client for refresh to avoid interceptor loops
     const refreshClient = axios.create({ 
       baseURL: VITE_API_BASE_URL, 
       timeout: 15000 
     });
     
-    // Call: http://localhost:3000/api/accounts/auth/refresh
-    const { data } = await refreshClient.post(ApiEndpoints.REFRESH_TOKEN, { refreshToken });
+    // Payload must match RefreshTokenRequestDto
+    const { data } = await refreshClient.post<RefreshTokenResponse>(
+      ApiEndpoints.REFRESH_TOKEN, 
+      { refreshToken }
+    );
     
-    // ✅ FIX: Use the typed interface instead of 'any'
-    const responseData = data as GenericAuthResponse;
-
-    // Safely extract tokens from either structure
-    const newAccessToken = responseData.tokens?.accessToken || responseData.accessToken;
-    const newRefreshToken = responseData.tokens?.refreshToken || responseData.refreshToken;
+    // Strict Backend DTO: { accessToken, refreshToken, tokenMetadata, ... }
+    const newAccessToken = data.accessToken;
+    const newRefreshToken = data.refreshToken;
 
     if (!newAccessToken || !newRefreshToken) {
-      throw new Error('Invalid token response structure');
+      throw new Error('Invalid token response from server');
     }
 
     // Update Store
@@ -227,29 +201,32 @@ async function handle401Error(originalRequest: CustomAxiosRequestConfig) {
     return apiClient(originalRequest);
 
   } catch (err) {
-    console.error('[Auth] Refresh failed', err);
     processQueue(err as Error, null);
     logout();
-    return Promise.reject(new Error('Session expired'));
+    return Promise.reject(new Error('Session expired: Refresh failed'));
   } finally {
     isRefreshing = false;
   }
 }
 
 // ============================================================================
-// ERROR HELPER (Exported for UI components)
+// ERROR UTILS
 // ============================================================================
+
 export const extractErrorMessage = (error: unknown): string => {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.data?.message) {
-        // Handle array of messages (Class Validator)
-        if (Array.isArray(error.response.data.message)) {
-            return error.response.data.message[0];
-        }
-        return error.response.data.message;
-      }
-      if (error.response?.data?.error) return error.response.data.error;
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    
+    // Handle NestJS Class Validator array responses
+    if (data?.message && Array.isArray(data.message)) {
+      return data.message[0];
     }
-    if (error instanceof Error) return error.message;
-    return 'An unexpected error occurred';
-  };
+    
+    // Handle Standard NestJS error response
+    if (data?.message) return data.message;
+    if (data?.error) return data.error;
+  }
+  
+  if (error instanceof Error) return error.message;
+  return 'An unexpected error occurred.';
+};

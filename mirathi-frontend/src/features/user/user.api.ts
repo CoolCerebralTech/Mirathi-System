@@ -15,7 +15,7 @@ import {
   GetMyUserResponseSchema,
   UpdateMyUserResponseSchema,
   DeactivateMyAccountResponseSchema,
-} from '../../types';
+} from '../../types/user.types';
 import {
   type GetMyProfileResponse,
   type UpdateMyProfileInput,
@@ -27,7 +27,7 @@ import {
   UpdateMyProfileResponseSchema,
   UpdateMarketingPreferencesResponseSchema,
   RemoveAddressResponseSchema,
-} from '../../types';
+} from '../../types/profile.types';
 
 // ============================================================================
 // CONFIGURATION & CONSTANTS

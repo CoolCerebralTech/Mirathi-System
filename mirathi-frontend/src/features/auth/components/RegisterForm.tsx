@@ -1,8 +1,7 @@
 // FILE: src/features/auth/components/RegisterForm.tsx
-// CONTEXT: Mirathi Identity Layer (User Registration & Device Fingerprinting)
-// DESIGN: Light Mode (Professional/Legal Tech), High Trust
 
-import { useForm, Controller } from 'react-hook-form';
+import { useState, useEffect, useRef } from 'react';
+import { useForm, Controller, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -12,36 +11,28 @@ import {
   User, 
   ShieldCheck, 
   CheckCircle2, 
-  AlertCircle, 
   Info,
   Sparkles,
   ArrowRight,
   Fingerprint
 } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
 
 import {
   RegisterRequestSchema,
   type RegisterInput,
-} from '../../../types';
+} from '../../../types/auth.types';
 import { useRegister } from '../auth.api';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Label } from '../../../components/ui/Label';
 import { Checkbox } from '../../../components/ui/Checkbox';
-import { PasswordStrengthIndicator } from '../../../components/auth/PasswordStrengthIndicator';
-import type { SubmitHandler } from 'react-hook-form';
+import { PasswordStrengthIndicator } from './PasswordStrengthIndicator';
 
 // ============================================================================
-// PASSWORD REQUIREMENTS COMPONENT (Visual Feedback)
+// SUB-COMPONENT: Password Requirements Visualizer
 // ============================================================================
 
-interface PasswordRequirementsProps {
-  password: string;
-  show: boolean;
-}
-
-function PasswordRequirements({ password, show }: PasswordRequirementsProps) {
+function PasswordRequirements({ password, show }: { password: string; show: boolean }) {
   if (!show) return null;
 
   const requirements = [
@@ -53,7 +44,7 @@ function PasswordRequirements({ password, show }: PasswordRequirementsProps) {
   ];
 
   return (
-    <div className="mt-3 space-y-2 rounded-lg border border-neutral-200 bg-neutral-50 p-4 animate-fade-in">
+    <div className="mt-3 space-y-2 rounded-lg border border-neutral-200 bg-neutral-50 p-4 animate-in fade-in slide-in-from-top-2 duration-300">
       <p className="flex items-center gap-2 text-xs font-bold text-neutral-600 uppercase tracking-wider">
         <Info size={12} className="text-[#C8A165]" />
         Security Standards
@@ -80,7 +71,7 @@ function PasswordRequirements({ password, show }: PasswordRequirementsProps) {
 }
 
 // ============================================================================
-// MAIN REGISTRATION FORM
+// MAIN FORM
 // ============================================================================
 
 export function RegisterForm() {
@@ -89,19 +80,16 @@ export function RegisterForm() {
   const { mutate: registerUser, isPending } = useRegister();
   const [showPasswordRequirements, setShowPasswordRequirements] = useState(false);
 
-  // 1. DEVICE FINGERPRINTING (For Security/Audit Trail)
+  // Device Fingerprinting
   const deviceIdRef = useRef<string | null>(null);
   
   useEffect(() => {
-    const getDeviceId = () => {
-      let id = localStorage.getItem('mirathi_device_id');
-      if (!id) {
-        id = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        localStorage.setItem('mirathi_device_id', id);
-      }
-      return id;
-    };
-    deviceIdRef.current = getDeviceId();
+    let id = localStorage.getItem('mirathi_device_id');
+    if (!id) {
+      id = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('mirathi_device_id', id);
+    }
+    deviceIdRef.current = id;
   }, []);
 
   const {
@@ -133,17 +121,11 @@ export function RegisterForm() {
           ...formData,
           deviceId: deviceIdRef.current || undefined,
         },
-        rememberMe: true, // Auto-session persistence
+        rememberMe: true,
       },
       {
         onSuccess: () => {
-          // ✅ UPDATED: Direct navigation to dashboard (no verification step)
-          // Users are immediately logged in and can access their account
           navigate('/dashboard', { replace: true });
-        },
-        onError: (error) => {
-          console.error("Registration failed:", error);
-          // Toast notifications handled by the API hook wrapper
         },
       },
     );
@@ -151,12 +133,8 @@ export function RegisterForm() {
 
   return (
     <div className="w-full max-w-md mx-auto">
-      
-      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* HEADER - "The Golden Entry" */}
-      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      {/* HEADER */}
       <div className="mb-8 text-center">
-        {/* Visual Anchor */}
         <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#0F3D3E]/5 border border-[#0F3D3E]/10">
           <Sparkles className="h-8 w-8 text-[#0F3D3E]" />
         </div>
@@ -169,176 +147,140 @@ export function RegisterForm() {
           {t('auth:get_started_prompt', 'Join the thousands of Kenyan families securing their future with Mirathi.')}
         </p>
 
-        {/* Trust Badge */}
         <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-semibold text-emerald-700">
           <ShieldCheck className="h-3.5 w-3.5" />
           <span>{t('auth:secure_registration', 'Bank-Grade AES-256 Security')}</span>
         </div>
       </div>
 
-      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* FORM INTERFACE */}
-      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      <div className="space-y-5">
+      {/* FORM */}
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         
-        {/* Name Fields (Row) */}
+        {/* Name Fields */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label htmlFor="firstName" className="text-sm font-semibold text-[#0F3D3E]">
-              {t('auth:first_name', 'First Name')}
-              <span className="ml-1 text-red-500">*</span>
+              {t('auth:first_name', 'First Name')} <span className="text-red-500">*</span>
             </Label>
             <div className="relative">
               <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
               <Input
                 id="firstName"
-                type="text"
-                placeholder={t('auth:first_name_placeholder', 'John')}
+                placeholder="John"
                 autoComplete="given-name"
                 disabled={isPending}
-                className={`pl-10 bg-white text-neutral-900 border ${
-                  errors.firstName 
-                    ? 'border-red-500 focus:border-red-500 focus:ring-red-200' 
-                    : 'border-neutral-200 focus:border-[#0F3D3E] focus:ring-[#0F3D3E]/20'
-                } transition-all`}
+                className="pl-10"
+                // ✅ FIXED: Pass string or undefined
+                error={errors.firstName?.message} 
                 {...register('firstName')}
               />
             </div>
+            {/* Keeping explicit error message just in case Input doesn't display it */}
             {errors.firstName && (
-              <p className="flex items-center gap-1.5 text-xs text-red-600 font-medium">
-                <AlertCircle size={12} />
-                <span>{errors.firstName.message as string}</span>
-              </p>
+              <p className="text-xs text-red-600 font-medium">{errors.firstName.message}</p>
             )}
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="lastName" className="text-sm font-semibold text-[#0F3D3E]">
-              {t('auth:last_name', 'Last Name')}
-              <span className="ml-1 text-red-500">*</span>
+              {t('auth:last_name', 'Last Name')} <span className="text-red-500">*</span>
             </Label>
             <div className="relative">
               <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
               <Input
                 id="lastName"
-                type="text"
-                placeholder={t('auth:last_name_placeholder', 'Kamau')}
+                placeholder="Kamau"
                 autoComplete="family-name"
                 disabled={isPending}
-                className={`pl-10 bg-white text-neutral-900 border ${
-                  errors.lastName 
-                    ? 'border-red-500 focus:border-red-500 focus:ring-red-200' 
-                    : 'border-neutral-200 focus:border-[#0F3D3E] focus:ring-[#0F3D3E]/20'
-                } transition-all`}
+                className="pl-10"
+                // ✅ FIXED: Pass string or undefined
+                error={errors.lastName?.message}
                 {...register('lastName')}
               />
             </div>
             {errors.lastName && (
-              <p className="flex items-center gap-1.5 text-xs text-red-600 font-medium">
-                <AlertCircle size={12} />
-                <span>{errors.lastName.message as string}</span>
-              </p>
+              <p className="text-xs text-red-600 font-medium">{errors.lastName.message}</p>
             )}
           </div>
         </div>
 
-        {/* Email Field */}
+        {/* Email */}
         <div className="space-y-1.5">
           <Label htmlFor="email" className="text-sm font-semibold text-[#0F3D3E]">
-            {t('auth:email', 'Email Address')}
-            <span className="ml-1 text-red-500">*</span>
+            {t('auth:email', 'Email Address')} <span className="text-red-500">*</span>
           </Label>
           <div className="relative">
             <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
             <Input
               id="email"
               type="email"
-              placeholder={t('auth:email_placeholder', 'name@example.com')}
+              placeholder="name@example.com"
               autoComplete="email"
               disabled={isPending}
-              className={`pl-10 bg-white text-neutral-900 border ${
-                errors.email 
-                  ? 'border-red-500 focus:border-red-500 focus:ring-red-200' 
-                  : 'border-neutral-200 focus:border-[#0F3D3E] focus:ring-[#0F3D3E]/20'
-              } transition-all`}
+              className="pl-10"
+              // ✅ FIXED: Pass string or undefined
+              error={errors.email?.message}
               {...register('email')}
             />
           </div>
           {errors.email && (
-            <p className="flex items-center gap-1.5 text-xs text-red-600 font-medium">
-              <AlertCircle size={12} />
-              <span>{errors.email.message as string}</span>
-            </p>
+            <p className="text-xs text-red-600 font-medium">{errors.email.message}</p>
           )}
         </div>
 
-        {/* Password Field */}
+        {/* Password */}
         <div className="space-y-1.5">
           <Label htmlFor="password" className="text-sm font-semibold text-[#0F3D3E]">
-            {t('auth:password', 'Password')}
-            <span className="ml-1 text-red-500">*</span>
+            {t('auth:password', 'Password')} <span className="text-red-500">*</span>
           </Label>
           <div className="relative">
             <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
             <Input
               id="password"
               type="password"
-              placeholder={t('auth:password_placeholder', '••••••••')}
+              placeholder="••••••••"
               autoComplete="new-password"
               disabled={isPending}
               onFocus={() => setShowPasswordRequirements(true)}
-              className={`pl-10 bg-white text-neutral-900 border ${
-                errors.password 
-                  ? 'border-red-500 focus:border-red-500 focus:ring-red-200' 
-                  : 'border-neutral-200 focus:border-[#0F3D3E] focus:ring-[#0F3D3E]/20'
-              } transition-all`}
+              className="pl-10"
+              // ✅ FIXED: Pass string or undefined
+              error={errors.password?.message}
               {...register('password')}
             />
           </div>
           
           <PasswordStrengthIndicator password={watchedPassword} />
-          
           <PasswordRequirements password={watchedPassword} show={showPasswordRequirements} />
           
           {errors.password && (
-            <p className="flex items-center gap-1.5 text-xs text-red-600 font-medium">
-              <AlertCircle size={12} />
-              <span>{errors.password.message as string}</span>
-            </p>
+            <p className="text-xs text-red-600 font-medium">{errors.password.message}</p>
           )}
         </div>
 
         {/* Confirm Password */}
         <div className="space-y-1.5">
           <Label htmlFor="passwordConfirmation" className="text-sm font-semibold text-[#0F3D3E]">
-            {t('auth:confirm_password', 'Confirm Password')}
-            <span className="ml-1 text-red-500">*</span>
+            {t('auth:confirm_password', 'Confirm Password')} <span className="text-red-500">*</span>
           </Label>
           <div className="relative">
             <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
             <Input
               id="passwordConfirmation"
               type="password"
-              placeholder={t('auth:confirm_password_placeholder', '••••••••')}
+              placeholder="••••••••"
               autoComplete="new-password"
               disabled={isPending}
-              className={`pl-10 bg-white text-neutral-900 border ${
-                errors.passwordConfirmation 
-                  ? 'border-red-500 focus:border-red-500 focus:ring-red-200' 
-                  : 'border-neutral-200 focus:border-[#0F3D3E] focus:ring-[#0F3D3E]/20'
-              } transition-all`}
+              className="pl-10"
+              error={errors.passwordConfirmation?.message}
               {...register('passwordConfirmation')}
             />
           </div>
           {errors.passwordConfirmation && (
-            <p className="flex items-center gap-1.5 text-xs text-red-600 font-medium">
-              <AlertCircle size={12} />
-              <span>{errors.passwordConfirmation.message as string}</span>
-            </p>
+            <p className="text-xs text-red-600 font-medium">{errors.passwordConfirmation.message}</p>
           )}
         </div>
 
-        {/* Terms & Conditions (Consent) */}
+        {/* Legal Consent */}
         <div className="space-y-4 pt-4">
           <div className="flex items-start gap-3">
             <Controller
@@ -350,7 +292,7 @@ export function RegisterForm() {
                   checked={field.value}
                   onCheckedChange={field.onChange}
                   disabled={isPending}
-                  className="mt-1 border-neutral-400 data-[state=checked]:bg-[#0F3D3E] data-[state=checked]:border-[#0F3D3E]"
+                  className="mt-1"
                 />
               )}
             />
@@ -363,14 +305,11 @@ export function RegisterForm() {
               <Link to="/privacy-policy" className="text-[#0F3D3E] font-semibold hover:underline" target="_blank">
                 Privacy Policy
               </Link>
-              <span className="ml-1 text-red-500">*</span>
+              <span className="text-red-500 ml-1">*</span>
             </Label>
           </div>
           {errors.acceptedTerms && (
-            <p className="flex items-center gap-1.5 text-xs text-red-600 font-medium">
-              <AlertCircle size={12} />
-              <span>{errors.acceptedTerms.message as string}</span>
-            </p>
+            <p className="text-xs text-red-600 font-medium">{errors.acceptedTerms.message}</p>
           )}
 
           <div className="flex items-start gap-3">
@@ -383,7 +322,7 @@ export function RegisterForm() {
                   checked={field.value}
                   onCheckedChange={field.onChange}
                   disabled={isPending}
-                  className="mt-1 border-neutral-400 data-[state=checked]:bg-[#0F3D3E] data-[state=checked]:border-[#0F3D3E]"
+                  className="mt-1"
                 />
               )}
             />
@@ -393,11 +332,10 @@ export function RegisterForm() {
           </div>
         </div>
 
-        {/* Action Button */}
+        {/* Submit */}
         <Button
-          type="button" // Controlled by onClick to avoid double submit if needed, or use type="submit" in form
-          onClick={handleSubmit(onSubmit)}
-          className="group w-full bg-[#0F3D3E] hover:bg-[#0F3D3E]/90 text-white font-bold py-6 rounded-xl shadow-lg shadow-[#0F3D3E]/20 transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+          type="submit"
+          className="group w-full bg-[#0F3D3E] hover:bg-[#0F3D3E]/90 text-white font-bold py-6 rounded-xl mt-4"
           isLoading={isPending}
           disabled={isPending}
           size="lg"
@@ -411,11 +349,9 @@ export function RegisterForm() {
             {!isPending && <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />}
           </div>
         </Button>
-      </div>
+      </form>
 
-      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* DIVIDER */}
-      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
+      {/* FOOTER AREA */}
       <div className="relative my-8">
         <div className="absolute inset-0 flex items-center">
           <div className="w-full border-t border-neutral-200" />
@@ -427,9 +363,6 @@ export function RegisterForm() {
         </div>
       </div>
 
-      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* REDIRECT TO LOGIN */}
-      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
       <div className="text-center">
         <Link 
           to="/login" 
@@ -440,18 +373,14 @@ export function RegisterForm() {
         </Link>
       </div>
 
-      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
-      {/* FOOTER - COMPLIANCE BADGE */}
-      {/* =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */}
       <div className="mt-8 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
         <div className="flex items-start gap-3 text-xs leading-relaxed text-neutral-500">
           <Fingerprint size={16} className="mt-0.5 flex-shrink-0 text-[#0F3D3E]" />
           <span>
-            <strong>Device Verification Active:</strong> We register your device ID ({deviceIdRef.current?.slice(0,8)}...) to prevent unauthorized access to the Estate Service.
+            <strong>Device Verification Active:</strong> We register your device ID ({deviceIdRef.current?.slice(0,8)}...) to prevent unauthorized access.
           </span>
         </div>
       </div>
-
     </div>
   );
 }

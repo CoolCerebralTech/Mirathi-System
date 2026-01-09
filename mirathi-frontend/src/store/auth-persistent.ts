@@ -28,7 +28,7 @@ export const usePersistentAuthStore = create<AuthData & PersistentActions>()(
       resetAuth: () => set({ user: null, accessToken: null, refreshToken: null }),
     }),
     {
-      name: 'shamba-sure-auth', // Key in localStorage
+      name: 'mirathi-auth', // Key in localStorage
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         user: state.user,

@@ -14,7 +14,7 @@ import { Label } from '../../../components/ui/Label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../../../components/ui/Card';
 import { Alert, AlertDescription, AlertTitle } from '../../../components/ui/Alert';
 import { Checkbox } from '../../../components/ui/Checkbox';
-import { PasswordStrengthIndicator } from '../../../components/auth/PasswordStrengthIndicator'; // Reusable component
+import { PasswordStrengthIndicator } from '../../auth/components/PasswordStrengthIndicator'; // Reusable component
 import { PasswordRequirements } from '../../../components/auth/PasswordRequirements'; // Reusable component
 
 // ============================================================================

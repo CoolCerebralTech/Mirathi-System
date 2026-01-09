@@ -10,7 +10,7 @@ import { useResetPassword, useValidateResetToken } from '../auth.api'; // Import
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Label } from '../../../components/ui/Label';
-import { PasswordStrengthIndicator } from '../../../components/auth/PasswordStrengthIndicator'; // Reusable component
+import { PasswordStrengthIndicator } from './PasswordStrengthIndicator'; // Reusable component
 import { PasswordRequirements } from '../../../components/auth/PasswordRequirements'; // Reusable component
 
 // ============================================================================

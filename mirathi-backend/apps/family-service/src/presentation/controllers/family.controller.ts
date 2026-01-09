@@ -18,7 +18,7 @@ import { JwtAuthGuard } from '@shamba/auth';
 import { FamilyService } from '../../application/services/family.service';
 import { AddFamilyMemberDto, CreateFamilyDto, UpdateFamilyMemberDto } from '../dto/family.dto';
 
-@Controller('family')
+@Controller()
 @UseGuards(JwtAuthGuard)
 export class FamilyController {
   constructor(private readonly familyService: FamilyService) {}
