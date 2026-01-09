@@ -1,10 +1,7 @@
-
-// ============================================================================
-// FILE 7: CreateFamilyDialog.tsx
-// ============================================================================
+// mirathi-frontend/src/components/family/CreateFamilyDialog.tsx
 
 import React from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Users } from 'lucide-react';
 import {
@@ -28,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui';
+
 import { useCreateFamily } from '../family.api';
 import { 
   CreateFamilySchema, 
@@ -49,6 +47,10 @@ export const CreateFamilyDialog: React.FC<CreateFamilyDialogProps> = ({
     defaultValues: {
       name: '',
       description: '',
+      // Initialize optional fields to empty strings to prevent "uncontrolled" warnings
+      tribe: '',
+      clanName: '',
+      homeCounty: undefined, 
     },
   });
 
@@ -59,8 +61,21 @@ export const CreateFamilyDialog: React.FC<CreateFamilyDialogProps> = ({
     },
   });
 
-  const onSubmit = (data: CreateFamilyInput) => {
-    createFamily(data);
+  const onSubmit: SubmitHandler<CreateFamilyInput> = (data) => {
+    // Clean empty strings to undefined for optional fields
+    // so the backend receives clean data
+    const cleanStr = (str: string | undefined | null) => 
+      (!str || str.trim() === '') ? undefined : str;
+
+    const payload: CreateFamilyInput = {
+      name: data.name,
+      description: cleanStr(data.description),
+      homeCounty: data.homeCounty, // Already undefined if not selected
+      tribe: cleanStr(data.tribe),
+      clanName: cleanStr(data.clanName),
+    };
+
+    createFamily(payload);
   };
 
   return (
@@ -78,6 +93,8 @@ export const CreateFamilyDialog: React.FC<CreateFamilyDialogProps> = ({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            
+            {/* Family Name */}
             <FormField
               control={form.control}
               name="name"
@@ -92,6 +109,7 @@ export const CreateFamilyDialog: React.FC<CreateFamilyDialogProps> = ({
               )}
             />
 
+            {/* Description */}
             <FormField
               control={form.control}
               name="description"
@@ -109,6 +127,7 @@ export const CreateFamilyDialog: React.FC<CreateFamilyDialogProps> = ({
               )}
             />
 
+            {/* County Selection */}
             <FormField
               control={form.control}
               name="homeCounty"
@@ -134,6 +153,7 @@ export const CreateFamilyDialog: React.FC<CreateFamilyDialogProps> = ({
               )}
             />
 
+            {/* Tribe & Clan */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}

@@ -1,6 +1,4 @@
-// ============================================================================
-// FILE 6: MemberDetailSheet.tsx
-// ============================================================================
+// mirathi-frontend/src/components/family/MemberDetailSheet.tsx
 
 import React from 'react';
 import { 
@@ -29,7 +27,17 @@ import {
 } from '@/components/ui';
 import { useRemoveFamilyMember, useFamilyTree } from '../family.api';
 import { cn } from '@/lib/utils';
-import type { Gender } from '@/types/family.types';
+import type { 
+  Gender, 
+  FamilyTreeNode,
+  TreeSpouse,
+  TreeChild,
+  TreeParent 
+} from '@/types/family.types';
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
 
 interface MemberDetailSheetProps {
   memberId: string | null;
@@ -39,6 +47,11 @@ interface MemberDetailSheetProps {
   onEdit?: (memberId: string) => void;
 }
 
+/**
+ * Member type used internally - union of possible member sources
+ */
+type MemberType = 'ROOT' | 'SPOUSE' | 'CHILD' | 'PARENT';
+
 interface NormalizedMember {
   id: string;
   name: string;
@@ -46,10 +59,142 @@ interface NormalizedMember {
   isAlive: boolean;
   isMinor: boolean;
   gender?: Gender;
-  type: 'ROOT' | 'SPOUSE' | 'CHILD' | 'PARENT';
-  houseName?: string;
-  age?: number;
+  type: MemberType;
+  houseName?: string | null;
+  age?: number | null;
 }
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Finds a member in the tree and normalizes their data structure
+ */
+const findAndNormalizeMember = (
+  tree: FamilyTreeNode | undefined,
+  memberId: string | null
+): NormalizedMember | null => {
+  if (!memberId || !tree) return null;
+
+  // Check Root (Self)
+  if (tree.id === memberId) {
+    return {
+      id: tree.id,
+      name: tree.name,
+      role: tree.role || 'SELF',
+      isAlive: tree.isAlive,
+      isMinor: false, // Root is always adult
+      gender: tree.gender ?? undefined,
+      age: undefined, // Age not available on root
+      type: 'ROOT',
+    };
+  }
+
+  // Check Spouses
+  if (tree.spouses) {
+    const spouse = tree.spouses.find((s: TreeSpouse) => s.id === memberId);
+    if (spouse) {
+      return {
+        id: spouse.id,
+        name: spouse.name,
+        role: spouse.role || 'SPOUSE',
+        isAlive: true, // Spouses in tree are assumed alive
+        isMinor: false, // Spouses are adults
+        gender: undefined, // Gender not in TreeSpouse type
+        houseName: spouse.houseName ?? undefined,
+        age: undefined,
+        type: 'SPOUSE',
+      };
+    }
+  }
+
+  // Check Children
+  if (tree.children) {
+    const child = tree.children.find((c: TreeChild) => c.id === memberId);
+    if (child) {
+      return {
+        id: child.id,
+        name: child.name,
+        role: child.role || 'CHILD',
+        isAlive: true, // Children in tree are assumed alive
+        isMinor: child.isMinor,
+        gender: undefined, // Gender not in TreeChild type
+        age: undefined,
+        houseName: undefined,
+        type: 'CHILD',
+      };
+    }
+  }
+
+  // Check Parents
+  if (tree.parents) {
+    const parent = tree.parents.find((p: TreeParent) => p.id === memberId);
+    if (parent) {
+      return {
+        id: parent.id,
+        name: parent.name,
+        role: parent.role,
+        isAlive: parent.isAlive,
+        isMinor: false, // Parents are adults
+        gender: parent.gender ?? undefined,
+        age: undefined,
+        houseName: undefined,
+        type: 'PARENT',
+      };
+    }
+  }
+
+  return null;
+};
+
+/**
+ * Maps role enum to human-readable display text
+ */
+const getRoleDisplayText = (role: string): string => {
+  const roleMap: Record<string, string> = {
+    'SELF': 'Family Head (You)',
+    'SPOUSE': 'Spouse',
+    'CHILD': 'Child',
+    'ADOPTED_CHILD': 'Adopted Child',
+    'FATHER': 'Father',
+    'MOTHER': 'Mother',
+    'SIBLING': 'Sibling',
+    'HALF_SIBLING': 'Half Sibling',
+  };
+  
+  return roleMap[role] || role;
+};
+
+/**
+ * Returns gender symbol for display
+ */
+const getGenderSymbol = (gender?: Gender): string => {
+  if (gender === 'MALE') return '♂';
+  if (gender === 'FEMALE') return '♀';
+  return '';
+};
+
+/**
+ * Gets succession rights description based on role
+ */
+const getSuccessionRightsText = (role: string): string => {
+  const rightsMap: Record<string, string> = {
+    'SPOUSE': 'Entitled to spousal share under intestate succession',
+    'CHILD': 'Entitled to children\'s share under intestate succession',
+    'ADOPTED_CHILD': 'Has same inheritance rights as biological children',
+    'FATHER': 'May inherit if no spouse or children',
+    'MOTHER': 'May inherit if no spouse or children',
+    'SIBLING': 'May inherit if no closer relatives exist',
+    'SELF': 'Primary owner of the estate',
+  };
+  
+  return rightsMap[role] || 'Refer to Kenyan Succession Law for details';
+};
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
 
 export const MemberDetailSheet: React.FC<MemberDetailSheetProps> = ({ 
   memberId, 
@@ -63,73 +208,22 @@ export const MemberDetailSheet: React.FC<MemberDetailSheetProps> = ({
     onSuccess: onClose
   });
 
-  // Helper to find and normalize member
-  const getNormalizedMember = (id: string | null): NormalizedMember | null => {
-    if (!id || !tree) return null;
+  const member = findAndNormalizeMember(tree, memberId);
+  const isMe = member?.type === 'ROOT';
 
-    // Check Root
-    if (tree.id === id) {
-      return {
-        id: tree.id,
-        name: tree.name,
-        role: tree.role || 'SELF',
-        isAlive: tree.isAlive ?? true,
-        isMinor: tree.isMinor ?? false,
-        gender: tree.gender,
-        age: tree.age,
-        type: 'ROOT'
-      };
+  const handleDelete = (): void => {
+    if (!member || !memberId) return;
+    
+    const confirmed = window.confirm(
+      `Are you sure you want to remove ${member.name} from your succession plan?`
+    );
+    
+    if (confirmed) {
+      removeMember(memberId);
     }
-
-    // Check Spouses
-    const spouse = tree.spouses?.find(s => s.id === id);
-    if (spouse) {
-      return {
-        id: spouse.id,
-        name: spouse.name,
-        role: spouse.role || 'SPOUSE',
-        isAlive: spouse.isAlive ?? true,
-        isMinor: false,
-        gender: spouse.gender,
-        houseName: spouse.houseName,
-        type: 'SPOUSE'
-      };
-    }
-
-    // Check Children
-    const child = tree.children?.find(c => c.id === id);
-    if (child) {
-      return {
-        id: child.id,
-        name: child.name,
-        role: child.role || 'CHILD',
-        isAlive: child.isAlive ?? true,
-        isMinor: child.isMinor,
-        gender: child.gender,
-        age: child.age,
-        type: 'CHILD'
-      };
-    }
-
-    // Check Parents
-    const parent = tree.parents?.find(p => p.id === id);
-    if (parent) {
-      return {
-        id: parent.id,
-        name: parent.name,
-        role: parent.role,
-        isAlive: parent.isAlive ?? true,
-        isMinor: false,
-        gender: parent.gender,
-        type: 'PARENT'
-      };
-    }
-
-    return null;
   };
 
-  const member = getNormalizedMember(memberId);
-
+  // Loading State
   if (isLoading) {
     return (
       <Sheet open={!!memberId} onOpenChange={onClose}>
@@ -142,6 +236,7 @@ export const MemberDetailSheet: React.FC<MemberDetailSheetProps> = ({
     );
   }
 
+  // Not Found State
   if (!member) {
     return (
       <Sheet open={!!memberId} onOpenChange={onClose}>
@@ -155,44 +250,17 @@ export const MemberDetailSheet: React.FC<MemberDetailSheetProps> = ({
     );
   }
 
-  const isMe = member.type === 'ROOT';
-
-  const handleDelete = () => {
-    if (window.confirm(`Are you sure you want to remove ${member.name} from your succession plan?`)) {
-      removeMember(memberId!);
-    }
-  };
-
-  const getRoleDisplay = (role: string) => {
-    const roleMap: Record<string, string> = {
-      'SELF': 'Family Head (You)',
-      'SPOUSE': 'Spouse',
-      'CHILD': 'Child',
-      'ADOPTED_CHILD': 'Adopted Child',
-      'FATHER': 'Father',
-      'MOTHER': 'Mother',
-      'SIBLING': 'Sibling',
-      'HALF_SIBLING': 'Half Sibling',
-    };
-    return roleMap[role] || role;
-  };
-
-  const getGenderIcon = (gender?: Gender) => {
-    if (gender === 'MALE') return '♂';
-    if (gender === 'FEMALE') return '♀';
-    return '';
-  };
-
   return (
     <Sheet open={!!memberId} onOpenChange={onClose}>
       <SheetContent className="sm:max-w-[500px] overflow-y-auto">
+        {/* Header */}
         <SheetHeader>
           <div className="flex items-center gap-2 flex-wrap">
             <SheetTitle className="flex items-center gap-2">
               {member.name}
               {member.gender && (
                 <span className="text-muted-foreground text-base font-normal">
-                  {getGenderIcon(member.gender)}
+                  {getGenderSymbol(member.gender)}
                 </span>
               )}
             </SheetTitle>
@@ -213,15 +281,16 @@ export const MemberDetailSheet: React.FC<MemberDetailSheetProps> = ({
           </div>
           
           <SheetDescription>
-            {getRoleDisplay(member.role)}
+            {getRoleDisplayText(member.role)}
           </SheetDescription>
         </SheetHeader>
 
+        {/* Content */}
         <div className="py-6 space-y-6">
           {/* Quick Stats */}
-          {(member.age !== undefined || member.gender) && (
+          {(member.age !== undefined && member.age !== null) || member.gender ? (
             <div className="grid grid-cols-2 gap-4">
-              {member.age !== undefined && (
+              {member.age !== undefined && member.age !== null && (
                 <div className="flex items-center gap-2 text-sm">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span>{member.age} years old</span>
@@ -234,7 +303,7 @@ export const MemberDetailSheet: React.FC<MemberDetailSheetProps> = ({
                 </div>
               )}
             </div>
-          )}
+          ) : null}
 
           <Separator />
 
@@ -275,29 +344,33 @@ export const MemberDetailSheet: React.FC<MemberDetailSheetProps> = ({
 
           {/* Guardianship Section for Minors */}
           {member.isMinor && member.isAlive && (
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium flex items-center gap-2">
-                <Baby className="h-4 w-4 text-primary" />
-                Guardianship Status
-              </h4>
-              
-              <Alert className="bg-amber-50 border-amber-200">
-                <ShieldCheck className="h-4 w-4 text-amber-600" />
-                <AlertTitle className="text-amber-800">Action Required</AlertTitle>
-                <AlertDescription className="text-amber-700 text-sm">
-                  Minors require a testamentary guardian in your will (Section 70, Children Act).
-                  Assign a guardian to ensure proper care and protection.
-                </AlertDescription>
-              </Alert>
+            <>
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium flex items-center gap-2">
+                  <Baby className="h-4 w-4 text-primary" />
+                  Guardianship Status
+                </h4>
+                
+                <Alert className="bg-amber-50 border-amber-200">
+                  <ShieldCheck className="h-4 w-4 text-amber-600" />
+                  <AlertTitle className="text-amber-800">Action Required</AlertTitle>
+                  <AlertDescription className="text-amber-700 text-sm">
+                    Minors require a testamentary guardian in your will (Section 70, Children Act).
+                    Assign a guardian to ensure proper care and protection.
+                  </AlertDescription>
+                </Alert>
 
-              <Button 
-                className="w-full" 
-                onClick={() => onOpenGuardianship(member.id)}
-              >
-                <ShieldCheck className="mr-2 h-4 w-4" />
-                Manage Guardianship
-              </Button>
-            </div>
+                <Button 
+                  className="w-full" 
+                  onClick={() => onOpenGuardianship(member.id)}
+                >
+                  <ShieldCheck className="mr-2 h-4 w-4" />
+                  Manage Guardianship
+                </Button>
+              </div>
+              
+              <Separator />
+            </>
           )}
 
           {/* Legal Information */}
@@ -310,12 +383,7 @@ export const MemberDetailSheet: React.FC<MemberDetailSheetProps> = ({
                 <div>
                   <p className="font-medium">Succession Rights</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {member.role === 'SPOUSE' && 'Entitled to spousal share under intestate succession'}
-                    {member.role === 'CHILD' && 'Entitled to children\'s share under intestate succession'}
-                    {member.role === 'ADOPTED_CHILD' && 'Has same inheritance rights as biological children'}
-                    {(member.role === 'FATHER' || member.role === 'MOTHER') && 'May inherit if no spouse or children'}
-                    {member.role === 'SIBLING' && 'May inherit if no closer relatives exist'}
-                    {member.role === 'SELF' && 'Primary owner of the estate'}
+                    {getSuccessionRightsText(member.role)}
                   </p>
                 </div>
               </div>
@@ -330,7 +398,7 @@ export const MemberDetailSheet: React.FC<MemberDetailSheetProps> = ({
             </div>
           </div>
 
-          {/* Status Information */}
+          {/* Deceased Status */}
           {!member.isAlive && (
             <div className="space-y-3">
               <h4 className="text-sm font-medium text-muted-foreground">Status</h4>
@@ -347,6 +415,7 @@ export const MemberDetailSheet: React.FC<MemberDetailSheetProps> = ({
           )}
         </div>
 
+        {/* Footer */}
         <SheetFooter className="border-t pt-4">
           <Button variant="outline" onClick={onClose} className="w-full">
             Close

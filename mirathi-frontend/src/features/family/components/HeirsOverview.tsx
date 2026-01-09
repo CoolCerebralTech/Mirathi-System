@@ -1,6 +1,4 @@
-// ============================================================================
-// FILE 3: HeirsOverview.tsx
-// ============================================================================
+// mirathi-frontend/src/components/family/HeirsOverview.tsx
 
 import React from 'react';
 import { Scroll, Info, AlertTriangle, Loader2 } from 'lucide-react';
@@ -8,8 +6,8 @@ import {
   Card, 
   CardHeader, 
   CardTitle, 
-  CardContent,
-  CardDescription,
+  CardContent, 
+  CardDescription, 
   Badge,
   HoverCard,
   HoverCardTrigger,
@@ -19,11 +17,36 @@ import {
   AlertDescription,
 } from '@/components/ui';
 import { usePotentialHeirs } from '../family.api';
-import type { PotentialHeir } from '@/types/family.types';
+import type { PotentialHeir, HeirsResponse } from '@/types/family.types';
 import { cn } from '@/lib/utils';
 
+// ============================================================================
+// LOCAL TYPE EXTENSIONS
+// ============================================================================
+
+interface ExtendedHeir extends PotentialHeir {
+  share?: string;
+  houseOrder?: number;
+  conditions?: string[];
+}
+
+// FIX: We must Omit 'marriageType' from the base to redefine it as a looser string
+interface ExtendedHeirsResponse extends Omit<HeirsResponse, 'heirs' | 'marriageType'> {
+  heirs: ExtendedHeir[];
+  religion?: string;
+  warnings?: string[];
+  marriageType?: string; 
+}
+
+// ============================================================================
+// COMPONENT
+// ============================================================================
+
 export const HeirsOverview: React.FC<{ familyId: string }> = ({ familyId }) => {
-  const { data, isLoading, isError, error } = usePotentialHeirs(familyId);
+  const { data: rawData, isLoading, isError, error } = usePotentialHeirs(familyId);
+
+  // Safely cast to our extended type to handle optional fields missing in strict type
+  const data = rawData as unknown as ExtendedHeirsResponse | undefined;
 
   if (isLoading) {
     return (
@@ -117,7 +140,7 @@ export const HeirsOverview: React.FC<{ familyId: string }> = ({ familyId }) => {
   );
 };
 
-const HeirRow: React.FC<{ heir: PotentialHeir }> = ({ heir }) => {
+const HeirRow: React.FC<{ heir: ExtendedHeir }> = ({ heir }) => {
   const isWarning = heir.category === 'WARNING';
 
   const getCategoryColor = () => {
@@ -150,6 +173,12 @@ const HeirRow: React.FC<{ heir: PotentialHeir }> = ({ heir }) => {
             <Badge variant="secondary" className="text-[10px]">
               {heir.house}
               {heir.houseOrder && ` (${heir.houseOrder})`}
+            </Badge>
+          )}
+
+          {heir.isMinor && (
+            <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-600 border-amber-200">
+              Minor
             </Badge>
           )}
         </div>

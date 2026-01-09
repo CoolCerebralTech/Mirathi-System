@@ -9,7 +9,7 @@ import { z } from 'zod';
 export const Gender = {
   MALE: 'MALE',
   FEMALE: 'FEMALE',
-  OTHERS: 'OTHERS', // Updated to match Prisma schema
+  OTHERS: 'OTHERS',
 } as const;
 export type Gender = (typeof Gender)[keyof typeof Gender];
 
@@ -124,6 +124,8 @@ export const CreateFamilySchema = z.object({
     .min(3, 'Family name must be at least 3 characters')
     .max(200, 'Family name cannot exceed 200 characters'),
   description: z.string().max(500, 'Description cannot exceed 500 characters').optional(),
+  // Note: Backend currently consumes name/description. 
+  // County/Tribe fields kept for future UI/DB expansion.
   homeCounty: z.nativeEnum(KenyanCounty).optional(),
   tribe: z.string().max(50).optional(),
   clanName: z.string().max(100).optional(),
@@ -156,23 +158,22 @@ export const AddFamilyMemberSchema = z.object({
   // Contact
   phoneNumber: z.string().max(20).optional(),
   email: z
-  .string()
-  .email('Invalid email address')
-  .optional()
-  .or(z.literal('')),
+    .string()
+    .email('Invalid email address')
+    .optional()
+    .or(z.literal('')),
   currentAddress: z.string().max(500).optional(),
   
-  // Life Status
-  isAlive: z.boolean().default(true),
+  // IMPORTANT: Backend handles isAlive/isMinor defaults. 
+  // Sending them caused 400 Bad Request in tests.
+  // We only include optional override fields if needed for specialized logic later.
+  
   dateOfDeath: z.string().optional(),
   deathCertNo: z.string().max(50).optional(),
-  causeOfDeath: z.string().max(500).optional(),
-  placeOfDeath: z.string().max(200).optional(),
   
   // Special Statuses
   hasDisability: z.boolean().default(false),
   disabilityType: z.string().optional(),
-  isMentallyCapable: z.boolean().default(true),
   
   // Adoption
   isAdopted: z.boolean().default(false),
@@ -204,12 +205,10 @@ export const UpdateFamilyMemberSchema = z.object({
   email: z.string().email().max(255).optional(),
   currentAddress: z.string().optional(),
   
-  // Life Status
+  // Life Status - Update allows changing this
   isAlive: z.boolean().optional(),
   dateOfDeath: z.string().datetime().optional(),
   deathCertNo: z.string().max(50).optional(),
-  causeOfDeath: z.string().max(500).optional(),
-  placeOfDeath: z.string().max(200).optional(),
   
   // Disability
   hasDisability: z.boolean().optional(),
@@ -225,10 +224,7 @@ export const CreateMarriageSchema = z.object({
   status: z.nativeEnum(MarriageStatus).default('ACTIVE'),
   marriageDate: z.string().datetime(),
   certNumber: z.string().max(100).optional(),
-  registeredAt: z.string().datetime().optional(),
-  registryOffice: z.string().max(200).optional(),
   isPolygamous: z.boolean().default(false),
-  marriageOrder: z.number().int().positive().optional(),
   polygamousHouseId: z.string().uuid().optional(),
 });
 
@@ -243,6 +239,7 @@ export const CreatePolygamousHouseSchema = z.object({
 });
 
 // --- Guardian Eligibility Checklist ---
+// Strictly matches the Backend Interface tested
 export const GuardianEligibilityChecklistSchema = z.object({
   // Basic Requirements (Critical)
   isOver18: z.boolean(),
@@ -273,12 +270,8 @@ export const GuardianEligibilityChecklistSchema = z.object({
 export const AssignGuardianSchema = z.object({
   wardId: z.string().uuid(),
   guardianId: z.string().uuid(),
-  isPrimary: z.boolean(),
-  isAlternate: z.boolean().default(false),
-  priorityOrder: z.number().int().positive().default(1),
-  checklist: GuardianEligibilityChecklistSchema,
-  courtApproved: z.boolean().default(false),
-  courtOrderRef: z.string().max(100).optional(),
+  isPrimary: z.boolean(), // Backend logic determines priority based on this
+  checklist: GuardianEligibilityChecklistSchema, // Required by backend for audit trail
 });
 
 // ============================================================================
@@ -312,9 +305,9 @@ export interface FamilyResponse {
   name: string;
   description?: string;
   creatorId: string;
-  homeCounty?: KenyanCounty;
-  tribe?: string;
-  clanName?: string;
+  homeCounty?: KenyanCounty | null;
+  tribe?: string | null;
+  clanName?: string | null;
   isPolygamous: boolean;
   totalMembers: number;
   totalMinors: number;
@@ -330,60 +323,32 @@ export interface FamilyResponse {
 export interface FamilyMemberResponse {
   id: string;
   familyId: string;
-  userId?: string;
+  userId?: string | null;
   
-  // Core Identity
   firstName: string;
-  middleName?: string;
+  middleName?: string | null;
   lastName: string;
-  maidenName?: string;
+  maidenName?: string | null;
   relationship: RelationshipType;
   
-  // Demographics
-  gender?: Gender;
-  dateOfBirth?: string;
-  placeOfBirth?: string;
-  age?: number;
+  gender?: Gender | null;
+  dateOfBirth?: string | null;
+  placeOfBirth?: string | null;
+  age?: number | null;
   
-  // Identity Documents
-  nationalId?: string;
-  birthCertNo?: string;
-  kraPin?: string;
-  passportNumber?: string;
-  
-  // Life Status
   isAlive: boolean;
-  dateOfDeath?: string;
-  deathCertNo?: string;
-  causeOfDeath?: string;
-  placeOfDeath?: string;
+  dateOfDeath?: string | null;
   
-  // Special Statuses
   isMinor: boolean;
   hasDisability: boolean;
-  disabilityType?: string;
   isMentallyCapable: boolean;
   
-  // Adoption
-  isAdopted: boolean;
-  adoptionType?: string;
-  adoptionDate?: string;
-  biologicalParentIds?: string[];
+  phoneNumber?: string | null;
+  email?: string | null;
+  currentAddress?: string | null;
   
-  // Polygamy
-  polygamousHouseId?: string;
-  
-  // Contact
-  phoneNumber?: string;
-  email?: string;
-  currentAddress?: string;
-  
-  // Verification
   verificationStatus: VerificationStatus;
-  verifiedAt?: string;
-  verifiedBy?: string;
   
-  // Timestamps
   createdAt: string;
   updatedAt: string;
 }
@@ -394,97 +359,47 @@ export interface AddMemberResponse {
   suggestions: SmartSuggestion[];
 }
 
-// --- Marriage Response ---
-export interface MarriageResponse {
-  id: string;
-  familyId: string;
-  spouse1Id: string;
-  spouse2Id: string;
-  type: MarriageType;
-  status: MarriageStatus;
-  marriageDate: string;
-  divorceDate?: string;
-  isPolygamous: boolean;
-  marriageOrder?: number;
-  polygamousHouseId?: string;
-  certNumber?: string;
-  registeredAt?: string;
-  registryOffice?: string;
-  numberOfChildren: number;
-  verificationStatus: VerificationStatus;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// --- Polygamous House Response ---
-export interface PolygamousHouseResponse {
-  id: string;
-  familyId: string;
-  houseName: string;
-  houseOrder: number;
-  houseCode: string;
-  motherId: string;
-  motherName: string;
-  childCount: number;
-  isActive: boolean;
-  dissolutionDate?: string;
-  dissolutionReason?: string;
-  legalNotes?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 // --- Family Tree Structures ---
+// Matches the /family/mine/tree response
 export interface TreeSpouse {
   id: string;
   name: string;
-  houseName?: string;
-  houseOrder?: number;
+  houseName?: string | null;
   role?: string;
-  isAlive: boolean;
-  gender?: Gender;
 }
 
 export interface TreeChild {
   id: string;
   name: string;
   isMinor: boolean;
-  age?: number;
-  houseId?: string;
-  houseName?: string;
+  houseId?: string | null;
   role?: string;
-  isAlive: boolean;
-  gender?: Gender;
 }
 
+
+// Define the Parent interface to replace 'any'
 export interface TreeParent {
   id: string;
   name: string;
-  role: string;
+  role: string; // e.g., "FATHER" or "MOTHER"
   isAlive: boolean;
-  gender?: Gender;
+  gender?: Gender | null;
 }
 
 export interface FamilyTreeNode {
   id: string;
   name: string;
   role: string;
-  gender?: Gender;
+  gender?: Gender | null;
   isAlive: boolean;
-  age?: number;
-  isMinor: boolean;
   
   spouses?: TreeSpouse[];
   children?: TreeChild[];
-  parents?: TreeParent[];
-  siblings?: TreeChild[];
+  parents?: TreeParent[]; // Now strongly typed
   
   stats: {
     totalMembers: number;
-    totalMinors: number;
-    totalSpouses: number;
     isPolygamous: boolean;
-    completenessScore: number;
   };
 }
 
@@ -496,20 +411,17 @@ export interface PotentialHeir {
   priority: number;
   legalBasis: string;
   description: string;
-  house?: string;
-  houseOrder?: number;
-  share?: string;
-  conditions?: string[];
+  house?: string | null;
+  isMinor?: boolean;
 }
 
 export interface HeirsResponse {
   heirs: PotentialHeir[];
-  regime: 'TESTATE' | 'INTESTATE' | 'PARTIALLY_INTESTATE';
-  religion: 'STATUTORY' | 'ISLAMIC' | 'HINDU' | 'CUSTOMARY';
-  marriageType: MarriageType;
   disclaimer: string;
   legalNote: string;
-  warnings?: string[];
+  // Optional fields that might be added later
+  regime?: 'TESTATE' | 'INTESTATE';
+  marriageType?: MarriageType;
 }
 
 // --- Guardianship Responses ---
@@ -524,13 +436,8 @@ export interface GuardianAssignmentSummary {
   priorityOrder: number;
   isActive: boolean;
   eligibilityScore: number;
-  proximityScore: number;
-  relationshipScore: number;
-  overallScore: number;
   appointedDate: string;
-  activatedDate?: string;
   courtApproved: boolean;
-  courtOrderRef?: string;
 }
 
 export interface GuardianshipStatusResponse {
@@ -549,13 +456,12 @@ export interface GuardianshipStatusResponse {
     blockingIssues: string[];
     warnings: string[];
     legalReference?: string;
+    eligibilityChecklist: GuardianEligibilityChecklist;
   };
   primaryGuardian?: GuardianAssignmentSummary;
   alternateGuardians?: GuardianAssignmentSummary[];
   compliance?: {
     isCompliant: boolean;
-    lastReportDate?: string;
-    nextReportDue?: string;
     issues: string[];
   };
 }
@@ -584,9 +490,6 @@ export interface EligibilityCheckResponse {
   // Legal Context
   legalReference: string;
   nextSteps: string[];
-  
-  // Detailed Checklist
-  checklistSnapshot?: GuardianEligibilityChecklist;
 }
 
 export interface ChecklistTemplateResponse {
@@ -594,11 +497,9 @@ export interface ChecklistTemplateResponse {
   subtitle: string;
   sections: {
     category: string;
-    description?: string;
     checks: {
       key: keyof GuardianEligibilityChecklist;
       label: string;
-      description?: string;
       required: boolean;
       legalRef?: string;
     }[];
@@ -610,58 +511,14 @@ export interface ChecklistTemplateResponse {
     passingScore: number;
     excellentScore: number;
   };
-  legalContext: string;
 }
 
 // ============================================================================
-// 5. PAGINATED RESPONSE TYPES
+// 5. ERROR RESPONSE TYPES
 // ============================================================================
-
-export interface PaginationMeta {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrev: boolean;
-}
-
-export interface PaginatedResponse<T> {
-  data: T[];
-  meta: PaginationMeta;
-}
-
-// ============================================================================
-// 6. ERROR RESPONSE TYPES
-// ============================================================================
-
-export interface ValidationError {
-  field: string;
-  message: string;
-  code?: string;
-}
 
 export interface ErrorResponse {
   statusCode: number;
-  message: string;
+  message: string | string[]; // Backend returns array for validation errors
   error?: string;
-  details?: ValidationError[];
-  timestamp: string;
-  path?: string;
 }
-
-// ============================================================================
-// 7. UTILITY TYPES
-// ============================================================================
-
-export type CreateFamilyResponse = FamilyResponse;
-export type UpdateFamilyResponse = FamilyResponse;
-export type GetFamilyResponse = FamilyResponse;
-
-export type CreateMemberResponse = AddMemberResponse;
-export type UpdateMemberResponse = AddMemberResponse;
-export type GetMemberResponse = FamilyMemberResponse;
-
-export type ListMembersResponse = PaginatedResponse<FamilyMemberResponse>;
-export type ListMarriagesResponse = PaginatedResponse<MarriageResponse>;
-export type ListHousesResponse = PaginatedResponse<PolygamousHouseResponse>;

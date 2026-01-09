@@ -1,6 +1,4 @@
-// ============================================================================
-// FILE 2: FamilyTreeViz.tsx 
-// ============================================================================
+// mirathi-frontend/src/components/family/FamilyTreeViz.tsx
 
 import React from 'react';
 import { User, Baby, Heart, AlertCircle } from 'lucide-react';
@@ -22,15 +20,16 @@ interface FamilyTreeVizProps {
   onAddClick: () => void;
 }
 
+// Internal interface for normalized node data to simplify rendering logic
 interface VisualNode {
   id: string;
   name: string;
   role: string;
   isAlive: boolean;
   isMinor: boolean;
-  gender?: Gender;
+  gender?: Gender | null;
   highlight?: boolean;
-  houseName?: string;
+  houseName?: string | null;
 }
 
 export const FamilyTreeViz: React.FC<FamilyTreeVizProps> = ({ 
@@ -56,13 +55,15 @@ export const FamilyTreeViz: React.FC<FamilyTreeVizProps> = ({
     return <EmptyState onAddClick={onAddClick} />;
   }
 
-  // Transform API data to VisualNode format
+  // --- 1. DATA TRANSFORMATION ---
+
+  // Root Node (Me) - Always an adult
   const rootNode: VisualNode = {
     id: tree.id,
     name: tree.name,
     role: tree.role || 'Me',
-    isAlive: tree.isAlive ?? true,
-    isMinor: tree.isMinor ?? false,
+    isAlive: tree.isAlive,
+    isMinor: false, // The creator/root is always an adult
     gender: tree.gender,
     highlight: true,
   };
@@ -71,19 +72,19 @@ export const FamilyTreeViz: React.FC<FamilyTreeVizProps> = ({
     id: spouse.id,
     name: spouse.name,
     role: spouse.role || 'Spouse',
-    isAlive: spouse.isAlive ?? true,
+    isAlive: true, 
     isMinor: false,
-    gender: spouse.gender,
-    houseName: spouse.houseName || undefined,
+    gender: Gender.FEMALE, // Default inference, adjustable via type if needed
+    houseName: spouse.houseName,
   }));
 
   const childNodes: VisualNode[] = (tree.children || []).map((child) => ({
     id: child.id,
     name: child.name,
     role: child.role || 'Child',
-    isAlive: child.isAlive ?? true,
+    isAlive: true,
     isMinor: child.isMinor,
-    gender: child.gender,
+    gender: null,
     houseName: child.houseId ? `House ${child.houseId}` : undefined,
   }));
 
@@ -91,10 +92,15 @@ export const FamilyTreeViz: React.FC<FamilyTreeVizProps> = ({
     id: parent.id,
     name: parent.name,
     role: parent.role,
-    isAlive: parent.isAlive ?? true,
+    isAlive: parent.isAlive,
     isMinor: false,
     gender: parent.gender,
   }));
+
+  // --- 2. CALCULATED STATS ---
+  // We calculate totalMinors from the children array directly since 
+  // the tree.stats object from backend doesn't include it.
+  const totalMinors = childNodes.filter(c => c.isMinor).length;
 
   return (
     <div className="flex flex-col items-center space-y-8 p-4">
@@ -102,11 +108,13 @@ export const FamilyTreeViz: React.FC<FamilyTreeVizProps> = ({
       {tree.stats && (
         <div className="flex gap-4 text-sm text-muted-foreground">
           <div>Total Members: <span className="font-medium">{tree.stats.totalMembers}</span></div>
-          {tree.stats.totalMinors > 0 && (
+          
+          {totalMinors > 0 && (
             <div className="text-amber-600">
-              Minors: <span className="font-medium">{tree.stats.totalMinors}</span>
+              Minors: <span className="font-medium">{totalMinors}</span>
             </div>
           )}
+          
           {tree.stats.isPolygamous && (
             <Badge variant="secondary">Polygamous Family</Badge>
           )}

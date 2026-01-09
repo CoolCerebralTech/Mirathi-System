@@ -15,7 +15,6 @@ import type {
   AssignGuardianInput,
   GuardianEligibilityChecklist,
   // Response Types
-  CreateFamilyResponse,
   FamilyResponse,
   AddMemberResponse,
   FamilyMemberResponse,
@@ -51,6 +50,35 @@ export const guardianshipKeys = {
 };
 
 // ============================================================================
+// LOCAL TYPES (Strict Typing for Backend Responses)
+// ============================================================================
+
+// Defined locally to match the "Assign Guardian" backend response structure
+// without using 'any'
+export interface GuardianshipRecord {
+  id: string;
+  familyId: string;
+  wardId: string;
+  wardName: string;
+  wardAge: number;
+  status: string;
+  overallScore: number;
+  eligibilityScore: number;
+  eligibilityChecklist: GuardianEligibilityChecklist;
+  warnings: string[];
+  blockingIssues: string[];
+  createdAt: string;
+  updatedAt: string;
+  assignments: unknown[]; // Using unknown[] is safer than any[] if we don't need to read deep into this array here
+}
+
+export interface AssignGuardianResponse {
+  guardianship: GuardianshipRecord;
+  assignment: GuardianAssignmentSummary;
+  eligibility: EligibilityCheckResponse;
+}
+
+// ============================================================================
 // API FUNCTIONS - FAMILY OPERATIONS (Write)
 // ============================================================================
 
@@ -58,8 +86,8 @@ export const guardianshipKeys = {
  * Create or get existing family (idempotent)
  * POST /family
  */
-const createFamily = async (data: CreateFamilyInput): Promise<CreateFamilyResponse> => {
-  const res = await apiClient.post<CreateFamilyResponse>(FAMILY_BASE, data);
+const createFamily = async (data: CreateFamilyInput): Promise<FamilyResponse> => {
+  const res = await apiClient.post<FamilyResponse>(FAMILY_BASE, data);
   return res.data;
 };
 
@@ -177,8 +205,8 @@ const assignGuardian = async ({
 }: {
   familyId: string;
   data: AssignGuardianInput;
-}): Promise<GuardianAssignmentSummary> => {
-  const res = await apiClient.post<GuardianAssignmentSummary>(
+}): Promise<AssignGuardianResponse> => {
+  const res = await apiClient.post<AssignGuardianResponse>(
     `${GUARDIANSHIP_BASE}/${familyId}/assign`,
     data
   );
@@ -219,7 +247,7 @@ const getChecklistTemplate = async (): Promise<ChecklistTemplateResponse> => {
  * Hook to create/get family (idempotent)
  */
 export const useCreateFamily = (options?: {
-  onSuccess?: (data: CreateFamilyResponse) => void;
+  onSuccess?: (data: FamilyResponse) => void;
 }) => {
   const queryClient = useQueryClient();
   
@@ -382,7 +410,7 @@ export const useAssignGuardian = (
   familyId: string,
   wardId: string,
   options?: {
-    onSuccess?: (data: GuardianAssignmentSummary) => void;
+    onSuccess?: (data: AssignGuardianResponse) => void;
   }
 ) => {
   const queryClient = useQueryClient();
@@ -390,10 +418,10 @@ export const useAssignGuardian = (
   return useMutation({
     mutationFn: (data: AssignGuardianInput) => assignGuardian({ familyId, data }),
     onSuccess: (data) => {
-      const role = data.isPrimary ? 'Primary Guardian' : 'Alternate Guardian';
+      const role = data.assignment.isPrimary ? 'Primary Guardian' : 'Alternate Guardian';
       
       toast.success('Guardian Assigned', {
-        description: `${data.guardianName} assigned as ${role}`,
+        description: `${data.assignment.guardianName} assigned as ${role}`,
       });
       
       queryClient.invalidateQueries({ queryKey: guardianshipKeys.status(wardId) });
@@ -516,7 +544,6 @@ export const useGuardianshipChecklist = () => {
 // UTILITY EXPORTS
 // ============================================================================
 
-// Export raw API functions for imperative usage
 export const familyApi = {
   // Family operations
   createFamily,
@@ -535,7 +562,6 @@ export const familyApi = {
   getChecklistTemplate,
 };
 
-// Export all hooks as default
 export default {
   // Family mutations
   useCreateFamily,
