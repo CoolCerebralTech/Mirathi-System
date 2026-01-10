@@ -1,140 +1,124 @@
-// FILE: src/components/layout/AuthLayout.tsx
-// VERSION: 1.1.0 - Mirathi "Old Money" Edition
-
+// FILE: src/components/layouts/AuthLayout.tsx
 import { Outlet, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ShieldCheck, Lock, Scale, Building2 } from 'lucide-react'; // Changed icons to be more legal/institutional
+import { ShieldCheck, Scale, Lock } from 'lucide-react';
 import { Logo } from '../common/Logo';
 
-/**
- * MIRATHI AUTH LAYOUT
- * 
- * A split-screen experience designed to instill immediate confidence.
- * Left Side: The "Digital Copilot" Intake (Functional, Clean).
- * Right Side: The "Legacy" Promise (Emotional, Authority).
- */
+// Static configuration moved outside component
+const TRUST_ITEMS = [
+  { icon: Lock, label: 'Bank-grade encryption (AES-256)', key: 'trust.encryption' },
+  { icon: Scale, label: 'Compliant with Law of Succession Act (Cap 160)', key: 'trust.compliance' },
+  { icon: ShieldCheck, label: 'Data Protection Act registered', key: 'trust.protection' },
+];
+
 export function AuthLayout() {
   useTranslation(['auth', 'common']);
-
-  // Trust Indicators specific to High-Value Estate Management
-  const trustIndicators = [
-    { icon: Lock, label: 'Bank-Grade Encryption (AES-256)', key: 'trust.encryption' },
-    { icon: Scale, label: 'Kenyan Law of Succession Compliant', key: 'trust.compliance' },
-    { icon: ShieldCheck, label: 'ISO 27001 Data Protection', key: 'trust.protection' },
-  ];
+  const currentYear = new Date().getFullYear();
 
   return (
-    <div className="grid min-h-screen w-full bg-[#F8F9FA] lg:grid-cols-2">
+    <div className="min-h-screen w-full bg-slate-50 grid lg:grid-cols-2">
       
-      {/* ================================================================== */}
-      {/* LEFT PANEL: The Functional Gate (Forms) */}
-      {/* ================================================================== */}
-      <div className="flex flex-col relative bg-white">
+      {/* 
+        LEFT COLUMN: Form Area 
+        Design Rationale: High contrast, white background, focused entirely on the input task.
+      */}
+      <div className="flex flex-col bg-white border-r border-slate-100 relative z-20">
         
-        {/* Mobile Header */}
-        <div className="flex items-center justify-between border-b border-neutral-100 p-6 lg:hidden">
-          <Logo className="h-8 w-auto text-[#0F3D3E]" aria-label="Mirathi Home" />
+        {/* Mobile Header - Visible only on small screens */}
+        <div className="lg:hidden flex items-center justify-between border-b border-slate-100 p-6 bg-white">
+          <Link to="/" aria-label="Back to home">
+            <Logo className="h-8 w-auto text-slate-900" />
+          </Link>
         </div>
 
-        {/* Main Content Area */}
-        <div className="flex flex-1 items-center justify-center p-6 lg:p-12">
-          <div className="w-full max-w-[440px] animate-fade-in-up">
+        {/* Main Content Container */}
+        <div className="flex flex-1 flex-col justify-center px-6 py-12 lg:px-8 xl:px-12">
+          <div className="mx-auto w-full max-w-[440px]">
             
-            {/* Desktop Logo */}
+            {/* Desktop Logo - Visible only on large screens */}
             <div className="mb-10 hidden lg:block">
-              <Logo className="h-10 w-auto text-[#0F3D3E]" />
+              <Link to="/" aria-label="Back to home" className="inline-block focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-lg">
+                <Logo className="h-10 w-auto text-slate-900" />
+              </Link>
             </div>
 
-            {/* THE FORM INJECTION POINT */}
-            <div className="relative z-10">
+            {/* THE FORM CONTENT (Login, Register, etc.) */}
+            <main>
               <Outlet />
-            </div>
+            </main>
 
-            {/* Legal Footer */}
-            <div className="mt-10 border-t border-neutral-100 pt-6 text-center text-xs text-neutral-500">
-              <p className="mb-3 font-medium">
-                Protected by Mirathi Active Intelligence™
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-                <Link to="/privacy" className="hover:text-[#0F3D3E] hover:underline">Privacy</Link>
-                <span>•</span>
-                <Link to="/terms" className="hover:text-[#0F3D3E] hover:underline">Terms</Link>
-                <span>•</span>
-                <Link to="/security" className="hover:text-[#0F3D3E] hover:underline">Security</Link>
+            {/* Footer - Legal Links */}
+            <footer className="mt-10 pt-6 border-t border-slate-100">
+              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-slate-500">
+                <span>© {currentYear} Mirathi Systems Ltd</span>
+                <nav className="flex items-center gap-4">
+                  <Link to="/legal/privacy" className="hover:text-emerald-600 hover:underline transition-colors">Privacy</Link>
+                  <Link to="/legal/terms" className="hover:text-emerald-600 hover:underline transition-colors">Terms</Link>
+                  <Link to="/security" className="hover:text-emerald-600 hover:underline transition-colors">Security</Link>
+                </nav>
               </div>
-            </div>
+            </footer>
+
           </div>
         </div>
       </div>
 
-      {/* ================================================================== */}
-      {/* RIGHT PANEL: The Authority & Legacy Builder */}
-      {/* ================================================================== */}
-      <div className="relative hidden overflow-hidden bg-[#0F3D3E] lg:flex lg:flex-col lg:justify-between text-white">
+      {/* 
+        RIGHT COLUMN: Authority Panel 
+        Design Rationale: Dark "Slate-900" conveys stability and seriousness. 
+        No distractions, just reinforcement of trust.
+      */}
+      <div className="hidden lg:relative lg:flex lg:flex-col bg-slate-900 text-white overflow-hidden">
         
-        {/* 1. Background Pattern (Subtle Topographic Lines representing Land) */}
-        <div className="absolute inset-0 opacity-[0.05]" 
-             style={{ 
-               backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23C8A165' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` 
-             }} 
+        {/* Decorative Background Pattern (Subtle Architectural Grid) */}
+        <div 
+          className="absolute inset-0 opacity-[0.03] pointer-events-none select-none" 
+          aria-hidden="true"
+          style={{ 
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")` 
+          }}
         />
-        
-        {/* 2. Gradient Overlay for Depth */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#051F20] to-transparent opacity-80" />
 
-        {/* 3. Top Section: The Promise */}
-        <div className="relative z-10 px-16 pt-20">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#C8A165]/30 bg-[#C8A165]/10 px-4 py-1.5 backdrop-blur-md">
-            <Building2 className="h-4 w-4 text-[#C8A165]" />
-            <span className="text-xs font-semibold tracking-wider text-[#C8A165] uppercase">
-              Kenyan Law of Succession (Cap 160)
-            </span>
+        {/* Ambient Lighting Effect */}
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 h-[500px] w-[500px] rounded-full bg-emerald-900/20 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 h-[500px] w-[500px] rounded-full bg-blue-900/10 blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col h-full px-16 py-20 xl:px-24 justify-center">
+          
+          {/* Headline Statement */}
+          <div className="max-w-lg">
+            <h2 className="text-3xl font-medium tracking-tight text-white sm:text-4xl">
+              Secure. Compliant. <br />
+              <span className="text-emerald-400">Transparent.</span>
+            </h2>
+            <p className="mt-6 text-lg text-slate-300 leading-relaxed font-light">
+              Mirathi supports Kenyan families and administrators through the succession process with full respect for the Law of Succession Act (Cap 160) and Data Protection regulations.
+            </p>
           </div>
-          
-          <h1 className="mt-8 font-serif text-5xl font-medium leading-tight tracking-tight text-[#F8F9FA]">
-            Turn the chaos of loss <br />
-            into a <span className="text-[#C8A165] italic">clear path forward.</span>
-          </h1>
-          
-          <p className="mt-6 max-w-md text-lg text-neutral-300 leading-relaxed">
-            Mirathi acts as your digital executor—guiding you from the funeral to the final distribution of assets with legal precision.
-          </p>
-        </div>
 
-        {/* 4. Middle Section: Trust Stack */}
-        <div className="relative z-10 px-16">
-          <div className="space-y-4">
-            {trustIndicators.map((item) => (
-              <div key={item.key} className="group flex items-center gap-4 transition-transform duration-300 hover:translate-x-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/5 border border-white/10 group-hover:bg-[#C8A165] group-hover:text-[#0F3D3E] transition-colors">
-                  <item.icon className="h-5 w-5" />
+          {/* Trust Indicators */}
+          <div className="mt-16 space-y-8">
+            {TRUST_ITEMS.map((item) => (
+              <div key={item.key} className="flex items-start gap-5 group">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-white/5 border border-white/10 group-hover:border-emerald-500/30 group-hover:bg-emerald-500/10 transition-colors duration-300">
+                  <item.icon className="h-5 w-5 text-slate-300 group-hover:text-emerald-400 transition-colors" />
                 </div>
-                <span className="text-sm font-medium text-neutral-200 group-hover:text-white">
-                  {item.label}
-                </span>
+                <div className="pt-2">
+                  <span className="text-base font-medium text-slate-200 block">
+                    {item.label}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
-        </div>
 
-        {/* 5. Bottom Section: Social Proof */}
-        <div className="relative z-10 border-t border-white/10 bg-black/20 p-10 backdrop-blur-sm">
-          <blockquote className="space-y-4">
-            <p className="font-serif text-xl italic leading-relaxed text-neutral-200">
-              "The process of obtaining the Grant of Probate was overwhelming until we used Mirathi. It automatically generated the P&A 80 forms and flagged a missing signature that would have delayed us by months."
-            </p>
-            <footer className="flex items-center gap-4">
-              <div className="h-10 w-10 rounded-full bg-[#C8A165] flex items-center justify-center text-[#0F3D3E] font-bold">
-                JM
-              </div>
-              <div>
-                <div className="font-semibold text-white">John Maina</div>
-                <div className="text-xs text-[#C8A165] uppercase tracking-wider">Estate Administrator, Nairobi</div>
-              </div>
-            </footer>
-          </blockquote>
+          {/* Institutional Testimonial / Footnote */}
+          <div className="mt-auto pt-12 border-t border-white/10">
+            <blockquote className="text-sm text-slate-400 italic leading-relaxed">
+              "Ensuring legal certainty for future generations."
+            </blockquote>
+          </div>
         </div>
-
       </div>
     </div>
   );

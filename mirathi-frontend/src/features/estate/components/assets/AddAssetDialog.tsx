@@ -1,11 +1,9 @@
-// ============================================================================
-// FILE: AddAssetDialog.tsx
-// ============================================================================
+// FILE: src/features/estate/components/assets/AddAssetDialog.tsx
 
 import React, { useState, useEffect } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, MapPin, Car, Briefcase } from 'lucide-react';
 
 import {
   Dialog,
@@ -27,7 +25,7 @@ import {
   SelectValue,
   Button,
   Textarea,
-  Checkbox, // Ensure this is exported from your UI components
+  Checkbox,
   Alert,
   AlertDescription,
 } from '@/components/ui';
@@ -53,10 +51,10 @@ interface AddAssetDialogProps {
   estateId: string;
 }
 
-// Create a union type for form data
+// Union Type for form data
 type AssetFormData = AddGenericAssetInput | AddLandAssetInput | AddVehicleAssetInput;
 
-// Helper function to get the appropriate schema based on category
+// Schema Selector Helper
 const getAssetSchema = (category: AssetCategory) => {
   switch (category) {
     case AssetCategory.LAND:
@@ -73,12 +71,12 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
   onClose, 
   estateId 
 }) => {
-  // Initialize with GENERIC (e.g., BANK_ACCOUNT) to avoid starting with complex schemas
+  // Default to Bank Account for generic start
   const [selectedCategory, setSelectedCategory] = useState<AssetCategory>(
     AssetCategory.BANK_ACCOUNT
   );
 
-  // Define explicit default values for each type to avoid 'undefined' warnings
+  // Common Default Values
   const baseDefaultValues = {
     category: AssetCategory.BANK_ACCOUNT,
     name: '',
@@ -89,17 +87,16 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
   };
 
   const form = useForm<AssetFormData>({
-    // Type assertion is safe here because we control the schema mapping
     resolver: zodResolver(getAssetSchema(selectedCategory)) as unknown as Resolver<AssetFormData>,
     mode: 'onChange',
     defaultValues: baseDefaultValues,
   });
 
-  // Handle category switching logic
+  // Dynamic Form Reset when Category Changes
   useEffect(() => {
     const currentValues = form.getValues();
     
-    // Extract values common to all schemas to preserve user input
+    // Preserve common user inputs
     const commonValues = {
       name: currentValues.name || '',
       description: currentValues.description || '',
@@ -109,11 +106,9 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
     };
 
     if (selectedCategory === AssetCategory.LAND) {
-      // Explicitly type as Land Input
       const landValues: AddLandAssetInput = {
         ...commonValues,
         category: AssetCategory.LAND,
-        // Add Land Defaults
         landCategory: LandCategory.RESIDENTIAL,
         county: KenyanCounty.NAIROBI,
         titleDeedNumber: '',
@@ -123,11 +118,9 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
       };
       form.reset(landValues);
     } else if (selectedCategory === AssetCategory.VEHICLE) {
-      // Explicitly type as Vehicle Input
       const vehicleValues: AddVehicleAssetInput = {
         ...commonValues,
         category: AssetCategory.VEHICLE,
-        // Add Vehicle Defaults
         vehicleCategory: VehicleCategory.PERSONAL_CAR,
         registrationNumber: '',
         make: '',
@@ -136,7 +129,6 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
       };
       form.reset(vehicleValues);
     } else {
-      // Explicitly type as Generic Input
       const genericValues: AddGenericAssetInput = {
         ...commonValues,
         category: selectedCategory,
@@ -144,6 +136,7 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
       form.reset(genericValues);
     }
   }, [selectedCategory, form]);
+
   const { mutate: addAsset, isPending, error } = useAddAsset({
     onSuccess: () => {
       handleClose();
@@ -151,25 +144,12 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
   });
 
   const onSubmit = (data: AssetFormData) => {
-    // Discriminate based on category to satisfy the API mutation type
     if (data.category === AssetCategory.LAND) {
-      addAsset({ 
-        type: 'LAND', 
-        estateId, 
-        data: data as AddLandAssetInput 
-      });
+      addAsset({ type: 'LAND', estateId, data: data as AddLandAssetInput });
     } else if (data.category === AssetCategory.VEHICLE) {
-      addAsset({ 
-        type: 'VEHICLE', 
-        estateId, 
-        data: data as AddVehicleAssetInput 
-      });
+      addAsset({ type: 'VEHICLE', estateId, data: data as AddVehicleAssetInput });
     } else {
-      addAsset({ 
-        type: 'GENERIC', 
-        estateId, 
-        data: data as AddGenericAssetInput 
-      });
+      addAsset({ type: 'GENERIC', estateId, data: data as AddGenericAssetInput });
     }
   };
 
@@ -181,13 +161,14 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
     }
   };
 
-  // Render Helpers (Identical logic, just checking imports)
+  // --- Render Helpers ---
+
   const renderLandFields = () => (
-    <div className="space-y-4 p-4 border-2 border-blue-200 rounded-lg bg-blue-50/30">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="h-1 w-1 rounded-full bg-blue-600" />
-        <h4 className="font-semibold text-sm text-blue-900">
-          Land Registration Details
+    <div className="space-y-4 p-5 border border-emerald-100 rounded-lg bg-emerald-50/50 animate-in fade-in slide-in-from-top-2">
+      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-emerald-100">
+        <MapPin className="h-4 w-4 text-emerald-600" />
+        <h4 className="font-bold text-sm text-emerald-800 uppercase tracking-wide">
+          Land Registry Details
         </h4>
       </div>
 
@@ -197,15 +178,14 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
           name="titleDeedNumber"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Title Deed Number <span className="text-red-500">*</span></FormLabel>
+              <FormLabel>Title Deed No. <span className="text-red-500">*</span></FormLabel>
               <FormControl>
-                <Input disabled={isPending} placeholder="e.g. IR 12345/67" {...field} />
+                <Input disabled={isPending} placeholder="IR 12345/67" className="bg-white" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        {/* ... (Other Land Fields remain the same) ... */}
         <FormField
           control={form.control}
           name="parcelNumber"
@@ -213,7 +193,7 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
             <FormItem>
               <FormLabel>Parcel Number</FormLabel>
               <FormControl>
-                <Input disabled={isPending} placeholder="e.g. NAIROBI/BLOCK123/456" {...field} />
+                <Input disabled={isPending} placeholder="NAIROBI/BLOCK123/456" className="bg-white" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -231,7 +211,7 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
                 value={field.value as string}
               >
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-white">
                     <SelectValue placeholder="Select county" />
                   </SelectTrigger>
                 </FormControl>
@@ -249,31 +229,18 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
         />
         <FormField
           control={form.control}
-          name="subCounty"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Sub-County</FormLabel>
-              <FormControl>
-                <Input disabled={isPending} placeholder="e.g. Westlands" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
           name="landCategory"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Land Use Category <span className="text-red-500">*</span></FormLabel>
+              <FormLabel>Land Use <span className="text-red-500">*</span></FormLabel>
               <Select 
                 disabled={isPending}
                 onValueChange={field.onChange} 
                 value={field.value as string}
               >
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select land use" />
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Select usage" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -301,6 +268,7 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
                   min="0"
                   step="0.01" 
                   placeholder="0.00"
+                  className="bg-white"
                   {...field} 
                   onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                 />
@@ -314,11 +282,11 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
   );
 
   const renderVehicleFields = () => (
-    <div className="space-y-4 p-4 border-2 border-orange-200 rounded-lg bg-orange-50/30">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="h-1 w-1 rounded-full bg-orange-600" />
-        <h4 className="font-semibold text-sm text-orange-900">
-          Vehicle Registration Details
+    <div className="space-y-4 p-5 border border-blue-100 rounded-lg bg-blue-50/50 animate-in fade-in slide-in-from-top-2">
+      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-blue-100">
+        <Car className="h-4 w-4 text-blue-600" />
+        <h4 className="font-bold text-sm text-blue-800 uppercase tracking-wide">
+          Vehicle Registration
         </h4>
       </div>
 
@@ -328,9 +296,9 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
           name="registrationNumber"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Registration Number <span className="text-red-500">*</span></FormLabel>
+              <FormLabel>Registration No. <span className="text-red-500">*</span></FormLabel>
               <FormControl>
-                <Input disabled={isPending} placeholder="e.g. KCA 123B" {...field} />
+                <Input disabled={isPending} placeholder="KCA 123B" className="uppercase bg-white" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -348,8 +316,8 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
                 value={field.value as string}
               >
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select vehicle type" />
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -371,7 +339,7 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
             <FormItem>
               <FormLabel>Make <span className="text-red-500">*</span></FormLabel>
               <FormControl>
-                <Input disabled={isPending} placeholder="e.g. Toyota" {...field} />
+                <Input disabled={isPending} placeholder="e.g. Toyota" className="bg-white" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -384,7 +352,7 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
             <FormItem>
               <FormLabel>Model <span className="text-red-500">*</span></FormLabel>
               <FormControl>
-                <Input disabled={isPending} placeholder="e.g. Fielder" {...field} />
+                <Input disabled={isPending} placeholder="e.g. Fielder" className="bg-white" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -403,6 +371,7 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
                   min="1900"
                   max={new Date().getFullYear() + 1}
                   placeholder={new Date().getFullYear().toString()}
+                  className="bg-white"
                   {...field} 
                   onChange={(e) => field.onChange(parseInt(e.target.value) || undefined)}
                 />
@@ -417,12 +386,13 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Asset to Estate Inventory</DialogTitle>
+          <DialogTitle className="text-[#0F3D3E] flex items-center gap-2">
+            <Briefcase className="h-5 w-5" /> Add Asset to Inventory
+          </DialogTitle>
           <DialogDescription>
-            Record a new asset. Land and Vehicle assets require additional legal identifiers 
-            for compliance with Kenyan succession law.
+            Record a new asset. Certain categories like Land and Vehicles require specific legal identifiers.
           </DialogDescription>
         </DialogHeader>
 
@@ -430,13 +400,13 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              {error.message || 'Failed to add asset. Please try again.'}
+              {error.message || 'Failed to add asset. Please verify the information and try again.'}
             </AlertDescription>
           </Alert>
         )}
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-2">
             
             {/* CATEGORY SELECTION */}
             <FormField
@@ -444,7 +414,7 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
               name="category"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Asset Category <span className="text-red-500">*</span></FormLabel>
+                  <FormLabel>Asset Classification <span className="text-red-500">*</span></FormLabel>
                   <Select 
                     disabled={isPending}
                     onValueChange={(val) => {
@@ -454,8 +424,8 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
                     value={field.value}
                   >
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select asset category" />
+                      <SelectTrigger className="h-11">
+                        <SelectValue placeholder="Select classification" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -478,11 +448,11 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Asset Name <span className="text-red-500">*</span></FormLabel>
+                    <FormLabel>Asset Name / Title <span className="text-red-500">*</span></FormLabel>
                     <FormControl>
                       <Input 
                         disabled={isPending}
-                        placeholder="e.g. Equity Bank Savings Account" 
+                        placeholder="e.g. Equity Bank Account" 
                         {...field} 
                       />
                     </FormControl>
@@ -496,7 +466,7 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
                 name="estimatedValue"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Estimated Value (KES) <span className="text-red-500">*</span></FormLabel>
+                    <FormLabel>Estimated Market Value (KES) <span className="text-red-500">*</span></FormLabel>
                     <FormControl>
                       <Input 
                         disabled={isPending}
@@ -524,11 +494,11 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description / Additional Notes</FormLabel>
+                  <FormLabel>Description / Location Notes</FormLabel>
                   <FormControl>
                     <Textarea 
                       disabled={isPending}
-                      placeholder="Any relevant details about this asset..."
+                      placeholder="Enter location details, account numbers (masked), or other identifying features..."
                       className="resize-none"
                       rows={3}
                       {...field} 
@@ -544,21 +514,21 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
               control={form.control}
               name="isEncumbered"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-lg border border-slate-200 p-4 bg-slate-50">
                   <FormControl>
-                    {/* Using standard checkbox if Component available, else fallback to input */}
                     <Checkbox
                       checked={field.value}
                       onCheckedChange={field.onChange}
                       disabled={isPending}
+                      className="mt-0.5"
                     />
                   </FormControl>
                   <div className="space-y-1 leading-none">
-                    <FormLabel>
-                      This asset has encumbrances (loans, liens, or legal claims)
+                    <FormLabel className="font-semibold text-slate-900">
+                      Encumbrance Alert
                     </FormLabel>
-                    <p className="text-sm text-muted-foreground">
-                      Check this if there are outstanding loans or legal claims against this asset
+                    <p className="text-xs text-slate-500">
+                      Check this box if there are outstanding loans, caveats, or legal claims attached to this asset.
                     </p>
                   </div>
                 </FormItem>
@@ -570,13 +540,13 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
                 control={form.control}
                 name="encumbranceDetails"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Encumbrance Details</FormLabel>
+                  <FormItem className="animate-in fade-in slide-in-from-top-1">
+                    <FormLabel>Encumbrance Details <span className="text-red-500">*</span></FormLabel>
                     <FormControl>
                       <Textarea 
                         disabled={isPending}
-                        placeholder="Describe the loan, lien, or legal claim..."
-                        className="resize-none"
+                        placeholder="e.g. Mortgaged to KCB Bank, Outstanding Balance KES 500,000"
+                        className="resize-none border-red-200 focus:border-red-500 focus:ring-red-200"
                         rows={2}
                         {...field} 
                       />
@@ -588,7 +558,7 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
             )}
 
             {/* ACTIONS */}
-            <div className="flex justify-end gap-3 pt-4 border-t">
+            <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
               <Button 
                 type="button" 
                 variant="outline" 
@@ -597,9 +567,9 @@ export const AddAssetDialog: React.FC<AddAssetDialogProps> = ({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isPending}>
+              <Button type="submit" disabled={isPending} className="bg-[#0F3D3E] hover:bg-[#0F3D3E]/90 text-white min-w-[120px]">
                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isPending ? 'Adding Asset...' : 'Add Asset'}
+                {isPending ? 'Processing...' : 'Add Asset'}
               </Button>
             </div>
           </form>

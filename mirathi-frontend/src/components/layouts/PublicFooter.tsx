@@ -11,30 +11,31 @@ import {
 } from 'lucide-react';
 import { Logo } from '../common/Logo';
 
+// STATIC CONFIGURATION (Moved outside component for performance)
+const COMPANY_LINKS = [
+  { label: 'About Mirathi', to: '/about' },
+  { label: 'Security & Trust', to: '/security' },
+  { label: 'Partners', to: '/partners' },
+];
+
+const LEGAL_LINKS = [
+  { label: 'Privacy Policy', to: '/legal/privacy' },
+  { label: 'Terms of Service', to: '/legal/terms' },
+  { label: 'Disclaimer', to: '/legal/disclaimer' },
+];
+
 export function PublicFooter() {
   useTranslation(['footer', 'common']);
   const currentYear = new Date().getFullYear();
 
-  const company = [
-    { label: 'About Mirathi', to: '/about' },
-    { label: 'Security & Trust', to: '/security' },
-    { label: 'Partners', to: '/partners' },
-  ];
-
-  const legal = [
-    { label: 'Privacy Policy', to: '/legal/privacy' },
-    { label: 'Terms of Service', to: '/legal/terms' },
-    { label: 'Disclaimer', to: '/legal/disclaimer' },
-  ];
-
   return (
-    <footer className="bg-slate-900 text-white print:hidden border-t border-slate-800">
+    <footer className="bg-slate-900 text-white print:hidden border-t border-slate-800 font-sans">
       <div className="mx-auto max-w-7xl px-6 py-16 lg:px-8 lg:py-20">
         <div className="xl:grid xl:grid-cols-3 xl:gap-8">
           
-          {/* Brand */}
+          {/* Brand Column */}
           <div className="space-y-8">
-            <Link to="/" className="block">
+            <Link to="/" className="block focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded-lg">
               <Logo className="h-12 w-auto text-white" />
             </Link>
             <p className="max-w-xs text-sm leading-relaxed text-slate-400">
@@ -44,6 +45,8 @@ export function PublicFooter() {
             <div className="flex space-x-5">
               <a 
                 href="https://linkedin.com/company/mirathi" 
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label="Mirathi on LinkedIn"
                 className="text-slate-400 hover:text-emerald-400 transition-colors"
               >
@@ -51,6 +54,8 @@ export function PublicFooter() {
               </a>
               <a 
                 href="https://twitter.com/mirathi" 
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label="Mirathi on X"
                 className="text-slate-400 hover:text-emerald-400 transition-colors"
               >
@@ -59,14 +64,14 @@ export function PublicFooter() {
             </div>
           </div>
 
-          {/* Links */}
+          {/* Navigation Links */}
           <div className="mt-16 grid grid-cols-2 gap-8 xl:col-span-2 xl:mt-0">
             <div className="space-y-8">
               <h3 className="font-semibold text-sm uppercase tracking-wider text-emerald-400">
                 Company
               </h3>
               <ul role="list" className="space-y-4 text-sm text-slate-400">
-                {company.map((item) => (
+                {COMPANY_LINKS.map((item) => (
                   <li key={item.label}>
                     <Link 
                       to={item.to} 
@@ -86,7 +91,9 @@ export function PublicFooter() {
               <ul role="list" className="space-y-4 text-sm text-slate-400">
                 <li className="flex items-start gap-3">
                   <Mail className="h-4 w-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                  <span>support@mirathi.ke</span>
+                  <a href="mailto:support@mirathi.ke" className="hover:text-white transition-colors">
+                    support@mirathi.ke
+                  </a>
                 </li>
                 <li className="flex items-start gap-3">
                   <MapPin className="h-4 w-4 text-emerald-400 mt-0.5 flex-shrink-0" />
@@ -97,13 +104,13 @@ export function PublicFooter() {
           </div>
         </div>
 
-        {/* Legal Disclaimer - Critical for LegalTech */}
+        {/* Legal Disclaimer - Enhanced Visibility */}
         <div className="mt-12 border-t border-slate-800 pt-8">
-          <div className="bg-slate-800/50 rounded-lg p-6">
+          <div className="bg-slate-800/40 rounded-lg p-6 border border-slate-700/50">
             <div className="flex items-start gap-3">
               <Scale className="h-5 w-5 flex-shrink-0 text-emerald-400 mt-0.5" />
               <div>
-                <p className="text-sm text-slate-300 mb-1 font-semibold">
+                <p className="text-sm text-slate-200 mb-1 font-semibold">
                   Important Disclaimer
                 </p>
                 <p className="text-xs text-slate-400 leading-relaxed">
@@ -118,11 +125,12 @@ export function PublicFooter() {
 
         {/* Bottom Bar */}
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-slate-800 pt-8 md:flex-row md:items-center">
-          <p className="text-xs text-slate-500">
-            © {currentYear} Mirathi Systems Ltd. All rights reserved. Regulated under Kenyan Data Protection Act.
+          <p className="text-xs text-slate-500 text-center md:text-left">
+            © {currentYear} Mirathi Systems Ltd. All rights reserved. <br className="md:hidden"/> Regulated under Kenyan Data Protection Act.
           </p>
+          
           <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-slate-500">
-            {legal.map((item) => (
+            {LEGAL_LINKS.map((item) => (
               <Link 
                 key={item.label} 
                 to={item.to} 
@@ -132,7 +140,8 @@ export function PublicFooter() {
               </Link>
             ))}
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/5 px-3 py-1.5">
+
+          <div className="flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5">
             <Shield className="h-3 w-3 text-emerald-400" />
             <span className="text-xs font-medium text-emerald-400">Bank-Grade Security</span>
           </div>

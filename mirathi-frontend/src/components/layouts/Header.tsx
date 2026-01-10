@@ -1,6 +1,3 @@
-// FILE: src/components/layout/Header.tsx
-// VERSION: 2.1.0 - Mirathi Estate Management System (API Integrated)
-
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
@@ -8,22 +5,16 @@ import {
   User as UserIcon, 
   Settings, 
   Menu, 
-  Bell, 
-  Search, 
-  Calculator, 
-  Briefcase,
-  Home,
-  Scale,
-  FileText,
-  TrendingUp,
-  Shield
+  Calculator,
+  Scale
 } from 'lucide-react';
+
 import { useCurrentUser } from '@/features/user/user.api';
 import { useEstateSummary } from '@/features/estate/estate.api';
 import { useLogout } from '@/features/auth/auth.api';
 
-import { Button } from '../ui/Button';
-import { Avatar, AvatarFallback } from '../common/Avatar'; 
+import { Button } from '@/components/ui/Button';
+import { Avatar, AvatarFallback } from '@/components/common/Avatar'; 
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,315 +22,152 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '../ui/DropdownMenu';
-import { Sheet, SheetContent, SheetTrigger } from '../ui/Sheet';
-import { Logo } from '../common/Logo';
-import { Skeleton } from '../ui/Skeleton';
-
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-// TYPES
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+} from '@/components/ui/DropdownMenu';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 interface HeaderProps {
-  /** 
-   * Optional trigger for the parent layout's sidebar.
-   * If provided, overrides the internal Sheet menu.
-   */
-  onMobileMenuClick?: () => void;
+  onMobileMenuClick: () => void;
 }
-
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-// COMPONENT
-// =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 export function Header({ onMobileMenuClick }: HeaderProps) {
   const { t } = useTranslation(['header', 'common']);
   const navigate = useNavigate();
   
-  // Fetch current user
+  // Data Fetching
   const { data: user, isLoading: isLoadingUser } = useCurrentUser();
-  const userId = user?.id;
-  
-  // Fetch estate summary for net worth display
   const { data: estateSummary, isLoading: isLoadingEstate } = useEstateSummary(
-    userId || '', 
-    { enabled: !!userId }
+    user?.id || '', 
+    { enabled: !!user?.id }
   );
   
-  // Logout mutation
   const { mutate: logout } = useLogout();
 
-  // Format currency for display
-  const formatCurrency = (amount: number, currency: string = 'KES'): string => {
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const getInitials = (firstName = '', lastName = '') =>
-    `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || 'U';
-
+  // Handlers
   const handleLogout = () => {
-    logout(undefined, {
-      onSuccess: () => navigate('/login'),
-    });
+    logout(undefined, { onSuccess: () => navigate('/login') });
   };
 
-  // Helper to safely access nested summary data
   const overview = estateSummary?.overview;
+  const initials = user ? `${(user.firstName?.[0] || '').toUpperCase()}${(user.lastName?.[0] || '').toUpperCase()}` : 'U';
+
+  // Currency Formatter
+  const formatCurrency = (amount: number, currency: string = 'KES') => 
+    new Intl.NumberFormat('en-KE', { 
+      style: 'currency', 
+      currency, 
+      minimumFractionDigits: 0 
+    }).format(amount);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-neutral-200 bg-white px-4 shadow-sm sm:px-6">
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white px-4 shadow-sm sm:px-6 lg:px-8">
       
-      {/* 1. Mobile Trigger */}
-      <div className="lg:hidden">
-        {onMobileMenuClick ? (
-          <Button variant="ghost" size="icon" onClick={onMobileMenuClick}>
-            <Menu className="h-5 w-5 text-neutral-600" />
-          </Button>
-        ) : (
-          <MobileNav />
-        )}
-      </div>
-      
-      {/* 2. Logo (visible on mobile when no sidebar) */}
-      <div className="lg:hidden">
-        <Link to="/dashboard">
-          <Logo className="h-6" />
-        </Link>
-      </div>
-
-      {/* 3. Global Search */}
-      <div className="flex-1 md:max-w-md">
-        <div className="relative hidden md:block">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-neutral-400" />
-          <input
-            type="search"
-            placeholder={t('search_placeholder', 'Search assets, documents, or family...')}
-            className="h-10 w-full rounded-md border border-neutral-200 bg-neutral-50 pl-9 pr-4 text-sm outline-none transition-all focus:border-[#0F3D3E] focus:ring-1 focus:ring-[#0F3D3E]"
-          />
-        </div>
-      </div>
-      
-      <div className="flex items-center gap-2 sm:gap-4">
-
-        {/* 4. Net Worth Display (Estate Service - Real Data) */}
-        {isLoadingEstate ? (
-          <div className="hidden md:flex items-center gap-3 rounded-full border border-neutral-100 bg-neutral-50 px-4 py-1.5">
-            <Skeleton className="h-6 w-6 rounded-full" />
-            <div className="space-y-1">
-              <Skeleton className="h-2 w-16" />
-              <Skeleton className="h-3 w-20" />
-            </div>
-          </div>
-        ) : overview ? (
-          <Link 
-            to="/dashboard/estate"
-            className="hidden items-center gap-3 rounded-full border border-neutral-100 bg-neutral-50 px-4 py-1.5 transition-all hover:border-[#0F3D3E] hover:bg-[#0F3D3E]/5 md:flex"
-          >
-            <div className={`flex h-6 w-6 items-center justify-center rounded-full ${
-              overview.isInsolvent 
-                ? 'bg-red-100' 
-                : 'bg-[#0F3D3E]/10'
-            }`}>
-              <Calculator className={`h-3.5 w-3.5 ${
-                overview.isInsolvent 
-                  ? 'text-red-600' 
-                  : 'text-[#0F3D3E]'
-              }`} />
-            </div>
-            <div className="flex flex-col leading-none">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                {t('net_worth', 'Net Worth')}
-              </span>
-              <span className={`text-sm font-bold font-mono ${
-                overview.isInsolvent ? 'text-red-600' : 'text-[#0F3D3E]'
-              }`}>
-                {/* Use overview.netWorth and overview.currency */}
-                {formatCurrency(overview.netWorth, overview.currency)}
-              </span>
-            </div>
-            {/* Insolvency Warning Badge */}
-            {overview.isInsolvent && (
-              <div className="ml-1 flex h-5 items-center rounded bg-red-100 px-1.5">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-red-700">
-                  Insolvent
-                </span>
-              </div>
-            )}
-          </Link>
-        ) : null}
-
-        {/* 5. Notifications */}
+      {/* 1. Mobile Trigger (Left) */}
+      <div className="flex items-center lg:hidden">
         <Button 
           variant="ghost" 
           size="icon" 
-          className="relative text-neutral-600 hover:bg-neutral-100"
+          onClick={onMobileMenuClick} 
+          className="text-slate-500 hover:text-slate-900 -ml-2"
         >
-          <Bell className="h-5 w-5" />
-          {/* Badge for unread notifications */}
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
-          <span className="sr-only">Notifications</span>
+          <Menu className="h-6 w-6" />
+          <span className="sr-only">Open sidebar</span>
         </Button>
+      </div>
+
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* 2. Right Actions */}
+      <div className="flex items-center gap-3 sm:gap-6">
         
-        {/* 6. User Profile Menu */}
-        {isLoadingUser ? (
-          <Skeleton className="h-9 w-9 rounded-full" />
-        ) : (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                className="relative h-9 w-9 rounded-full focus:ring-0 p-0 hover:bg-[#C8A165]/10"
-              >
-                <Avatar className="h-9 w-9 border border-neutral-200">
-                  <AvatarFallback className="bg-[#0F3D3E] text-[#C8A165] font-medium">
-                    {getInitials(user?.firstName, user?.lastName)}
+        {/* A. Net Worth Indicator (Visible on Desktop) */}
+        {/* This acts as a 'Status Monitor' for the user's primary goal: The Estate */}
+        <div className="hidden md:block">
+          {isLoadingEstate ? (
+            <div className="flex items-center gap-3 px-4 py-1.5 rounded-full border border-slate-100 bg-slate-50">
+              <Skeleton className="h-4 w-24" />
+            </div>
+          ) : overview ? (
+            <Link
+              to="/dashboard/estate"
+              className="group flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-1.5 transition-all hover:border-[#C8A165]/50 hover:shadow-sm"
+            >
+              <div className={
+                `flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold 
+                ${overview.isInsolvent ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}`
+              }>
+                <Calculator className="h-3.5 w-3.5" />
+              </div>
+              <div className="flex flex-col leading-none">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-[#C8A165] transition-colors">
+                  Current Net Worth
+                </span>
+                <span className={`text-sm font-bold ${overview.isInsolvent ? 'text-red-600' : 'text-slate-900'}`}>
+                  {formatCurrency(overview.netWorth, overview.currency)}
+                </span>
+              </div>
+            </Link>
+          ) : null}
+        </div>
+
+        {/* B. User Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0 hover:bg-slate-100 focus:ring-2 focus:ring-[#0F3D3E] focus:ring-offset-2">
+              {isLoadingUser ? (
+                <Skeleton className="h-9 w-9 rounded-full" />
+              ) : (
+                <Avatar className="h-9 w-9 border border-slate-200">
+                  <AvatarFallback className="bg-[#0F3D3E] text-white font-medium text-xs">
+                    {initials}
                   </AvatarFallback>
                 </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-64" align="end" forceMount>
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-bold leading-none text-[#0F3D3E]">
-                    {user?.firstName && user?.lastName 
-                      ? `${user.firstName} ${user.lastName}`
-                      : 'User'
-                    }
-                  </p>
-                  <p className="text-xs leading-none text-muted-foreground">
-                    {user?.email}
-                  </p>
-                  
-                  {/* FIX: Removed emailVerified check since it does not exist on User type */}
-                  {user?.role && (
-                    <div className="mt-2 inline-flex items-center gap-1.5 rounded bg-blue-100 px-2 py-1 w-fit">
-                      <Shield className="h-3 w-3 text-blue-600" />
-                      <span className="text-[10px] uppercase font-semibold text-blue-700">
-                        {user.role}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {/* Rest of the menu remains the same... */}
-              <DropdownMenuItem asChild>
-                <Link to="/dashboard/profile" className="cursor-pointer">
-                  <UserIcon className="mr-2 h-4 w-4 text-neutral-500" />
-                  {t('profile', 'My Profile')}
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/dashboard/settings" className="cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4 text-neutral-500" />
-                  {t('settings', 'Settings')}
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={handleLogout} 
-                className="cursor-pointer text-red-600 focus:bg-red-50 focus:text-red-700"
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                {t('sign_out', 'Sign out')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 mt-2">
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium text-slate-900 leading-none">
+                  {user?.firstName} {user?.lastName}
+                </p>
+                <p className="text-xs text-slate-500 leading-none truncate">
+                  {user?.email}
+                </p>
+                {user?.role && (
+                  <div className="pt-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                      <Scale className="h-3 w-3" />
+                      {user.role}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link to="/dashboard/profile" className="cursor-pointer">
+                <UserIcon className="mr-2 h-4 w-4 text-slate-500" />
+                {t('profile', 'Profile')}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/dashboard/settings" className="cursor-pointer">
+                <Settings className="mr-2 h-4 w-4 text-slate-500" />
+                {t('settings', 'Settings')}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem 
+              onClick={handleLogout}
+              className="text-red-600 focus:bg-red-50 focus:text-red-700 cursor-pointer"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              {t('sign_out', 'Sign out')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
-  );
-}
-
-// MobileNav remains unchanged (it just has links)
-function MobileNav() {
-  useTranslation(['sidebar', 'common']);
-  
-  const navigationGroups = [
-    {
-      title: 'Overview',
-      items: [
-        { 
-          to: '/dashboard', 
-          label: 'Dashboard', 
-          icon: Home 
-        },
-      ]
-    },
-    {
-      title: 'Estate Management',
-      items: [
-        { 
-          to: '/dashboard/estate', 
-          label: 'Estate Overview', 
-          icon: Briefcase 
-        },
-        { 
-          to: '/dashboard/estate/assets', 
-          label: 'Assets', 
-          icon: TrendingUp 
-        },
-        { 
-          to: '/dashboard/estate/debts', 
-          label: 'Debts', 
-          icon: Scale 
-        },
-        { 
-          to: '/dashboard/estate/will', 
-          label: 'Will', 
-          icon: FileText 
-        },
-      ]
-    },
-    // ... rest of nav
-  ];
-
-  return (
-    <Sheet>
-      <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="lg:hidden">
-          <Menu className="h-5 w-5" />
-          <span className="sr-only">Toggle Menu</span>
-        </Button>
-      </SheetTrigger>
-      <SheetContent 
-        side="left" 
-        className="w-72 p-0 bg-[#0F3D3E] text-white border-r-neutral-800"
-      >
-        <div className="flex h-16 items-center px-6 border-b border-white/10">
-          <Logo className="h-6 text-white" />
-        </div>
-        
-        <nav className="flex flex-col gap-6 p-6 overflow-y-auto max-h-[calc(100vh-4rem)]">
-          {navigationGroups.map((group) => (
-            <div key={group.title} className="space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-white/40">
-                {group.title}
-              </h4>
-              <div className="flex flex-col space-y-1">
-                {group.items.map(item => {
-                  const Icon = item.icon;
-                  return (
-                    <Link 
-                      key={item.to} 
-                      to={item.to} 
-                      className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white transition-colors"
-                    >
-                      <Icon className="h-4 w-4" />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
-      </SheetContent>
-    </Sheet>
   );
 }
