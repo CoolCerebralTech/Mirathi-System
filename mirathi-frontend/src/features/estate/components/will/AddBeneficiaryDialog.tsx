@@ -35,7 +35,7 @@ import {
   BeneficiaryType, 
   BequestType 
 } from '@/types/estate.types';
-import { useAddBeneficiary } from '../../estate.api';
+import { useAddBeneficiary } from '@/api/estate/estate.api';
 
 interface AddBeneficiaryDialogProps {
   isOpen: boolean;

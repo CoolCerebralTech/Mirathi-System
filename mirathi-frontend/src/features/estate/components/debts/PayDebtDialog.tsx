@@ -27,7 +27,7 @@ import {
   type DebtResponse 
 } from '@/types/estate.types';
 
-import { usePayDebt } from '../../estate.api';
+import { usePayDebt } from '@/api/estate/estate.api';
 
 interface PayDebtDialogProps {
   isOpen: boolean;

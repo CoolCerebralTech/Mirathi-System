@@ -17,7 +17,7 @@ import {
 
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { useCurrentUser } from '@/features/user/user.api';
+import { useCurrentUser } from '@/api/user/user.api';
 import { Logo } from '@/components/common/Logo';
 
 // --- Configuration ---

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, AlertCircle } from 'lucide-react';
 import { Button, Skeleton, Alert, AlertDescription } from '@/components/ui';
-import { useAssetList } from '../../estate.api';
+import { useAssetList } from '@/api/estate/estate.api';
 import { AssetCard } from './AssetCard';
 import { AddAssetDialog } from './AddAssetDialog';
 import { UpdateAssetValueDialog } from './UpdateAssetValueDialog';

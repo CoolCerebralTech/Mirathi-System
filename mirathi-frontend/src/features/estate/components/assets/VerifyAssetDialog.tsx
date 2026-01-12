@@ -26,7 +26,7 @@ import {
   type VerifyAssetInput 
 } from '@/types/estate.types';
 
-import { useVerifyAsset } from '../../estate.api';
+import { useVerifyAsset } from '@/api/estate/estate.api';
 
 interface VerifyAssetDialogProps {
   isOpen: boolean;

@@ -3,7 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { Upload, FileText, X, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button, Progress, Alert, AlertDescription } from '@/components/ui';
-import { useUploadDocument } from '../../document.api';
+import { useUploadDocument } from '@/api/documents/document.api';
 import { ReferenceDisplay } from '../shared/ReferenceDisplay';
 import type { ProcessUploadResponse } from '@/types/document.types';
 

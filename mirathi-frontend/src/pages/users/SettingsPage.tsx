@@ -12,9 +12,9 @@ import {
 } from '@/components/ui';
 
 // Feature components (Self-contained cards)
-import { ChangePasswordForm } from '@/features/user/components/ChangePasswordForm';
-import { MarketingPreferencesForm } from '@/features/user/components/MarketingPreferencesForm';
-import { DeactivateAccountForm } from '@/features/user/components/DeactivateAccountForm';
+import { ChangePasswordForm } from '@/features/user/forms/ChangePasswordForm';
+import { MarketingPreferencesForm } from '@/features/user/forms/MarketingPreferencesForm';
+import { DeactivateAccountForm } from '@/features/user/forms/DeactivateAccountForm';
 
 export const SettingsPage: React.FC = () => {
   return (

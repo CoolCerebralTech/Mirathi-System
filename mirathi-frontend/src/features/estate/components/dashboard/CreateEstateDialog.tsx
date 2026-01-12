@@ -27,7 +27,7 @@ import {
 } from '@/components/ui';
 
 import { CreateEstateSchema, type CreateEstateInput } from '@/types/estate.types';
-import { useCreateEstate } from '../../estate.api';
+import { useCreateEstate } from '@/api/estate/estate.api';
 
 interface CreateEstateDialogProps {
   isOpen: boolean;

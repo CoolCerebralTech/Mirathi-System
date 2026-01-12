@@ -39,7 +39,7 @@ import {
   useMyFamily, 
   useMyFamilyTree, 
   usePotentialHeirs 
-} from '@/features/family/family.api';
+} from '@/api/family/family.api';
 
 export const FamilyDashboardPage: React.FC = () => {
   const navigate = useNavigate();

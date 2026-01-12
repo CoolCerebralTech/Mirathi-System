@@ -7,7 +7,6 @@ export { Header } from './Header';
 
 // Authentication
 export { AuthLayout } from './AuthLayout';
-export { AdminLayout } from './AdminLayout';
 
 // Public (Marketing)
 export { PublicLayout } from './PublicLayout';

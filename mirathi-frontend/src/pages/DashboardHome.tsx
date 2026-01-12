@@ -21,8 +21,8 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 
 // API Hooks
-import { useCurrentUser } from '@/features/user/user.api';
-import { useEstateSummary } from '@/features/estate/estate.api';
+import { useCurrentUser } from '@/api/user/user.api';
+import { useEstateSummary } from '@/api/estate/estate.api';
 
 // --- Local Components ---
 

@@ -4,9 +4,9 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { 
   useAuthStatus, 
   useCurrentUser 
-} from '../store/auth.store';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import type { UserRole } from '../types/shared.types';
+} from '@/store/auth.store';
+import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import type { UserRole } from '@/types/shared.types';
 
 interface LocationState {
   from?: {

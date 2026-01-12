@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { UserResponse as User } from '../types/user.types';
+import type { UserResponse as User } from '@/types/user.types';
 import { usePersistentAuthStore } from './auth-persistent';
 import { useSessionAuthStore } from './auth-session';
 

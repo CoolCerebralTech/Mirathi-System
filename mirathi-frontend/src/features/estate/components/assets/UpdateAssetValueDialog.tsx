@@ -24,7 +24,7 @@ import {
   type UpdateAssetValueInput 
 } from '@/types/estate.types';
 
-import { useUpdateAssetValue } from '../../estate.api';
+import { useUpdateAssetValue } from '@/api/estate/estate.api';
 
 interface UpdateAssetValueDialogProps {
   isOpen: boolean;

@@ -1,4 +1,4 @@
-import { calculatePasswordStrength } from '../../../types/auth.types';
+import { calculatePasswordStrength } from '@/types/auth.types';
 
 interface Props {
   password: string;

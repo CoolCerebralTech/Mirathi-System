@@ -14,7 +14,7 @@ import {
 } from '@/components/ui';
 import { DocumentUploader } from '@/features/documents/components/user/DocumentUploader';
 import { DocumentList } from '@/features/documents/components/user/DocumentList';
-import { useUserDocuments, useDocumentViewUrl } from '@/features/documents/document.api';
+import { useUserDocuments, useDocumentViewUrl } from '@/api/documents/document.api';
 import type { Document } from '@/types/document.types';
 
 export const UserDocumentsPage: React.FC = () => {

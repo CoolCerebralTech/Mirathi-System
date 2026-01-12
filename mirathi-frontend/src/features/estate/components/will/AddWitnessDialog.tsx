@@ -21,7 +21,7 @@ import {
   AlertTitle
 } from '@/components/ui';
 import { AddWitnessSchema, type AddWitnessInput } from '@/types/estate.types';
-import { useAddWitness } from '../../estate.api';
+import { useAddWitness } from '@/api/estate/estate.api';
 
 interface AddWitnessDialogProps {
   isOpen: boolean;

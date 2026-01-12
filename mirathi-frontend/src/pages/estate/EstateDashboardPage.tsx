@@ -14,8 +14,8 @@ import {
   AlertDescription,
   Button
 } from '@/components/ui';
-import { useCurrentUser } from '@/features/user/user.api';
-import { useEstateSummary, useCreateWill } from '@/features/estate/estate.api';
+import { useCurrentUser } from '@/api/user/user.api';
+import { useEstateSummary, useCreateWill } from '@/api/estate/estate.api';
 
 // Dashboard Components
 import { CreateEstateDialog } from '@/features/estate/components/dashboard/CreateEstateDialog';

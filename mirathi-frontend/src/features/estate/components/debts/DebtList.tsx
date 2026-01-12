@@ -13,7 +13,7 @@ import {
   AlertDescription,
   Badge
 } from '@/components/ui';
-import { useDebtList } from '../../estate.api';
+import { useDebtList } from '@/api/estate/estate.api';
 import { EmptyState } from '@/components/common/EmptyState';
 import { DebtPriorityBadge } from './DebtPriorityBadge';
 import { AddDebtDialog } from './AddDebtDialog';

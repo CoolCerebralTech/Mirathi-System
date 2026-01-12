@@ -13,7 +13,7 @@ import {
   AlertDescription,
   Skeleton
 } from '@/components/ui';
-import { useEstateSummary } from '../../estate.api';
+import { useEstateSummary } from '@/api/estate/estate.api';
 import { EstateHeader } from './EstateHeader';
 import { NetWorthCard } from './NetWorthCard';
 import { LegalInsightsCard } from './LegalInsightsCard';

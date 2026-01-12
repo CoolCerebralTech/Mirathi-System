@@ -1,18 +1,16 @@
 // FILE: src/components/layouts/AuthLayout.tsx
 import { Outlet, Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { ShieldCheck, Scale, Lock } from 'lucide-react';
 import { Logo } from '../common/Logo';
 
 // Static configuration moved outside component
 const TRUST_ITEMS = [
-  { icon: Lock, label: 'Bank-grade encryption (AES-256)', key: 'trust.encryption' },
-  { icon: Scale, label: 'Compliant with Law of Succession Act (Cap 160)', key: 'trust.compliance' },
-  { icon: ShieldCheck, label: 'Data Protection Act registered', key: 'trust.protection' },
+  { icon: Lock, label: 'Bank-grade encryption (AES-256)' },
+  { icon: Scale, label: 'Compliant with Law of Succession Act (Cap 160)' },
+  { icon: ShieldCheck, label: 'Data Protection Act registered' },
 ];
 
 export function AuthLayout() {
-  useTranslation(['auth', 'common']);
   const currentYear = new Date().getFullYear();
 
   return (
@@ -99,7 +97,7 @@ export function AuthLayout() {
           {/* Trust Indicators */}
           <div className="mt-16 space-y-8">
             {TRUST_ITEMS.map((item) => (
-              <div key={item.key} className="flex items-start gap-5 group">
+              <div key={item.label} className="flex items-start gap-5 group">
                 <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-white/5 border border-white/10 group-hover:border-emerald-500/30 group-hover:bg-emerald-500/10 transition-colors duration-300">
                   <item.icon className="h-5 w-5 text-slate-300 group-hover:text-emerald-400 transition-colors" />
                 </div>

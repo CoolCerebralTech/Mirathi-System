@@ -1,10 +1,8 @@
-// FILE: src/components/layouts/PublicHeader.tsx
 import { useState, useEffect } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { Menu, X, ArrowRight } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '../ui/Sheet'; // Added SheetTitle for accessibility
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '../ui/Sheet';
 import { Logo } from '../common/Logo';
 
 const NAV_LINKS = [
@@ -13,11 +11,8 @@ const NAV_LINKS = [
 ];
 
 export function PublicHeader() {
-  useTranslation(['header', 'common']);
   const [isScrolled, setIsScrolled] = useState(false);
   
-  // Optimization: Simple throttle logic is usually handled by browser optimization 
-  // for simple boolean flips, but keeping it clean is key.
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 10 && !isScrolled) setIsScrolled(true);

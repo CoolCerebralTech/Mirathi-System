@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { ShieldCheck, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { VerificationQueue } from '@/features/documents/components/verifier/VerificationQueue';
 import { DocumentReviewer } from '@/features/documents/components/verifier/DocumentReviewer';
-import { usePendingDocuments } from '@/features/documents/document.api';
+import { usePendingDocuments } from '@/api/documents/document.api';
 import type { Document } from '@/types/document.types';
 
 export const VerifierDashboardPage: React.FC = () => {

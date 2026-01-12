@@ -34,7 +34,7 @@ import { GuardianshipManager } from '@/features/family/components';
 import { 
   useMyFamily, 
   useMyFamilyTree,
-} from '@/features/family/family.api';
+} from '@/api/family/family.api';
 
 export const GuardianshipPage: React.FC = () => {
   const navigate = useNavigate();

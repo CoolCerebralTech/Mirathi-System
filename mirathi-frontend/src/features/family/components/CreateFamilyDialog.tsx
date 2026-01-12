@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui';
 
-import { useCreateFamily } from '../family.api';
+import { useCreateFamily } from '@/api/family/family.api';
 import { 
   CreateFamilySchema, 
   type CreateFamilyInput,

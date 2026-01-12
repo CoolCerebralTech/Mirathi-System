@@ -4,7 +4,7 @@ import React from 'react';
 import { Loader2, FileX } from 'lucide-react';
 import { DocumentCard } from './DocumentCard';
 import { Alert, AlertDescription } from '@/components/ui';
-import { useUserDocuments, useDeleteDocument } from '../../document.api';
+import { useUserDocuments, useDeleteDocument } from '@/api/documents/document.api';
 import type { Document, DocumentStatus } from '@/types/document.types';
 
 interface DocumentListProps {

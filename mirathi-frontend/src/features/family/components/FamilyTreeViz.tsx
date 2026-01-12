@@ -11,7 +11,7 @@ import {
   Alert,
   AlertDescription,
 } from '@/components/ui';
-import { useMyFamilyTree } from '../family.api';
+import { useMyFamilyTree } from '@/api/family/family.api';
 import { Gender } from '@/types/family.types';
 import { cn } from '@/lib/utils';
 

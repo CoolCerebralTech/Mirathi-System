@@ -11,12 +11,12 @@ import {
   AlertCircle,
   Clock
 } from 'lucide-react';
-import { useCurrentUser } from '@/features/user/user.api';
+import { useCurrentUser } from '@/api/user/user.api';
 import { 
   Separator,
   Skeleton
 } from '@/components/ui';
-import { ProfileForm } from '@/features/user/components/ProfileForm';
+import { ProfileForm } from '@/features/user/forms/ProfileForm';
 import { Avatar, AvatarFallback } from '@/components/common/Avatar';
 
 export const ProfilePage: React.FC = () => {

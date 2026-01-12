@@ -29,7 +29,7 @@ import {
   Textarea,
 } from '@/components/ui';
 
-import { useAddFamilyMember } from '../family.api';
+import { useAddFamilyMember } from '@/api/family/family.api';
 import { 
   AddFamilyMemberSchema, 
   RelationshipType, 

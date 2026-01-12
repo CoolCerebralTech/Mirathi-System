@@ -3,7 +3,7 @@
 import React from 'react';
 import { Loader2, FileCheck, Calendar, User } from 'lucide-react';
 import { Card, CardContent, Button, Badge, Alert, AlertDescription } from '@/components/ui';
-import { usePendingDocuments } from '../../document.api';
+import { usePendingDocuments } from '@/api/documents/document.api';
 import { ReferenceDisplay } from '../shared/ReferenceDisplay';
 import { formatFileSize } from '@/types/document.types';
 import type { Document } from '@/types/document.types';

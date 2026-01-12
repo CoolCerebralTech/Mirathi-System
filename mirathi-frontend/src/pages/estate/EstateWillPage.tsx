@@ -2,8 +2,8 @@ import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui';
-import { useCurrentUser } from '@/features/user/user.api';
-import { useCreateWill } from '@/features/estate/estate.api';
+import { useCurrentUser } from '@/api/user/user.api';
+import { useCreateWill } from '@/api/estate/estate.api';
 import { WillBuilder } from '@/features/estate/components/will/WillBuilder';
 
 export const EstateWillPage: React.FC = () => {

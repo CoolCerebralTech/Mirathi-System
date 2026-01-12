@@ -1,5 +1,4 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { 
   LogOut, 
   User as UserIcon, 
@@ -9,9 +8,9 @@ import {
   Scale
 } from 'lucide-react';
 
-import { useCurrentUser } from '@/features/user/user.api';
-import { useEstateSummary } from '@/features/estate/estate.api';
-import { useLogout } from '@/features/auth/auth.api';
+import { useCurrentUser } from '@/api/user/user.api';
+import { useEstateSummary } from '@/api/estate/estate.api';
+import { useLogout } from '@/api/auth/auth.api';
 
 import { Button } from '@/components/ui/Button';
 import { Avatar, AvatarFallback } from '@/components/common/Avatar'; 
@@ -30,7 +29,6 @@ interface HeaderProps {
 }
 
 export function Header({ onMobileMenuClick }: HeaderProps) {
-  const { t } = useTranslation(['header', 'common']);
   const navigate = useNavigate();
   
   // Data Fetching
@@ -148,13 +146,13 @@ export function Header({ onMobileMenuClick }: HeaderProps) {
             <DropdownMenuItem asChild>
               <Link to="/dashboard/profile" className="cursor-pointer">
                 <UserIcon className="mr-2 h-4 w-4 text-slate-500" />
-                {t('profile', 'Profile')}
+                Profile
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link to="/dashboard/settings" className="cursor-pointer">
                 <Settings className="mr-2 h-4 w-4 text-slate-500" />
-                {t('settings', 'Settings')}
+                Settings
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -163,7 +161,7 @@ export function Header({ onMobileMenuClick }: HeaderProps) {
               className="text-red-600 focus:bg-red-50 focus:text-red-700 cursor-pointer"
             >
               <LogOut className="mr-2 h-4 w-4" />
-              {t('sign_out', 'Sign out')}
+              Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

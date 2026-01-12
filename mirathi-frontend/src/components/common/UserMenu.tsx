@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { User, Settings, LogOut, ChevronDown } from 'lucide-react';
 
-import { useLogout } from '../../features/auth/auth.api';
+import { useLogout } from '../../api/auth/auth.api';
 import { Avatar, AvatarFallback } from './Avatar';
 import {
   DropdownMenu,

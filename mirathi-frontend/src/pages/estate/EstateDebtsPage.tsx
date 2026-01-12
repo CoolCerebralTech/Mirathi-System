@@ -6,8 +6,8 @@ import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
 import { Button, Alert, AlertDescription, Skeleton } from '@/components/ui';
-import { useCurrentUser } from '@/features/user/user.api';
-import { useEstateSummary } from '@/features/estate/estate.api';
+import { useCurrentUser } from '@/api/user/user.api';
+import { useEstateSummary } from '@/api/estate/estate.api';
 import { DebtList } from '@/features/estate/components/debts/DebtList';
 import { LegalInsightsCard } from '@/features/estate/components/dashboard/LegalInsightsCard';
 

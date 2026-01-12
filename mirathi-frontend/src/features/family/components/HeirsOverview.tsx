@@ -16,7 +16,7 @@ import {
   Alert,
   AlertDescription,
 } from '@/components/ui';
-import { usePotentialHeirs } from '../family.api';
+import { usePotentialHeirs } from '@/api/family/family.api';
 import type { PotentialHeir, HeirsResponse } from '@/types/family.types';
 import { cn } from '@/lib/utils';
 

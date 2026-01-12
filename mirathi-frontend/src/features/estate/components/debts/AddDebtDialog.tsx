@@ -38,7 +38,7 @@ import {
   type AddDebtInput 
 } from '@/types/estate.types';
 
-import { useAddDebt } from '../../estate.api';
+import { useAddDebt } from '@/api/estate/estate.api';
 
 interface AddDebtDialogProps {
   isOpen: boolean;

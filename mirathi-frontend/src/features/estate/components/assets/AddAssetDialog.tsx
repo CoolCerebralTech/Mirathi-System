@@ -1,5 +1,3 @@
-// FILE: src/features/estate/components/assets/AddAssetDialog.tsx
-
 import React, { useState, useEffect } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -43,7 +41,7 @@ import {
   type AddGenericAssetInput
 } from '@/types/estate.types';
 
-import { useAddAsset } from '../../estate.api';
+import { useAddAsset } from '@/api/estate/estate.api';
 
 interface AddAssetDialogProps {
   isOpen: boolean;

@@ -9,7 +9,7 @@ import {
   AlertDescription,
   Skeleton
 } from '@/components/ui';
-import { useWillPreview } from '../../estate.api';
+import { useWillPreview } from '@/api/estate/estate.api';
 import { BeneficiaryList } from './BeneficiaryList';
 import { WitnessList } from './WitnessList';
 import { WillStatusCard } from './WillStatusCard';

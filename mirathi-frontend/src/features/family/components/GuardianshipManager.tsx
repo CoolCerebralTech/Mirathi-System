@@ -32,7 +32,7 @@ import {
   useAssignGuardian, 
   useFamilyTree,
   useGuardianshipChecklist
-} from '../family.api';
+} from '@/api/family/family.api';
 import type {
   GuardianEligibilityChecklist,
   EligibilityCheckResponse,

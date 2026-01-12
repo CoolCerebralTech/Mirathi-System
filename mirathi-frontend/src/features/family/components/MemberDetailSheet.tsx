@@ -25,7 +25,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from '@/components/ui';
-import { useRemoveFamilyMember, useFamilyTree } from '../family.api';
+import { useRemoveFamilyMember, useFamilyTree } from '@/api/family/family.api';
 import { cn } from '@/lib/utils';
 import type { 
   Gender, 

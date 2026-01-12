@@ -1,6 +1,4 @@
-// FILE: src/components/layouts/PublicFooter.tsx
 import { Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { 
   Linkedin, 
   Twitter, 
@@ -25,7 +23,6 @@ const LEGAL_LINKS = [
 ];
 
 export function PublicFooter() {
-  useTranslation(['footer', 'common']);
   const currentYear = new Date().getFullYear();
 
   return (

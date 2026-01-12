@@ -4,7 +4,6 @@ import * as React from 'react';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
 import { ThemeProvider } from './ThemeProvider';
 import { QueryProvider } from './QueryProvider';
-import { I18nProvider } from './I18nProvider';
 import { Toaster } from 'sonner';
 
 interface AppProvidersProps {
@@ -15,7 +14,6 @@ export function AppProviders({ children }: AppProvidersProps) {
   return (
     <ErrorBoundary>
       {/* AuthProvider is now removed. Zustand handles auth globally. */}
-      <I18nProvider>
         <ThemeProvider>
           <QueryProvider>
             {children}
@@ -23,7 +21,6 @@ export function AppProviders({ children }: AppProvidersProps) {
             <Toaster richColors position="top-right" />
           </QueryProvider>
         </ThemeProvider>
-      </I18nProvider>
     </ErrorBoundary>
   );
 }

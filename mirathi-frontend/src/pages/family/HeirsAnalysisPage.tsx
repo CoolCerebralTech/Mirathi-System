@@ -29,7 +29,7 @@ import { HeirsOverview } from '@/features/family/components';
 import { 
   useMyFamily, 
   usePotentialHeirs 
-} from '@/features/family/family.api';
+} from '@/api/family/family.api';
 
 export const HeirsAnalysisPage: React.FC = () => {
   const navigate = useNavigate();

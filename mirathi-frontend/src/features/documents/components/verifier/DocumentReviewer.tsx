@@ -13,7 +13,7 @@ import {
   Textarea,
   Label,
 } from '@/components/ui';
-import { useDocumentForVerification, useVerifyDocument } from '../../document.api';
+import { useDocumentForVerification, useVerifyDocument } from '../../../../api/documents/document.api';
 import { ReferenceDisplay } from '../shared/ReferenceDisplay';
 import { formatFileSize } from '@/types/document.types';
 import { formatDistanceToNow } from 'date-fns';

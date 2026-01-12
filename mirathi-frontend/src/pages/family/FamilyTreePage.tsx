@@ -28,7 +28,7 @@ import {
 import { 
   useFamilyTree, 
   useMyFamily 
-} from '@/features/family/family.api';
+} from '@/api/family/family.api';
 
 export const FamilyTreePage: React.FC = () => {
   const { familyId } = useParams<{ familyId?: string }>();

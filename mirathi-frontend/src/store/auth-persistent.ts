@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { UserResponse as User } from '../types/user.types';
+import type { UserResponse as User } from '@/types/user.types';
 
 // Define the shape of the data we want to store
 export interface AuthData {
