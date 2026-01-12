@@ -1,3 +1,4 @@
+// apps/succession-automation-service/src/succession-automation.module.ts
 import { Module } from '@nestjs/common';
 
 // Shared Libraries
@@ -7,25 +8,36 @@ import { DatabaseModule } from '@shamba/database';
 import { MessagingModule } from '@shamba/messaging';
 import { ObservabilityModule } from '@shamba/observability';
 
-import { AssessmentService } from './application/services/assessment.service';
-import { ProbateService } from './application/services/probate.service';
-import { RoadmapService } from './application/services/roadmap.service';
-import { PROBATE_PREVIEW_REPO } from './domian/repositories/probate-preview.repository';
-import { READINESS_ASSESSMENT_REPO } from './domian/repositories/readiness.repository';
-import { EXECUTOR_ROADMAP_REPO } from './domian/repositories/roadmap.repository';
-import { ProbateFormFactoryService } from './domian/services/probate-form-factory.service';
-import { ReadinessCalculatorService } from './domian/services/readiness-calculator.service';
-import { RoadmapFactoryService } from './domian/services/roadmap-factory.service';
+import { ProbateFormService } from './application/services/probate-form.service';
+import { RoadmapOrchestrationService } from './application/services/roadmap-orchestration.service';
+// Application Services
+import { SuccessionAssessmentService } from './application/services/succession-assessment.service';
+import { LEGAL_GUIDE_REPO } from './domain/repositories/legal-guide.repository';
+// Domain Repositories (Injection Tokens)
+import { PROBATE_PREVIEW_REPO } from './domain/repositories/probate-preview.repository';
+import { READINESS_ASSESSMENT_REPO } from './domain/repositories/readiness.repository';
+import { EXECUTOR_ROADMAP_REPO } from './domain/repositories/roadmap.repository';
+import { ProbateFormFactoryService } from './domain/services/probate-form-factory.service';
+// Domain Services
+import { ReadinessCalculatorService } from './domain/services/readiness-calculator.service';
+import { RoadmapFactoryService } from './domain/services/roadmap-factory.service';
+import { SuccessionContextFactoryService } from './domain/services/succession-context-factory.service';
+import { SuccessionDistributionService } from './domain/services/succession-distribution.service';
+// Infrastructure Adapters
 import { DocumentServiceAdapter } from './infrastructure/adapters/document-service.adapter';
 import { EstateServiceAdapter } from './infrastructure/adapters/estate-service.adapter';
 import { FamilyServiceAdapter } from './infrastructure/adapters/family-service.adapter';
+// Infrastructure Repositories (Prisma Implementations)
 import { PrismaExecutorRoadmapRepository } from './infrastructure/repositories/prisma-executor-roadmap.repository';
+import { PrismaLegalGuideRepository } from './infrastructure/repositories/prisma-legal-guide.repository';
+import { PrismaProbatePreviewRepository } from './infrastructure/repositories/prisma-probate-preview.repository';
 import { PrismaReadinessAssessmentRepository } from './infrastructure/repositories/prisma-readiness-assessment.repository';
 import { ProbateTemplateService } from './infrastructure/templates/probate-template.service';
-// --- PRESENTATION (Controllers) ---
-import { AssessmentController } from './presentation/controllers/assessment.controller';
-import { ProbateController } from './presentation/controllers/probate.controller';
+import { LegalGuidesController } from './presentation/controllers/legal-guides.controller';
+import { ProbateFormsController } from './presentation/controllers/probate-forms.controller';
 import { RoadmapController } from './presentation/controllers/roadmap.controller';
+// Presentation Controllers
+import { SuccessionAssessmentController } from './presentation/controllers/succession-assessment.controller';
 import { HealthController } from './presentation/health/health.controller';
 
 @Module({
@@ -36,31 +48,49 @@ import { HealthController } from './presentation/health/health.controller';
     // External Services
     MessagingModule.register({}),
     ObservabilityModule.register({
-      serviceName: 'succession-service',
-      version: '2.0.0',
+      serviceName: 'succession-automation-service',
+      version: '1.0.0',
     }),
   ],
-  controllers: [AssessmentController, RoadmapController, ProbateController, HealthController],
+  controllers: [
+    SuccessionAssessmentController,
+    RoadmapController,
+    ProbateFormsController,
+    LegalGuidesController,
+    HealthController,
+  ],
   providers: [
-    // 1. Application Services
-    AssessmentService,
-    RoadmapService,
-    ProbateService,
+    // ========================
+    // APPLICATION SERVICES
+    // ========================
+    SuccessionAssessmentService,
+    RoadmapOrchestrationService,
+    ProbateFormService,
 
-    // 2. Domain Logic Services (Pure)
+    // ========================
+    // DOMAIN SERVICES (Pure Business Logic)
+    // ========================
     ReadinessCalculatorService,
     RoadmapFactoryService,
     ProbateFormFactoryService,
+    SuccessionDistributionService,
+    SuccessionContextFactoryService,
 
-    // 3. Infrastructure Services
+    // ========================
+    // INFRASTRUCTURE SERVICES
+    // ========================
     ProbateTemplateService,
 
-    // 4. Adapters (Anti-Corruption Layer)
+    // ========================
+    // ADAPTERS (Anti-Corruption Layer)
+    // ========================
+    DocumentServiceAdapter,
     EstateServiceAdapter,
     FamilyServiceAdapter,
-    DocumentServiceAdapter,
 
-    // 5. Repositories (Binding Interfaces to Prisma Implementations)
+    // ========================
+    // REPOSITORIES (Binding Interfaces to Prisma Implementations)
+    // ========================
     {
       provide: READINESS_ASSESSMENT_REPO,
       useClass: PrismaReadinessAssessmentRepository,
@@ -73,7 +103,11 @@ import { HealthController } from './presentation/health/health.controller';
       provide: PROBATE_PREVIEW_REPO,
       useClass: PrismaProbatePreviewRepository,
     },
+    {
+      provide: LEGAL_GUIDE_REPO,
+      useClass: PrismaLegalGuideRepository,
+    },
   ],
-  exports: [AssessmentService, RoadmapService, ProbateService],
+  exports: [SuccessionAssessmentService, RoadmapOrchestrationService, ProbateFormService],
 })
-export class SuccessionModule {}
+export class SuccessionAutomationModule {}

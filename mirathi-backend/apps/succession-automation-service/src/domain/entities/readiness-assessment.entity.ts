@@ -14,6 +14,7 @@ export interface ReadinessAssessmentProps {
   id: string;
   userId: string;
   estateId: string;
+  familyId?: string;
   regime: SuccessionRegime;
   religion: SuccessionReligion;
   marriageType: MarriageType;
