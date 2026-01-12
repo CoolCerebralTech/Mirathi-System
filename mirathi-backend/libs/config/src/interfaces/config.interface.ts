@@ -10,7 +10,6 @@ export interface AppConfig {
   PORT: number;
   HOST: string;
   GLOBAL_PREFIX: string;
-  /** Comma-separated list of allowed origins (parsed into array) */
   CORS_ORIGINS: string[];
 
   // Rate Limiting
@@ -107,8 +106,6 @@ export interface ServicePortsConfig {
   FAMILY_SERVICE_PORT: number;
   ESTATE_SERVICE_PORT: number;
   SUCCESSION_AUTOMATION_SERVICE_PORT: number;
-  NOTIFICATIONS_SERVICE_PORT: number;
-  AUDITING_SERVICE_PORT: number;
 }
 
 export interface ServiceUrlsConfig {
@@ -117,8 +114,6 @@ export interface ServiceUrlsConfig {
   FAMILY_SERVICE_URL: string;
   ESTATE_SERVICE_URL: string;
   SUCCESSION_AUTOMATION_SERVICE_URL: string;
-  NOTIFICATIONS_SERVICE_URL: string;
-  AUDITING_SERVICE_URL: string;
 }
 
 /**

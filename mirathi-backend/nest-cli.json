@@ -23,15 +23,6 @@
         "tsConfigPath": "apps/api-gateway/tsconfig.app.json"
       }
     },
-    "auditing-service": {
-      "type": "application",
-      "root": "apps/auditing-service",
-      "entryFile": "main",
-      "sourceRoot": "apps/auditing-service/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/auditing-service/tsconfig.app.json"
-      }
-    },
     "auth": {
       "type": "library",
       "root": "libs/auth",
@@ -111,15 +102,6 @@
       "sourceRoot": "libs/notification/src",
       "compilerOptions": {
         "tsConfigPath": "libs/notification/tsconfig.lib.json"
-      }
-    },
-    "notifications-service": {
-      "type": "application",
-      "root": "apps/notifications-service",
-      "entryFile": "main",
-      "sourceRoot": "apps/notifications-service/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/notifications-service/tsconfig.app.json"
       }
     },
     "observability": {
