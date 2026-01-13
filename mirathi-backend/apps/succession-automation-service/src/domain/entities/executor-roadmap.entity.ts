@@ -1,3 +1,10 @@
+import {
+  CourtJurisdiction,
+  RoadmapPhase,
+  SuccessionRegime,
+  SuccessionReligion,
+} from '@prisma/client';
+
 import { SuccessionContext } from '../value-objects/succession-context.vo';
 
 export interface ExecutorRoadmapProps {
@@ -5,10 +12,13 @@ export interface ExecutorRoadmapProps {
   userId: string;
   estateId: string;
   assessmentId?: string;
-  regime: string;
-  religion: string;
-  targetCourt: string;
-  currentPhase: string;
+
+  // FIXED: Changed from string to Enums
+  regime: SuccessionRegime;
+  religion: SuccessionReligion;
+  targetCourt: CourtJurisdiction;
+  currentPhase: RoadmapPhase;
+
   overallProgress: number;
   totalTasks: number;
   completedTasks: number;
@@ -32,7 +42,8 @@ export class ExecutorRoadmap {
       regime: context.regime,
       religion: context.religion,
       targetCourt: context.targetCourt,
-      currentPhase: 'PRE_FILING',
+      // FIXED: Use Enum instead of string literal
+      currentPhase: RoadmapPhase.PRE_FILING,
       overallProgress: 0,
       totalTasks: 0,
       completedTasks: 0,
@@ -58,7 +69,7 @@ export class ExecutorRoadmap {
   get estateId(): string {
     return this.props.estateId;
   }
-  get currentPhase(): string {
+  get currentPhase(): RoadmapPhase {
     return this.props.currentPhase;
   }
   get overallProgress(): number {
@@ -73,7 +84,7 @@ export class ExecutorRoadmap {
     this.props.updatedAt = new Date();
   }
 
-  transitionToPhase(newPhase: string): void {
+  transitionToPhase(newPhase: RoadmapPhase): void {
     this.props.currentPhase = newPhase;
     this.props.updatedAt = new Date();
   }

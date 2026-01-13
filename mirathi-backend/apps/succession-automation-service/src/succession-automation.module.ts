@@ -8,17 +8,18 @@ import { DatabaseModule } from '@shamba/database';
 import { MessagingModule } from '@shamba/messaging';
 import { ObservabilityModule } from '@shamba/observability';
 
+// Application Services
+import { LegalGuideService } from './application/services/legal-guide.service';
 import { ProbateFormService } from './application/services/probate-form.service';
 import { RoadmapOrchestrationService } from './application/services/roadmap-orchestration.service';
-// Application Services
 import { SuccessionAssessmentService } from './application/services/succession-assessment.service';
-import { LEGAL_GUIDE_REPO } from './domain/repositories/legal-guide.repository';
 // Domain Repositories (Injection Tokens)
+import { LEGAL_GUIDE_REPO } from './domain/repositories/legal-guide.repository';
 import { PROBATE_PREVIEW_REPO } from './domain/repositories/probate-preview.repository';
 import { READINESS_ASSESSMENT_REPO } from './domain/repositories/readiness.repository';
 import { EXECUTOR_ROADMAP_REPO } from './domain/repositories/roadmap.repository';
-import { ProbateFormFactoryService } from './domain/services/probate-form-factory.service';
 // Domain Services
+import { ProbateFormFactoryService } from './domain/services/probate-form-factory.service';
 import { ReadinessCalculatorService } from './domain/services/readiness-calculator.service';
 import { RoadmapFactoryService } from './domain/services/roadmap-factory.service';
 import { SuccessionContextFactoryService } from './domain/services/succession-context-factory.service';
@@ -33,10 +34,10 @@ import { PrismaLegalGuideRepository } from './infrastructure/repositories/prisma
 import { PrismaProbatePreviewRepository } from './infrastructure/repositories/prisma-probate-preview.repository';
 import { PrismaReadinessAssessmentRepository } from './infrastructure/repositories/prisma-readiness-assessment.repository';
 import { ProbateTemplateService } from './infrastructure/templates/probate-template.service';
+// Presentation Controllers
 import { LegalGuidesController } from './presentation/controllers/legal-guides.controller';
 import { ProbateFormsController } from './presentation/controllers/probate-forms.controller';
 import { RoadmapController } from './presentation/controllers/roadmap.controller';
-// Presentation Controllers
 import { SuccessionAssessmentController } from './presentation/controllers/succession-assessment.controller';
 import { HealthController } from './presentation/health/health.controller';
 
@@ -66,6 +67,7 @@ import { HealthController } from './presentation/health/health.controller';
     SuccessionAssessmentService,
     RoadmapOrchestrationService,
     ProbateFormService,
+    LegalGuideService, // Added missing provider
 
     // ========================
     // DOMAIN SERVICES (Pure Business Logic)
@@ -108,6 +110,11 @@ import { HealthController } from './presentation/health/health.controller';
       useClass: PrismaLegalGuideRepository,
     },
   ],
-  exports: [SuccessionAssessmentService, RoadmapOrchestrationService, ProbateFormService],
+  exports: [
+    SuccessionAssessmentService,
+    RoadmapOrchestrationService,
+    ProbateFormService,
+    LegalGuideService,
+  ],
 })
 export class SuccessionAutomationModule {}

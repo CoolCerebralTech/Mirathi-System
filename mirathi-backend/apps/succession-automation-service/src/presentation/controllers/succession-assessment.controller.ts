@@ -1,4 +1,3 @@
-// apps/succession-automation-service/src/presentation/controllers/succession-assessment.controller.ts
 import {
   Body,
   Controller,
@@ -20,7 +19,7 @@ import {
   ResolveRiskRequestDto,
   SuccessionAssessmentRequestDto,
   SuccessionAssessmentResponseDto,
-} from '../dtos';
+} from '../dtos/assessment.dtos';
 
 @ApiTags('Succession Assessments')
 @ApiBearerAuth()
@@ -43,10 +42,16 @@ export class SuccessionAssessmentController {
     const userId = req.user.id;
     const result = await this.assessmentService.assessSuccession(userId, dto.estateId);
 
+    // Note: Use public methods from Service to get computed values
+    const quickAssessment = await this.assessmentService.getQuickAssessment(userId, dto.estateId);
+
+    // Fix: Access properties via toJSON() as the Entity does not expose getters for userId/estateId
+    const assessmentProps = result.assessment.toJSON();
+
     return {
-      id: result.assessment.id,
-      userId: result.assessment.userId,
-      estateId: result.assessment.estateId,
+      id: assessmentProps.id,
+      userId: assessmentProps.userId,
+      estateId: assessmentProps.estateId,
       regime: result.context.regime,
       targetCourt: result.context.targetCourt,
       isComplexCase: result.context.isComplexCase(),
@@ -59,19 +64,22 @@ export class SuccessionAssessmentController {
         status: result.score.status,
         canGenerateForms: result.score.canGenerateForms(),
       },
-      risks: result.risks.map((risk) => ({
-        id: risk.id,
-        severity: risk.severity,
-        category: risk.category,
-        title: risk.title,
-        description: risk.description,
-        legalBasis: risk.legalBasis,
-        isResolved: risk.isResolved,
-        resolutionSteps: risk.resolutionSteps,
-        isBlocking: risk.isBlocking,
-      })),
-      nextStep: this.assessmentService.getNextStep(result.risks, result.context),
-      estimatedDays: this.assessmentService.estimateTimeline(result.context),
+      risks: result.risks.map((risk) => {
+        const rData = risk.toJSON();
+        return {
+          id: rData.id,
+          severity: rData.severity,
+          category: rData.category,
+          title: rData.title,
+          description: rData.description,
+          legalBasis: rData.legalBasis,
+          isResolved: rData.isResolved,
+          resolutionSteps: rData.resolutionSteps,
+          isBlocking: rData.isBlocking,
+        };
+      }),
+      nextStep: quickAssessment.nextStep,
+      estimatedDays: quickAssessment.estimatedDays,
       criticalRisksCount: result.risks.filter((r) => r.severity === 'CRITICAL').length,
       totalRisksCount: result.risks.length,
     };
@@ -90,15 +98,7 @@ export class SuccessionAssessmentController {
     @Param('estateId') estateId: string,
   ): Promise<QuickAssessmentResponseDto> {
     const userId = req.user.id;
-    const result = await this.assessmentService.getQuickAssessment(userId, estateId);
-
-    return {
-      score: result.score,
-      status: result.status,
-      nextStep: result.nextStep,
-      criticalRisks: result.criticalRisks,
-      estimatedDays: result.estimatedDays,
-    };
+    return this.assessmentService.getQuickAssessment(userId, estateId);
   }
 
   @Get(':estateId')
@@ -113,59 +113,29 @@ export class SuccessionAssessmentController {
     @Request() req,
     @Param('estateId') estateId: string,
   ): Promise<SuccessionAssessmentResponseDto> {
-    const userId = req.user.id;
-    const result = await this.assessmentService.assessSuccession(userId, estateId);
-
-    return {
-      id: result.assessment.id,
-      userId: result.assessment.userId,
-      estateId: result.assessment.estateId,
-      regime: result.context.regime,
-      targetCourt: result.context.targetCourt,
-      isComplexCase: result.context.isComplexCase(),
-      score: {
-        overall: result.score.overall,
-        document: result.score.document,
-        legal: result.score.legal,
-        family: result.score.family,
-        financial: result.score.financial,
-        status: result.score.status,
-        canGenerateForms: result.score.canGenerateForms(),
-      },
-      risks: result.risks.map((risk) => ({
-        id: risk.id,
-        severity: risk.severity,
-        category: risk.category,
-        title: risk.title,
-        description: risk.description,
-        legalBasis: risk.legalBasis,
-        isResolved: risk.isResolved,
-        resolutionSteps: risk.resolutionSteps,
-        isBlocking: risk.isBlocking,
-      })),
-      nextStep: this.assessmentService.getNextStep(result.risks, result.context),
-      estimatedDays: this.assessmentService.estimateTimeline(result.context),
-      criticalRisksCount: result.risks.filter((r) => r.severity === 'CRITICAL').length,
-      totalRisksCount: result.risks.length,
-    };
+    // Re-use logic to ensure we map correctly using toJSON()
+    return this.createOrUpdateAssessment(req, { estateId });
   }
 
-  @Put('risks/:riskId/resolve')
+  @Put('assessments/:assessmentId/risks/:riskId/resolve')
   @ApiOperation({ summary: 'Resolve a risk flag' })
+  @ApiParam({ name: 'assessmentId', description: 'Assessment ID' })
   @ApiParam({ name: 'riskId', description: 'Risk flag ID' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Risk resolved successfully',
   })
-  async resolveRisk(@Param('riskId') riskId: string, @Body() dto: ResolveRiskRequestDto) {
-    // Note: We need assessmentId to resolve risk
-    // This is a simplified version
-    // In reality, we need to pass assessmentId or find it from riskId
-    // For MVP, we'll assume riskId is enough
+  async resolveRisk(
+    @Param('assessmentId') assessmentId: string,
+    @Param('riskId') riskId: string,
+    @Body() dto: ResolveRiskRequestDto,
+  ) {
+    const risk = await this.assessmentService.resolveRisk(assessmentId, riskId);
+
     return {
-      message: 'Risk resolution endpoint needs assessment context',
-      riskId,
-      resolutionNotes: dto.resolutionNotes,
+      message: 'Risk resolved',
+      risk: risk.toJSON(),
+      notes: dto.resolutionNotes,
     };
   }
 

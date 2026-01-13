@@ -1,28 +1,17 @@
-// apps/succession-automation-service/src/presentation/controllers/legal-guides.controller.ts
 import { Controller, Get, HttpStatus, Param, Query, UseGuards } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOperation,
-  ApiParam,
-  ApiQuery,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from '@shamba/auth';
 
-// Note: We need to create a LegalGuideService first
-// For now, I'll create a placeholder service
-
-import { GetLegalGuidesQueryDto, LegalGuideDto } from '../dtos';
+import { LegalGuideService } from '../../application/services/legal-guide.service';
+import { GetLegalGuidesQueryDto, LegalGuideDto } from '../dtos/legal-guide.dtos';
 
 @ApiTags('Legal Guides')
 @ApiBearerAuth()
 @Controller('succession/legal-guides')
 @UseGuards(JwtAuthGuard)
 export class LegalGuidesController {
-  // In a real implementation, we would inject a LegalGuideService
-  // For now, return mock data
+  constructor(private readonly legalGuideService: LegalGuideService) {}
 
   @Get()
   @ApiOperation({ summary: 'Get legal guides with optional filters' })
@@ -32,45 +21,24 @@ export class LegalGuidesController {
     type: [LegalGuideDto],
   })
   async getLegalGuides(@Query() query: GetLegalGuidesQueryDto): Promise<LegalGuideDto[]> {
-    // Mock data for MVP
-    return [
-      {
-        id: '1',
-        category: 'Succession Process',
-        title: 'Understanding Probate in Kenya',
-        slug: 'understanding-probate-kenya',
-        summary: 'A comprehensive guide to the probate process in Kenya',
-        fullContent: 'Full content here...',
-        appliesToRegime: ['TESTATE', 'INTESTATE'],
-        appliesToReligion: ['STATUTORY'],
-        legalSections: ['Section 45 LSA', 'Section 66 LSA'],
-        relatedFormTypes: ['PA1_PROBATE', 'PA80_INTESTATE'],
-        relatedTasks: ['FILE_PETITION', 'GET_CHIEFS_LETTER'],
-        keywords: ['probate', 'succession', 'kenya'],
-        viewCount: 100,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: '2',
-        category: 'Forms',
-        title: 'How to Fill Form P&A 80',
-        slug: 'how-to-fill-pa80',
-        summary: 'Step-by-step guide to filling Petition for Letters of Administration',
-        fullContent: 'Full content here...',
-        appliesToRegime: ['INTESTATE'],
-        appliesToReligion: ['STATUTORY'],
-        legalSections: ['Section 66 LSA'],
-        relatedFormTypes: ['PA80_INTESTATE'],
-        relatedTasks: ['PREPARE_FORMS'],
-        keywords: ['pa80', 'intestate', 'forms'],
-        viewCount: 75,
-        createdAt: new Date().toISOString(),
-      },
-    ].filter((guide) => {
-      if (query.category && guide.category !== query.category) return false;
-      if (query.regime && !guide.appliesToRegime.includes(query.regime)) return false;
-      if (query.religion && !guide.appliesToReligion.includes(query.religion)) return false;
-      return true;
+    let guides;
+
+    if (query.category) {
+      guides = await this.legalGuideService.getGuidesByCategory(query.category);
+    } else if (query.regime && query.religion) {
+      guides = await this.legalGuideService.getRecommendedGuides(query.regime, query.religion);
+    } else {
+      // Default: Return empty or handle "all" logic if needed
+      guides = [];
+    }
+
+    // Fix: Convert Entity -> Props -> DTO (handling Date to String conversion)
+    return guides.map((g) => {
+      const props = g.toJSON();
+      return {
+        ...props,
+        createdAt: props.createdAt.toISOString(),
+      };
     });
   }
 
@@ -83,43 +51,28 @@ export class LegalGuidesController {
     type: LegalGuideDto,
   })
   async getLegalGuide(@Param('slug') slug: string): Promise<LegalGuideDto> {
-    // Mock data for MVP
-    const guides = await this.getLegalGuides({});
-    const guide = guides.find((g) => g.slug === slug);
+    const guide = await this.legalGuideService.getGuideBySlug(slug);
 
-    if (!guide) {
-      // Return a 404 in real implementation
-      return {
-        id: 'not-found',
-        category: 'General',
-        title: 'Guide Not Found',
-        slug,
-        summary: 'The requested legal guide was not found',
-        fullContent: 'Please check the URL or contact support',
-        appliesToRegime: [],
-        appliesToReligion: [],
-        legalSections: [],
-        relatedFormTypes: [],
-        relatedTasks: [],
-        keywords: [],
-        viewCount: 0,
-        createdAt: new Date().toISOString(),
-      };
-    }
-
-    return guide;
+    // Fix: Convert Entity -> Props -> DTO
+    const props = guide.toJSON();
+    return {
+      ...props,
+      createdAt: props.createdAt.toISOString(),
+    };
   }
 
-  @Get('categories')
+  @Get('meta/categories')
   @ApiOperation({ summary: 'Get all legal guide categories' })
   async getCategories(): Promise<string[]> {
-    return [
+    // Fix: Satisfy async requirement with Promise.resolve
+    return Promise.resolve([
       'Succession Process',
       'Forms',
       'Legal Requirements',
       'Court Procedures',
       'Family Matters',
       'Asset Distribution',
-    ];
+      'Dispute Resolution',
+    ]);
   }
 }

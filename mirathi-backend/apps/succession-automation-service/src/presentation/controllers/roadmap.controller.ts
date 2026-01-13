@@ -1,16 +1,6 @@
-// apps/succession-automation-service/src/presentation/controllers/roadmap.controller.ts
-import {
-  Body,
-  Controller,
-  Get,
-  HttpStatus,
-  Param,
-  Post,
-  Put,
-  Request,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Param, Post, Request, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { RoadmapPhase } from '@prisma/client';
 
 import { JwtAuthGuard } from '@shamba/auth';
 
@@ -23,7 +13,7 @@ import {
   SkipTaskRequestDto,
   StartTaskRequestDto,
   TaskCompletionResponseDto,
-} from '../dtos';
+} from '../dtos/roadmap.dtos';
 
 @ApiTags('Succession Roadmaps')
 @ApiBearerAuth()
@@ -47,20 +37,24 @@ export class RoadmapController {
     const userId = req.user.id;
     const result = await this.roadmapService.getUserRoadmap(userId, estateId);
 
+    const roadmapData = result.roadmap.toJSON();
+
     return {
-      id: result.roadmap.id,
-      userId: result.roadmap.userId,
-      estateId: result.roadmap.estateId,
-      currentPhase: result.roadmap.currentPhase as any,
-      overallProgress: result.roadmap.overallProgress,
-      totalTasks: result.roadmap.totalTasks,
-      completedTasks: result.roadmap.completedTasks,
-      availableTasks: result.roadmap.availableTasks,
-      lockedTasks: result.roadmap.lockedTasks,
-      startedAt: result.roadmap.startedAt,
+      id: roadmapData.id,
+      userId: roadmapData.userId,
+      estateId: roadmapData.estateId,
+      currentPhase: roadmapData.currentPhase,
+      overallProgress: roadmapData.overallProgress,
+      totalTasks: roadmapData.totalTasks,
+      completedTasks: roadmapData.completedTasks,
+      availableTasks: roadmapData.availableTasks,
+      lockedTasks: roadmapData.lockedTasks,
+      startedAt: roadmapData.startedAt,
       tasks: result.tasks.map((task) => this.mapTaskToDto(task)),
       currentPhaseTasks: result.currentPhaseTasks.map((task) => this.mapTaskToDto(task)),
       nextPhase: result.nextPhase,
+      estimatedDays: roadmapData.estimatedDays,
+      estimatedCompletion: roadmapData.estimatedCompletion,
     };
   }
 
@@ -79,9 +73,12 @@ export class RoadmapController {
     @Param('phase') phase: string,
   ): Promise<RoadmapPhaseOverviewDto> {
     const userId = req.user.id;
-    const roadmap = await this.roadmapService.getUserRoadmap(userId, estateId);
+    const result = await this.roadmapService.getUserRoadmap(userId, estateId);
 
-    const overview = await this.roadmapService.getPhaseOverview(roadmap.roadmap.id, phase as any);
+    const overview = await this.roadmapService.getPhaseOverview(
+      result.roadmap.id,
+      phase as RoadmapPhase,
+    );
 
     return {
       phase: overview.phase,
@@ -109,29 +106,24 @@ export class RoadmapController {
     @Param('estateId') estateId: string,
   ): Promise<RecommendedTasksResponseDto> {
     const userId = req.user.id;
-    const roadmap = await this.roadmapService.getUserRoadmap(userId, estateId);
+    const result = await this.roadmapService.getUserRoadmap(userId, estateId);
 
-    const tasks = await this.roadmapService.getRecommendedTasks(roadmap.roadmap.id);
+    const tasks = await this.roadmapService.getRecommendedTasks(result.roadmap.id);
 
     return {
       tasks: tasks.map((task) => this.mapTaskToDto(task)),
+      // Check dependencies on JSON object or check 'dependsOn' getter if exists
       priorityTaskCount: tasks.filter((t) => t.dependsOn.length > 0).length,
     };
   }
 
   @Post(':roadmapId/tasks/:taskId/start')
   @ApiOperation({ summary: 'Start working on a task' })
-  @ApiParam({ name: 'roadmapId', description: 'Roadmap ID' })
-  @ApiParam({ name: 'taskId', description: 'Task ID' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Task started successfully',
-  })
   async startTask(
     @Request() req,
     @Param('roadmapId') roadmapId: string,
     @Param('taskId') taskId: string,
-    @Body() dto: StartTaskRequestDto,
+    @Body() _dto: StartTaskRequestDto,
   ) {
     const userId = req.user.id;
     const task = await this.roadmapService.startTask(roadmapId, taskId, userId);
@@ -144,13 +136,6 @@ export class RoadmapController {
 
   @Post(':roadmapId/tasks/:taskId/complete')
   @ApiOperation({ summary: 'Complete a task' })
-  @ApiParam({ name: 'roadmapId', description: 'Roadmap ID' })
-  @ApiParam({ name: 'taskId', description: 'Task ID' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Task completed successfully',
-    type: TaskCompletionResponseDto,
-  })
   async completeTask(
     @Request() req,
     @Param('roadmapId') roadmapId: string,
@@ -170,12 +155,6 @@ export class RoadmapController {
 
   @Post(':roadmapId/tasks/:taskId/skip')
   @ApiOperation({ summary: 'Skip a task' })
-  @ApiParam({ name: 'roadmapId', description: 'Roadmap ID' })
-  @ApiParam({ name: 'taskId', description: 'Task ID' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Task skipped successfully',
-  })
   async skipTask(
     @Request() req,
     @Param('roadmapId') roadmapId: string,
@@ -192,21 +171,24 @@ export class RoadmapController {
   }
 
   private mapTaskToDto(task: any): any {
+    // If it's a domain entity, convert to JSON/Props first
+    const data = typeof task.toJSON === 'function' ? task.toJSON() : task;
+
     return {
-      id: task.id,
-      title: task.title,
-      description: task.description,
-      status: task.status,
-      category: task.category,
-      phase: task.phase,
-      orderIndex: task.orderIndex,
-      dependsOnTaskIds: task.dependsOnTaskIds,
-      whatIsIt: task.whatIsIt,
-      whyNeeded: task.whyNeeded,
-      howToGet: task.howToGet,
-      estimatedDays: task.estimatedDays,
-      completedAt: task.completedAt,
-      notes: task.notes,
+      id: data.id,
+      title: data.title,
+      description: data.description,
+      status: data.status,
+      category: data.category,
+      phase: data.phase,
+      orderIndex: data.orderIndex,
+      dependsOnTaskIds: data.dependsOnTaskIds,
+      whatIsIt: data.whatIsIt,
+      whyNeeded: data.whyNeeded,
+      howToGet: data.howToGet,
+      estimatedDays: data.estimatedDays,
+      completedAt: data.completedAt,
+      notes: data.notes,
     };
   }
 }

@@ -6,9 +6,10 @@ import {
 
 import { PrismaService } from '@shamba/database';
 
-import { ReadinessAssessment } from '../../domian/entities/readiness-assessment.entity';
-import { RiskFlag } from '../../domian/entities/risk-flag.entity';
-import { IReadinessAssessmentRepository } from '../../domian/repositories/readiness.repository';
+// FIXED: Typos in import paths (domian -> domain)
+import { ReadinessAssessment } from '../../domain/entities/readiness-assessment.entity';
+import { RiskFlag } from '../../domain/entities/risk-flag.entity';
+import { IReadinessAssessmentRepository } from '../../domain/repositories/readiness.repository';
 
 @Injectable()
 export class PrismaReadinessAssessmentRepository implements IReadinessAssessmentRepository {
@@ -78,7 +79,6 @@ export class PrismaReadinessAssessmentRepository implements IReadinessAssessment
   async saveRisks(risks: RiskFlag[]): Promise<void> {
     if (risks.length === 0) return;
 
-    // We use a transaction to ensure all risks are saved
     await this.prisma.$transaction(
       risks.map((risk) => {
         const data = risk.toJSON();
@@ -113,7 +113,8 @@ export class PrismaReadinessAssessmentRepository implements IReadinessAssessment
       where: { assessmentId },
     });
 
-    return rawRisks.map(this.mapRiskToDomain);
+    // FIXED: Use arrow function to preserve 'this' context
+    return rawRisks.map((risk) => this.mapRiskToDomain(risk));
   }
 
   // --- Mappers ---

@@ -1,4 +1,3 @@
-// apps/succession-automation-service/src/presentation/controllers/probate-forms.controller.ts
 import {
   Body,
   Controller,
@@ -19,6 +18,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { KenyanFormType } from '@prisma/client';
 
 import { JwtAuthGuard } from '@shamba/auth';
 
@@ -28,7 +28,7 @@ import {
   ProbateFormsResponseDto,
   ValidateFormRequestDto,
   ValidationResultDto,
-} from '../dtos';
+} from '../dtos/forms.dtos';
 
 @ApiTags('Probate Forms')
 @ApiBearerAuth()
@@ -90,20 +90,18 @@ export class ProbateFormsController {
     };
   }
 
-  @Get(':previewId/download')
+  @Get(':estateId/download')
   @ApiOperation({ summary: 'Download a generated form' })
-  @ApiParam({ name: 'previewId', description: 'Form preview ID' })
+  @ApiParam({ name: 'estateId', description: 'Estate ID' })
   @ApiQuery({ name: 'formType', required: true, enum: KenyanFormType })
   @ApiQuery({ name: 'format', required: false, enum: ['html', 'pdf', 'doc'] })
   async downloadForm(
-    @Param('previewId') previewId: string,
+    @Param('estateId') estateId: string,
     @Query('formType') formType: KenyanFormType,
-    @Query('format') format: 'html' | 'pdf' | 'doc' = 'html',
+    @Query('format') _format: 'html' | 'pdf' | 'doc' = 'html',
   ): Promise<StreamableFile> {
-    const result = await this.formService.downloadForm(previewId, formType);
+    const result = await this.formService.downloadForm(estateId, formType);
 
-    // For MVP, return HTML content
-    // In production, this would convert to PDF/DOC based on format parameter
     const buffer = Buffer.from(result.html, 'utf-8');
 
     return new StreamableFile(buffer, {
@@ -119,26 +117,13 @@ export class ProbateFormsController {
     description: 'Form validation result',
     type: ValidationResultDto,
   })
-  async validateForm(@Body() dto: ValidateFormRequestDto): Promise<ValidationResultDto> {
+  validateForm(@Body() dto: ValidateFormRequestDto): ValidationResultDto {
     const result = this.formService.validateFormData(dto.formType, dto.formData);
 
     return {
       isValid: result.isValid,
       errors: result.errors,
       warnings: result.warnings,
-    };
-  }
-
-  @Get(':estateId/forms')
-  @ApiOperation({ summary: 'Get all generated forms for an estate' })
-  @ApiParam({ name: 'estateId', description: 'Estate ID' })
-  async getGeneratedForms(@Param('estateId') estateId: string) {
-    // This would fetch forms from the repository
-    // For MVP, we'll return a placeholder
-    return {
-      estateId,
-      forms: [],
-      message: 'Forms will be available after generation',
     };
   }
 }

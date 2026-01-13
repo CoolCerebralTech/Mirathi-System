@@ -1,3 +1,4 @@
+// apps/succession-automation-service/src/main.ts
 import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
@@ -6,10 +7,10 @@ import { Logger } from 'nestjs-pino';
 
 import { ConfigService } from '@shamba/config';
 
-import { SuccessionModule } from './succession.module';
+import { SuccessionAutomationModule } from './succession-automation.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(SuccessionModule, {
+  const app = await NestFactory.create(SuccessionAutomationModule, {
     bufferLogs: true,
   });
 
@@ -59,7 +60,9 @@ async function bootstrap() {
   // ============================================================================
   const corsOriginsRaw = configService.get('CORS_ORIGINS');
   const corsOrigins =
-    corsOriginsRaw.length === 1 && corsOriginsRaw[0] === '*' ? '*' : corsOriginsRaw;
+    Array.isArray(corsOriginsRaw) && corsOriginsRaw.length === 1 && corsOriginsRaw[0] === '*'
+      ? '*'
+      : corsOriginsRaw;
 
   app.enableCors({
     origin: corsOrigins,
@@ -71,7 +74,6 @@ async function bootstrap() {
   // ============================================================================
   // SWAGGER DOCUMENTATION
   // ============================================================================
-  // UPDATED: Port to match the service specific port
   const servicePort = configService.get('SUCCESSION_AUTOMATION_SERVICE_PORT', 3005);
 
   const swaggerConfig = new DocumentBuilder()
@@ -82,10 +84,12 @@ async function bootstrap() {
     .setVersion('1.0.0')
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'JWT')
     .addTag(
-      'Readiness Assessment (Commands)',
-      'State Mutations: Initialize, Resolve Risks, Complete',
+      'Readiness Assessment',
+      'Evaluate estate readiness for probate filing based on LSA rules.',
     )
-    .addTag('Readiness Assessment (Queries)', 'Read Model: Dashboard, Strategy, Checklists')
+    .addTag('Probate Forms', 'Generate Kenyan Court Forms (P&A 80, P&A 1, P&A 5).')
+    .addTag('Succession Roadmaps', 'Step-by-step executor guidance.')
+    .addTag('Legal Guides', 'Educational content for users.')
     .addServer(`http://localhost:${servicePort}`, 'Local Development')
     .build();
 

@@ -3,9 +3,9 @@ import { ExecutorRoadmap as PrismaRoadmap, RoadmapTask as PrismaTask } from '@pr
 
 import { PrismaService } from '@shamba/database';
 
-import { ExecutorRoadmap } from '../../domian/entities/executor-roadmap.entity';
-import { RoadmapTask } from '../../domian/entities/roadmap-task.entity';
-import { IExecutorRoadmapRepository } from '../../domian/repositories/roadmap.repository';
+import { ExecutorRoadmap } from '../../domain/entities/executor-roadmap.entity';
+import { RoadmapTask } from '../../domain/entities/roadmap-task.entity';
+import { IExecutorRoadmapRepository } from '../../domain/repositories/roadmap.repository';
 
 @Injectable()
 export class PrismaExecutorRoadmapRepository implements IExecutorRoadmapRepository {
@@ -101,18 +101,14 @@ export class PrismaExecutorRoadmapRepository implements IExecutorRoadmapReposito
   async getTasks(roadmapId: string): Promise<RoadmapTask[]> {
     const rawTasks = await this.prisma.roadmapTask.findMany({
       where: { roadmapId },
-      orderBy: [
-        { phase: 'asc' }, // By Phase (enum order) usually needs manual sort if enum isn't alphanumeric, but works for grouping
-        { orderIndex: 'asc' },
-      ],
+      orderBy: [{ phase: 'asc' }, { orderIndex: 'asc' }],
     });
 
-    return rawTasks.map(this.mapTaskToDomain);
+    // FIXED: Use arrow function to preserve 'this' context
+    return rawTasks.map((task) => this.mapTaskToDomain(task));
   }
 
   async findDependentTasks(taskId: string): Promise<RoadmapTask[]> {
-    // Prisma doesn't have a direct "array contains" for string arrays easily in all DBs,
-    // but Postgres supports 'has' operator.
     const rawTasks = await this.prisma.roadmapTask.findMany({
       where: {
         dependsOnTaskIds: {
@@ -121,7 +117,8 @@ export class PrismaExecutorRoadmapRepository implements IExecutorRoadmapReposito
       },
     });
 
-    return rawTasks.map(this.mapTaskToDomain);
+    // FIXED: Use arrow function to preserve 'this' context
+    return rawTasks.map((task) => this.mapTaskToDomain(task));
   }
 
   // --- Mappers ---

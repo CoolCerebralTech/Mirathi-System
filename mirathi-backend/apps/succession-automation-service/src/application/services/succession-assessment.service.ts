@@ -1,23 +1,17 @@
 // apps/succession-automation-service/src/application/services/succession-assessment.service.ts
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import {
-  CourtJurisdiction,
-  MarriageType,
-  ReadinessStatus,
-  SuccessionRegime,
-  SuccessionReligion,
-} from '@prisma/client';
+import { AssetStatus, CourtJurisdiction, SuccessionRegime } from '@prisma/client';
 
 import { ExecutorRoadmap } from '../../domain/entities/executor-roadmap.entity';
 import { ProbatePreview } from '../../domain/entities/probate-preview.entity';
 import { ReadinessAssessment } from '../../domain/entities/readiness-assessment.entity';
 import { RiskFlag } from '../../domain/entities/risk-flag.entity';
-import type { IProbatePreviewRepository } from '../../domain/repositories/probate-preview.repository';
 import { PROBATE_PREVIEW_REPO } from '../../domain/repositories/probate-preview.repository';
-import type { IReadinessAssessmentRepository } from '../../domain/repositories/readiness.repository';
+import type { IProbatePreviewRepository } from '../../domain/repositories/probate-preview.repository';
 import { READINESS_ASSESSMENT_REPO } from '../../domain/repositories/readiness.repository';
-import type { IExecutorRoadmapRepository } from '../../domain/repositories/roadmap.repository';
+import type { IReadinessAssessmentRepository } from '../../domain/repositories/readiness.repository';
 import { EXECUTOR_ROADMAP_REPO } from '../../domain/repositories/roadmap.repository';
+import type { IExecutorRoadmapRepository } from '../../domain/repositories/roadmap.repository';
 import { ReadinessCalculatorService } from '../../domain/services/readiness-calculator.service';
 import { RoadmapFactoryService } from '../../domain/services/roadmap-factory.service';
 import { AssetSummary } from '../../domain/value-objects/asset-summary.vo';
@@ -68,12 +62,13 @@ export class SuccessionAssessmentService {
     ]);
 
     // 2. Create Succession Context
+    // Fix: Calculated hasMinors from count, as it's not on the interface directly
     const context = new SuccessionContext(
       estateData.hasWill ? SuccessionRegime.TESTATE : SuccessionRegime.INTESTATE,
       familyData.religion,
       familyData.marriageType,
       estateData.totalAssets,
-      familyData.hasMinors,
+      familyData.numberOfMinors > 0, // FIXED
       familyData.isPolygamous,
       familyData.numberOfSpouses,
       familyData.numberOfChildren,
@@ -109,9 +104,25 @@ export class SuccessionAssessmentService {
     assessment.updateScore(score);
     assessment.updateRiskProfile(risks);
 
-    // 6. Save assessment and risks
+    // 6. Save assessment
     await this.assessmentRepo.save(assessment);
-    await this.assessmentRepo.saveRisks(risks);
+
+    // Ensure risks link to the correct assessment ID
+    const risksWithId = risks.map((r) => {
+      const props = r.toJSON();
+      return RiskFlag.create(
+        assessment.id,
+        props.severity,
+        props.category,
+        props.title,
+        props.description,
+        props.legalBasis,
+        props.isBlocking,
+        props.resolutionSteps,
+      );
+    });
+
+    await this.assessmentRepo.saveRisks(risksWithId);
 
     // 7. Create roadmap if score > 0
     let roadmap: ExecutorRoadmap | undefined;
@@ -135,7 +146,7 @@ export class SuccessionAssessmentService {
       assessment,
       context,
       score,
-      risks,
+      risks: risksWithId,
       roadmap,
       preview,
     };
@@ -170,13 +181,6 @@ export class SuccessionAssessmentService {
     risk.resolve();
     await this.assessmentRepo.saveRisks([risk]);
 
-    // Recalculate assessment after risk resolution
-    const assessment = await this.assessmentRepo
-      .findByEstateId
-      // We need to get assessment to find estateId, but our repo doesn't have this method
-      // For now, we'll skip auto-recalculation
-      ();
-
     return risk;
   }
 
@@ -198,7 +202,7 @@ export class SuccessionAssessmentService {
     const assetSimple = estateData.assets.map((a) => ({
       category: a.category,
       value: a.estimatedValue,
-      status: a.isVerified ? 'VERIFIED' : 'ACTIVE', // Map to AssetStatus
+      status: a.isVerified ? AssetStatus.VERIFIED : AssetStatus.ACTIVE,
       isEncumbered: a.isEncumbered,
     }));
 
@@ -217,8 +221,9 @@ export class SuccessionAssessmentService {
 
     if (!roadmap) {
       roadmap = ExecutorRoadmap.create(userId, estateId, context);
+
       if (assessmentId) {
-        // Add assessmentId if we have it
+        // Hydrate from existing props + assessmentId
         const props = roadmap.toJSON();
         roadmap = ExecutorRoadmap.fromPersistence({
           ...props,
@@ -242,7 +247,7 @@ export class SuccessionAssessmentService {
     estateId: string,
     context: SuccessionContext,
     readinessScore: number,
-    assessmentId?: string,
+    _assessmentId?: string,
   ): Promise<ProbatePreview> {
     let preview = await this.previewRepo.findByEstateId(estateId);
 
@@ -261,7 +266,8 @@ export class SuccessionAssessmentService {
     const criticalRisks = risks.filter((r) => r.isBlocking && !r.isResolved);
 
     if (criticalRisks.length > 0) {
-      return `RESOLVE_CRITICAL_RISK: ${criticalRisks[0].title}`;
+      // Fix: Use toJSON() because 'title' getter is missing on Entity class
+      return `RESOLVE_CRITICAL_RISK: ${criticalRisks[0].toJSON().title}`;
     }
 
     if (context.regime === SuccessionRegime.INTESTATE) {

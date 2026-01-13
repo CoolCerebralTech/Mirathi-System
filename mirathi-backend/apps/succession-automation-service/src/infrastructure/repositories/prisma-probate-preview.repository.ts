@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { KenyanFormType } from '@prisma/client';
 
 import { PrismaService } from '@shamba/database';
 
@@ -11,7 +12,9 @@ export class PrismaProbatePreviewRepository implements IProbatePreviewRepository
   constructor(private readonly prisma: PrismaService) {}
 
   async findByEstateId(estateId: string): Promise<ProbatePreview | null> {
-    const raw = await this.prisma.probatePreview.findUnique({
+    // FIXED: Changed to findFirst because `estateId` is part of a compound unique key,
+    // it is not unique by itself in the schema.
+    const raw = await this.prisma.probatePreview.findFirst({
       where: { estateId },
       include: { formPreviews: true },
     });
@@ -68,12 +71,14 @@ export class PrismaProbatePreviewRepository implements IProbatePreviewRepository
     await this.prisma.$transaction(
       previews.map((preview) => {
         const data = preview.toJSON();
+        // Since Domain Entity now returns proper Enums (KenyanFormType),
+        // Prisma will accept it directly.
         return this.prisma.formPreview.upsert({
           where: { id: data.id },
           create: {
             id: data.id,
             probatePreviewId: data.probatePreviewId,
-            formType: data.formType,
+            formType: data.formType as unknown as KenyanFormType,
             formTitle: data.formTitle,
             formCode: data.formCode,
             htmlPreview: data.htmlPreview,

@@ -1,5 +1,5 @@
-// infrastructure/adapters/legal-guide.repository.ts
 import { Injectable } from '@nestjs/common';
+import { SuccessionRegime, SuccessionReligion } from '@prisma/client';
 
 import { PrismaService } from '@shamba/database';
 
@@ -63,7 +63,11 @@ export class PrismaLegalGuideRepository implements ILegalGuideRepository {
     );
   }
 
-  async findByRegimeAndReligion(regime: string, religion: string): Promise<LegalGuide[]> {
+  // FIXED: Changed arguments to Enums to match Prisma inputs
+  async findByRegimeAndReligion(
+    regime: SuccessionRegime,
+    religion: SuccessionReligion,
+  ): Promise<LegalGuide[]> {
     const rawGuides = await this.prisma.legalGuide.findMany({
       where: {
         appliesToRegime: { has: regime },
