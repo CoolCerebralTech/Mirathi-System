@@ -139,3 +139,5 @@ AI Sentiment Analysis: Analyzing family chat logs or dispute flags to predict th
 9. Conclusion
 
 Mirathi is not just a convenience tool; it is a structural fix for a systemic problem. By codifying the Law of Succession Act into software, we reduce the burden on the courts, protect vulnerable heirs from disinheritance, and ensure that the legacy of every Kenyan is honored with dignity, speed, and truth.
+![Build](https://img.shields.io/badge/build-passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-blue)
