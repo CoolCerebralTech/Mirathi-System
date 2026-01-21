@@ -1,4 +1,4 @@
-// mirathi-frontend/src/components/family/AddMemberDialog.tsx
+// FILE: src/components/family/AddMemberDialog.tsx
 
 import React from 'react';
 import { useForm, type SubmitHandler, type DefaultValues, type Resolver } from 'react-hook-form';
@@ -26,7 +26,6 @@ import {
   SelectValue,
   Button,
   Switch,
-  Textarea,
 } from '@/components/ui';
 
 import { useAddFamilyMember } from '@/api/family/family.api';
@@ -38,17 +37,11 @@ import {
 } from '@/types/family.types';
 
 // ============================================================================
-// 1. EXTENDED FORM SCHEMA
+// 1. FORM SCHEMA (Strictly matches Backend DTO)
 // ============================================================================
-// We extend the schema to include UI-only fields (like isAlive) or fields 
-// that exist in the form but might be missing from the strict API Input type.
-const FormSchema = AddFamilyMemberSchema.extend({
-  isAlive: z.boolean().default(true),
-  isMentallyCapable: z.boolean().default(true),
-  causeOfDeath: z.string().optional(),
-  placeOfDeath: z.string().optional(),
-  polygamousHouseId: z.string().optional(),
-});
+// We don't need to extend the schema for UI fields like 'isAlive' 
+// because the backend assumes everyone is alive upon creation.
+const FormSchema = AddFamilyMemberSchema;
 
 type FormValues = z.infer<typeof FormSchema>;
 
@@ -64,8 +57,6 @@ export const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
   familyId 
 }) => {
   const form = useForm<FormValues>({
-    // Cast resolver to 'unknown' then 'Resolver<FormValues>' to satisfy 
-    // TypeScript when Zod outputs optional fields that RHF expects to be strictly typed.
     resolver: zodResolver(FormSchema) as unknown as Resolver<FormValues>,
     mode: 'onTouched',
     defaultValues: {
@@ -74,33 +65,19 @@ export const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
       relationship: RelationshipType.CHILD,
       gender: Gender.MALE,
       
-      // UI Control
-      isAlive: true,
-      
       // Booleans
       isAdopted: false,
-      hasDisability: false,
-      isMentallyCapable: true,
       
       // Strings (Initialize empty to avoid uncontrolled inputs)
       middleName: '',
       maidenName: '',
       nationalId: '',
-      birthCertNo: '',
-      kraPin: '',
-      passportNumber: '',
       phoneNumber: '',
       email: '',
-      currentAddress: '',
-      disabilityType: '',
-      causeOfDeath: '',
-      deathCertNo: '',
-      placeOfDeath: '',
       polygamousHouseId: '',
       
       // Dates
       dateOfBirth: undefined,
-      dateOfDeath: undefined,
       adoptionDate: undefined,
     } as DefaultValues<FormValues>,
   });
@@ -126,8 +103,7 @@ export const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
       return str;
     };
 
-    // 3. Construct payload strictly matching AddFamilyMemberInput interface.
-    // We do NOT use 'any' here.
+    // 3. Construct payload strictly matching AddFamilyMemberDto
     const finalPayload: AddFamilyMemberInput = {
       // -- Required Fields --
       firstName: data.firstName,
@@ -137,45 +113,26 @@ export const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
       // -- Enums & Booleans --
       gender: data.gender,
       isAdopted: data.isAdopted,
-      hasDisability: data.hasDisability,
 
       // -- Cleaned Strings --
       middleName: cleanStr(data.middleName),
       maidenName: cleanStr(data.maidenName),
       nationalId: cleanStr(data.nationalId),
-      birthCertNo: cleanStr(data.birthCertNo),
-      kraPin: cleanStr(data.kraPin),
-      passportNumber: cleanStr(data.passportNumber),
       phoneNumber: cleanStr(data.phoneNumber),
       email: cleanStr(data.email),
-      currentAddress: cleanStr(data.currentAddress),
       
-      // Note: polygamousHouseId, causeOfDeath, placeOfDeath are excluded 
-      // because they are not in AddFamilyMemberInput type definition.
-
       // -- Dates --
       dateOfBirth: toISO(data.dateOfBirth),
-
-      // -- Conditional Logic: Death Details --
-      // Only send if isAlive is false
-      dateOfDeath: !data.isAlive ? toISO(data.dateOfDeath) : undefined,
-      deathCertNo: !data.isAlive ? cleanStr(data.deathCertNo) : undefined,
-
-      // -- Conditional Logic: Adoption --
       adoptionDate: data.isAdopted ? toISO(data.adoptionDate) : undefined,
-      adoptionType: data.isAdopted ? data.adoptionType : undefined,
-      biologicalParentIds: data.isAdopted ? data.biologicalParentIds : undefined,
-
-      // -- Conditional Logic: Disability --
-      disabilityType: data.hasDisability ? cleanStr(data.disabilityType) : undefined,
+      
+      // -- Polygamy --
+      polygamousHouseId: cleanStr(data.polygamousHouseId),
     };
 
     addMember(finalPayload);
   };
 
-  const isAlive = form.watch('isAlive');
   const isAdopted = form.watch('isAdopted');
-  const hasDisability = form.watch('hasDisability');
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -183,7 +140,11 @@ export const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
         <DialogHeader className="p-6 pb-2">
           <DialogTitle>Add Family Member</DialogTitle>
           <DialogDescription>
-            Add a person to your succession plan. Required fields are marked with *.
+            Add a living person to your succession plan. 
+            <br />
+            <span className="text-xs text-slate-500 italic">
+              (To report a death, add the member first, then use the 'Report Death' action).
+            </span>
           </DialogDescription>
         </DialogHeader>
 
@@ -353,92 +314,19 @@ export const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
                   />
                 </div>
                 <FormField
-                    control={form.control}
-                    name="currentAddress"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Current Address</FormLabel>
-                        <FormControl>
-                          <Textarea placeholder="Full address" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  control={form.control}
+                  name="nationalId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>National ID No.</FormLabel>
+                      <FormControl>
+                         <Input placeholder="ID Number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-
-              {/* --- LIFE STATUS --- */}
-              <FormField
-                control={form.control}
-                name="isAlive"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                    <div className="space-y-0.5">
-                      <FormLabel>Life Status</FormLabel>
-                      <div className="text-[0.8rem] text-muted-foreground">
-                        Is this person alive?
-                      </div>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              {!isAlive && (
-                <div className="space-y-3 rounded-lg border p-4 bg-red-50">
-                  <h4 className="text-sm font-medium text-red-900">Death Details</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="dateOfDeath"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Date of Death</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="date" 
-                              {...field} 
-                              value={field.value ? String(field.value).split('T')[0] : ''} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="deathCertNo"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Death Cert No.</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <FormField
-                    control={form.control}
-                    name="causeOfDeath"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Cause of Death</FormLabel>
-                        <FormControl>
-                          <Textarea {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
 
               {/* --- ADOPTION --- */}
               <FormField
@@ -465,83 +353,24 @@ export const AddMemberDialog: React.FC<AddMemberDialogProps> = ({
               {isAdopted && (
                 <div className="space-y-3 rounded-lg border p-4 bg-blue-50">
                   <h4 className="text-sm font-medium text-blue-900">Adoption Details</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="adoptionType"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Type</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="LEGAL">Legal</SelectItem>
-                              <SelectItem value="CUSTOMARY">Customary</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="adoptionDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Date</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="date" 
-                              {...field} 
-                              value={field.value ? String(field.value).split('T')[0] : ''} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                  <FormField
+                    control={form.control}
+                    name="adoptionDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="date" 
+                            {...field} 
+                            value={field.value ? String(field.value).split('T')[0] : ''} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-              )}
-
-              {/* --- DISABILITY --- */}
-              <FormField
-                control={form.control}
-                name="hasDisability"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                    <div className="space-y-0.5">
-                      <FormLabel>Disability Status</FormLabel>
-                      <div className="text-[0.8rem] text-muted-foreground">
-                        Has a disability?
-                      </div>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              {hasDisability && (
-                <FormField
-                  control={form.control}
-                  name="disabilityType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Describe..." {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               )}
 
               {/* Footer Buttons */}

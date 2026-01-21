@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { 
   ScrollText, 
   Plus, 
@@ -31,7 +30,7 @@ interface MetricCardProps {
   value: string | number;
   subtitle: string;
   footer: string;
-  icon: LucideIcon; // Strong typing for Lucide icons
+  icon: LucideIcon;
   variant?: 'default' | 'dark' | 'light';
   onClick?: () => void;
 }
@@ -92,7 +91,6 @@ const MetricCard = ({
 // --- Main Page Component ---
 
 export const DashboardHome: React.FC = () => {
-  const { t } = useTranslation(['dashboard', 'common']);
   const navigate = useNavigate();
   
   // 1. Data Fetching
@@ -120,8 +118,6 @@ export const DashboardHome: React.FC = () => {
   }
 
   // 3. Determine View State
-  // FIXED: Removed check for 'heirCount' to resolve TS error. 
-  // We rely on 'assetCount' to determine if the estate has been started.
   const hasActiveEstate = summary && !isError && (summary.stats?.assetCount > 0);
 
   return (
@@ -131,7 +127,7 @@ export const DashboardHome: React.FC = () => {
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between border-b border-slate-200 pb-6">
         <div>
           <h1 className="font-serif text-3xl font-bold tracking-tight text-[#0F3D3E]">
-            {t('dashboard:welcome', 'Karibu, {{name}}', { name: user?.firstName || 'User' })}
+            Karibu, {user?.firstName || 'User'}
           </h1>
           <p className="text-slate-600 mt-2 max-w-2xl text-lg">
             {hasActiveEstate 

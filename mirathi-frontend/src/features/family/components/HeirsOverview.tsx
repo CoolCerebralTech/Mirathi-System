@@ -1,4 +1,4 @@
-// mirathi-frontend/src/components/family/HeirsOverview.tsx
+// FILE: src/components/family/HeirsOverview.tsx
 
 import React from 'react';
 import { Scroll, Info, AlertTriangle, Loader2 } from 'lucide-react';
@@ -30,9 +30,13 @@ interface ExtendedHeir extends PotentialHeir {
   conditions?: string[];
 }
 
-// FIX: We must Omit 'marriageType' from the base to redefine it as a looser string
-interface ExtendedHeirsResponse extends Omit<HeirsResponse, 'heirs' | 'marriageType'> {
+// FIX: We explicitly add 'regime' and other optional fields here 
+// because they might not exist on the strict HeirsResponse yet.
+interface ExtendedHeirsResponse extends Omit<HeirsResponse, 'heirs'> {
   heirs: ExtendedHeir[];
+  
+  // Optional extended fields for UI display
+  regime?: string;       // <--- ADDED THIS
   religion?: string;
   warnings?: string[];
   marriageType?: string; 
@@ -45,7 +49,7 @@ interface ExtendedHeirsResponse extends Omit<HeirsResponse, 'heirs' | 'marriageT
 export const HeirsOverview: React.FC<{ familyId: string }> = ({ familyId }) => {
   const { data: rawData, isLoading, isError, error } = usePotentialHeirs(familyId);
 
-  // Safely cast to our extended type to handle optional fields missing in strict type
+  // Safe type assertion: Cast to our extended local type
   const data = rawData as unknown as ExtendedHeirsResponse | undefined;
 
   if (isLoading) {
@@ -69,7 +73,7 @@ export const HeirsOverview: React.FC<{ familyId: string }> = ({ familyId }) => {
     );
   }
   
-  if (!data || data.heirs.length === 0) {
+  if (!data || !data.heirs || data.heirs.length === 0) {
     return (
       <Card className="bg-slate-50 border-dashed">
         <CardContent className="flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
@@ -89,6 +93,7 @@ export const HeirsOverview: React.FC<{ familyId: string }> = ({ familyId }) => {
             <CardTitle className="flex items-center gap-2">
               Potential Heirs
               <Badge variant="outline" className="font-normal text-xs">
+                {/* Now 'regime' is valid on 'data' */}
                 {data.regime || 'INTESTATE'}
               </Badge>
             </CardTitle>
@@ -184,7 +189,7 @@ const HeirRow: React.FC<{ heir: ExtendedHeir }> = ({ heir }) => {
         </div>
         
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Badge className={cn("text-[10px] h-5", getCategoryColor())}>
+          <Badge className={cn("text-[10px] h-5 font-normal", getCategoryColor())}>
             {heir.category}
           </Badge>
           <span>Priority: {heir.priority}</span>

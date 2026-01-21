@@ -1,6 +1,4 @@
-// ============================================================================
-// Unified Family & Guardianship API Layer
-// ============================================================================
+// FILE: src/api/family/family.api.ts
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -12,7 +10,7 @@ import type {
   AddFamilyMemberInput,
   UpdateFamilyMemberInput,
   AssignGuardianInput,
-  GuardianEligibilityChecklist,
+  CheckGuardianEligibilityInput,
   // Response Types
   FamilyResponse,
   AddMemberResponse,
@@ -23,14 +21,16 @@ import type {
   EligibilityCheckResponse,
   ChecklistTemplateResponse,
   GuardianAssignmentSummary,
+  GuardianshipRecord,
 } from '@/types/family.types';
 
 // ============================================================================
 // CONFIGURATION & QUERY KEYS
 // ============================================================================
 
+// FIX: Both bases must start with /family to pass through the Gateway correctly
 const FAMILY_BASE = '/family';
-const GUARDIANSHIP_BASE = '/guardianship';
+const GUARDIANSHIP_BASE = '/family/guardianship'; 
 
 export const familyKeys = {
   all: ['family'] as const,
@@ -49,28 +49,10 @@ export const guardianshipKeys = {
 };
 
 // ============================================================================
-// LOCAL TYPES (Strict Typing for Backend Responses)
+// LOCAL TYPES 
 // ============================================================================
 
-// Defined locally to match the "Assign Guardian" backend response structure
-// without using 'any'
-export interface GuardianshipRecord {
-  id: string;
-  familyId: string;
-  wardId: string;
-  wardName: string;
-  wardAge: number;
-  status: string;
-  overallScore: number;
-  eligibilityScore: number;
-  eligibilityChecklist: GuardianEligibilityChecklist;
-  warnings: string[];
-  blockingIssues: string[];
-  createdAt: string;
-  updatedAt: string;
-  assignments: unknown[]; // Using unknown[] is safer than any[] if we don't need to read deep into this array here
-}
-
+// We define this locally to compose the specific response shape for this mutation
 export interface AssignGuardianResponse {
   guardianship: GuardianshipRecord;
   assignment: GuardianAssignmentSummary;
@@ -81,19 +63,12 @@ export interface AssignGuardianResponse {
 // API FUNCTIONS - FAMILY OPERATIONS (Write)
 // ============================================================================
 
-/**
- * Create or get existing family (idempotent)
- * POST /family
- */
 const createFamily = async (data: CreateFamilyInput): Promise<FamilyResponse> => {
+  // POST /api/family
   const res = await apiClient.post<FamilyResponse>(FAMILY_BASE, data);
   return res.data;
 };
 
-/**
- * Add member to family
- * POST /family/:familyId/members
- */
 const addFamilyMember = async ({
   familyId,
   data,
@@ -101,6 +76,7 @@ const addFamilyMember = async ({
   familyId: string;
   data: AddFamilyMemberInput;
 }): Promise<AddMemberResponse> => {
+  // POST /api/family/:id/members
   const res = await apiClient.post<AddMemberResponse>(
     `${FAMILY_BASE}/${familyId}/members`,
     data
@@ -108,10 +84,6 @@ const addFamilyMember = async ({
   return res.data;
 };
 
-/**
- * Update family member
- * PUT /family/members/:memberId
- */
 const updateFamilyMember = async ({
   memberId,
   data,
@@ -119,6 +91,7 @@ const updateFamilyMember = async ({
   memberId: string;
   data: UpdateFamilyMemberInput;
 }): Promise<FamilyMemberResponse> => {
+  // PUT /api/family/members/:id
   const res = await apiClient.put<FamilyMemberResponse>(
     `${FAMILY_BASE}/members/${memberId}`,
     data
@@ -126,11 +99,8 @@ const updateFamilyMember = async ({
   return res.data;
 };
 
-/**
- * Remove family member (soft delete)
- * DELETE /family/members/:memberId
- */
 const removeFamilyMember = async (memberId: string): Promise<void> => {
+  // DELETE /api/family/members/:id
   await apiClient.delete(`${FAMILY_BASE}/members/${memberId}`);
 };
 
@@ -138,37 +108,21 @@ const removeFamilyMember = async (memberId: string): Promise<void> => {
 // API FUNCTIONS - FAMILY QUERIES (Read)
 // ============================================================================
 
-/**
- * Get my family aggregate
- * GET /family/mine
- */
 const getMyFamily = async (): Promise<FamilyResponse> => {
   const res = await apiClient.get<FamilyResponse>(`${FAMILY_BASE}/mine`);
   return res.data;
 };
 
-/**
- * Get my family tree (convenience endpoint)
- * GET /family/mine/tree
- */
 const getMyFamilyTree = async (): Promise<FamilyTreeNode> => {
   const res = await apiClient.get<FamilyTreeNode>(`${FAMILY_BASE}/mine/tree`);
   return res.data;
 };
 
-/**
- * Get family tree by ID
- * GET /family/:familyId/tree
- */
 const getFamilyTree = async (familyId: string): Promise<FamilyTreeNode> => {
   const res = await apiClient.get<FamilyTreeNode>(`${FAMILY_BASE}/${familyId}/tree`);
   return res.data;
 };
 
-/**
- * Get potential heirs (Section 40 analysis)
- * GET /family/:familyId/potential-heirs
- */
 const getPotentialHeirs = async (familyId: string): Promise<HeirsResponse> => {
   const res = await apiClient.get<HeirsResponse>(`${FAMILY_BASE}/${familyId}/potential-heirs`);
   return res.data;
@@ -178,15 +132,10 @@ const getPotentialHeirs = async (familyId: string): Promise<HeirsResponse> => {
 // API FUNCTIONS - GUARDIANSHIP OPERATIONS (Write)
 // ============================================================================
 
-/**
- * Check guardian eligibility
- * POST /guardianship/check-eligibility
- */
-const checkGuardianEligibility = async (data: {
-  guardianId: string;
-  wardId: string;
-  checklist: GuardianEligibilityChecklist;
-}): Promise<EligibilityCheckResponse> => {
+const checkGuardianEligibility = async (
+  data: CheckGuardianEligibilityInput
+): Promise<EligibilityCheckResponse> => {
+  // FIX: POST /api/family/guardianship/check-eligibility
   const res = await apiClient.post<EligibilityCheckResponse>(
     `${GUARDIANSHIP_BASE}/check-eligibility`,
     data
@@ -194,10 +143,6 @@ const checkGuardianEligibility = async (data: {
   return res.data;
 };
 
-/**
- * Assign guardian to ward
- * POST /guardianship/:familyId/assign
- */
 const assignGuardian = async ({
   familyId,
   data,
@@ -205,6 +150,7 @@ const assignGuardian = async ({
   familyId: string;
   data: AssignGuardianInput;
 }): Promise<AssignGuardianResponse> => {
+  // FIX: POST /api/family/guardianship/:id/assign
   const res = await apiClient.post<AssignGuardianResponse>(
     `${GUARDIANSHIP_BASE}/${familyId}/assign`,
     data
@@ -216,22 +162,16 @@ const assignGuardian = async ({
 // API FUNCTIONS - GUARDIANSHIP QUERIES (Read)
 // ============================================================================
 
-/**
- * Get guardianship status for a ward
- * GET /guardianship/ward/:wardId/status
- */
 const getGuardianshipStatus = async (wardId: string): Promise<GuardianshipStatusResponse> => {
+  // FIX: GET /api/family/guardianship/ward/:id/status
   const res = await apiClient.get<GuardianshipStatusResponse>(
     `${GUARDIANSHIP_BASE}/ward/${wardId}/status`
   );
   return res.data;
 };
 
-/**
- * Get eligibility checklist template
- * GET /guardianship/checklist-template
- */
 const getChecklistTemplate = async (): Promise<ChecklistTemplateResponse> => {
+  // FIX: GET /api/family/guardianship/checklist-template
   const res = await apiClient.get<ChecklistTemplateResponse>(
     `${GUARDIANSHIP_BASE}/checklist-template`
   );
@@ -239,346 +179,159 @@ const getChecklistTemplate = async (): Promise<ChecklistTemplateResponse> => {
 };
 
 // ============================================================================
-// REACT QUERY HOOKS - FAMILY MUTATIONS
+// REACT QUERY HOOKS
 // ============================================================================
 
-/**
- * Hook to create/get family (idempotent)
- */
-export const useCreateFamily = (options?: {
-  onSuccess?: (data: FamilyResponse) => void;
-}) => {
+export const useCreateFamily = (options?: { onSuccess?: (data: FamilyResponse) => void }) => {
   const queryClient = useQueryClient();
-  
   return useMutation({
     mutationFn: createFamily,
     onSuccess: (data) => {
-      toast.success('Family Tree Created', {
-        description: `"${data.name}" is ready to use`,
-      });
+      toast.success('Family Tree Created', { description: `"${data.name}" is ready to use` });
       queryClient.invalidateQueries({ queryKey: familyKeys.mine() });
       options?.onSuccess?.(data);
     },
-    onError: (err) => {
-      toast.error('Failed to Create Family', {
-        description: extractErrorMessage(err),
-      });
-    },
+    onError: (err) => { toast.error('Failed to Create Family', { description: extractErrorMessage(err) }); },
   });
 };
 
-/**
- * Hook to add family member
- */
-export const useAddFamilyMember = (
-  familyId: string,
-  options?: {
-    onSuccess?: (data: AddMemberResponse) => void;
-  }
-) => {
+export const useAddFamilyMember = (familyId: string, options?: { onSuccess?: (data: AddMemberResponse) => void }) => {
   const queryClient = useQueryClient();
-  
   return useMutation({
     mutationFn: (data: AddFamilyMemberInput) => addFamilyMember({ familyId, data }),
     onSuccess: (data) => {
-      const suggestions = data.suggestions || [];
-      const hasSuggestions = suggestions.length > 0;
-      
-      toast.success('Member Added', {
-        description: hasSuggestions
-          ? `${suggestions.length} suggestion${suggestions.length > 1 ? 's' : ''} available`
-          : 'Family tree updated successfully',
-      });
-      
-      // Invalidate related queries
+      toast.success('Member Added');
       queryClient.invalidateQueries({ queryKey: familyKeys.tree(familyId) });
       queryClient.invalidateQueries({ queryKey: familyKeys.myTree() });
       queryClient.invalidateQueries({ queryKey: familyKeys.heirs(familyId) });
       queryClient.invalidateQueries({ queryKey: familyKeys.members(familyId) });
-      
       options?.onSuccess?.(data);
     },
-    onError: (err) => {
-      toast.error('Failed to Add Member', {
-        description: extractErrorMessage(err),
-      });
-    },
+    onError: (err) => { toast.error('Failed to Add Member', { description: extractErrorMessage(err) }); },
   });
 };
 
-/**
- * Hook to update family member
- */
-export const useUpdateFamilyMember = (
-  familyId: string,
-  options?: {
-    onSuccess?: (data: FamilyMemberResponse) => void;
-  }
-) => {
+export const useUpdateFamilyMember = (familyId: string, options?: { onSuccess?: (data: FamilyMemberResponse) => void }) => {
   const queryClient = useQueryClient();
-  
   return useMutation({
-    mutationFn: ({ memberId, data }: { memberId: string; data: UpdateFamilyMemberInput }) =>
-      updateFamilyMember({ memberId, data }),
+    mutationFn: ({ memberId, data }: { memberId: string; data: UpdateFamilyMemberInput }) => updateFamilyMember({ memberId, data }),
     onSuccess: (data) => {
-      toast.success('Member Updated', {
-        description: `${data.firstName} ${data.lastName} updated successfully`,
-      });
-      
+      toast.success('Member Updated');
       queryClient.invalidateQueries({ queryKey: familyKeys.tree(familyId) });
       queryClient.invalidateQueries({ queryKey: familyKeys.myTree() });
       queryClient.invalidateQueries({ queryKey: familyKeys.heirs(familyId) });
       queryClient.invalidateQueries({ queryKey: familyKeys.member(data.id) });
-      
       options?.onSuccess?.(data);
     },
-    onError: (err) => {
-      toast.error('Failed to Update Member', {
-        description: extractErrorMessage(err),
-      });
-    },
+    onError: (err) => { toast.error('Failed to Update Member', { description: extractErrorMessage(err) }); },
   });
 };
 
-/**
- * Hook to remove family member
- */
-export const useRemoveFamilyMember = (
-  familyId: string,
-  options?: {
-    onSuccess?: () => void;
-  }
-) => {
+export const useRemoveFamilyMember = (familyId: string, options?: { onSuccess?: () => void }) => {
   const queryClient = useQueryClient();
-  
   return useMutation({
     mutationFn: removeFamilyMember,
     onSuccess: () => {
-      toast.success('Member Removed', {
-        description: 'Family tree updated',
-      });
-      
+      toast.success('Member Removed');
       queryClient.invalidateQueries({ queryKey: familyKeys.tree(familyId) });
       queryClient.invalidateQueries({ queryKey: familyKeys.myTree() });
       queryClient.invalidateQueries({ queryKey: familyKeys.heirs(familyId) });
-      
       options?.onSuccess?.();
     },
-    onError: (err) => {
-      toast.error('Failed to Remove Member', {
-        description: extractErrorMessage(err),
-      });
-    },
+    onError: (err) => { toast.error('Failed to Remove Member', { description: extractErrorMessage(err) }); },
   });
 };
 
-// ============================================================================
-// REACT QUERY HOOKS - GUARDIANSHIP MUTATIONS
-// ============================================================================
-
-/**
- * Hook to check guardian eligibility
- */
-export const useCheckGuardianEligibility = (options?: {
-  onSuccess?: (data: EligibilityCheckResponse) => void;
-}) => {
+export const useCheckGuardianEligibility = (options?: { onSuccess?: (data: EligibilityCheckResponse) => void }) => {
   return useMutation({
     mutationFn: checkGuardianEligibility,
     onSuccess: (data) => {
       const status = data.isEligible ? 'Eligible' : 'Not Eligible';
       const variant = data.isEligible ? 'success' : 'warning';
-      
-      toast[variant](`Guardian ${status}`, {
-        description: `Overall score: ${data.overallScore}/100`,
-      });
-      
+      toast[variant](`Guardian ${status}`, { description: `Overall score: ${data.overallScore}/100` });
       options?.onSuccess?.(data);
     },
-    onError: (err) => {
-      toast.error('Eligibility Check Failed', {
-        description: extractErrorMessage(err),
-      });
-    },
+    onError: (err) => { toast.error('Eligibility Check Failed', { description: extractErrorMessage(err) }); },
   });
 };
 
-/**
- * Hook to assign guardian
- */
-export const useAssignGuardian = (
-  familyId: string,
-  wardId: string,
-  options?: {
-    onSuccess?: (data: AssignGuardianResponse) => void;
-  }
-) => {
+export const useAssignGuardian = (familyId: string, wardId: string, options?: { onSuccess?: (data: AssignGuardianResponse) => void }) => {
   const queryClient = useQueryClient();
-  
   return useMutation({
     mutationFn: (data: AssignGuardianInput) => assignGuardian({ familyId, data }),
     onSuccess: (data) => {
-      const role = data.assignment.isPrimary ? 'Primary Guardian' : 'Alternate Guardian';
-      
-      toast.success('Guardian Assigned', {
-        description: `${data.assignment.guardianName} assigned as ${role}`,
-      });
-      
+      toast.success('Guardian Assigned');
       queryClient.invalidateQueries({ queryKey: guardianshipKeys.status(wardId) });
       queryClient.invalidateQueries({ queryKey: familyKeys.tree(familyId) });
-      
       options?.onSuccess?.(data);
     },
-    onError: (err) => {
-      toast.error('Assignment Failed', {
-        description: extractErrorMessage(err),
-      });
-    },
+    onError: (err) => { toast.error('Assignment Failed', { description: extractErrorMessage(err) }); },
   });
 };
 
-// ============================================================================
-// REACT QUERY HOOKS - FAMILY QUERIES
-// ============================================================================
-
-/**
- * Hook to get my family aggregate
- */
-export const useMyFamily = (options?: {
-  enabled?: boolean;
-  onError?: (err: Error) => void;
-}) => {
+export const useMyFamily = (options?: { enabled?: boolean; onError?: (err: Error) => void }) => {
   return useQuery({
     queryKey: familyKeys.mine(),
     queryFn: getMyFamily,
     retry: 1,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
     enabled: options?.enabled,
   });
 };
 
-/**
- * Hook to get my family tree
- */
-export const useMyFamilyTree = (options?: {
-  enabled?: boolean;
-  onError?: (err: Error) => void;
-}) => {
+export const useMyFamilyTree = (options?: { enabled?: boolean; onError?: (err: Error) => void }) => {
   return useQuery({
     queryKey: familyKeys.myTree(),
     queryFn: getMyFamilyTree,
-    retry: false, // Don't retry if 404 (no family yet)
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    retry: false,
+    staleTime: 2 * 60 * 1000,
     enabled: options?.enabled,
   });
 };
 
-/**
- * Hook to get family tree by ID
- */
-export const useFamilyTree = (
-  familyId: string,
-  options?: {
-    enabled?: boolean;
-  }
-) => {
+export const useFamilyTree = (familyId: string, options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: familyKeys.tree(familyId),
     queryFn: () => getFamilyTree(familyId),
     enabled: !!familyId && (options?.enabled ?? true),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   });
 };
 
-/**
- * Hook to get potential heirs
- */
-export const usePotentialHeirs = (
-  familyId: string,
-  options?: {
-    enabled?: boolean;
-  }
-) => {
+export const usePotentialHeirs = (familyId: string, options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: familyKeys.heirs(familyId),
     queryFn: () => getPotentialHeirs(familyId),
     enabled: !!familyId && (options?.enabled ?? true),
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 };
 
-// ============================================================================
-// REACT QUERY HOOKS - GUARDIANSHIP QUERIES
-// ============================================================================
-
-/**
- * Hook to get guardianship status for a ward
- */
-export const useGuardianshipStatus = (
-  wardId: string,
-  options?: {
-    enabled?: boolean;
-  }
-) => {
+export const useGuardianshipStatus = (wardId: string, options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: guardianshipKeys.status(wardId),
     queryFn: () => getGuardianshipStatus(wardId),
     enabled: !!wardId && (options?.enabled ?? true),
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   });
 };
 
-/**
- * Hook to get eligibility checklist template (static data)
- */
 export const useGuardianshipChecklist = () => {
   return useQuery({
     queryKey: guardianshipKeys.checklist(),
     queryFn: getChecklistTemplate,
-    staleTime: Infinity, // Static data - cache forever
+    staleTime: Infinity,
     gcTime: Infinity,
   });
 };
 
-// ============================================================================
-// UTILITY EXPORTS
-// ============================================================================
-
 export const familyApi = {
-  // Family operations
-  createFamily,
-  getMyFamily,
-  getMyFamilyTree,
-  getFamilyTree,
-  addFamilyMember,
-  updateFamilyMember,
-  removeFamilyMember,
-  getPotentialHeirs,
-  
-  // Guardianship operations
-  checkGuardianEligibility,
-  assignGuardian,
-  getGuardianshipStatus,
-  getChecklistTemplate,
+  createFamily, getMyFamily, getMyFamilyTree, getFamilyTree, addFamilyMember, updateFamilyMember, removeFamilyMember, getPotentialHeirs,
+  checkGuardianEligibility, assignGuardian, getGuardianshipStatus, getChecklistTemplate,
 };
 
 export default {
-  // Family mutations
-  useCreateFamily,
-  useAddFamilyMember,
-  useUpdateFamilyMember,
-  useRemoveFamilyMember,
-  
-  // Family queries
-  useMyFamily,
-  useMyFamilyTree,
-  useFamilyTree,
-  usePotentialHeirs,
-  
-  // Guardianship mutations
-  useCheckGuardianEligibility,
-  useAssignGuardian,
-  
-  // Guardianship queries
-  useGuardianshipStatus,
-  useGuardianshipChecklist,
+  useCreateFamily, useAddFamilyMember, useUpdateFamilyMember, useRemoveFamilyMember,
+  useMyFamily, useMyFamilyTree, useFamilyTree, usePotentialHeirs,
+  useCheckGuardianEligibility, useAssignGuardian, useGuardianshipStatus, useGuardianshipChecklist,
 };

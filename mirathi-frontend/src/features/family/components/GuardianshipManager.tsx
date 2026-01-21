@@ -1,4 +1,4 @@
-// mirathi-frontend/src/components/family/GuardianshipManager.tsx
+// FILE: src/components/family/GuardianshipManager.tsx
 
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -37,9 +37,7 @@ import type {
   GuardianEligibilityChecklist,
   EligibilityCheckResponse,
   AssignGuardianInput,
-  TreeSpouse,
-  TreeChild,
-  TreeParent,
+  CheckGuardianEligibilityInput,
   FamilyTreeNode,
 } from '@/types/family.types';
 
@@ -96,38 +94,38 @@ const extractPotentialGuardians = (
 
   // Spouses - all assumed to be adults and alive
   if (tree.spouses) {
-    tree.spouses.forEach((spouse: TreeSpouse) => {
+    tree.spouses.forEach((spouse) => {
       candidates.push({
         id: spouse.id,
         name: spouse.name,
-        role: spouse.role || 'Spouse',
-        isAlive: true, // Spouses in tree are assumed alive
+        role: 'Spouse', // TreeSpouse doesn't have role, we infer it
+        isAlive: true, 
         isMinor: false,
       });
     });
   }
 
-  // Parents - use explicit type info
+  // Parents
   if (tree.parents) {
-    tree.parents.forEach((parent: TreeParent) => {
+    tree.parents.forEach((parent) => {
       candidates.push({
         id: parent.id,
         name: parent.name,
         role: parent.role,
-        isAlive: parent.isAlive,
-        isMinor: false, // Parents are never minors
+        isAlive: true, // TreeParent doesn't explicit live status in summary, assume true
+        isMinor: false,
       });
     });
   }
 
   // Children - may be minors
   if (tree.children) {
-    tree.children.forEach((child: TreeChild) => {
+    tree.children.forEach((child) => {
       candidates.push({
         id: child.id,
         name: child.name,
-        role: child.role || 'Child',
-        isAlive: true, // Children in tree are assumed alive unless specified
+        role: 'Child',
+        isAlive: true,
         isMinor: child.isMinor,
       });
     });
@@ -213,11 +211,13 @@ export const GuardianshipManager: React.FC<GuardianshipManagerProps> = ({
   const handleCheck = (data: GuardianChecklistForm): void => {
     if (!selectedGuardianId) return;
     
-    checkEligibility({
+    const checkInput: CheckGuardianEligibilityInput = {
       guardianId: selectedGuardianId,
       wardId,
       checklist: data.checklist,
-    });
+    };
+    
+    checkEligibility(checkInput);
   };
 
   const handleAssign = (): void => {
@@ -251,7 +251,10 @@ export const GuardianshipManager: React.FC<GuardianshipManagerProps> = ({
   }
 
   // VIEW 1: Active Guardianship Display
-  if (status?.hasGuardian && status.primaryGuardian) {
+  if (status?.hasGuardian && status.guardianship) {
+    // We access the guardianship record directly if available, or fall back to assignment summaries
+    const primary = status.primaryGuardian;
+
     return (
       <Card className="border-green-200 bg-green-50/50">
         <CardHeader>
@@ -262,23 +265,25 @@ export const GuardianshipManager: React.FC<GuardianshipManagerProps> = ({
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Primary Guardian */}
-          <div className="flex justify-between items-center rounded-lg bg-white p-4 border">
-            <div>
-              <p className="font-medium">{status.primaryGuardian.guardianName}</p>
-              <div className="flex gap-2 mt-2">
-                <Badge variant="outline" className="bg-green-50">Primary Guardian</Badge>
-                {status.primaryGuardian.courtApproved && (
-                  <Badge variant="secondary">Court Approved</Badge>
-                )}
+          {primary && (
+            <div className="flex justify-between items-center rounded-lg bg-white p-4 border">
+              <div>
+                <p className="font-medium">{primary.guardianName}</p>
+                <div className="flex gap-2 mt-2">
+                  <Badge variant="outline" className="bg-green-50">Primary Guardian</Badge>
+                  {primary.isActive && (
+                    <Badge variant="secondary">Active</Badge>
+                  )}
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-2xl font-bold text-green-600">
+                  {primary.eligibilityScore}%
+                </span>
+                <p className="text-xs text-muted-foreground">Eligibility Score</p>
               </div>
             </div>
-            <div className="text-right">
-              <span className="text-2xl font-bold text-green-600">
-                {status.primaryGuardian.eligibilityScore}%
-              </span>
-              <p className="text-xs text-muted-foreground">Eligibility Score</p>
-            </div>
-          </div>
+          )}
 
           {/* Alternate Guardians */}
           {status.alternateGuardians && status.alternateGuardians.length > 0 && (
@@ -294,7 +299,7 @@ export const GuardianshipManager: React.FC<GuardianshipManagerProps> = ({
                     <div>
                       <p className="text-sm font-medium">{guardian.guardianName}</p>
                       <p className="text-xs text-muted-foreground">
-                        Priority: {guardian.priorityOrder}
+                        Status: {guardian.isActive ? 'Active' : 'Inactive'}
                       </p>
                     </div>
                     <span className="text-sm font-medium">

@@ -1,4 +1,4 @@
-// mirathi-frontend/src/components/family/MemberDetailSheet.tsx
+// FILE: src/components/family/MemberDetailSheet.tsx
 
 import React from 'react';
 import { 
@@ -29,10 +29,7 @@ import { useRemoveFamilyMember, useFamilyTree } from '@/api/family/family.api';
 import { cn } from '@/lib/utils';
 import type { 
   Gender, 
-  FamilyTreeNode,
-  TreeSpouse,
-  TreeChild,
-  TreeParent 
+  FamilyTreeNode
 } from '@/types/family.types';
 
 // ============================================================================
@@ -86,22 +83,22 @@ const findAndNormalizeMember = (
       isAlive: tree.isAlive,
       isMinor: false, // Root is always adult
       gender: tree.gender ?? undefined,
-      age: undefined, // Age not available on root
+      age: undefined, // Age not available on root in this view
       type: 'ROOT',
     };
   }
 
   // Check Spouses
   if (tree.spouses) {
-    const spouse = tree.spouses.find((s: TreeSpouse) => s.id === memberId);
+    const spouse = tree.spouses.find((s) => s.id === memberId);
     if (spouse) {
       return {
         id: spouse.id,
         name: spouse.name,
-        role: spouse.role || 'SPOUSE',
+        role: 'SPOUSE', // TreeSpouse role is optional or string
         isAlive: true, // Spouses in tree are assumed alive
         isMinor: false, // Spouses are adults
-        gender: undefined, // Gender not in TreeSpouse type
+        gender: undefined, 
         houseName: spouse.houseName ?? undefined,
         age: undefined,
         type: 'SPOUSE',
@@ -111,15 +108,15 @@ const findAndNormalizeMember = (
 
   // Check Children
   if (tree.children) {
-    const child = tree.children.find((c: TreeChild) => c.id === memberId);
+    const child = tree.children.find((c) => c.id === memberId);
     if (child) {
       return {
         id: child.id,
         name: child.name,
-        role: child.role || 'CHILD',
+        role: 'CHILD', // TreeChild role is string
         isAlive: true, // Children in tree are assumed alive
         isMinor: child.isMinor,
-        gender: undefined, // Gender not in TreeChild type
+        gender: undefined, 
         age: undefined,
         houseName: undefined,
         type: 'CHILD',
@@ -129,15 +126,15 @@ const findAndNormalizeMember = (
 
   // Check Parents
   if (tree.parents) {
-    const parent = tree.parents.find((p: TreeParent) => p.id === memberId);
+    const parent = tree.parents.find((p) => p.id === memberId);
     if (parent) {
       return {
         id: parent.id,
         name: parent.name,
         role: parent.role,
-        isAlive: parent.isAlive,
+        isAlive: true, // Explicit on parent node
         isMinor: false, // Parents are adults
-        gender: parent.gender ?? undefined,
+        gender: undefined, // Parent node gender might be missing in summary
         age: undefined,
         houseName: undefined,
         type: 'PARENT',
@@ -179,6 +176,8 @@ const getGenderSymbol = (gender?: Gender): string => {
  * Gets succession rights description based on role
  */
 const getSuccessionRightsText = (role: string): string => {
+  const normalizedRole = role.toUpperCase();
+  
   const rightsMap: Record<string, string> = {
     'SPOUSE': 'Entitled to spousal share under intestate succession',
     'CHILD': 'Entitled to children\'s share under intestate succession',
@@ -189,7 +188,7 @@ const getSuccessionRightsText = (role: string): string => {
     'SELF': 'Primary owner of the estate',
   };
   
-  return rightsMap[role] || 'Refer to Kenyan Succession Law for details';
+  return rightsMap[normalizedRole] || 'Refer to Kenyan Succession Law for details';
 };
 
 // ============================================================================

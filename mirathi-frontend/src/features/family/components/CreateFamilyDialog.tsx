@@ -1,4 +1,4 @@
-// mirathi-frontend/src/components/family/CreateFamilyDialog.tsx
+// FILE: src/components/family/CreateFamilyDialog.tsx
 
 import React from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
@@ -19,18 +19,12 @@ import {
   Input,
   Textarea,
   Button,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
 } from '@/components/ui';
 
 import { useCreateFamily } from '@/api/family/family.api';
 import { 
   CreateFamilySchema, 
   type CreateFamilyInput,
-  KenyanCounty,
 } from '@/types/family.types';
 
 interface CreateFamilyDialogProps {
@@ -47,10 +41,6 @@ export const CreateFamilyDialog: React.FC<CreateFamilyDialogProps> = ({
     defaultValues: {
       name: '',
       description: '',
-      // Initialize optional fields to empty strings to prevent "uncontrolled" warnings
-      tribe: '',
-      clanName: '',
-      homeCounty: undefined, 
     },
   });
 
@@ -62,17 +52,13 @@ export const CreateFamilyDialog: React.FC<CreateFamilyDialogProps> = ({
   });
 
   const onSubmit: SubmitHandler<CreateFamilyInput> = (data) => {
-    // Clean empty strings to undefined for optional fields
-    // so the backend receives clean data
+    // Clean empty description to undefined
     const cleanStr = (str: string | undefined | null) => 
       (!str || str.trim() === '') ? undefined : str;
 
     const payload: CreateFamilyInput = {
       name: data.name,
       description: cleanStr(data.description),
-      homeCounty: data.homeCounty, // Already undefined if not selected
-      tribe: cleanStr(data.tribe),
-      clanName: cleanStr(data.clanName),
     };
 
     createFamily(payload);
@@ -126,63 +112,6 @@ export const CreateFamilyDialog: React.FC<CreateFamilyDialogProps> = ({
                 </FormItem>
               )}
             />
-
-            {/* County Selection */}
-            <FormField
-              control={form.control}
-              name="homeCounty"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Home County (Optional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select county" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="max-h-[200px]">
-                      {Object.values(KenyanCounty).map((county) => (
-                        <SelectItem key={county} value={county}>
-                          {county.replace(/_/g, ' ')}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Tribe & Clan */}
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="tribe"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tribe (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Kikuyu" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="clanName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Clan Name (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Anjiru" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t">
               <Button type="button" variant="outline" onClick={onClose}>

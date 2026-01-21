@@ -1,4 +1,4 @@
-// mirathi-frontend/src/components/family/FamilyTreeViz.tsx
+// FILE: src/components/family/FamilyTreeViz.tsx
 
 import React from 'react';
 import { User, Baby, Heart, AlertCircle } from 'lucide-react';
@@ -52,18 +52,19 @@ export const FamilyTreeViz: React.FC<FamilyTreeVizProps> = ({
   }
   
   if (!tree) {
+    // If tree is explicitly null (not loading), show empty state
     return <EmptyState onAddClick={onAddClick} />;
   }
 
   // --- 1. DATA TRANSFORMATION ---
 
-  // Root Node (Me) - Always an adult
+  // Root Node (Me)
   const rootNode: VisualNode = {
     id: tree.id,
     name: tree.name,
     role: tree.role || 'Me',
     isAlive: tree.isAlive,
-    isMinor: false, // The creator/root is always an adult
+    isMinor: false, // The creator/root is always an adult for this view
     gender: tree.gender,
     highlight: true,
   };
@@ -71,20 +72,20 @@ export const FamilyTreeViz: React.FC<FamilyTreeVizProps> = ({
   const spouseNodes: VisualNode[] = (tree.spouses || []).map((spouse) => ({
     id: spouse.id,
     name: spouse.name,
-    role: spouse.role || 'Spouse',
-    isAlive: true, 
+    role: 'Spouse',
+    isAlive: true, // API visualization summary often defaults active unless detailed
     isMinor: false,
-    gender: Gender.FEMALE, // Default inference, adjustable via type if needed
+    gender: Gender.FEMALE, // Default inference, usually spouse implies opposite gender but API lacks it in summary
     houseName: spouse.houseName,
   }));
 
   const childNodes: VisualNode[] = (tree.children || []).map((child) => ({
     id: child.id,
     name: child.name,
-    role: child.role || 'Child',
-    isAlive: true,
+    role: 'Child',
+    isAlive: true, 
     isMinor: child.isMinor,
-    gender: null,
+    gender: null, // Summary doesn't provide gender for children in tree view
     houseName: child.houseId ? `House ${child.houseId}` : undefined,
   }));
 
@@ -92,14 +93,12 @@ export const FamilyTreeViz: React.FC<FamilyTreeVizProps> = ({
     id: parent.id,
     name: parent.name,
     role: parent.role,
-    isAlive: parent.isAlive,
+    isAlive: true, // Default to true if not provided in summary
     isMinor: false,
-    gender: parent.gender,
+    gender: null,
   }));
 
   // --- 2. CALCULATED STATS ---
-  // We calculate totalMinors from the children array directly since 
-  // the tree.stats object from backend doesn't include it.
   const totalMinors = childNodes.filter(c => c.isMinor).length;
 
   return (
@@ -146,8 +145,11 @@ export const FamilyTreeViz: React.FC<FamilyTreeVizProps> = ({
 
         {spouseNodes.map((spouse) => (
           <div key={spouse.id} className="relative flex items-center">
+            {/* Connection Line */}
             <div className="absolute right-full top-1/2 h-0.5 w-8 -translate-y-1/2 bg-primary/20" />
-            <div className="absolute right-full top-1/2 -ml-4 -mt-3">
+            
+            {/* Heart Icon */}
+            <div className="absolute right-full top-1/2 -ml-4 -mt-3 z-10 bg-background rounded-full">
               <Heart className="h-6 w-6 fill-red-100 text-red-500" />
             </div>
             
@@ -161,16 +163,20 @@ export const FamilyTreeViz: React.FC<FamilyTreeVizProps> = ({
 
       {/* Children Level */}
       {childNodes.length > 0 ? (
-        <div className="relative flex flex-col items-center">
+        <div className="relative flex flex-col items-center w-full">
+          {/* Vertical line from Parent */}
           <div className="h-8 w-0.5 bg-border" />
           
-          <div className="relative mb-8 h-0.5 w-[90%] bg-border">
-            <div className="absolute left-1/2 top-0 h-4 w-0.5 -translate-x-1/2 bg-border" />
+          {/* Horizontal Branching Line */}
+          <div className="relative mb-8 h-0.5 w-[80%] bg-border">
+            {/* Center connector to parent line */}
+            <div className="absolute left-1/2 top-0 h-4 w-0.5 -translate-x-1/2 -translate-y-full bg-border" />
           </div>
 
           <div className="flex flex-wrap justify-center gap-6">
             {childNodes.map((child) => (
               <div key={child.id} className="relative flex flex-col items-center">
+                {/* Connector from horizontal line to child */}
                 <div className="absolute bottom-full left-1/2 h-8 w-0.5 -translate-x-1/2 bg-border" />
                 <NodeCard 
                   node={child} 
@@ -217,7 +223,7 @@ const NodeCard: React.FC<{ node: VisualNode; onClick: () => void }> = ({
   return (
     <Card 
       className={cn(
-        "relative w-48 cursor-pointer transition-all hover:-translate-y-1 hover:shadow-md",
+        "relative w-48 cursor-pointer transition-all hover:-translate-y-1 hover:shadow-md bg-white",
         node.highlight && "border-primary/50 bg-primary/5 ring-2 ring-primary/20",
         !node.isAlive && "opacity-70 grayscale"
       )}
@@ -236,24 +242,24 @@ const NodeCard: React.FC<{ node: VisualNode; onClick: () => void }> = ({
         </h4>
         
         <div className="mt-2 flex flex-wrap gap-1 justify-center">
-          <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
+          <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal">
             {node.role}
           </Badge>
           
           {node.houseName && (
-            <Badge variant="outline" className="text-[10px] h-5 px-1.5">
+            <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal">
               {node.houseName}
             </Badge>
           )}
           
           {node.isMinor && (
-            <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-amber-300 bg-amber-50 text-amber-700">
+            <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-amber-300 bg-amber-50 text-amber-700 font-normal">
               Minor
             </Badge>
           )}
           
           {!node.isAlive && (
-            <Badge variant="destructive" className="text-[10px] h-5 px-1.5">
+            <Badge variant="destructive" className="text-[10px] h-5 px-1.5 font-normal">
               Deceased
             </Badge>
           )}

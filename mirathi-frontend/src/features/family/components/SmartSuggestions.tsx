@@ -1,6 +1,4 @@
-// ============================================================================
-// FILE 4: SmartSuggestions.tsx
-// ============================================================================
+// FILE: src/components/family/SmartSuggestions.tsx
 
 import React from 'react';
 import { Lightbulb, ArrowRight, X, AlertCircle } from 'lucide-react';
@@ -13,20 +11,36 @@ import {
 import { cn } from '@/lib/utils';
 import type { SmartSuggestion } from '@/types/family.types';
 
+// ============================================================================
+// LOCAL TYPE EXTENSIONS
+// ============================================================================
+
+// Extend the strict API type to include UI-specific fields
+interface ExtendedSmartSuggestion extends SmartSuggestion {
+  severity?: 'info' | 'warning' | 'error';
+}
+
 interface SmartSuggestionsProps {
-  suggestions: SmartSuggestion[];
+  suggestions: SmartSuggestion[]; // Input is the strict type
   onAction: (suggestion: SmartSuggestion) => void;
   onDismiss: (index: number) => void;
 }
 
+// ============================================================================
+// COMPONENT
+// ============================================================================
+
 export const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({ 
-  suggestions, 
+  suggestions: rawSuggestions, 
   onAction, 
   onDismiss 
 }) => {
-  if (!suggestions || suggestions.length === 0) return null;
+  if (!rawSuggestions || rawSuggestions.length === 0) return null;
 
-  const getSeverityStyles = (severity?: SmartSuggestion['severity']) => {
+  // Cast to extended type for UI handling
+  const suggestions = rawSuggestions as ExtendedSmartSuggestion[];
+
+  const getSeverityStyles = (severity: ExtendedSmartSuggestion['severity'] = 'info') => {
     switch (severity) {
       case 'error':
         return {
@@ -55,15 +69,22 @@ export const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
     }
   };
 
-  const getIcon = (severity?: SmartSuggestion['severity']) => {
+  const getIcon = (severity: ExtendedSmartSuggestion['severity'] = 'info') => {
     switch (severity) {
       case 'error':
-        return AlertCircle;
       case 'warning':
         return AlertCircle;
       default:
         return Lightbulb;
     }
+  };
+
+  // Helper to make action codes like "OPEN_GUARDIANSHIP" readable
+  const formatActionLabel = (action: string) => {
+    return action
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
   };
 
   return (
@@ -100,7 +121,7 @@ export const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
                     className={cn("h-8 gap-1", styles.button)}
                     onClick={() => onAction(suggestion)}
                   >
-                    {suggestion.action}
+                    {formatActionLabel(suggestion.action)}
                     <ArrowRight className="h-3 w-3" />
                   </Button>
                 </div>

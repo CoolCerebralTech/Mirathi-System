@@ -1,15 +1,6 @@
 // DTOs
-export * from './dto/shared/pagination.dto';
-export * from './dto/shared/base.response.dto';
-export * from './dto/notifications/notification.dto';
-export * from './dto/templates/template.dto';
-export * from './dto/auditing/auditing.dto';
-
-// Interfaces
-export * from './events';
-
-// Enums
-export * from './enums';
+export * from './dto/pagination.dto';
+export * from './dto/base.response.dto';
 
 // Utils
 export * from './utils';
