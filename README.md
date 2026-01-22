@@ -1,143 +1,174 @@
-🏛️ MIRATHI: The Digital Succession Infrastructure
+🏛️ MIRATHI: The Digital Succession Copilot
+
+![alt text](https://img.shields.io/badge/build-passing-brightgreen)
+
+
+![alt text](https://img.shields.io/badge/stack-NestJS%20%7C%20Prisma%20%7C%20PostgreSQL-blue)
+
+
+![alt text](https://img.shields.io/badge/architecture-Microservices%20%7C%20DDD-orange)
+
+
+![alt text](https://img.shields.io/badge/license-MIT-green)
 
 "Protecting Legacies, Automating Justice."
 
-1. Introduction
+Mirathi (Swahili for Inheritance) is an Intelligent Succession Engine designed to revolutionize how estates are managed in Kenya. It replaces the manual, error-prone role of a legal clerk with a deterministic, rule-based system that understands the Law of Succession Act (Cap 160).
 
-Mirathi (Swahili for Inheritance or Legacy) is an Intelligent Succession Copilot designed to revolutionize how estates are managed and distributed in Kenya.
+Unlike traditional legal apps that passively record data, Mirathi acts as a "Digital Lawyer"—proactively guiding users through compliance, solvency checks, and court readiness.
 
-In the current landscape, the death of a loved one often triggers a second tragedy: a bureaucratic nightmare of lost documents, family feuds, and legal paralysis. The Kenyan court system is overwhelmed with succession cases, many of which stall for years due to simple clerical errors or lack of guidance.
+🛑 The Problem
 
-Mirathi is not just a database; it is a Digital Lawyer. It is a deterministic, rule-based system that understands the Law of Succession Act (Cap 160), the Marriage Act, and the Children Act. It bridges the gap between the messy reality of family life and the rigid requirements of the Judiciary, ensuring that by the time a case reaches the court registry, it is accurate, compliant, and ready for approval.
+The process of transferring assets after death in Kenya is broken:
 
-2. The Problem: The Kenyan Succession Crisis
+The Polygamy Puzzle: Manual distribution among multiple households (Section 40) often leads to errors and disputes.
 
-The process of transferring assets from a deceased person to their heirs in Kenya is broken.
+Procedural Paralysis: 80% of court filings are rejected due to simple clerical errors (e.g., missing Chief's Letter).
 
-🔴 1. The Information Void
+Vulnerable Heirs: Widows and minors are often disinherited because there is no system to enforce Section 29 (Dependant Support).
 
-Most Kenyans die Intestate (without a Will). Families are left guessing what assets exist. This contributes to the estimated KES 50 Billion+ sitting in Unclaimed Financial Assets Authority (UFAA) accounts because heirs simply don’t know the money exists.
+Economic Opacity: Heirs rarely know the true "Net Worth" of an estate, leading to fraud by executors.
 
-🔴 2. The "Polygamy Puzzle" (Section 40)
+💡 The Solution
 
-Kenyan law recognizes polygamous unions, where distribution must happen "By House" (according to each wife). Manual processing of these complex family trees often leads to the exclusion of houses, triggering decades-long court battles.
+Mirathi is architected around three pillars of truth:
 
-🔴 3. Procedural Paralysis
+Family Service: Establishes Biometric & Kinship Truth (Who is related to whom?).
 
-The High Court requires specific forms (P&A 80, P&A 5, P&A 12) filed in a specific order. A single mistake—like forgetting a Chief’s Letter or miscalculating a filing fee—can cause a file to be rejected and stuck in "Pending" for months.
+Estate Service: Establishes Economic Truth (What is the Net Worth?).
 
-🔴 4. Vulnerability of Heirs (Section 26/29)
+Succession Service: Establishes Process Truth (Are we ready for Court?).
 
-In the chaos of death, vulnerable groups (widows and minors) are often disinherited. Without a system to enforce Section 29 (Dependants), greedy relatives can hide assets or exclude children born out of wedlock.
+🏗️ System Architecture
 
-🔴 5. The Cost Barrier
+Mirathi utilizes an Event-Driven Microservices Architecture built with Domain-Driven Design (DDD) principles.
 
-Hiring a lawyer for a standard succession cause costs between KES 50,000 to KES 300,000. This makes justice inaccessible for the average Kenyan family with a small estate.
+code
+Mermaid
+download
+content_copy
+expand_less
+graph TD
+    User((User)) --> Gateway[API Gateway]
+    
+    subgraph "The Intelligence Layer"
+        Gateway --> Auth[Account Service]
+        Gateway --> Family[Family Service]
+        Gateway --> Estate[Estate Service]
+        Gateway --> Succession[Succession Automation]
+        Gateway --> Docs[Document Service]
+    end
+    
+    Family -->|MemberDeceased Event| Estate
+    Estate -->|AssetVerified Event| Succession
+    Succession -->|GrantIssued Event| Estate
+    Docs -->|OCR Data| Estate
+🧩 Service Breakdown
+Service	Responsibility	Key Domain Concepts
+Family Service	Identity & Kinship. Manages the graph of people and legal authority.	PolygamousHouse (S.40), Guardianship (Children Act), DigitalTwin.
+Estate Service	Inventory & Math. The ledger of assets, debts, and testamentary intent.	SolvencyRadar, S45_Priority_Enforcer, S35_Hotchpot_Calculator.
+Succession Service	The Digital Lawyer. Generates court forms and guides the executor.	ReadinessAssessment, ContextDetector, ExecutorRoadmap.
+Document Service	Intelligent Storage. Secure S3 storage with OCR extraction.	SmartUploader, VerificationPipeline.
+🚀 Key Features & Innovations
+1. The Solvency Radar 📡
 
-3. The "What If" Campaign (Our Vision)
+Real-time financial health check. The system calculates (Assets + Cash) - Liabilities instantly.
 
-We built Mirathi to answer these questions:
+Safety Gate: It is programmatically impossible to distribute assets if the estate is insolvent.
 
-What if you didn't need to know the law to follow the law?
+S.45 Enforcer: Prevents payment of low-priority debts (e.g., personal loans) before high-priority debts (e.g., funeral expenses).
 
-What if the system automatically flagged that a minor child was missing a guardian before you tried to file?
+2. The "Context Detector" 🧠
 
-What if family consent (Form P&A 38) could be collected via SMS links instead of dragging 10 siblings to a lawyer's office?
+The system automatically detects the legal regime based on data:
 
-What if the "Math of Inheritance" (Hotchpot and Solvency) was calculated instantly by an engine, eliminating human bias?
+Is there a Will? → Testate Mode (Generates P&A 1).
 
-What if your phone told you exactly what to do next, like a GPS for the court system?
+Is it Polygamous? → Section 40 Mode (Generates House Distribution Schedules).
 
-4. System Objectives
+Is it Islamic? → Kadhi's Court Mode.
 
-Democratize Access: Reduce the cost of succession administration by automating the routine legal work.
+3. Smart Document Processing 📄
 
-Enforce Economic Truth: Provide an irrefutable, audit-trailed inventory of assets and debts to prevent fraud by executors.
+We don't just upload files; we interrogate them.
 
-Protect the Vulnerable: Systematically block any process that excludes minors or dependants (enforcing S.29 and S.71 of the LSA).
+OCR: Automatically extracts "Title Deed Numbers" and "ID Numbers" from scans to fill forms.
 
-Accelerate the Courts: Feed the Judiciary system with "Perfect Files"—applications that are 100% complete and verified, reducing the backlog for judges.
+Validation: A verification workflow ensures documents are legitimate before they enter the legal bundle.
 
-5. The Solution: Three Pillars of Intelligence
+4. The Readiness Score 💯
 
-Mirathi is architected around three distinct domains that mirror the real world.
+A 0-100% score that tells the user exactly how "Court Ready" they are.
 
-🏗️ Pillar 1: Family & Identity (The "Who")
+Missing Death Cert? -40% (Critical)
 
-Function: Establishes the Biometric & Kinship Truth.
+Minor without Guardian? Blocked (Fatal)
 
-Innovation: It explicitly models Polygamous Houses (S.40) and Guardianship Authority (Children Act). It validates identity against national standards ensuring the "John Doe" claiming to be a son is a verified entity.
+Unverified Bank Account? -10% (Warning)
 
-🏗️ Pillar 2: Estate & Inventory (The "Value")
+🛠️ Technology Stack
 
-Function: Establishes the Economic Truth.
+Backend Framework: NestJS (Node.js)
 
-Innovation: A real-time Solvency Radar. It prevents an Executor from distributing money if the estate is insolvent (Debts > Assets). It enforces Section 45 Priority, ensuring funeral expenses are paid before personal loans.
+Language: TypeScript (Strict Mode)
 
-🏗️ Pillar 3: Succession Automation (The "Process")
+Database: PostgreSQL
 
-Function: The Digital Lawyer.
+ORM: Prisma (with PostgreSQL Extensions)
 
-Innovation: It runs a Readiness Assessment. It calculates a "Ready-to-File" score (0-100%). It generates the legal bundle only when the case is legally watertight.
+Architecture: CQRS (Command Query Responsibility Segregation)
 
-6. Core Features
-✅ 1. Legally Compliant Document Preparation
+Communication: RabbitMQ / Redis (Event Bus)
 
-The system does not just "upload" files; it interrogates them.
+Storage: AWS S3 (Encrypted)
 
-Context Detection: The system detects if the case is Islamic (requires Kadhi’s Court forms), Testate (requires Probate), or Small Estate (requires Summary Administration).
+🏁 Getting Started
+Prerequisites
 
-S.35 Hotchpot Calculator: It automatically adjusts inheritance shares based on gifts given during the deceased's lifetime, ensuring mathematical fairness required by law.
+Node.js v18+
 
-✅ 2. Court-Ready Forms Generation
+Docker & Docker Compose
 
-Mirathi eliminates the need for a typist.
+PostgreSQL
 
-The Engine: It pulls data from the Family and Estate services to auto-populate:
+Installation
 
-Form P&A 80: Petition for Letters of Administration.
+Clone the repository
+git clone https://github.com/yourusername/mirathi.git
+cd mirathi
 
-Form P&A 5: Petition for Summary Administration.
+Start Infrastructure (DB, Redis)
 
-Form P&A 12: Affidavit of Means (Assets & Liabilities).
+docker-compose up -d
 
-Form P&A 38: Consent of Household (Digital Signatures).
+Install Dependencies
 
-Result: The user downloads a single, perfect PDF bundle ready for printing or e-filing.
+pnpm install
 
-✅ 3. Decision-Support and Workflow Guidance (The GPS)
+Run Migrations
+npx prisma migrate dev
 
-Succession is a journey. Mirathi provides the map via the Executor Roadmap.
+Start Services
 
-Dynamic Tasks: If the user marks the estate as "Intestate," the system adds a task: "Obtain Letter from Area Chief." If "Testate," it adds: "Validate Will Witnesses."
+pnpm run start:dev
+📜 Legal Compliance
 
-Dependency Locking: The system locks the "Distribute Assets" phase until the "Confirmation of Grant" phase is complete. This prevents illegal intermeddling with estate property.
+This system is built in strict accordance with:
 
-7. Comparative Analysis
-Feature	Traditional Lawyer	eCitizen / E-Filing	Mirathi (Our System)
-Role	Legal Advisor	Digital Mailbox	Digital Copilot
-Cost	High (Hourly/%)	Low (Filing Fees)	Accessible (SaaS)
-Data Entry	Manual Typing	Manual Upload	OCR & Auto-Extraction
-Logic	Human Judgment	None (Passive)	Rule-Based Law Engine
-Guidance	Consultation Calls	None	Real-time Roadmap
-Risk Check	Reactive	None	Proactive (Pre-Filing)
-Math	Manual Calculation	None	Automated Solvency/Hotchpot
-8. Future Roadmap & Extensibility
+The Law of Succession Act (Cap 160) - Laws of Kenya.
 
-Mirathi is built on a microservices architecture, allowing for powerful future integrations:
+The Children Act - Regarding guardianship of minors.
 
-USSD Integration: Allowing rural users to register deaths and give family consent via feature phones (*123#).
+The Marriage Act - Regarding recognition of spouses.
 
-Government Registry API: Direct integration with IPRS (Identity) and Ardhisasa (Lands) to validate Title Deeds in real-time.
+Data Protection Act (2019) - Regarding handling of sensitive family data.
 
-Fintech Integration: "Probate Financing" – lending against the locked assets of the estate to pay for funeral or court fees.
+🤝 Contributing
 
-Blockchain Wills: Storing the hash of a Will on a blockchain to prevent tampering or "lost" wills.
+We welcome contributions from developers, legal tech enthusiasts, and succession experts. Please read CONTRIBUTING.md for details on our code of conduct and the process for submitting pull requests.
 
-AI Sentiment Analysis: Analyzing family chat logs or dispute flags to predict the likelihood of a court objection before it happens.
+📄 License
 
-9. Conclusion
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-Mirathi is not just a convenience tool; it is a structural fix for a systemic problem. By codifying the Law of Succession Act into software, we reduce the burden on the courts, protect vulnerable heirs from disinheritance, and ensure that the legacy of every Kenyan is honored with dignity, speed, and truth.
-![Build](https://img.shields.io/badge/build-passing-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-blue)
+Built with ❤️ for Kenyan Families.
